@@ -51,6 +51,15 @@ function fmtEur(n: number): string {
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
+// Rimuove i caratteri fuori WinAnsi (le StandardFonts non li codificano).
+// I campi utente/AI (client_name, title, item.name, notes, testi template…)
+// arrivano spesso con emoji, frecce o simboli matematici: un solo carattere
+// fuori set fa lanciare drawText e fallire l'INTERO preventivo.
+function winAnsiSafe(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return String(str).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
+}
+
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -288,6 +297,21 @@ Deno.serve(async (req) => {
 
     // ─── Build PDF ───
     const pdfDoc = await PDFDocument.create();
+    // Difesa strutturale WinAnsi: ogni pagina creata (incluse quelle dei salti
+    // pagina e degli allegati) esce con drawText già sanitizzato, così nessun
+    // carattere fuori set può far fallire la generazione. Nessuna modifica al
+    // layout: cambia solo il testo passato a pdf-lib.
+    {
+      const rawAddPage = pdfDoc.addPage.bind(pdfDoc);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pdfDoc.addPage = ((...args: any[]) => {
+        const pg = rawAddPage(...args);
+        const rawDrawText = pg.drawText.bind(pg);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pg.drawText = ((text: string, opts?: any) => rawDrawText(winAnsiSafe(text), opts)) as typeof pg.drawText;
+        return pg;
+      }) as typeof pdfDoc.addPage;
+    }
     const font = await getFont(pdfDoc, t.font_family, "normal");
     const fontBold = await getFont(pdfDoc, t.font_family, "bold");
     const fontItalic = await getFont(pdfDoc, t.font_family, "italic");
@@ -341,7 +365,9 @@ Deno.serve(async (req) => {
       accentStrongC = rgbColor("#F97415");
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const textW = (s: string, size: number, f: any = font) => f.widthOfTextAtSize(s, size);
+    // winAnsiSafe anche qui: widthOfTextAtSize lancia sugli stessi caratteri
+    // non codificabili di drawText.
+    const textW = (s: string, size: number, f: any = font) => f.widthOfTextAtSize(winAnsiSafe(s), size);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const drawRight = (pg: any, s: string, xRight: number, yy: number, size: number, f: any, color: any) =>
       pg.drawText(s, { x: xRight - textW(s, size, f), y: yy, size, font: f, color });
@@ -564,7 +590,7 @@ Deno.serve(async (req) => {
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y: hy, size: 20, font: fontBold, color: headerTextC });
       hy -= 18;
       if (quote.title) {
-        page.drawText(quote.title, { x: margin, y: hy, size: 12, font, color: headerTextC });
+        page.drawText(String(quote.title).slice(0, 82), { x: margin, y: hy, size: 12, font, color: headerTextC });
         hy -= 16;
       }
       if (t.cover_tagline) {
@@ -584,7 +610,7 @@ Deno.serve(async (req) => {
       }
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y, size: 18, font: fontBold, color: textC });
       y -= 18;
-      if (quote.title) { page.drawText(quote.title, { x: margin, y, size: 11, font, color: grayC }); y -= 14; }
+      if (quote.title) { page.drawText(String(quote.title).slice(0, 82), { x: margin, y, size: 11, font, color: grayC }); y -= 14; }
       if (t.cover_tagline) { page.drawText(t.cover_tagline, { x: margin, y, size: 10, font: fontItalic, color: primaryC }); y -= 16; }
     } else if (t.layout === "bold") {
       // Sidebar
@@ -598,7 +624,7 @@ Deno.serve(async (req) => {
       }
       page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC }); y -= 28;
       page.drawText("COMMERCIALE", { x: contentX, y, size: 26, font: fontBold, color: textC }); y -= 24;
-      if (quote.title) { page.drawText(quote.title, { x: contentX, y, size: 11, font, color: grayC }); y -= 14; }
+      if (quote.title) { page.drawText(String(quote.title).slice(0, 82), { x: contentX, y, size: 11, font, color: grayC }); y -= 14; }
       if (t.cover_tagline) { page.drawText(t.cover_tagline, { x: contentX, y, size: 10, font: fontItalic, color: primaryC }); y -= 16; }
     } else {
       // Classic premium (default) — header brand su bianco, barra bicolore,
@@ -614,7 +640,17 @@ Deno.serve(async (req) => {
         page.drawImage(logoEmbed, { x: margin, y: pageHeight - 30 - h, width: w, height: h });
         nameX = margin + w + 12;
       }
-      page.drawText(company?.name || "Azienda", { x: nameX, y: pageHeight - 44, size: 16, font: fontBold, color: primaryC, maxWidth: 255 });
+      // Il nome non deve invadere il blocco contatti (filetto a x=330): larghezza
+      // dinamica rispetto a nameX (che cresce col logo) + troncamento con ellissi.
+      const nameMaxW = 330 - nameX - 10;
+      let companyNameTxt = String(company?.name || "Azienda");
+      if (textW(companyNameTxt, 16, fontBold) > nameMaxW) {
+        while (companyNameTxt.length > 1 && textW(companyNameTxt + "…", 16, fontBold) > nameMaxW) {
+          companyNameTxt = companyNameTxt.slice(0, -1);
+        }
+        companyNameTxt += "…";
+      }
+      page.drawText(companyNameTxt, { x: nameX, y: pageHeight - 44, size: 16, font: fontBold, color: primaryC, maxWidth: nameMaxW });
       if (t.cover_tagline) {
         page.drawText(String(t.cover_tagline).toUpperCase().slice(0, 50), { x: nameX, y: pageHeight - 58, size: 6.5, font: fontBold, color: grayC });
       }
@@ -727,13 +763,14 @@ Deno.serve(async (req) => {
     if (!classicPremium && t.show_client_details) {
       y -= 20;
       page.drawText("DESTINATARIO", { x: boldLeftX, y, size: 10, font: fontBold, color: grayC }); y -= 16;
-      if (quote.client_name) { page.drawText(quote.client_name, { x: boldLeftX, y, size: 11, font: fontBold, color: textC }); y -= 15; }
-      if (quote.client_company) { page.drawText(quote.client_company, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
-      if (quote.client_email) { page.drawText(quote.client_email, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
-      if (quote.client_phone) { page.drawText(quote.client_phone, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
-      if (quote.client_fiscal_code) { page.drawText(`CF: ${quote.client_fiscal_code}`, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
-      if (quote.client_vat_number) { page.drawText(`P.IVA: ${quote.client_vat_number}`, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
-      if (quote.client_address) { page.drawText(quote.client_address, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      // Slice come nel classic: senza, un campo lungo esce dal bordo destro.
+      if (quote.client_name) { page.drawText(String(quote.client_name).slice(0, 60), { x: boldLeftX, y, size: 11, font: fontBold, color: textC }); y -= 15; }
+      if (quote.client_company) { page.drawText(String(quote.client_company).slice(0, 85), { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      if (quote.client_email) { page.drawText(String(quote.client_email).slice(0, 85), { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      if (quote.client_phone) { page.drawText(String(quote.client_phone).slice(0, 85), { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      if (quote.client_fiscal_code) { page.drawText(`CF: ${String(quote.client_fiscal_code).slice(0, 80)}`, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      if (quote.client_vat_number) { page.drawText(`P.IVA: ${String(quote.client_vat_number).slice(0, 80)}`, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
+      if (quote.client_address) { page.drawText(String(quote.client_address).slice(0, 85), { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
     }
 
     // (niente secondo blocco "Oggetto": nel layout classic il titolo è già
@@ -774,7 +811,9 @@ Deno.serve(async (req) => {
       const qtyRight = itemLeftX + itemWidth - 200;
       const umX = qtyRight + 12;
       const priceRight = itemLeftX + itemWidth - 90;
-      const ivaRight = itemLeftX + itemWidth - 52;
+      // IVA a -70 (≈475): lascia 64pt alla colonna TOTALE (i totali riga da
+      // 100.000+ € sono larghi ~50pt) senza invadere PREZZO UNIT. a sinistra.
+      const ivaRight = itemLeftX + itemWidth - 70;
       const totRight = itemLeftX + itemWidth - 6;
 
       const drawTableHeader = () => {
@@ -889,19 +928,25 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Guardia fondo pagina condivisa da totali, box finanziamento, QR e
+      // sezioni finali classic: senza, i blocchi finivano sotto la banda footer.
+      const newPageIfNeeded = (needed: number) => {
+        if (y < needed) {
+          drawWatermark(page);
+          page = pdfDoc.addPage([pageWidth, pageHeight]);
+          y = pageHeight - margin;
+          if (t.layout === "bold") {
+            page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+          }
+        }
+      };
+
       // Totals — blocco a destra, valori allineati a destra, TOTALE su barra colorata
       y -= 12;
       const totBoxW = 220;
       const totX = itemLeftX + itemWidth - totBoxW;
       const totValX = itemLeftX + itemWidth - 6;
-      if (y < 150) {
-        drawWatermark(page);
-        page = pdfDoc.addPage([pageWidth, pageHeight]);
-        y = pageHeight - margin;
-        if (t.layout === "bold") {
-          page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
-        }
-      }
+      newPageIfNeeded(150);
       page.drawLine({ start: { x: totX, y: y + 6 }, end: { x: itemLeftX + itemWidth, y: y + 6 }, thickness: 0.6, color: lightGrayC });
 
       const drawTotal = (label: string, value: string, bold = false) => {
@@ -958,6 +1003,9 @@ Deno.serve(async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fin = quote as any;
       if (fin.financing_monthly_rate != null && fin.financing_num_installments) {
+        // Con sconto + più aliquote IVA il box (56pt + testi) finiva sotto la
+        // banda footer: guardia prima di disegnarlo.
+        newPageIfNeeded(80);
         y -= 10;
         const finBoxX = totX - 10;
         const finBoxW = (totValX + 50) - finBoxX + 10;
@@ -1007,6 +1055,8 @@ Deno.serve(async (req) => {
       // ── QR firma digitale ──────────────────────────────────────────
       if ((quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
+          // QR (55pt) + etichetta: senza guardia usciva dal fondo pagina.
+          newPageIfNeeded(100);
           const siteUrl = branding?.siteUrl || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
           const qr = qrcode(0, "M");
@@ -1040,15 +1090,8 @@ Deno.serve(async (req) => {
       }
 
       // ── Sezioni finali classic: condizioni/tempi/note + firme ──
+      // (riusa la newPageIfNeeded condivisa definita sopra i totali)
       if (classicPremium) {
-        const newPageIfNeeded = (needed: number) => {
-          if (y < needed) {
-            drawWatermark(page);
-            page = pdfDoc.addPage([pageWidth, pageHeight]);
-            y = pageHeight - margin;
-          }
-        };
-
         // Tre colonne informative (solo quelle con contenuto)
         const infoCols: Array<{ label: string; text: string }> = [];
         const payTxt = normalizeTemplateText(t.payment_terms_text);
@@ -1121,14 +1164,24 @@ Deno.serve(async (req) => {
     // Nel classic le note brevi sono già nella colonna NOTE: pagina dedicata
     // solo se il testo è lungo.
     if (t.show_notes && quote.notes && (!classicPremium || String(quote.notes).length > 320)) {
-      page = pdfDoc.addPage([pageWidth, pageHeight]);
-      y = pageHeight - margin;
-      if (t.layout === "bold") {
-        page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+      // Riga per riga con guardia di pagina (stesso pattern di drawRichTextBlock):
+      // il drawText monolitico faceva finire il testo lungo sotto la banda footer.
+      const notesTitle = "NOTE E CONDIZIONI";
+      startContentPage(notesTitle);
+      const noteX = contentLeftX();
+      const noteMaxChars = t.layout === "bold" ? 86 : 96;
+      for (const rawLine of String(quote.notes).substring(0, 2000).split(/\n/)) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+          y -= 8;
+          continue;
+        }
+        for (const line of wrapText(trimmed, noteMaxChars)) {
+          ensureSpace(18, notesTitle);
+          page.drawText(line, { x: noteX, y, size: 9, font, color: textC, maxWidth: contentMaxWidth() });
+          y -= 13;
+        }
       }
-      const nlx = t.layout === "bold" ? 100 : margin;
-      page.drawText("NOTE E CONDIZIONI", { x: nlx, y, size: 12, font: fontBold, color: primaryC }); y -= 25;
-      page.drawText(quote.notes.substring(0, 2000), { x: nlx, y, size: 9, font, color: textC, maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth, lineHeight: 14 });
       drawWatermark(page);
     }
 

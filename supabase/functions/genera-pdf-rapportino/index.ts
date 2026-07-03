@@ -149,11 +149,15 @@ Deno.serve(async (req: Request) => {
       page.drawLine({ start: { x: margin, y: yy }, end: { x: pageW - margin, y: yy }, thickness, color });
 
     // Nuova pagina quando lo spazio non basta (footer occupa i 60pt bassi).
-    const ensureSpace = (needed: number) => {
+    // Ritorna true se ha creato una nuova pagina (per ridisegnare le
+    // intestazioni di tabella al salto pagina).
+    const ensureSpace = (needed: number): boolean => {
       if (y - needed < 70) {
         page = pdfDoc.addPage([pageW, pageH]);
         y = pageH - margin;
+        return true;
       }
+      return false;
     };
 
     // ── Header brand ──────────────────────────────────────────────────────────
@@ -232,7 +236,8 @@ Deno.serve(async (req: Request) => {
       const cx = margin + i * (chipW + chipGap);
       page.drawRectangle({ x: cx, y: y - chipH, width: chipW, height: chipH, color: chipBg, borderColor: lightC, borderWidth: 0.7 });
       drawT(label, cx + 8, y - 14, fontBold, 6.5, mutedC);
-      drawT(truncate(value, 24), cx + 8, y - 30, fontBold, 10, textC);
+      // 18 char max: a 10pt bold ~24 char sforavano il bordo destro del chip
+      drawT(truncate(value, 18), cx + 8, y - 30, fontBold, 10, textC);
     });
     y -= chipH + 18;
 
@@ -263,15 +268,19 @@ Deno.serve(async (req: Request) => {
       const umX = margin + contentW - 105;
       const fonteX = margin + contentW - 60;
 
-      page.drawRectangle({ x: margin, y: y - 4, width: contentW, height: 15, color: primaryC });
-      drawT("Materiale", margin + 5, y, fontBold, 7.5, rgb(1, 1, 1));
-      drawT("Q.tà", qtyX, y, fontBold, 7.5, rgb(1, 1, 1));
-      drawT("U.M.", umX, y, fontBold, 7.5, rgb(1, 1, 1));
-      drawT("Fonte", fonteX, y, fontBold, 7.5, rgb(1, 1, 1));
-      y -= 17;
+      const drawTableHeader = () => {
+        page.drawRectangle({ x: margin, y: y - 4, width: contentW, height: 15, color: primaryC });
+        drawT("Materiale", margin + 5, y, fontBold, 7.5, rgb(1, 1, 1));
+        drawT("Q.tà", qtyX, y, fontBold, 7.5, rgb(1, 1, 1));
+        drawT("U.M.", umX, y, fontBold, 7.5, rgb(1, 1, 1));
+        drawT("Fonte", fonteX, y, fontBold, 7.5, rgb(1, 1, 1));
+        y -= 17;
+      };
+      drawTableHeader();
 
       materiali.forEach((m, idx) => {
-        ensureSpace(16);
+        // Al salto pagina la tabella continua: ridisegna l'intestazione colonne.
+        if (ensureSpace(16)) drawTableHeader();
         if (idx % 2 === 1) {
           page.drawRectangle({ x: margin, y: y - 4, width: contentW, height: 14, color: rgb(0.972, 0.976, 0.984) });
         }
