@@ -84,6 +84,22 @@ function CreateOrderInner() {
   const { data: quotePrefill } = useQuotePrefill(selectedQuoteId);
   const appliedQuoteRef = useRef<string | null>(null);
 
+  // Dati iniziali per il dialog "Nuovo cliente" quando si arriva da un preventivo
+  // (il preventivo ha un unico campo "cliente" → split in nome/cognome).
+  const quoteCustomerInitial = (() => {
+    const c = quotePrefill?.client;
+    if (!c || !c.name.trim()) return undefined;
+    const parts = c.name.trim().split(/\s+/);
+    return {
+      firstName: parts[0] ?? "",
+      lastName: parts.slice(1).join(" "),
+      email: c.email || undefined,
+      phone: c.phone || undefined,
+      address: c.address || undefined,
+      fiscalCode: c.fiscalCode || c.vatNumber || undefined,
+    };
+  })();
+
   // ── react-hook-form ──────────────────────────────────────────
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
@@ -238,6 +254,8 @@ function CreateOrderInner() {
     if (quotePrefill.orderItems.length > 0) setOrderItems(quotePrefill.orderItems);
     // Fasi di pagamento del preventivo → rate della commessa (già compilate).
     if (quotePrefill.installments.length > 0) setInstallments(prefillExpectedDates(quotePrefill.installments));
+    // Contatto del preventivo → apri il dialog "Nuovo cliente" già precompilato (una volta).
+    if (quotePrefill.client.name.trim()) setShowCreateCustomer(true);
   }, [quotePrefill, selectedQuoteId, setValue]);
 
   // Import da preventivo via selettore: se ci sono già righe, chiede conferma
@@ -1013,9 +1031,11 @@ function CreateOrderInner() {
 
       {/* Create Customer Dialog */}
       <CreateCustomerDialog
+        key={quoteCustomerInitial ? `q-${selectedQuoteId}` : "new"}
         open={showCreateCustomer}
         onOpenChange={setShowCreateCustomer}
         onCustomerCreated={handleCustomerCreated}
+        initialValues={quoteCustomerInitial}
       />
     </div>
   );

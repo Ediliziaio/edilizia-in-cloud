@@ -45,12 +45,22 @@ interface CreateCustomerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCustomerCreated: (customerId: string, customerName: string) => void;
+  /** Precompila i campi all'apertura (es. dal contatto di un preventivo). */
+  initialValues?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    fiscalCode?: string;
+  };
 }
 
 export function CreateCustomerDialog({
   open,
   onOpenChange,
   onCustomerCreated,
+  initialValues,
 }: CreateCustomerDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
@@ -58,12 +68,14 @@ export function CreateCustomerDialog({
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled !== false;
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [fiscalCode, setFiscalCode] = useState("");
+  // Init dai valori del contatto (es. preventivo). Il RE-mount via `key` lato
+  // chiamante rifà l'init quando i dati async arrivano → niente effetto/ref.
+  const [firstName, setFirstName] = useState(initialValues?.firstName ?? "");
+  const [lastName, setLastName] = useState(initialValues?.lastName ?? "");
+  const [email, setEmail] = useState(initialValues?.email ?? "");
+  const [phone, setPhone] = useState(initialValues?.phone ?? "");
+  const [address, setAddress] = useState(initialValues?.address ?? "");
+  const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
