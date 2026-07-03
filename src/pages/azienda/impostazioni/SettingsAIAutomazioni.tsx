@@ -158,14 +158,6 @@ interface PermissionResult {
   notes: string | null;
 }
 
-const MODE_LABELS: Record<ActionMode, string> = {
-  disabled: "Disattivata",
-  propose: "Solo proporre",
-  require_confirmation: "Conferma con 1 click",
-  require_strong_confirmation: "Conferma forte (testo)",
-  auto_execute: "Esegui automaticamente",
-};
-
 const MODE_DESCRIPTIONS: Record<ActionMode, string> = {
   disabled: "Silvio non proporrà mai questa azione. L'azione resta accessibile manualmente nei menu dell'app.",
   propose: "Silvio prepara la proposta in chat ma il pulsante \"Esegui\" è disabilitato. Buono per fase di osservazione.",

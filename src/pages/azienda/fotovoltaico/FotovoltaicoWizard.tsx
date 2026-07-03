@@ -3737,8 +3737,8 @@ function Step6Finanziario({
     ? tabelleFinanziamento.find((t) => t.id === data.tabella_finanziamento_id) ?? null
     : null;
   const topAuto = topFinanziamenti[0] ?? null;
-  let rataMensilePrestito = 0;
-  let rataInfoLabel = "";
+  let rataMensilePrestito: number;
+  let rataInfoLabel: string;
   // taegInfoPct riservato per uso futuro (validazione antiusura UI)
   let _taegInfoPct: number | null = null;
   let durataInfoMesi = 0;

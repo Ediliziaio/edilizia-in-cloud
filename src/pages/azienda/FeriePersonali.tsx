@@ -199,8 +199,6 @@ export default function FeriePersonali() {
     ? Math.min(100, ((profilo.rol_residuo_ore ?? 0) / profilo.rol_anno_ore) * 100)
     : 0;
 
-  const tipoRichiestaLabel = TIPI_RICHIESTA.find(t => t.value === form.tipo)?.label ?? form.tipo;
-
   return (
     <div className="space-y-6">
       {/* Header */}

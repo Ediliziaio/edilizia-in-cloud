@@ -219,7 +219,6 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                       <PreviewAreaCard
                         key={area.id}
                         area={area}
-                        template={template}
                         schema={schema}
                         elementTypeByKey={elementTypeByKey}
                         onUpdateData={(k, v) => updateAreaData(area.id, k, v)}
@@ -286,11 +285,10 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
 // ───────────────────────────────────────────────────────────────────────────
 
 function PreviewAreaCard({
-  area, template, schema, elementTypeByKey,
+  area, schema, elementTypeByKey,
   onUpdateData, onAddElement, onUpdateElement, onRemoveElement,
 }: {
   area: PreviewArea;
-  template: SurveyTemplateRow;
   schema: TemplateSchema;
   elementTypeByKey: Map<string, ElementTypeDefinition>;
   onUpdateData: (k: string, v: unknown) => void;

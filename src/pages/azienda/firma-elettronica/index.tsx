@@ -210,7 +210,7 @@ export default function FirmaElettronicaHub() {
       if (tipoDocFilter !== "tutti") q = q.eq("tipo_documento", tipoDocFilter) as typeof q;
 
       const requestTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
-      let feaRows: SignatureRequestBaseRow[] = [];
+      let feaRows: SignatureRequestBaseRow[];
       try {
         // Query PRINCIPALE: l'errore deve propagarsi, così la UI mostra
         // lo stato di errore con il bottone "Riprova caricamento".
@@ -237,10 +237,10 @@ export default function FirmaElettronicaHub() {
       const shouldFetchLegacyQuotes = (tipoDocFilter === "tutti" || tipoDocFilter === "quote") && legacyQuoteStatuses.length > 0;
 
       const optionalTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
-      let orderRows: OrderLite[] = [];
-      let quoteRows: QuoteLite[] = [];
-      let sessioneRows: SessioneLite[] = [];
-      let legacyQuotes: QuoteSignatureRow[] = [];
+      let orderRows: OrderLite[];
+      let quoteRows: QuoteLite[];
+      let sessioneRows: SessioneLite[];
+      let legacyQuotes: QuoteSignatureRow[];
 
       try {
         [orderRows, quoteRows, sessioneRows, legacyQuotes] = await Promise.all([

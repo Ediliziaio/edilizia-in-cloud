@@ -143,7 +143,7 @@ export default function FotovoltaicoDettaglio() {
         if (!res.ok) throw new Error("Errore download preventivo");
         let htmlContent = await res.text();
         if (options?.autoPrint) {
-          htmlContent = htmlContent.replace("</body>", "<script>window.onload=function(){window.print()}<\/script></body>");
+          htmlContent = htmlContent.replace("</body>", "<script>window.onload=function(){window.print()}</script></body>");
         }
         const blob = new Blob([htmlContent], { type: "text/html" });
         const blobUrl = URL.createObjectURL(blob);

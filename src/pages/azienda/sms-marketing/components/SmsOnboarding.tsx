@@ -48,7 +48,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
       }
       setNumeriDisponibili(numeri);
       setStep(3);
-    } catch (err) {
+    } catch {
       setErroreRicerca("Errore nella ricerca. Riprova.");
     }
   };

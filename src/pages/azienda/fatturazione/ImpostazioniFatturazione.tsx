@@ -98,7 +98,6 @@ export default function ImpostazioniFatturazione() {
 
   // Local state for managed lists
   const [aliquote, setAliquote] = useState<AliquotaIva[]>(DEFAULT_ALIQUOTE);
-  const [editAliquota, setEditAliquota] = useState<AliquotaIva | null>(null);
   const [showNewAliquota, setShowNewAliquota] = useState(false);
   const [newAliquota, setNewAliquota] = useState<Partial<AliquotaIva>>({ aliquota: 0, descrizione: "" });
 

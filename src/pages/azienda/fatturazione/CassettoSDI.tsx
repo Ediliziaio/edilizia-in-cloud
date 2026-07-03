@@ -127,7 +127,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
 
   const handleReinvia = async (docId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("invia-sdi", {
+      const { error } = await supabase.functions.invoke("invia-sdi", {
         body: { documento_id: docId },
       });
       if (error) {

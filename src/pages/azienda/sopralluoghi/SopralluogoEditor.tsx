@@ -65,7 +65,6 @@ export default function SopralluogoEditor() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const [headerOpen, setHeaderOpen] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

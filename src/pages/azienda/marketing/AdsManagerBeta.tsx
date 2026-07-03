@@ -271,15 +271,6 @@ interface BuilderState {
   metaLeadForm?: import("@/components/ads/MetaLeadFormBuilder").MetaLeadFormState;
 }
 
-interface CampaignTemplate {
-  id: string;
-  title: string;
-  segment: string;
-  bestFor: string;
-  budgetHint: string;
-  patch: Partial<BuilderState>;
-}
-
 const TABS: Array<{ value: AdsTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { value: "campagne", label: "Campagne", icon: Megaphone },
   { value: "creativita", label: "Creatività", icon: Wand2 },
@@ -458,135 +449,6 @@ const SAMPLE_CAMPAIGNS: CampaignRow[] = [
     source: "google",
     isDemo: true,
     googleCampaignId: "g-demo-pmax-1",
-  },
-];
-
-const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
-  {
-    id: "serramenti",
-    title: "Serramenti",
-    segment: "Infissi, posa, detrazioni",
-    bestFor: "Richieste preventivo con sopralluogo e misure.",
-    budgetHint: "20-35 euro/giorno su provincia o raggio 25 km.",
-    patch: {
-      name: "Serramenti - Preventivi qualificati",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Sopralluogo gratuito e preventivo chiaro per sostituire gli infissi senza sorprese.",
-      dailyBudget: 25,
-      targetCpl: 25,
-      targetOpportunityRate: 35,
-      interests: "ristrutturazione casa, infissi, risparmio energetico, detrazioni fiscali, arredamento",
-      requiredFields: "Nome, telefono, comune, tipo infisso, urgenza",
-      qualityQuestion: "Quando vorresti sostituire gli infissi?",
-      copyBrief: "Serramenti su misura con sopralluogo, consulenza tecnica e preventivo trasparente per famiglie nella zona.",
-      imagePrompt: "Prima/dopo realistico di infissi moderni in una casa italiana luminosa, posa pulita, atmosfera affidabile, formato Meta Ads 4:5.",
-    },
-  },
-  {
-    id: "bagni",
-    title: "Bagni",
-    segment: "Ristrutturazione bagno",
-    bestFor: "Lead che vogliono capire tempi, costo e soluzione.",
-    budgetHint: "25-45 euro/giorno, meglio con foto prima/dopo.",
-    patch: {
-      name: "Bagni - Ristrutturazione chiavi in mano",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Consulenza gratuita per trasformare il bagno con tempi chiari, materiali adatti e preventivo senza sorprese.",
-      dailyBudget: 30,
-      targetCpl: 30,
-      targetOpportunityRate: 32,
-      interests: "ristrutturazione bagno, arredo bagno, casa, interior design, piastrelle",
-      requiredFields: "Nome, telefono, comune, stato del bagno, budget indicativo",
-      qualityQuestion: "Hai già una data o un periodo in cui vuoi iniziare i lavori?",
-      copyBrief: "Ristrutturazione bagno chiavi in mano con consulenza, materiali e preventivo trasparente.",
-      imagePrompt: "Bagno moderno italiano prima/dopo, doccia walk-in, materiali eleganti, luce naturale, risultato realistico e premium.",
-    },
-  },
-  {
-    id: "ristrutturazioni",
-    title: "Ristrutturazioni",
-    segment: "Casa, appartamenti, interni",
-    bestFor: "Interventi medio-grandi da qualificare prima del sopralluogo.",
-    budgetHint: "30-60 euro/giorno con domanda su budget e urgenza.",
-    patch: {
-      name: "Ristrutturazioni - Sopralluoghi qualificati",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Analisi gratuita del progetto con stima iniziale, priorità dei lavori e prossimo passo operativo.",
-      dailyBudget: 35,
-      targetCpl: 38,
-      targetOpportunityRate: 30,
-      interests: "ristrutturazione casa, edilizia, interior design, nuova casa, mutuo, architettura",
-      requiredFields: "Nome, telefono, comune, tipo intervento, budget indicativo, urgenza",
-      qualityQuestion: "Che tipo di immobile devi ristrutturare?",
-      copyBrief: "Ristrutturazioni casa con sopralluogo qualificato, stima iniziale e gestione chiara dei lavori.",
-      imagePrompt: "Cantiere interno pulito in appartamento italiano, professionisti al lavoro, render leggero del risultato finale, tono affidabile.",
-    },
-  },
-  {
-    id: "fotovoltaico",
-    title: "Fotovoltaico",
-    segment: "Impianti e risparmio energetico",
-    bestFor: "Lead interessati a risparmio, bollette e sopralluogo.",
-    budgetHint: "20-40 euro/giorno con domanda su consumi o tetto.",
-    patch: {
-      name: "Fotovoltaico - Consulenze locali",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Valutazione gratuita per capire se il fotovoltaico conviene davvero in base a tetto, consumi e obiettivi.",
-      dailyBudget: 28,
-      targetCpl: 28,
-      targetOpportunityRate: 34,
-      interests: "fotovoltaico, energia solare, risparmio energetico, bollette, casa indipendente",
-      requiredFields: "Nome, telefono, comune, tipo immobile, consumo indicativo",
-      qualityQuestion: "Hai un tetto di proprietà disponibile?",
-      copyBrief: "Consulenza fotovoltaico locale con valutazione realistica di convenienza e prossimo passo tecnico.",
-      imagePrompt: "Tetto italiano con pannelli fotovoltaici moderni, tecnico in sicurezza, luce naturale, famiglia soddisfatta, stile realistico.",
-    },
-  },
-  {
-    id: "tetti",
-    title: "Tetti e facciate",
-    segment: "Impermeabilizzazioni, coperture",
-    bestFor: "Richieste urgenti o lavori stagionali ad alto valore.",
-    budgetHint: "25-50 euro/giorno con messaggio su sicurezza e tempi.",
-    patch: {
-      name: "Tetti e facciate - Sopralluoghi",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Sopralluogo tecnico per capire stato del tetto o facciata, urgenze e preventivo con priorità chiare.",
-      dailyBudget: 32,
-      targetCpl: 35,
-      targetOpportunityRate: 30,
-      interests: "ristrutturazione tetto, facciate, impermeabilizzazione, manutenzione casa, edilizia",
-      requiredFields: "Nome, telefono, comune, tipo problema, urgenza",
-      qualityQuestion: "Il problema è urgente o programmabile?",
-      copyBrief: "Interventi su tetti e facciate con sopralluogo tecnico, priorità dei lavori e preventivo chiaro.",
-      imagePrompt: "Operai edili su tetto italiano in sicurezza, facciata curata, dettaglio materiali, stile professionale e realistico.",
-    },
-  },
-  {
-    id: "manutenzione",
-    title: "Manutenzione",
-    segment: "Piccoli lavori e pronto intervento",
-    bestFor: "Volume controllato di richieste locali rapide.",
-    budgetHint: "10-25 euro/giorno, utile per riempire agenda.",
-    patch: {
-      name: "Manutenzione - Richieste locali",
-      objective: "OUTCOME_LEADS",
-      conversionPlace: "instant_form",
-      offer: "Contatto rapido per valutare il lavoro, dare una prima indicazione e fissare l'intervento se necessario.",
-      dailyBudget: 18,
-      targetCpl: 18,
-      targetOpportunityRate: 25,
-      interests: "manutenzione casa, riparazioni, edilizia, ristrutturazione, casa",
-      requiredFields: "Nome, telefono, comune, tipo intervento, foto se disponibile",
-      qualityQuestion: "Che intervento ti serve?",
-      copyBrief: "Manutenzioni edili locali con risposta rapida, valutazione del problema e intervento organizzato.",
-      imagePrompt: "Tecnico edile professionale in casa italiana, strumenti ordinati, intervento di manutenzione, atmosfera affidabile.",
-    },
   },
 ];
 
@@ -796,12 +658,6 @@ function isValidHttpsUrl(value: string | null | undefined): boolean {
   } catch {
     return false;
   }
-}
-
-/** FIX P1: regex email semplificata RFC-like (no edge cases esotici). */
-function isValidEmail(value: string | null | undefined): boolean {
-  if (!value || typeof value !== "string") return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 }
 
 /** Clamp numeric input nel range Meta consentito. */
@@ -3323,7 +3179,6 @@ function CampaignBuilderTab({
     }
     return base;
   });
-  const { generateCopy, isGeneratingCopy } = useAdsAi(companyId);
   const totalDailyBudget = getCampaignDailyBudget(state);
   const dailyBudgetCents = totalDailyBudget * 100;
   const overApprovalLimit = totalDailyBudget > 30;
@@ -3388,23 +3243,6 @@ function CampaignBuilderTab({
 
   const update = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const applyTemplate = (template: CampaignTemplate) => {
-    setState((prev) => {
-      const next = {
-        ...prev,
-        ...template.patch,
-        templateId: template.id,
-      };
-      return {
-        ...next,
-        copyVariants: buildCopyVariants(next),
-        adSets: buildDefaultAdSets(next),
-        creatives: buildDefaultCreatives(next),
-      };
-    });
-    toast.success(`${template.title} impostato`, { description: "Ho preparato offerta, pubblico, modulo e prompt creativi di partenza." });
   };
 
   const updateAdSet = <K extends keyof CampaignAdSet>(id: string, key: K, value: CampaignAdSet[K]) => {
@@ -3481,42 +3319,6 @@ function CampaignBuilderTab({
 
   const removeCreative = (id: string) => {
     setState((prev) => ({ ...prev, creatives: prev.creatives.filter((creative) => creative.id !== id) }));
-  };
-
-  /**
-   * Rigenera copy via AI (ai-ads-copy-generate edge fn).
-   * Fallback: se l'AI fallisce o non è disponibile, usa il generatore template locale.
-   */
-  const regenerateCopy = async () => {
-    const aiResult = await generateCopy({
-      brief: state.copyBrief || state.offer || "campagna edilizia locale",
-      segment: state.templateId,
-      zone: state.zone,
-      offer: state.offer,
-      tone: "professionale",
-      variants: 5,
-    });
-    if (aiResult?.copy_variants && aiResult.copy_variants.length > 0) {
-      setState((prev) => ({
-        ...prev,
-        copyVariants: aiResult.copy_variants,
-        // Se l'AI ha suggerito nuovi image prompts, usa il primo come fallback nel campo principale
-        imagePrompt: aiResult.image_prompts?.[0] && !prev.imagePrompt
-          ? aiResult.image_prompts[0]
-          : prev.imagePrompt,
-      }));
-      const cost = aiResult.cost_eur_cents
-        ? ` (costo ${(aiResult.cost_eur_cents / 100).toFixed(3)}€)`
-        : "";
-      toast.success(`${aiResult.copy_variants.length} copy AI generati${cost}`, {
-        description: aiResult.warnings && aiResult.warnings.length > 0
-          ? `Attenzione: ${aiResult.warnings[0]}`
-          : "Modificali prima di salvare la bozza.",
-      });
-    } else {
-      // Fallback template locale (AI non disponibile o errore già notificato da hook)
-      setState((prev) => ({ ...prev, copyVariants: buildCopyVariants(prev) }));
-    }
   };
 
   return (
@@ -4432,191 +4234,6 @@ function ReadinessBanner({ readiness }: { readiness: ReturnType<typeof getReadin
             </Button>
           )}
         </>
-      )}
-    </div>
-  );
-}
-
-function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSelect: (template: CampaignTemplate) => void }) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-slate-950">Parti da un modello edile</p>
-        <p className="text-xs text-slate-500">Scegli il settore: il sistema prepara offerta, modulo, pubblico e prompt creativi.</p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {CAMPAIGN_TEMPLATES.map((template) => {
-          const selected = selectedId === template.id;
-          return (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => onSelect(template)}
-              className={cn(
-                "rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm",
-                selected ? "border-orange-300 bg-orange-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300",
-              )}
-            >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-950">{template.title}</p>
-                  <p className="text-xs text-slate-500">{template.segment}</p>
-                </div>
-                {selected && (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white">
-                    <Check className="h-3.5 w-3.5" />
-                  </span>
-                )}
-              </div>
-              <p className="text-sm leading-relaxed text-slate-600">{template.bestFor}</p>
-              <p className="mt-3 rounded-lg bg-white/70 p-2 text-xs font-medium text-slate-700">{template.budgetHint}</p>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * PlatformSelector — sceglie tra Meta (Facebook/Instagram) e Google Ads.
- *
- * Meta è l'opzione predefinita (più semplice per imprese edili locali).
- * Google ha sotto-selector di canale (SEARCH/DISPLAY/VIDEO/PMAX).
- */
-function PlatformSelector({
-  value,
-  googleChannel,
-  onChange,
-}: {
-  value: "meta" | "google";
-  googleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX";
-  onChange: (
-    platform: "meta" | "google",
-    googleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX",
-  ) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-slate-950">Su quale piattaforma vuoi pubblicare?</p>
-        <p className="text-xs text-slate-500">
-          Inizia da Meta per lead locali. Google Ads quando hai brand riconoscibile o servizi cercati esplicitamente.
-        </p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => onChange("meta")}
-          className={cn(
-            "rounded-2xl border p-4 text-left transition",
-            value === "meta"
-              ? "border-blue-300 bg-blue-50 ring-2 ring-blue-200"
-              : "border-slate-200 bg-white hover:border-slate-300",
-          )}
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
-                <Megaphone className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-950">Meta Ads</p>
-                <p className="text-[11px] text-slate-500">Facebook + Instagram</p>
-              </div>
-            </div>
-            {value === "meta" && (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                <Check className="h-3.5 w-3.5" />
-              </span>
-            )}
-          </div>
-          <p className="text-xs leading-relaxed text-slate-600">
-            Lead form nativo, targeting per zona/interesse. Ideale per nuovi clienti che ancora non ti conoscono.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Badge variant="outline" className="border-blue-200 bg-white text-[10px] text-blue-700">
-              Pronto
-            </Badge>
-            <Badge variant="outline" className="border-emerald-200 bg-white text-[10px] text-emerald-700">
-              AI completo
-            </Badge>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onChange("google", googleChannel ?? "SEARCH")}
-          className={cn(
-            "rounded-2xl border p-4 text-left transition",
-            value === "google"
-              ? "border-amber-300 bg-amber-50 ring-2 ring-amber-200"
-              : "border-slate-200 bg-white hover:border-slate-300",
-          )}
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                <Target className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-950">Google Ads</p>
-                <p className="text-[11px] text-slate-500">Search · Display · YouTube · PMax</p>
-              </div>
-            </div>
-            {value === "google" && (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white">
-                <Check className="h-3.5 w-3.5" />
-              </span>
-            )}
-          </div>
-          <p className="text-xs leading-relaxed text-slate-600">
-            Cattura chi cerca attivamente "ristrutturazione bagno Milano". Intent alto, costi più variabili.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Badge variant="outline" className="border-amber-200 bg-white text-[10px] text-amber-700">
-              Beta limitata
-            </Badge>
-            <Badge variant="outline" className="border-slate-200 bg-white text-[10px] text-slate-500">
-              OAuth da configurare
-            </Badge>
-          </div>
-        </button>
-      </div>
-
-      {/* Sotto-selector canale per Google */}
-      {value === "google" && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase text-amber-800">Canale Google Ads</p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(
-              [
-                { v: "SEARCH" as const, label: "Search", desc: "Annunci testuali in alto su Google" },
-                { v: "DISPLAY" as const, label: "Display", desc: "Banner su siti partner GDN" },
-                { v: "VIDEO" as const, label: "Video", desc: "YouTube preroll e in-feed" },
-                { v: "PERFORMANCE_MAX" as const, label: "PMax", desc: "AI-driven multi-canale" },
-              ]
-            ).map((c) => (
-              <button
-                key={c.v}
-                type="button"
-                onClick={() => onChange("google", c.v)}
-                className={cn(
-                  "rounded-lg border p-2 text-left",
-                  googleChannel === c.v
-                    ? "border-amber-400 bg-white shadow-sm"
-                    : "border-slate-200 bg-white/60 hover:bg-white",
-                )}
-              >
-                <p className="text-sm font-semibold text-slate-950">{c.label}</p>
-                <p className="text-[10px] leading-tight text-slate-500">{c.desc}</p>
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-amber-800">
-            <strong>Nota beta:</strong> Google Ads richiede OAuth + Developer Token Google (approval 1-3gg). Per ora le bozze restano locali — la pubblicazione live arriverà in iterazione successiva.
-          </p>
-        </div>
       )}
     </div>
   );
@@ -6765,7 +6382,6 @@ function CampaignDetailEditor({
   companyName,
   companyId,
   onUpdate,
-  onEditFull,
   onCreateVariant,
 }: {
   draft: LocalCampaignDraft;

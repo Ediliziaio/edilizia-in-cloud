@@ -309,7 +309,7 @@ export default function SettingsTeams() {
       if (error) throw error;
       return data as string | null;
     },
-    onSuccess: (userId, teamId) => {
+    onSuccess: (userId) => {
       if (!userId) {
         toast.info("Nessun membro nel team per l'assegnazione");
         return;

@@ -1055,7 +1055,6 @@ const TRAIT_MACRO: Record<TraitCode, "ESSERE" | "FARE" | "AVERE" | "INDICATOR" |
 
 function ReportTraitsPanel({ report }: { report: TalentReport }) {
   const traits = (report.traits_v5 || {}) as Record<string, number>;
-  const max = 100;
   const groups: { label: string; code: "ESSERE" | "FARE" | "AVERE" | "INDICATOR" }[] = [
     { label: "Essere — concentrazione obiettivi", code: "ESSERE" },
     { label: "Fare — azione concreta", code: "FARE" },
