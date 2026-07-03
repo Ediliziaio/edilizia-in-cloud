@@ -10,7 +10,7 @@ import { PROFILI_TIPO_V5_EXTENDED } from "../lib/profiloTipoV5Extended";
 import type { CachedDerivedReport } from "../lib/reportCache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, BrainCircuit, Compass, Heart, Lightbulb, ShieldAlert } from "lucide-react";
+import { BrainCircuit, Compass, Heart, Lightbulb, ShieldAlert } from "lucide-react";
 
 const SEVERITY_TONE: Record<string, { bg: string; border: string; text: string; label: string }> = {
   RED: { bg: "bg-red-50", border: "border-red-200", text: "text-red-800", label: "Critica" },
@@ -274,6 +274,3 @@ export function RichReportSections({ candidate, traits, syndromes, profileType, 
     </div>
   );
 }
-
-// Helper for AlertTriangle export to silence unused import linter if branch never renders
-export const _unused = AlertTriangle;

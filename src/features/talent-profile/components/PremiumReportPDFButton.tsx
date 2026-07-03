@@ -10,9 +10,8 @@ import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-// 2026-05-27 (perf fix P0): import dinamici al primo click — vedi nota in
-// PDFExportButton.tsx. Risparmio chunk TabSelezioni:
-// jspdf (~426KB) + html2canvas (~200KB) = ~620KB lazy-loaded.
+// 2026-05-27 (perf fix P0): jspdf (~426KB) + html2canvas (~200KB) importati
+// dinamicamente al primo click, così non pesano sul chunk di TabSelezioni.
 import { PremiumReportPDF, PremiumReportPDFProps } from './PremiumReportPDF';
 import { TraitCode, TRAIT_LABELS } from '../types';
 import type { ProfiloTipoV5, ReliabilityIndex } from '../types';
