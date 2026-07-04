@@ -169,10 +169,16 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       const { data, error } = await supabase.functions.invoke("catalog-import-batch", { body: payload });
       setProgress(90);
       if (error) throw error;
-      const inserted = (data as { inserted?: number } | null)?.inserted ?? validRows.length;
+      const importResult = data as { inserted?: number; updated?: number } | null;
+      const inserted = importResult?.inserted ?? validRows.length;
+      const updated = importResult?.updated ?? 0;
       setProgress(100);
-      toast.success(`Importati ${inserted} record dal listino AI`);
-      onComplete?.(inserted);
+      toast.success(
+        updated > 0
+          ? `Importati ${inserted} nuovi record dal listino AI · ${updated} aggiornati`
+          : `Importati ${inserted} record dal listino AI`,
+      );
+      onComplete?.(inserted + updated);
       setResult(null);
       setRows([]);
       setFile(null);

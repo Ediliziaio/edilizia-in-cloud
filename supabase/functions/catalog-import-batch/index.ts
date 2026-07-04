@@ -16,8 +16,14 @@
  *   - product.supplier  → suppliers.name
  *   - tariffa.categoria → mapping su tipo (posa/trasporto/tiro_piano/smaltimento/nolo/pratica/altro)
  *
+ * Dedup su re-import:
+ *   - product → match su sku (se presente) o name esistente → UPDATE, non insert
+ *   - family  → match su nome (stesso scope dell'indice parziale) → UPDATE campi da file
+ *   - tariffa → match su nome → UPDATE prezzi/descrizione
+ *   Righe duplicate nello stesso file vengono scartate (skipped + errore visibile).
+ *
  * Output:
- *   { inserted: number, skipped: number, errors: Array<{row: number, error: string}> }
+ *   { inserted: number, updated: number, skipped: number, errors: Array<{row: number, error: string}> }
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -33,8 +39,32 @@ interface ImportPayload {
 
 interface ImportResult {
   inserted: number;
+  updated: number;
   skipped: number;
   errors: Array<{ row: number; error: string }>;
+}
+
+/** Esegue update per-riga con concorrenza limitata (evita timeout su batch grandi). */
+async function runUpdates(
+  updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }>,
+  res: ImportResult,
+  concurrency = 10,
+): Promise<void> {
+  for (let i = 0; i < updates.length; i += concurrency) {
+    const group = updates.slice(i, i + concurrency);
+    const outcomes = await Promise.all(group.map(async (u) => {
+      const { error } = await u.run();
+      return { row: u.row, error };
+    }));
+    for (const o of outcomes) {
+      if (o.error) {
+        res.skipped++;
+        res.errors.push({ row: o.row, error: `aggiornamento fallito: ${o.error.message}` });
+      } else {
+        res.updated++;
+      }
+    }
+  }
 }
 
 // Mapping tariffa "categoria" (input libero) → enum tipo richiesto dal DB
@@ -121,9 +151,26 @@ async function importProducts(
 ): Promise<ImportResult> {
   const supplierMap = await loadSupplierMap(supabaseAdmin, companyId);
   const familyMap = await loadFamilyMap(supabaseAdmin, companyId);
-  const res: ImportResult = { inserted: 0, skipped: 0, errors: [] };
+  const res: ImportResult = { inserted: 0, updated: 0, skipped: 0, errors: [] };
+
+  // Articoli esistenti: match per sku (prioritario) o name, case-insensitive.
+  // NB: esiste anche il vincolo UNIQUE(company_id, name) — senza questo pre-match
+  // un solo duplicato faceva fallire l'intero chunk da 100 insert.
+  const { data: existing, error: exErr } = await supabaseAdmin
+    .from("article_templates")
+    .select("id, name, sku")
+    .eq("company_id", companyId);
+  if (exErr) throw exErr;
+  const bySku = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const e of existing ?? []) {
+    if (e.sku) bySku.set(String(e.sku).toLowerCase().trim(), e.id);
+    if (e.name) byName.set(String(e.name).toLowerCase().trim(), e.id);
+  }
 
   const inserts: any[] = [];
+  const updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }> = [];
+  const seenInFile = new Set<string>();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const name = str(r.name);
@@ -132,12 +179,22 @@ async function importProducts(
       res.errors.push({ row: i + 1, error: "name mancante" });
       continue;
     }
+    const sku = str(r.code);
+    const skuKey = sku ? `sku:${sku.toLowerCase()}` : null;
+    const nameKey = `name:${name.toLowerCase().trim()}`;
+    if ((skuKey && seenInFile.has(skuKey)) || seenInFile.has(nameKey)) {
+      res.skipped++;
+      res.errors.push({ row: i + 1, error: `duplicato nel file: "${sku ?? name}" — riga ignorata` });
+      continue;
+    }
+    if (skuKey) seenInFile.add(skuKey);
+    seenInFile.add(nameKey);
+
     const supplierName = str(r.supplier);
     const familyName = str(r.family);
-    inserts.push({
-      company_id: companyId,
+    const payload: Record<string, unknown> = {
       name,
-      sku: str(r.code),
+      sku,
       description: str(r.name),
       category: str(r.category),
       family_id: familyName ? familyMap.get(familyName.toLowerCase()) ?? null : null,
@@ -153,11 +210,20 @@ async function importProducts(
         .filter(Boolean)
         .join(" · ") || null,
       custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
-      modalita_prezzo: "fisso",
-      attivo: true,
-    });
+    };
+
+    const existingId = (skuKey ? bySku.get(sku!.toLowerCase().trim()) : undefined)
+      ?? byName.get(name.toLowerCase().trim());
+    if (existingId) {
+      // Non tocca modalita_prezzo/attivo dell'articolo esistente
+      updates.push({
+        row: i + 1,
+        run: () => supabaseAdmin.from("article_templates").update(payload).eq("id", existingId),
+      });
+    } else {
+      inserts.push({ ...payload, company_id: companyId, modalita_prezzo: "fisso", attivo: true });
+    }
   }
-  if (!inserts.length) return res;
 
   // Batch insert in chunks da 100
   for (let i = 0; i < inserts.length; i += 100) {
@@ -170,6 +236,7 @@ async function importProducts(
       res.inserted += chunk.length;
     }
   }
+  await runUpdates(updates, res);
   return res;
 }
 
@@ -179,9 +246,28 @@ async function importFamilies(
   rows: Array<Record<string, unknown>>,
 ): Promise<ImportResult> {
   const supplierMap = await loadSupplierMap(supabaseAdmin, companyId);
-  const res: ImportResult = { inserted: 0, skipped: 0, errors: [] };
+  const res: ImportResult = { inserted: 0, updated: 0, skipped: 0, errors: [] };
+
+  // Famiglie esistenti nello stesso scope dell'indice parziale
+  // (company, vertical=generico, attive, non cancellate, senza categoria):
+  // senza pre-match l'insert violava l'unique e scartava l'intero chunk.
+  const { data: existing, error: exErr } = await supabaseAdmin
+    .from("article_families")
+    .select("id, nome")
+    .eq("company_id", companyId)
+    .eq("vertical", "generico")
+    .eq("attivo", true)
+    .is("deleted_at", null)
+    .is("categoria_id", null);
+  if (exErr) throw exErr;
+  const byNome = new Map<string, string>();
+  for (const e of existing ?? []) {
+    if (e.nome) byNome.set(String(e.nome).toLowerCase().trim(), e.id);
+  }
 
   const inserts: any[] = [];
+  const updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }> = [];
+  const seenInFile = new Set<string>();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const nome = str(r.name);
@@ -190,19 +276,41 @@ async function importFamilies(
       res.errors.push({ row: i + 1, error: "name mancante" });
       continue;
     }
+    const nomeKey = nome.toLowerCase().trim();
+    if (seenInFile.has(nomeKey)) {
+      res.skipped++;
+      res.errors.push({ row: i + 1, error: `duplicato nel file: "${nome}" — riga ignorata` });
+      continue;
+    }
+    seenInFile.add(nomeKey);
+
     const supplierName = str(r.supplier);
-    inserts.push({
-      company_id: companyId,
-      nome,
-      descrizione: str(r.description),
-      supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
-      modalita_prezzo_base: "fisso",
-      vertical: "generico",
-      attivo: true,
-      custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
-    });
+    const existingId = byNome.get(nomeKey);
+    if (existingId) {
+      // Aggiorna solo i campi che arrivano dal file — non tocca
+      // modalita_prezzo_base (potrebbe essere una famiglia a griglia)
+      const payload = {
+        descrizione: str(r.description),
+        supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
+        custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
+      };
+      updates.push({
+        row: i + 1,
+        run: () => supabaseAdmin.from("article_families").update(payload).eq("id", existingId),
+      });
+    } else {
+      inserts.push({
+        company_id: companyId,
+        nome,
+        descrizione: str(r.description),
+        supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
+        modalita_prezzo_base: "fisso",
+        vertical: "generico",
+        attivo: true,
+        custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
+      });
+    }
   }
-  if (!inserts.length) return res;
 
   for (let i = 0; i < inserts.length; i += 100) {
     const chunk = inserts.slice(i, i + 100);
@@ -214,6 +322,7 @@ async function importFamilies(
       res.inserted += chunk.length;
     }
   }
+  await runUpdates(updates, res);
   return res;
 }
 
@@ -222,9 +331,23 @@ async function importTariffe(
   companyId: string,
   rows: Array<Record<string, unknown>>,
 ): Promise<ImportResult> {
-  const res: ImportResult = { inserted: 0, skipped: 0, errors: [] };
+  const res: ImportResult = { inserted: 0, updated: 0, skipped: 0, errors: [] };
+
+  // Nessun vincolo unique su tariffe_aziendali: senza pre-match ogni
+  // re-import duplicava tutte le tariffe. Match per nome case-insensitive.
+  const { data: existing, error: exErr } = await supabaseAdmin
+    .from("tariffe_aziendali")
+    .select("id, nome")
+    .eq("company_id", companyId);
+  if (exErr) throw exErr;
+  const byNome = new Map<string, string>();
+  for (const e of existing ?? []) {
+    if (e.nome) byNome.set(String(e.nome).toLowerCase().trim(), e.id);
+  }
 
   const inserts: any[] = [];
+  const updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }> = [];
+  const seenInFile = new Set<string>();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const nome = str(r.nome);
@@ -233,19 +356,32 @@ async function importTariffe(
       res.errors.push({ row: i + 1, error: "nome mancante" });
       continue;
     }
-    inserts.push({
-      company_id: companyId,
-      nome,
+    const nomeKey = nome.toLowerCase().trim();
+    if (seenInFile.has(nomeKey)) {
+      res.skipped++;
+      res.errors.push({ row: i + 1, error: `duplicato nel file: "${nome}" — riga ignorata` });
+      continue;
+    }
+    seenInFile.add(nomeKey);
+
+    const payload = {
       descrizione: str(r.descrizione) ?? str(r.qualifica),
       tipo: mapTariffaTipo(str(r.categoria)),
-      unita: "h",
       prezzo_costo: num(r.costo_orario) ?? 0,
       prezzo_vendita: num(r.prezzo_orario) ?? 0,
       categoria_prodotto: str(r.qualifica) ?? str(r.ccnl),
       custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
-    });
+    };
+    const existingId = byNome.get(nomeKey);
+    if (existingId) {
+      updates.push({
+        row: i + 1,
+        run: () => supabaseAdmin.from("tariffe_aziendali").update(payload).eq("id", existingId),
+      });
+    } else {
+      inserts.push({ ...payload, company_id: companyId, nome, unita: "h" });
+    }
   }
-  if (!inserts.length) return res;
 
   for (let i = 0; i < inserts.length; i += 100) {
     const chunk = inserts.slice(i, i + 100);
@@ -257,6 +393,7 @@ async function importTariffe(
       res.inserted += chunk.length;
     }
   }
+  await runUpdates(updates, res);
   return res;
 }
 
@@ -287,7 +424,7 @@ serve(async (req: Request) => {
       return errorResponse("Payload non valido", 400, corsHeaders);
     }
     if (payload.rows.length === 0) {
-      return jsonResponse({ inserted: 0, skipped: 0, errors: [] }, 200, corsHeaders);
+      return jsonResponse({ inserted: 0, updated: 0, skipped: 0, errors: [] }, 200, corsHeaders);
     }
     if (payload.rows.length > 5000) {
       return errorResponse("Troppe righe in un singolo batch (max 5000)", 400, corsHeaders);

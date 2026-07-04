@@ -127,9 +127,15 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       setProgress(90);
       if (error) throw error;
       setProgress(100);
-      const inserted = (data as { inserted?: number } | null)?.inserted ?? validRows.length;
-      toast.success(`Importati ${inserted} record`);
-      onComplete?.(inserted);
+      const result = data as { inserted?: number; updated?: number } | null;
+      const inserted = result?.inserted ?? validRows.length;
+      const updated = result?.updated ?? 0;
+      toast.success(
+        updated > 0
+          ? `Importati ${inserted} nuovi record · ${updated} aggiornati`
+          : `Importati ${inserted} record`,
+      );
+      onComplete?.(inserted + updated);
       // Reset
       setStep(1);
       setFile(null);
