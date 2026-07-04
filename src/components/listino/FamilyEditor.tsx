@@ -759,7 +759,13 @@ export function FamilyEditor() {
       modalita_prezzo_base: modalita,
       unit_of_measure: unitOfMeasure,
       vat_rate,
-      vat_rate_acquisto,
+      // M-W (audit): in modalità vendita il campo IVA acquisto non è esposto
+      // nel form — riscriverlo con vat_rate perdeva il valore configurato in
+      // acquisto_markup. In update lo tocchiamo solo quando è visibile; in
+      // creazione lo scriviamo comunque (colonna NOT NULL DEFAULT 22).
+      ...(prezzoBaseMode === "acquisto_markup" || isNew
+        ? { vat_rate_acquisto }
+        : {}),
       griglia_asse_x_label: grigliaXLabel,
       griglia_asse_y_label: grigliaYLabel,
       prezzo_base_mode: prezzoBaseMode,
