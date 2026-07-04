@@ -453,14 +453,16 @@ export function FamilyEditor() {
   // al salvataggio che alla preview inline.
   const prezzoVenditaCalcolato = useMemo(
     () =>
+      // parseDecimalField, non parseFloat: "10,5" deve valere 10.5, non 10.
+      // Questo valore viene PERSISTITO in prezzo_base_vendita al salvataggio.
       resolvePrezzoVendita({
         prezzoBaseMode,
-        prezzoVenditaInput: parseFloat(prezzoVendita) || 0,
-        prezzoAcquistoInput: parseFloat(prezzoAcquisto) || 0,
+        prezzoVenditaInput: parseDecimalField(prezzoVendita) || 0,
+        prezzoAcquistoInput: parseDecimalField(prezzoAcquisto) || 0,
         markupTipo,
-        markupValore: parseFloat(markupValore) || 0,
-        scontoFornitore1: parseFloat(scontoFornitore1) || 0,
-        scontoFornitore2: parseFloat(scontoFornitore2) || 0,
+        markupValore: parseDecimalField(markupValore) || 0,
+        scontoFornitore1: parseDecimalField(scontoFornitore1) || 0,
+        scontoFornitore2: parseDecimalField(scontoFornitore2) || 0,
       }),
     [
       prezzoBaseMode,
@@ -477,15 +479,15 @@ export function FamilyEditor() {
   // torna il lordo invariato (retrocompat: input era già netto).
   const acquistoNetto = useMemo(() => {
     if (prezzoBaseMode !== "acquisto_markup") return 0;
-    const lordo = parseFloat(prezzoAcquisto) || 0;
-    const s1 = parseFloat(scontoFornitore1) || 0;
-    const s2 = parseFloat(scontoFornitore2) || 0;
+    const lordo = parseDecimalField(prezzoAcquisto) || 0;
+    const s1 = parseDecimalField(scontoFornitore1) || 0;
+    const s2 = parseDecimalField(scontoFornitore2) || 0;
     return s1 > 0 || s2 > 0 ? applyScontiFornitore(lordo, s1, s2) : lordo;
   }, [prezzoBaseMode, prezzoAcquisto, scontoFornitore1, scontoFornitore2]);
 
   const scontiAttivi =
-    (parseFloat(scontoFornitore1) || 0) > 0 ||
-    (parseFloat(scontoFornitore2) || 0) > 0;
+    (parseDecimalField(scontoFornitore1) || 0) > 0 ||
+    (parseDecimalField(scontoFornitore2) || 0) > 0;
 
   const markupPreview = useMemo(() => {
     if (prezzoBaseMode !== "acquisto_markup") return null;
@@ -493,7 +495,7 @@ export function FamilyEditor() {
     return applyMarkup({
       prezzoAcquisto: acquistoNetto,
       markupTipo,
-      markupValore: parseFloat(markupValore) || 0,
+      markupValore: parseDecimalField(markupValore) || 0,
     });
   }, [prezzoBaseMode, acquistoNetto, markupTipo, markupValore]);
 
@@ -1209,7 +1211,7 @@ export function FamilyEditor() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {parseFloat(vatRate) === 0
+                        {parseDecimalField(vatRate, 22) === 0
                           ? "IVA 0% tipica di vendite estero / reverse charge."
                           : "Aliquota fatturata al cliente. I prezzi sono sempre al netto IVA."}
                       </p>
@@ -1463,18 +1465,18 @@ export function FamilyEditor() {
                               Formula:
                             </span>{" "}
                             lordo ×{" "}
-                            {(parseFloat(scontoFornitore1) || 0) > 0
-                              ? `(1 − ${parseFloat(scontoFornitore1)}%)`
+                            {(parseDecimalField(scontoFornitore1) || 0) > 0
+                              ? `(1 − ${parseDecimalField(scontoFornitore1)}%)`
                               : "1"}{" "}
                             ×{" "}
-                            {(parseFloat(scontoFornitore2) || 0) > 0
-                              ? `(1 − ${parseFloat(scontoFornitore2)}%)`
+                            {(parseDecimalField(scontoFornitore2) || 0) > 0
+                              ? `(1 − ${parseDecimalField(scontoFornitore2)}%)`
                               : "1"}{" "}
                             ×{" "}
                             {markupTipo === "percentuale"
-                              ? `(1 + ${parseFloat(markupValore) || 0}%)`
+                              ? `(1 + ${parseDecimalField(markupValore) || 0}%)`
                               : markupTipo === "fisso_pz"
-                                ? `(+ ${formatCurrency(parseFloat(markupValore) || 0)} fissi/pz)`
+                                ? `(+ ${formatCurrency(parseDecimalField(markupValore) || 0)} fissi/pz)`
                                 : "1 (no markup)"}{" "}
                             = vendita
                           </div>
@@ -1517,10 +1519,10 @@ export function FamilyEditor() {
                     asseXLabel={grigliaXLabel}
                     asseYLabel={grigliaYLabel}
                     prezzoBaseMode={prezzoBaseMode}
-                    scontoFornitore1={parseFloat(scontoFornitore1) || 0}
-                    scontoFornitore2={parseFloat(scontoFornitore2) || 0}
+                    scontoFornitore1={parseDecimalField(scontoFornitore1) || 0}
+                    scontoFornitore2={parseDecimalField(scontoFornitore2) || 0}
                     markupTipo={markupTipo}
-                    markupValore={parseFloat(markupValore) || 0}
+                    markupValore={parseDecimalField(markupValore) || 0}
                   />
                 </>
               ) : (
@@ -1637,7 +1639,7 @@ export function FamilyEditor() {
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {parseFloat(vatRateAcquisto) === 0
+                              {parseDecimalField(vatRateAcquisto, 22) === 0
                                 ? "Acquisto intra-UE / estero: reverse charge."
                                 : "Aliquota pagata al fornitore (fattura acquisto)."}
                             </p>
@@ -1703,12 +1705,12 @@ export function FamilyEditor() {
                                 {formatCurrency(acquistoNetto)}
                               </span>{" "}
                               <span className="text-muted-foreground/80">
-                                ({formatCurrency(parseFloat(prezzoAcquisto) || 0)}
-                                {(parseFloat(scontoFornitore1) || 0) > 0
-                                  ? ` × (1 − ${parseFloat(scontoFornitore1)}%)`
+                                ({formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
+                                {(parseDecimalField(scontoFornitore1) || 0) > 0
+                                  ? ` × (1 − ${parseDecimalField(scontoFornitore1)}%)`
                                   : ""}
-                                {(parseFloat(scontoFornitore2) || 0) > 0
-                                  ? ` × (1 − ${parseFloat(scontoFornitore2)}%)`
+                                {(parseDecimalField(scontoFornitore2) || 0) > 0
+                                  ? ` × (1 − ${parseDecimalField(scontoFornitore2)}%)`
                                   : ""}
                                 )
                               </span>
@@ -2024,8 +2026,8 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
   const [inlineCreateOpen, setInlineCreateOpen] = useState(false);
 
   // ── Preview margine (modalità manuale) ──────────────────────────────────
-  const costoNum = parseFloat(costoAcquisto) || 0;
-  const venditaNum = parseFloat(prezzoVendita) || 0;
+  const costoNum = parseDecimalField(costoAcquisto) || 0;
+  const venditaNum = parseDecimalField(prezzoVendita) || 0;
   const margineEuro = venditaNum - costoNum;
   // Margine % calcolato sulla vendita (standard CFO italiano), non sul costo.
   const marginePct = venditaNum > 0 ? (margineEuro / venditaNum) * 100 : 0;
@@ -2462,14 +2464,14 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
   const prodottoVendita =
     prezzoBaseMode === "acquisto_markup"
       ? prezzoVenditaCalcolato
-      : parseFloat(prezzoVendita) || 0;
+      : parseDecimalField(prezzoVendita) || 0;
   const prodottoMargine = prodottoVendita - prodottoCosto;
   const prodottoMarginePct =
     prodottoVendita > 0 ? (prodottoMargine / prodottoVendita) * 100 : 0;
 
   // Margine manodopera (solo se manuale)
-  const moCosto = parseFloat(manodoperaCostoAcquisto) || 0;
-  const moVendita = parseFloat(manodoperaPrezzoVendita) || 0;
+  const moCosto = parseDecimalField(manodoperaCostoAcquisto) || 0;
+  const moVendita = parseDecimalField(manodoperaPrezzoVendita) || 0;
   const moMargine = moVendita - moCosto;
   const moMarginePct = moVendita > 0 ? (moMargine / moVendita) * 100 : 0;
 
@@ -2543,15 +2545,15 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Listino lordo</span>
                 <span className="font-medium">
-                  {formatCurrency(parseFloat(prezzoAcquisto) || 0)}
+                  {formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
                 </span>
               </div>
-              {(parseFloat(scontoFornitore1) || 0) > 0 ||
-              (parseFloat(scontoFornitore2) || 0) > 0 ? (
+              {(parseDecimalField(scontoFornitore1) || 0) > 0 ||
+              (parseDecimalField(scontoFornitore2) || 0) > 0 ? (
                 <div className="flex justify-between text-emerald-700">
                   <span>
                     Sconti fornitore −{scontoFornitore1}%
-                    {(parseFloat(scontoFornitore2) || 0) > 0
+                    {(parseDecimalField(scontoFornitore2) || 0) > 0
                       ? ` / −${scontoFornitore2}%`
                       : ""}
                   </span>
@@ -2564,9 +2566,9 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                 <span className="text-muted-foreground">
                   Markup{" "}
                   {markupTipo === "percentuale"
-                    ? `+${parseFloat(markupValore) || 0}%`
+                    ? `+${parseDecimalField(markupValore) || 0}%`
                     : markupTipo === "fisso_pz"
-                      ? `+${formatCurrency(parseFloat(markupValore) || 0)}/pz`
+                      ? `+${formatCurrency(parseDecimalField(markupValore) || 0)}/pz`
                       : "Nessuno"}
                 </span>
                 <span className="font-medium text-amber-700">
@@ -2594,7 +2596,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                 </div>
               ) : null}
               <div className="text-xs text-muted-foreground pt-1">
-                IVA acquisto {parseFloat(vatRateAcquisto) || 0}% · IVA vendita{" "}
+                IVA acquisto {parseDecimalField(vatRateAcquisto) || 0}% · IVA vendita{" "}
                 {family.vat_rate}%
               </div>
             </div>
@@ -2604,7 +2606,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                 Prezzo vendita diretto
               </span>
               <span className="text-lg font-bold text-primary">
-                {formatCurrency(parseFloat(prezzoVendita) || 0)}
+                {formatCurrency(parseDecimalField(prezzoVendita) || 0)}
               </span>
             </div>
           )}
@@ -2892,12 +2894,14 @@ function InlineCreateTariffaDialog({
       toast.error("Inserisci un nome per la tariffa");
       return;
     }
-    const venditaNum = parseFloat(prezzoVendita);
+    // parseDecimalField, non parseFloat: "10,50" deve salvare 10.5, non 10
+    // (venditaNum/costoNum finiscono nell'INSERT su tariffe_aziendali).
+    const venditaNum = parseDecimalField(prezzoVendita);
     if (!Number.isFinite(venditaNum) || venditaNum <= 0) {
       toast.error("Inserisci un prezzo di vendita valido (> 0)");
       return;
     }
-    const costoNum = parseFloat(costoInterno);
+    const costoNum = parseDecimalField(costoInterno);
     setSaving(true);
     try {
       const { data, error } = await supabase
