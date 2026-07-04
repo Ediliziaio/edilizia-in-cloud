@@ -510,6 +510,19 @@ export function FamilyAxesEditor({ family }: Props) {
         i++;
       }
       const maxSort = Math.max(...ax.values.map((x) => x.sort_order), 0);
+      // M-T (audit): la copia perdeva codice SKU, prezzi assoluti di variante
+      // e immagine — chi duplicava un modulo FV si ritrovava una variante a
+      // prezzo base. Il codice viene suffissato per non duplicare lo SKU
+      // (collegherebbe la stessa giacenza magazzino a due varianti).
+      const existingSku = new Set(
+        ax.values.map((x) => x.codice).filter(Boolean) as string[],
+      );
+      let newSku = v.codice ? `${v.codice}_copia` : null;
+      let s = 2;
+      while (newSku && existingSku.has(newSku)) {
+        newSku = `${v.codice}_copia${s}`;
+        s++;
+      }
       await createAxisValue.mutateAsync({
         familyId: family.id,
         axis_id: ax.id,
@@ -520,6 +533,10 @@ export function FamilyAxesEditor({ family }: Props) {
         maggiorazione_tipo: v.maggiorazione_tipo,
         maggiorazione_valore: v.maggiorazione_valore,
         maggiorazione_acquisto: v.maggiorazione_acquisto,
+        codice: newSku,
+        prezzo_vendita: v.prezzo_vendita,
+        prezzo_acquisto: v.prezzo_acquisto,
+        immagine_url: v.immagine_url,
         sort_order: maxSort + 10,
         attivo: v.attivo,
       });
