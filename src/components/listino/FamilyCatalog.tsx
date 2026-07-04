@@ -273,7 +273,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   // includeInactive: la pagina di gestione mostra anche i disattivati (per
   // poterli vedere/riattivare). Il preventivatore continua a usare useFamilies()
   // di default → solo attivi.
-  const { families, isLoading: loadingFamilies } = useFamilies({ includeInactive: true });
+  const {
+    families,
+    isLoading: loadingFamilies,
+    isError: errorFamilies,
+    refetch: refetchFamilies,
+  } = useFamilies({ includeInactive: true });
   const {
     deleteFamily,
     restoreFamily,
@@ -326,6 +331,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const {
     cestino,
     isLoading: loadingCestino,
+    isError: errorCestino,
     refetch: refetchCestino,
   } = useFamiliesCestino();
 
@@ -858,6 +864,27 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
           Caricamento…
         </div>
+      ) : errorFamilies ? (
+        // M-D (audit): prima l'errore query finiva nell'empty state "Nessun
+        // articolo in listino" — fuorviante (il listino sembra vuoto ma è
+        // solo irraggiungibile). Stato errore esplicito con riprova.
+        <Card>
+          <CardContent className="py-10 sm:py-14 text-center px-4">
+            <AlertTriangle className="h-12 w-12 mx-auto text-destructive/70 mb-3" aria-hidden="true" />
+            <p className="font-medium">Errore nel caricamento del listino</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+              Controlla la connessione e riprova. Se il problema persiste
+              ricarica la pagina.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4 h-10 w-full sm:w-auto"
+              onClick={() => void refetchFamilies()}
+            >
+              Riprova
+            </Button>
+          </CardContent>
+        </Card>
       ) : families.length === 0 ? (
         <Card>
           <CardContent className="py-10 sm:py-14 text-center px-4">
@@ -1911,6 +1938,22 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
                 Caricamento cestino…
+              </div>
+            ) : errorCestino ? (
+              // M-D (audit): l'errore query mostrava "Il cestino è vuoto" —
+              // l'utente poteva credere che gli articoli eliminati fossero
+              // già stati purgati. Stato errore esplicito con riprova.
+              <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                <AlertTriangle className="h-10 w-10 mb-3 text-destructive/70" aria-hidden="true" />
+                <p className="text-sm font-medium">Errore nel caricamento del cestino</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-9"
+                  onClick={() => void refetchCestino()}
+                >
+                  Riprova
+                </Button>
               </div>
             ) : cestino.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
