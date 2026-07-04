@@ -344,17 +344,31 @@ export function FamilyEditor() {
     },
   });
 
-  // Bootstrap da family caricata
+  // Bootstrap da family caricata.
+  // M-O (audit): solo al primo caricamento di ogni family.id — i refetch della
+  // stessa family (invalidation dopo salvataggio assi, upload foto, ecc.)
+  // NON devono resettare il form, cancellerebbero le modifiche in corso.
+  const bootstrappedFamilyIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (family) {
-      setNome(family.nome);
-      setCodice(family.codice ?? "");
-      setSupplierId((family as { supplier_id?: string | null }).supplier_id ?? "none");
       // Preferenza al FK diretto (post-refactor 20270513200000). Fallback al
       // vecchio path via categoria.macrocategoria_id per articoli pre-refactor.
       const macroFromCat = family.categoria_id
         ? categorie.find((c) => c.id === family.categoria_id)?.macrocategoria_id ?? null
         : null;
+      if (bootstrappedFamilyIdRef.current === family.id) {
+        // Family già bootstrappata: unica eccezione la macro derivata degli
+        // articoli legacy, che al primo giro può essere rimasta "none" perché
+        // `categorie` non era ancora caricata.
+        if (!family.macrocategoria_id && macroFromCat) {
+          setMacrocategoriaId((prev) => (prev === "none" ? macroFromCat : prev));
+        }
+        return;
+      }
+      bootstrappedFamilyIdRef.current = family.id;
+      setNome(family.nome);
+      setCodice(family.codice ?? "");
+      setSupplierId((family as { supplier_id?: string | null }).supplier_id ?? "none");
       setMacrocategoriaId(family.macrocategoria_id ?? macroFromCat ?? "none");
       setDescrizione(family.descrizione ?? "");
       setImmagineUrl(family.immagine_url ?? null);
@@ -419,6 +433,10 @@ export function FamilyEditor() {
   // Per le creazioni "nuove" salviamo la snapshot vuota al mount.
   useEffect(() => {
     if (initialSnapshotRef.current !== null) return;
+    // Articoli legacy: la macro deriva da `categorie` — aspettiamo che sia
+    // caricata, altrimenti la snapshot congela macro="none" e il fixup tardivo
+    // farebbe scattare un falso "modifiche non salvate".
+    if (family?.categoria_id && !family.macrocategoria_id && loadingCategorie) return;
     if (isNew || family) {
       // Microtask per allinearsi all'avvenuto setState del bootstrap.
       const id = setTimeout(() => {
@@ -426,7 +444,7 @@ export function FamilyEditor() {
       }, 0);
       return () => clearTimeout(id);
     }
-  }, [isNew, family, currentSnapshot]);
+  }, [isNew, family, currentSnapshot, loadingCategorie]);
 
   // beforeunload guard: avvisa l'utente se sta chiudendo/refreshando con
   // modifiche non salvate (Step 1). Non blocca navigazioni dentro l'app
