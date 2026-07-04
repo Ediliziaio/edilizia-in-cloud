@@ -604,20 +604,44 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
   const isLoading = loadingFamilies;
 
+  // M-F (audit): updateFamily.isPending/variables traccia solo l'ULTIMA
+  // mutation dell'hook — con toggle rapidi su righe diverse il primo switch
+  // si riabilitava mentre era ancora in flight, e un doppio click veloce
+  // sullo stesso switch inviava due update che si annullano a vicenda.
+  // Set di id pending: ogni riga resta bloccata finché la SUA mutation
+  // non è conclusa.
+  const [togglePendingIds, setTogglePendingIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const markTogglePending = (id: string, pending: boolean) => {
+    setTogglePendingIds((prev) => {
+      const next = new Set(prev);
+      if (pending) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
   // Toggle attivo/disattivo. Un articolo disattivato resta a listino/magazzino
   // ma sparisce dal preventivatore (useFamilies di default filtra attivo=true).
   const toggleAttivo = async (f: FamilyWithAxes) => {
+    if (togglePendingIds.has(f.id)) return;
+    markTogglePending(f.id, true);
     try {
       await updateFamily.mutateAsync({ id: f.id, patch: { attivo: !f.attivo } });
       toast.success(f.attivo ? "Articolo disattivato" : "Articolo riattivato");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+    } finally {
+      markTogglePending(f.id, false);
     }
   };
 
   // Toggle visibilità nel preventivatore (indipendente da attivo).
   const togglePreventivo = async (f: FamilyWithAxes) => {
+    if (togglePendingIds.has(f.id)) return;
     const wasVisible = f.mostra_preventivo !== false;
+    markTogglePending(f.id, true);
     try {
       await updateFamily.mutateAsync({
         id: f.id,
@@ -628,6 +652,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+    } finally {
+      markTogglePending(f.id, false);
     }
   };
 
@@ -1035,11 +1061,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               <Switch
                                 checked={f.attivo}
                                 onCheckedChange={() => void toggleAttivo(f)}
-                                disabled={
-                                  !isAdmin ||
-                                  (updateFamily.isPending &&
-                                    updateFamily.variables?.id === f.id)
-                                }
+                                disabled={!isAdmin || togglePendingIds.has(f.id)}
                                 aria-label={`Articolo attivo: ${f.nome}`}
                               />
                             </TableCell>
@@ -1050,11 +1072,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               <Switch
                                 checked={f.mostra_preventivo !== false}
                                 onCheckedChange={() => void togglePreventivo(f)}
-                                disabled={
-                                  !isAdmin ||
-                                  (updateFamily.isPending &&
-                                    updateFamily.variables?.id === f.id)
-                                }
+                                disabled={!isAdmin || togglePendingIds.has(f.id)}
                                 aria-label={`Mostra nel preventivatore: ${f.nome}`}
                               />
                             </TableCell>
