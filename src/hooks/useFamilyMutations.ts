@@ -309,6 +309,39 @@ export function useFamilyMutations() {
         }
       }
 
+      // 4. copia le celle griglia prezzi (listino_griglia). Le celle sono
+      //    copiabili tali e quali anche in multi-fascia: axis_config è keyed
+      //    su codice asse → valore (stringhe stabili clonate al punto 3), non
+      //    su ID. Paginato: le griglie L×H superano facilmente le 1000 righe
+      //    del limite di default PostgREST.
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data: cells, error: errCells } = await supabase
+          .from("listino_griglia" as never)
+          .select(
+            "axis_config, valore_x, valore_y, prezzo_vendita, prezzo_acquisto, supplier_catalog_id, supplier_product_line_id, note",
+          )
+          .eq("family_id", args.sourceId)
+          .eq("company_id", companyId)
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (errCells) throw new Error(errCells.message);
+        const page = (cells ?? []) as unknown as Array<Record<string, unknown>>;
+        if (page.length === 0) break;
+
+        const { error: errIns } = await supabase
+          .from("listino_griglia" as never)
+          .insert(
+            page.map((c) => ({
+              ...c,
+              family_id: newFamilyId,
+              company_id: companyId,
+            })),
+          );
+        if (errIns) throw new Error(errIns.message);
+        if (page.length < PAGE) break;
+      }
+
       return newFamilyId;
     },
     onSuccess: () => invalidate(),
