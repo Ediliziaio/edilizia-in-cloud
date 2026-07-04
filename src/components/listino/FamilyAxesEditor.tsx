@@ -394,8 +394,12 @@ export function FamilyAxesEditor({ family }: Props) {
       );
       toast.success(`${ids.length} valori disattivati`);
       clearSelection();
-    } catch {
-      /* error already shown */
+    } catch (err) {
+      // onError del hook fa solo telemetria (captureVelocityError), nessun
+      // toast: senza questo il fallimento sarebbe invisibile all'utente.
+      toast.error("Errore durante la disattivazione", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -413,13 +417,18 @@ export function FamilyAxesEditor({ family }: Props) {
       );
       toast.success(`${ids.length} valori attivati`);
       clearSelection();
-    } catch {
-      /* error already shown */
+    } catch (err) {
+      toast.error("Errore durante l'attivazione", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
+  // "fisso_pz", non "fisso_eur": il CHECK su maggiorazione_tipo ammette solo
+  // none/percentuale/fisso_pz/fisso_mq/fisso_ml/fisso_mc — con "fisso_eur"
+  // ogni "Applica €" veniva rifiutato dal DB (e il catch lo ingoiava).
   const bulkApplyMaggiorazione = async (
-    tipo: "percentuale" | "fisso_eur",
+    tipo: "percentuale" | "fisso_pz",
     valore: number,
   ) => {
     const ids = Array.from(selectedValueIds);
@@ -439,8 +448,10 @@ export function FamilyAxesEditor({ family }: Props) {
       );
       toast.success(`Maggiorazione applicata a ${ids.length} valori`);
       clearSelection();
-    } catch {
-      /* error already shown */
+    } catch (err) {
+      toast.error("Errore nell'applicazione della maggiorazione", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -607,8 +618,10 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-8 text-xs"
             onClick={() => {
               const v = window.prompt("Maggiorazione % da applicare ai selezionati (es. 10 per +10%):");
-              if (v !== null && !isNaN(parseFloat(v))) {
-                bulkApplyMaggiorazione("percentuale", parseFloat(v));
+              // Number + replace virgola: con parseFloat "10,5" valeva 10.
+              const n = v?.trim() ? Number(v.trim().replace(",", ".")) : NaN;
+              if (Number.isFinite(n)) {
+                bulkApplyMaggiorazione("percentuale", n);
               }
             }}
             disabled={updateAxisValue.isPending}
@@ -620,9 +633,10 @@ export function FamilyAxesEditor({ family }: Props) {
             variant="outline"
             className="h-8 text-xs"
             onClick={() => {
-              const v = window.prompt("Maggiorazione € fissa da applicare ai selezionati:");
-              if (v !== null && !isNaN(parseFloat(v))) {
-                bulkApplyMaggiorazione("fisso_eur", parseFloat(v));
+              const v = window.prompt("Maggiorazione € fissa (a pezzo) da applicare ai selezionati:");
+              const n = v?.trim() ? Number(v.trim().replace(",", ".")) : NaN;
+              if (Number.isFinite(n)) {
+                bulkApplyMaggiorazione("fisso_pz", n);
               }
             }}
             disabled={updateAxisValue.isPending}
