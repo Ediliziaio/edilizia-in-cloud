@@ -861,6 +861,17 @@ export function FamilyEditor() {
   const handleDuplicate = async () => {
     if (!family) return;
     try {
+      // M-Y (audit): il bottone promette "Salva e crea copia" ma duplicava lo
+      // stato DB, perdendo le modifiche del form non ancora salvate. Salviamo
+      // prima, così la copia parte dai dati che l'utente vede.
+      if (isDirty) {
+        if (!canSaveBase) {
+          toast.error("Inserisci il nome dell'articolo prima di duplicare");
+          return;
+        }
+        const savedId = await saveBase();
+        if (!savedId) return; // errore già notificato da saveBase
+      }
       const newId = await duplicateFamily.mutateAsync({
         sourceId: family.id,
         newName: `${family.nome} (copia)`,
