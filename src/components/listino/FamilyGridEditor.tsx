@@ -355,11 +355,23 @@ export function FamilyGridEditor({
     markDirty();
   };
 
-  const setCell = (x: number, y: number, field: keyof Cell, value: number) => {
+  // M-Q (audit): i prezzi negativi finivano in DB e l'input svuotato diventava
+  // una cella a prezzo 0 (parseFloat("")||0) indistinguibile da un prezzo vero.
+  // Ora i valori sono clampati a >= 0 e `null` (campo svuotato) azzera il campo;
+  // se entrambi i campi restano a 0 la cella viene rimossa come col cestino.
+  const parseCellInput = (raw: string): number | null =>
+    raw.trim() === "" ? null : Math.max(0, parseFloat(raw) || 0);
+
+  const setCell = (x: number, y: number, field: keyof Cell, value: number | null) => {
     setCells((prev) => {
       const next = new Map(prev);
       const curr = next.get(`${x}_${y}`) ?? { prezzo_vendita: 0, prezzo_acquisto: 0 };
-      next.set(`${x}_${y}`, { ...curr, [field]: value });
+      const updated = { ...curr, [field]: value === null ? 0 : Math.max(0, value) };
+      if (value === null && updated.prezzo_vendita === 0 && updated.prezzo_acquisto === 0) {
+        next.delete(`${x}_${y}`);
+      } else {
+        next.set(`${x}_${y}`, updated);
+      }
       return next;
     });
     markDirty();
@@ -811,13 +823,14 @@ export function FamilyGridEditor({
                                       placeholder={
                                         scontiAttivi ? "Lordo €" : "Acq. €"
                                       }
+                                      min={0}
                                       value={c?.prezzo_acquisto ?? ""}
                                       onChange={(e) =>
                                         setCell(
                                           x,
                                           y,
                                           "prezzo_acquisto",
-                                          parseFloat(e.target.value) || 0,
+                                          parseCellInput(e.target.value),
                                         )
                                       }
                                       className="h-7 text-xs"
@@ -861,13 +874,14 @@ export function FamilyGridEditor({
                                       type="number"
                                       step="0.01"
                                       placeholder="Vend. €"
+                                      min={0}
                                       value={c?.prezzo_vendita ?? ""}
                                       onChange={(e) =>
                                         setCell(
                                           x,
                                           y,
                                           "prezzo_vendita",
-                                          parseFloat(e.target.value) || 0,
+                                          parseCellInput(e.target.value),
                                         )
                                       }
                                       className="h-7 text-xs"
@@ -876,13 +890,14 @@ export function FamilyGridEditor({
                                       type="number"
                                       step="0.01"
                                       placeholder="Acq. €"
+                                      min={0}
                                       value={c?.prezzo_acquisto ?? ""}
                                       onChange={(e) =>
                                         setCell(
                                           x,
                                           y,
                                           "prezzo_acquisto",
-                                          parseFloat(e.target.value) || 0,
+                                          parseCellInput(e.target.value),
                                         )
                                       }
                                       className="h-7 text-xs text-muted-foreground"
