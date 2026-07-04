@@ -16,6 +16,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface ListinoCategoria {
   id: string;
@@ -92,9 +93,10 @@ export function useCategorieMutations() {
     void qc.invalidateQueries({ queryKey: ["catalog-categories", companyId] });
     // M2 (audit): quando una categoria cambia (rename/riassegna macro), le view
     // famiglie e article-templates mostrano il nome stale finché non si
-    // rigenera la cache. Invalidiamo tutte le query family-scoped.
-    void qc.invalidateQueries({ queryKey: ["article_families"] });
-    void qc.invalidateQueries({ queryKey: ["families"] });
+    // rigenera la cache. Invalidiamo tutte le query family-scoped. La chiave
+    // registry è "article-families" (col trattino): le vecchie
+    // ["article_families"]/["families"] non matchavano nessuna query.
+    void qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
     void qc.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
     void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
     void qc.invalidateQueries({ queryKey: ["article-templates"] });

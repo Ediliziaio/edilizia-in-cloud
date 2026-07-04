@@ -12,6 +12,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface FamilyTemplateAxisValue {
   valore: string;
@@ -187,9 +188,9 @@ export function useImportArticleFamilyTemplatesBatch() {
 
 /** Invalida le query React-Query che dipendono da article_families. */
 function invalidateFamilyCaches(qc: ReturnType<typeof useQueryClient>) {
-  void qc.invalidateQueries({ queryKey: ["article-families"] });
-  void qc.invalidateQueries({ queryKey: ["article_families"] });
-  void qc.invalidateQueries({ queryKey: ["families"] });
+  // La chiave registry è "article-families" (queryKeys.ts): le vecchie
+  // ["article_families"]/["families"] non matchavano nessuna query.
+  void qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
   void qc.invalidateQueries({ queryKey: ["listino-families"] });
   void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
   void qc.invalidateQueries({ queryKey: ["article-templates"] });

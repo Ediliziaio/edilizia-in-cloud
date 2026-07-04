@@ -18,6 +18,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface ListinoMacrocategoria {
   id: string;
@@ -138,9 +139,10 @@ export function useMacrocategorieMutations() {
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-editor", companyId] });
     void qc.invalidateQueries({ queryKey: ["catalog-categories", companyId] });
     // M2 (audit): quando una macrocategoria cambia struttura, categorie →
-    // famiglie → article-templates ereditano il cambio.
-    void qc.invalidateQueries({ queryKey: ["article_families"] });
-    void qc.invalidateQueries({ queryKey: ["families"] });
+    // famiglie → article-templates ereditano il cambio. La chiave registry è
+    // "article-families" (col trattino): le vecchie ["article_families"] e
+    // ["families"] non matchavano nessuna query → catalogo stale 5 min.
+    void qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
     void qc.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
     void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
     void qc.invalidateQueries({ queryKey: ["article-templates"] });

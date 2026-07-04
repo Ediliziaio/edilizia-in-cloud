@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface InstallaCatalogoInput {
   companyId: string;
@@ -79,9 +80,10 @@ export function useInstallaCatalogoSerramenti() {
               : `${installed} tipologie create.`,
         });
       }
-      // Invalida article_families: liste famiglie si ricaricano automaticamente
-      qc.invalidateQueries({ queryKey: ["article_families"] });
-      qc.invalidateQueries({ queryKey: ["families"] });
+      // Invalida le liste famiglie: la chiave registry è "article-families"
+      // (col trattino, queryKeys.ts) — le vecchie ["article_families"]/
+      // ["families"] non matchavano nessuna query → catalogo stale 5 min.
+      qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
     },
     onError: (err, variables) => {
       captureVelocityError("serramenti-listini.installa_catalogo", err, {
