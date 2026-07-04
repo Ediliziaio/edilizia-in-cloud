@@ -10,7 +10,24 @@
 
 import { getCorsHeaders, errorResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
+
+// Rimuove i caratteri fuori WinAnsi (le StandardFonts non li codificano):
+// un solo carattere fuori set (spunte, simboli matematici, emoji) fa lanciare
+// drawText e fallire l'intero export.
+function winAnsiSafe(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return String(str).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
+}
+
+// Difesa in profondità: ogni drawText della pagina passa da winAnsiSafe, così
+// nessun carattere futuro fuori set può far fallire la generazione del PDF.
+function patchDrawTextSafe(page: PDFPage): PDFPage {
+  const raw = page.drawText.bind(page);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  page.drawText = ((text: string, opts?: any) => raw(winAnsiSafe(text), opts)) as typeof page.drawText;
+  return page;
+}
 
 interface VoceCE {
   codice: string;
@@ -98,7 +115,7 @@ Deno.serve(async (req) => {
 
     // ── Build PDF (A4 portrait, 595x842) ─────────────────────────────────
     const pdf = await PDFDocument.create();
-    const page = pdf.addPage([595, 842]);
+    const page = patchDrawTextSafe(pdf.addPage([595, 842]));
     const fontReg = await pdf.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
@@ -121,18 +138,20 @@ Deno.serve(async (req) => {
     page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 1, color: ORANGE });
     y -= 18;
 
-    // Tabella voci
+    // Tabella voci — colonne numeriche allineate al bordo destro:
+    // Importo termina a 495, % PIL a 552 (gap sufficiente anche per "100.0%").
     const X_LABEL = 50;
-    const X_VAL = 480;
-    const X_PCT = 540;
+    const IMP_RIGHT = 495;
+    const PCT_RIGHT = 552;
 
     page.drawText("Voce", { x: X_LABEL, y, size: 9, font: fontBold, color: SLATE });
-    page.drawText("Importo", { x: X_VAL - 40, y, size: 9, font: fontBold, color: SLATE });
-    page.drawText("% PIL", { x: X_PCT - 28, y, size: 9, font: fontBold, color: SLATE });
+    page.drawText("Importo", { x: IMP_RIGHT - fontBold.widthOfTextAtSize("Importo", 9), y, size: 9, font: fontBold, color: SLATE });
+    page.drawText("% PIL", { x: PCT_RIGHT - fontBold.widthOfTextAtSize("% PIL", 9), y, size: 9, font: fontBold, color: SLATE });
     y -= 4;
     page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 0.5, color: SLATE_LIGHT });
     y -= 10;
 
+    let vociDisegnate = 0;
     for (const v of ce.voci) {
       const isSubtot = v.tipo === "subtot" || v.tipo === "subtot_grasso";
       const isFatto = v.tipo === "subtot_grasso";
@@ -153,15 +172,24 @@ Deno.serve(async (req) => {
       });
       const importo = fmtEur(v.valore);
       const importoWidth = font.widthOfTextAtSize(importo, size);
-      page.drawText(importo, { x: X_VAL + 60 - importoWidth, y, size, font, color });
+      page.drawText(importo, { x: IMP_RIGHT - importoWidth, y, size, font, color });
       if (v.pct_pil !== undefined && v.pct_pil !== null) {
         const pct = fmtPct(v.pct_pil);
         const pctWidth = font.widthOfTextAtSize(pct, size);
-        page.drawText(pct, { x: X_PCT + 15 - pctWidth, y, size, font, color });
+        page.drawText(pct, { x: PCT_RIGHT - pctWidth, y, size, font, color });
       }
 
       y -= isSubtot ? 18 : 14;
-      if (y < 140) break; // riserva spazio per footer BEP
+      vociDisegnate += 1;
+      if (y < 150 && vociDisegnate < ce.voci.length) {
+        // Riserva spazio per il footer BEP, ma segnala il troncamento invece
+        // di tagliare l'elenco in silenzio.
+        page.drawText(`… (elenco troncato: ${ce.voci.length - vociDisegnate} voci non mostrate)`, {
+          x: X_LABEL, y, size: 8, font: fontReg, color: SLATE_LIGHT,
+        });
+        y -= 12;
+        break;
+      }
     }
 
     // Footer: Box BEP
@@ -179,9 +207,9 @@ Deno.serve(async (req) => {
       `Fatturato di pareggio: ${fmtEur(bep.bep_fatturato_minimo)} (${fmtPct(bep.bep_pct_fatturato)})`,
       bep.bep_data
         ? `Giorno BEP: ${bep.bep_giorno_anno} (${new Date(bep.bep_data).toLocaleDateString("it-IT")}) — ${
-            bep.gia_raggiunto ? "✓ raggiunto" : `mancano ${bep.giorni_residui} giorni`
+            bep.gia_raggiunto ? "raggiunto" : `mancano ${bep.giorni_residui} giorni`
           }`
-        : "Giorno BEP: non calcolabile (margine di contribuzione ≤ 0)",
+        : "Giorno BEP: non calcolabile (margine di contribuzione <= 0)",
     ];
     for (const line of bepLines) {
       page.drawText(line, { x: 50, y, size: 9, font: fontReg, color: SLATE });

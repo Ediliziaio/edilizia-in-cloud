@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
+import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
@@ -1246,6 +1247,10 @@ function OrderDetailInner() {
           statusHistory={progressHistory}
           onStatusChange={handleStatusChange}
         />
+
+        {/* Semaforo tempi: avanzamento reale vs atteso dalle date delle fasi.
+            Non renderizza nulla se la commessa non ha fasi datate. */}
+        <OrderScheduleBadge orderId={id!} className="mt-2" />
 
         {/* Avanzamento cantiere derivato dalle lavorazioni: lo stato in alto
             resta commerciale (corto per le ristrutturazioni), il progresso

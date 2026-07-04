@@ -194,6 +194,17 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                             <Badge variant="outline" className="text-[10px] py-0">{r.percentuale_avanzamento}%</Badge>
                           )}
                           <StatoBadge stato={stato} />
+                          {r.lavoro_completato && (
+                            <Badge variant="outline" className="text-[10px] py-0 bg-emerald-600 text-white border-emerald-600">
+                              Fine lavori
+                            </Badge>
+                          )}
+                          {r.lavoro_completato && r.firma_cliente_url && (
+                            <Badge variant="outline" className="text-[10px] py-0 bg-emerald-50 text-emerald-700 border-emerald-300">
+                              <PenLine className="h-2.5 w-2.5 mr-0.5" />
+                              Firmato dal cliente
+                            </Badge>
+                          )}
                           <SourceBadge source={r.source} />
                           {r.firma_cliente_url && <PenLine className="h-3 w-3 text-blue-500" />}
                           {r.firma_operaio_url && <PenLine className="h-3 w-3 text-amber-500" />}

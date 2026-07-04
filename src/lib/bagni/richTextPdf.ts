@@ -96,7 +96,14 @@ function parseInlineRuns(html: string): BgnRichRun[] {
     push(html.slice(last, m.index));
     const slash = m[1];
     const tag = m[2].toLowerCase();
-    if (tag === "br") push(" ");
+    if (tag === "br") {
+      // <br> deve produrre un a-capo REALE: in @react-pdf "\n" dentro un <Text>
+      // va a capo. Non passa da push() perché lì il whitespace viene collassato
+      // in spazio ("testi attaccati").
+      const prev = runs[runs.length - 1];
+      if (prev) prev.text += "\n";
+      else runs.push({ text: "\n" });
+    }
     else if (tag === "strong" || tag === "b") bold = slash ? Math.max(0, bold - 1) : bold + 1;
     else if (tag === "em" || tag === "i") italic = slash ? Math.max(0, italic - 1) : italic + 1;
     last = tagRe.lastIndex;

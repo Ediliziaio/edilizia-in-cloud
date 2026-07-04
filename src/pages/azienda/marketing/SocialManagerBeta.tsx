@@ -1422,12 +1422,6 @@ function ContentStudioTab({
   const [crossPlatformMode, setCrossPlatformMode] = useState(false);
   const [platformTexts, setPlatformTexts] = useState<Record<string, string>>({});
 
-  // Testo effettivo per una piattaforma (fallback al testo globale)
-  const getTextForPlatform = (platformId: string) =>
-    crossPlatformMode && platformTexts[platformId] !== undefined
-      ? platformTexts[platformId]
-      : postText;
-
   const setPlatformText = (platformId: string, text: string) =>
     setPlatformTexts((prev) => ({ ...prev, [platformId]: text }));
 
@@ -2634,7 +2628,7 @@ function ContentStudioTab({
 // TAB: ANALITICHE — dashboard completa
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccount[] }) {
+function AnaliticsTab(_props: { connectedAccounts: ConnectedAccount[] }) {
   const [period, setPeriod] = useState<"7d" | "30d" | "90d">("30d");
   const da = DEMO_ANALYTICS;
   const maxWeeklyReach = Math.max(...da.weekly.map(w => w.reach));
@@ -3217,7 +3211,7 @@ interface GridCell {
 // Build 18-cell grid: last 6 published (from media items) + future slots
 function buildGrid(posts: ScheduledPost[]): GridCell[] {
   // Last 6 "published" from demo media as past cells
-  const published: GridCell[] = DEMO_MEDIA_ITEMS.slice(0, 6).map((m, i) => ({
+  const published: GridCell[] = DEMO_MEDIA_ITEMS.slice(0, 6).map((m) => ({
     id: `pub-${m.id}`,
     type: "published",
     gradient: m.gradient,

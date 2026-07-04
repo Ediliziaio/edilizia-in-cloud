@@ -298,9 +298,15 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
           y += 14;
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
-          const lines = doc.splitTextToSize(c.notes, 515);
-          doc.text(lines, 40, y);
-          y += lines.length * 13;
+          const lines = doc.splitTextToSize(c.notes, 515) as string[];
+          for (const ln of lines) {
+            if (y > 780) {
+              doc.addPage();
+              y = 40;
+            }
+            doc.text(ln, 40, y);
+            y += 13;
+          }
         }
 
         y += 16;

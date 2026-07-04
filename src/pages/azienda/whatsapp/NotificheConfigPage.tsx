@@ -309,8 +309,6 @@ export default function NotificheConfigPage() {
   );
 }
 
-type TriggerView = ReturnType<typeof toTriggerView>;
-
 function toTriggerView(t: {
   id: string;
   enabled: boolean | null;

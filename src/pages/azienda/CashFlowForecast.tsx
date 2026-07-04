@@ -44,10 +44,10 @@ export default function CashFlowForecast() {
   } = useCashFlowData();
 
   // Proiezione 90 giorni con dati reali banking + fatture
-  const { data: realData } = useCashFlowRealData(companyId);
+  const { data: realData, isError: realDataError } = useCashFlowRealData(companyId);
 
   // Dati bancari reali: saldo attuale + entrate/uscite previste
-  const { data: bankingSummary, isError: bankingSummaryError } = useQuery({
+  const { data: bankingSummary, isError: bankingSummaryError, refetch: refetchBanking } = useQuery({
     queryKey: ["banking-summary-forecast", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -160,9 +160,14 @@ export default function CashFlowForecast() {
         </div>
         <Card>
           <CardContent className="p-6">
-            <p className="text-center text-muted-foreground py-8">
-              Errore nel caricamento dei dati. Riprova aggiornando la pagina.
+            <p className="text-center text-muted-foreground pt-8 pb-4">
+              Errore nel caricamento dei dati. Riprova tra qualche istante.
             </p>
+            <div className="flex justify-center pb-4">
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Riprova
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -214,9 +219,19 @@ export default function CashFlowForecast() {
         </div>
       )}
       {bankingSummaryError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Errore nel caricamento di saldo banca e KPI di cassa: i numeri in pagina potrebbero essere
-          incompleti. Ricarica la pagina prima di prendere decisioni.
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Errore nel caricamento di saldo banca e KPI di cassa: i numeri in pagina potrebbero essere
+            incompleti. Riprova prima di prendere decisioni.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+            onClick={() => refetchBanking()}
+          >
+            Riprova
+          </Button>
         </div>
       )}
       {bankingSummary && (
@@ -239,7 +254,14 @@ export default function CashFlowForecast() {
         </div>
       )}
 
-      {/* Proiezione 90 giorni */}
+      {/* Proiezione 90 giorni — su errore lo diciamo, prima falliva in silenzio
+          e l'utente credeva che il grafico predittivo semplicemente non esistesse. */}
+      {realDataError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          La proiezione a 90 giorni non è stata caricata per un errore. Ricarica la pagina; se
+          persiste, il resto del previsionale sotto è comunque valido.
+        </div>
+      )}
       {realData && (
         <CashFlowProjectionChart
           projection={realData.projection}
@@ -290,6 +312,7 @@ export default function CashFlowForecast() {
             expectedCompanyCosts={expectedCompanyCosts}
             scadenzeForForecast={scadenzeForForecast}
             primaNotaSaldo={primaNotaSaldo}
+            bankBalance={bankingSummary?.bankBalance ?? null}
           />
         </TabsContent>
 

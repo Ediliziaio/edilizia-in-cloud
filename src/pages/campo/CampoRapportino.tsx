@@ -3,13 +3,15 @@
  * 1. Descrizione lavori + meteo (facoltativo)
  * 2. Ore + Avanzamento + Foto (facoltativo)
  * 3. Riepilogo e invio
+ * 4. Firme (SOLO se "lavoro completato" è attivo): firma cliente + nome
+ *    obbligatori per il fine lavori, firma operaio opzionale.
  *
- * Nessun campo obbligatorio. Firme cliente/operaio rimosse dal rapportino
- * (la firma cliente serve per documenti di collaudo / fine lavori).
+ * Sul rapportino giornaliero normale nessun campo è obbligatorio e il
+ * flusso resta a 3 step, identico a prima (zero regressioni).
  */
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
@@ -20,8 +22,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
+import { FirmaPad } from "@/components/campo/FirmaPad";
 
 const TOTAL_STEPS = 3;
+
+// Fase della commessa su cui l'operaio può dichiarare l'avanzamento
+interface FaseCommessa {
+  id: string;
+  name: string;
+  status: "da_iniziare" | "in_corso" | "completata";
+  percentuale: number;
+}
 
 /**
  * Compressione immagine lato client con gestione completa degli errori:
@@ -77,12 +88,23 @@ export default function CampoRapportino() {
   const [oreLavorate, setOreLavorate] = useState(8);
   const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
+  // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
+  const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
 
   // Step 3
   const [lavoro_completato, setLavoroCompletato] = useState(false);
+
+  // Step 4 (solo fine lavori): firme
+  const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
+  const [firmaClienteNome, setFirmaClienteNome] = useState("");
+  const [firmaOperaio, setFirmaOperaio] = useState<string | null>(null);
+
+  // Con "lavoro completato" attivo il flusso diventa 4 step (step Firme);
+  // sul giornaliero normale resta a 3 step, identico a prima.
+  const totalSteps = lavoro_completato ? 4 : TOTAL_STEPS;
 
   // Acquisisci GPS all'inizio — una sola volta al mount (requestPosition è useCallback
   // con dep [companyId]; se companyId cambia da null a valore, l'effect rilancia una
@@ -92,6 +114,44 @@ export default function CampoRapportino() {
     if (profile?.company_id) requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.company_id]);
+
+  // ── Fasi della commessa (order_work_phases) ─────────────────────────
+  // Select minima: l'operaio dichiara solo su quali fasi ha lavorato e il
+  // nuovo avanzamento raggiunto. Se la commessa non ha fasi, il blocco
+  // non viene mostrato (zero regressioni sul flusso esistente).
+  const { data: fasiCommessa = [] } = useQuery({
+    queryKey: ["campo-fasi-commessa", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<FaseCommessa[]> => {
+      // order_work_phases.percentuale non è nei tipi generati → cast
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_phases")
+        .select("id, name, status, percentuale")
+        .eq("order_id", orderId)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((p) => ({
+        id: p.id as string,
+        name: (p.name as string) ?? "",
+        status: (p.status as FaseCommessa["status"]) ?? "da_iniziare",
+        percentuale: Number(p.percentuale) || 0,
+      }));
+    },
+  });
+
+  // Solo le fasi non completate sono dichiarabili
+  const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
+
+  const toggleFase = (fase: FaseCommessa) => {
+    setFasiDichiarate(prev => {
+      const next = { ...prev };
+      if (fase.id in next) delete next[fase.id];
+      else next[fase.id] = fase.percentuale; // slider precompilato con l'attuale
+      return next;
+    });
+  };
 
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,6 +248,40 @@ export default function CampoRapportino() {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
 
+      // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
+      const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
+        phase_id,
+        percentuale,
+      }));
+
+      // ── Firme (solo fine lavori): dataURL → PNG → bucket campo-rapportini ──
+      let firmaClienteUrl: string | null = null;
+      let firmaOperaioUrl: string | null = null;
+      if (lavoro_completato && firmaCliente) {
+        const ts = Date.now();
+        const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
+          const blob = await (await fetch(dataUrl)).blob();
+          const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
+          const { data: up, error: upErr } = await supabase.storage
+            .from("campo-rapportini")
+            .upload(path, blob, { contentType: "image/png", upsert: false });
+          if (upErr) throw upErr;
+          if (!up?.path) throw new Error("Upload firma senza path");
+          const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
+          return urlData.publicUrl;
+        };
+
+        // La firma del cliente è obbligatoria sul fine lavori: se fallisce, blocca l'invio
+        firmaClienteUrl = await uploadFirma(firmaCliente, "cliente");
+        // La firma operaio è opzionale: se fallisce non blocca l'invio
+        if (firmaOperaio) {
+          firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err) => {
+            console.warn("[CampoRapportino] upload firma operaio fallito:", err);
+            return null;
+          });
+        }
+      }
+
       // Inserisci rapportino
       const { data: inserted, error } = await supabase
         .from("campo_rapportini")
@@ -208,11 +302,64 @@ export default function CampoRapportino() {
           gps_accuracy: accuracy || null,
           meteo: meteo || null,
           stato: "inviato",
+          // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
+          ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
+          // Firme SOLO sul fine lavori: il payload del giornaliero resta invariato
+          ...(lavoro_completato && firmaClienteUrl
+            ? {
+                firma_cliente_url: firmaClienteUrl,
+                firma_cliente_nome: firmaClienteNome.trim(),
+                firma_cliente_at: new Date().toISOString(),
+                ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
+              }
+            : {}),
         })
         .select("id")
         .single();
 
       if (error) throw error;
+
+      // ── Avanzamento fasi dichiarate: GREATEST(attuale, dichiarata) ──
+      // Mai regredire; rilettura fresca dal DB (la cache può essere stantia).
+      // Errori: console.warn, non bloccano mai l'invio del rapportino.
+      if (fasiLavorate.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = supabase as any;
+          const { data: fresche, error: frescheErr } = await db
+            .from("order_work_phases")
+            .select("id, status, percentuale")
+            .in("id", fasiLavorate.map(f => f.phase_id));
+          if (frescheErr) throw frescheErr;
+          const byId = new Map(
+            ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
+              .map(f => [f.id, f]),
+          );
+
+          for (const dich of fasiLavorate) {
+            try {
+              const attuale = byId.get(dich.phase_id);
+              const nuova = Math.max(Number(attuale?.percentuale) || 0, dich.percentuale);
+              const patch: Record<string, unknown> = {
+                percentuale: nuova,
+                updated_at: new Date().toISOString(),
+              };
+              // Status: completata a 100, in_corso se >0 — mai in regressione
+              if (nuova >= 100) patch.status = "completata";
+              else if (nuova > 0 && attuale?.status !== "completata") patch.status = "in_corso";
+              const { error: faseErr } = await db
+                .from("order_work_phases")
+                .update(patch)
+                .eq("id", dich.phase_id);
+              if (faseErr) throw faseErr;
+            } catch (err) {
+              console.warn("[CampoRapportino] aggiornamento fase non riuscito:", err);
+            }
+          }
+        } catch (err) {
+          console.warn("[CampoRapportino] aggiornamento fasi non riuscito:", err);
+        }
+      }
 
       if (inserted?.id) {
         const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
@@ -266,6 +413,43 @@ export default function CampoRapportino() {
           .invoke("genera-pdf-rapportino", { body: { rapportino_id: inserted.id } })
           .catch(() => {});
       }
+
+      // Notifica al responsabile (assigned_to, fallback created_by).
+      // Errori silenziosi: la notifica non deve mai bloccare l'invio.
+      if (inserted?.id) {
+        try {
+          const { data: orderInfo, error: orderInfoError } = await supabase
+            .from("orders")
+            .select("assigned_to, created_by, order_code")
+            .eq("id", orderId)
+            .eq("company_id", companyId)
+            .maybeSingle();
+          if (orderInfoError) throw orderInfoError;
+
+          const destinatario = orderInfo?.assigned_to || orderInfo?.created_by;
+          if (destinatario) {
+            const orderCode = orderInfo?.order_code || "commessa";
+            const actorLabel = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "Un operaio";
+            const { error: notifError } = await supabase.rpc("create_notification", {
+              p_company_id: companyId,
+              p_user_id: destinatario,
+              p_type: "rapportino_inviato",
+              p_title: lavoro_completato
+                ? `Rapporto di fine lavori firmato dal cliente — ${orderCode}`
+                : `Nuovo rapportino da approvare — ${orderCode}`,
+              p_body: lavoro_completato
+                ? `${firmaClienteNome.trim() || "Il cliente"} ha firmato il rapporto di fine lavori inviato da ${actorLabel}.`
+                : `${actorLabel} ha inviato un rapportino di ${oreLavorate}h${oreStraordinario > 0 ? ` (+${oreStraordinario}h straordinario)` : ""}.`,
+              p_entity_type: "campo_rapportino",
+              p_entity_id: inserted.id,
+              p_action_url: `/azienda/ordini/${orderId}?tab=campo`,
+            });
+            if (notifError) throw notifError;
+          }
+        } catch (err) {
+          console.warn("[CampoRapportino] notifica responsabile non inviata:", err);
+        }
+      }
     },
     onSuccess: () => {
       navigator.vibrate?.([10, 50, 10]);
@@ -273,6 +457,11 @@ export default function CampoRapportino() {
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-events", companyId, orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId, companyId] });
+      // Fasi aggiornate dal rapportino: riallinea lavorazioni + semaforo tempi
+      queryClient.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-schedule-health", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["campo-fasi-commessa", orderId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
     onError: () => {
@@ -280,12 +469,22 @@ export default function CampoRapportino() {
     },
   });
 
+  // Fine lavori: firma cliente + nome obbligatori per inviare
+  const firmeMancanti = lavoro_completato && (!firmaCliente || !firmaClienteNome.trim());
+  const isUltimoStep = step >= totalSteps;
+
   const goNext = () => {
-    if (step < TOTAL_STEPS) setStep(s => s + 1);
+    if (step < totalSteps) setStep(s => s + 1);
     else salva();
   };
 
   const goBack = () => {
+    if (step === 4) {
+      // Tornando indietro il canvas si smonta: azzera le firme per evitare
+      // uno stato "firmato" con pad visivamente vuoto al rientro nello step.
+      setFirmaCliente(null);
+      setFirmaOperaio(null);
+    }
     if (step > 1) setStep(s => s - 1);
     else navigate(`/campo/lavoro/${orderId}`);
   };
@@ -309,11 +508,11 @@ export default function CampoRapportino() {
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground">Rapportino — Passo {step} di {TOTAL_STEPS}</p>
+          <p className="text-xs font-semibold text-muted-foreground">Rapportino — Passo {step} di {totalSteps}</p>
           <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
             <div
               className="h-1.5 rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              style={{ width: `${(step / totalSteps) * 100}%` }}
             />
           </div>
         </div>
@@ -409,6 +608,60 @@ export default function CampoRapportino() {
                 <span>100%</span>
               </div>
             </div>
+
+            {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
+            {fasiDichiarabili.length > 0 && (
+              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                <p className="text-sm font-semibold text-foreground">Su cosa hai lavorato oggi?</p>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {fasiDichiarabili.map(fase => {
+                    const selected = fase.id in fasiDichiarate;
+                    return (
+                      <button
+                        key={fase.id}
+                        type="button"
+                        onClick={() => toggleFase(fase)}
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {fase.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
+                  <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>
+                      <span className="shrink-0 text-primary font-bold">{fasiDichiarate[fase.id]}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={fasiDichiarate[fase.id]}
+                      onChange={e =>
+                        setFasiDichiarate(prev => ({ ...prev, [fase.id]: Number(e.target.value) }))
+                      }
+                      className="w-full accent-primary"
+                    />
+                    {fase.percentuale > 0 && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Avanzamento attuale: {fase.percentuale}%
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Ore straordinario */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -543,9 +796,44 @@ export default function CampoRapportino() {
               </button>
               <div>
                 <p className="text-sm font-semibold text-foreground">Lavoro completato</p>
-                <p className="text-xs text-muted-foreground">Il cantiere è terminato</p>
+                <p className="text-xs text-muted-foreground">
+                  {lavoro_completato
+                    ? "Al passo successivo servirà la firma del cliente"
+                    : "Il cantiere è terminato"}
+                </p>
               </div>
             </div>
+          </>
+        )}
+
+        {/* ── Step 4: Firme (solo fine lavori) ── */}
+        {step === 4 && lavoro_completato && (
+          <>
+            <h2 className="text-xl font-black text-foreground">Firme di fine lavori</h2>
+            <p className="text-sm text-muted-foreground">
+              Fai firmare il cliente per confermare la fine dei lavori. La firma dell'operaio è facoltativa.
+            </p>
+
+            <FirmaPad label="Firma del cliente" onChange={setFirmaCliente} />
+
+            <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+              <p className="mb-2 text-sm font-semibold text-foreground">Nome e cognome del cliente</p>
+              <input
+                type="text"
+                className="w-full rounded-xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Es: Mario Rossi"
+                value={firmaClienteNome}
+                onChange={e => setFirmaClienteNome(e.target.value)}
+              />
+            </div>
+
+            <FirmaPad label="Firma operaio (facoltativa)" onChange={setFirmaOperaio} />
+
+            {firmeMancanti && (
+              <p className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                Per inviare il rapporto di fine lavori servono la firma del cliente e il suo nome e cognome.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -564,12 +852,12 @@ export default function CampoRapportino() {
           </button>
           <button
             onClick={goNext}
-            disabled={saving}
+            disabled={saving || (isUltimoStep && firmeMancanti)}
             className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {saving ? (
               <Loader2 className="w-5 h-5 animate-spin" />
-            ) : step < TOTAL_STEPS ? (
+            ) : !isUltimoStep ? (
               <>
                 Avanti
                 <ChevronRight className="w-5 h-5" />
@@ -577,7 +865,7 @@ export default function CampoRapportino() {
             ) : (
               <>
                 <Send className="w-5 h-5" />
-                Invia rapportino
+                {lavoro_completato ? "Invia fine lavori" : "Invia rapportino"}
               </>
             )}
           </button>

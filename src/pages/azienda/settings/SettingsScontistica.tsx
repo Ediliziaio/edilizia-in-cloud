@@ -60,6 +60,20 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 /** Sentinel per Radix Select: "nessun valore" → null al salvataggio. */
 const SELECT_NONE = "__none__";
+/** Sentinel per il Select tipo lavoro: "Altro…" → input testo libero. */
+const TIPO_LAVORO_ALTRO = "__custom__";
+
+/** Tipi di lavoro noti nei preventivatori EiC (valori canonici lowercase). */
+const TIPI_LAVORO_NOTI: Array<{ value: string; label: string }> = [
+  { value: "serramenti", label: "Serramenti" },
+  { value: "fotovoltaico", label: "Fotovoltaico" },
+  { value: "ristrutturazione", label: "Ristrutturazione" },
+  { value: "bagno", label: "Bagno" },
+  { value: "tetto", label: "Tetto" },
+  { value: "climatizzazione", label: "Climatizzazione" },
+];
+const isTipoLavoroNoto = (v: string | null | undefined): boolean =>
+  v != null && TIPI_LAVORO_NOTI.some((t) => t.value === v);
 
 /** Converte input number → number | null gestendo stringa vuota / NaN. */
 function toNumOrNull(v: unknown): number | null {
@@ -139,6 +153,9 @@ export default function SettingsScontistica() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DiscountRule | null>(null);
+  // Tipo lavoro "Altro…": mostra input libero per valori non nel Select
+  // (retro-compat con regole esistenti a testo libero).
+  const [tipoLavoroAltro, setTipoLavoroAltro] = useState(false);
 
   const { data: salespeople = [], isLoading: salespeopleLoading } = useQuery({
     queryKey: ["salespeople-active", companyId],
@@ -164,6 +181,7 @@ export default function SettingsScontistica() {
   const openNew = () => {
     setEditing(null);
     form.reset(DEFAULT_VALUES);
+    setTipoLavoroAltro(false);
     setDialogOpen(true);
   };
 
@@ -187,6 +205,8 @@ export default function SettingsScontistica() {
       priority: rule.priority,
       is_active: rule.is_active,
     });
+    // Regole legacy con tipo lavoro a testo libero non nel Select → modalità "Altro…"
+    setTipoLavoroAltro(Boolean(rule.tipo_lavoro && !isTipoLavoroNoto(rule.tipo_lavoro)));
     setDialogOpen(true);
   };
 
@@ -299,7 +319,8 @@ export default function SettingsScontistica() {
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h1>
               <p className="text-sm text-muted-foreground">
-                Limiti di sconto per i commerciali — <strong>{rules.length}</strong> configurate,{" "}
+                Limiti di sconto validi per TUTTI i preventivatori (serramenti e fotovoltaico)
+                e per tutti i tipi di cliente, privati inclusi — <strong>{rules.length}</strong> configurate,{" "}
                 <strong>{activeCount}</strong> attive.
               </p>
             </div>
@@ -316,6 +337,10 @@ export default function SettingsScontistica() {
           <AlertTitle>Come funziona</AlertTitle>
           <AlertDescription className="text-sm space-y-1">
             <ul className="list-disc ml-5 space-y-0.5">
+              <li>
+                Le regole valgono per <strong>tutti i preventivatori</strong> (serramenti E
+                fotovoltaico) e per <strong>tutti i tipi di cliente</strong>, privati inclusi.
+              </li>
               <li>Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.</li>
               <li>Il sistema applica il limite <strong>più basso</strong> tra le regole matchanti (binding).</li>
               <li>Oltre <em>approva oltre %</em> → richiede approvazione admin.</li>
@@ -524,23 +549,63 @@ export default function SettingsScontistica() {
                 <FormField
                   control={form.control}
                   name="tipo_lavoro"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo di lavoro (opzionale)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="es. serramenti, ristrutturazione"
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Vuoto = la regola si applica a qualsiasi tipo di lavoro.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const selectValue = tipoLavoroAltro
+                      ? TIPO_LAVORO_ALTRO
+                      : field.value == null || field.value === ""
+                        ? SELECT_NONE
+                        : isTipoLavoroNoto(field.value)
+                          ? field.value
+                          : TIPO_LAVORO_ALTRO;
+                    return (
+                      <FormItem>
+                        <FormLabel>Tipo di lavoro (opzionale)</FormLabel>
+                        <Select
+                          value={selectValue}
+                          onValueChange={(v) => {
+                            if (v === SELECT_NONE) {
+                              setTipoLavoroAltro(false);
+                              field.onChange(null);
+                            } else if (v === TIPO_LAVORO_ALTRO) {
+                              setTipoLavoroAltro(true);
+                              // Mantiene l'eventuale valore libero già presente.
+                              if (isTipoLavoroNoto(field.value)) field.onChange(null);
+                            } else {
+                              setTipoLavoroAltro(false);
+                              field.onChange(v);
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value={SELECT_NONE}>(tutti i lavori)</SelectItem>
+                            {TIPI_LAVORO_NOTI.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                            <SelectItem value={TIPO_LAVORO_ALTRO}>Altro…</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {(tipoLavoroAltro || selectValue === TIPO_LAVORO_ALTRO) && (
+                          <FormControl>
+                            <Input
+                              placeholder="es. tende da sole"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value || null)}
+                            />
+                          </FormControl>
+                        )}
+                        <FormDescription className="text-xs">
+                          "(tutti i lavori)" = la regola vale per qualsiasi preventivatore
+                          (serramenti, fotovoltaico, …).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1031,12 +1096,18 @@ function DiscountSimulator({
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Tipo lavoro</label>
-            <Input
-              value={simTipoLavoro}
-              onChange={(e) => setSimTipoLavoro(e.target.value)}
-              placeholder="es. ristrutturazione"
-              className="h-9 text-xs"
-            />
+            <Select
+              value={simTipoLavoro || SELECT_NONE}
+              onValueChange={(v) => setSimTipoLavoro(v === SELECT_NONE ? "" : v)}
+            >
+              <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SELECT_NONE}>— non specificato —</SelectItem>
+                {TIPI_LAVORO_NOTI.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Importo € (subtotal)</label>

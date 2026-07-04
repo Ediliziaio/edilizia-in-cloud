@@ -69,10 +69,22 @@ import {
 
 
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   useListinoMacrocategorie,
   useMacrocategorieMutations,
   type ListinoMacrocategoria,
 } from "@/hooks/useListinoMacrocategorie";
+import {
+  CATEGORIE_FV_LISTINO,
+  TIPOLOGIE_LISTINO,
+  type CategoriaFvListino,
+} from "@/lib/fotovoltaico/collegaListino";
 import { translateListinoError } from "@/lib/listinoErrors";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
@@ -127,6 +139,11 @@ export function MacroCategorieManager() {
   // o 'accessorio'. Determina dove la macro appare nel preventivatore.
   const [formCategoriaTipo, setFormCategoriaTipo] =
     useState<"principale" | "accessorio">("principale");
+  // Tipologia listino + componente FV: classificano la macro per i
+  // preventivatori (trigger DB fv_sync_listino_macro proietta i prodotti
+  // delle macro tipologia='fotovoltaico' in articoli_native).
+  const [formTipologia, setFormTipologia] = useState<string | null>(null);
+  const [formFvCategoria, setFormFvCategoria] = useState<CategoriaFvListino | null>(null);
   const [formImmagineUrl, setFormImmagineUrl] = useState<string | null>(null);
   const [formDescrizioneEstesa, setFormDescrizioneEstesa] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -165,6 +182,8 @@ export function MacroCategorieManager() {
       setFormImmagineUrl(mode.row.immagine_url ?? null);
       setFormDescrizioneEstesa(mode.row.descrizione_estesa ?? mode.row.descrizione ?? "");
       setFormCategoriaTipo(mode.row.categoria_tipo ?? "principale");
+      setFormTipologia(mode.row.tipologia ?? null);
+      setFormFvCategoria(mode.row.fv_categoria ?? null);
     } else {
       // macro-new o none: campi vuoti, default 'principale'
       setFormNome("");
@@ -173,6 +192,8 @@ export function MacroCategorieManager() {
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
       setFormCategoriaTipo("principale");
+      setFormTipologia(null);
+      setFormFvCategoria(null);
     }
   };
 
@@ -184,6 +205,8 @@ export function MacroCategorieManager() {
     setFormImmagineUrl(null);
     setFormDescrizioneEstesa("");
     setFormCategoriaTipo("principale");
+    setFormTipologia(null);
+    setFormFvCategoria(null);
   };
 
   // Upload immagine macro: gestito solo in macro-edit (serve l'id).
@@ -283,6 +306,8 @@ export function MacroCategorieManager() {
           descrizione_estesa: formDescrizioneEstesa.trim() || null,
           verticali_abilitati: formVerticali,
           categoria_tipo: formCategoriaTipo,
+          tipologia: formTipologia,
+          fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
         });
         toast.success("Macrocategoria creata");
         // Post-refactor 20270513200000: bypassiamo il livello categoria
@@ -305,6 +330,8 @@ export function MacroCategorieManager() {
             descrizione_estesa: formDescrizioneEstesa.trim() || null,
             verticali_abilitati: formVerticali,
             categoria_tipo: formCategoriaTipo,
+            tipologia: formTipologia,
+            fv_categoria: formTipologia === "fotovoltaico" ? formFvCategoria : null,
           },
         });
         toast.success("Macrocategoria aggiornata");
@@ -519,6 +546,57 @@ export function MacroCategorieManager() {
                   </div>
                 </button>
               </div>
+            </div>
+
+            {/* Tipologia listino + componente FV — classificazione per i
+                preventivatori. Con tipologia "Fotovoltaico" + componente, i
+                prodotti della macro vengono sincronizzati automaticamente nel
+                catalogo Componenti FV (trigger fv_sync_listino_macro). */}
+            <div className="space-y-2 pt-1 border-t">
+              <Label className="text-sm font-medium">Tipologia listino (per i preventivatori)</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Select
+                  value={formTipologia ?? "__none__"}
+                  onValueChange={(v) => {
+                    const next = v === "__none__" ? null : v;
+                    setFormTipologia(next);
+                    if (next !== "fotovoltaico") setFormFvCategoria(null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nessuna tipologia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Nessuna tipologia —</SelectItem>
+                    {TIPOLOGIE_LISTINO.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formTipologia === "fotovoltaico" && (
+                  <Select
+                    value={formFvCategoria ?? "__none__"}
+                    onValueChange={(v) =>
+                      setFormFvCategoria(v === "__none__" ? null : (v as CategoriaFvListino))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Componente FV" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Scegli componente FV —</SelectItem>
+                      {CATEGORIE_FV_LISTINO.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Con tipologia <strong>Fotovoltaico</strong> + componente, i prodotti di questa
+                macrocategoria vengono collegati automaticamente al preventivatore FV
+                (anche quelli aggiunti in futuro).
+              </p>
             </div>
 
             {(

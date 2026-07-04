@@ -59,7 +59,7 @@ export function TabPresenze() {
   const dateTo = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
   const { giornate, isLoading, summary } = useGiornateSummary(dateFrom, dateTo);
-  const { data: profili = [] } = useAllHrProfili();
+  useAllHrProfili();
 
   const days = useMemo(() => getMonthDays(year, month), [year, month]);
 

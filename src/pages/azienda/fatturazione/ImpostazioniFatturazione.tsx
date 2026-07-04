@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
-  Plus, Pencil, Building2, Receipt, Palette, CreditCard, Percent,
+  Plus, Building2, Receipt, Palette, CreditCard, Percent,
   Settings2, FileText, Globe, Download
 } from "lucide-react";
 import { toast } from "sonner";
@@ -98,7 +98,6 @@ export default function ImpostazioniFatturazione() {
 
   // Local state for managed lists
   const [aliquote, setAliquote] = useState<AliquotaIva[]>(DEFAULT_ALIQUOTE);
-  const [editAliquota, setEditAliquota] = useState<AliquotaIva | null>(null);
   const [showNewAliquota, setShowNewAliquota] = useState(false);
   const [newAliquota, setNewAliquota] = useState<Partial<AliquotaIva>>({ aliquota: 0, descrizione: "" });
 
@@ -929,9 +928,6 @@ export default function ImpostazioniFatturazione() {
                       {a.natura && <div className="text-xs text-muted-foreground">{a.natura} — {NATURE_IVA[a.natura as keyof typeof NATURE_IVA] ?? a.natura}</div>}
                     </div>
                     {a.predefinita && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-                    <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7">
-                      <Pencil className="h-3 w-3" />
-                    </Button>
                     {!a.predefinita && (
                       <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-destructive hover:text-destructive" onClick={() => setAliquote(aliquote.filter((x) => x.id !== a.id))}>
                         <Trash2 className="h-3 w-3" />

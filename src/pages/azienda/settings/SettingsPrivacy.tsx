@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
-import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -34,7 +33,6 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export default function SettingsPrivacy() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [deletionReason, setDeletionReason] = useState("");
 

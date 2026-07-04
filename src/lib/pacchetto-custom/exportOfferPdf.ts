@@ -124,15 +124,19 @@ export function exportOfferPdf(input: OfferPdfInput): void {
   doc.text(`Funzionalità incluse (${input.features.length})`, margin, y);
   y += 6;
 
-  // Header tabella
-  doc.setFillColor(30, 58, 95);
-  doc.rect(margin, y, pageWidth - margin * 2, 7, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
-  doc.text("FUNZIONALITÀ", margin + 2, y + 4.5);
-  doc.text("CATEGORIA", margin + 95, y + 4.5);
-  doc.text("PREZZO/MESE", pageWidth - margin - 2, y + 4.5, { align: "right" });
-  y += 7;
+  // Header tabella (riusabile dopo ogni addPage)
+  const drawTableHeader = (yPos: number): number => {
+    doc.setFillColor(30, 58, 95);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 7, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("FUNZIONALITÀ", margin + 2, yPos + 4.5);
+    doc.text("CATEGORIA", margin + 95, yPos + 4.5);
+    doc.text("PREZZO/MESE", pageWidth - margin - 2, yPos + 4.5, { align: "right" });
+    return yPos + 7;
+  };
+  y = drawTableHeader(y);
 
   // Righe feature
   doc.setTextColor(0, 0, 0);
@@ -141,9 +145,13 @@ export function exportOfferPdf(input: OfferPdfInput): void {
   let rowEven = false;
   for (const f of input.features) {
     if (y > pageHeight - 60) {
-      // Nuova pagina
+      // Nuova pagina: ridisegna l'intestazione tabella e ripristina lo stile righe
       doc.addPage();
-      y = margin;
+      y = drawTableHeader(margin);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      rowEven = false;
     }
     if (rowEven) {
       doc.setFillColor(248, 249, 251);
@@ -209,6 +217,10 @@ export function exportOfferPdf(input: OfferPdfInput): void {
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
     const notes = doc.splitTextToSize(input.notes, pageWidth - margin * 2);
+    if (y + notes.length * 4 > pageHeight - 50) {
+      doc.addPage();
+      y = margin;
+    }
     doc.text(notes, margin, y);
     y += notes.length * 4;
   }
@@ -240,16 +252,21 @@ export function exportOfferPdf(input: OfferPdfInput): void {
     ty += 3.5;
   }
 
-  // ── FOOTER ──
+  // ── FOOTER (su tutte le pagine) ──
+  const totalPages = doc.getNumberOfPages();
   const footerY = pageHeight - 14;
-  doc.setDrawColor(220, 220, 220);
-  doc.line(margin, footerY, pageWidth - margin, footerY);
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(7);
-  doc.text(`${BRAND.legalName} — ${BRAND.taxId} — ${BRAND.address}`, margin, footerY + 4);
-  doc.text(`${BRAND.email} · ${BRAND.phone}`, pageWidth - margin, footerY + 4, { align: "right" });
-  doc.text("Offerta generata da Edilizia in Cloud", margin, footerY + 8);
-  doc.text(`Pagina ${doc.getNumberOfPages()}`, pageWidth - margin, footerY + 8, { align: "right" });
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, footerY, pageWidth - margin, footerY);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.text(`${BRAND.legalName} — ${BRAND.taxId} — ${BRAND.address}`, margin, footerY + 4);
+    doc.text(`${BRAND.email} · ${BRAND.phone}`, pageWidth - margin, footerY + 4, { align: "right" });
+    doc.text("Offerta generata da Edilizia in Cloud", margin, footerY + 8);
+    doc.text(`Pagina ${p} di ${totalPages}`, pageWidth - margin, footerY + 8, { align: "right" });
+  }
 
   // ── SAVE ──
   const safeName = input.companyName.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();

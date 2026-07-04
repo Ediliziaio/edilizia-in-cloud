@@ -272,7 +272,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   });
 
   // ── Fetch contact messages ──
-  const { data: contactMessages = [] } = useQuery({
+  useQuery({
     queryKey: ["contact_messages", id],
     queryFn: async () => {
       if (!id || !companyId) return [];

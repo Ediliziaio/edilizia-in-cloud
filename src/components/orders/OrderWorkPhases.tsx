@@ -34,6 +34,10 @@ import {
   type AssignmentSource,
   type AddAssignmentPayload,
 } from "@/hooks/useOrderWorkPhases";
+import {
+  useOrderScheduleHealth,
+  type SchedulePhaseHealth,
+} from "@/hooks/useOrderScheduleHealth";
 import { cn } from "@/lib/utils";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -129,6 +133,14 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
+
+  // Semaforo tempi: atteso vs reale per le fasi con date (match per id fase)
+  const { data: scheduleHealth } = useOrderScheduleHealth(orderId);
+  const healthByPhaseId = useMemo(() => {
+    const map = new Map<string, SchedulePhaseHealth>();
+    for (const f of scheduleHealth?.fasi ?? []) map.set(f.id, f);
+    return map;
+  }, [scheduleHealth]);
 
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState("");
@@ -370,6 +382,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
               <PhaseCard
                 key={phase.id}
                 phase={phase}
+                health={healthByPhaseId.get(phase.id)}
                 employees={employees}
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
@@ -434,6 +447,8 @@ type AssignmentPatch = Partial<
 
 interface PhaseCardProps {
   phase: WorkPhase;
+  /** Atteso vs reale a oggi (RPC order_schedule_health), solo per fasi datate */
+  health?: SchedulePhaseHealth;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
   materials: PhaseMaterial[];
@@ -464,6 +479,7 @@ interface PhaseCardProps {
 
 function PhaseCard({
   phase,
+  health,
   employees,
   externalTeams,
   materials,
@@ -608,6 +624,35 @@ function PhaseCard({
             <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
               {meta.label}
             </Badge>
+
+            {/* Avanzamento reale dichiarato dai rapportini + atteso a oggi:
+                barra piccola sempre visibile, "atteso X%" rosso se in ritardo */}
+            {(() => {
+              const actualPct = phase.status === "completata" ? 100 : phase.percentuale;
+              const inRitardo =
+                !!health && Number(health.delta_pct) < 0 && phase.status !== "completata";
+              return (
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                    <span
+                      className={cn(
+                        "block h-full rounded-full transition-all",
+                        inRitardo ? "bg-rose-500" : "bg-emerald-500",
+                      )}
+                      style={{ width: `${Math.min(100, Math.max(0, actualPct))}%` }}
+                    />
+                  </span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {actualPct}%
+                  </span>
+                  {inRitardo && (
+                    <span className="text-[11px] font-medium text-rose-600">
+                      atteso {Math.round(Number(health.expected_pct))}%
+                    </span>
+                  )}
+                </span>
+              );
+            })()}
 
             {/* Riepilogo compatto: leggibile anche a fase chiusa */}
             <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">

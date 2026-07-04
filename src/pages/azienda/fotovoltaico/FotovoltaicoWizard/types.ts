@@ -86,8 +86,23 @@ export interface WizardData {
   layout_overlay: { x: number; y: number; rot: number; cols: number } | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
+  /** Prodotti extra dal listino generale (caldaia, clima, colonnina, …):
+   *  salvati in fv_componenti_progetto con categoria='altro' insieme ai
+   *  componenti principali (stesso flusso delete+insert dello Step 5). */
+  prodotti_extra: Array<{
+    listino_id: string | null;
+    descrizione: string;
+    quantita: number;
+    prezzo_vendita: number;
+    prezzo_acquisto: number | null;
+  }>;
   // Step 6: Finanziamento
   finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio";
+  /** Sconto commerciale (fv_progetti.sconto_tipo/sconto_valore): 'pct' = %
+   *  sul prezzo netto, 'importo' = € fissi. L'edge fa il clamp server-side
+   *  sulle discount_rules e scrive sconto_eur_applicato. */
+  sconto_tipo: "pct" | "importo";
+  sconto_valore: number | null;
   tabella_finanziamento_id: string | null;
   durata_mesi_scelta: number | null;
   /** Step 6: Modalità di pagamento diretto (acconto / SAL / saldo) — come negli

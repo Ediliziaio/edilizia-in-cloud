@@ -10,7 +10,30 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato';
+type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
+
+// Testo di recesso di fallback (14 giorni, art. 52 Cod. Consumo): usato quando
+// l'azienda non ha una riga fea_configurazione con b2c_testo_recesso.
+const RECESSO_FALLBACK =
+  'Hai diritto di recedere dal presente contratto entro 14 giorni senza dover fornire alcuna motivazione. Il periodo di recesso scade dopo 14 giorni dalla conclusione del contratto. Per esercitare il diritto di recesso sei tenuto a informare l\'azienda della tua decisione mediante una dichiarazione esplicita (ad es. una lettera inviata per posta o un\'email).';
+
+// Su risposta non-2xx, supabase.functions.invoke restituisce un FunctionsHttpError
+// SENZA body parsato: error.message è il generico inglese "Edge Function returned a
+// non-2xx status code". Il corpo reale (con il nostro { error } in italiano) è
+// leggibile da error.context. Questa helper lo estrae; se non c'è, torna al
+// fallback italiano generico passato dal chiamante.
+async function messaggioErroreEdge(error: unknown, fallback: string): Promise<string> {
+  try {
+    const ctx = (error as { context?: { json?: () => Promise<unknown> } })?.context;
+    if (ctx?.json) {
+      const data = (await ctx.json()) as { error?: string } | null;
+      if (data?.error) return data.error;
+    }
+  } catch {
+    // corpo non leggibile o già consumato: usa il fallback
+  }
+  return fallback;
+}
 
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
@@ -28,6 +51,9 @@ export default function FirmaDocumento() {
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
   const [firmaTimestamp, setFirmaTimestamp] = useState('');
+  const [rifiutoDialogAperto, setRifiutoDialogAperto] = useState(false);
+  const [rifiutoMotivo, setRifiutoMotivo] = useState('');
+  const [rifiutoInCorso, setRifiutoInCorso] = useState(false);
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -70,7 +96,8 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-documento-pubblico', {
         body: { token },
       });
-      if (error || !data) throw new Error(error?.message ?? 'Link non valido');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Link non valido'));
+      if (!data) throw new Error('Link non valido');
       if (data.error) throw new Error(data.error);
       // Documento già firmato: solo schermata di conferma, niente flusso di firma
       if (data.already_signed || data.status === 'signed') {
@@ -94,7 +121,8 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-genera-otp', {
         body: { request_id: sessione!.request_id, azienda_nome: sessione!.azienda_nome },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Errore invio OTP');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore invio OTP'));
+      if (data?.error) throw new Error(data.error);
       setOtpTimer(600);
       setOtpDigits(['', '', '', '', '', '']);
       setStep('otp');
@@ -132,13 +160,14 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-verifica-otp', {
         body: { token, otp: otpValue },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Codice non corretto');
-      // OTP verificato — passa allo step successivo
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non corretto'));
+      if (data?.error) throw new Error(data.error);
+      // OTP verificato — passa allo step successivo.
+      // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
+      // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
       const isB2c = sessione?.tipo_firmatario === 'b2c';
-      if (isB2c && sessione?.b2c_testo_recesso) {
+      if (isB2c) {
         setStep('b2c_recesso');
-      } else if (isB2c && (sessione?.b2c_clausole?.length ?? 0) > 0) {
-        setStep('b2c_clausole');
       } else {
         setStep('firma');
       }
@@ -167,13 +196,34 @@ export default function FirmaDocumento() {
           b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? clausoleApprovate : null,
         },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Errore nella firma');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
+      if (data?.error) throw new Error(data.error);
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
       setStep('successo');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella firma');
     } finally {
       setFirmaInCorso(false);
+    }
+  };
+
+  const confermaRifiuto = async () => {
+    setRifiutoInCorso(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fea-rifiuta-firma', {
+        body: {
+          token,
+          motivo: rifiutoMotivo.trim() || null,
+        },
+      });
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nel rifiuto del documento'));
+      if (data?.error) throw new Error(data.error);
+      setRifiutoDialogAperto(false);
+      setStep('rifiutato');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore nel rifiuto del documento');
+    } finally {
+      setRifiutoInCorso(false);
     }
   };
 
@@ -360,7 +410,7 @@ export default function FirmaDocumento() {
           <p className="text-slate-500 text-sm mt-1">Leggi attentamente prima di procedere</p>
         </div>
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-slate-700 max-h-48 overflow-y-auto leading-relaxed">
-          {sessione.b2c_testo_recesso ?? 'Hai diritto di recedere dal presente contratto entro 14 giorni senza dover fornire alcuna motivazione. Il periodo di recesso scade dopo 14 giorni dalla conclusione del contratto.'}
+          {sessione.b2c_testo_recesso ?? RECESSO_FALLBACK}
         </div>
         <div className="flex items-start gap-3">
           <Checkbox
@@ -468,6 +518,86 @@ export default function FirmaDocumento() {
         </Button>
         <p className="text-slate-400 text-xs text-center">
           La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
+        </p>
+        <div className="pt-2 border-t border-slate-100">
+          <Button
+            variant="outline"
+            className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={firmaInCorso}
+            onClick={() => { setRifiutoMotivo(''); setRifiutoDialogAperto(true); }}
+          >
+            Rifiuta il documento
+          </Button>
+        </div>
+      </div>
+
+      {rifiutoDialogAperto && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rifiuto-titolo"
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4">
+            <div>
+              <h3 id="rifiuto-titolo" className="text-lg font-bold text-slate-800">Rifiuta il documento</h3>
+              <p className="text-slate-500 text-sm mt-1">
+                Stai per rifiutare la firma di questo documento. L&apos;azione è definitiva.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="rifiuto-motivo" className="text-sm font-medium text-slate-700">
+                Motivo (opzionale)
+              </label>
+              <textarea
+                id="rifiuto-motivo"
+                value={rifiutoMotivo}
+                onChange={e => setRifiutoMotivo(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Es. i dati non sono corretti, importo errato..."
+                className="mt-1 w-full rounded-xl border-2 border-slate-200 p-3 text-sm outline-none focus:border-red-400 resize-none"
+              />
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                className="w-full sm:flex-1"
+                disabled={rifiutoInCorso}
+                onClick={() => setRifiutoDialogAperto(false)}
+              >
+                Annulla
+              </Button>
+              <Button
+                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white font-bold"
+                disabled={rifiutoInCorso}
+                onClick={confermaRifiuto}
+              >
+                {rifiutoInCorso ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Rifiuto in corso...</>
+                ) : (
+                  'Conferma rifiuto'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Wrapper>
+  );
+
+  if (step === 'rifiutato') return (
+    <Wrapper>
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+          <AlertCircle className="h-10 w-10 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Documento rifiutato</h2>
+        <p className="text-slate-600 text-sm max-w-xs">
+          Hai rifiutato la firma di questo documento. L&apos;azienda che ti ha inviato il link è stata informata.
+        </p>
+        <p className="text-slate-500 text-sm max-w-xs">
+          Non è richiesta nessuna ulteriore azione. Per assistenza contatta l&apos;azienda.
         </p>
       </div>
     </Wrapper>

@@ -705,6 +705,9 @@ function EditOrderInner() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Anti doppio-submit: il submit via Invio non passa dal bottone (disabled),
+    // quindi senza questa guardia la mutation può partire due volte.
+    if (updateOrderMutation.isPending) return;
 
     // Se lo state ha perso il cliente ma la commessa ne ha già uno salvato,
     // usiamo quello (vedi auto-heal sopra): bloccare qui costringeva l'utente

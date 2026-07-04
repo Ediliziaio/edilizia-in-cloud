@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound, Warehouse, Briefcase, MoreHorizontal, LayoutGrid, List as ListIcon } from 'lucide-react'
+import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound, Warehouse, Briefcase, MoreHorizontal, LayoutGrid, List as ListIcon, ArrowRight } from 'lucide-react'
 
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useSediList } from '@/hooks/useSediAnalytics'
+import { useSediList, useSediAnalytics, type SedeAnalyticsData } from '@/hooks/useSediAnalytics'
+import { useSedeFilter } from '@/store/sedeFilterStore'
+import { formatCurrencyCompact } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -108,6 +111,52 @@ function getTipoMeta(tipo: string) {
   return TIPO_META[tipo] ?? TIPO_META.altro
 }
 
+function margineColor(pct: number) {
+  if (pct >= 25) return 'text-emerald-600'
+  if (pct >= 10) return 'text-amber-600'
+  return 'text-red-600'
+}
+
+/** Striscia "Attività" della sede: ricavi/margine/lead/preventivi cliccabili →
+ *  aprono la Marginalità filtrata su quella sede. Nasconde tutto se la sede
+ *  non ha ancora attività (niente numeri finti). */
+function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () => void }) {
+  if (!a) return null
+  const hasActivity = a.ricavi > 0 || a.n_lead > 0 || a.n_preventivi > 0
+  if (!hasActivity) return null
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group -mx-1 w-full rounded-md border-t px-1 pt-3 text-left transition-colors hover:bg-muted/40"
+      title="Apri la marginalità di questa sede"
+    >
+      <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Attività
+        <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+      </div>
+      <div className="grid grid-cols-4 gap-1">
+        <div>
+          <div className="text-[10px] text-muted-foreground">Ricavi</div>
+          <div className="text-xs font-semibold tabular-nums">{formatCurrencyCompact(a.ricavi)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground">Margine</div>
+          <div className={`text-xs font-semibold ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground">Lead</div>
+          <div className="text-xs font-semibold tabular-nums">{a.n_lead}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted-foreground">Prev.</div>
+          <div className="text-xs font-semibold tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 const COLORI_PRESET = [
   '#1E3A5F', '#F97316', '#16A34A', '#7C3AED',
   '#DC2626', '#0891B2', '#CA8A04', '#9333EA',
@@ -134,6 +183,24 @@ export default function SettingsSedi() {
   const qc = useQueryClient()
   const { data: sedi = [], isLoading } = useSediList()
   const canEditSedi = permissions.isAdmin || permissions.canEditSettingsOrders
+
+  // Attività reale per sede (ricavi/margine/lead/preventivi) — già calcolata da
+  // get-sede-analytics e usata in Cruscotto/Marginalità: la portiamo qui così la
+  // pagina di gestione mostra COSA fa ogni sede, non solo l'anagrafica.
+  const { data: analyticsRes } = useSediAnalytics()
+  const analyticsBySede = useMemo(() => {
+    const m = new Map<string, SedeAnalyticsData>()
+    for (const s of analyticsRes?.sedi ?? []) m.set(s.sede_id, s)
+    return m
+  }, [analyticsRes])
+
+  const navigate = useNavigate()
+  const setSediSelezionate = useSedeFilter((s) => s.setSediSelezionate)
+  // Click sulle metriche → apri la Marginalità già filtrata su questa sede.
+  const openMarginalitaSede = (sedeId: string) => {
+    setSediSelezionate([sedeId])
+    navigate('/azienda/ordini?tab=marginalita')
+  }
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editSede, setEditSede] = useState<Sede | null>(null)
@@ -559,6 +626,9 @@ export default function SettingsSedi() {
                       </div>
                     )}
 
+                    {/* Attività reale della sede (commesse/marketing) → click apre la marginalità filtrata */}
+                    <SedeAttivitaStrip a={analyticsBySede.get(sede.id)} onOpen={() => openMarginalitaSede(sede.id)} />
+
                     {/* Azioni */}
                     <div className="flex items-center justify-between pt-2 border-t -mx-2 px-2">
                       <div className="flex items-center gap-1.5">
@@ -662,6 +732,24 @@ export default function SettingsSedi() {
                           </span>
                         )}
                       </div>
+                      {(() => {
+                        const a = analyticsBySede.get(sede.id)
+                        if (!a || (a.ricavi <= 0 && a.n_lead <= 0 && a.n_preventivi <= 0)) return null
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => openMarginalitaSede(sede.id)}
+                            className="group mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-1 py-0.5 text-xs transition-colors hover:bg-muted/50"
+                            title="Apri la marginalità di questa sede"
+                          >
+                            <span className="text-muted-foreground">Ricavi <b className="text-foreground tabular-nums">{formatCurrencyCompact(a.ricavi)}</b></span>
+                            <span className="text-muted-foreground">Margine <b className={`tabular-nums ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</b></span>
+                            <span className="text-muted-foreground">Lead <b className="text-foreground tabular-nums">{a.n_lead}</b></span>
+                            <span className="text-muted-foreground">Prev. <b className="text-foreground tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</b></span>
+                            <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                          </button>
+                        )
+                      })()}
                       {sede.note_interne && (
                         <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{sede.note_interne}</p>
                       )}
@@ -889,8 +977,20 @@ export default function SettingsSedi() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare questa sede?</AlertDialogTitle>
             <AlertDialogDescription>
-              I preventivi e i record collegati a questa sede perderanno il riferimento.
-              L'operazione non può essere annullata.
+              {(() => {
+                const a = deleteId ? analyticsBySede.get(deleteId) : undefined
+                const collegata = !!a && (a.ricavi > 0 || a.n_preventivi > 0)
+                if (collegata) {
+                  return (
+                    <>
+                      Questa sede risulta <b>collegata ad attività</b> ({a!.n_preventivi} preventivi · {formatCurrencyCompact(a!.ricavi)} di ricavi).
+                      Se è agganciata a preventivi o commesse l'eliminazione verrà <b>bloccata</b>: in quel caso <b>disattivala</b> invece di eliminarla,
+                      così lo storico resta intatto.
+                    </>
+                  )
+                }
+                return <>Nessuna attività collegata rilevata su questa sede. L'operazione non può essere annullata.</>
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

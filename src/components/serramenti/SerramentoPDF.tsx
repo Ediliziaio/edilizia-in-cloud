@@ -122,7 +122,9 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       fontSize: 9.5,
       color: C.gray900,
       paddingTop: 40,
-      paddingBottom: 64,
+      // Il footer fisso (position absolute, bottom 26) arriva a 4-5 righe
+      // (~74-84pt dal fondo): 92 evita che il contenuto ci finisca sopra.
+      paddingBottom: 92,
       paddingHorizontal: 44,
       backgroundColor: C.white,
     },
@@ -401,7 +403,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       gap: 4,
     },
     ecobonusCell: {
-      width: "19%" as const,    // 5 colonne → 100/5 - gap visual ≈ 19%
+      width: "19%" as const,    // 5 colonne → 100/5 - gap visual ~ 19%
       backgroundColor: C.white,
       borderRadius: 4,
       paddingVertical: 6,
@@ -2390,7 +2392,8 @@ export function SerramentoPDF({
                     <View style={styles.percheNoiMetricheRow}>
                       {percheNoiMetriche.map((m, i) => (
                         <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
-                          {m.icon && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
+                          {/* Solo ASCII stampabile: emoji/simboli non-WinAnsi diventano glifi rotti in Helvetica. */}
+                          {m.icon && /^[\x20-\x7E]+$/.test(m.icon) && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
                           <Text style={styles.percheNoiMetricaValue}>
                             {m.value}
                             {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
@@ -2433,7 +2436,10 @@ export function SerramentoPDF({
 
               <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
               <View style={styles.table}>
-                <View style={styles.tableHeader}>
+                {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
+                    finché la tabella composizione continua (react-pdf lo propaga
+                    col frammento della View tabella, non su Accessori/Consulenza). */}
+                <View style={styles.tableHeader} fixed>
                   <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
                   <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
                   <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
@@ -2932,7 +2938,7 @@ export function SerramentoPDF({
                       return (
                         <View style={styles.priceExtraItem}>
                           <Text style={styles.priceExtraLabel}>oppure a rate</Text>
-                          <Text style={styles.priceExtraValue}>≈ da € {fmtEuro(piano.rata_mese)}/mese</Text>
+                          <Text style={styles.priceExtraValue}>~ da € {fmtEuro(piano.rata_mese)}/mese</Text>
                           <Text style={styles.priceExtraSub}>in {piano.mesi} mesi · TAN {piano.tasso}%</Text>
                         </View>
                       );

@@ -18,7 +18,7 @@ import {
   QuoteChip,
   QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
 import type { DDTStato } from "@/hooks/useDDTRicezione";
@@ -77,7 +77,6 @@ export default function PurchaseOrderDetail() {
   const { updateStatus, update } = usePurchaseOrders();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState("");
-  const queryClient = useQueryClient();
 
   // AI Verification
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);

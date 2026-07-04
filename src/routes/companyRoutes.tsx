@@ -1061,7 +1061,9 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/simulatore" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreIndex /></FeatureRoute>)} />
         <Route path="marketing/simulatore/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreEditor /></FeatureRoute>)} />
-        <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
+        {/* Route legacy consolidata: la pagina reale vive su /azienda/firma-elettronica.
+            Redirect per non rompere vecchi link/segnalibri. */}
+        <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
         

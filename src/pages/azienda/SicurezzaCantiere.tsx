@@ -359,6 +359,7 @@ export default function SicurezzaCantiere() {
   <meta charset="UTF-8" />
   <title>${escapeHtml(tipo)} — ${safeOrderLabel}</title>
   <style>
+    @page { size: A4; margin: 15mm; }
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #111; line-height: 1.6; }
     h1 { font-size: 1.5rem; border-bottom: 2px solid #333; padding-bottom: 8px; }
     .meta { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; font-size: 0.875rem; color: #555; }

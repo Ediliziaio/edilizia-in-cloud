@@ -50,6 +50,26 @@ const fmtEur = (n: number | null | undefined): string => {
   }).format(v);
 };
 
+// Numeri grezzi (indicatori/soglie): max 2 decimali per non invadere le colonne.
+const fmtNum = (v: unknown): string => (typeof v === "number" ? v.toFixed(2) : String(v));
+
+// Rimuove i caratteri fuori WinAnsi (le StandardFonts non li codificano):
+// un solo carattere fuori set (spunte, simboli matematici, emoji) fa lanciare
+// drawText e fallire l'intero export.
+function winAnsiSafe(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return String(str).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
+}
+
+// Difesa in profondità: ogni drawText della pagina passa da winAnsiSafe, così
+// nessun carattere futuro fuori set può far fallire la generazione del PDF.
+function patchDrawTextSafe(page: PDFPage): PDFPage {
+  const raw = page.drawText.bind(page);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  page.drawText = ((text: string, opts?: any) => raw(winAnsiSafe(text), opts)) as typeof page.drawText;
+  return page;
+}
+
 interface DrawCtx {
   pdf: PDFDocument;
   fontReg: PDFFont;
@@ -82,7 +102,7 @@ function drawFooter(page: PDFPage, ctx: DrawCtx) {
 }
 
 function newPage(ctx: DrawCtx, title: string): { page: PDFPage; y: number } {
-  const page = ctx.pdf.addPage([595, 842]);
+  const page = patchDrawTextSafe(ctx.pdf.addPage([595, 842]));
   ctx.pageNum.v += 1;
   drawHeader(page, ctx, title);
   drawFooter(page, ctx);
@@ -90,13 +110,16 @@ function newPage(ctx: DrawCtx, title: string): { page: PDFPage; y: number } {
 }
 
 function drawCover(ctx: DrawCtx) {
-  const page = ctx.pdf.addPage([595, 842]);
+  const page = patchDrawTextSafe(ctx.pdf.addPage([595, 842]));
   ctx.pageNum.v += 1;
   page.drawRectangle({ x: 0, y: 0, width: 595, height: 842, color: NAVY });
   page.drawRectangle({ x: 0, y: 0, width: 595, height: 200, color: ORANGE });
   page.drawText("PACCHETTO BANCA", { x: 50, y: 600, size: 36, font: ctx.fontBold, color: WHITE });
   page.drawText(`Esercizio ${ctx.anno}`, { x: 50, y: 560, size: 16, font: ctx.fontReg, color: rgb(0.95, 0.7, 0.4) });
-  page.drawText(ctx.companyName, { x: 50, y: 480, size: 22, font: ctx.fontBold, color: WHITE });
+  // Nomi azienda lunghi: font ridotto + slice di sicurezza per restare nel foglio
+  const coverName = ctx.companyName.length > 60 ? ctx.companyName.slice(0, 59) + "…" : ctx.companyName;
+  const coverNameSize = ctx.companyName.length > 40 ? 16 : 22;
+  page.drawText(coverName, { x: 50, y: 480, size: coverNameSize, font: ctx.fontBold, color: WHITE });
   if (ctx.companyVAT) page.drawText(`P.IVA ${ctx.companyVAT}`, { x: 50, y: 460, size: 12, font: ctx.fontReg, color: WHITE });
   page.drawText(`Generato il ${new Date().toLocaleDateString("it-IT")}`, { x: 50, y: 100, size: 10, font: ctx.fontReg, color: NAVY });
   page.drawText("EDILIZIA IN CLOUD · CONTROLLO DI GESTIONE", { x: 50, y: 80, size: 9, font: ctx.fontBold, color: NAVY });
@@ -219,7 +242,7 @@ function drawSPColumns(ctx: DrawCtx, sp: SPResp) {
 
   const yQuad = Math.min(yAttivo, yPassivo) - 24;
   if (sp.quadratura.quadrato) {
-    page.drawText("✓ Stato Patrimoniale quadrato", { x: 50, y: yQuad, size: 10, font: ctx.fontBold, color: rgb(0.06, 0.6, 0.31) });
+    page.drawText("Stato Patrimoniale quadrato", { x: 50, y: yQuad, size: 10, font: ctx.fontBold, color: rgb(0.06, 0.6, 0.31) });
   } else {
     page.drawText(`Differenza Attivo-Passivo: ${fmtEur(sp.quadratura.differenza)}`,
       { x: 50, y: yQuad, size: 10, font: ctx.fontBold, color: ORANGE });
@@ -249,8 +272,8 @@ function drawRatingPage(ctx: DrawCtx, rt: RTResp) {
   for (const i of rt.indicatori) {
     page.drawText(i.label.length > 45 ? i.label.slice(0, 45) + "…" : i.label,
       { x: 50, y: yy, size: 9, font: ctx.fontReg, color: TEXT });
-    page.drawText(String(i.valore), { x: 320, y: yy, size: 9, font: ctx.fontReg, color: TEXT });
-    page.drawText(String(i.soglia_top), { x: 400, y: yy, size: 9, font: ctx.fontReg, color: TEXT });
+    page.drawText(fmtNum(i.valore), { x: 320, y: yy, size: 9, font: ctx.fontReg, color: TEXT });
+    page.drawText(fmtNum(i.soglia_top), { x: 400, y: yy, size: 9, font: ctx.fontReg, color: TEXT });
     page.drawText(`${i.punteggio}/25`, { x: 480, y: yy, size: 9, font: ctx.fontBold, color: TEXT });
     yy -= 16;
   }
@@ -336,8 +359,10 @@ Deno.serve(async (req) => {
     const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const ctx: DrawCtx = {
       pdf, fontReg, fontBold, anno,
-      companyName: (company?.business_name as string) || "Azienda",
-      companyVAT: (company?.vat_number as string) || "",
+      // Sanitizzati alla fonte: drawHeader/drawFooter li passano anche a
+      // widthOfTextAtSize, che lancia sugli stessi caratteri non-WinAnsi.
+      companyName: winAnsiSafe((company?.business_name as string) || "Azienda"),
+      companyVAT: winAnsiSafe((company?.vat_number as string) || ""),
       pageNum: { v: 0 },
     };
 

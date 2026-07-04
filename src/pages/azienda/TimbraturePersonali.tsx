@@ -29,13 +29,12 @@ import { cn } from "@/lib/utils";
 
 // ── Calcolo ore lavorate da array di timbrature ────────────────────────────
 function calcolaOreLavorate(timbrs: HrTimbratura[]): number {
-  let minuti = 0;
   let minutiPausa = 0;
   const entrata = timbrs.find(t => t.tipo === "entrata");
   const uscita = timbrs.find(t => t.tipo === "uscita");
   if (!entrata) return 0;
   const fine = uscita ? parseISO(uscita.timestamp) : new Date();
-  minuti = differenceInMinutes(fine, parseISO(entrata.timestamp));
+  const minuti = differenceInMinutes(fine, parseISO(entrata.timestamp));
   for (let i = 0; i < timbrs.length - 1; i++) {
     const cur = timbrs[i];
     const nxt = timbrs[i + 1];
@@ -246,7 +245,7 @@ export default function TimbraturePersonali() {
             </div>
           ) : timbratureOggi.length > 0 ? (
             <div className="space-y-1">
-              {timbratureOggi.map((t, idx) => {
+              {timbratureOggi.map((t) => {
                 const tipoLabel: Record<string, string> = {
                   entrata: "Entrata",
                   uscita: "Uscita",

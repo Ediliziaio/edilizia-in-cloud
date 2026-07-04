@@ -41,6 +41,31 @@ Deno.serve(async (req: Request) => {
       return errore(404, "Link di firma non trovato o scaduto");
     }
 
+    // Guardia stato: link non più utilizzabile (annullato, scaduto o rifiutato).
+    // NB: 'signed' è gestito subito dopo con schermata di conferma dedicata.
+    if (sigReq.status === "expired" || sigReq.status === "cancelled") {
+      return errore(410, "Questo link di firma non è più valido: è scaduto o è stato annullato.");
+    }
+    if (sigReq.status === "refused") {
+      return errore(410, "Questo documento è stato rifiutato e non è più firmabile.");
+    }
+
+    // Guardia scadenza server-side: se la data di scadenza è passata e il documento
+    // non è stato firmato, il link è scaduto (410) — non aprire il documento.
+    if (
+      sigReq.status !== "signed" &&
+      sigReq.expires_at &&
+      new Date(sigReq.expires_at) < new Date()
+    ) {
+      // Allinea lo stato in DB (best-effort) così i controlli successivi sono coerenti.
+      await supabaseAdmin
+        .from("signature_requests")
+        .update({ status: "expired" })
+        .eq("id", sigReq.id)
+        .neq("status", "signed");
+      return errore(410, "Link di firma scaduto");
+    }
+
     // Già firmato: non esporre l'intero flusso, solo i dati per la conferma
     if (sigReq.status === "signed") {
       return new Response(
@@ -124,7 +149,7 @@ Deno.serve(async (req: Request) => {
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "link_aperto",
-      ip: req.headers.get("x-forwarded-for") ?? null,
+      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
       user_agent: req.headers.get("user-agent") ?? null,
     });
 

@@ -950,7 +950,6 @@ function DashboardPermissionsDialog({
 
   const style = getCardStyle(dashboard.id);
   const CardIcon = style.icon;
-  const isUserPending = grantAccess.isPending || revokeAccess.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>

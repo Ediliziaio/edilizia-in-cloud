@@ -208,6 +208,15 @@ export interface FvPdfTemplateData {
       domanda?: string | null;
       risposta?: string | null;
     }> | null;
+    usp?: Array<{
+      titolo?: string | null;
+      descrizione?: string | null;
+    }> | null;
+    cronoprogramma?: Array<{
+      fase?: string | null;
+      durata?: string | null;
+      descrizione?: string | null;
+    }> | null;
     condizioni_legali_attivo?: boolean | null;
     condizioni_legali_testo?: string | null;
     urgenza_attiva?: boolean | null;
@@ -1501,6 +1510,10 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       descrizione: plainText(g.descrizione),
     }));
   const garanzie = (customGaranzie.length > 0 ? customGaranzie : defaultGaranzie).slice(0, 4);
+  const customUsp = (d.template?.usp ?? [])
+    .filter((u) => plainText(u.titolo).length > 0)
+    .map((u) => ({ titolo: plainText(u.titolo), descrizione: plainText(u.descrizione) }))
+    .slice(0, 6);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1517,12 +1530,14 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       <div class="guarantee-grid">
         ${garanzie.map((g) => `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`).join("")}
       </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Affidabilità operativa</h3>
+      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "Affidabilità operativa"}</h3>
       <ul class="bullets">
-        <li>${escHtml(d.azienda.name)} · partner certificato installatori FV residenziali</li>
+        ${customUsp.length > 0
+          ? customUsp.map((u) => `<li><strong>${escHtml(u.titolo)}</strong>${u.descrizione ? ` — ${escHtml(u.descrizione)}` : ""}</li>`).join("")
+          : `<li>${escHtml(d.azienda.name)} · partner certificato installatori FV residenziali</li>
         <li>Squadra interna tecnici certificati FER</li>
         <li>Albo installatori GSE · partner Premium produttori top tier</li>
-        <li>Reperibilità 7gg/7 · linea diretta titolare</li>
+        <li>Reperibilità 7gg/7 · linea diretta titolare</li>`}
         ${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}
         ${certificazioni.map((cert) => `<li>${escHtml(plainText(cert.nome))}${plainText(cert.ente) ? ` · ${escHtml(plainText(cert.ente))}` : ""}</li>`).join("")}
       </ul>
@@ -1545,6 +1560,24 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
 function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const intro = safeRichText(d.template?.percorso_cliente_intro);
+  const customCrono = (d.template?.cronoprogramma ?? [])
+    .filter((c) => plainText(c.fase).length > 0)
+    .map((c) => ({
+      fase: plainText(c.fase),
+      durata: plainText(c.durata),
+      descrizione: plainText(c.descrizione),
+    }))
+    .slice(0, 8);
+  const defaultTimeline = `
+        <div class="tl-item"><div class="tl-day">Settimana 1</div><div class="tl-title">Firma contratto + apertura pratica finanziamento</div><div class="tl-desc">Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.</div></div>
+        <div class="tl-item"><div class="tl-day">Settimana 1-2</div><div class="tl-title">CILA Comune ${escHtml(d.cliente.comune ?? "")} + TICA e-Distribuzione</div><div class="tl-desc">Comunicazione Inizio Lavori Asseverata + richiesta connessione. Le predisponiamo, le firmiamo per delega, le inoltriamo.</div></div>
+        <div class="tl-item"><div class="tl-day">Settimana 3-4</div><div class="tl-title">Ordine pannelli + inverter + accumulo</div><div class="tl-desc">Lead time 10 giorni. Tutto consegnato al nostro magazzino per controllo qualità.</div></div>
+        <div class="tl-item"><div class="tl-day">Settimana 5</div><div class="tl-title">★ INSTALLAZIONE · 3 giornate a casa tua</div><div class="tl-desc">Squadra 3 tecnici · giorno 1 struttura · giorno 2 pannelli + cablaggio · giorno 3 inverter + test. Tutto pulito.</div></div>
+        <div class="tl-item"><div class="tl-day">Settimana 6</div><div class="tl-title">Allaccio rete + collaudo + RID GSE</div><div class="tl-desc">e-Distribuzione fa l'allaccio. Apriamo Scambio Sul Posto al GSE. Da qui ATTIVO.</div></div>
+        <div class="tl-item"><div class="tl-day">Settimana 7</div><div class="tl-title">Documentazione + dossier IRPEF + saldo</div><div class="tl-desc">Libretto + manuale + dossier già pronto per commercialista. Saldo finale via finanziaria.</div></div>`;
+  const customTimeline = customCrono
+    .map((c) => `<div class="tl-item"><div class="tl-day">${escHtml(c.durata || "—")}</div><div class="tl-title">${escHtml(c.fase)}</div>${c.descrizione ? `<div class="tl-desc">${escHtml(c.descrizione)}</div>` : ""}</div>`)
+    .join("");
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -1553,19 +1586,18 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       <p class="page-subtitle">Tu firmi una sola volta. Noi gestiamo l'intero iter burocratico.</p>
       ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
       <div class="tl">
-        <div class="tl-item"><div class="tl-day">Settimana 1</div><div class="tl-title">Firma contratto + apertura pratica finanziamento</div><div class="tl-desc">Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 1-2</div><div class="tl-title">CILA Comune ${escHtml(d.cliente.comune ?? "")} + TICA e-Distribuzione</div><div class="tl-desc">Comunicazione Inizio Lavori Asseverata + richiesta connessione. Le predisponiamo, le firmiamo per delega, le inoltriamo.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 3-4</div><div class="tl-title">Ordine pannelli + inverter + accumulo</div><div class="tl-desc">Lead time 10 giorni. Tutto consegnato al nostro magazzino per controllo qualità.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 5</div><div class="tl-title">★ INSTALLAZIONE · 3 giornate a casa tua</div><div class="tl-desc">Squadra 3 tecnici · giorno 1 struttura · giorno 2 pannelli + cablaggio · giorno 3 inverter + test. Tutto pulito.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 6</div><div class="tl-title">Allaccio rete + collaudo + RID GSE</div><div class="tl-desc">e-Distribuzione fa l'allaccio. Apriamo Scambio Sul Posto al GSE. Da qui ATTIVO.</div></div>
-        <div class="tl-item"><div class="tl-day">Settimana 7</div><div class="tl-title">Documentazione + dossier IRPEF + saldo</div><div class="tl-desc">Libretto + manuale + dossier già pronto per commercialista. Saldo finale via finanziaria.</div></div>
+        ${customCrono.length > 0 ? customTimeline : defaultTimeline}
       </div>
       ${renderServiziInclusi(d)}
-      <div class="callout callout-success">
+      ${customCrono.length > 0 ? `<div class="callout callout-success">
+        <span class="callout-icon">✓</span>
+        <div><strong>Tu firmi una volta sola.</strong>
+        Tutto il resto — comune, e-Distribuzione, GSE, ENEA — lo gestiamo noi.</div>
+      </div>` : `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Tempo totale: ~7 settimane dalla firma all'attivazione.</strong>
         Tu firmi una volta sola. Tutto il resto — comune, e-Distribuzione, GSE, ENEA — lo gestiamo noi.</div>
-      </div>
+      </div>`}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;

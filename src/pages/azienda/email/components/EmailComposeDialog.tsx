@@ -417,7 +417,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       const sendController = new AbortController();
       const timeoutId = setTimeout(() => sendController.abort(), 30_000);
       let result: unknown;
-      let sendErr: { message?: string } | null = null;
+      let sendErr: { message?: string } | null;
       try {
         const invoked = await supabase.functions.invoke("email-send", {
           body: { outbox_id: id },

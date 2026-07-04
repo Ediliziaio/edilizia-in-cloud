@@ -71,6 +71,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
   const [statoFilter, setStatoFilter] = useState("all");
   const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
   const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string } | null>(null);
+  const [reinviandoId, setReinviandoId] = useState<string | null>(null);
 
   const { data: documenti = [], isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["cassetto-sdi", companyId, anno],
@@ -126,8 +127,10 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
   }, [documenti, statoFilter, searchQuery]);
 
   const handleReinvia = async (docId: string) => {
+    if (reinviandoId) return; // un reinvio SDI alla volta: evita il doppio invio
+    setReinviandoId(docId);
     try {
-      const { data, error } = await supabase.functions.invoke("invia-sdi", {
+      const { error } = await supabase.functions.invoke("invia-sdi", {
         body: { documento_id: docId },
       });
       if (error) {
@@ -144,6 +147,8 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
       void refetch();
     } catch (e: any) {
       toast.error(e.message || "Errore nel reinvio");
+    } finally {
+      setReinviandoId(null);
     }
   };
 
@@ -332,8 +337,8 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                             </Button>
                           ) : puoReinviare(doc) ? (
-                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
-                              <RefreshCw className="h-3.5 w-3.5" />
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)} disabled={reinviandoId === doc.id}>
+                              <RefreshCw className={`h-3.5 w-3.5 ${reinviandoId === doc.id ? "animate-spin" : ""}`} />
                             </Button>
                           ) : null}
                         </div>

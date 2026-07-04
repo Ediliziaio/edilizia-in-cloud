@@ -59,11 +59,15 @@ export default function CedoliniPersonali() {
     queryFn: async () => {
       if (profilo?.employee_id) return profilo.employee_id;
       // Fallback: cerca per user_id
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("employees")
         .select("id")
         .eq("user_id", user!.id)
         .maybeSingle();
+      // Un errore reale (RLS/DB) non deve essere confuso con "nessun collegamento":
+      // lo propaghiamo così la UI può mostrare un vero stato d'errore invece di
+      // "profilo non collegato".
+      if (error) throw error;
       return data?.id ?? null;
     },
     enabled: !!profilo,

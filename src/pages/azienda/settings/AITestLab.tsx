@@ -288,7 +288,7 @@ export default function AITestLab() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((r, i) => {
+                {filteredRows.map((r) => {
                   const isDef = isCurrentDefault(r.feature, r.model_id);
                   return (
                     <tr key={`${r.feature}-${r.model_id}`} className={cn(

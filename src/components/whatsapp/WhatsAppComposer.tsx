@@ -9,7 +9,7 @@
 //  - in modalità "smart": testo libero se aperta, template se chiusa,
 //  - delega l'invio reale al chiamante via `onSend`.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -66,8 +66,18 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
 
   // Modalità: testo se finestra aperta, altrimenti template (forzato).
   const [mode, setMode] = useState<"text" | "template">("text");
+  const modeInizializzato = useRef(false);
   useEffect(() => {
-    if (!windowLoading) setMode(isOpen ? "text" : "template");
+    if (windowLoading) return;
+    if (!isOpen) {
+      // Fuori dalla finestra 24h si può inviare SOLO template: forziamo sempre.
+      setMode("template");
+    } else if (!modeInizializzato.current) {
+      // Finestra aperta: default "testo" solo alla prima volta, così un eventuale
+      // switch manuale su "template" non viene azzerato a ogni refetch della finestra.
+      setMode("text");
+      modeInizializzato.current = true;
+    }
   }, [isOpen, windowLoading]);
 
   const [text, setText] = useState("");
