@@ -90,13 +90,43 @@ function buildHeaderMap(
   return m;
 }
 
+/**
+ * Parse numerico per import listini (prezzi in formato italiano).
+ * Il vecchio `Number(v.replace(",", "."))` interpretava "1.234" come
+ * 1,234 € invece di 1.234 € (errore ×1000 silenzioso) e "1.234,56"
+ * come NaN. Qui il punto seguito da gruppi di 3 cifre è separatore
+ * delle migliaia (convenzione dei listini IT: i decimali usano la
+ * virgola). Ritorna NaN per valori non numerici.
+ */
+export function parseListinoNumber(vRaw: string): number {
+  let s = (vRaw ?? "").trim().replace(/[\s€$£]|EUR/gi, "");
+  if (!s) return NaN;
+  const negative = s.startsWith("-");
+  if (negative) s = s.slice(1);
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma > -1 && lastDot > -1) {
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, "").replace(",", "."); // IT: 1.234,56
+    } else {
+      s = s.replace(/,/g, ""); // US: 1,234.56
+    }
+  } else if (lastComma > -1) {
+    s = s.replace(",", "."); // IT: 9,50
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, ""); // migliaia IT: 1.234 / 1.234.567
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? (negative ? -n : n) : NaN;
+}
+
 /** Converte un valore stringa al tipo di un custom field. */
 function coerceCfValue(raw: string, def: CompanyCustomFieldDef): { value: unknown; error?: string } {
   const trimmed = (raw ?? "").trim();
   if (!trimmed) return { value: null };
   switch (def.field_type) {
     case "number": {
-      const n = Number(trimmed.replace(",", "."));
+      const n = parseListinoNumber(trimmed);
       if (!Number.isFinite(n)) return { value: trimmed, error: `"${def.name}": valore non numerico` };
       return { value: n };
     }
@@ -158,7 +188,7 @@ function buildRow(
         "default_markup_pct",
       ]);
       if (numberFields.has(mapping.key) && vRaw) {
-        const n = Number(vRaw.replace(",", "."));
+        const n = parseListinoNumber(vRaw);
         if (!Number.isFinite(n)) {
           errors.push(`"${mapping.fixedDef?.label}": valore non numerico ("${vRaw}")`);
           normalized[mapping.key] = vRaw;
