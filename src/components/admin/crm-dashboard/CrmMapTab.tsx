@@ -15,14 +15,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import "leaflet.heat";
 import { useCrmMapPoints, type CrmMapPoint } from "@/hooks/useCrmMapPoints";
+
+// leaflet.heat non ha i tipi ufficiali → wrapper tipizzato.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const heatLayer = (L as any).heatLayer as (latlngs: Array<[number, number, number]>, opts?: Record<string, unknown>) => L.Layer;
 import { ITALY_CENTER } from "@/lib/crm/provinceCentroids";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair } from "lucide-react";
+import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const COLOR = {
@@ -126,10 +134,12 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const [showAdv, setShowAdv] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [heatMode, setHeatMode] = useState(false);
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const layerRef = useRef<L.LayerGroup | null>(null);
+  const clusterRef = useRef<L.LayerGroup | null>(null);
+  const heatRef = useRef<L.Layer | null>(null);
 
   const pts = useMemo(() => data?.points ?? [], [data]);
   const { province, categorie, temperature, stati, regioni } = useMemo(() => {
@@ -186,17 +196,33 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
     });
     const map = L.map(mapElRef.current, { center: ITALY_CENTER, zoom: 6, scrollWheelZoom: true, layers: [street] });
     L.control.layers({ Stradale: street, Chiara: light, Satellite: satellite }, {}, { position: "topright" }).addTo(map);
-    layerRef.current = L.layerGroup().addTo(map);
+    clusterRef.current = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 45,
+      chunkedLoading: true,
+      spiderfyOnMaxZoom: true,
+    }).addTo(map);
     mapRef.current = map;
     const t = setTimeout(() => map.invalidateSize(), 80);
-    return () => { clearTimeout(t); map.remove(); mapRef.current = null; layerRef.current = null; };
+    return () => { clearTimeout(t); map.remove(); mapRef.current = null; clusterRef.current = null; heatRef.current = null; };
   }, []);
 
-  // Marker: raggio per fatturato, anello per temperatura.
+  // Marker (clusterizzati) o heatmap, a seconda della modalità.
   useEffect(() => {
-    const layer = layerRef.current;
-    if (!layer) return;
-    layer.clearLayers();
+    const map = mapRef.current;
+    const cluster = clusterRef.current;
+    if (!map || !cluster) return;
+    if (heatRef.current) { map.removeLayer(heatRef.current); heatRef.current = null; }
+
+    if (heatMode) {
+      if (map.hasLayer(cluster)) map.removeLayer(cluster);
+      const heatData = filtered.map((p) => [p.lat, p.lng, 0.35 + p.pesoTier * 0.15] as [number, number, number]);
+      heatRef.current = heatLayer(heatData, { radius: 26, blur: 18, maxZoom: 12, minOpacity: 0.35 }).addTo(map);
+      return;
+    }
+
+    if (!map.hasLayer(cluster)) cluster.addTo(map);
+    cluster.clearLayers();
     for (const p of filtered) {
       const ring = p.temperatura ? tempColor(p.temperatura) : "#ffffff";
       const cm = L.circleMarker([p.lat, p.lng], {
@@ -207,9 +233,9 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
         fillOpacity: p.precise ? 0.9 : 0.6,
       }).bindPopup(popupHtml(p), { maxWidth: 300, minWidth: 200 });
       cm.on("mouseover", () => cm.openPopup());
-      cm.addTo(layer);
+      cluster.addLayer(cm);
     }
-  }, [filtered]);
+  }, [filtered, heatMode]);
 
   // Selezione ad area: trascina un rettangolo → seleziona i pin dentro.
   useEffect(() => {
@@ -289,6 +315,9 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
             </Button>
             <Button variant={selectMode ? "default" : "outline"} onClick={() => setSelectMode((v) => !v)} className="shrink-0" title="Seleziona un'area trascinando sulla mappa">
               <Crosshair className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">{selectMode ? "Trascina…" : "Seleziona area"}</span>
+            </Button>
+            <Button variant={heatMode ? "default" : "outline"} onClick={() => setHeatMode((v) => !v)} className="shrink-0" title="Vista densità (heatmap)">
+              <Flame className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Heatmap</span>
             </Button>
             <Button variant="outline" size="icon" onClick={() => refetch()} disabled={isFetching} title="Aggiorna" className="shrink-0">
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
