@@ -223,9 +223,27 @@ export function useMacrocategorieMutations() {
       if (error) throw new Error(error.message);
       return data as unknown as ListinoMacrocategoria;
     },
-    // L'update non altera la gerarchia → invalidation light, niente
-    // re-fetch dell'intero albero famiglie/articoli (costoso su grandi cataloghi).
-    onSuccess: invalidateLight,
+    // M-B (audit): nome/tipologia/fv_categoria si propagano oltre la lista
+    // macro — il rename appare nei raggruppamenti famiglie/article-templates,
+    // mentre tipologia/fv_categoria fanno scattare il trigger DB fv_sync che
+    // riproietta i prodotti in articoli_native (catalogo componenti FV).
+    // Per i campi cosmetici resta l'invalidation leggera (niente re-fetch
+    // dell'intero albero famiglie, costoso su grandi cataloghi).
+    onSuccess: (_data, { patch }) => {
+      const toccaStruttura =
+        patch.nome !== undefined ||
+        patch.tipologia !== undefined ||
+        patch.fv_categoria !== undefined;
+      if (!toccaStruttura) {
+        invalidateLight();
+        return;
+      }
+      invalidate();
+      void qc.invalidateQueries({ queryKey: queryKeys.articoliNative.all });
+      void qc.invalidateQueries({ queryKey: ["fv", "articoli"] });
+      void qc.invalidateQueries({ queryKey: ["fv", "articoli-fv-catalogo"] });
+      void qc.invalidateQueries({ queryKey: ["fv", "listino-per-fv"] });
+    },
   });
 
   const remove = useMutation({
