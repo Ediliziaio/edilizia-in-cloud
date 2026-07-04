@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3, Crosshair, Package, Share2,
+  TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3, Crosshair, Package, Share2, MapPin,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
@@ -36,6 +36,7 @@ import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksSt
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
+import { CrmMapTab } from "@/components/admin/crm-dashboard/CrmMapTab";
 import { HeroAurora } from "@/components/admin/HeroAurora";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -362,6 +363,7 @@ export default function AdminMarketingCommercialDashboard() {
               { v: "cluster", icon: Package, label: "Cluster & LTV" },
               { v: "partner", icon: Share2, label: "Partner & Referral" },
               { v: "team", icon: Trophy, label: "Team" },
+              { v: "mappa", icon: MapPin, label: "Mappa" },
             ] as const).map((t) => (
               <TabsTrigger
                 key={t.v}
@@ -471,6 +473,11 @@ export default function AdminMarketingCommercialDashboard() {
             <CrmTeamCard companyId={companyId} />
             <CrmAgentTargetsCard companyId={companyId} />
           </div>
+        </TabsContent>
+
+        {/* ─── MAPPA ────────────────────────────────────────────────── */}
+        <TabsContent value="mappa" className="space-y-4 pt-5">
+          <CrmMapTab companyId={companyId} />
         </TabsContent>
       </Tabs>
 
