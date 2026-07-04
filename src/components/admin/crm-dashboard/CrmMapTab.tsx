@@ -13,20 +13,26 @@
  * (Email/WhatsApp/Chiama), selezione ad area → CSV, heatmap (densità).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
 import {
-  useCrmMapCells, useCrmMapPointsBbox, precFromZoom,
+  useCrmMapCells, useCrmMapPointsBbox, useCrmRegionStats, precFromZoom,
   type CrmMapPoint, type BBox,
 } from "@/hooks/useCrmMapViewport";
-import { ITALY_CENTER } from "@/lib/crm/provinceCentroids";
+import { ITALY_CENTER, REGION_CENTROIDS } from "@/lib/crm/provinceCentroids";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame, SlidersHorizontal, Eraser } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame, SlidersHorizontal, Eraser, Target, Send, Navigation, BarChart3, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -50,6 +56,25 @@ function tempColor(t: string): string {
   return "#64748b";
 }
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+// Mappa i tipi attività reali (eventi CRM) → icona + etichetta leggibile.
+// L'ordine conta: pattern più specifici prima.
+const ACT_META: Array<[RegExp, string, string]> = [
+  [/opportunity/, "🎯", "Opportunità"],
+  [/stage/, "🔀", "Cambio fase"],
+  [/site_lead|lead_submitted/, "🌐", "Lead dal sito"],
+  [/assigned/, "🙋", "Assegnazione"],
+  [/note|nota/, "📝", "Nota"],
+  [/whatsapp/, "💬", "WhatsApp"],
+  [/call|chiamata|phone/, "📞", "Chiamata"],
+  [/message|email|sent/, "✉️", "Messaggio"],
+  [/created|contact/, "👤", "Contatto"],
+  [/updated|modif/, "✏️", "Modifica"],
+];
+function actMeta(t: string): { ic: string; lab: string } {
+  const k = t.toLowerCase();
+  for (const [re, ic, lab] of ACT_META) if (re.test(k)) return { ic, lab };
+  return { ic: "•", lab: t };
+}
 function pesoTier(num: number | null): number {
   if (num == null) return 0;
   if (num >= 5_000_000) return 4;
@@ -90,6 +115,15 @@ function popupHtml(p: CrmMapPoint): string {
   const luogo = [p.citta, p.provincia].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ");
   if (luogo) rows.push(row("Zona", `${luogo}${p.regione ? ` (${escapeHtml(p.regione)})` : ""}`));
   if (p.indirizzo) rows.push(row("Indirizzo", escapeHtml(p.indirizzo)));
+  const acts = Object.entries(p.attivita || {}).filter(([, n]) => Number(n) > 0);
+  if (acts.length) {
+    const tot = acts.reduce((s, e) => s + Number(e[1]), 0);
+    const chips = acts
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([t, n]) => { const m = actMeta(t); return `<span title="${escapeHtml(m.lab)}">${m.ic} ${Number(n)}</span>`; })
+      .join(" · ");
+    rows.push(row(`Attività (${tot})`, chips));
+  }
 
   const btn = (href: string, label: string, blank = false) =>
     `<a href="${href}"${blank ? ' target="_blank" rel="noopener"' : ""} style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;background:#f1f5f9;color:#334155;text-decoration:none">${label}</a>`;
@@ -132,6 +166,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [heatMode, setHeatMode] = useState(false);
+  const [showRegions, setShowRegions] = useState(true);
   const [viewport, setViewport] = useState<{ bbox: BBox | null; zoom: number }>({ bbox: null, zoom: 6 });
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +181,15 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const pointMode = totalInView > 0 && totalInView <= POINT_THRESHOLD;
   const pointsQ = useCrmMapPointsBbox(companyId, viewport.bbox, pointMode);
   const points = useMemo(() => pointsQ.data ?? [], [pointsQ.data]);
+  const regionQ = useCrmRegionStats(companyId);
+  const regionStats = useMemo(() => (regionQ.data ?? []).filter((r) => r.n > 0), [regionQ.data]);
+  const regionMax = useMemo(() => Math.max(1, ...regionStats.map((r) => Number(r.n))), [regionStats]);
+
+  /** Centra la mappa sulla regione (se ne conosciamo il centroide). */
+  const flyToRegion = (regione: string) => {
+    const c = REGION_CENTROIDS[regione.trim().toLowerCase()];
+    if (c && mapRef.current) mapRef.current.setView(c, 8, { animate: true });
+  };
 
   const isLoading = cellsQ.isLoading || (pointMode && pointsQ.isLoading);
   const isError = cellsQ.isError || pointsQ.isError;
@@ -307,6 +351,96 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
     setSoloEmail(false); setSoloContattabili(false);
   };
 
+  // ── Azioni outreach dalla selezione ────────────────────────────────────
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [sequenceId, setSequenceId] = useState("");
+  // Solo i prospect (i clienti sono già acquisiti). id "mkt-<uuid>" → uuid.
+  const selProspectIds = selectedPoints
+    .filter((p) => p.tipo === "prospect" && p.id.startsWith("mkt-"))
+    .map((p) => p.id.slice(4));
+
+  const pipelineQ = useQuery({
+    queryKey: ["crm-map-pipeline", companyId],
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_pipelines")
+        .select("id, marketing_pipeline_stages(id, position)")
+        .eq("company_id", companyId).order("position").limit(1);
+      if (error) throw error;
+      const p = (data?.[0] ?? null) as unknown as { id: string; marketing_pipeline_stages: Array<{ id: string; position: number }> } | null;
+      if (!p) return null;
+      const stages = [...(p.marketing_pipeline_stages ?? [])].sort((a, b) => a.position - b.position);
+      return { pipelineId: p.id, stageId: (stages[0]?.id ?? null) as string | null };
+    },
+  });
+
+  const seqsQ = useQuery({
+    queryKey: ["crm-map-seqs", companyId],
+    enabled: !!companyId && enrollOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outreach_sequences").select("*").eq("company_id", companyId);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ id: string; name?: string; nome?: string }>;
+    },
+  });
+
+  const createOpp = useMutation({
+    mutationFn: async () => {
+      const pl = pipelineQ.data;
+      if (!pl?.pipelineId || !pl?.stageId) throw new Error("Nessuna pipeline/fase configurata per creare opportunità");
+      const rows = selectedPoints
+        .filter((p) => p.tipo === "prospect" && p.id.startsWith("mkt-"))
+        .map((p) => ({
+          contact_id: p.id.slice(4), company_id: companyId,
+          pipeline_id: pl.pipelineId, stage_id: pl.stageId,
+          name: p.nome, value: p.fatturato ?? 0, status: "open", source: "mappa",
+        }));
+      if (!rows.length) throw new Error("Nessun prospect selezionato");
+      const { error } = await supabase.from("marketing_opportunities").insert(rows as never);
+      if (error) throw error;
+      return rows.length;
+    },
+    onSuccess: (n) => { toast.success(`${n} opportunità create dai prospect selezionati`); setSelectedIds(new Set()); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
+  const enroll = useMutation({
+    mutationFn: async () => {
+      if (!sequenceId) throw new Error("Scegli una sequenza");
+      if (!selProspectIds.length) throw new Error("Nessun prospect selezionato");
+      const { data, error } = await supabase.functions.invoke("outreach-enroll", {
+        body: { sequence_id: sequenceId, contact_ids: selProspectIds },
+      });
+      if (error) throw error;
+      return Number((data as { enrolled?: number } | null)?.enrolled ?? selProspectIds.length);
+    },
+    onSuccess: (n) => { toast.success(`${n} contatti iscritti alla sequenza`); setEnrollOpen(false); setSelectedIds(new Set()); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
+  // Geocodifica stradale precisa: sposta i pin dal centroide provincia alla via reale.
+  const geocodeBatch = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("crm-geocode-batch", {
+        body: { target: "both", limit: 40 },
+      });
+      if (error) throw error;
+      return (data ?? {}) as { geocoded?: number; processed?: number; remaining?: number };
+    },
+    onSuccess: (r) => {
+      const g = r?.geocoded ?? 0;
+      const rem = r?.remaining ?? 0;
+      if (g > 0) toast.success(`${g} indirizzi geocodificati${rem ? ` · ${rem} ancora da fare (premi di nuovo)` : " · completato"}`);
+      else if (rem > 0) toast.warning(`Nessun indirizzo risolto in questo blocco · ${rem} rimasti`);
+      else toast.success("Tutti gli indirizzi disponibili sono già geocodificati");
+      cellsQ.refetch(); pointsQ.refetch();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
   return (
     <div className="space-y-3">
       <Card>
@@ -335,6 +469,10 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
             </Button>
             <Button variant={heatMode ? "default" : "outline"} onClick={() => setHeatMode((v) => !v)} className="shrink-0" title="Vista densità (heatmap)">
               <Flame className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Heatmap</span>
+            </Button>
+            <Button variant="outline" onClick={() => geocodeBatch.mutate()} disabled={geocodeBatch.isPending} className="shrink-0" title="Posiziona alla via reale gli indirizzi ancora sul centroide provincia">
+              {geocodeBatch.isPending ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <Navigation className="h-4 w-4 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Geocodifica</span>
             </Button>
             <Button variant="outline" size="icon" onClick={() => { cellsQ.refetch(); pointsQ.refetch(); }} disabled={isFetching} title="Aggiorna" className="shrink-0">
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
@@ -397,10 +535,17 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
 
       {selectedIds.size > 0 && (
         <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="flex flex-wrap items-center gap-3 p-3">
-            <span className="text-sm font-semibold text-orange-800">{selectedPoints.length} aziende selezionate</span>
-            <Button size="sm" onClick={exportCsv}><Download className="mr-1.5 h-4 w-4" /> Esporta CSV</Button>
-            <span className="text-xs text-orange-700/80">Presto: aggiungi a sequenza outreach · crea opportunità</span>
+          <CardContent className="flex flex-wrap items-center gap-2 p-3">
+            <span className="text-sm font-semibold text-orange-800">
+              {selectedPoints.length} selezionate{selProspectIds.length > 0 ? ` · ${selProspectIds.length} prospect` : ""}
+            </span>
+            <Button size="sm" variant="outline" onClick={exportCsv}><Download className="mr-1.5 h-4 w-4" /> CSV</Button>
+            <Button size="sm" onClick={() => createOpp.mutate()} disabled={!selProspectIds.length || createOpp.isPending || !pipelineQ.data?.stageId} title={!pipelineQ.data?.stageId ? "Nessuna pipeline configurata" : ""}>
+              {createOpp.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Target className="mr-1.5 h-4 w-4" />} Crea opportunità
+            </Button>
+            <Button size="sm" onClick={() => setEnrollOpen(true)} disabled={!selProspectIds.length}>
+              <Send className="mr-1.5 h-4 w-4" /> Aggiungi a sequenza
+            </Button>
             <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelectedIds(new Set())}><X className="mr-1 h-4 w-4" /> Svuota</Button>
           </CardContent>
         </Card>
@@ -451,10 +596,85 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
         </div>
       </Card>
 
+      {regionStats.length > 0 && (
+        <Card>
+          <button
+            type="button"
+            onClick={() => setShowRegions((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 p-3 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <BarChart3 className="h-4 w-4 shrink-0 text-orange-500" />
+              <span className="text-sm font-semibold">Analisi per regione</span>
+              <span className="hidden truncate text-xs text-muted-foreground sm:inline">· dove concentrare l'outreach</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showRegions ? "rotate-180" : ""}`} />
+          </button>
+          {showRegions && (
+            <CardContent className="space-y-1 p-3 pt-0">
+              {regionStats.slice(0, 12).map((r) => {
+                const pct = r.n > 0 ? Math.round((Number(r.n_clienti) / Number(r.n)) * 100) : 0;
+                const cliW = (Number(r.n_clienti) / regionMax) * 100;
+                const proW = (Number(r.n_prospect) / regionMax) * 100;
+                const zoomable = !!REGION_CENTROIDS[r.regione.trim().toLowerCase()];
+                return (
+                  <button
+                    key={r.regione}
+                    type="button"
+                    disabled={!zoomable}
+                    onClick={() => flyToRegion(r.regione)}
+                    className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs ${zoomable ? "hover:bg-muted/60" : "cursor-default"}`}
+                    title={zoomable ? `Centra la mappa su ${r.regione}` : undefined}
+                  >
+                    <span className="w-24 shrink-0 truncate font-medium sm:w-32">{r.regione}</span>
+                    <span className="relative flex h-3 flex-1 overflow-hidden rounded-full bg-muted">
+                      <span className="h-full" style={{ width: `${cliW}%`, background: COLOR.cliente }} />
+                      <span className="h-full" style={{ width: `${proW}%`, background: COLOR.prospect }} />
+                    </span>
+                    <span className="w-9 shrink-0 text-right font-semibold tabular-nums">{fmtN(Number(r.n))}</span>
+                    <span className="hidden w-24 shrink-0 text-right text-[10px] text-muted-foreground sm:inline">
+                      {fmtN(Number(r.n_clienti))} cli · {fmtN(Number(r.n_prospect))} pro
+                    </span>
+                    <span className="w-9 shrink-0 text-right text-[10px] font-medium text-emerald-600">{pct}%</span>
+                  </button>
+                );
+              })}
+              <div className="pt-1 text-[10px] text-muted-foreground">
+                Barra: <span style={{ color: COLOR.cliente }}>■</span> clienti · <span style={{ color: COLOR.prospect }}>■</span> prospect · % = penetrazione clienti. Clicca una regione per centrarla.
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       <p className="px-1 text-xs text-muted-foreground">
         Aggregazione lato server per riquadro visibile: la mappa scala a 100k+ aziende.
         {!pointMode && " Zooma per vedere i singoli pin, i filtri e la selezione."}
       </p>
+
+      <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Aggiungi a sequenza outreach</DialogTitle>
+            <DialogDescription>{selProspectIds.length} prospect verranno iscritti alla sequenza scelta (chi ha già risposto / opt-out viene escluso).</DialogDescription>
+          </DialogHeader>
+          <Select value={sequenceId} onValueChange={setSequenceId}>
+            <SelectTrigger><SelectValue placeholder={seqsQ.isLoading ? "Carico…" : "Scegli una sequenza"} /></SelectTrigger>
+            <SelectContent>
+              {!seqsQ.isLoading && (seqsQ.data ?? []).length === 0 && (
+                <div className="px-3 py-2 text-sm text-muted-foreground">Nessuna sequenza. Creane una in Outreach.</div>
+              )}
+              {(seqsQ.data ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name || s.nome || s.id}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnrollOpen(false)}>Annulla</Button>
+            <Button onClick={() => enroll.mutate()} disabled={!sequenceId || enroll.isPending}>
+              {enroll.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Iscrivi {selProspectIds.length}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

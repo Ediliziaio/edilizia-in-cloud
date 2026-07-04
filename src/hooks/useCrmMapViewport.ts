@@ -49,6 +49,8 @@ export interface CrmMapPoint {
   lat: number;
   lng: number;
   precise: boolean;
+  /** conteggio attività per canale (email/whatsapp/chiamata…). */
+  attivita: Record<string, number>;
 }
 
 /** Precisione della griglia (decimali di grado) in base allo zoom. */
@@ -82,6 +84,27 @@ export function useCrmMapCells(companyId: string | undefined, bbox: BBox | null,
       });
       if (error) throw error;
       return (data ?? []) as CrmMapCell[];
+    },
+  });
+}
+
+export interface CrmRegionStat {
+  regione: string;
+  n: number;
+  n_clienti: number;
+  n_prospect: number;
+}
+
+/** Conteggi per regione (clienti/prospect) per il pannello "Analisi per regione". */
+export function useCrmRegionStats(companyId: string | undefined) {
+  return useQuery<CrmRegionStat[]>({
+    queryKey: ["crm-map-region-stats", companyId ?? "*"],
+    enabled: !!companyId,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("crm_map_region_stats", { p_company: companyId });
+      if (error) throw error;
+      return (data ?? []) as CrmRegionStat[];
     },
   });
 }
