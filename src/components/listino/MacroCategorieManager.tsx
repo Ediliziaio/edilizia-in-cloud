@@ -92,6 +92,7 @@ import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { FamilyTemplateBulkDialog } from "./FamilyTemplateBulkDialog";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useAuthSelector } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
 const VERTICALI_OPTIONS: { value: string; label: string }[] = [
@@ -114,8 +115,14 @@ type EditMode =
   | { kind: "macro-new" }
   | { kind: "macro-edit"; row: ListinoMacrocategoria };
 
-type DeleteTarget =
-  | { kind: "macro"; row: ListinoMacrocategoria; childCount: number };
+type DeleteTarget = {
+  kind: "macro";
+  row: ListinoMacrocategoria;
+  /** Collegamenti reali (count query all'apertura della dialog).
+   *  "loading" = verifica in corso, "error" = verifica fallita: in entrambi
+   *  i casi la dialog non deve dichiarare "nessun collegamento". */
+  counts: { categorie: number; famiglie: number } | "loading" | "error";
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Componente
@@ -354,8 +361,44 @@ export function MacroCategorieManager() {
 
   const deleting = deleteMacrocategoria.isPending;
 
+  // Apre la dialog di eliminazione e verifica i collegamenti REALI: le FK
+  // listino_categorie.macrocategoria_id e article_families.macrocategoria_id
+  // sono ON DELETE SET NULL, quindi categorie e articoli collegati diventano
+  // "senza macrocategoria". La dialog si apre subito in stato "loading" e i
+  // conteggi arrivano dalle due count-query (prima il numero era hardcoded 0
+  // e la dialog dichiarava sempre "nessuna categoria collegata").
+  const openDeleteMacro = (m: ListinoMacrocategoria) => {
+    setToDelete({ kind: "macro", row: m, counts: "loading" });
+    void (async () => {
+      let counts: DeleteTarget["counts"] = "error";
+      if (companyId) {
+        const [catsRes, famsRes] = await Promise.all([
+          supabase
+            .from("listino_categorie")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("macrocategoria_id", m.id),
+          supabase
+            .from("article_families" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("macrocategoria_id", m.id)
+            .is("deleted_at", null),
+        ]);
+        if (!catsRes.error && !famsRes.error) {
+          counts = { categorie: catsRes.count ?? 0, famiglie: famsRes.count ?? 0 };
+        }
+      }
+      // Aggiorna solo se la dialog è ancora aperta sulla stessa macro
+      // (l'utente potrebbe aver chiuso o cambiato bersaglio nel frattempo).
+      setToDelete((prev) =>
+        prev && prev.row.id === m.id ? { ...prev, counts } : prev,
+      );
+    })();
+  };
+
   const handleDelete = async () => {
-    if (!toDelete || toDelete.kind !== "macro") return;
+    if (!toDelete) return;
     try {
       await deleteMacrocategoria.mutateAsync(toDelete.row.id);
       toast.success("Macrocategoria eliminata");
@@ -433,9 +476,7 @@ export function MacroCategorieManager() {
                   isOpen={isOpen}
                   onToggle={() => toggleExpanded(m.id)}
                   onEditMacro={() => openForm({ kind: "macro-edit", row: m })}
-                  onDeleteMacro={() =>
-                    setToDelete({ kind: "macro", row: m, childCount: 0 })
-                  }
+                  onDeleteMacro={() => openDeleteMacro(m)}
                   onEditSchedaTecnica={() => setSchedaTecnicaFor(m)}
                   // Apertura manuale del bulk import template articoli per la
                   // macro: utile per popolarla velocemente con i template di
@@ -802,25 +843,34 @@ export function MacroCategorieManager() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {toDelete?.kind === "macro"
-                ? `Eliminare "${toDelete.row.nome}"?`
-                : `Eliminare "${toDelete?.row.nome}"?`}
+              {toDelete ? `Eliminare "${toDelete.row.nome}"?` : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {toDelete?.kind === "macro" ? (
+              {!toDelete ? null : toDelete.counts === "loading" ? (
+                "Verifica delle categorie e degli articoli collegati…"
+              ) : toDelete.counts === "error" ? (
+                'Impossibile verificare i collegamenti. Eventuali categorie e articoli collegati diventeranno "senza macrocategoria"; nessun elemento verrà eliminato.'
+              ) : toDelete.counts.categorie > 0 || toDelete.counts.famiglie > 0 ? (
                 <>
-                  {toDelete.childCount > 0 ? (
+                  Collegati a questa macrocategoria:{" "}
+                  {toDelete.counts.categorie > 0 && (
                     <>
-                      Le <strong>{toDelete.childCount}</strong> categorie collegate
-                      diventeranno &quot;senza macrocategoria&quot;. Gli articoli non verranno
-                      eliminati.
+                      <strong>{toDelete.counts.categorie}</strong>{" "}
+                      {toDelete.counts.categorie === 1 ? "categoria" : "categorie"}
                     </>
-                  ) : (
-                    "Nessuna categoria è collegata. Puoi procedere."
                   )}
+                  {toDelete.counts.categorie > 0 && toDelete.counts.famiglie > 0 && " e "}
+                  {toDelete.counts.famiglie > 0 && (
+                    <>
+                      <strong>{toDelete.counts.famiglie}</strong>{" "}
+                      {toDelete.counts.famiglie === 1 ? "articolo" : "articoli"}
+                    </>
+                  )}
+                  . Diventeranno &quot;senza macrocategoria&quot;: nessun elemento verrà
+                  eliminato.
                 </>
               ) : (
-                "Gli articoli collegati a questa categoria non verranno eliminati, ma perderanno il riferimento."
+                "Nessuna categoria o articolo è collegato. Puoi procedere."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
