@@ -312,28 +312,35 @@ export function FamilyAxesEditor({ family }: Props) {
   );
 
   // ── Riordino assi ──────────────────────────────────────────────────────
+  // M-S (audit): niente più swap dei due sort_order — sulle righe legacy
+  // (tutte a sort_order 0) lo swap era un no-op e le frecce non muovevano
+  // nulla. Rinumeriamo l'intera lista a passi di 10 dopo lo scambio di
+  // posizione, aggiornando solo le righe il cui sort_order cambia. Il catch
+  // mostra un toast: l'onError del hook fa solo telemetria (finding 12).
   const moveAxis = async (axis: FamilyAxis, direction: "up" | "down") => {
     const sorted = [...family.axes].sort((a, b) => a.sort_order - b.sort_order);
     const idx = sorted.findIndex((a) => a.id === axis.id);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (target < 0 || target >= sorted.length) return;
 
-    const other = sorted[target];
+    [sorted[idx], sorted[target]] = [sorted[target], sorted[idx]];
     try {
-      await Promise.all([
-        updateAxis.mutateAsync({
-          id: axis.id,
-          familyId: family.id,
-          patch: { sort_order: other.sort_order },
-        }),
-        updateAxis.mutateAsync({
-          id: other.id,
-          familyId: family.id,
-          patch: { sort_order: axis.sort_order },
-        }),
-      ]);
-    } catch {
-      // error toast già mostrato da mutazione
+      await Promise.all(
+        sorted
+          .map((a, i) => ({ row: a, order: i * 10 }))
+          .filter(({ row, order }) => row.sort_order !== order)
+          .map(({ row, order }) =>
+            updateAxis.mutateAsync({
+              id: row.id,
+              familyId: family.id,
+              patch: { sort_order: order },
+            }),
+          ),
+      );
+    } catch (err) {
+      toast.error("Errore nel riordino delle variabili", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -348,23 +355,24 @@ export function FamilyAxesEditor({ family }: Props) {
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (target < 0 || target >= sorted.length) return;
 
-    const cur = sorted[idx];
-    const other = sorted[target];
+    [sorted[idx], sorted[target]] = [sorted[target], sorted[idx]];
     try {
-      await Promise.all([
-        updateAxisValue.mutateAsync({
-          id: cur.id,
-          familyId: family.id,
-          patch: { sort_order: other.sort_order },
-        }),
-        updateAxisValue.mutateAsync({
-          id: other.id,
-          familyId: family.id,
-          patch: { sort_order: cur.sort_order },
-        }),
-      ]);
-    } catch {
-      /* toast already shown */
+      await Promise.all(
+        sorted
+          .map((v, i) => ({ row: v, order: i * 10 }))
+          .filter(({ row, order }) => row.sort_order !== order)
+          .map(({ row, order }) =>
+            updateAxisValue.mutateAsync({
+              id: row.id,
+              familyId: family.id,
+              patch: { sort_order: order },
+            }),
+          ),
+      );
+    } catch (err) {
+      toast.error("Errore nel riordino dei valori", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
