@@ -527,7 +527,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     const currentMacroId = f.macrocategoria_id
       ?? (f.categoria_id ? categoriaById.get(f.categoria_id)?.macrocategoria_id : null);
     setMoveMacroId(currentMacroId ?? NO_MACRO);
-    setMoveCatId(NO_CAT);
     setToMove(f);
   };
 
