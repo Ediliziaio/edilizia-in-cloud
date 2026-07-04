@@ -24,6 +24,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Upload, Sparkles, AlertTriangle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
 import type { CatalogObjectType } from "@/hooks/useCompanyCustomFields";
 
+const EXTRACT_TIMEOUT_MS = 180_000;
+
 interface AiExtractedRow {
   code?: string | null;
   name: string;
@@ -96,14 +98,28 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       setUploading(false);
       setExtracting(true);
 
+      // M-J (audit): senza timeout un'estrazione appesa lasciava lo spinner
+      // all'infinito. 3 minuti copre i PDF grossi; oltre, l'edge è comunque
+      // già morta per wall-clock limit.
+      const extractTimeout = AbortSignal.timeout(EXTRACT_TIMEOUT_MS);
       const { data, error } = await supabase.functions.invoke("ai-listino-extract", {
         body: { storage_path: storagePath, object_type: objectType },
+        signal: extractTimeout,
       });
       setProgress(90);
-      // M-I (audit): error.message di FunctionsHttpError è il generico
-      // "Edge Function returned a non-2xx status code" — il motivo vero
-      // (PDF illeggibile, quota AI, ecc.) è nel body via error.context.
-      if (error) throw new Error(await edgeErrorMessage(error, "Estrazione non riuscita"));
+      if (error) {
+        // La fetch abortita arriva come FunctionsFetchError generico:
+        // distinguiamo il timeout per dare un messaggio utile.
+        if (extractTimeout.aborted) {
+          throw new Error(
+            "L'estrazione ha superato i 3 minuti ed è stata interrotta. Riprova con un PDF più piccolo o con meno pagine.",
+          );
+        }
+        // M-I (audit): error.message di FunctionsHttpError è il generico
+        // "Edge Function returned a non-2xx status code" — il motivo vero
+        // (PDF illeggibile, quota AI, ecc.) è nel body via error.context.
+        throw new Error(await edgeErrorMessage(error, "Estrazione non riuscita"));
+      }
       const res = data as ExtractResult;
       setResult(res);
       setRows(res.rows ?? []);
