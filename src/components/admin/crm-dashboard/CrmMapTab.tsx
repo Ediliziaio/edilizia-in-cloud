@@ -38,19 +38,63 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** HTML del popup di un pin (Leaflet vuole una stringa/nodo, non JSX). */
+/** Icona emoji per canale attività. */
+const ACT_ICON: Record<string, string> = {
+  email: "✉️", whatsapp: "💬", call: "📞", chiamata: "📞", phone: "📞",
+  sms: "📱", note: "📝", nota: "📝", meeting: "🤝", incontro: "🤝", linkedin: "💼",
+};
+function actIcon(t: string): string {
+  const k = t.toLowerCase();
+  for (const key of Object.keys(ACT_ICON)) if (k.includes(key)) return ACT_ICON[key];
+  return "•";
+}
+/** Colore della temperatura (ai_score_tier). */
+function tempColor(t: string): string {
+  const k = t.toLowerCase();
+  if (k.includes("hot") || k.includes("cald")) return "#dc2626";
+  if (k.includes("warm") || k.includes("tiep")) return "#f59e0b";
+  if (k.includes("cold") || k.includes("fred")) return "#3b82f6";
+  return "#64748b";
+}
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** HTML del popup di un pin — mini-scheda (Leaflet vuole stringa/nodo, non JSX). */
 function popupHtml(p: CrmMapPoint): string {
   const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:9999px;background:${COLOR[p.tipo]};margin-right:6px"></span>`;
   const tipoLabel = p.tipo === "cliente" ? "Cliente" : "Prospect";
-  const luogo = [p.indirizzo, p.provincia].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ");
+  const tipoBadge = `<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:${p.tipo === "cliente" ? "#dcfce7" : "#fee2e2"};color:${p.tipo === "cliente" ? "#166534" : "#991b1b"}">${tipoLabel}</span>`;
+  const tempBadge = p.temperatura
+    ? `<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;margin-left:4px;background:${tempColor(p.temperatura)}22;color:${tempColor(p.temperatura)}">${escapeHtml(cap(p.temperatura))}</span>`
+    : "";
+
+  const rows: string[] = [];
+  const row = (label: string, value: string) =>
+    `<div style="margin-top:3px"><span style="color:#94a3b8">${label}:</span> <span style="color:#334155">${value}</span></div>`;
+
+  if (p.categoria) rows.push(row("Categoria", escapeHtml(p.categoria)));
+  if (p.stato) rows.push(row("Stato", escapeHtml(cap(p.stato))));
+  if (p.fatturato) rows.push(row("Fatturato", escapeHtml(p.fatturato)));
+
+  const luogo = [p.citta, p.provincia].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ");
   const regione = p.regione ? ` (${escapeHtml(p.regione)})` : "";
+  if (luogo) rows.push(row("Zona", `${luogo}${regione}`));
+  if (p.indirizzo) rows.push(row("Indirizzo", escapeHtml(p.indirizzo)));
+
+  if (p.email) rows.push(row("Email", `<a href="mailto:${escapeHtml(p.email)}" style="color:#2563eb">${escapeHtml(p.email)}</a>`));
+  if (p.telefono) rows.push(row("Tel", `<a href="tel:${escapeHtml(p.telefono)}" style="color:#2563eb">${escapeHtml(p.telefono)}</a>`));
+
+  if (p.attivita.length) {
+    const tot = p.attivita.reduce((s, a) => s + a.n, 0);
+    const chips = p.attivita.map((a) => `${actIcon(a.tipo)} ${a.n}`).join(" · ");
+    rows.push(row(`Attività (${tot})`, chips));
+  }
+
   return `
-    <div style="min-width:170px;font-size:12px;line-height:1.35">
-      <div style="font-weight:600;margin-bottom:2px">${dot}${escapeHtml(p.nome)}</div>
-      <div style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:${p.tipo === "cliente" ? "#dcfce7" : "#f1f5f9"};color:${p.tipo === "cliente" ? "#166534" : "#475569"}">${tipoLabel}</div>
-      ${p.categoria ? `<div style="margin-top:4px;color:#475569">Categoria: ${escapeHtml(p.categoria)}</div>` : ""}
-      ${luogo ? `<div style="color:#64748b">${luogo}${regione}</div>` : ""}
-      ${!p.precise ? `<div style="margin-top:2px;font-style:italic;color:#d97706;font-size:10px">Posizione approssimata (provincia)</div>` : ""}
+    <div style="min-width:190px;max-width:280px;font-size:12px;line-height:1.35">
+      <div style="font-weight:600;margin-bottom:3px">${dot}${escapeHtml(p.nome)}</div>
+      <div>${tipoBadge}${tempBadge}</div>
+      ${rows.join("")}
+      ${!p.precise ? `<div style="margin-top:4px;font-style:italic;color:#d97706;font-size:10px">Posizione approssimata (provincia)</div>` : ""}
     </div>`;
 }
 
@@ -112,15 +156,16 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
     if (!layer) return;
     layer.clearLayers();
     for (const p of filtered) {
-      L.circleMarker([p.lat, p.lng], {
+      const cm = L.circleMarker([p.lat, p.lng], {
         radius: 7,
         color: "#ffffff",
         weight: 1.5,
         fillColor: COLOR[p.tipo],
         fillOpacity: p.precise ? 0.9 : 0.65,
-      })
-        .bindPopup(popupHtml(p))
-        .addTo(layer);
+      }).bindPopup(popupHtml(p), { maxWidth: 300, minWidth: 190 });
+      // Apertura anche al passaggio del mouse (oltre al click).
+      cm.on("mouseover", () => cm.openPopup());
+      cm.addTo(layer);
     }
   }, [filtered]);
 
