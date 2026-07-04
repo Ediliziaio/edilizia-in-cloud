@@ -54,7 +54,11 @@ export function useFamilies(options?: { includeInactive?: boolean }) {
         .eq("company_id", companyId!)
         .in("attivo", includeInactive ? [true, false] : [true])
         .is("deleted_at", null)
-        .order("sort_order", { ascending: true });
+        // Tie-breaker sul nome: quasi tutti gli articoli hanno sort_order=0
+        // (default) e senza secondo criterio Postgres non garantisce un
+        // ordine stabile tra refetch → gli articoli "saltellano" in lista.
+        .order("sort_order", { ascending: true })
+        .order("nome", { ascending: true });
       if (error) throw new Error(error.message);
 
       const rows = (data ?? []) as unknown as Array<
