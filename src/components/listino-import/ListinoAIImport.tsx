@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, Sparkles, AlertTriangle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
 import type { CatalogObjectType } from "@/hooks/useCompanyCustomFields";
@@ -99,7 +100,10 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
         body: { storage_path: storagePath, object_type: objectType },
       });
       setProgress(90);
-      if (error) throw error;
+      // M-I (audit): error.message di FunctionsHttpError è il generico
+      // "Edge Function returned a non-2xx status code" — il motivo vero
+      // (PDF illeggibile, quota AI, ecc.) è nel body via error.context.
+      if (error) throw new Error(await edgeErrorMessage(error, "Estrazione non riuscita"));
       const res = data as ExtractResult;
       setResult(res);
       setRows(res.rows ?? []);
@@ -168,7 +172,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       setProgress(40);
       const { data, error } = await supabase.functions.invoke("catalog-import-batch", { body: payload });
       setProgress(90);
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Import non riuscito"));
       const importResult = data as { inserted?: number; updated?: number } | null;
       const inserted = importResult?.inserted ?? validRows.length;
       const updated = importResult?.updated ?? 0;

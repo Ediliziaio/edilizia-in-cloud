@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Download, Upload, FileSpreadsheet, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useCompanyCustomFields,
@@ -125,7 +126,10 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
         body: payload,
       });
       setProgress(90);
-      if (error) throw error;
+      // M-I (audit): error.message di FunctionsHttpError è il generico
+      // "Edge Function returned a non-2xx status code" — il motivo vero
+      // è nel body via error.context.
+      if (error) throw new Error(await edgeErrorMessage(error, "Import non riuscito"));
       setProgress(100);
       // M-G (audit): l'edge risponde anche con skipped/errors — prima venivano
       // ignorati e l'utente vedeva "Importati N record" anche con metà righe
