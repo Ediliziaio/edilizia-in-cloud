@@ -24,9 +24,10 @@
  *
  * Redeploy-marker: questa function include `_shared/fvHtmlTemplate.ts`
  * (cover PDF con preset 1-click + layout: posizione verticale testo, font,
- * overlay style, decorazione). La CI rileva i cambi solo nella dir propria
- * della function ed ESCLUDE `_shared/`: quando cambia solo il template
- * condiviso, basta un bump qui per far ridistribuire la function dal sorgente.
+ * overlay style, decorazione; USP "Perché scegliere noi" in pageGaranzie +
+ * cronoprogramma personalizzato in pageIter). La CI rileva i cambi solo nella
+ * dir propria della function ed ESCLUDE `_shared/`: quando cambia solo il
+ * template condiviso, basta un bump qui per far ridistribuire la function.
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -653,6 +654,8 @@ Deno.serve(async (req: Request) => {
           ? template.garanzie_conversione
           : [],
         faq_items: Array.isArray(template.faq_items) ? template.faq_items : [],
+        usp: Array.isArray(template.usp) ? template.usp : [],
+        cronoprogramma: Array.isArray(template.cronoprogramma) ? template.cronoprogramma : [],
         condizioni_legali_attivo: template.condizioni_legali_attivo ?? false,
         condizioni_legali_testo: template.condizioni_legali_testo ?? null,
         urgenza_attiva: template.urgenza_attiva ?? false,

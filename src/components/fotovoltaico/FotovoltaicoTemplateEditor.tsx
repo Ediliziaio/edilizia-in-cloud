@@ -27,7 +27,7 @@ import {
 import {
   Save, Plus, Trash2, Loader2, Sparkles, Quote, BadgeCheck, Building2,
   Upload, Image as ImageIcon, AlertTriangle, CheckCircle2, ShieldCheck, Sun,
-  Settings2, FileText, ExternalLink, Eye, Wand2,
+  Settings2, FileText, ExternalLink, Eye, Wand2, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,8 +54,12 @@ import {
   buildFvTemplateQualityItems,
   DEFAULT_FV_FAQ,
   DEFAULT_FV_GARANZIE,
+  DEFAULT_FV_USP,
+  DEFAULT_FV_CRONOPROGRAMMA,
   type FvFaqItem,
   type FvGaranziaConversione,
+  type FvUspItem,
+  type FvCronoprogrammaFase,
   type FvTemplateQualityItem,
 } from "@/lib/fotovoltaico/preventivatore";
 
@@ -136,6 +140,8 @@ interface FvTemplate {
   valore_proposta_html?: string | null;
   garanzie_conversione?: FvGaranziaConversione[] | null;
   faq_items?: FvFaqItem[] | null;
+  usp?: FvUspItem[] | null;
+  cronoprogramma?: FvCronoprogrammaFase[] | null;
   condizioni_legali_attivo?: boolean | null;
   condizioni_legali_testo?: string | null;
   urgenza_attiva?: boolean | null;
@@ -442,6 +448,8 @@ function normalizeTemplate(template: FvTemplate): FvTemplate {
       "<p>Analisi bolletta, sopralluogo tecnico, scelta componenti e pratiche FV vengono gestiti in un percorso unico, con numeri chiari su risparmio, payback e prossimi passi.</p>",
     garanzie_conversione: DEFAULT_FV_GARANZIE,
     faq_items: DEFAULT_FV_FAQ,
+    usp: DEFAULT_FV_USP,
+    cronoprogramma: DEFAULT_FV_CRONOPROGRAMMA,
     condizioni_legali_attivo: false,
     condizioni_legali_testo: "",
     urgenza_attiva: false,
@@ -495,6 +503,8 @@ function normalizeTemplate(template: FvTemplate): FvTemplate {
     valore_proposta_html: safeTemplate.valore_proposta_html ?? defaults.valore_proposta_html,
     garanzie_conversione: safeTemplate.garanzie_conversione ?? defaults.garanzie_conversione,
     faq_items: safeTemplate.faq_items ?? defaults.faq_items,
+    usp: safeTemplate.usp ?? defaults.usp,
+    cronoprogramma: safeTemplate.cronoprogramma ?? defaults.cronoprogramma,
     condizioni_legali_attivo:
       safeTemplate.condizioni_legali_attivo ?? defaults.condizioni_legali_attivo,
     condizioni_legali_testo:
@@ -994,6 +1004,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const certificazioni = form.certificazioni ?? [];
   const garanzie = form.garanzie_conversione ?? DEFAULT_FV_GARANZIE;
   const faqItems = form.faq_items ?? DEFAULT_FV_FAQ;
+  const uspItems = form.usp ?? DEFAULT_FV_USP;
+  const cronoFasi = form.cronoprogramma ?? DEFAULT_FV_CRONOPROGRAMMA;
 
   // ─── Recensioni ──────────────────────────────────────────────────────────
   const addRecensione = () => {
@@ -1110,6 +1122,38 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   };
   const removeFaq = (idx: number) => {
     update("faq_items", faqItems.filter((_, i) => i !== idx));
+  };
+
+  const addUsp = () => {
+    update("usp", [...uspItems, { titolo: "", descrizione: "" }]);
+  };
+  const updateUsp = <K extends keyof FvUspItem>(
+    idx: number,
+    field: K,
+    value: FvUspItem[K],
+  ) => {
+    const next = [...uspItems];
+    next[idx] = { ...next[idx], [field]: value };
+    update("usp", next);
+  };
+  const removeUsp = (idx: number) => {
+    update("usp", uspItems.filter((_, i) => i !== idx));
+  };
+
+  const addCronoFase = () => {
+    update("cronoprogramma", [...cronoFasi, { fase: "", durata: "", descrizione: "" }]);
+  };
+  const updateCronoFase = <K extends keyof FvCronoprogrammaFase>(
+    idx: number,
+    field: K,
+    value: FvCronoprogrammaFase[K],
+  ) => {
+    const next = [...cronoFasi];
+    next[idx] = { ...next[idx], [field]: value };
+    update("cronoprogramma", next);
+  };
+  const removeCronoFase = (idx: number) => {
+    update("cronoprogramma", cronoFasi.filter((_, i) => i !== idx));
   };
 
   const applySharedLegalTemplate = useCallback((mode: "replace" | "append") => {
@@ -2076,6 +2120,77 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               placeholder="Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…"
             />
           </FvSettingsCard>
+          <FvSettingsCard
+            title="Cronoprogramma lavori"
+            icon={<Clock className="h-4 w-4" />}
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">
+                  Fasi della timeline mostrata nella pagina iter del PDF
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => update("cronoprogramma", DEFAULT_FV_CRONOPROGRAMMA)}
+                  className="h-7 text-[11px]"
+                >
+                  Ripristina default
+                </Button>
+              </div>
+              {cronoFasi.map((fase, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+                  <div className="col-span-12 md:col-span-2">
+                    <Label className="text-xs">Durata</Label>
+                    <Input
+                      value={fase.durata}
+                      onChange={(e) => updateCronoFase(idx, "durata", e.target.value)}
+                      placeholder="Settimana 1"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <Label className="text-xs">Fase</Label>
+                    <Input
+                      value={fase.fase}
+                      onChange={(e) => updateCronoFase(idx, "fase", e.target.value)}
+                      placeholder="Firma contratto + pratiche"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-10 md:col-span-5">
+                    <Label className="text-xs">Descrizione</Label>
+                    <Input
+                      value={fase.descrizione}
+                      onChange={(e) => updateCronoFase(idx, "descrizione", e.target.value)}
+                      placeholder="Cosa succede in questa fase e chi se ne occupa"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="col-span-2 md:col-span-1 flex items-end">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeCronoFase(idx)}
+                      className="h-9 w-9 text-rose-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button
+                type="button"
+                onClick={addCronoFase}
+                variant="outline"
+                className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+              >
+                <Plus className="h-4 w-4" /> Aggiungi fase
+              </Button>
+            </div>
+          </FvSettingsCard>
         </>
       )}
 
@@ -2546,6 +2661,62 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
             >
               <Plus className="h-4 w-4" /> Aggiungi garanzia
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs">USP — Perché scegliere noi (pagina garanzie)</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => update("usp", DEFAULT_FV_USP)}
+                className="h-7 text-[11px]"
+              >
+                Ripristina default
+              </Button>
+            </div>
+            {uspItems.map((usp, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Punto di forza</Label>
+                  <Input
+                    value={usp.titolo}
+                    onChange={(e) => updateUsp(idx, "titolo", e.target.value)}
+                    placeholder="Squadra interna certificata FER"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-10 md:col-span-7">
+                  <Label className="text-xs">Descrizione</Label>
+                  <Input
+                    value={usp.descrizione}
+                    onChange={(e) => updateUsp(idx, "descrizione", e.target.value)}
+                    placeholder="Perché fa la differenza per il cliente"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1 flex items-end">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeUsp(idx)}
+                    className="h-9 w-9 text-rose-600"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              onClick={addUsp}
+              variant="outline"
+              className="w-full border-dashed border-2 border-sky-300 hover:bg-sky-50 gap-1"
+            >
+              <Plus className="h-4 w-4" /> Aggiungi punto di forza
             </Button>
           </div>
 

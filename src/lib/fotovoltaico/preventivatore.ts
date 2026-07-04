@@ -18,6 +18,17 @@ export interface FvFaqItem {
   risposta: string;
 }
 
+export interface FvUspItem {
+  titolo: string;
+  descrizione: string;
+}
+
+export interface FvCronoprogrammaFase {
+  fase: string;
+  durata: string;
+  descrizione: string;
+}
+
 export interface FvListinoMacrocategoriaMedia {
   nome?: string | null;
   descrizione?: string | null;
@@ -92,6 +103,58 @@ export const DEFAULT_FV_FAQ: FvFaqItem[] = [
   {
     domanda: "Le pratiche sono comprese?",
     risposta: "Il PDF deve indicare quali pratiche sono incluse, quali sono escluse e quali richiedono conferma del tecnico.",
+  },
+];
+
+export const DEFAULT_FV_USP: FvUspItem[] = [
+  {
+    titolo: "Squadra interna certificata FER",
+    descrizione: "Nessun subappalto: chi firma il preventivo è chi installa l'impianto.",
+  },
+  {
+    titolo: "Albo installatori GSE",
+    descrizione: "Partner Premium dei produttori top tier con garanzie dirette.",
+  },
+  {
+    titolo: "Reperibilità 7 giorni su 7",
+    descrizione: "Linea diretta con il titolare per tutta la vita dell'impianto.",
+  },
+  {
+    titolo: "Iter burocratico incluso",
+    descrizione: "CILA, TICA, GSE ed ENEA: gestiamo noi tutte le pratiche per delega.",
+  },
+];
+
+export const DEFAULT_FV_CRONOPROGRAMMA: FvCronoprogrammaFase[] = [
+  {
+    fase: "Firma contratto + apertura pratica finanziamento",
+    durata: "Settimana 1",
+    descrizione: "Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.",
+  },
+  {
+    fase: "CILA Comune + TICA e-Distribuzione",
+    durata: "Settimana 1-2",
+    descrizione: "Comunicazione Inizio Lavori Asseverata + richiesta connessione, gestite per delega.",
+  },
+  {
+    fase: "Ordine pannelli + inverter + accumulo",
+    durata: "Settimana 3-4",
+    descrizione: "Lead time 10 giorni. Tutto consegnato al nostro magazzino per controllo qualità.",
+  },
+  {
+    fase: "Installazione a casa tua",
+    durata: "Settimana 5",
+    descrizione: "Giorno 1 struttura · giorno 2 pannelli + cablaggio · giorno 3 inverter + test.",
+  },
+  {
+    fase: "Allaccio rete + collaudo + RID GSE",
+    durata: "Settimana 6",
+    descrizione: "e-Distribuzione fa l'allaccio, apriamo la pratica GSE. Da qui l'impianto è attivo.",
+  },
+  {
+    fase: "Documentazione + dossier IRPEF + saldo",
+    durata: "Settimana 7",
+    descrizione: "Libretto, manuale e dossier detrazione già pronti per il commercialista.",
   },
 ];
 

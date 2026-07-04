@@ -28683,6 +28683,7 @@ export type Database = {
           costo_kwp_base: number | null
           costo_pratiche_default: number | null
           cpl_max_sostenibile: number | null
+          cronoprogramma: Json | null
           faq_items: Json | null
           font_corpo: string | null
           font_titoli: string | null
@@ -28723,6 +28724,7 @@ export type Database = {
           urgenza_descrizione: string | null
           urgenza_titolo: string | null
           url_sito: string | null
+          usp: Json | null
           valore_proposta_html: string | null
           zona_servita_note: string | null
         }
@@ -28746,6 +28748,7 @@ export type Database = {
           costo_kwp_base?: number | null
           costo_pratiche_default?: number | null
           cpl_max_sostenibile?: number | null
+          cronoprogramma?: Json | null
           faq_items?: Json | null
           font_corpo?: string | null
           font_titoli?: string | null
@@ -28786,6 +28789,7 @@ export type Database = {
           urgenza_descrizione?: string | null
           urgenza_titolo?: string | null
           url_sito?: string | null
+          usp?: Json | null
           valore_proposta_html?: string | null
           zona_servita_note?: string | null
         }
@@ -28809,6 +28813,7 @@ export type Database = {
           costo_kwp_base?: number | null
           costo_pratiche_default?: number | null
           cpl_max_sostenibile?: number | null
+          cronoprogramma?: Json | null
           faq_items?: Json | null
           font_corpo?: string | null
           font_titoli?: string | null
@@ -28849,6 +28854,7 @@ export type Database = {
           urgenza_descrizione?: string | null
           urgenza_titolo?: string | null
           url_sito?: string | null
+          usp?: Json | null
           valore_proposta_html?: string | null
           zona_servita_note?: string | null
         }
