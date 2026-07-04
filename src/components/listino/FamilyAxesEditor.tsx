@@ -1570,6 +1570,13 @@ interface ValueFormValues {
   attivo: boolean;
 }
 
+// M-Z (audit): parse decimale difensivo per i campi importo del dialog —
+// virgola decimale normalizzata (la tastiera iOS con inputMode="decimal"
+// produce la virgola) e clamp a >= 0: con parseFloat "10,5" veniva troncato
+// a 10 e i negativi finivano in DB come maggiorazioni/prezzi negativi.
+const parseImporto = (raw: string): number =>
+  Math.max(0, Number(raw.trim().replace(",", ".")) || 0);
+
 function ValueFormDialog({
   open,
   value,
@@ -1734,12 +1741,12 @@ function ValueFormDialog({
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">Prezzo vendita €</label>
-                <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" value={prezzoV}
+                <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoV}
                   onChange={(e) => setPrezzoV(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
               <div className="space-y-1">
                 <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">Prezzo acquisto €</label>
-                <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" value={prezzoA}
+                <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoA}
                   onChange={(e) => setPrezzoA(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
             </div>
@@ -1815,6 +1822,7 @@ function ValueFormDialog({
                       type="number"
                       inputMode="decimal"
                       step="0.01"
+                      min={0}
                       value={magValore}
                       onChange={(e) => setMagValore(e.target.value)}
                       className="h-10 font-mono"
@@ -1835,6 +1843,7 @@ function ValueFormDialog({
                       type="number"
                       inputMode="decimal"
                       step="0.01"
+                      min={0}
                       value={magAcquisto}
                       onChange={(e) => setMagAcquisto(e.target.value)}
                       className="h-10 font-mono"
@@ -1875,7 +1884,7 @@ function ValueFormDialog({
                     </div>
                     {(() => {
                       const oldV = value.maggiorazione_tipo === "none" ? 0 : value.maggiorazione_valore;
-                      const newV = magTipo === "none" ? 0 : parseFloat(magValore) || 0;
+                      const newV = magTipo === "none" ? 0 : parseImporto(magValore);
                       const diff = newV - oldV;
                       const sameType = value.maggiorazione_tipo === magTipo;
                       if (!sameType) {
@@ -1909,8 +1918,8 @@ function ValueFormDialog({
                     "+500%" su un'interfaccia opaca). */}
                 <PricePreviewRow
                   tipo={magTipo}
-                  vendita={parseFloat(magValore) || 0}
-                  acquisto={parseFloat(magAcquisto) || 0}
+                  vendita={parseImporto(magValore)}
+                  acquisto={parseImporto(magAcquisto)}
                 />
               </>
             ) : null}
@@ -1936,11 +1945,11 @@ function ValueFormDialog({
                   is_default: isDefault,
                   attivo,
                   maggiorazione_tipo: magTipo,
-                  maggiorazione_valore: parseFloat(magValore) || 0,
-                  maggiorazione_acquisto: parseFloat(magAcquisto) || 0,
+                  maggiorazione_valore: parseImporto(magValore),
+                  maggiorazione_acquisto: parseImporto(magAcquisto),
                   codice: codiceArt.trim() || null,
-                  prezzo_vendita: prezzoV.trim() ? (parseFloat(prezzoV) || 0) : null,
-                  prezzo_acquisto: prezzoA.trim() ? (parseFloat(prezzoA) || 0) : null,
+                  prezzo_vendita: prezzoV.trim() ? parseImporto(prezzoV) : null,
+                  prezzo_acquisto: prezzoA.trim() ? parseImporto(prezzoA) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
                 },
                 isDefault ? otherDefaultIds : [],
