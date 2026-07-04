@@ -222,6 +222,32 @@ function buildRow(
   };
 }
 
+/**
+ * M-H (audit): colonne fisse OBBLIGATORIE assenti dall'intestazione del file.
+ * Prima il parser le ignorava in silenzio — ogni riga riceveva null sul campo
+ * (es. "Codice"/"Descrizione") senza alcun errore, e l'import creava record
+ * monchi. I parser lanciano se questa lista non è vuota.
+ */
+export function findMissingRequiredColumns(headers: string[], opts: ParseOpts): string[] {
+  const hmap = buildHeaderMap(headers, opts);
+  const mappedFixedKeys = new Set(
+    [...hmap.values()].filter((m) => m.kind === "fixed").map((m) => m.key),
+  );
+  return FIXED_COLUMNS[opts.objectType]
+    .filter((c) => c.required && !mappedFixedKeys.has(c.key))
+    .map((c) => c.label);
+}
+
+function assertRequiredColumns(headers: string[], opts: ParseOpts): void {
+  const missing = findMissingRequiredColumns(headers, opts);
+  if (missing.length > 0) {
+    throw new Error(
+      `Colonne obbligatorie mancanti nell'intestazione: ${missing.join(", ")}. ` +
+        "Scarica il template allo step 1 e riparti da quello.",
+    );
+  }
+}
+
 /** Parser principale: auto-rileva Excel vs CSV dal nome file/MIME. */
 export async function parseListinoFile(file: File, opts: ParseOpts): Promise<ParsedRow[]> {
   const lower = file.name.toLowerCase();
@@ -235,6 +261,7 @@ export function parseCsv(text: string, opts: ParseOpts): ParsedRow[] {
   const rows: string[][] = (parsed.data as string[][]).filter((r) => Array.isArray(r) && r.some((c) => (c ?? "").toString().trim() !== ""));
   if (rows.length === 0) return [];
   const headers = rows[0].map((h) => (h ?? "").toString());
+  assertRequiredColumns(headers, opts);
   const hmap = buildHeaderMap(headers, opts);
   const out: ParsedRow[] = [];
   for (let i = 1; i < rows.length; i++) {
@@ -255,6 +282,7 @@ export async function parseExcel(buffer: ArrayBuffer, opts: ParseOpts): Promise<
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
     headers[colNumber - 1] = (cell.value ?? "").toString();
   });
+  assertRequiredColumns(headers, opts);
   const hmap = buildHeaderMap(headers, opts);
   const out: ParsedRow[] = [];
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
