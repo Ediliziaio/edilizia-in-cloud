@@ -442,6 +442,14 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       ...macrocategorie.map((m) => m.id),
       NO_MACRO,
     ];
+    // M-C (audit): articoli con macrocategoria_id non presente nella lista
+    // macro (cache stale post-delete, race di invalidation) finivano in
+    // bucket mai iterati → sparivano in silenzio dal catalogo. Li accodiamo
+    // come gruppi "Macrocategoria sconosciuta".
+    const knownMacroIds = new Set(macroOrder);
+    for (const macroId of bucket.keys()) {
+      if (!knownMacroIds.has(macroId)) macroOrder.push(macroId);
+    }
 
     for (const macroId of macroOrder) {
       const items = bucket.get(macroId);
