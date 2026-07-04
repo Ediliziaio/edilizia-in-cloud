@@ -2871,6 +2871,20 @@ function Step5Configurazione({
     setExtraSearch("");
   };
 
+  const aggiungiExtraLibero = (nome?: string) => {
+    update("prodotti_extra", [
+      ...data.prodotti_extra,
+      {
+        listino_id: null,
+        descrizione: nome?.trim() || "",
+        quantita: 1,
+        prezzo_vendita: 0,
+        prezzo_acquisto: null,
+      },
+    ]);
+    setExtraSearch("");
+  };
+
   const aggiornaExtra = (
     idx: number,
     patch: Partial<WizardData["prodotti_extra"][number]>,
@@ -3389,18 +3403,16 @@ function Step5Configurazione({
           </p>
 
           {!readOnlyMode && (
-            <div className="relative mb-2">
-              <Input
-                value={extraSearch}
-                onChange={(e) => setExtraSearch(e.target.value)}
-                placeholder="Cerca un prodotto del listino da aggiungere…"
-              />
-              {extraSearch.trim() && (
-                <div className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                  {listinoExtra.length === 0 ? (
-                    <p className="text-xs text-slate-400 px-3 py-2">Nessun prodotto trovato.</p>
-                  ) : (
-                    listinoExtra.map((l) => (
+            <div className="flex gap-2 mb-3">
+              <div className="relative flex-1">
+                <Input
+                  value={extraSearch}
+                  onChange={(e) => setExtraSearch(e.target.value)}
+                  placeholder="Cerca prodotto del listino da aggiungere…"
+                />
+                {extraSearch.trim() && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                    {listinoExtra.map((l) => (
                       <button
                         key={l.id}
                         type="button"
@@ -3412,10 +3424,26 @@ function Step5Configurazione({
                           {l.prezzo != null ? formatEur(l.prezzo) : "—"}
                         </span>
                       </button>
-                    ))
-                  )}
-                </div>
-              )}
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => aggiungiExtraLibero(extraSearch)}
+                      className="w-full text-left text-sm px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-500 border-t border-slate-100"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0" />
+                      <span>Aggiungi "{extraSearch.trim()}" come prodotto libero</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => aggiungiExtraLibero()}
+                className="shrink-0 flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 hover:border-orange-400 hover:text-orange-600 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Prodotto libero
+              </button>
             </div>
           )}
 
@@ -3453,16 +3481,33 @@ function Step5Configurazione({
                   </div>
                   <div className="col-span-4 sm:col-span-2">
                     <Label className="text-[11px] text-slate-500">Vendita € (unit.)</Label>
-                    <Input
-                      inputMode="decimal"
-                      defaultValue={ex.prezzo_vendita || ""}
-                      disabled={readOnlyMode}
-                      onBlur={(e) =>
-                        aggiornaExtra(idx, { prezzo_vendita: Math.max(0, parseDecimalIT(e.target.value)) })
-                      }
-                      className="h-9 text-sm bg-white"
-                      placeholder="0,00"
-                    />
+                    <div className="flex gap-1 items-center">
+                      <Input
+                        key={`pv-${idx}-${ex.prezzo_vendita === 0 ? "gratis" : "paid"}`}
+                        inputMode="decimal"
+                        defaultValue={ex.prezzo_vendita === 0 ? "" : ex.prezzo_vendita || ""}
+                        disabled={readOnlyMode}
+                        onBlur={(e) =>
+                          aggiornaExtra(idx, { prezzo_vendita: Math.max(0, parseDecimalIT(e.target.value)) })
+                        }
+                        className="h-9 text-sm bg-white min-w-0"
+                        placeholder={ex.prezzo_vendita === 0 ? "Gratis" : "0,00"}
+                      />
+                      {!readOnlyMode && (
+                        <button
+                          type="button"
+                          title={ex.prezzo_vendita === 0 ? "Prodotto gratuito" : "Imposta come gratuito"}
+                          onClick={() => aggiornaExtra(idx, { prezzo_vendita: 0 })}
+                          className={`shrink-0 rounded px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                            ex.prezzo_vendita === 0
+                              ? "bg-green-100 text-green-700"
+                              : "bg-slate-100 text-slate-400 hover:bg-green-50 hover:text-green-600"
+                          }`}
+                        >
+                          Gratis
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-4 sm:col-span-2">
                     <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
@@ -3493,7 +3538,10 @@ function Step5Configurazione({
                     )}
                   </div>
                   <div className="col-span-11 text-[11px] text-slate-500 -mt-1">
-                    Totale riga: <strong>{formatEur((Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1))}</strong>
+                    {ex.prezzo_vendita === 0
+                      ? <span className="text-green-600 font-medium">Gratuito (incluso nel preventivo)</span>
+                      : <>Totale riga: <strong>{formatEur((Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1))}</strong></>
+                    }
                   </div>
                 </div>
               ))}
