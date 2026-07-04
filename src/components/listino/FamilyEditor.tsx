@@ -320,7 +320,7 @@ export function FamilyEditor() {
 
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
-  const { categorie } = useListinoCategorie();
+  const { categorie, isLoading: loadingCategorie } = useListinoCategorie();
   // Fornitori dell'azienda per associare il prodotto (article_families.supplier_id).
   const { data: fornitori = [] } = useQuery({
     queryKey: ["suppliers-select", companyId],
@@ -732,6 +732,13 @@ export function FamilyEditor() {
       return null;
     }
 
+    // M-V (audit): per gli articoli legacy (solo categoria_id valorizzato) la
+    // macro nel form deriva dalla query `categorie`: salvare prima che sia
+    // risolta scriverebbe macrocategoria_id null + categoria_id null,
+    // cancellando ogni categorizzazione. In quel caso i due campi restano
+    // fuori dal payload e l'update non li tocca.
+    const categorizzazionePronta = !family?.categoria_id || !loadingCategorie;
+
     const payload = {
       nome: nome.trim(),
       // Codice articolo / SKU (opzionale, user-managed). Trim → null.
@@ -741,8 +748,13 @@ export function FamilyEditor() {
       // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
       // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
       // nuove creazioni (la colonna DB verrà droppata in migration futura).
-      macrocategoria_id: macrocategoriaId === "none" ? null : macrocategoriaId,
-      categoria_id: null,
+      ...(categorizzazionePronta
+        ? {
+            macrocategoria_id:
+              macrocategoriaId === "none" ? null : macrocategoriaId,
+            categoria_id: null,
+          }
+        : {}),
       descrizione: descrizione.trim() || null,
       modalita_prezzo_base: modalita,
       unit_of_measure: unitOfMeasure,
