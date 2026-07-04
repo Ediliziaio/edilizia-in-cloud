@@ -26,8 +26,9 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame } from "lucide-react";
+import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame, SlidersHorizontal, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // leaflet.heat non ha i tipi ufficiali → wrapper tipizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -296,6 +297,15 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const selCls = (v: string) => (v && v !== "tutte" && v !== "tutti" && v !== "0" ? "border-orange-300 bg-orange-50" : "");
   const shownClienti = filtered.filter((p) => p.tipo === "cliente").length;
   const shownProspect = filtered.length - shownClienti;
+  const activeAdv = [
+    provincia !== "tutte", regione !== "tutte", categoria !== "tutte",
+    temperatura !== "tutte", stato !== "tutti", fattMin !== "0", soloEmail, soloContattabili,
+  ].filter(Boolean).length;
+  const resetFilters = () => {
+    setProvincia("tutte"); setRegione("tutte"); setCategoria("tutte");
+    setTemperatura("tutte"); setStato("tutti"); setFattMin("0");
+    setSoloEmail(false); setSoloContattabili(false);
+  };
 
   return (
     <div className="space-y-3">
@@ -316,6 +326,9 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
             </Select>
             <Button variant={showAdv ? "default" : "outline"} onClick={() => setShowAdv((v) => !v)} className="shrink-0" disabled={!pointMode}>
               <Filter className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Filtri</span>
+              {activeAdv > 0 && (
+                <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[11px] font-bold text-white">{activeAdv}</span>
+              )}
             </Button>
             <Button variant={selectMode ? "default" : "outline"} onClick={() => setSelectMode((v) => !v)} className="shrink-0" disabled={!pointMode} title="Seleziona un'area (zoom su pochi punti)">
               <Crosshair className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">{selectMode ? "Trascina…" : "Seleziona area"}</span>
@@ -329,41 +342,54 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
           </div>
 
           {showAdv && pointMode && (
-            <div className="flex flex-wrap items-center gap-2 border-t pt-2">
-              <Select value={provincia} onValueChange={setProvincia}>
-                <SelectTrigger className={`w-36 ${selCls(provincia)}`}><SelectValue placeholder="Provincia" /></SelectTrigger>
-                <SelectContent><SelectItem value="tutte">Tutte le province</SelectItem>{province.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={regione} onValueChange={setRegione}>
-                <SelectTrigger className={`w-40 ${selCls(regione)}`}><SelectValue placeholder="Regione" /></SelectTrigger>
-                <SelectContent><SelectItem value="tutte">Tutte le regioni</SelectItem>{regioni.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={categoria} onValueChange={setCategoria}>
-                <SelectTrigger className={`w-40 ${selCls(categoria)}`}><SelectValue placeholder="Categoria" /></SelectTrigger>
-                <SelectContent><SelectItem value="tutte">Tutte le categorie</SelectItem>{categorie.map((c) => <SelectItem key={c} value={c}>{cap(c)}</SelectItem>)}</SelectContent>
-              </Select>
-              {temperature.length > 0 && (
-                <Select value={temperatura} onValueChange={setTemperatura}>
-                  <SelectTrigger className={`w-36 ${selCls(temperatura)}`}><SelectValue placeholder="Temperatura" /></SelectTrigger>
-                  <SelectContent><SelectItem value="tutte">Ogni temperatura</SelectItem>{temperature.map((t) => <SelectItem key={t} value={t}>{cap(t)}</SelectItem>)}</SelectContent>
+            <div className="rounded-lg border bg-muted/30 p-2.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> Filtri avanzati
+                  {activeAdv > 0 && <span className="text-orange-600">· {activeAdv} attivi</span>}
+                </span>
+                {activeAdv > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}>
+                    <Eraser className="mr-1 h-3.5 w-3.5" /> Azzera
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={provincia} onValueChange={setProvincia}>
+                  <SelectTrigger className={`h-9 w-44 ${selCls(provincia)}`}><SelectValue placeholder="Provincia" /></SelectTrigger>
+                  <SelectContent><SelectItem value="tutte">Tutte le province</SelectItem>{province.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
-              )}
-              {stati.length > 0 && (
-                <Select value={stato} onValueChange={setStato}>
-                  <SelectTrigger className={`w-36 ${selCls(stato)}`}><SelectValue placeholder="Stato" /></SelectTrigger>
-                  <SelectContent><SelectItem value="tutti">Ogni stato</SelectItem>{stati.map((s) => <SelectItem key={s} value={s}>{cap(s)}</SelectItem>)}</SelectContent>
+                <Select value={regione} onValueChange={setRegione}>
+                  <SelectTrigger className={`h-9 w-44 ${selCls(regione)}`}><SelectValue placeholder="Regione" /></SelectTrigger>
+                  <SelectContent><SelectItem value="tutte">Tutte le regioni</SelectItem>{regioni.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
-              )}
-              <Select value={fattMin} onValueChange={setFattMin}>
-                <SelectTrigger className={`w-40 ${selCls(fattMin)}`}><SelectValue /></SelectTrigger>
-                <SelectContent>{FATT_OPTS.map((o) => <SelectItem key={o.v} value={o.v}>{o.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <label className="flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-sm">
-                <input type="checkbox" checked={soloEmail} onChange={(e) => setSoloEmail(e.target.checked)} /> Solo con email
-              </label>
-              <label className="flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-sm">
-                <input type="checkbox" checked={soloContattabili} onChange={(e) => setSoloContattabili(e.target.checked)} /> Solo contattabili
-              </label>
+                <Select value={categoria} onValueChange={setCategoria}>
+                  <SelectTrigger className={`h-9 w-44 ${selCls(categoria)}`}><SelectValue placeholder="Categoria" /></SelectTrigger>
+                  <SelectContent><SelectItem value="tutte">Tutte le categorie</SelectItem>{categorie.map((c) => <SelectItem key={c} value={c}>{cap(c)}</SelectItem>)}</SelectContent>
+                </Select>
+                {temperature.length > 0 && (
+                  <Select value={temperatura} onValueChange={setTemperatura}>
+                    <SelectTrigger className={`h-9 w-40 ${selCls(temperatura)}`}><SelectValue placeholder="Temperatura" /></SelectTrigger>
+                    <SelectContent><SelectItem value="tutte">Ogni temperatura</SelectItem>{temperature.map((t) => <SelectItem key={t} value={t}>{cap(t)}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                {stati.length > 0 && (
+                  <Select value={stato} onValueChange={setStato}>
+                    <SelectTrigger className={`h-9 w-40 ${selCls(stato)}`}><SelectValue placeholder="Stato" /></SelectTrigger>
+                    <SelectContent><SelectItem value="tutti">Ogni stato</SelectItem>{stati.map((s) => <SelectItem key={s} value={s}>{cap(s)}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                <Select value={fattMin} onValueChange={setFattMin}>
+                  <SelectTrigger className={`h-9 w-44 ${selCls(fattMin)}`}><SelectValue /></SelectTrigger>
+                  <SelectContent>{FATT_OPTS.map((o) => <SelectItem key={o.v} value={o.v}>{o.label}</SelectItem>)}</SelectContent>
+                </Select>
+                <label className={`flex h-9 cursor-pointer select-none items-center gap-2 rounded-md border px-3 text-sm ${soloEmail ? "border-orange-300 bg-orange-50 text-orange-800" : "bg-background"}`}>
+                  <Checkbox checked={soloEmail} onCheckedChange={(v) => setSoloEmail(v === true)} /> Solo con email
+                </label>
+                <label className={`flex h-9 cursor-pointer select-none items-center gap-2 rounded-md border px-3 text-sm ${soloContattabili ? "border-orange-300 bg-orange-50 text-orange-800" : "bg-background"}`}>
+                  <Checkbox checked={soloContattabili} onCheckedChange={(v) => setSoloContattabili(v === true)} /> Solo contattabili
+                </label>
+              </div>
             </div>
           )}
         </CardContent>
