@@ -866,7 +866,6 @@ export function MacroCategorieManager() {
           vertical={bulkImportFor.vertical}
           macroId={bulkImportFor.macroId}
           macroNome={bulkImportFor.nome}
-          availableCategorie={(byMacroId.get(bulkImportFor.macroId) ?? [])}
           onImported={() => setBulkImportFor(null)}
         />
       )}
