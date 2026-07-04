@@ -127,14 +127,35 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       setProgress(90);
       if (error) throw error;
       setProgress(100);
-      const result = data as { inserted?: number; updated?: number } | null;
+      // M-G (audit): l'edge risponde anche con skipped/errors — prima venivano
+      // ignorati e l'utente vedeva "Importati N record" anche con metà righe
+      // scartate lato server (duplicati, chunk falliti).
+      const result = data as {
+        inserted?: number;
+        updated?: number;
+        skipped?: number;
+        errors?: Array<{ row: number; error: string }>;
+      } | null;
       const inserted = result?.inserted ?? validRows.length;
       const updated = result?.updated ?? 0;
-      toast.success(
+      const skipped = result?.skipped ?? 0;
+      const serverErrors = result?.errors ?? [];
+      const okLabel =
         updated > 0
           ? `Importati ${inserted} nuovi record · ${updated} aggiornati`
-          : `Importati ${inserted} record`,
-      );
+          : `Importati ${inserted} record`;
+      if (skipped > 0 || serverErrors.length > 0) {
+        toast.warning(`${okLabel} · ${skipped} scartati`, {
+          description: serverErrors
+            .slice(0, 3)
+            .map((e) => `Riga ${e.row}: ${e.error}`)
+            .join(" — ")
+            .concat(serverErrors.length > 3 ? ` (+${serverErrors.length - 3} altri)` : ""),
+          duration: 10000,
+        });
+      } else {
+        toast.success(okLabel);
+      }
       onComplete?.(inserted + updated);
       // Reset
       setStep(1);
