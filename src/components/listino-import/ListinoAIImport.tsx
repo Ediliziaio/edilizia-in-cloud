@@ -128,6 +128,12 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
     } catch (e: any) {
       toast.error(`Errore AI: ${e.message ?? e}`);
     } finally {
+      // M-K (audit): il PDF temporaneo restava per sempre in listini-tmp.
+      // L'edge lo ha già letto durante l'invoke: pulizia best-effort.
+      void supabase.storage
+        .from("listini-tmp")
+        .remove([storagePath])
+        .catch(() => {});
       setUploading(false);
       setExtracting(false);
       setTimeout(() => setProgress(0), 1500);
