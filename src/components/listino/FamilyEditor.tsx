@@ -304,14 +304,23 @@ export function FamilyEditor() {
   // Snapshot dello state al primo bootstrap. Confrontando con i field correnti
   // capiamo se ci sono modifiche non salvate (Step 1). Pulito ad ogni save.
   const initialSnapshotRef = useRef<string | null>(null);
+  // M-N (audit): lo snapshot deve coprire TUTTI i campi persistiti da saveBase,
+  // altrimenti modifiche a fornitore/markup/sconti/manodopera/griglia non
+  // attivano la guardia "modifiche non salvate" e si perdono in silenzio.
   const currentSnapshot = useMemo(
     () => JSON.stringify({
       nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
+      scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
+      posaLinked, manodoperaCostoAcquisto, manodoperaPrezzoVendita, manodoperaUnita,
     }),
     [
       nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
+      scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
+      posaLinked, manodoperaCostoAcquisto, manodoperaPrezzoVendita, manodoperaUnita,
     ],
   );
   const isDirty =
