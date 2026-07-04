@@ -455,6 +455,22 @@ export function FamilyAxesEditor({ family }: Props) {
     }
   };
 
+  // M-R (audit): parse+validazione condivisa dei prompt bulk. Virgola decimale
+  // accettata; valori negativi o non numerici rifiutati CON feedback — prima
+  // l'input invalido era un no-op silenzioso e il negativo finiva in DB.
+  const promptMaggiorazione = (label: string): number | null => {
+    const v = window.prompt(label);
+    if (v === null || v.trim() === "") return null; // annullato dall'utente
+    const n = Number(v.trim().replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error("Valore non valido", {
+        description: "Inserisci un numero positivo, es. 10 oppure 10,5.",
+      });
+      return null;
+    }
+    return n;
+  };
+
   // Applica un preset: traduce PresetAxis[] → payload bulkInsertAxesWithValues.
   // Il sort_order parte da `nextAxisSortOrder` e cresce di 10 per asse (mantiene
   // spazio per riordini manuali successivi). Idem per i valori (step 10).
@@ -634,12 +650,10 @@ export function FamilyAxesEditor({ family }: Props) {
             variant="outline"
             className="h-8 text-xs"
             onClick={() => {
-              const v = window.prompt("Maggiorazione % da applicare ai selezionati (es. 10 per +10%):");
-              // Number + replace virgola: con parseFloat "10,5" valeva 10.
-              const n = v?.trim() ? Number(v.trim().replace(",", ".")) : NaN;
-              if (Number.isFinite(n)) {
-                bulkApplyMaggiorazione("percentuale", n);
-              }
+              const n = promptMaggiorazione(
+                "Maggiorazione % da applicare ai selezionati (es. 10 per +10%):",
+              );
+              if (n !== null) bulkApplyMaggiorazione("percentuale", n);
             }}
             disabled={updateAxisValue.isPending}
           >
@@ -650,11 +664,10 @@ export function FamilyAxesEditor({ family }: Props) {
             variant="outline"
             className="h-8 text-xs"
             onClick={() => {
-              const v = window.prompt("Maggiorazione € fissa (a pezzo) da applicare ai selezionati:");
-              const n = v?.trim() ? Number(v.trim().replace(",", ".")) : NaN;
-              if (Number.isFinite(n)) {
-                bulkApplyMaggiorazione("fisso_pz", n);
-              }
+              const n = promptMaggiorazione(
+                "Maggiorazione € fissa (a pezzo) da applicare ai selezionati:",
+              );
+              if (n !== null) bulkApplyMaggiorazione("fisso_pz", n);
             }}
             disabled={updateAxisValue.isPending}
           >
