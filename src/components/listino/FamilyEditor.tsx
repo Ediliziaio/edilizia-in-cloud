@@ -779,13 +779,12 @@ export function FamilyEditor() {
       sconto_fornitore_2: scontoFornitore2Num,
       immagine_url: immagineUrl,
       // Manodopera: in modalità 'tariffa' salviamo il legacy link, in 'manuale'
-      // gli importi diretti, in 'nessuna' reset legacy a null. Gli importi
-      // manuali restano in DB anche fuori dalla modalità 'manuale' per non
-      // perdere lo storico se l'utente fa avanti e indietro.
-      posa_tariffa_default_id:
-        manodoperaModalita === "tariffa" && posaTariffaId !== "none"
-          ? posaTariffaId
-          : null,
+      // gli importi diretti. Gli importi manuali E la tariffa collegata restano
+      // in DB anche fuori dalla loro modalità per non perdere la scelta se
+      // l'utente fa avanti e indietro (M-X audit): i consumer (pricing.ts,
+      // FamilyConfigurator) applicano la posa solo con modalita === 'tariffa',
+      // quindi la FK fuori modalità è inerte.
+      posa_tariffa_default_id: posaTariffaId !== "none" ? posaTariffaId : null,
       posa_quantita_default: posaQuantitaNum,
       posa_linked: posaLinked,
       manodopera_modalita: manodoperaModalita,
