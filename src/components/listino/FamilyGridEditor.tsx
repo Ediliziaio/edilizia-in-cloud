@@ -176,22 +176,39 @@ export function FamilyGridEditor({
           toast.error("CSV vuoto o senza dati");
           return;
         }
+        // M-P (audit): i CSV di Excel italiano usano ';' come separatore e la
+        // virgola decimale ("120,50") — con lo split fisso su ',' venivano
+        // parsati male in silenzio. Rileviamo il separatore dall'header e
+        // normalizziamo i decimali (virgola → punto, punto migliaia rimosso).
+        const sep = lines[0].includes(";") ? ";" : lines[0].includes("\t") ? "\t" : ",";
+        const parseCsvNumber = (raw: string): number => {
+          let s = raw.trim();
+          if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+          return parseFloat(s);
+        };
         // skip header
         const newCells = new Map(cells);
         const newXs = new Set(xAxis);
         const newYs = new Set(yAxis);
         let imported = 0;
+        let skipped = 0;
         for (let i = 1; i < lines.length; i++) {
-          const parts = lines[i].split(",").map((p) => p.trim());
-          if (parts.length < 4) continue;
-          const x = parseFloat(parts[0]);
-          const y = parseFloat(parts[1]);
-          const pv = parseFloat(parts[2]);
-          const pa = parseFloat(parts[3]);
-          if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(pv)) continue;
+          const parts = lines[i].split(sep).map((p) => p.trim());
+          if (parts.length < 3) {
+            skipped++;
+            continue;
+          }
+          const x = parseCsvNumber(parts[0]);
+          const y = parseCsvNumber(parts[1]);
+          const pv = parseCsvNumber(parts[2]);
+          const pa = parts.length >= 4 ? parseCsvNumber(parts[3]) : NaN;
+          if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(pv) || pv < 0) {
+            skipped++;
+            continue;
+          }
           newCells.set(`${x}_${y}`, {
             prezzo_vendita: pv,
-            prezzo_acquisto: Number.isFinite(pa) ? pa : pv,
+            prezzo_acquisto: Number.isFinite(pa) && pa >= 0 ? pa : pv,
           });
           newXs.add(x);
           newYs.add(y);
@@ -201,7 +218,9 @@ export function FamilyGridEditor({
         setYAxis(Array.from(newYs).sort((a, b) => a - b));
         setCells(newCells);
         markDirty();
-        toast.success(`Importate ${imported} celle. Ricordati di salvare.`);
+        toast.success(`Importate ${imported} celle. Ricordati di salvare.`, {
+          description: skipped > 0 ? `${skipped} righe ignorate (valori mancanti o non numerici).` : undefined,
+        });
       } catch (err) {
         toast.error("Errore parsing CSV", {
           description: err instanceof Error ? err.message : String(err),
