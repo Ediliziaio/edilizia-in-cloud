@@ -227,11 +227,18 @@ export function MacroCategorieManager() {
     }
     setFormImmagineUrl(res.url);
     // Persistiamo subito sulla riga per non perdere lo stato se l'utente chiude
-    await updateMacrocategoria.mutateAsync({
-      id: editMode.row.id,
-      patch: { immagine_url: res.url },
-    });
-    toast.success("Foto caricata");
+    // M-L (audit): senza catch un errore del persist era unhandled rejection
+    // e l'utente non aveva alcun feedback.
+    try {
+      await updateMacrocategoria.mutateAsync({
+        id: editMode.row.id,
+        patch: { immagine_url: res.url },
+      });
+      toast.success("Foto caricata");
+    } catch (err) {
+      const { message } = translateListinoError(err);
+      toast.error("Foto caricata ma non salvata sulla riga", { description: message });
+    }
   };
 
   /**
@@ -265,11 +272,16 @@ export function MacroCategorieManager() {
       return;
     }
     setFormImmagineUrl(null);
-    await updateMacrocategoria.mutateAsync({
-      id: editMode.row.id,
-      patch: { immagine_url: null },
-    });
-    toast.success("Foto rimossa");
+    try {
+      await updateMacrocategoria.mutateAsync({
+        id: editMode.row.id,
+        patch: { immagine_url: null },
+      });
+      toast.success("Foto rimossa");
+    } catch (err) {
+      const { message } = translateListinoError(err);
+      toast.error("Errore rimozione foto", { description: message });
+    }
   };
 
   const toggleVerticale = (v: string) => {
