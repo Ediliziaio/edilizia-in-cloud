@@ -18,7 +18,7 @@
  *    STEP 4): il delete filtra per `axis_config IS NULL` e scope per id.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Save, Loader2, Upload, Download, FileUp, History } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -78,6 +78,11 @@ interface Props {
   markupValore?: number;
 }
 
+// Riferimento stabile per lo stato "dati non ancora arrivati": senza questo,
+// `data: rows = []` crea un array nuovo ad ogni render e l'effect di
+// bootstrap (deps [rows]) girerebbe in loop durante il caricamento.
+const EMPTY_ROWS: GridRow[] = [];
+
 export function FamilyGridEditor({
   familyId,
   asseXLabel,
@@ -91,7 +96,7 @@ export function FamilyGridEditor({
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = EMPTY_ROWS, isLoading } = useQuery({
     queryKey: queryKeys.articleFamilies.grid(familyId),
     enabled: !!companyId && !!familyId,
     queryFn: async (): Promise<GridRow[]> => {
@@ -120,6 +125,20 @@ export function FamilyGridEditor({
   const [newX, setNewX] = useState("");
   const [newY, setNewY] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  // Modifiche locali non salvate. Il ref specchia lo stato per farlo leggere
+  // all'effect di bootstrap senza inserirlo nelle deps (un rebuild al toggle
+  // di dirty mostrerebbe per un attimo la cache stale pre-salvataggio).
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const markDirty = () => {
+    dirtyRef.current = true;
+    setDirty(true);
+  };
+  const clearDirty = () => {
+    dirtyRef.current = false;
+    setDirty(false);
+  };
 
   // #12 — Export CSV
   const handleExportCSV = () => {
@@ -181,6 +200,7 @@ export function FamilyGridEditor({
         setXAxis(Array.from(newXs).sort((a, b) => a - b));
         setYAxis(Array.from(newYs).sort((a, b) => a - b));
         setCells(newCells);
+        markDirty();
         toast.success(`Importate ${imported} celle. Ricordati di salvare.`);
       } catch (err) {
         toast.error("Errore parsing CSV", {
@@ -216,8 +236,25 @@ export function FamilyGridEditor({
     staleTime: 30 * 1000,
   });
 
-  // Bootstrap dallo stato server
+  // Cambiando famiglia lo stato locale (assi/celle/dirty) della precedente
+  // non è più valido: reset PRIMA che arrivino le righe della nuova, così il
+  // bootstrap non viene saltato da un dirty rimasto della famiglia vecchia
+  // (che farebbe salvare le celle sbagliate sulla famiglia nuova).
   useEffect(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+    setXAxis([]);
+    setYAxis([]);
+    setCells(new Map());
+  }, [familyId]);
+
+  // Bootstrap dallo stato server — SOLO senza modifiche locali pendenti.
+  // React Query rifetcha `rows` anche su refocus finestra/invalidation:
+  // senza la guardia ogni refetch ricostruiva assi+celle azzerando il lavoro
+  // non salvato dell'utente. Dopo "Salva griglia" dirty torna false e il
+  // refetch post-invalidate riallinea lo stato locale (id compresi).
+  useEffect(() => {
+    if (dirtyRef.current) return;
     const xs = Array.from(new Set(rows.map((r) => r.valore_x))).sort((a, b) => a - b);
     const ys = Array.from(new Set(rows.map((r) => r.valore_y))).sort((a, b) => a - b);
     const cellMap = new Map<string, Cell>();
@@ -232,6 +269,19 @@ export function FamilyGridEditor({
     setCells(cellMap);
   }, [rows]);
 
+  // La guardia beforeunload di FamilyEditor copre solo i campi base della
+  // famiglia, non la matrice (stato locale di questo componente).
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
   const addX = () => {
     const v = parseInt(newX, 10);
     if (!Number.isFinite(v) || v <= 0) {
@@ -244,6 +294,7 @@ export function FamilyGridEditor({
     }
     setXAxis([...xAxis, v].sort((a, b) => a - b));
     setNewX("");
+    markDirty();
   };
 
   const addY = () => {
@@ -258,6 +309,7 @@ export function FamilyGridEditor({
     }
     setYAxis([...yAxis, v].sort((a, b) => a - b));
     setNewY("");
+    markDirty();
   };
 
   const removeX = (v: number) => {
@@ -269,6 +321,7 @@ export function FamilyGridEditor({
       }
       return next;
     });
+    markDirty();
   };
 
   const removeY = (v: number) => {
@@ -280,6 +333,7 @@ export function FamilyGridEditor({
       }
       return next;
     });
+    markDirty();
   };
 
   const setCell = (x: number, y: number, field: keyof Cell, value: number) => {
@@ -289,6 +343,7 @@ export function FamilyGridEditor({
       next.set(`${x}_${y}`, { ...curr, [field]: value });
       return next;
     });
+    markDirty();
   };
 
   // Flag UI: sconti attivi = almeno uno dei due > 0. Stabile per riga →
@@ -336,6 +391,7 @@ export function FamilyGridEditor({
       }
       return next;
     });
+    markDirty();
   };
 
   // Salvataggio: upsert-by-id + delete-by-diff (no empty window, no MatriceEditor loss)
@@ -456,6 +512,9 @@ export function FamilyGridEditor({
     },
     onSuccess: (count) => {
       toast.success(`Griglia salvata: ${count} celle`);
+      // clearDirty PRIMA dell'invalidate: il refetch deve trovare la guardia
+      // aperta per riallineare lo stato locale (id delle celle nuove inclusi).
+      clearDirty();
       qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.grid(familyId) });
     },
     onError: (err: Error) => {
@@ -814,13 +873,14 @@ export function FamilyGridEditor({
                               </div>
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
                                   setCells((prev) => {
                                     const next = new Map(prev);
                                     next.delete(`${x}_${y}`);
                                     return next;
-                                  })
-                                }
+                                  });
+                                  markDirty();
+                                }}
                                 className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                 disabled={!c}
                                 aria-label={`Svuota cella ${x}×${y}`}
@@ -845,8 +905,16 @@ export function FamilyGridEditor({
         )}
 
         <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground flex items-center gap-2">
             {filledCells} / {totalCells} celle compilate
+            {dirty ? (
+              <Badge
+                variant="outline"
+                className="border-amber-300 text-amber-700 text-[10px]"
+              >
+                Modifiche non salvate
+              </Badge>
+            ) : null}
           </span>
           <Button
             type="button"
