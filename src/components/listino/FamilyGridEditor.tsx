@@ -495,11 +495,16 @@ export function FamilyGridEditor({
       }
 
       // Step 1a: INSERT delle celle nuove (DB genera id via DEFAULT).
+      // .select("id") per conoscere gli id creati: servono al rollback
+      // compensativo se la fase di update fallisce (M-5 audit).
+      let insertedIds: string[] = [];
       if (toInsert.length > 0) {
-        const { error: insErr } = await supabase
+        const { data: insData, error: insErr } = await supabase
           .from("listino_griglia")
-          .insert(toInsert);
+          .insert(toInsert)
+          .select("id");
         if (insErr) throw new Error(`Errore inserimento celle: ${insErr.message}`);
+        insertedIds = ((insData ?? []) as Array<{ id: string }>).map((r) => r.id);
       }
 
       // Step 1b: UPDATE delle celle esistenti via .update().eq('id', id) in
@@ -509,6 +514,11 @@ export function FamilyGridEditor({
       // .update() puro su filtro id la query è UPDATE esplicito, zero
       // ambiguità sulla constraint. Promise.all mantiene la latency bassa
       // anche con griglie grandi (266 celle × ~50ms ≈ 500ms in parallelo).
+      //
+      // M-5 (audit): niente più "primo errore e basta" — raccogliamo TUTTI
+      // gli esiti e su fallimento parziale facciamo rollback compensativo
+      // (revert delle celle aggiornate ai valori pre-save + delete delle
+      // celle appena inserite) così il DB non resta misto vecchio/nuovo.
       if (toUpdate.length > 0) {
         const updateResults = await Promise.all(
           toUpdate.map(({ id, ...data }) =>
@@ -516,12 +526,42 @@ export function FamilyGridEditor({
               .from("listino_griglia")
               .update(data)
               .eq("id", id)
-              .eq("company_id", companyId),
+              .eq("company_id", companyId)
+              .then((res) => ({ id, error: res.error })),
           ),
         );
-        const firstErr = updateResults.find((r) => r.error)?.error;
-        if (firstErr) {
-          throw new Error(`Errore aggiornamento celle: ${firstErr.message}`);
+        const failed = updateResults.filter((r) => r.error);
+        if (failed.length > 0) {
+          const succeededIds = new Set(
+            updateResults.filter((r) => !r.error).map((r) => r.id),
+          );
+          const rollbacks: Array<PromiseLike<{ error: unknown }>> = [];
+          for (const r of rows) {
+            if (!succeededIds.has(r.id)) continue;
+            rollbacks.push(
+              supabase
+                .from("listino_griglia")
+                .update({
+                  prezzo_vendita: r.prezzo_vendita,
+                  prezzo_acquisto: r.prezzo_acquisto,
+                })
+                .eq("id", r.id)
+                .eq("company_id", companyId),
+            );
+          }
+          if (insertedIds.length > 0) {
+            rollbacks.push(
+              supabase.from("listino_griglia").delete().in("id", insertedIds),
+            );
+          }
+          const rollbackResults = await Promise.all(rollbacks);
+          const rollbackClean = rollbackResults.every((r) => !r.error);
+          throw new Error(
+            `${failed.length} celle su ${toUpdate.length} non aggiornate (${failed[0].error!.message}). ` +
+              (rollbackClean
+                ? "Le modifiche sono state annullate: la griglia in DB è quella precedente al salvataggio."
+                : "Attenzione: non è stato possibile annullare tutte le modifiche — ricarica la pagina e verifica i prezzi."),
+          );
         }
       }
 
