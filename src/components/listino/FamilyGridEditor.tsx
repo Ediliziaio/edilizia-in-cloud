@@ -309,8 +309,18 @@ export function FamilyGridEditor({
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
 
+  // M-23 (audit): parseInt troncava i decimali in silenzio ("62.5" → 62)
+  // mentre l'import CSV usa parseFloat: un asse decimale importato non era
+  // ricreabile a mano e i due percorsi divergevano. Parse allineato al CSV
+  // (virgola decimale inclusa).
+  const parseAxisValue = (raw: string): number => {
+    let s = raw.trim();
+    if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+    return parseFloat(s);
+  };
+
   const addX = () => {
-    const v = parseInt(newX, 10);
+    const v = parseAxisValue(newX);
     if (!Number.isFinite(v) || v <= 0) {
       toast.error("Valore X non valido");
       return;
@@ -325,7 +335,7 @@ export function FamilyGridEditor({
   };
 
   const addY = () => {
-    const v = parseInt(newY, 10);
+    const v = parseAxisValue(newY);
     if (!Number.isFinite(v) || v <= 0) {
       toast.error("Valore Y non valido");
       return;
