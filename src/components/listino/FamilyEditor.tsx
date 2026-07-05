@@ -2990,6 +2990,12 @@ function InlineCreateTariffaDialog({
       return;
     }
     const costoNum = parseDecimalField(costoInterno);
+    // M-28 (audit): anche il costo interno va validato — un negativo passava
+    // dritto nell'INSERT su tariffe_aziendali falsando i margini.
+    if (costoInterno.trim() !== "" && (!Number.isFinite(costoNum) || costoNum < 0)) {
+      toast.error("Inserisci un costo interno valido (numero ≥ 0)");
+      return;
+    }
     setSaving(true);
     try {
       const { data, error } = await supabase
