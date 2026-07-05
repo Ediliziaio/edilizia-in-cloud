@@ -206,7 +206,11 @@ export function FamilyAxesEditor({ family }: Props) {
   // Variante di cui gestire le schede PDF (Dialog dedicato).
   const [docsForValue, setDocsForValue] = useState<AxisValue | null>(null);
   // Conteggio schede per variante → badge sul pulsante 📄 (1 query, no N+1).
-  const { data: variantDocCounts = {}, refetch: refetchDocCounts } = useQuery({
+  const {
+    data: variantDocCounts = {},
+    refetch: refetchDocCounts,
+    isError: docCountsError,
+  } = useQuery({
     queryKey: ["family-variant-doc-counts", family.id],
     enabled: !!family.id,
     queryFn: async () => {
@@ -224,6 +228,17 @@ export function FamilyAxesEditor({ family }: Props) {
       return m;
     },
   });
+
+  // M-33 (audit): in errore i badge documenti mostravano 0 schede come se
+  // fosse il dato reale. Toast una-tantum per rendere visibile il fallimento.
+  useEffect(() => {
+    if (docCountsError) {
+      toast.warning("Conteggio schede PDF non disponibile", {
+        description:
+          "I badge documenti delle varianti potrebbero essere incompleti. Ricarica la pagina per riprovare.",
+      });
+    }
+  }, [docCountsError]);
 
   // Immagine propria della variante: input file riusabile (pattern come foto lotto).
   const imgInputRef = useRef<HTMLInputElement | null>(null);

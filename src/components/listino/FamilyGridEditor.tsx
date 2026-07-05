@@ -247,7 +247,11 @@ export function FamilyGridEditor({
   // invalidato: lo storico restava stale fino al remount). Invalidata in
   // onSuccess del salvataggio griglia.
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { data: priceHistory = [] } = useQuery({
+  const {
+    data: priceHistory = [],
+    isError: historyError,
+    refetch: refetchHistory,
+  } = useQuery({
     queryKey: queryKeys.articleFamilies.gridHistory(familyId),
     enabled: !!companyId && !!familyId && historyOpen,
     queryFn: async () => {
@@ -731,7 +735,21 @@ export function FamilyGridEditor({
             <div className="px-3 py-2 text-xs font-medium border-b sticky top-0 bg-muted/40">
               Ultime modifiche prezzi ({priceHistory.length})
             </div>
-            {priceHistory.length === 0 ? (
+            {historyError ? (
+              // M-33 (audit): in errore lo storico mostrava "nessuna modifica"
+              // come se fosse il dato reale. Stato errore esplicito + Riprova.
+              <div className="px-3 py-3 text-xs text-destructive flex items-center gap-2">
+                Errore nel caricamento dello storico.
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => refetchHistory()}
+                >
+                  Riprova
+                </Button>
+              </div>
+            ) : priceHistory.length === 0 ? (
               <p className="px-3 py-3 text-xs text-muted-foreground">
                 Nessuna modifica registrata. Lo storico parte dalle prime modifiche dopo l'attivazione.
               </p>
