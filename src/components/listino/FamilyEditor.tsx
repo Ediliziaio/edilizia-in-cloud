@@ -870,6 +870,19 @@ export function FamilyEditor() {
   const canSaveBase = nome.trim().length > 0;
   const saving = createFamily.isPending || updateFamily.isPending;
 
+  // M-31 (audit): il beforeunload copre solo l'unload del browser, non la
+  // navigazione SPA — il ritorno al catalogo usciva senza conferma anche con
+  // modifiche non salvate.
+  const handleBackToCatalog = () => {
+    if (
+      isDirty &&
+      !window.confirm("Hai modifiche non salvate. Uscire senza salvare?")
+    ) {
+      return;
+    }
+    navigate("/azienda/impostazioni/listino/famiglie");
+  };
+
   // Duplica
   const handleDuplicate = async () => {
     if (!family) return;
@@ -928,11 +941,7 @@ export function FamilyEditor() {
     <div className="space-y-4">
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/azienda/impostazioni/listino/famiglie")}
-          >
+          <Button variant="ghost" size="sm" onClick={handleBackToCatalog}>
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
             Articoli
           </Button>
@@ -1978,9 +1987,7 @@ export function FamilyEditor() {
                   posaLinked={posaLinked}
                   immagineUrl={immagineUrl}
                   onGotoStep={setActiveStep}
-                  onBackToCatalog={() =>
-                    navigate("/azienda/impostazioni/listino/famiglie")
-                  }
+                  onBackToCatalog={handleBackToCatalog}
                   onDuplicate={handleDuplicate}
                   duplicating={duplicateFamily.isPending}
                 />
