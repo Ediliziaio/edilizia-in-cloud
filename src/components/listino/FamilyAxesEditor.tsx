@@ -438,6 +438,7 @@ export function FamilyAxesEditor({ family }: Props) {
   const bulkApplyMaggiorazione = async (
     tipo: "percentuale" | "fisso_pz",
     valore: number,
+    valoreAcquisto: number,
   ) => {
     const ids = Array.from(selectedValueIds);
     try {
@@ -449,7 +450,7 @@ export function FamilyAxesEditor({ family }: Props) {
             patch: {
               maggiorazione_tipo: tipo,
               maggiorazione_valore: valore,
-              maggiorazione_acquisto: valore,
+              maggiorazione_acquisto: valoreAcquisto,
             },
           }),
         ),
@@ -472,6 +473,26 @@ export function FamilyAxesEditor({ family }: Props) {
     const n = Number(v.trim().replace(",", "."));
     if (!Number.isFinite(n) || n < 0) {
       toast.error("Valore non valido", {
+        description: "Inserisci un numero positivo, es. 10 oppure 10,5.",
+      });
+      return null;
+    }
+    return n;
+  };
+
+  // M-32 (audit): il bulk scriveva maggiorazione_acquisto = vendita in
+  // silenzio (margine zero sulla maggiorazione, costo fornitore gonfiato).
+  // Secondo prompt per il valore acquisto; invio vuoto = uguale alla vendita.
+  const promptMaggiorazioneAcquisto = (vendita: number): number | null => {
+    const v = window.prompt(
+      "Valore ACQUISTO (costo fornitore) della maggiorazione — lascia vuoto per usare lo stesso valore della vendita:",
+      String(vendita),
+    );
+    if (v === null) return null; // annullato: niente bulk
+    if (v.trim() === "") return vendita;
+    const n = Number(v.trim().replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error("Valore acquisto non valido", {
         description: "Inserisci un numero positivo, es. 10 oppure 10,5.",
       });
       return null;
@@ -661,7 +682,9 @@ export function FamilyAxesEditor({ family }: Props) {
               const n = promptMaggiorazione(
                 "Maggiorazione % da applicare ai selezionati (es. 10 per +10%):",
               );
-              if (n !== null) bulkApplyMaggiorazione("percentuale", n);
+              if (n === null) return;
+              const acq = promptMaggiorazioneAcquisto(n);
+              if (acq !== null) bulkApplyMaggiorazione("percentuale", n, acq);
             }}
             disabled={updateAxisValue.isPending}
           >
@@ -675,7 +698,9 @@ export function FamilyAxesEditor({ family }: Props) {
               const n = promptMaggiorazione(
                 "Maggiorazione € fissa (a pezzo) da applicare ai selezionati:",
               );
-              if (n !== null) bulkApplyMaggiorazione("fisso_pz", n);
+              if (n === null) return;
+              const acq = promptMaggiorazioneAcquisto(n);
+              if (acq !== null) bulkApplyMaggiorazione("fisso_pz", n, acq);
             }}
             disabled={updateAxisValue.isPending}
           >
