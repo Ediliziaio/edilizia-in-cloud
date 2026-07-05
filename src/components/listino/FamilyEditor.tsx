@@ -1578,6 +1578,19 @@ export function FamilyEditor() {
                     scontoFornitore2={parseDecimalField(scontoFornitore2) || 0}
                     markupTipo={markupTipo}
                     markupValore={parseDecimalField(markupValore) || 0}
+                    onEnsureFamilySaved={async () => {
+                      // M-10 (audit): allinea i parametri famiglia in DB prima
+                      // del salvataggio griglia (le celle sono calcolate con
+                      // questi valori di form).
+                      if (!isDirty) return true;
+                      if (!canSaveBase) {
+                        toast.error(
+                          "Inserisci il nome dell'articolo prima di salvare la griglia",
+                        );
+                        return false;
+                      }
+                      return (await saveBase()) !== null;
+                    }}
                   />
                 </>
               ) : (

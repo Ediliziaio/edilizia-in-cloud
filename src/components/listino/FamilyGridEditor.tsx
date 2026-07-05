@@ -76,6 +76,13 @@ interface Props {
   markupTipo?: MarkupTipo;
   /** Valore markup (% se markupTipo="percentuale", €/pz se "fisso_pz"). */
   markupValore?: number;
+  /**
+   * Invocata PRIMA di salvare la griglia: permette al parent di persistere i
+   * parametri prezzo/sconti della famiglia se il form ha modifiche non salvate
+   * (M-10 audit) — altrimenti le celle verrebbero calcolate con parametri
+   * diversi da quelli in DB. Ritorna false per bloccare il salvataggio.
+   */
+  onEnsureFamilySaved?: () => Promise<boolean>;
 }
 
 // Riferimento stabile per lo stato "dati non ancora arrivati": senza questo,
@@ -92,6 +99,7 @@ export function FamilyGridEditor({
   scontoFornitore2 = 0,
   markupTipo = "none",
   markupValore = 0,
+  onEnsureFamilySaved,
 }: Props) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -429,6 +437,19 @@ export function FamilyGridEditor({
   const saveGrid = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non identificata");
+
+      // M-10 (audit): i prezzi vendita delle celle (mode acquisto_markup)
+      // sono calcolati coi parametri sconti/markup dello STATE del form
+      // parent: se non ancora salvati, celle e article_families.markup_*
+      // divergerebbero in DB. Il parent li salva prima di procedere.
+      if (onEnsureFamilySaved) {
+        const ok = await onEnsureFamilySaved();
+        if (!ok) {
+          throw new Error(
+            "Parametri dell'articolo non salvati: salva prima le impostazioni prezzo, poi la griglia.",
+          );
+        }
+      }
 
       // Map (x_y) → id delle celle attualmente persistite (axis_config IS NULL).
       const existingByKey = new Map<string, GridRow>();
