@@ -1130,16 +1130,35 @@ export function FamilyAxesEditor({ family }: Props) {
             }
             // Post-save: togli il flag is_default dagli altri valori
             // (solo se il nuovo valore è effettivamente un default).
+            // M-16 (audit): fase separata dal save del valore — se fallisce
+            // restano DUE default persistiti e il pricing sceglie arbitrario.
+            // Retry singolo + toast dedicato: il valore è comunque salvato,
+            // il messaggio dice esattamente come sanare il default doppio.
             if (values.is_default && otherDefaultIds.length > 0) {
-              await Promise.all(
-                otherDefaultIds.map((id) =>
-                  updateAxisValue.mutateAsync({
-                    id,
-                    familyId: family.id,
-                    patch: { is_default: false },
-                  }),
-                ),
-              );
+              const clearOthers = () =>
+                Promise.all(
+                  otherDefaultIds.map((id) =>
+                    updateAxisValue.mutateAsync({
+                      id,
+                      familyId: family.id,
+                      patch: { is_default: false },
+                    }),
+                  ),
+                );
+              try {
+                await clearOthers();
+              } catch {
+                try {
+                  await clearOthers(); // retry singolo per errori transienti
+                } catch (clearErr) {
+                  toast.error(
+                    "Valore salvato, ma il default precedente non è stato tolto",
+                    {
+                      description: `Sulla variabile risultano due valori di default: apri l'altro valore e disattiva il flag "Default". ${clearErr instanceof Error ? clearErr.message : ""}`,
+                    },
+                  );
+                }
+              }
             }
             setNewValueAxisId(null);
             setEditingValue(null);
