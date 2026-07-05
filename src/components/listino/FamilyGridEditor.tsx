@@ -150,7 +150,11 @@ export function FamilyGridEditor({
 
   // #12 — Export CSV
   const handleExportCSV = () => {
-    const header = `${asseXLabel},${asseYLabel},prezzo_vendita,prezzo_acquisto`;
+    // M-24 (audit): le label assi sono libere — una virgola o virgolette
+    // nell'header rompevano il CSV esportato. Quoting RFC 4180.
+    const q = (s: string) =>
+      /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    const header = `${q(asseXLabel)},${q(asseYLabel)},prezzo_vendita,prezzo_acquisto`;
     const lines: string[] = [header];
     for (const x of xAxis) {
       for (const y of yAxis) {
