@@ -193,8 +193,13 @@ const PREZZO_MODE_CARDS: Array<{
 ];
 
 function parseDecimalField(value: string, fallback = 0): number {
-  if (value.trim() === "") return fallback;
-  const parsed = Number(value.replace(",", "."));
+  let s = value.trim();
+  if (s === "") return fallback;
+  // M-30 (audit): formato italiano completo — quando c'è la virgola, i punti
+  // sono separatori delle migliaia ("1.234,56"): senza lo strip il parse
+  // falliva e l'utente vedeva "numero non valido" su un importo legittimo.
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const parsed = Number(s);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
