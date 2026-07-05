@@ -520,6 +520,10 @@ export function FamilyGridEditor({
       // (revert delle celle aggiornate ai valori pre-save + delete delle
       // celle appena inserite) così il DB non resta misto vecchio/nuovo.
       if (toUpdate.length > 0) {
+        // M-22 (audit): .select("id") sull'update per contare le righe toccate.
+        // Senza, un update su una cella cancellata da un altro utente tocca 0
+        // righe e "riesce" — perdita silenziosa in editing concorrente. La
+        // cella sparita viene trattata come errore e finisce nel rollback.
         const updateResults = await Promise.all(
           toUpdate.map(({ id, ...data }) =>
             supabase
@@ -527,7 +531,15 @@ export function FamilyGridEditor({
               .update(data)
               .eq("id", id)
               .eq("company_id", companyId)
-              .then((res) => ({ id, error: res.error })),
+              .select("id")
+              .then((res) => ({
+                id,
+                error:
+                  res.error ??
+                  ((res.data ?? []).length === 0
+                    ? { message: "cella eliminata da un altro utente" }
+                    : null),
+              })),
           ),
         );
         const failed = updateResults.filter((r) => r.error);
