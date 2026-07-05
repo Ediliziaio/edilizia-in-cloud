@@ -12,8 +12,8 @@
  * Funzioni: filtri (client-side sui pin visibili), layer, azioni popup
  * (Email/WhatsApp/Chiama), selezione ad area → CSV, heatmap (densità).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
@@ -132,12 +132,18 @@ function popupHtml(p: CrmMapPoint): string {
   if (p.telefono) actions.push(btn(waLink(p.telefono), "💬 WhatsApp", true));
   if (p.telefono) actions.push(btn(`tel:${escapeHtml(p.telefono)}`, "📞 Chiama"));
 
+  // Conversione diretta dalla mappa: solo per i prospect (contatti mkt-*).
+  const clientBtn = (p.tipo === "prospect" && p.id.startsWith("mkt-"))
+    ? `<button data-crm-client="${escapeHtml(p.id)}" style="margin-top:7px;width:100%;cursor:pointer;font-size:11px;font-weight:600;padding:5px 8px;border-radius:6px;background:${COLOR.cliente};color:#fff;border:none">✓ Segna come cliente</button>`
+    : "";
+
   return `
     <div style="min-width:200px;max-width:280px;font-size:12px;line-height:1.35">
       <div style="font-weight:600;margin-bottom:3px">${dot}${escapeHtml(p.nome)}</div>
       <div>${tipoBadge}${tempBadge}</div>
       ${rows.join("")}
       ${actions.length ? `<div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">${actions.join("")}</div>` : ""}
+      ${clientBtn}
       ${!p.precise ? `<div style="margin-top:5px;font-style:italic;color:#d97706;font-size:10px">Posizione approssimata (provincia)</div>` : ""}
     </div>`;
 }
@@ -184,6 +190,11 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const regionQ = useCrmRegionStats(companyId);
   const regionStats = useMemo(() => (regionQ.data ?? []).filter((r) => r.n > 0), [regionQ.data]);
   const regionMax = useMemo(() => Math.max(1, ...regionStats.map((r) => Number(r.n))), [regionStats]);
+  // Totali globali su tutta la mappa (le stats regione sommano l'intero dataset geolocalizzato).
+  const totals = useMemo(() => regionStats.reduce(
+    (a, r) => ({ n: a.n + Number(r.n), cli: a.cli + Number(r.n_clienti), pro: a.pro + Number(r.n_prospect) }),
+    { n: 0, cli: 0, pro: 0 },
+  ), [regionStats]);
 
   /** Centra la mappa sulla regione (se ne conosciamo il centroide). */
   const flyToRegion = (regione: string) => {
@@ -441,6 +452,53 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
   });
 
+  const queryClient = useQueryClient();
+  // Invalida (→ refetch) tutte le query della mappa: cells, points, region-stats.
+  const refreshMap = useCallback(() => {
+    queryClient.invalidateQueries({
+      predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("crm-map-"),
+    });
+  }, [queryClient]);
+
+  // "Segna come cliente" dal popup → il prospect diventa cliente (pin verde).
+  const markClient = useMutation({
+    mutationFn: async (contactUuid: string) => {
+      const { error } = await supabase.from("marketing_contacts")
+        .update({ contact_type: "cliente" }).eq("id", contactUuid).eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Segnata come cliente 🟢 · la mappa si aggiorna"); refreshMap(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
+  // Aggiornamento in tempo reale: quando un'opportunità cambia (es. diventa "vinta"
+  // → il contatto è cliente) la mappa si ri-sincronizza da sola.
+  const [liveOn, setLiveOn] = useState(false);
+  useEffect(() => {
+    if (!companyId) return;
+    let t: ReturnType<typeof setTimeout>;
+    const bump = () => { clearTimeout(t); t = setTimeout(refreshMap, 700); };
+    const ch = supabase
+      .channel(`crm-map-${companyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "marketing_opportunities", filter: `company_id=eq.${companyId}` }, bump)
+      .subscribe((status) => setLiveOn(status === "SUBSCRIBED"));
+    return () => { clearTimeout(t); supabase.removeChannel(ch); };
+  }, [companyId, refreshMap]);
+
+  // Bottone "Segna come cliente" dei popup (HTML Leaflet) → mutazione, via event delegation.
+  useEffect(() => {
+    const el = mapElRef.current;
+    if (!el) return;
+    const onClick = (ev: MouseEvent) => {
+      const btn = (ev.target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-crm-client]");
+      if (!btn) return;
+      const cid = btn.getAttribute("data-crm-client") || "";
+      if (cid.startsWith("mkt-")) { markClient.mutate(cid.slice(4)); mapRef.current?.closePopup(); }
+    };
+    el.addEventListener("click", onClick);
+    return () => el.removeEventListener("click", onClick);
+  }, [markClient]);
+
   return (
     <div className="space-y-3">
       <Card>
@@ -532,6 +590,26 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {totals.n > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-1 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 font-medium">
+            <MapPin className="h-3.5 w-3.5 text-orange-500" /> {fmtN(totals.n)} sulla mappa
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium" style={{ borderColor: "#bbf7d0", background: "#f0fdf4", color: "#166534" }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: COLOR.cliente }} /> {fmtN(totals.cli)} clienti
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium" style={{ borderColor: "#fecaca", background: "#fef2f2", color: "#991b1b" }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: COLOR.prospect }} /> {fmtN(totals.pro)} prospect
+          </span>
+          {liveOn && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700" title="La mappa si aggiorna automaticamente quando un'azienda diventa cliente">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
+              Live
+            </span>
+          )}
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <Card className="border-orange-200 bg-orange-50">
