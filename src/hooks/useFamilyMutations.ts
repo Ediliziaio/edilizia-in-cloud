@@ -563,7 +563,23 @@ export function useFamilyMutations() {
         const { error: errVal } = await supabase
           .from("article_family_axis_values" as never)
           .insert(valueRows);
-        if (errVal) throw new Error(errVal.message);
+        if (errVal) {
+          // M-34 (audit): due insert non transazionali — se i valori
+          // falliscono, gli assi appena creati resterebbero vuoti (preset a
+          // metà). Cleanup compensativo: rimuoviamo gli assi di questo batch
+          // (FK CASCADE su eventuali valori parziali) prima di rilanciare.
+          const createdAxisIds = Array.from(codiceToId.values());
+          const { error: errCleanup } = await supabase
+            .from("article_family_axes" as never)
+            .delete()
+            .in("id", createdAxisIds)
+            .eq("company_id", companyId);
+          throw new Error(
+            errCleanup
+              ? `${errVal.message} (pulizia assi parziali fallita: ${errCleanup.message} — controlla le variabili create)`
+              : `${errVal.message} (nessuna variabile creata: il preset va riapplicato)`,
+          );
+        }
       }
 
       return {
