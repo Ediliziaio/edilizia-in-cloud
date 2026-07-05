@@ -243,9 +243,12 @@ export function FamilyGridEditor({
   };
 
   // #13 — Storico modifiche prezzi
+  // M-25 (audit): chiave nel registry queryKeys (era un literal ad-hoc mai
+  // invalidato: lo storico restava stale fino al remount). Invalidata in
+  // onSuccess del salvataggio griglia.
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: priceHistory = [] } = useQuery({
-    queryKey: ["listino_history", familyId],
+    queryKey: queryKeys.articleFamilies.gridHistory(familyId),
     enabled: !!companyId && !!familyId && historyOpen,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -634,6 +637,9 @@ export function FamilyGridEditor({
       // aperta per riallineare lo stato locale (id delle celle nuove inclusi).
       clearDirty();
       qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.grid(familyId) });
+      qc.invalidateQueries({
+        queryKey: queryKeys.articleFamilies.gridHistory(familyId),
+      });
     },
     onError: (err: Error) => {
       captureVelocityError("family.grid.save", err, { companyId, familyId });

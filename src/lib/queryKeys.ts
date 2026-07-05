@@ -1095,6 +1095,9 @@ export const queryKeys = {
       ["article-families", "detail", familyId] as const,
     grid: (familyId: string | undefined) =>
       ["article-families", "grid", familyId] as const,
+    // Storico prezzi griglia (RPC silvio_tool_lista_storico_prezzi_griglia).
+    gridHistory: (familyId: string | undefined) =>
+      ["article-families", "grid-history", familyId] as const,
   },
 
   // ── Catalog (Preventivatore Unificato — Sprint A) ──────────────────────
