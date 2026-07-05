@@ -722,11 +722,19 @@ export function FamilyEditor() {
         max: 100,
       });
 
+      // M-29 (audit): la quantità posa conta solo in modalità 'tariffa' con
+      // posa collegata — fuori da quel caso un residuo 0/non valido bloccava
+      // il salvataggio con un errore su un campo nascosto all'utente.
+      // Quando non rilevante viene riportata al default 1 senza bloccare.
       posaQuantitaNum = parseDecimalField(posaQuantita, 1);
-      assertFiniteRange(posaQuantitaNum, "Quantità manodopera", {
-        min: 0,
-        allowZero: false,
-      });
+      if (manodoperaModalita === "tariffa" && posaLinked) {
+        assertFiniteRange(posaQuantitaNum, "Quantità manodopera", {
+          min: 0,
+          allowZero: false,
+        });
+      } else if (!Number.isFinite(posaQuantitaNum) || posaQuantitaNum <= 0) {
+        posaQuantitaNum = 1;
+      }
 
       manodoperaCostoAcquistoNum = parseDecimalField(
         manodoperaCostoAcquisto,
