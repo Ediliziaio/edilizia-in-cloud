@@ -44,7 +44,7 @@ export default function CashFlowForecast() {
   } = useCashFlowData();
 
   // Proiezione 90 giorni con dati reali banking + fatture
-  const { data: realData } = useCashFlowRealData(companyId);
+  const { data: realData, isError: realDataError } = useCashFlowRealData(companyId);
 
   // Dati bancari reali: saldo attuale + entrate/uscite previste
   const { data: bankingSummary, isError: bankingSummaryError, refetch: refetchBanking } = useQuery({
@@ -254,7 +254,14 @@ export default function CashFlowForecast() {
         </div>
       )}
 
-      {/* Proiezione 90 giorni */}
+      {/* Proiezione 90 giorni — su errore lo diciamo, prima falliva in silenzio
+          e l'utente credeva che il grafico predittivo semplicemente non esistesse. */}
+      {realDataError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          La proiezione a 90 giorni non è stata caricata per un errore. Ricarica la pagina; se
+          persiste, il resto del previsionale sotto è comunque valido.
+        </div>
+      )}
       {realData && (
         <CashFlowProjectionChart
           projection={realData.projection}
@@ -305,6 +312,7 @@ export default function CashFlowForecast() {
             expectedCompanyCosts={expectedCompanyCosts}
             scadenzeForForecast={scadenzeForForecast}
             primaNotaSaldo={primaNotaSaldo}
+            bankBalance={bankingSummary?.bankBalance ?? null}
           />
         </TabsContent>
 

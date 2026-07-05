@@ -48,6 +48,9 @@ interface CashForecastTabProps {
   expectedCompanyCosts: CompanyCostEntry[];
   scadenzeForForecast?: ScadenzaForecastEntry[];
   primaNotaSaldo?: { entrate: number; uscite: number; saldo: number; entry_count: number };
+  /** Saldo banca reale (tesoreria). Se presente ha priorità sulla prima nota
+   *  come punto di partenza del forecast: la cassa vera è quella dei conti. */
+  bankBalance?: number | null;
 }
 
 type FilterCategory = "all" | "income" | "expenses";
@@ -63,7 +66,7 @@ interface UnifiedTransaction {
   orderId: string | null;
 }
 
-export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo }: CashForecastTabProps) {
+export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo, bankBalance }: CashForecastTabProps) {
   const navigate = useNavigate();
   // S2-02: stabilize `now` via useMemo (era ricreata ad ogni render -> deps break)
   const now = useMemo(() => new Date(), []);
@@ -225,7 +228,10 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     return transactions.reduce((sum, t) => sum + (t.direction === "in" ? t.amount : -t.amount), 0);
   }, [transactions]);
 
-  const initialBalance = primaNotaSaldo?.saldo ?? 0;
+  // Punto di partenza del forecast: il saldo BANCA reale (tesoreria) quando i
+  // conti sono collegati; la prima nota (sommatoria storica) solo come fallback.
+  const usingBankBalance = bankBalance != null;
+  const initialBalance = bankBalance ?? primaNotaSaldo?.saldo ?? 0;
   const projectedFinalBalance = initialBalance + cumulativeNet;
 
   const cashControl = useMemo(() => {
@@ -343,10 +349,14 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">Saldo iniziale</p>
-              <Badge variant="outline">Prima nota</Badge>
+              <Badge variant="outline">{usingBankBalance ? "Tesoreria" : "Prima nota"}</Badge>
             </div>
             <p className="mt-2 text-2xl font-bold tabular-nums">{formatCurrency(initialBalance)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{primaNotaSaldo?.entry_count ?? 0} movimenti consolidati</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {usingBankBalance
+                ? "Saldo attuale dei conti bancari collegati"
+                : `${primaNotaSaldo?.entry_count ?? 0} movimenti consolidati`}
+            </p>
           </CardContent>
         </Card>
         <Card>

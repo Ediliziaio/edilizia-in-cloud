@@ -5,7 +5,7 @@ import { it } from "date-fns/locale";
 import {
   AlertTriangle, ArrowRight, Building2, CalendarIcon, ClipboardList, Download,
   FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
-  Settings2, Tags, Upload, Users, WalletCards,
+  Settings2, ShoppingCart, Tags, Upload, Users, WalletCards,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -127,6 +127,11 @@ function CostIntegrationPanel({
           <Button asChild variant="outline" size="sm" className="gap-1">
             <Link to="/azienda/prima-nota">
               <ReceiptText className="h-4 w-4" /> Prima nota
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="gap-1">
+            <Link to="/azienda/analisi-acquisti">
+              <ShoppingCart className="h-4 w-4" /> Analisi acquisti
             </Link>
           </Button>
         </div>
