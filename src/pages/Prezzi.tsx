@@ -1108,13 +1108,16 @@ export default function Prezzi() {
             Esplora altre risorse
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Trailing slash: le versioni senza slash fanno 301 (GSC "Pagina con
+                reindirizzamento"). /sicurezza e /moduli/* non esistevano come
+                route pubbliche → erano link rotti (soft-404 per Google). */}
             {[
-              { to: "/confronto", label: "Confronta i piani con i competitor" },
-              { to: "/casi-studio", label: "Vedi i casi studio" },
-              { to: "/sicurezza", label: "Sicurezza e GDPR" },
-              { to: "/integrazioni", label: "Tutte le integrazioni" },
-              { to: "/moduli/cantieri", label: "Modulo Cantieri" },
-              { to: "/moduli/finanza", label: "Modulo Finanza" },
+              { to: "/confronto/", label: "Confronta i piani con i competitor" },
+              { to: "/casi-studio/", label: "Vedi i casi studio" },
+              { to: "/dpa/", label: "Sicurezza dati e GDPR (DPA)" },
+              { to: "/integrazioni/", label: "Tutte le integrazioni" },
+              { to: "/funzionalita/gestione-cantieri/", label: "Gestione Cantieri" },
+              { to: "/funzionalita/cassa-cantiere/", label: "Cassa e Finanza di Cantiere" },
             ].map((l) => (
               <Link
                 key={l.to}

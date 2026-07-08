@@ -23,6 +23,15 @@
 - **Deploy:** Web, iOS, Android
 - **Rating:** 4.9/5 (142 recensioni verificate)
 
+## Prezzi (luglio 2026)
+
+- **Gestionale:** 127€/mese (99€/mese con fatturazione annuale) — imprese fino a 500K € di fatturato
+- **Professionista:** 247€/mese (197€/mese annuale) — imprese da 500K a 2M €
+- **Impresa AI:** 547€/mese (437€/mese annuale) — imprese oltre 2M € o multi-cantiere
+- Tutti i piani: utenti ILLIMITATI, nessun costo di attivazione, nessun vincolo contrattuale
+- Prova gratuita: 31 giorni con accesso completo al piano Professionista
+- Fonte ufficiale: https://www.ediliziaincloud.com/prezzi/
+
 ## Funzionalità principali
 
 - **Fatturazione elettronica SDI** — emissione e ricezione fatture PA e B2B, integrazione diretta con il Sistema di Interscambio

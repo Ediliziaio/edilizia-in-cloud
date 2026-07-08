@@ -341,11 +341,18 @@ const ROUTES = {
     <p>L'attivazione è immediata: non c'è installazione locale. La maggior parte delle imprese è operativa in pochi giorni con l'aiuto del supporto italiano dedicato e dell'onboarding guidato, importando anagrafiche, cantieri e fatture esistenti.</p>
     `,
     links: [
+      // Candidati sitelinks per la query brand "edilizia in cloud": Google li
+      // sceglie dai link più prominenti della home — tenerli allineati con
+      // l'ItemList SiteNavigationElement più sotto.
       { href: "/funzionalita", label: "Scopri le Funzionalità" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
       { href: "/demo", label: "Richiedi una Demo" },
       { href: "/blog", label: "Blog Edilizia" },
       { href: "/confronto", label: "Confronta con Altri Software" },
+      { href: "/software-gestionale-edilizia", label: "Software Gestionale Edilizia" },
+      { href: "/casi-studio", label: "Casi Studio delle Imprese" },
+      { href: "/chi-siamo", label: "Chi Siamo" },
+      { href: "/formazione", label: "Formazione e Tutorial" },
     ],
     jsonLd: [
       {
@@ -360,22 +367,27 @@ const ROUTES = {
         url: "https://www.ediliziaincloud.com/",
         inLanguage: "it",
         offers: {
+          // Prezzi REALI dei piani (Gestionale 127 / Professionista 247 / Impresa AI 547):
+          // i vecchi 49-199 contraddicevano FAQ, /prezzi e llms.txt — Google e i
+          // motori AI citavano prezzi sbagliati.
           "@type": "AggregateOffer",
           priceCurrency: "EUR",
-          lowPrice: "49",
-          highPrice: "199",
+          lowPrice: "127",
+          highPrice: "547",
           offerCount: "3",
         },
         featureList: "Gestione cantieri, Preventivi professionali, Fatturazione elettronica SDI, Gestione subappalti, DDT, Ordini fornitori, HR e presenze, Prima nota, App mobile cantiere",
-        screenshot: "https://www.ediliziaincloud.com/og/home.png",
+        screenshot: "https://www.ediliziaincloud.com/og/og-default.png",
       },
       {
         "@context": "https://schema.org",
         "@type": "Organization",
         name: "Edilizia in Cloud",
+        alternateName: "EdiliziaInCloud",
         legalName: "Domus Group S.r.l.",
         url: "https://www.ediliziaincloud.com/",
-        logo: "https://www.ediliziaincloud.com/logo.png",
+        // /logo.png non esiste (404): usare l'icona PWA 512px che è servita davvero.
+        logo: "https://www.ediliziaincloud.com/icons/icon-512.png",
         sameAs: [
           "https://www.linkedin.com/company/ediliziaincloud",
           "https://www.youtube.com/@ediliziaincloud",
@@ -419,6 +431,9 @@ const ROUTES = {
           { "@type": "SiteNavigationElement", position: 4, name: "Demo", url: "https://www.ediliziaincloud.com/demo/" },
           { "@type": "SiteNavigationElement", position: 5, name: "Blog", url: "https://www.ediliziaincloud.com/blog/" },
           { "@type": "SiteNavigationElement", position: 6, name: "Chi siamo", url: "https://www.ediliziaincloud.com/chi-siamo/" },
+          { "@type": "SiteNavigationElement", position: 7, name: "Casi Studio", url: "https://www.ediliziaincloud.com/casi-studio/" },
+          { "@type": "SiteNavigationElement", position: 8, name: "Software Gestionale Edilizia", url: "https://www.ediliziaincloud.com/software-gestionale-edilizia/" },
+          { "@type": "SiteNavigationElement", position: 9, name: "Formazione e Tutorial", url: "https://www.ediliziaincloud.com/formazione/" },
         ],
       },
       {
@@ -1899,7 +1914,7 @@ const ROUTES = {
           name: "Edilizia in Cloud",
           legalName: "Domus Group S.r.l.",
           url: "https://www.ediliziaincloud.com/",
-          logo: "https://www.ediliziaincloud.com/logo.png",
+          logo: "https://www.ediliziaincloud.com/icons/icon-512.png",
           address: {
             "@type": "PostalAddress",
             streetAddress: "Via Aurelio Saffi 29",
@@ -2492,7 +2507,7 @@ const BLOG_CATEGORIES = {
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://www.ediliziaincloud.com/og/home.png" }) {
+function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://www.ediliziaincloud.com/og/og-default.png" }) {
   const jsonLdScript = jsonLd
     ? Array.isArray(jsonLd)
       ? jsonLd.map(j => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join("\n  ")
@@ -2858,7 +2873,7 @@ function resolveRoute(pathname) {
       datePublished: meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
       publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com/" },
-      image: meta.coverImage || "https://www.ediliziaincloud.com/og/home.png",
+      image: meta.coverImage || "https://www.ediliziaincloud.com/og/og-default.png",
       keywords: meta.tags ? meta.tags.join(", ") : "",
       inLanguage: "it",
     } : null;
@@ -2885,7 +2900,7 @@ function resolveRoute(pathname) {
       ],
       jsonLd: articleJsonLd,
       ogType: "article",
-      ogImage: meta.coverImage || "https://www.ediliziaincloud.com/og/home.png",
+      ogImage: meta.coverImage || "https://www.ediliziaincloud.com/og/og-default.png",
     };
   }
 

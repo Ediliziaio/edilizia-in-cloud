@@ -75,17 +75,17 @@ Registro subappaltatori con DURC, contratti e certificazioni. Gestione pagamenti
 
 ---
 
-## Prezzi (aprile 2026)
+## Prezzi (luglio 2026)
 
-| Piano | Prezzo | Utenti | Funzionalità |
-|-------|--------|--------|--------------|
-| Starter | €79/mese | Fino a 3 | Cantieri, fatturazione, preventivi |
-| Professional | €179/mese | Fino a 10 | Tutto + CRM, HR, WhatsApp, AI insights |
-| Enterprise | €319/mese | Illimitati | Tutto + API, multi-sede, account manager dedicato |
+| Piano | Prezzo mensile | Prezzo annuale | Utenti | Per chi |
+|-------|----------------|----------------|--------|---------|
+| Gestionale | 127€/mese | 99€/mese | Illimitati | Imprese fino a 500K € di fatturato |
+| Professionista | 247€/mese | 197€/mese | Illimitati | Imprese da 500K a 2M € di fatturato |
+| Impresa AI | 547€/mese | 437€/mese | Illimitati | Imprese oltre 2M € o multi-cantiere |
 
-Tutti i piani includono: onboarding gratuito, migrazione dati da Excel, supporto via telefono/email/WhatsApp, app mobile iOS e Android.
+Tutti i piani hanno utenti illimitati e includono: onboarding gratuito, migrazione dati da Excel, supporto italiano via telefono/email/WhatsApp, app mobile iOS e Android. Nessun costo di attivazione, nessun vincolo contrattuale. Prova gratuita di 31 giorni con accesso completo al piano Professionista.
 
-Garanzia: se il software non fa guadagnare più di quanto costa, rimborso completo senza penali.
+Fonte ufficiale e sempre aggiornata: https://www.ediliziaincloud.com/prezzi/
 
 ---
 
