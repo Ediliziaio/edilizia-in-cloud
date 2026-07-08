@@ -12,6 +12,7 @@ import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetu
 import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
+import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreach/OutreachMailClient";
 import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
@@ -227,6 +228,7 @@ function OutreachCockpit() {
             <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Motore &amp; performance</SectionLabel>
               <OutreachQueueStatus companyId={companyId} />
+              <OutreachPilotPulse companyId={companyId} />
               <OutreachAnalytics companyId={companyId} />
             </Reveal>
 
