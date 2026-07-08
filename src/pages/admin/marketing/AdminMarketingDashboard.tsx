@@ -142,9 +142,12 @@ function OutreachCockpit() {
     queryFn: () => safeCount(supabase.from("marketing_contacts").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
     staleTime: 60_000,
   });
+  // email_suppressions HA company_id: senza filtro il KPI mostrava il totale
+  // GLOBALE della piattaforma accanto a contatori per-azienda (numeri di
+  // insiemi diversi affiancati = confronto fuorviante).
   const suppressed = useQuery({
-    queryKey: ["outreach-count", "suppressed"],
-    queryFn: () => safeCount(supabase.from("email_suppressions").select("*", { count: "exact", head: true })),
+    queryKey: ["outreach-count", "suppressed", companyId],
+    queryFn: () => safeCount(supabase.from("email_suppressions").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
     staleTime: 60_000,
   });
   const campaigns = useQuery({

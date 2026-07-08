@@ -87,16 +87,6 @@ interface StageRow {
   name: string | null;
   position: number | null;
 }
-interface ContactRow {
-  created_at: string | null;
-  ai_score_tier: string | null;
-  last_activity_at: string | null;
-}
-
-const isHotTier = (t: string | null | undefined) => {
-  const v = (t || "").toLowerCase();
-  return v === "hot" || v === "caldo" || v === "high" || v === "a";
-};
 const normProb = (p: number | null) => {
   const v = p ?? 0;
   return v > 1 ? v / 100 : v; // accetta sia 0-100 sia 0-1
@@ -139,22 +129,52 @@ export default function AdminMarketingCommercialDashboard() {
     },
   });
 
-  const contacts = useQuery({
-    queryKey: ["crm-dash", "contacts", companyId],
+  // KPI contatti via COUNT server-side. Prima si scaricavano 5.000 righe e si
+  // contava in memoria: con 89.000+ contatti in rubrica era un campione
+  // arbitrario del ~6% (senza ORDER BY l'ordine non e' definito) -> "Lead
+  // nuovi", "Caldi senza follow-up" e sparkline completamente sballati.
+  const contactStats = useQuery({
+    queryKey: ["crm-dash", "contact-stats", companyId, days, nowMs],
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_contacts")
-        .select("created_at,ai_score_tier,last_activity_at")
-        .eq("company_id", companyId)
-        .limit(5000);
-      if (error) throw error;
-      return (data ?? []) as ContactRow[];
+      const DAY = 86_400_000;
+      const WEEK = 7 * DAY;
+      const winStartIso = new Date(nowMs - days * DAY).toISOString();
+      const priorStartIso = new Date(nowMs - 2 * days * DAY).toISOString();
+      const fiveDaysAgoIso = new Date(nowMs - 5 * DAY).toISOString();
+      const base = () =>
+        supabase
+          .from("marketing_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId);
+      // 8 settimane per la sparkline: [7 settimane fa ... settimana corrente]
+      const weekRanges = Array.from({ length: 8 }, (_, i) => {
+        const end = nowMs - (7 - i - 1) * WEEK;
+        const start = nowMs - (7 - i) * WEEK;
+        return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+      });
+      const [newWin, newPrior, hot, ...weeks] = await Promise.all([
+        base().gte("created_at", winStartIso),
+        base().gte("created_at", priorStartIso).lt("created_at", winStartIso),
+        base()
+          .in("ai_score_tier", ["hot", "caldo", "high", "a", "A"])
+          .or(`last_activity_at.is.null,last_activity_at.lt.${fiveDaysAgoIso}`),
+        ...weekRanges.map((w) => base().gte("created_at", w.start).lt("created_at", w.end)),
+      ]);
+      const cnt = (r: { count: number | null; error: unknown }) => (r.error ? 0 : r.count ?? 0);
+      return {
+        newLeads: cnt(newWin),
+        newLeadsPrior: cnt(newPrior),
+        hotNoFollowup: cnt(hot),
+        sparkLeads: weeks.map(cnt),
+      };
     },
   });
 
-  const isLoading = opps.isLoading || stages.isLoading || contacts.isLoading;
-  const isError = opps.isError && contacts.isError;
+  const isLoading = opps.isLoading || stages.isLoading || contactStats.isLoading;
+  // "||", non "&&": se anche UNA sola fonte fallisce i KPI sono incompleti e
+  // l'utente deve vederlo (prima serviva il fallimento di entrambe).
+  const isError = opps.isError || contactStats.isError;
 
   const kpis = useMemo(() => {
     const now = nowMs;
@@ -171,7 +191,6 @@ export default function AdminMarketingCommercialDashboard() {
       return t >= priorStart && t < winStart;
     };
     const o = opps.data ?? [];
-    const c = contacts.data ?? [];
 
     const open = o.filter((x) => (x.status ?? "open") === "open");
     const pipelineOpenValue = open.reduce((s, x) => s + (x.value ?? 0), 0);
@@ -187,13 +206,10 @@ export default function AdminMarketingCommercialDashboard() {
     const closedPrior = o.filter((x) => (x.status === "won" || x.status === "lost") && inPrior(x.updated_at));
     const winRatePrior = closedPrior.length ? (wonPrior.length / closedPrior.length) * 100 : 0;
 
-    const newLeads = c.filter((x) => inWin(x.created_at)).length;
-    const newLeadsPrior = c.filter((x) => inPrior(x.created_at)).length;
-
-    const fiveDaysAgo = now - 5 * 86_400_000;
-    const hotNoFollowup = c.filter(
-      (x) => isHotTier(x.ai_score_tier) && (!x.last_activity_at || new Date(x.last_activity_at).getTime() < fiveDaysAgo),
-    ).length;
+    // Lead nuovi / caldi: COUNT esatti server-side (vedi contactStats sopra).
+    const newLeads = contactStats.data?.newLeads ?? 0;
+    const newLeadsPrior = contactStats.data?.newLeadsPrior ?? 0;
+    const hotNoFollowup = contactStats.data?.hotNoFollowup ?? 0;
 
     const delta = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : cur > 0 ? 100 : 0);
 
@@ -207,11 +223,7 @@ export default function AdminMarketingCommercialDashboard() {
       const i = 7 - weeksAgo;
       return i >= 0 && i <= 7 ? i : -1;
     };
-    const sparkLeads = Array.from({ length: 8 }, () => 0);
-    for (const x of c) {
-      const i = weekIdx(x.created_at);
-      if (i >= 0) sparkLeads[i]++;
-    }
+    const sparkLeads = contactStats.data?.sparkLeads ?? Array.from({ length: 8 }, () => 0);
     const sparkWon = Array.from({ length: 8 }, () => 0);
     for (const x of o) {
       if (x.status !== "won") continue;
@@ -233,7 +245,7 @@ export default function AdminMarketingCommercialDashboard() {
       newLeadsDelta: delta(newLeads, newLeadsPrior),
       hotNoFollowup,
     };
-  }, [opps.data, contacts.data, days, nowMs]);
+  }, [opps.data, contactStats.data, days, nowMs]);
 
   const pipelineByStage = useMemo(() => {
     const o = (opps.data ?? []).filter((x) => (x.status ?? "open") === "open");

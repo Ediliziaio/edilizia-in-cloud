@@ -31,34 +31,61 @@ export function CrmChannelRoi({ companyId, days }: { companyId: string; days: nu
     queryKey: ["crm-dash", "channel-roi", companyId, sinceIso],
     staleTime: 60_000,
     queryFn: async (): Promise<Row[]> => {
+      // Prima: contatti scaricati con limit 5000 (su 89k+ = campione arbitrario)
+      // e SENZA filtro periodo, mentre la spesa era per-periodo -> CPL e lead
+      // per canale sballati. Ora: revenue = vinte NEL periodo con fonte del
+      // contatto (batch .in sugli id, poche righe); lead = COUNT esatto per
+      // fonte NEL periodo (una head-query per fonte mostrata, <=10).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any;
-      const [costs, contacts, won] = await Promise.all([
+      const [costs, won] = await Promise.all([
         sb.from("campaign_costs").select("source,spend_amount,date").eq("company_id", companyId).gte("date", sinceIso.slice(0, 10)),
-        supabase.from("marketing_contacts").select("id,source,attr_source").eq("company_id", companyId).limit(5000),
-        supabase.from("marketing_opportunities").select("value,contact_id").eq("company_id", companyId).eq("status", "won").limit(5000),
+        supabase.from("marketing_opportunities").select("value,contact_id").eq("company_id", companyId).eq("status", "won").gte("updated_at", sinceIso).limit(5000),
       ]);
 
-      const contactRows = (contacts.data ?? []) as { id: string; source: string | null; attr_source: string | null }[];
+      const wonRows = (won.data ?? []) as { value: number | null; contact_id: string | null }[];
+      const contactIds = [...new Set(wonRows.map((w) => w.contact_id).filter(Boolean))] as string[];
       const srcByContact = new Map<string, string>();
+      if (contactIds.length > 0) {
+        const { data: cRows } = await supabase
+          .from("marketing_contacts")
+          .select("id,source,attr_source")
+          .in("id", contactIds);
+        for (const c of (cRows ?? []) as { id: string; source: string | null; attr_source: string | null }[]) {
+          srcByContact.set(c.id, (c.source || c.attr_source || "Diretto").trim() || "Diretto");
+        }
+      }
+
       const m = new Map<string, Row>();
       const get = (s: string) => {
         const key = s || "Diretto";
         if (!m.has(key)) m.set(key, { source: key, spend: 0, leads: 0, revenue: 0 });
         return m.get(key)!;
       };
-      for (const c of contactRows) {
-        const s = (c.source || c.attr_source || "Diretto").trim() || "Diretto";
-        srcByContact.set(c.id, s);
-        get(s).leads += 1;
-      }
       for (const k of (costs.error ? [] : costs.data ?? []) as { source: string | null; spend_amount: number | null }[]) {
         get((k.source || "Diretto").trim() || "Diretto").spend += k.spend_amount ?? 0;
       }
-      for (const w of (won.data ?? []) as { value: number | null; contact_id: string | null }[]) {
+      for (const w of wonRows) {
         const s = (w.contact_id && srcByContact.get(w.contact_id)) || "Diretto";
         get(s).revenue += w.value ?? 0;
       }
+
+      // Lead nel periodo per ciascuna fonte con spesa o ricavo (count esatto).
+      const sources = [...m.keys()];
+      const leadCounts = await Promise.all(
+        sources.map((src) => {
+          const q = supabase
+            .from("marketing_contacts")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .gte("created_at", sinceIso);
+          return src === "Diretto" ? q.is("source", null) : q.eq("source", src);
+        }),
+      );
+      sources.forEach((src, i) => {
+        const r = leadCounts[i];
+        m.get(src)!.leads = r.error ? 0 : r.count ?? 0;
+      });
       return [...m.values()].sort((a, b) => {
         const ra = a.spend > 0 ? a.revenue / a.spend : a.revenue > 0 ? Infinity : -1;
         const rb = b.spend > 0 ? b.revenue / b.spend : b.revenue > 0 ? Infinity : -1;
