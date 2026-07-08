@@ -6,6 +6,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { linkifyNormative } from "@/lib/blog/normativeLinks";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -293,12 +294,30 @@ export default function BlogPost() {
         }
       : null;
 
+  // FAQPage: solo per i post che dichiarano FAQ redazionali (post.faqs).
+  const faqData =
+    post.faqs && post.faqs.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: post.faqs.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }
+      : null;
+
+  // Dedup dei link normativi a livello di articolo (prima occorrenza = link).
+  const seenNorms = new Set<string>();
+
   return (
     <div className="min-h-screen bg-white">
       <ProgressBar />
       <LandingNavbar />
       <JsonLd data={jsonLdData} />
       {howToData && <JsonLd id={`jsonld-howto-${post.slug}`} data={howToData} />}
+      {faqData && <JsonLd id={`jsonld-faq-${post.slug}`} data={faqData} />}
       <JsonLd id="jsonld-breadcrumb-post" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -384,7 +403,7 @@ export default function BlogPost() {
                       key={i}
                       className="text-xl text-gray-700 leading-relaxed mb-10 font-light border-l-4 border-[#F97415] pl-6"
                     >
-                      {section.body}
+                      {linkifyNormative(section.body, seenNorms)}
                     </p>
                   );
 
@@ -402,7 +421,7 @@ export default function BlogPost() {
                       )}
                       {section.body && (
                         <p className="text-gray-600 leading-relaxed text-[1.05rem]">
-                          {section.body}
+                          {linkifyNormative(section.body, seenNorms)}
                         </p>
                       )}
                     </div>
@@ -446,7 +465,7 @@ export default function BlogPost() {
                                 ✓
                               </span>
                               <span className="text-gray-600 leading-relaxed">
-                                {item}
+                                {linkifyNormative(item, seenNorms)}
                               </span>
                             </li>
                           ))}
@@ -481,6 +500,28 @@ export default function BlogPost() {
                   return null;
               }
             })}
+
+            {/* FAQ redazionali (AEO: risposte estraibili + FAQPage schema) */}
+            {post.faqs && post.faqs.length > 0 && (
+              <div className="mb-10">
+                <h2
+                  id="domande-frequenti"
+                  className="text-2xl font-bold text-[#111111] mt-10 mb-6 scroll-mt-28"
+                >
+                  Domande frequenti
+                </h2>
+                <div className="space-y-6">
+                  {post.faqs.map((f, i) => (
+                    <div key={i}>
+                      <h3 className="text-lg font-semibold text-[#111111] mb-2">{f.q}</h3>
+                      <p className="text-gray-600 leading-relaxed text-[1.05rem]">
+                        {linkifyNormative(f.a, seenNorms)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tags */}
             <div className="mt-12 pt-8 border-t border-gray-200">

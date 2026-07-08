@@ -18,6 +18,8 @@ export interface BlogPost {
     quote?: string;
     author?: string;
   }>;
+  /** FAQ redazionali: risposte estraibili dai motori AI + FAQPage schema. */
+  faqs?: Array<{ q: string; a: string }>;
 }
 
 
@@ -1042,7 +1044,7 @@ export const blogPosts: BlogPost[] = [
     category: "Gestione Cantieri",
     tags: ["DURC edilizia", "regolarità contributiva", "appalti edilizia", "gestione documenti"],
     publishedAt: "2025-12-08",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-04",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1095,6 +1097,24 @@ export const blogPosts: BlogPost[] = [
         type: "cta",
         heading: "Gestisci DURC e documenti di cantiere con Edilizia in Cloud",
         body: "Archiviazione digitale di tutti i documenti di cantiere, alert automatici sulle scadenze e gestione completa dei subappaltatori. Nessun DURC scaduto passerà inosservato.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Quanto dura il DURC?",
+        a: "Il DURC ha validità di 120 giorni dalla data di emissione. Dal 2014 è rilasciato esclusivamente in formato elettronico tramite il portale unico DURC online.",
+      },
+      {
+        q: "Come si richiede il DURC online?",
+        a: "Esclusivamente online, dal portale INPS (DURC online) o tramite un intermediario abilitato, con credenziali SPID o CNS. La richiesta è gratuita: il documento viene rilasciato entro 30 giorni, spesso in pochi giorni se tutti i versamenti verso INPS, INAIL e Casse Edili sono regolari.",
+      },
+      {
+        q: "Cosa fare se il DURC risulta irregolare?",
+        a: "Dalla comunicazione di irregolarità ci sono 15 giorni per regolarizzare la posizione, pagando le somme dovute con F24 o aderendo a un piano di rateazione. Le cause più comuni sono versamenti INPS in ritardo, omissioni INAIL e mancati pagamenti alla Cassa Edile.",
+      },
+      {
+        q: "Chi deve presentare il DURC in un subappalto?",
+        a: "Il subappaltatore deve presentare il DURC al general contractor. L'impresa principale dovrebbe archiviare il documento con la sua scadenza, impostare alert 30 giorni prima e bloccare i pagamenti ai subappaltatori con DURC scaduto.",
       },
     ],
   },
@@ -1746,7 +1766,7 @@ export const blogPosts: BlogPost[] = [
     category: "Normativa",
     tags: ["sicurezza cantieri", "D.Lgs 81/2008", "DVR", "POS cantiere", "PSC", "sicurezza lavoro edilizia"],
     publishedAt: "2026-01-30",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-04",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1798,6 +1818,20 @@ export const blogPosts: BlogPost[] = [
         type: "cta",
         heading: "Tieni la sicurezza sotto controllo con Edilizia in Cloud",
         body: "Scadenze DURC, idoneità sanitarie, formazione operai e documenti di cantiere: tutto tracciato e con alert automatici. Nessuna scadenza mancata, nessuna sanzione evitabile. Prova gratis 31 giorni.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Quali documenti di sicurezza sono obbligatori in cantiere?",
+        a: "Il DVR per tutte le imprese con almeno 1 dipendente, il POS per ogni cantiere specifico, il PSC nei cantieri con più imprese (redatto dal Coordinatore per la Progettazione), il DUVRI in caso di rischi interferenziali, il registro degli infortuni, i libretti di uso e manutenzione dei macchinari e le idoneità sanitarie aggiornate degli operai.",
+      },
+      {
+        q: "Quante ore di formazione sicurezza servono a un operaio edile?",
+        a: "Per il settore costruzioni (rischio alto) servono 40 ore totali: 16 di formazione generale più 24 di formazione specifica, con aggiornamento di 6 ore ogni 5 anni. I preposti aggiungono 8 ore, i dirigenti 16, e il RSPP interno deve completare 32 ore specifiche per il settore costruzioni.",
+      },
+      {
+        q: "Quali sanzioni rischia un'impresa senza DVR o POS?",
+        a: "Cantiere senza DVR: multa da 2.000 a 4.000€ più la sospensione dell'attività. POS mancante: da 1.200 a 5.200€ per ogni cantiere. Lavoratore senza formazione sulla sicurezza: da 1.200 a 5.200€ per dipendente. In caso di infortunio, la responsabilità penale del titolare è diretta.",
       },
     ],
   },
@@ -4818,7 +4852,7 @@ export const blogPosts: BlogPost[] = [
     category: "Normativa",
     tags: ["patente a crediti", "sicurezza cantieri", "D.Lgs 81/2008", "normativa edilizia"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-06-11",
+    updatedAt: "2026-07-04",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -4866,6 +4900,24 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         body: "Con Edilizia in Cloud tieni sotto controllo DURC, formazione, giornale lavori e presenze da un'unica piattaforma: la conformità diventa routine, non emergenza. Provalo gratis per 31 giorni.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Da quando è obbligatoria la patente a crediti nei cantieri?",
+        a: "Dal 1° ottobre 2024. È stata introdotta dal D.L. 19/2024 (decreto PNRR), che ha riscritto l'articolo 27 del D.Lgs 81/2008, e riguarda le imprese e i lavoratori autonomi che operano fisicamente nei cantieri temporanei o mobili, comprese le imprese estere che lavorano in Italia.",
+      },
+      {
+        q: "Con quanti crediti si parte e qual è la soglia minima per lavorare?",
+        a: "La dotazione iniziale della patente a crediti è di 30 crediti e può crescere fino a 100 con storicità dell'impresa, formazione e certificazioni. La soglia operativa è 15 crediti: sotto quel livello l'impresa non può lavorare in cantiere, salvo completare le lavorazioni in corso se ha già eseguito più del 30% dei lavori.",
+      },
+      {
+        q: "Chi è esonerato dalla patente a crediti?",
+        a: "Sono esonerati i soggetti che effettuano mere forniture o prestazioni di natura intellettuale (ingegneri, architetti, geometri) e le imprese in possesso di attestazione SOA in classifica pari o superiore alla III.",
+      },
+      {
+        q: "Cosa rischia chi lavora senza patente o con crediti sotto soglia?",
+        a: "Una sanzione amministrativa pari al 10% del valore dei lavori, comunque non inferiore a 6.000€, oltre all'esclusione dai lavori pubblici per sei mesi. Anche il committente o il responsabile dei lavori che non verifica il possesso della patente delle imprese esecutrici rischia sanzioni.",
       },
     ],
   },

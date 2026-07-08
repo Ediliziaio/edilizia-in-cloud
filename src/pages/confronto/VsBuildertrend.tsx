@@ -133,7 +133,7 @@ export default function VsBuildertrend() {
           },
           aggregateRating: {
             "@type": "AggregateRating",
-            ratingValue: "4.8",
+            ratingValue: "4.9",
             reviewCount: "127",
             bestRating: "5",
             worstRating: "1",
@@ -159,6 +159,39 @@ export default function VsBuildertrend() {
               reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
               reviewBody:
                 "Supporto in italiano via WhatsApp: i miei capocantiere lo usano davvero. Buildertrend solo in inglese era impraticabile.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-vs-buildertrend"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Buildertrend funziona per le imprese edili italiane?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Solo in parte: Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Buildertrend costa circa 370€/mese ($399). Edilizia in Cloud parte da 127€/mese (99€ annuale) con fatturazione elettronica SDI, Cassa Edile e supporto italiano inclusi.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso migrare da Buildertrend a Edilizia in Cloud?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
+              },
             },
           ],
         }}
@@ -357,6 +390,36 @@ export default function VsBuildertrend() {
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-12">
+            Domande frequenti
+          </h2>
+          <div className="space-y-6">
+            {[
+              {
+                q: "Buildertrend funziona per le imprese edili italiane?",
+                a: "Solo in parte: Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
+              },
+              {
+                q: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
+                a: "Buildertrend costa circa 370€/mese ($399). Edilizia in Cloud parte da 127€/mese (99€ annuale) con fatturazione elettronica SDI, Cassa Edile e supporto italiano inclusi.",
+              },
+              {
+                q: "Posso migrare da Buildertrend a Edilizia in Cloud?",
+                a: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
+              },
+            ].map((item) => (
+              <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

@@ -129,7 +129,7 @@ export default function VsTeamSystem() {
           },
           aggregateRating: {
             "@type": "AggregateRating",
-            ratingValue: "4.8",
+            ratingValue: "4.9",
             reviewCount: "127",
             bestRating: "5",
             worstRating: "1",
@@ -155,6 +155,39 @@ export default function VsTeamSystem() {
               reviewRating: { "@type": "Rating", ratingValue: "4", bestRating: "5" },
               reviewBody:
                 "Costo dimezzato rispetto a TeamSystem e gestiamo tutto noi senza passare dal consulente per ogni modifica.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-vs-teamsystem"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "TeamSystem Construction è un ERP potente ma generalista: costa tipicamente 250-400€/mese e richiede 4-12 settimane di implementazione con consulenti. Edilizia in Cloud è verticale per l'edilizia, si attiva in 48 ore e si gestisce in autonomia, senza consulenti.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Quanto costa Edilizia in Cloud rispetto a TeamSystem?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Edilizia in Cloud va da 127€ a 547€/mese con utenti illimitati e nessun costo di implementazione. TeamSystem Construction costa tipicamente 250-400€/mese, più i moduli aggiuntivi e i costi di implementazione e consulenza.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso migrare da TeamSystem a Edilizia in Cloud?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. La migrazione di anagrafiche, cantieri e storico è inclusa nel prezzo: il team di Edilizia in Cloud ti rende operativo in 48 ore.",
+              },
             },
           ],
         }}
@@ -323,6 +356,36 @@ export default function VsTeamSystem() {
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-12">
+            Domande frequenti
+          </h2>
+          <div className="space-y-6">
+            {[
+              {
+                q: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
+                a: "TeamSystem Construction è un ERP potente ma generalista: costa tipicamente 250-400€/mese e richiede 4-12 settimane di implementazione con consulenti. Edilizia in Cloud è verticale per l'edilizia, si attiva in 48 ore e si gestisce in autonomia, senza consulenti.",
+              },
+              {
+                q: "Quanto costa Edilizia in Cloud rispetto a TeamSystem?",
+                a: "Edilizia in Cloud va da 127€ a 547€/mese con utenti illimitati e nessun costo di implementazione. TeamSystem Construction costa tipicamente 250-400€/mese, più i moduli aggiuntivi e i costi di implementazione e consulenza.",
+              },
+              {
+                q: "Posso migrare da TeamSystem a Edilizia in Cloud?",
+                a: "Sì. La migrazione di anagrafiche, cantieri e storico è inclusa nel prezzo: il team di Edilizia in Cloud ti rende operativo in 48 ore.",
+              },
+            ].map((item) => (
+              <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

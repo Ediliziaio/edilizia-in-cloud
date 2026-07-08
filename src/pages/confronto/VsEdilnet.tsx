@@ -135,7 +135,7 @@ export default function VsEdilnet() {
           },
           aggregateRating: {
             "@type": "AggregateRating",
-            ratingValue: "4.8",
+            ratingValue: "4.9",
             reviewCount: "127",
             bestRating: "5",
             worstRating: "1",
@@ -161,6 +161,39 @@ export default function VsEdilnet() {
               reviewRating: { "@type": "Rating", ratingValue: "4", bestRating: "5" },
               reviewBody:
                 "Niente setup, niente 2 mesi di formazione. In 48 ore eravamo operativi.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-vs-edilnet"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Qual è la differenza tra Edilizia in Cloud ed Edilnet?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Edilnet è un gestionale on-premise tradizionale: setup da 2.000 a 5.000€ e 4-12 settimane prima di essere operativi. Edilizia in Cloud è nativo cloud: zero costi di setup, operativo in 48 ore, accessibile da smartphone anche in cantiere.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Quanto costa passare a Edilizia in Cloud rispetto a Edilnet?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Nessun costo di setup (contro i 2.000-5.000€ tipici di Edilnet): si parte da 127€/mese, 99€ con il piano annuale, e la migrazione dei dati è inclusa.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso provare Edilizia in Cloud prima di lasciare Edilnet?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto in parallelo al tuo gestionale attuale.",
+              },
             },
           ],
         }}
@@ -332,6 +365,36 @@ export default function VsEdilnet() {
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-12">
+            Domande frequenti
+          </h2>
+          <div className="space-y-6">
+            {[
+              {
+                q: "Qual è la differenza tra Edilizia in Cloud ed Edilnet?",
+                a: "Edilnet è un gestionale on-premise tradizionale: setup da 2.000 a 5.000€ e 4-12 settimane prima di essere operativi. Edilizia in Cloud è nativo cloud: zero costi di setup, operativo in 48 ore, accessibile da smartphone anche in cantiere.",
+              },
+              {
+                q: "Quanto costa passare a Edilizia in Cloud rispetto a Edilnet?",
+                a: "Nessun costo di setup (contro i 2.000-5.000€ tipici di Edilnet): si parte da 127€/mese, 99€ con il piano annuale, e la migrazione dei dati è inclusa.",
+              },
+              {
+                q: "Posso provare Edilizia in Cloud prima di lasciare Edilnet?",
+                a: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto in parallelo al tuo gestionale attuale.",
+              },
+            ].map((item) => (
+              <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

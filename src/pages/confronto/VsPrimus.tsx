@@ -154,7 +154,7 @@ export default function VsPrimus() {
           },
           aggregateRating: {
             "@type": "AggregateRating",
-            ratingValue: "4.8",
+            ratingValue: "4.9",
             reviewCount: "127",
             bestRating: "5",
             worstRating: "1",
@@ -180,6 +180,39 @@ export default function VsPrimus() {
               reviewRating: { "@type": "Rating", ratingValue: "4", bestRating: "5" },
               reviewBody:
                 "Setup in 48 ore reale. Su Primus avevamo speso settimane di formazione, qui in due giorni eravamo operativi.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-vs-primus"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Edilizia in Cloud può sostituire Primus?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Dipende da cosa ti serve. Per il solo computo metrico avanzato, Primus resta un ottimo strumento di preventivazione. Se però devi gestire l'impresa — cantieri in tempo reale, fatturazione elettronica SDI, margini di commessa, presenze e HR — Edilizia in Cloud copre l'intero flusso operativo in cloud, con computo e prezzari regionali integrati.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Posso migrare i dati da Primus a Edilizia in Cloud?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Sì. Il team di Edilizia in Cloud importa listini, anagrafiche e cantieri: di solito bastano 48 ore per essere operativi, senza costi di setup.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Quanto costa Edilizia in Cloud rispetto a Primus?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso. Primus parte da circa 85-95€/mese ma è modulare: aggiungendo i moduli il totale sale, e resta un software di preventivazione, non un gestionale operativo d'impresa.",
+              },
             },
           ],
         }}
@@ -341,6 +374,36 @@ export default function VsPrimus() {
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-12">
+            Domande frequenti
+          </h2>
+          <div className="space-y-6">
+            {[
+              {
+                q: "Edilizia in Cloud può sostituire Primus?",
+                a: "Dipende da cosa ti serve. Per il solo computo metrico avanzato, Primus resta un ottimo strumento di preventivazione. Se però devi gestire l'impresa — cantieri in tempo reale, fatturazione elettronica SDI, margini di commessa, presenze e HR — Edilizia in Cloud copre l'intero flusso operativo in cloud, con computo e prezzari regionali integrati.",
+              },
+              {
+                q: "Posso migrare i dati da Primus a Edilizia in Cloud?",
+                a: "Sì. Il team di Edilizia in Cloud importa listini, anagrafiche e cantieri: di solito bastano 48 ore per essere operativi, senza costi di setup.",
+              },
+              {
+                q: "Quanto costa Edilizia in Cloud rispetto a Primus?",
+                a: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso. Primus parte da circa 85-95€/mese ma è modulare: aggiungendo i moduli il totale sale, e resta un software di preventivazione, non un gestionale operativo d'impresa.",
+              },
+            ].map((item) => (
+              <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

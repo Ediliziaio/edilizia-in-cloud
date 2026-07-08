@@ -377,6 +377,14 @@ const ROUTES = {
           offerCount: "3",
         },
         featureList: "Gestione cantieri, Preventivi professionali, Fatturazione elettronica SDI, Gestione subappalti, DDT, Ordini fornitori, HR e presenze, Prima nota, App mobile cantiere",
+        // Allineato allo schema della Home React (4.9/127): il sintetico non
+        // dichiarava alcun rating → niente stelle sul brand in SERP.
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.9",
+          reviewCount: "127",
+          bestRating: "5",
+        },
         screenshot: "https://www.ediliziaincloud.com/og/og-default.png",
       },
       {
