@@ -85,6 +85,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 3c. Pre-check crediti PRIMA di erogare. Il vecchio flusso inviava su Meta
+    // e tentava il deduct DOPO: su wallet assente inseriva un saldo negativo che
+    // violava il CHECK >= 0 in silenzio → messaggi di fatto gratuiti e nessun
+    // errore all'utente. Ora, se l'azienda non è comped, senza saldo si blocca
+    // qui con un 402 chiaro (gestito dal PaymentGateDialog nel frontend).
+    if (!waBilling.isFree) {
+      const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
+      const { data: wallet } = await adminClient
+        .from("whatsapp_credits")
+        .select("balance_eur, sends_blocked")
+        .eq("company_id", conv.company_id)
+        .maybeSingle();
+      const balance = Number(wallet?.balance_eur ?? 0);
+      if (wallet?.sends_blocked || balance < pricePerMsg) {
+        return new Response(
+          JSON.stringify({
+            error: "insufficient_credits",
+            message: "Crediti WhatsApp esauriti. Ricarica il wallet da Impostazioni → Crediti per continuare a inviare messaggi.",
+          }),
+          { status: 402, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // 4. Access token (già decifrato dall'helper)
     const accessToken = sender.accessToken;
 
@@ -159,44 +183,27 @@ Deno.serve(async (req) => {
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversation_id);
 
-    // 8. Deduct WhatsApp credit (if not free)
+    // 8. Deduct WhatsApp credit (if not free) — RPC atomica (FOR UPDATE + log).
+    // Sostituisce il vecchio read-modify-write che su wallet mancante inseriva
+    // un saldo NEGATIVO (violava il CHECK >= 0 in silenzio → nessun addebito).
+    // Il pre-check al punto 3c garantisce il saldo; se nel frattempo un invio
+    // concorrente l'ha azzerato, qui si logga il deficit senza bloccare la
+    // risposta (il messaggio è già partito).
     if (!waBilling.isFree) {
       const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
-      // Get current balance
-      const { data: waCredits } = await adminClient
-        .from("whatsapp_credits")
-        .select("balance_eur, total_spent_eur")
-        .eq("company_id", conv.company_id)
-        .maybeSingle();
-
-      const balanceBefore = waCredits?.balance_eur ?? 0;
-      const balanceAfter = Number((balanceBefore - pricePerMsg).toFixed(4));
-
-      if (waCredits) {
-        await adminClient
-          .from("whatsapp_credits")
-          .update({
-            balance_eur: balanceAfter,
-            total_spent_eur: Number(((waCredits.total_spent_eur ?? 0) + pricePerMsg).toFixed(4)),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("company_id", conv.company_id);
-      } else {
-        await adminClient.from("whatsapp_credits").insert({
-          company_id: conv.company_id,
-          balance_eur: -pricePerMsg,
-          total_spent_eur: pricePerMsg,
-        });
-      }
-
-      await adminClient.from("whatsapp_credits_log").insert({
-        company_id: conv.company_id,
-        type: "deduction",
-        amount_eur: -pricePerMsg,
-        balance_before: balanceBefore,
-        balance_after: balanceAfter,
-        description: "Messaggio WhatsApp inviato",
+      const { data: consumeRes, error: consumeErr } = await adminClient.rpc("consume_credits", {
+        p_company_id: conv.company_id,
+        p_credit_type: "whatsapp",
+        p_amount: pricePerMsg,
+        p_description: "Messaggio WhatsApp inviato",
+        p_metadata: { conversation_id, meta_message_id: metaMessageId },
       });
+      if (consumeErr || (consumeRes as { success?: boolean } | null)?.success === false) {
+        console.error(
+          "[send-whatsapp-reply] deduct fallito post-invio (deficit da riconciliare):",
+          consumeErr?.message ?? JSON.stringify(consumeRes),
+        );
+      }
     }
 
     return new Response(

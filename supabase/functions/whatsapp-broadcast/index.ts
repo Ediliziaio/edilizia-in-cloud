@@ -161,6 +161,31 @@ Deno.serve(async (req) => {
       return true;
     });
 
+    // Pre-check crediti PRIMA di erogare: il costo del broadcast è noto
+    // (destinatari × prezzo/msg). Il vecchio flusso inviava TUTTO e scalava
+    // dopo — su wallet assente l'insert negativo violava il CHECK >= 0 in
+    // silenzio: broadcast interi di fatto gratuiti. Ora senza saldo adeguato
+    // si blocca qui con 402 chiaro, prima di toccare Meta.
+    if (!waBilling.isFree) {
+      const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
+      const totalEstimatedCost = Number((contacts.length * pricePerMsg).toFixed(4));
+      const { data: wallet } = await adminClient
+        .from("whatsapp_credits")
+        .select("balance_eur, sends_blocked")
+        .eq("company_id", company_id)
+        .maybeSingle();
+      const balance = Number(wallet?.balance_eur ?? 0);
+      if (wallet?.sends_blocked || balance < totalEstimatedCost) {
+        return new Response(
+          JSON.stringify({
+            error: "insufficient_credits",
+            message: `Crediti WhatsApp insufficienti per questo broadcast: servono ~€${totalEstimatedCost.toFixed(2)} per ${contacts.length} destinatari (saldo: €${balance.toFixed(2)}). Ricarica da Impostazioni → Crediti.`,
+          }),
+          { status: 402, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Create broadcast record
     const { data: broadcast, error: broadcastErr } = await adminClient
       .from("whatsapp_broadcasts")
@@ -292,46 +317,28 @@ Deno.serve(async (req) => {
       })
       .eq("id", broadcast.id);
 
-    // Deduct WhatsApp credits for sent messages
+    // Deduct WhatsApp credits for sent messages — RPC atomica (FOR UPDATE + log).
+    // Sostituisce il read-modify-write che su wallet mancante inseriva un saldo
+    // NEGATIVO (violava il CHECK >= 0 in silenzio → broadcast gratuiti). Il
+    // pre-check sul costo totale è già stato fatto prima del loop; se un invio
+    // concorrente ha eroso il saldo, il deficit viene loggato (i messaggi sono
+    // già partiti, non ha senso bloccare qui).
     if (!waBilling.isFree && sentCount > 0) {
       const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
       const totalCost = Number((sentCount * pricePerMsg).toFixed(4));
-
-      const { data: waCredits } = await adminClient
-        .from("whatsapp_credits")
-        .select("balance_eur, total_spent_eur")
-        .eq("company_id", company_id)
-        .maybeSingle();
-
-      const balanceBefore = waCredits?.balance_eur ?? 0;
-      const balanceAfter = Number((balanceBefore - totalCost).toFixed(4));
-
-      if (waCredits) {
-        await adminClient
-          .from("whatsapp_credits")
-          .update({
-            balance_eur: balanceAfter,
-            total_spent_eur: Number(((waCredits.total_spent_eur ?? 0) + totalCost).toFixed(4)),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("company_id", company_id);
-      } else {
-        await adminClient.from("whatsapp_credits").insert({
-          company_id,
-          balance_eur: -totalCost,
-          total_spent_eur: totalCost,
-        });
-      }
-
-      await adminClient.from("whatsapp_credits_log").insert({
-        company_id,
-        type: "deduction",
-        amount_eur: -totalCost,
-        balance_before: balanceBefore,
-        balance_after: balanceAfter,
-        description: `Broadcast: ${sentCount} messaggi inviati`,
-        broadcast_id: broadcast.id,
+      const { data: consumeRes, error: consumeErr } = await adminClient.rpc("consume_credits", {
+        p_company_id: company_id,
+        p_credit_type: "whatsapp",
+        p_amount: totalCost,
+        p_description: `Broadcast: ${sentCount} messaggi inviati`,
+        p_metadata: { broadcast_id: broadcast.id, sent_count: sentCount },
       });
+      if (consumeErr || (consumeRes as { success?: boolean } | null)?.success === false) {
+        console.error(
+          "[whatsapp-broadcast] deduct fallito post-invio (deficit da riconciliare):",
+          consumeErr?.message ?? JSON.stringify(consumeRes),
+        );
+      }
     }
 
     return new Response(

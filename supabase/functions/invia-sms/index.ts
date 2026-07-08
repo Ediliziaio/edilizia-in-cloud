@@ -211,6 +211,30 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    // Pre-check crediti SMS PRIMA di erogare: questo percorso (Brevo) non
+    // consultava MAI sms_wallet — campagne inviabili gratis e senza limite.
+    // Guard minimale: wallet presente e con saldo positivo; a fine invio il
+    // costo effettivo viene scalato (floor 0).
+    const { data: smsWallet } = await supabase
+      .from("sms_wallet")
+      .select("crediti, totale_speso")
+      .eq("company_id", company_id)
+      .maybeSingle();
+    const creditiDisponibili = Number(smsWallet?.crediti ?? 0);
+    if (creditiDisponibili <= 0) {
+      await supabase
+        .from("sms_campaigns")
+        .update({ stato: statoPrecedente })
+        .eq("id", campagna_id);
+      return new Response(
+        JSON.stringify({
+          error: "insufficient_credits",
+          message: "Crediti SMS esauriti. Ricarica il wallet dal modulo SMS Marketing per inviare la campagna.",
+        }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let inviati = 0;
     let errori = 0;
     let costoTotale = 0;
@@ -328,6 +352,33 @@ Deno.serve(async (req: Request) => {
         parti_sms: partiSms,
       })
       .eq("id", campagna_id);
+
+    // Scala il costo effettivo dal wallet SMS (floor 0) e registra la
+    // transazione. Best-effort: gli SMS sono già partiti, un errore qui
+    // va loggato ma non deve far fallire la risposta.
+    if (costoTotale > 0) {
+      try {
+        const nuovoSaldo = Math.max(0, Number((creditiDisponibili - costoTotale).toFixed(4)));
+        await supabase
+          .from("sms_wallet")
+          .update({
+            crediti: nuovoSaldo,
+            totale_speso: Number((Number(smsWallet?.totale_speso ?? 0) + costoTotale).toFixed(4)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("company_id", company_id);
+        await supabase.from("sms_wallet_transazioni").insert({
+          company_id,
+          tipo: "consumo",
+          importo: -costoTotale,
+          saldo_dopo: nuovoSaldo,
+          descrizione: `Campagna SMS: ${inviati} inviati`,
+          riferimento_id: campagna_id,
+        });
+      } catch (walletErr) {
+        console.error("[invia-sms] scalo wallet fallito (deficit da riconciliare):", walletErr);
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true, inviati, errori, costo_totale: costoTotale }),

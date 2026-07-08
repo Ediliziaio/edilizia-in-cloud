@@ -336,9 +336,25 @@ const queryClient = new QueryClient({
       // Gate "carta obbligatoria": qualsiasi tool a costo risponde HTTP 402
       // (code "payment_method_required"). Mostra il dialog role-aware invece
       // del toast tecnico. Copre tutti i tool da un unico punto.
+      // Se il body dice { error: "insufficient_credits" } il problema non è la
+      // carta ma il SALDO CREDITI: il dialog mostra "Crediti esauriti" con CTA
+      // di ricarica invece del fuorviante "Abbonamento non attivo".
       const httpStatus = (error as { context?: { status?: number } } | null)?.context?.status;
       if (httpStatus === 402) {
-        usePaymentGateStore.getState().show();
+        const ctx = (error as { context?: unknown } | null)?.context;
+        if (ctx instanceof Response) {
+          ctx
+            .clone()
+            .json()
+            .then((body: { error?: string } | null) => {
+              usePaymentGateStore
+                .getState()
+                .show(body?.error === "insufficient_credits" ? "credits" : "payment");
+            })
+            .catch(() => usePaymentGateStore.getState().show());
+        } else {
+          usePaymentGateStore.getState().show();
+        }
         return;
       }
 
