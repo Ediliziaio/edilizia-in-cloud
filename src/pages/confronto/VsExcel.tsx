@@ -259,7 +259,7 @@ export default function VsExcel() {
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             Excel sembra gratuito. In realtà ti costa ore di lavoro, margini persi e decisioni sbagliate. Scopri quanto
-            stai davvero perdendo e perché 500+ imprese edili hanno smesso di usarlo.
+            stai davvero perdendo e perché 150+ imprese edili hanno smesso di usarlo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

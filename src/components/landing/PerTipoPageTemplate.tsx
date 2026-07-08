@@ -352,7 +352,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-6 mt-8 transition-all duration-700 delay-400 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             {[
-              { Icon: Star, label: "4.9/5 stelle · 500+ imprese" },
+              { Icon: Star, label: "4.9/5 stelle · 150+ imprese" },
               { Icon: Clock, label: "Setup completo in 48h" },
               { Icon: Shield, label: "GDPR" },
             ].map(({ Icon, label }, i) => (

@@ -355,6 +355,14 @@ export default function BlogPost() {
               <span>{post.author.role}</span>
               <span>·</span>
               <span>{formatDate(post.publishedAt)}</span>
+              {/* E-E-A-T: la data di aggiornamento era solo nello schema JSON-LD,
+                  invisibile a lettori e AI che citano il testo della pagina. */}
+              {post.updatedAt && post.updatedAt !== post.publishedAt && (
+                <>
+                  <span>·</span>
+                  <span className="text-white/80">Aggiornato il {formatDate(post.updatedAt)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

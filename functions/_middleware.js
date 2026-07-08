@@ -276,10 +276,10 @@ const ROUTES = {
   "/": {
     title: "Gestionale Edilizia Cloud per Imprese Edili",
     description:
-      "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 31 giorni.",
+      "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 150+ imprese. Prova gratis 31 giorni.",
     h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
     intro:
-      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 127€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
+      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 150 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 127€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
     extra: `
     <p><strong>Edilizia in Cloud è il gestionale cloud AI-native per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR in un'unica piattaforma mobile, accessibile anche dal cantiere e offline.</strong> A differenza dei gestionali nati per lo studio tecnico o la contabilità, è costruito attorno al flusso reale dell'impresa edile: dal primo sopralluogo al saldo finale, ogni dato è inserito una sola volta e segue automaticamente il cantiere fino in fattura.</p>
 
@@ -328,7 +328,7 @@ const ROUTES = {
 
     <h2>Domande frequenti su Edilizia in Cloud</h2>
     <h3>Che cos'è Edilizia in Cloud?</h3>
-    <p>Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 127€/mese.</p>
+    <p>Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 150 imprese edili e parte da 127€/mese.</p>
     <h3>Quanto costa Edilizia in Cloud?</h3>
     <p>I prezzi partono da 127€/mese per il piano Gestionale (imprese fino a 500K € di fatturato), 247€/mese per il Professionista (da 500K a 2M €) e 547€/mese per Impresa AI (oltre 2M € o multi-cantiere), tutti con utenti illimitati. Non ci sono costi di attivazione né vincoli contrattuali ed è disponibile una prova gratuita di 31 giorni.</p>
     <h3>Edilizia in Cloud funziona in cantiere senza connessione?</h3>
@@ -445,7 +445,7 @@ const ROUTES = {
             name: "Che cos'è Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 127€/mese.",
+              text: "Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 150 imprese edili e parte da 127€/mese.",
             },
           },
           {
@@ -1426,7 +1426,7 @@ const ROUTES = {
       "Confronta Edilizia in Cloud con TeamSystem, Primus, EdilNet, Buildertrend e Excel. Tabella comparativa: funzionalità, prezzi, assistenza e facilità d'uso.",
     h1: "Confronto Edilizia in Cloud vs altri software gestionali per edilizia 2026",
     intro:
-      "Edilizia in Cloud è un gestionale cloud nato per le imprese edili italiane. A differenza dei gestionali tradizionali (TeamSystem, Primus, EdilNet) o degli strumenti generici (Excel), Edilizia in Cloud integra in un'unica piattaforma: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR. Prezzo a partire da 127€/mese contro i 200-500€/mese dei competitor. Nessuna installazione locale, nessun vincolo contrattuale, supporto italiano dedicato e aggiornamenti inclusi. Oltre 500 imprese edili hanno già scelto Edilizia in Cloud.",
+      "Edilizia in Cloud è un gestionale cloud nato per le imprese edili italiane. A differenza dei gestionali tradizionali (TeamSystem, Primus, EdilNet) o degli strumenti generici (Excel), Edilizia in Cloud integra in un'unica piattaforma: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR. Prezzo a partire da 127€/mese contro i 200-500€/mese dei competitor. Nessuna installazione locale, nessun vincolo contrattuale, supporto italiano dedicato e aggiornamenti inclusi. Oltre 150 imprese edili hanno già scelto Edilizia in Cloud.",
     extra: `
     <p><strong>Edilizia in Cloud è il gestionale cloud AI-native e mobile-first per imprese edili italiane, pensato per chi sta in cantiere; i competitor come Cloudness, TeamSystem, STR Vision, Primus e Danea nascono invece per lo studio tecnico, la contabilità o l'ERP generalista.</strong> Di seguito un confronto onesto e fattuale per aiutarti a scegliere lo strumento giusto per la tua impresa, senza slogan.</p>
 
@@ -1577,7 +1577,7 @@ const ROUTES = {
     canonical: canonicalUrl("/confronto/vs-excel"),
     h1: "Edilizia in Cloud vs Excel: il vero costo nascosto dei fogli di calcolo per le imprese edili",
     intro:
-      "Excel sembra gratuito ma costa alle imprese edili in media 15 ore/settimana di lavoro amministrativo, errori di calcolo nei preventivi (in media 3-5% di margine perso per cantiere) e dati non condivisi tra ufficio e cantiere. Edilizia in Cloud sostituisce Excel con una piattaforma cloud che centralizza cantieri, preventivi, fatture e HR — accessibile da smartphone in cantiere. Oltre 500 imprese edili hanno già abbandonato Excel per Edilizia in Cloud.",
+      "Excel sembra gratuito ma costa alle imprese edili in media 15 ore/settimana di lavoro amministrativo, errori di calcolo nei preventivi (in media 3-5% di margine perso per cantiere) e dati non condivisi tra ufficio e cantiere. Edilizia in Cloud sostituisce Excel con una piattaforma cloud che centralizza cantieri, preventivi, fatture e HR — accessibile da smartphone in cantiere. Oltre 150 imprese edili hanno già abbandonato Excel per Edilizia in Cloud.",
     links: [
       { href: "/confronto", label: "Tutti i Confronti" },
       { href: "/confronto/vs-teamsystem", label: "vs TeamSystem" },
@@ -3069,17 +3069,30 @@ export async function onRequest({ request, next, env }) {
     return next();
   }
 
-  // ── Audit GEO 2026-06: blog post → servi il PRERENDER COMPLETO ──────────
-  // Il fallback sintetico per /blog/<slug> ha solo title+description+intro
-  // (~426 parole col footer) mentre il prerender Playwright in dist/ contiene
-  // l'articolo intero (~1.800+ parole, 11 H2, 6 JSON-LD incluso l'articolo).
-  // I motori AI citano i passaggi: servirgli il 23% dell'articolo significava
-  // perdere le sezioni più citabili. Solo blog post: per le pagine marketing
-  // (home, prezzi, confronto, città) il sintetico resta migliore (answer
-  // block + FAQ/LocalBusiness schema curati a mano).
-  // Guard anti-shell: usiamo la risposta SOLO se è un vero prerender
-  // (canonical presente + contenuto con H2) — mai la shell SPA vuota.
-  if (/^\/blog\/[^/]+$/.test(pathname) && !pathname.startsWith("/blog/categoria")) {
+  // ── Audit GEO 2026-06 + estensione 2026-07-04: PRERENDER COMPLETO ai bot ─
+  // Nato per i soli /blog/<slug>: il sintetico aveva ~426 parole vs ~1.800+
+  // del prerender Playwright. L'audit GEO di luglio ha misurato lo stesso
+  // divario sulle pagine COMMERCIALI servite ai bot: /confronto/vs-primus
+  // 102 parole (prerender: 1.316 + tabella comparativa), /funzionalita/
+  // gestione-cantieri 129 (prerender: 4.128 + FAQPage), /per/serramentisti
+  // 147 (prerender: 3.683 + FAQPage). I motori AI citano i passaggi: il
+  // sintetico thin rendeva incitabili proprio le pagine delle query
+  // commerciali ("alternativa a Primus", "software per serramentisti").
+  // → Ora il prerender-first vale per TUTTE le route pubbliche TRANNE:
+  //   • "/"            — sintetico curato superiore (answer block, 4 schema,
+  //                      FAQ 5Q; il prerender home non è mai stato servito)
+  //   • "/funzionalita" (hub esatto) — il sintetico ha FAQPage 7Q che il
+  //                      prerender non ha; le sotto-pagine invece switchano
+  //   • città (/software-gestionale-edilizia-<city>) — sintetico con
+  //                      LocalBusiness+FAQ locali; NON esiste prerender
+  //                      (il guard fallirebbe comunque: doppia sicurezza)
+  // Guard anti-shell invariato: si usa la risposta SOLO se è un vero
+  // prerender (canonical presente + contenuto con H2) — mai la shell SPA.
+  const keepSynthetic =
+    pathname === "/" ||
+    pathname === "/funzionalita" ||
+    /^\/software-gestionale-edilizia-[^/]+$/.test(pathname);
+  if (!keepSynthetic) {
     try {
       const assetUrl = new URL(`${pathname}/index.html`, url.origin);
       const assetResp = await env.ASSETS.fetch(new Request(assetUrl, { headers: { accept: "text/html" } }));

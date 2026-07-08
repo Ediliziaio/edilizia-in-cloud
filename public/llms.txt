@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-04-30 (v4 — SEO P1)
+# Ultimo aggiornamento: 2026-07-04 (v5 — prezzi luglio, dati allineati, 61 guide)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -21,7 +21,7 @@
 - **Dimensione aziendale:** 1–50 dipendenti
 - **Lingua:** Italiano
 - **Deploy:** Web, iOS, Android
-- **Rating:** 4.9/5 (142 recensioni verificate)
+- **Rating:** 4.9/5 (127 recensioni verificate)
 
 ## Prezzi (luglio 2026)
 
@@ -57,7 +57,7 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 
 - **150+ imprese edili italiane** usano Edilizia in Cloud attivamente
 - **ROI medio 10x** stimato nel primo anno per le imprese che adottano il sistema con continuità
-- **Rating 4.9/5** — media da 142 recensioni verificate
+- **Rating 4.9/5** — media da 127 recensioni verificate
 - **12 ore/settimana** risparmiate in media da ogni titolare di impresa
 - **Riduzione tempo fatturazione:** fino al 70% rispetto ai metodi manuali
 - **Onboarding:** attivo in 48 ore, migrazione dati da Excel inclusa
@@ -99,7 +99,7 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
 - **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
 
-## Guide del blog (57 articoli)
+## Guide del blog (61 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
 - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
 - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa

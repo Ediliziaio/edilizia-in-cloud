@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-30 (v11 — 54 articoli, 36 città, 7 confronti, SEO P1)
+# Ultimo aggiornamento: 2026-07-04 (v12 — 61 articoli, 43 città, prezzi luglio, dati allineati)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://www.ediliziaincloud.com/llms.txt
 
@@ -15,11 +15,11 @@ Non è un gestionale generico adattato all'edilizia. È un software nato per il 
 
 ---
 
-## Dati verificati (aprile 2026)
+## Dati verificati (luglio 2026)
 
 - **150+ imprese edili attive** sulla piattaforma
 - **ROI medio 10x** stimato nel primo anno per le imprese che adottano il sistema con continuità
-- **4.9/5** di rating medio (142 recensioni verificate)
+- **4.9/5** di rating medio (127 recensioni verificate)
 - **12 ore/settimana** risparmiate in media da ogni titolare
 - **70%** di riduzione del tempo dedicato alla fatturazione
 - **48 ore** per essere operativi dall'onboarding (migrazione dati inclusa)
@@ -97,7 +97,7 @@ Fonte ufficiale e sempre aggiornata: https://www.ediliziaincloud.com/prezzi/
 | AI integrata | ✅ | ❌ | ❌ | ❌ |
 | App mobile cantiere | ✅ | Parziale | ❌ | ✅ (solo chat) |
 | Fatturazione SDI nativa | ✅ | ✅ | ❌ | ❌ |
-| Prezzo mensile | €79–319 | €300–800+ | €500+ | €0 (ma costo nascosto altissimo) |
+| Prezzo mensile | €127–547 (da €99 con piano annuale) | €300–800+ | €500+ | €0 (ma costo nascosto altissimo) |
 | Onboarding | 48 ore | 2–4 settimane | Mesi | Immediato |
 | Supporto italiano | ✅ | ✅ | ❌ | n/a |
 
@@ -171,7 +171,7 @@ URL: https://www.ediliziaincloud.com/pianifica-migrazione
 - **Integrazioni:** https://www.ediliziaincloud.com/integrazioni
 - **Pianifica migrazione:** https://www.ediliziaincloud.com/pianifica-migrazione
 - **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia
-- **Blog (54 articoli):** https://www.ediliziaincloud.com/blog
+- **Blog (61 articoli):** https://www.ediliziaincloud.com/blog
   - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
   - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa
   - Subappalto: https://www.ediliziaincloud.com/blog/subappalto-edilizia-guida
