@@ -35,6 +35,7 @@ import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperat
 import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksStrip";
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
+import { CampaignCostsCard } from "@/components/admin/crm-dashboard/CampaignCostsCard";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
 import { CrmMapTab } from "@/components/admin/crm-dashboard/CrmMapTab";
 import { HeroAurora } from "@/components/admin/HeroAurora";
@@ -395,6 +396,9 @@ export default function AdminMarketingCommercialDashboard() {
           <Reveal><CrmOperationalFunnel companyId={companyId} /></Reveal>
 
           <Reveal><CrmUnitEconomics companyId={companyId} days={days} /></Reveal>
+          {/* Input spese: senza questa card CPL/CAC/ROAS restavano per sempre
+              "aggiungi i costi" — non esisteva NESSUN posto dove inserirli. */}
+          <Reveal><CampaignCostsCard companyId={companyId} /></Reveal>
 
           <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmChannelRoi companyId={companyId} days={days} />
