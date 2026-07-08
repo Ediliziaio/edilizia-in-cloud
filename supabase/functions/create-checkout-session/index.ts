@@ -505,20 +505,36 @@ Deno.serve(async (req) => {
 
     // ─── RENDER CREDITS (one-time payment, prezzi fissi per pacchetto) ───
     // A differenza degli altri wallet, i render sono "count" non "eur":
-    // l'utente sceglie un pacchetto (10/50/100 render) a prezzo fisso scontato.
+    // l'utente sceglie un pacchetto a prezzo fisso scontato. La fonte di
+    // verità è render_credit_packs (la stessa da cui la UI legge i tagli):
+    // la vecchia mappa hardcoded {10,50,100} rifiutava con 400 i pacchetti
+    // attivi da 30 ("Top-up mensile") e 300 ("Render Studio") mostrati nel
+    // RechargeDialog — checkout impossibile proprio sui tagli in vendita.
     if (type === "render_credits") {
-      const qty = body.qty;
-      const PACKAGES: Record<number, { price: number; name: string }> = {
-        10:  { price: 9,  name: "Render Starter — 10 render" },
-        50:  { price: 39, name: "Render Professional — 50 render" },
-        100: { price: 69, name: "Render Business — 100 render" },
-      };
-      const pkg = PACKAGES[qty];
-      if (!pkg) {
-        return new Response(JSON.stringify({ error: "Pacchetto non valido. Usa 10, 50 o 100." }), {
+      const qty = Number(body.qty);
+      const { data: packRow } = await supabaseAdmin
+        .from("render_credit_packs")
+        .select("credits_amount, price_eur, label")
+        .eq("is_active", true)
+        .eq("credits_amount", Number.isFinite(qty) ? qty : -1)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!packRow) {
+        const { data: activePacks } = await supabaseAdmin
+          .from("render_credit_packs")
+          .select("credits_amount")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true });
+        const validQty = (activePacks ?? []).map((p: { credits_amount: number }) => p.credits_amount).join(", ");
+        return new Response(JSON.stringify({ error: `Pacchetto non valido. Tagli disponibili: ${validQty || "nessuno"}.` }), {
           status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
+      const pkg = {
+        price: Number(packRow.price_eur),
+        name: `${packRow.label} — ${packRow.credits_amount} render`,
+      };
 
       const { data: profile } = await supabaseAdmin
         .from("profiles")

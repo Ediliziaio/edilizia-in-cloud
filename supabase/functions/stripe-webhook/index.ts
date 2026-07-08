@@ -30,7 +30,9 @@ async function logStripeEvent(
   status = "processed",
   errorMessage: string | null = null
 ) {
-  // Upsert: update if exists (e.g. from 'processing' → 'processed'/'error'), insert if new
+  // Upsert: update if exists (e.g. from 'processing' → 'processed'/'error'), insert if new.
+  // processed_at aggiornato a ogni transizione: il claim atomico lo usa per
+  // distinguere un 'processing' vivo da uno stantio (owner morto) da reclaimare.
   await supabase.from("stripe_events_log").upsert(
     {
       stripe_event_id: eventId,
@@ -39,6 +41,7 @@ async function logStripeEvent(
       payload,
       status,
       error_message: errorMessage,
+      processed_at: new Date().toISOString(),
     },
     { onConflict: "stripe_event_id" }
   );
@@ -913,28 +916,90 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // ── Idempotency check: skip only if already successfully processed ──
-    // Events with status='error' are allowed to retry
-    const { data: existing } = await supabase
-      .from("stripe_events_log")
-      .select("id, status")
-      .eq("stripe_event_id", event.id)
-      .eq("status", "processed")
-      .maybeSingle();
-
-    if (existing) {
-      console.log(`[STRIPE] Event ${event.id} already processed, skipping`);
-      return new Response(JSON.stringify({ received: true, already_processed: true }), {
-        headers: secureHeaders,
-      });
-    }
-
     // Extract company_id for logging
     const obj = event.data?.object || {};
     const companyId = obj.metadata?.company_id || null;
 
-    // Mark event as 'processing' before executing handler (prevents duplicate processing)
-    await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processing");
+    // ── Idempotency con CLAIM ATOMICO ─────────────────────────────────────
+    // Il vecchio pattern SELECT('processed')→UPSERT('processing') aveva una
+    // finestra di race: se l'handler supera i ~20s, Stripe ritenta MENTRE il
+    // primo tentativo sta ancora girando; entrambi passavano il check e gli
+    // accrediti (add_*_credits/topup) venivano eseguiti DUE volte per un solo
+    // pagamento. Ora vince chi INSERISCE la riga (ignoreDuplicates): il
+    // perdente vede lo stato del vincitore e decide — processed=skip,
+    // processing recente=skip (owner vivo), processing stantio >5min o
+    // error=reclaim (owner morto/timeout: si può rilavorare in sicurezza).
+    const { data: claimed } = await supabase
+      .from("stripe_events_log")
+      .upsert(
+        {
+          stripe_event_id: event.id,
+          event_type: event.type,
+          company_id: companyId,
+          payload: event.data,
+          status: "processing",
+          processed_at: new Date().toISOString(),
+        },
+        { onConflict: "stripe_event_id", ignoreDuplicates: true },
+      )
+      .select("id");
+
+    if (!claimed || claimed.length === 0) {
+      const { data: existing } = await supabase
+        .from("stripe_events_log")
+        .select("status, processed_at")
+        .eq("stripe_event_id", event.id)
+        .maybeSingle();
+
+      if (existing?.status === "processed") {
+        console.log(`[STRIPE] Event ${event.id} already processed, skipping`);
+        return new Response(JSON.stringify({ received: true, already_processed: true }), {
+          headers: secureHeaders,
+        });
+      }
+      if (existing?.status === "processing") {
+        const ageMs = existing.processed_at
+          ? Date.now() - new Date(existing.processed_at as string).getTime()
+          : Number.POSITIVE_INFINITY;
+        if (ageMs < 5 * 60 * 1000) {
+          console.log(`[STRIPE] Event ${event.id} in lavorazione da ${Math.round(ageMs / 1000)}s: skip retry concorrente`);
+          return new Response(JSON.stringify({ received: true, in_progress: true }), {
+            headers: secureHeaders,
+          });
+        }
+      }
+      // status='error' oppure 'processing' stantio: reclaim esplicito e si rilavora.
+      await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processing");
+    }
+
+    // ── Eventi customer-scoped di clienti NON EiC (account Stripe condiviso) ─
+    // Lo stesso account Stripe incassa anche altri prodotti AEDIX (es. Pratica
+    // Rapida, abbonamenti WhatsApp venduti fuori piattaforma): i loro eventi
+    // arrivano qui ma nessuna company ha quel stripe_customer_id. Prima gli
+    // handler facevano `if (!company) return` in SILENZIO — impossibile
+    // distinguere il rumore cross-prodotto da un VERO cliente EiC sganciato.
+    // Ora l'evento è marcato processed con nota 'company_not_found:<cus>':
+    // registro auditabile, e un mismatch reale si vede subito.
+    const CUSTOMER_SCOPED_EVENTS = [
+      "invoice.paid",
+      "invoice.payment_failed",
+      "invoice.created",
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+    ];
+    if (CUSTOMER_SCOPED_EVENTS.includes(event.type) && obj.customer) {
+      const scopedCompany = await getCompanyByStripeCustomer(supabase, obj.customer);
+      if (!scopedCompany) {
+        await logStripeEvent(
+          supabase, event.id, event.type, null, event.data,
+          "processed", `company_not_found:${obj.customer}`,
+        );
+        return new Response(JSON.stringify({ received: true, skipped: "company_not_found" }), {
+          headers: secureHeaders,
+        });
+      }
+    }
 
     // P0-6: traccia esito handler per decidere lo status HTTP di ritorno.
     // Se ritornassimo sempre 200, Stripe considererebbe l'evento "consegnato"
