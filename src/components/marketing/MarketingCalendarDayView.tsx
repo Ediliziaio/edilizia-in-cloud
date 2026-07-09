@@ -358,7 +358,9 @@ export default function MarketingCalendarDayView({
                                 ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                 : apt.calendar_id && colorMap[apt.calendar_id]
                                   ? colorMap[apt.calendar_id]
-                                  : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100"
+                                  : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100",
+                              // Annullato: spento e barrato — vedi WeekView.
+                              apt.status === "annullato" && "opacity-50 saturate-50 line-through"
                             )}
                             title={apt.title}
                           >

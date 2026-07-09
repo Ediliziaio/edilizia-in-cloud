@@ -721,8 +721,11 @@ export default function MarketingCalendar() {
       visible: filteredAppointments.length,
       unassigned,
       conflicts: conflictAptIds.size,
+      conflictIds: conflictAptIds,
     };
-  }, [filteredAppointments]);
+    // slotDurationMinutes nei deps: senza, cambiando calendario selezionato il
+    // fallback durata dei conflitti restava quello vecchio (stale closure).
+  }, [filteredAppointments, slotDurationMinutes]);
 
   // Filtri attivi (per badge pulsante filtri)
   const activeFilterCount = useMemo(() => {
@@ -734,6 +737,20 @@ export default function MarketingCalendar() {
 
   // Mobile filters drawer
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  // KPI cliccabili: "Da assegnare" e "Conflitti" filtrano la griglia sul
+  // sottoinsieme corrispondente (toggle). I numeri delle card restano calcolati
+  // su filteredAppointments (pre-filtro KPI) così non cambiano cliccandole.
+  const [kpiFilter, setKpiFilter] = useState<"all" | "unassigned" | "conflicts">("all");
+  const displayAppointments = useMemo(() => {
+    if (kpiFilter === "unassigned") {
+      return filteredAppointments.filter((a: any) => !a.assigned_to && !a.is_blocked_slot);
+    }
+    if (kpiFilter === "conflicts") {
+      return filteredAppointments.filter((a: any) => headerStats.conflictIds.has(a.id));
+    }
+    return filteredAppointments;
+  }, [filteredAppointments, kpiFilter, headerStats.conflictIds]);
 
   const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
     if (!hasCalendars) {
@@ -899,6 +916,10 @@ export default function MarketingCalendar() {
             toast.error("Errore nell'annullamento");
           } else {
             toast.info("Spostamento annullato");
+            // Ri-sincronizza anche i calendari esterni: il drop aveva già
+            // spinto il NUOVO orario su Google/Apple — senza questo, l'evento
+            // esterno restava spostato mentre il DB era tornato indietro.
+            void syncExternalCalendarsForAppointment(appointmentId);
             refetchAppointments();
             queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
             queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
@@ -913,7 +934,10 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [appointments, refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, syncExternalCalendarsForAppointment]);
+    // showOperativi nei deps: la queryKey dell'optimistic update lo contiene —
+    // senza, dopo un toggle il drop scriveva sulla cache key VECCHIA e l'item
+    // "rimbalzava" alla posizione precedente fino al refetch.
+  }, [appointments, refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi, syncExternalCalendarsForAppointment]);
 
   // ── Resize handler ── (stesso pattern optimistic update)
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
@@ -959,7 +983,8 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, syncExternalCalendarsForAppointment]);
+    // showOperativi nei deps per lo stesso motivo del drop (queryKey optimistic).
+  }, [refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi, syncExternalCalendarsForAppointment]);
 
   // 2026-05-26: il sync resta INLINE — niente più navigate. Se non c'è
   // connessione mostriamo solo toast con CTA "Apri impostazioni" che apre
@@ -1151,35 +1176,74 @@ export default function MarketingCalendar() {
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Visibili</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.visible}</p>
         </div>
-        <div className="rounded-lg border bg-card px-3 py-2">
+        <button
+          type="button"
+          onClick={goToday}
+          className="rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
+          title="Vai a oggi"
+        >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggi</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.todayCount}</p>
-        </div>
+        </button>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Settimana</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.weekCount}</p>
         </div>
-        <div className={cn(
-          "rounded-lg border px-3 py-2",
-          headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card"
-        )}>
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Da assegnare</p>
+        {/* KPI-filtro (toggle): mostra solo il sottoinsieme sulla griglia/elenco. */}
+        <button
+          type="button"
+          onClick={() => setKpiFilter((f) => (f === "unassigned" ? "all" : "unassigned"))}
+          aria-pressed={kpiFilter === "unassigned"}
+          title={kpiFilter === "unassigned" ? "Mostra tutti gli appuntamenti" : "Mostra solo i non assegnati"}
+          className={cn(
+            "rounded-lg border px-3 py-2 text-left transition-colors hover:bg-amber-50/70 dark:hover:bg-amber-950/40",
+            headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card",
+            kpiFilter === "unassigned" && "ring-2 ring-amber-400 ring-offset-1",
+          )}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Da assegnare{kpiFilter === "unassigned" && " · filtro attivo"}
+          </p>
           <p className={cn(
             "text-xl font-bold tabular-nums",
             headerStats.unassigned > 0 && "text-amber-700 dark:text-amber-400"
           )}>{headerStats.unassigned}</p>
-        </div>
-        <div className={cn(
-          "rounded-lg border px-3 py-2 col-span-2 md:col-span-1",
-          headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card"
-        )}>
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Conflitti</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setKpiFilter((f) => (f === "conflicts" ? "all" : "conflicts"))}
+          aria-pressed={kpiFilter === "conflicts"}
+          title={kpiFilter === "conflicts" ? "Mostra tutti gli appuntamenti" : "Mostra solo gli appuntamenti in conflitto"}
+          className={cn(
+            "col-span-2 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-red-50/70 dark:hover:bg-red-950/40 md:col-span-1",
+            headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card",
+            kpiFilter === "conflicts" && "ring-2 ring-red-400 ring-offset-1",
+          )}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Conflitti{kpiFilter === "conflicts" && " · filtro attivo"}
+          </p>
           <p className={cn(
             "text-xl font-bold tabular-nums",
             headerStats.conflicts > 0 ? "text-red-700 dark:text-red-400" : "text-foreground"
           )}>{headerStats.conflicts}</p>
-        </div>
+        </button>
       </div>
+
+      {/* Striscia di stato del filtro KPI: rende evidente perché la griglia è
+          "vuota" quando il filtro nasconde tutto, con uscita a un click. */}
+      {kpiFilter !== "all" && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span>
+            Stai vedendo solo{" "}
+            <strong>{kpiFilter === "unassigned" ? "gli appuntamenti da assegnare" : "gli appuntamenti in conflitto"}</strong>{" "}
+            ({displayAppointments.length}).
+          </span>
+          <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={() => setKpiFilter("all")}>
+            Mostra tutti
+          </Button>
+        </div>
+      )}
 
       {/* Tab bar con icona */}
       <div className="border-b">
@@ -1457,7 +1521,7 @@ export default function MarketingCalendar() {
             ) : calendarView === "week" ? (
               <MarketingCalendarWeekView
                 weekStart={weekStart}
-                appointments={filteredAppointments}
+                appointments={displayAppointments}
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
@@ -1472,7 +1536,7 @@ export default function MarketingCalendar() {
             ) : calendarView === "day" ? (
               <MarketingCalendarDayView
                 date={currentDate}
-                appointments={filteredAppointments}
+                appointments={displayAppointments}
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
@@ -1487,7 +1551,7 @@ export default function MarketingCalendar() {
             ) : (
               <MarketingCalendarMonthView
                 currentDate={currentDate}
-                appointments={filteredAppointments}
+                appointments={displayAppointments}
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickDay={(date) => openNewDialog(date)}
@@ -1515,7 +1579,7 @@ export default function MarketingCalendar() {
 
       {activeTab === "list" && (
         <MarketingAppointmentsList
-          appointments={filteredAppointments}
+          appointments={displayAppointments}
           onRefresh={() => refetchAppointments()}
           onClickAppointment={openEditDialog}
         />

@@ -341,6 +341,7 @@ export default function MarketingCalendarWeekView({
                           if (hasNoCoords && !apt.is_blocked_slot && !leg) {
                             tooltipLines.push("📍 Indirizzo mancante");
                           }
+                          if (apt.status === "annullato") tooltipLines.push("❌ Annullato");
                           const clientName = (apt as any).contact_name as string | null;
                           const sellerName = (apt as any).assigned_name as string | null;
                           // Mostra dettagli solo se l'altezza della card è sufficiente
@@ -374,7 +375,11 @@ export default function MarketingCalendarWeekView({
                                         ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                         : apt.calendar_id && colorMap[apt.calendar_id]
                                           ? colorMap[apt.calendar_id]
-                                          : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100"
+                                          : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100",
+                                      // Annullato: visivamente spento e barrato (stile Google
+                                      // Calendar) — prima era identico a un confermato e il
+                                      // venditore rischiava di presentarsi a una visita annullata.
+                                      apt.status === "annullato" && "opacity-50 saturate-50 line-through"
                                     )}
                                   >
                                     {/* Riga 1: orario + titolo + travel/alert */}
