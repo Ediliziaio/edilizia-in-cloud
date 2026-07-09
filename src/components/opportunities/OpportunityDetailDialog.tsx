@@ -882,16 +882,22 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               <span className="text-destructive">*</span>
                             )}
                           </Label>
+                          {/* Salvataggio al BLUR, non a ogni tasto: onChange su
+                              type=date/number sparava una mutation per battitura
+                              (digitare "100" = 3 update + 3 giri di invalidazioni
+                              sull'infinite query). onBlur committa il valore finale. */}
                           <Input
                             type="date"
                             defaultValue={opportunity.expected_close_date ?? ""}
                             className="h-10 sm:h-8 text-sm"
-                            onChange={(e) =>
+                            onBlur={(e) => {
+                              const v = e.target.value || null;
+                              if (v === (opportunity.expected_close_date ?? null)) return;
                               updateOpportunity.mutate({
                                 id: opportunity.id,
-                                data: { expected_close_date: e.target.value || null },
-                              })
-                            }
+                                data: { expected_close_date: v },
+                              });
+                            }}
                           />
                         </div>
                         <div className="space-y-1">
@@ -905,8 +911,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             placeholder="Auto da stage"
                             defaultValue={opportunity.probability ?? ""}
                             className="h-10 sm:h-8 text-sm"
-                            onChange={(e) => {
-                              const val = e.target.value ? parseInt(e.target.value) : null;
+                            onBlur={(e) => {
+                              const raw = e.target.value ? parseInt(e.target.value) : null;
+                              // Clamp 0-100: il min/max HTML non vale per i valori digitati.
+                              const val = raw === null ? null : Math.max(0, Math.min(100, raw));
+                              if (val === (opportunity.probability ?? null)) return;
                               updateOpportunity.mutate({
                                 id: opportunity.id,
                                 data: { probability: val },

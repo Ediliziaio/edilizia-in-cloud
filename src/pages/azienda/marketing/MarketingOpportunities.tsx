@@ -364,6 +364,14 @@ function MarketingOpportunitiesContent() {
 
       const rows = exportRows.map((o: any) => {
         const c = o.marketing_contacts || {};
+        // Ponderato coerente con la dashboard (OpportunityStatsStrip): la
+        // probabilità pesa SOLO le aperte; vinte = valore pieno, perse = 0.
+        // Prima ogni riga usciva a probabilità (default 50%) a prescindere
+        // dallo stato: una vinta appariva dimezzata, una persa valeva 50%.
+        const valueNum = Number(o.value || 0);
+        const probClamped = Math.max(0, Math.min(100, Number(o.probability ?? 50)));
+        const weighted =
+          o.status === "won" ? valueNum : o.status === "open" ? valueNum * (probClamped / 100) : 0;
         const row: Record<string, string> = {
           name: o.name || "",
           contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
@@ -371,13 +379,16 @@ function MarketingOpportunitiesContent() {
           phone: c.phone || "",
           value: String(o.value || 0),
           probability: String(o.probability ?? ""),
-          weighted_value: String(Number(o.value || 0) * (Number(o.probability ?? 50) / 100)),
+          weighted_value: String(Math.round(weighted * 100) / 100),
           status: o.status || "",
           stage: stageMap[o.stage_id] || "",
           assigned_to: staffMap[o.assigned_to] || "",
           source: o.source || "",
           tags: (o.tags || []).join(", "),
-          expected_close_date: o.expected_close_date || "",
+          // Stessa formattazione it-IT delle altre colonne data (era ISO grezzo).
+          expected_close_date: o.expected_close_date
+            ? new Date(o.expected_close_date).toLocaleDateString("it-IT")
+            : "",
           created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
           updated_at: o.updated_at ? new Date(o.updated_at).toLocaleDateString("it-IT") : "",
         };
@@ -686,7 +697,14 @@ function MarketingOpportunitiesContent() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-              onClick={(e) => { e.stopPropagation(); deleteListMutation.mutate(list.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Conferma: un misclick sulla X cancellava definitivamente il
+                // segmento salvato (le opportunità hanno conferma, le liste no).
+                if (confirm(`Eliminare l'elenco salvato "${list.name}"?`)) {
+                  deleteListMutation.mutate(list.id);
+                }
+              }}
               aria-label={`Elimina elenco ${list.name}`}
             >
               <X className="h-3 w-3" />
