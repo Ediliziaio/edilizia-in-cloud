@@ -198,9 +198,32 @@ interface SequenceRpcRow {
   replied: number | string;
 }
 
+/**
+ * Contattabili per il cold email-first: hanno un'email e nessun opt-out.
+ * Head-count esatto, usato da ENTRAMBI i percorsi (RPC e fallback client):
+ * il vecchio "tutti − opt-out" (e l'RPC funnel) contava anche i contatti
+ * senza email/telefono (~65% della rubrica) gonfiando il numero 3×.
+ * Gotcha PostgREST: .or() concatenati = AND; .eq(false) esclude i NULL →
+ * serve "is.null,eq.false" per ogni flag.
+ */
+async function countEmailContactable(db: Db, companyId: string): Promise<number> {
+  const res = await db
+    .from("marketing_contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .not("email", "is", null)
+    .neq("email", "")
+    .or("optout_email.is.null,optout_email.eq.false")
+    .or("opt_out.is.null,opt_out.eq.false")
+    .or("unsubscribed.is.null,unsubscribed.eq.false");
+  return res.error ? 0 : res.count ?? 0;
+}
+
 export function useOutreachStats(companyId: string) {
   return useQuery<OutreachStats>({
-    queryKey: ["outreach-stats", companyId],
+    // v2: semantica di totals.contactable cambiata (solo con-email) — la
+    // versione nella chiave invalida il valore persistito in cache.
+    queryKey: ["outreach-stats", companyId, 2],
     retry: false,
     staleTime: 60_000,
     queryFn: async () => {
@@ -234,12 +257,13 @@ export function useOutreachStats(companyId: string) {
  * Errori "duri" (non-missing) vengono propagati.
  */
 async function computeServerSide(db: Db, companyId: string): Promise<OutreachStats | null> {
-  const [dailyRes, funnelRes, queueRes, sendersRes, sequencesRes] = await Promise.all([
+  const [dailyRes, funnelRes, queueRes, sendersRes, sequencesRes, contactableCount] = await Promise.all([
     db.rpc("outreach_stats_daily", { p_company: companyId, p_days: DAILY_WINDOW_DAYS, p_tz: STATS_TZ }),
     db.rpc("outreach_stats_funnel", { p_company: companyId }),
     db.rpc("outreach_stats_queue_status", { p_company: companyId }),
     db.rpc("outreach_stats_by_sender", { p_company: companyId }),
     db.rpc("outreach_stats_by_sequence", { p_company: companyId }),
+    countEmailContactable(db, companyId),
   ]);
 
   const results = [dailyRes, funnelRes, queueRes, sendersRes, sequencesRes];
@@ -269,7 +293,8 @@ async function computeServerSide(db: Db, companyId: string): Promise<OutreachSta
   const repliedTotal = Number(f.replied) || 0;
   const interestedTotal = Number(f.interested) || 0;
   const activeSenders = Number(f.active_senders) || 0;
-  const contactable = Number(f.contactable) || 0;
+  // NON f.contactable: l'RPC conta tutta la rubrica − opt-out (anche senza email).
+  const contactable = contactableCount;
 
   const funnel: FunnelStage[] = [
     { key: "sent", label: "Inviate", value: sentTotal },
@@ -353,8 +378,7 @@ async function computeClientSide(db: Db, companyId: string): Promise<OutreachSta
         enrollRes,
         sendersRes,
         sequencesRes,
-        contactsRes,
-        optoutRes,
+        contactableTotal,
         queueStatusRes,
       ] = await Promise.all([
         eq(db.from("outreach_send_queue").select("id", { count: "exact", head: true })).eq("status", "sent"),
@@ -378,10 +402,7 @@ async function computeClientSide(db: Db, companyId: string): Promise<OutreachSta
           db.from("outreach_sender_accounts").select("id,email,status,bounce_count,complaint_count").order("email"),
         ),
         eq(db.from("outreach_sequences").select("id,name,status").order("created_at", { ascending: false })),
-        eq(db.from("marketing_contacts").select("id", { count: "exact", head: true })),
-        eq(db.from("marketing_contacts").select("id", { count: "exact", head: true })).or(
-          "optout_email.eq.true,opt_out.eq.true,unsubscribed.eq.true",
-        ),
+        countEmailContactable(db, companyId),
         // Distribuzione coda per stato: la facciamo lato DB con count su tutti gli stati.
         eq(db.from("outreach_send_queue").select("status").limit(ROW_CAP)),
       ]);
@@ -405,8 +426,6 @@ async function computeClientSide(db: Db, companyId: string): Promise<OutreachSta
 
       const sentTotal = sentTotalRes.error ? 0 : sentTotalRes.count ?? 0;
       const openedTotal = openedTotalRes.error ? 0 : openedTotalRes.count ?? 0;
-      const contactsTotal = contactsRes.error ? 0 : contactsRes.count ?? 0;
-      const optoutTotal = optoutRes.error ? 0 : optoutRes.count ?? 0;
 
       // ── Andamento giornaliero (30g): inviate vs aperte vs risposte per data ──
       const { points: daily, index: dayIndex } = buildDailyScaffold();
@@ -521,7 +540,7 @@ async function computeClientSide(db: Db, companyId: string): Promise<OutreachSta
         interested: interestedTotal,
         delivered: deliveredTotal,
         activeSenders,
-        contactable: Math.max(0, contactsTotal - optoutTotal),
+        contactable: contactableTotal,
       };
 
       const hasAnyData =
