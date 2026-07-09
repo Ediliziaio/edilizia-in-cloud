@@ -450,6 +450,9 @@ function SequenceHeader({
               {ordered.length > 0 && <ChannelMix steps={ordered} />}
             </div>
           )}
+          {/* Numeri vivi anche a card CHIUSA: prima per vedere iscritti/risposte
+              bisognava espandere ogni sequenza (i dati vivevano solo dentro). */}
+          {!isOpen && !editing && <OutreachSequenceStats sequenceId={seq.id} compact />}
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">

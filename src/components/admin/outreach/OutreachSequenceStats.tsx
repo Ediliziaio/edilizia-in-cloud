@@ -11,7 +11,13 @@ import { Loader2 } from "lucide-react";
 
 interface Row { status: string; current_step: number }
 
-export function OutreachSequenceStats({ sequenceId }: { sequenceId: string }) {
+/**
+ * @param compact variante inline per l'header CHIUSO della sequenza: solo i
+ * chip essenziali (iscritti/attivi/risposte/reply rate), niente card né barre
+ * per-step — i numeri si vedono senza dover espandere (pattern Instantly:
+ * le stats della campagna vivono sulla riga della lista).
+ */
+export function OutreachSequenceStats({ sequenceId, compact = false }: { sequenceId: string; compact?: boolean }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const q = useQuery({
@@ -35,10 +41,17 @@ export function OutreachSequenceStats({ sequenceId }: { sequenceId: string }) {
     },
   });
 
-  if (q.isLoading) return <div className="py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
+  if (q.isLoading) return compact ? null : <div className="py-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
   if (q.error) return null;
   const d = q.data;
   if (!d || d.c.total === 0) {
+    if (compact) {
+      return (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Nessun contatto nel flusso — premi <strong>Arruola</strong> per partire.
+        </p>
+      );
+    }
     return (
       <div className="rounded-lg border border-dashed bg-muted/20 p-2.5 text-xs text-muted-foreground">
         Nessun contatto nel flusso. Premi <strong>Arruola</strong> per far entrare una lista e avviare la cadenza.
@@ -46,6 +59,16 @@ export function OutreachSequenceStats({ sequenceId }: { sequenceId: string }) {
     );
   }
   const replyRate = d.c.total ? Math.round((d.c.replied / d.c.total) * 100) : 0;
+  if (compact) {
+    return (
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        <StatChip label="iscritti" value={d.c.total} />
+        <StatChip label="attivi" value={d.c.active} tone="active" />
+        <StatChip label="risposte" value={d.c.replied} tone="good" />
+        <StatChip label="reply rate" value={`${replyRate}%`} tone="good" />
+      </div>
+    );
+  }
   return (
     <div className="space-y-2 rounded-lg border bg-card p-2.5">
       <div className="flex flex-wrap gap-1.5">

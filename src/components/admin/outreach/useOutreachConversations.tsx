@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { isMissingTableError, isMissingColumnError } from "./_shared";
+import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
+import { parseVariants, pickVariant } from "../../../../supabase/functions/_shared/outreach-abz";
 
 /**
  * useOutreachConversations — logica condivisa dell'inbox cold.
@@ -306,6 +308,16 @@ export function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** Escape per valori interpolati in corpi HTML (thread reso con innerHTML). */
+function escapeHtml(v: string | null | undefined): string {
+  return (v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** Provider compatti per il badge casella. */
 export function providerLabel(provider: string): string {
   switch (provider) {
@@ -386,17 +398,39 @@ export function useOutreachConversations(companyId: string) {
     },
   });
 
+  // Contatti REFERENZIATI dalle conversazioni (inviate + risposte). Con 89k+
+  // contatti in rubrica il vecchio `.limit(1000)` senza ordine pescava 1000
+  // righe arbitrarie: le conversazioni restavano senza nome/azienda e il
+  // rendering del template perdeva le variabili. La lista qui è bounded
+  // (≤500 inviate + ≤500 risposte) → chunk `.in()` da 150 id per URL corta.
+  const referencedContactIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of sentQ.data ?? []) if (s.contact_id) ids.add(s.contact_id);
+    for (const r of repliesQ.data ?? []) if (r.contact_id) ids.add(r.contact_id);
+    return [...ids].sort();
+  }, [sentQ.data, repliesQ.data]);
+
   const contactsQ = useQuery({
-    queryKey: ["outreach-inbox-contacts", companyId],
+    // hashSeed della lista id: chiave stabile e leggera anche con 1000 uuid.
+    queryKey: ["outreach-inbox-contacts", companyId, referencedContactIds.length, hashSeed(referencedContactIds.join("|"))],
     retry: false,
+    enabled: !sentQ.isLoading && !repliesQ.isLoading,
     queryFn: async () => {
-      const { data, error } = await db
-        .from(T_CONTACTS)
-        .select("id,first_name,last_name,company_name,email,phone,tags,source,optout_email,last_activity_at")
-        .eq("company_id", companyId)
-        .limit(1000);
-      if (error) throw error;
-      return (data ?? []) as ContactRow[];
+      if (referencedContactIds.length === 0) return [] as ContactRow[];
+      const chunks: string[][] = [];
+      for (let i = 0; i < referencedContactIds.length; i += 150) chunks.push(referencedContactIds.slice(i, i + 150));
+      const results = await Promise.all(chunks.map((ids) =>
+        db.from(T_CONTACTS)
+          .select("id,first_name,last_name,company_name,email,phone,tags,source,optout_email,last_activity_at")
+          .eq("company_id", companyId)
+          .in("id", ids),
+      ));
+      const rows: ContactRow[] = [];
+      for (const r of results) {
+        if (r.error) throw r.error;
+        rows.push(...((r.data ?? []) as ContactRow[]));
+      }
+      return rows;
     },
   });
 
@@ -679,11 +713,29 @@ export function useOutreachConversations(companyId: string) {
       if (!s.contact_id && !s.to_email) continue;
       const conv = ensure(s.contact_id, s.to_email);
       conv.sentCount++;
+      // La coda conserva il TEMPLATE (variabili {{ }}, spintax { | }, varianti
+      // "===" nell'oggetto): il rendering vero avviene nel dispatcher al send.
+      // Qui renderizziamo con le STESSE variabili e lo STESSO seed
+      // (hashSeed(to_email||id)) così il thread mostra ciò che il destinatario
+      // ha ricevuto — i placeholder grezzi facevano sembrare l'invio rotto.
+      // Le variabili usano il contatto attuale, non lo snapshot al send.
+      // Nel CORPO (reso via dangerouslySetInnerHTML) i valori vanno escapati:
+      // company_name & co. arrivano da dati scraped, non devono diventare
+      // markup eseguibile. L'oggetto è testo React → valori grezzi.
+      const tplContact = s.contact_id ? byId.get(s.contact_id) : null;
+      const tplVars = tplContact ? contactToVars(tplContact) : {};
+      const tplVarsHtml = Object.fromEntries(
+        Object.entries(tplVars).map(([k, v]) => [k, escapeHtml(v)]),
+      );
+      const tplSeed = hashSeed(s.to_email || s.id);
+      const tplSubjectVariant = pickVariant(parseVariants(s.subject || ""), tplSeed);
       conv.messages.push({
         id: `s:${s.id}`,
         direction: "out",
-        subject: s.subject,
-        body: s.body,
+        subject: s.subject
+          ? renderTemplate(tplSubjectVariant ? tplSubjectVariant.text : s.subject, tplVars, { seed: tplSeed })
+          : s.subject,
+        body: s.body ? renderTemplate(s.body, tplVarsHtml, { seed: tplSeed }) : s.body,
         at: s.sent_at,
         intent: null,
         delivery: {
