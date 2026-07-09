@@ -151,7 +151,7 @@ function StatsContent({ data }: { data: OutreachStats }) {
         />
         <Kpi icon={Inbox} label="Interessati" value={fmt(totals.interested)} hint="opportunità calde" tone="good" />
         <Kpi icon={Server} label="Caselle attive" value={fmt(totals.activeSenders)} hint="sender pronti / in warm-up" />
-        <Kpi icon={Users} label="Contattabili" value={fmt(totals.contactable)} hint="al netto degli opt-out" />
+        <Kpi icon={Users} label="Contattabili" value={fmt(totals.contactable)} hint="con email, al netto degli opt-out" />
       </div>
 
       {/* ── Andamento giornaliero (grafico principale) ── */}
