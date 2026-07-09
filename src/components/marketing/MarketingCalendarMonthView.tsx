@@ -222,7 +222,9 @@ export default function MarketingCalendarMonthView({
                                 ? "border-dashed border-muted-foreground/50 bg-muted/60 text-muted-foreground italic"
                                 : apt.calendar_id && colorMap[apt.calendar_id]
                                   ? colorMap[apt.calendar_id]
-                                  : "border-muted-foreground/40 bg-muted text-foreground"
+                                  : "border-muted-foreground/40 bg-muted text-foreground",
+                              // Annullato: spento e barrato — vedi WeekView.
+                              apt.status === "annullato" && "opacity-50 saturate-50 line-through"
                             )}
                             title={apt.title}
                           >

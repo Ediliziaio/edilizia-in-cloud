@@ -2,7 +2,7 @@ import { useRef, useCallback, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
-import { minutesToTimeStr } from "@/lib/marketingCalendarConstants";
+import { minutesToTimeStr, CALENDAR_END_HOUR } from "@/lib/marketingCalendarConstants";
 
 interface Props {
   appointment: MarketingAppointment;
@@ -84,7 +84,9 @@ export default function DraggableAppointment({
         const newEndMin = startEndMinutes.current + deltaMinutes;
         const [sh2, sm2] = startTime.split(":").map(Number);
         const minEnd = sh2 * 60 + (sm2 || 0) + 15;
-        const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
+        // Clamp all'ora di fine della griglia (23:00), non a 22:00 hardcoded:
+        // il range era stato esteso ma il resize restava bloccato alle 22.
+        const clamped = Math.max(minEnd, Math.min(newEndMin, CALENDAR_END_HOUR * 60));
         const snapped = Math.round(clamped / 15) * 15;
 
         // Visual feedback: update height + label
@@ -111,7 +113,7 @@ export default function DraggableAppointment({
         const newEndMin = startEndMinutes.current + deltaMinutes;
         const [sh3, sm3] = startTime.split(":").map(Number);
         const minEnd = sh3 * 60 + (sm3 || 0) + 15;
-        const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
+        const clamped = Math.max(minEnd, Math.min(newEndMin, CALENDAR_END_HOUR * 60));
         const snapped = Math.round(clamped / 15) * 15;
         onResize(appointment.id, minutesToTimeStr(snapped));
         onResizeEnd?.();
