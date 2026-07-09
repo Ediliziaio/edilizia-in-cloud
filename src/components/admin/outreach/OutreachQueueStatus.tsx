@@ -32,12 +32,29 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         db.from("outreach_send_queue").select("scheduled_for").eq("company_id", companyId).eq("status", "queued").order("scheduled_for", { ascending: true }).limit(1).maybeSingle(),
       ]);
       if (queued.error) throw queued.error;
+      // Etichetta "prossimo invio" calcolata QUI (non in render: purezza) e
+      // rinfrescata dal refetch 30s. Se scheduled_for è nel PASSATO i messaggi
+      // sono già "pronti" e partono al prossimo tick nel limite del cap
+      // warm-up — NON sono in ritardo: dire "un giorno fa" faceva sembrare un
+      // errore. Solo se è futuro mostriamo il "tra…".
+      const nextAt = (next.data?.scheduled_for as string | null) ?? null;
+      let nextLabel = "—";
+      if (nextAt) {
+        const nextMs = new Date(nextAt).getTime();
+        if (Number.isFinite(nextMs)) {
+          if (nextMs <= Date.now()) {
+            nextLabel = "pronte, al prossimo giro";
+          } else {
+            try { nextLabel = formatDistanceToNow(new Date(nextAt), { addSuffix: true, locale: it }); } catch { /* — */ }
+          }
+        }
+      }
       return {
         queued: queued.count ?? 0,
         sentToday: sentToday.count ?? 0,
         failed: failed.count ?? 0,
         active: active.count ?? 0,
-        nextAt: (next.data?.scheduled_for as string | null) ?? null,
+        nextLabel,
       };
     },
   });
@@ -48,10 +65,6 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
   if (!d) return null;
 
   const idle = d.queued === 0 && d.sentToday === 0 && d.active === 0;
-  let nextLabel = "—";
-  if (d.nextAt) {
-    try { nextLabel = formatDistanceToNow(new Date(d.nextAt), { addSuffix: true, locale: it }); } catch { /* — */ }
-  }
 
   return (
     <Card>
@@ -66,7 +79,7 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tile icon={Users} label="In cadenza" value={d.active} hint="iscrizioni attive" />
-            <Tile icon={Clock} label="In coda" value={d.queued} hint={d.queued > 0 ? `prossimo ${nextLabel}` : "—"} tone="active" />
+            <Tile icon={Clock} label="In coda" value={d.queued} hint={d.queued > 0 ? d.nextLabel : "—"} tone="active" />
             <Tile icon={Send} label="Inviate oggi" value={d.sentToday} tone="good" />
             <Tile icon={AlertTriangle} label="Fallite" value={d.failed} tone={d.failed > 0 ? "warn" : "default"} />
           </div>

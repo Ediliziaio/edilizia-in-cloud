@@ -237,7 +237,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const showContext = contextOverride ?? Boolean(selected?.contact);
   // Con il contesto aperto su desktop la colonna "Caselle" collassa nel selettore
   // compatto (come sotto lg), restituendo larghezza al thread di lettura.
-  const mailboxColumnVisible = !showContext;
+  // Con UNA sola casella non c'è nulla da filtrare: la colonna sparisce sempre
+  // (un terzo di schermo per un elenco di 1 era solo rumore visivo).
+  const mailboxColumnVisible = !showContext && senders.length > 1;
 
   // Contesto + azioni del lead selezionato (DRY: dal hook condiviso).
   const { context: leadContext, isLoading: leadLoading, liveSequence } =

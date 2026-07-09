@@ -52,13 +52,39 @@ export function OutreachSetupChecklist({ companyId }: { companyId: string }) {
   // Indice del primo step non completato → "step corrente" del wizard.
   const currentIdx = steps.findIndex((s) => !s.done);
 
-  if (done === total) {
+  // Motore OPERATIVO = c'è almeno un contatto in cadenza: il cold sta già
+  // partendo, quindi lo stepper gigante di setup non deve più dominare la tab
+  // Oggi. Collassa a banner slim: verde se tutto fatto, ambra se resta uno
+  // step non essenziale (es. brand) ma gli invii sono comunque avviati.
+  const operational = d.enrollments > 0;
+  if (done === total || operational) {
+    const allDone = done === total;
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 shadow-sm">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm",
+          allDone
+            ? "border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200"
+            : "border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200",
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+            allDone ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-amber-100 dark:bg-amber-900/40",
+          )}
+        >
+          <CheckCircle2 className={cn("h-5 w-5", allDone ? "text-emerald-600" : "text-amber-600")} />
         </span>
-        <span><strong>Motore configurato.</strong> Sei operativo: arruola altre liste o crea nuove sequenze per scalare il volume.</span>
+        <span className="min-w-0 flex-1">
+          <strong>Motore in funzione.</strong>{" "}
+          {allDone
+            ? "Sei operativo: arruola altre liste o crea nuove sequenze per scalare il volume."
+            : `Gli invii sono avviati (${done}/${total} configurato). Resta consigliato: ${steps[currentIdx]?.label.toLowerCase()}.`}
+        </span>
+        {!allDone && (
+          <span className="shrink-0 text-xs font-semibold tabular-nums opacity-70">{done}/{total}</span>
+        )}
       </div>
     );
   }

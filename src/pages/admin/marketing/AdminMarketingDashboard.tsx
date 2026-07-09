@@ -211,32 +211,37 @@ function OutreachCockpit() {
             </TabsList>
           </div>
 
-          {/* ── OGGI ── */}
+          {/* ── OGGI ──
+              Gerarchia "cockpit vivo": prima il motore in funzione (invii,
+              pilota, funnel), poi ciò che richiede AZIONE oggi (posta+attività),
+              infine la rubrica come contesto e le scorciatoie. La rubrica
+              (89k contatti, statica) prima stava in cima e spingeva giù i dati
+              live. A motore avviato il setup è un banner slim. */}
           <TabsContent value="oggi" className="mt-5 space-y-6">
             <OutreachSetupChecklist companyId={companyId} />
 
             <Reveal className="space-y-3">
-              <SectionLabel>Panoramica</SectionLabel>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
-                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="esclusi gli opt-out email" tone="good" />
-                <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
-                <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
-              </div>
-            </Reveal>
-
-            <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Motore &amp; performance</SectionLabel>
               <OutreachQueueStatus companyId={companyId} />
               <OutreachPilotPulse companyId={companyId} />
               <OutreachAnalytics companyId={companyId} />
             </Reveal>
 
-            <Reveal className="space-y-3" delay={0.12}>
+            <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Da leggere &amp; attività</SectionLabel>
               <div className="grid gap-4 lg:grid-cols-2">
                 <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
                 <OutreachActivityFeed companyId={companyId} />
+              </div>
+            </Reveal>
+
+            <Reveal className="space-y-3" delay={0.12}>
+              <SectionLabel>Rubrica &amp; deliverability</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
+                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="esclusi gli opt-out email" tone="good" />
+                <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
+                <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
               </div>
             </Reveal>
 
@@ -262,16 +267,31 @@ function OutreachCockpit() {
           <OutreachMailClient companyId={companyId} />
         </TabsContent>
 
-        {/* ── LEAD & LISTE ── */}
-        <TabsContent value="lead" className="mt-4 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
-            <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
-          </div>
-          <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
-          <OutreachLists companyId={companyId} />
-          <OutreachMessagePlayground companyId={companyId} />
-          <ComplianceCard />
+        {/* ── LEAD & LISTE ──
+            Il cuore della tab sono LE LISTE (arruola da qui): prima stavano
+            terze, sotto shortcut e import. Ora: liste in cima, poi "aggiungi
+            contatti" (import + scraper/CRM) compatto, infine strumenti
+            secondari (playground AI, conformità) sotto una loro sezione. */}
+        <TabsContent value="lead" className="mt-4 space-y-6">
+          <Reveal className="space-y-3">
+            <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
+            <OutreachLists companyId={companyId} />
+          </Reveal>
+
+          <Reveal className="space-y-3" delay={0.06}>
+            <SectionLabel>Aggiungi contatti</SectionLabel>
+            <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
+              <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
+            </div>
+          </Reveal>
+
+          <Reveal className="space-y-3" delay={0.12}>
+            <SectionLabel>Strumenti &amp; conformità</SectionLabel>
+            <OutreachMessagePlayground companyId={companyId} />
+            <ComplianceCard />
+          </Reveal>
         </TabsContent>
 
         {/* ── SEQUENZE ── */}
@@ -280,12 +300,21 @@ function OutreachCockpit() {
           <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Builder automazioni (esistente)" desc="Flussi event-based, complementari alle sequenze cold" />
         </TabsContent>
 
-        {/* ── PIPELINE ── */}
-        <TabsContent value="pipeline" className="mt-4 space-y-4">
-          <OutreachPipelineAnalytics companyId={companyId} />
-          <OutreachOverdueFollowups companyId={companyId} />
-          <div className="flex justify-end"><OutreachConvertContactDialog companyId={companyId} /></div>
-          <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
+        {/* ── PIPELINE ──
+            Prima ciò che chiede AZIONE (follow-up scaduti + converti contatto),
+            poi i numeri: prima le analytics stavano sopra e i follow-up scaduti
+            — l'unica cosa urgente — finivano sotto la piega. */}
+        <TabsContent value="pipeline" className="mt-4 space-y-6">
+          <Reveal className="space-y-3">
+            <SectionLabel>Da fare ora</SectionLabel>
+            <OutreachOverdueFollowups companyId={companyId} />
+            <div className="flex justify-end"><OutreachConvertContactDialog companyId={companyId} /></div>
+          </Reveal>
+          <Reveal className="space-y-3" delay={0.06}>
+            <SectionLabel>Andamento pipeline</SectionLabel>
+            <OutreachPipelineAnalytics companyId={companyId} />
+            <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
+          </Reveal>
         </TabsContent>
 
         {/* ── STATISTICHE ── */}
@@ -293,14 +322,26 @@ function OutreachCockpit() {
           <OutreachStatsDashboard companyId={companyId} />
         </TabsContent>
 
-        {/* ── DELIVERABILITY ── */}
-        <TabsContent value="deliverability" className="mt-4 space-y-4">
-          <OutreachBrands companyId={companyId} />
-          <OutreachWarmupDashboard companyId={companyId} />
-          <OutreachSenderPool companyId={companyId} />
-          <OutreachSendWindowCard />
-          <SuppressionAddCard companyId={companyId} />
-          <EmailSuppressionsTable />
+        {/* ── DELIVERABILITY ──
+            Sei card impilate senza gerarchia: raggruppate per domanda reale —
+            "da chi parto?" (identità), "quanto posso spingere?" (warm-up e
+            finestre), "chi non devo contattare?" (blocklist). */}
+        <TabsContent value="deliverability" className="mt-4 space-y-6">
+          <Reveal className="space-y-3">
+            <SectionLabel>Identità di invio — brand, domini e caselle</SectionLabel>
+            <OutreachBrands companyId={companyId} />
+            <OutreachSenderPool companyId={companyId} />
+          </Reveal>
+          <Reveal className="space-y-3" delay={0.06}>
+            <SectionLabel>Ritmo — warm-up e finestre d'invio</SectionLabel>
+            <OutreachWarmupDashboard companyId={companyId} />
+            <OutreachSendWindowCard />
+          </Reveal>
+          <Reveal className="space-y-3" delay={0.12}>
+            <SectionLabel>Blocklist — chi non va contattato</SectionLabel>
+            <SuppressionAddCard companyId={companyId} />
+            <EmailSuppressionsTable />
+          </Reveal>
         </TabsContent>
         </Tabs>
       </div>
