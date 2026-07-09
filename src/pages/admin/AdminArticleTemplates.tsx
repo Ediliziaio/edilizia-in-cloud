@@ -120,7 +120,7 @@ export default function AdminArticleTemplates() {
   const [creatingNew, setCreatingNew] = useState(false);
 
   // Lista LEGGERA: solo colonne necessarie, niente jsonb pesanti (griglia/assi).
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError, error: listError, refetch } = useQuery({
     queryKey: ["admin-article-templates"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -156,7 +156,8 @@ export default function AdminArticleTemplates() {
       return (
         t.nome.toLowerCase().includes(q) ||
         (t.tipologia ?? "").toLowerCase().includes(q) ||
-        (t.categoria_slug ?? "").toLowerCase().includes(q)
+        (t.categoria_slug ?? "").toLowerCase().includes(q) ||
+        (t.tags ?? []).some((x) => x.toLowerCase().includes(q))
       );
     });
   }, [templates, search, tag, categoria, onlyInactive]);
@@ -384,10 +385,10 @@ export default function AdminArticleTemplates() {
                             {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
                           </div>
                         </button>
-                        <Switch checked={t.is_active} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" />
-                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => duplicate.mutate(t.id)} title="Duplica"><Copy className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                        <Switch checked={t.is_active} disabled={toggleActive.isPending} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" aria-label={`Attiva/disattiva ${t.nome}`} />
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica" aria-label={`Modifica ${t.nome}`}><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={duplicate.isPending} onClick={() => duplicate.mutate(t.id)} title="Duplica" aria-label={`Duplica ${t.nome}`}><Copy className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={del.isPending} onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina" aria-label={`Elimina ${t.nome}`}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     ))}
                   </div>
@@ -395,7 +396,17 @@ export default function AdminArticleTemplates() {
               </div>
             );
           })}
-          {!isLoading && filtered.length === 0 && (
+          {/* Errore di caricamento ONESTO: prima un fetch fallito al primo load
+              mostrava l'empty-state "Nessun template" (data=[], niente toast). */}
+          {isError && (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <p className="text-sm text-destructive">
+                Errore nel caricamento dei template{listError instanceof Error ? `: ${listError.message}` : "."}
+              </p>
+              <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+            </div>
+          )}
+          {!isLoading && !isError && filtered.length === 0 && (
             <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
           )}
         </CardContent>
@@ -405,7 +416,15 @@ export default function AdminArticleTemplates() {
         <EditDialogLoader
           id={editingId}
           onClose={() => setEditingId(null)}
-          onSaved={() => { setEditingId(null); qc.invalidateQueries({ queryKey: ["admin-article-templates"] }); }}
+          onSaved={() => {
+            setEditingId(null);
+            qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
+            // ATTENZIONE: la chiave del DETTAGLIO è al singolare ("…-template") —
+            // NON è un prefisso della lista, quindi va invalidata a parte. Senza,
+            // riaprire lo stesso template entro lo staleTime serviva la versione
+            // vecchia e un secondo salvataggio poteva annullare le modifiche.
+            qc.invalidateQueries({ queryKey: ["admin-article-template"] });
+          }}
         />
       )}
       {creatingNew && (
