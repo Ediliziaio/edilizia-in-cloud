@@ -249,8 +249,8 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
             </div>
           </div>
 
-          {/* preview */}
-          <div className="space-y-2">
+          {/* preview — sticky su desktop: resta in vista mentre scorri l'editor */}
+          <div className="space-y-2 md:sticky md:top-4 md:self-start">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Anteprima per</Label>
               {list.length > 0 && (

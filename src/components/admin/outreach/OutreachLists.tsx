@@ -119,6 +119,16 @@ export function OutreachLists({ companyId }: { companyId: string }) {
               )}
             </div>
 
+            {/* legenda barra due toni */}
+            <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500/80" /> contattabili via email
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-primary/25" /> senza email / opt-out
+              </span>
+            </div>
+
             {/* breakdown sorgente */}
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -211,6 +221,10 @@ function ListRow({
 }) {
   const [open, setOpen] = useState(false);
   const pct = Math.round((l.total / maxList) * 100);
+  // Quota contattabili DENTRO la barra (due toni): verde = con email e senza
+  // opt-out, chiaro = il resto. A colpo d'occhio si vede quanto della lista è
+  // davvero lavorabile via email (stile analytics Instantly).
+  const contactablePct = l.total > 0 ? Math.round((l.contactable / l.total) * 100) : 0;
 
   return (
     <>
@@ -220,15 +234,18 @@ function ListRow({
           type="button"
           onClick={() => setOpen(true)}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          title={`Vedi i contatti della lista "${l.tag}"`}
+          title={`Vedi i contatti della lista "${l.tag}" — ${contactablePct}% contattabile via email`}
         >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Tag className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium leading-tight group-hover:text-primary">{l.tag}</div>
-            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary/60" style={{ width: `${pct}%` }} />
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="flex h-full overflow-hidden rounded-full" style={{ width: `${pct}%` }}>
+                <span className="h-full bg-emerald-500/80" style={{ width: `${contactablePct}%` }} />
+                <span className="h-full flex-1 bg-primary/25" />
+              </div>
             </div>
           </div>
         </button>

@@ -276,24 +276,31 @@ function OutreachCockpit() {
             contatti" (import + scraper/CRM) compatto, infine strumenti
             secondari (playground AI, conformità) sotto una loro sezione. */}
         <TabsContent value="lead" className="mt-4 space-y-6">
-          <Reveal className="space-y-3">
-            <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
-            <OutreachLists companyId={companyId} />
-          </Reveal>
+          {/* Layout denso stile Instantly: liste protagoniste a sinistra,
+              operatività (chiamate da fare, import, scorciatoie) a destra.
+              Sotto xl le sezioni tornano impilate nello stesso ordine. */}
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <Reveal className="space-y-3">
+              <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
+              <OutreachLists companyId={companyId} />
+            </Reveal>
 
-          <Reveal className="space-y-3" delay={0.03}>
-            <SectionLabel>Chiamate da fare</SectionLabel>
-            <OutreachCallTasks companyId={companyId} />
-          </Reveal>
+            <div className="space-y-6">
+              <Reveal className="space-y-3" delay={0.03}>
+                <SectionLabel>Chiamate da fare</SectionLabel>
+                <OutreachCallTasks companyId={companyId} />
+              </Reveal>
 
-          <Reveal className="space-y-3" delay={0.06}>
-            <SectionLabel>Aggiungi contatti</SectionLabel>
-            <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
-              <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
+              <Reveal className="space-y-3" delay={0.06}>
+                <SectionLabel>Aggiungi contatti</SectionLabel>
+                <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+                <div className="grid gap-3">
+                  <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
+                  <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
+                </div>
+              </Reveal>
             </div>
-          </Reveal>
+          </div>
 
           <Reveal className="space-y-3" delay={0.12}>
             <SectionLabel>Strumenti &amp; conformità</SectionLabel>
