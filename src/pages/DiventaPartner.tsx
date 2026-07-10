@@ -218,7 +218,7 @@ const faqs = [
   },
   {
     q: "Quando vengo pagato e come?",
-    a: "La commissione matura il giorno in cui il cliente paga la fattura del mese. Il 15 del mese successivo liquidiamo tutto il maturato. Soglia minima per il pagamento: 50€ (sotto soglia si accumula). Partner con P.IVA → fattura elettronica e bonifico a 30 giorni. Partner senza P.IVA → ricevuta per prestazione occasionale con ritenuta d'acconto 20% (DPR 600/73 art. 25) — il netto in bonifico è quindi l'80% del lordo (max 5.000€ lordi/anno per legge italiana, art. 67 TUIR).",
+    a: "La commissione matura il giorno in cui il cliente paga la fattura del mese. Entro il 15 del mese successivo liquidiamo tutto il maturato. Soglia minima per il pagamento: 50€ (sotto soglia si accumula). Partner con P.IVA → fattura elettronica e bonifico a 30 giorni. Partner senza P.IVA → ricevuta per prestazione occasionale con ritenuta d'acconto 20% (DPR 600/73 art. 25) — il netto in bonifico è quindi l'80% del lordo (max 5.000€ lordi/anno per legge italiana, art. 67 TUIR).",
   },
   {
     q: "La commissione è per sempre o si esaurisce?",
@@ -374,7 +374,7 @@ function CommissionCalculator() {
             <p className="text-[11px] opacity-80 mt-4 leading-relaxed">
               Calcolo: {clienti} clienti × {prezzoPiano}€ × {Math.round(rate * 100)}% di
               commissione ricorrente. Maturazione il giorno in cui il cliente paga la
-              fattura. Liquidazione il 15 del mese successivo. Soglia minima 50€.
+              fattura. Liquidazione entro il 15 del mese successivo. Soglia minima 50€.
             </p>
           </div>
         </div>
@@ -408,6 +408,10 @@ export default function DiventaPartner() {
     privacy_consent: false,
     marketing_consent: false,
   });
+  // Honeypot anti-spam: campo invisibile che gli umani non compilano.
+  // L'INSERT su partner_applications è pubblico (RLS WITH CHECK true), quindi
+  // un minimo di difesa client-side contro i bot più banali è dovuta.
+  const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -439,6 +443,12 @@ export default function DiventaPartner() {
       toast.error(validationError);
       return;
     }
+    if (website.trim()) {
+      // Honeypot compilato → quasi certamente un bot: fingi successo senza scrivere.
+      setSubmitted(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setLoading(true);
     try {
       const networkSize = form.network_size.trim()
@@ -446,15 +456,22 @@ export default function DiventaPartner() {
         : null;
       const trimmedNotes = form.notes.trim();
       const trimmedCompany = form.company.trim();
+      // I consensi GDPR vanno persistiti: partner_applications non ha colonne
+      // dedicate, quindi si registrano (con timestamp) dentro notes.
+      const consentLine = `Consenso privacy: sì (${new Date().toISOString()})` +
+        ` · Consenso marketing: ${form.marketing_consent ? "sì" : "no"}`;
+      const noteParts = [
+        trimmedCompany ? `Azienda/Studio: ${trimmedCompany}` : null,
+        trimmedNotes || null,
+        consentLine,
+      ].filter(Boolean);
       const { error } = await supabase.from("partner_applications").insert({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim() || null,
         partner_type: form.partner_type,
         network_size: Number.isFinite(networkSize) ? networkSize : null,
-        notes: trimmedCompany
-          ? `Azienda/Studio: ${trimmedCompany}${trimmedNotes ? `\n\n${trimmedNotes}` : ""}`
-          : trimmedNotes || null,
+        notes: noteParts.join("\n\n"),
         status: "pending",
       });
       if (error) throw error;
@@ -1245,6 +1262,17 @@ export default function DiventaPartner() {
             noValidate
             className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-[#F97415]/10 space-y-5"
           >
+            {/* Honeypot anti-bot: invisibile e fuori dal tab order */}
+            <input
+              type="text"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              name="website"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              className="absolute -left-[9999px] h-0 w-0 opacity-0"
+            />
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-[#111111] mb-1.5">

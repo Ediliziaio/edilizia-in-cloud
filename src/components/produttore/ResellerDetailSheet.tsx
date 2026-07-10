@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { formatEuro } from "@/lib/formatEuro";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -141,7 +142,7 @@ export function ResellerDetailSheet({
               {r.plan_name && (
                 <Badge variant="outline" className="gap-1">
                   <Package className="h-3.5 w-3.5" /> {r.plan_name}
-                  {r.plan_price > 0 && <span className="text-muted-foreground">· €{r.plan_price}/mese</span>}
+                  {r.plan_price > 0 && <span className="text-muted-foreground">· {formatEuro(r.plan_price)}/mese</span>}
                 </Badge>
               )}
               {r.billing_comped ? (
