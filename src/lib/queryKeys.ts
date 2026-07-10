@@ -1149,7 +1149,8 @@ export const queryKeys = {
     mens:  (a: number) => ["cg", "mensile", a] as const,
     sp:    (a: number) => ["cg", "sp", a] as const,
     rating:(a: number) => ["cg", "rating", a] as const,
-    piano: (s: string, o: number) => ["cg", "piano", s, o] as const,
+    // Chiave per riga di assunzioni (scenario); null = default lato DB.
+    piano: (assumptionId: string | null) => ["cg", "piano", assumptionId ?? "default"] as const,
     classificazione: (companyId: string | undefined) => ["cg", "classificazione", companyId] as const,
   },
 } as const;

@@ -3,6 +3,8 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
 import { useWhatIfMutation, type PianoResult } from "@/hooks/controlloGestione/usePianoIndustriale";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -10,6 +12,8 @@ import { toast } from "sonner";
 interface AssumptionEditorProps {
   scenarioId: string | null;
   onResult: (result: PianoResult) => void;
+  /** Chiamato per tornare alla proiezione dello scenario (annulla il what-if). */
+  onReset?: () => void;
   /** Disabilita gli sliders (es. quando non c'è uno scenario di base configurato). */
   disabled?: boolean;
 }
@@ -28,14 +32,21 @@ const DEFAULTS: Assunzioni = {
   orizzonte: 5,
 };
 
-export function AssumptionEditor({ scenarioId, onResult, disabled = false }: AssumptionEditorProps) {
+export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = false }: AssumptionEditorProps) {
   const [val, setVal] = useState<Assunzioni>(DEFAULTS);
   const mutation = useWhatIfMutation();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Il what-if parte SOLO dopo che l'utente tocca uno slider: prima l'useEffect
+  // sparava al mount con i DEFAULT (8/12/100k) sovrascrivendo in silenzio la
+  // proiezione dello scenario, senza input dell'utente e senza ritorno.
+  const [touched, setTouched] = useState(false);
+  const bump = (patch: Partial<Assunzioni>) => {
+    setTouched(true);
+    setVal((s) => ({ ...s, ...patch }));
+  };
 
   useEffect(() => {
-    // Skip what-if quando lo scenario base manca: la RPC fallirebbe.
-    if (disabled) return;
+    if (disabled || !touched) return; // niente auto-simulazione al mount
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       mutation.mutate(
@@ -56,15 +67,33 @@ export function AssumptionEditor({ scenarioId, onResult, disabled = false }: Ass
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [val.crescita, val.margine, val.investimento, val.orizzonte, scenarioId]);
+  }, [val.crescita, val.margine, val.investimento, val.orizzonte, scenarioId, touched]);
+
+  const handleReset = () => {
+    setVal(DEFAULTS);
+    setTouched(false);
+    onReset?.();
+  };
 
   return (
     <Card className={`rounded-2xl ${disabled ? "opacity-50 pointer-events-none select-none" : ""}`}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Assunzioni piano</CardTitle>
-        {disabled && (
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base">Assunzioni piano</CardTitle>
+          {touched && !disabled && (
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleReset}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Torna allo scenario
+            </Button>
+          )}
+        </div>
+        {disabled ? (
           <p className="text-xs text-muted-foreground">
             Disponibile dopo aver creato uno scenario di base.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Muovi uno slider per simulare un'ipotesi diversa dallo scenario selezionato.
           </p>
         )}
       </CardHeader>
@@ -77,7 +106,7 @@ export function AssumptionEditor({ scenarioId, onResult, disabled = false }: Ass
           <Slider
             min={0} max={30} step={1}
             value={[val.crescita]}
-            onValueChange={([v]) => setVal((s) => ({ ...s, crescita: v }))}
+            onValueChange={([v]) => bump({ crescita: v })}
             disabled={disabled}
           />
         </div>
@@ -90,7 +119,7 @@ export function AssumptionEditor({ scenarioId, onResult, disabled = false }: Ass
           <Slider
             min={5} max={30} step={1}
             value={[val.margine]}
-            onValueChange={([v]) => setVal((s) => ({ ...s, margine: v }))}
+            onValueChange={([v]) => bump({ margine: v })}
             disabled={disabled}
           />
         </div>
@@ -105,7 +134,7 @@ export function AssumptionEditor({ scenarioId, onResult, disabled = false }: Ass
           <Slider
             min={0} max={1_000_000} step={25_000}
             value={[val.investimento]}
-            onValueChange={([v]) => setVal((s) => ({ ...s, investimento: v }))}
+            onValueChange={([v]) => bump({ investimento: v })}
             disabled={disabled}
           />
         </div>
@@ -115,7 +144,7 @@ export function AssumptionEditor({ scenarioId, onResult, disabled = false }: Ass
           <ToggleGroup
             type="single"
             value={String(val.orizzonte)}
-            onValueChange={(v) => v && setVal((s) => ({ ...s, orizzonte: Number(v) }))}
+            onValueChange={(v) => v && bump({ orizzonte: Number(v) })}
             className="justify-start"
             disabled={disabled}
           >
