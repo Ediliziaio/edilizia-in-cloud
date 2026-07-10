@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 const MENU_ITEMS = [
   { to: "/partner", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -171,6 +172,8 @@ export function PartnerLayout() {
       <div className="flex min-h-screen w-full">
         <PartnerSidebar />
         <main className="flex-1 overflow-auto">
+          {/* Ritorno a admin dopo "Accedi come utente" su un partner. */}
+          <QuickLoginReturnBanner />
           <div className="flex h-14 items-center border-b px-4 lg:hidden">
             <SidebarTrigger />
           </div>

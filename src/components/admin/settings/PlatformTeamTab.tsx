@@ -160,7 +160,11 @@ export default function PlatformTeamTab() {
           msg.includes("unknown action") ||
           msg.includes("invalid action") ||
           msg.includes("not implemented") ||
-          msg.includes("action not supported");
+          msg.includes("action not supported") ||
+          // La edge nuova risponde in italiano ("Azione non valida") quando
+          // l'action non esiste: senza questa stringa il fallback alla legacy
+          // (che HA reset-password) non scattava e il reset falliva sempre.
+          msg.includes("azione non valida");
         if (!isUnknownAction) throw err;
         // Fallback legacy
         await invokeAdminFunction("manage-super-admins", {
