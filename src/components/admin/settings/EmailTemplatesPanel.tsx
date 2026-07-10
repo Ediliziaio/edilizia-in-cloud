@@ -1716,6 +1716,7 @@ export function EmailTemplatesPanel() {
                         props: getPreviewMockProps(selectedMeta),
                         to,
                         companyId: null,
+                        roleVariant: variantToDb(selectedVariant),
                       },
                     });
                     if (error) throw error;
