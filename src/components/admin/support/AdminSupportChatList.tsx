@@ -426,8 +426,9 @@ export function AdminSupportChatList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{conv.companyName}</p>
-                    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${statusColors[conv.status]}`}>
-                      {statusLabels[conv.status]}
+                    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${statusColors[conv.status] ?? ""}`}>
+                      {/* fallback: uno stato fuori mappa renderizzava un badge vuoto */}
+                      {statusLabels[conv.status] ?? conv.status}
                     </Badge>
                     {conv.priority === "urgent" && (
                       <Badge variant="destructive" className="text-xs px-1.5 py-0 gap-0.5">

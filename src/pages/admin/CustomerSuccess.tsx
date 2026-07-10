@@ -70,19 +70,38 @@ interface StepCompletionCount {
   completions: number;
 }
 
-/** Catalogo auto-check keys riconosciute dal sistema — curato, non free text */
+/**
+ * Catalogo auto-check keys — allineato 1:1 al motore useOnboardingAutoComplete.
+ * BUGFIX: prima elencava chiavi che il motore NON riconosceva (has_customers,
+ * has_orders, …) → ogni step "auto" configurato dall'admin restava manuale per
+ * sempre, mentre l'anteprima prometteva l'automatismo. Ora ogni chiave qui
+ * sotto ha un check reale nel motore; le vecchie chiavi restano valide come
+ * alias (LEGACY_KEY_ALIASES) per gli step già salvati.
+ */
 const AUTO_CHECK_KEYS = [
-  { value: "has_customers", label: "Ha almeno un cliente", hint: "profiles.company_id.count > 0" },
-  { value: "has_orders", label: "Ha almeno un ordine", hint: "orders.company_id.count > 0" },
-  { value: "has_staff", label: "Ha almeno un dipendente", hint: "user_roles.company_staff.count > 0" },
+  { value: "has_company_profile", label: "Profilo azienda completo", hint: "companies.vat_number + name valorizzati" },
+  { value: "has_first_customer", label: "Ha almeno un cliente", hint: "customers.count > 0" },
+  { value: "has_first_order", label: "Ha creato la prima commessa", hint: "orders.count > 0" },
+  { value: "has_team_member", label: "Ha invitato il team", hint: "profiles.count > 1" },
+  { value: "has_first_quote", label: "Ha creato un preventivo", hint: "quotes.count > 0" },
+  { value: "has_billing_config", label: "Ha configurato la fatturazione", hint: "companies.billing_mode_set_at valorizzato" },
   { value: "has_logo", label: "Ha caricato il logo", hint: "companies.logo_url IS NOT NULL" },
-  { value: "has_subscription", label: "Ha piano attivo", hint: "status = 'active'" },
-  { value: "has_payment_method", label: "Ha metodo di pagamento", hint: "stripe_customer_id IS NOT NULL" },
-  { value: "has_invoice", label: "Ha emesso prima fattura", hint: "invoices.company_id.count > 0" },
-  { value: "has_quote", label: "Ha creato un preventivo", hint: "quotes.company_id.count > 0" },
-  { value: "has_supplier", label: "Ha almeno un fornitore", hint: "suppliers.company_id.count > 0" },
-  { value: "has_appointment", label: "Ha creato un appuntamento", hint: "appointments.company_id.count > 0" },
+  { value: "has_subscription", label: "Ha piano attivo", hint: "companies.status = 'active'" },
+  { value: "has_payment_method", label: "Ha metodo di pagamento", hint: "companies.stripe_customer_id IS NOT NULL" },
+  { value: "has_invoice", label: "Ha emesso la prima fattura", hint: "invoices.count > 0" },
+  { value: "has_supplier", label: "Ha almeno un fornitore", hint: "suppliers.count > 0" },
+  { value: "has_appointment", label: "Ha creato un appuntamento", hint: "appointments.count > 0" },
 ] as const;
+
+// Alias legacy → chiave canonica (step salvati prima dell'allineamento col motore)
+const LEGACY_KEY_ALIASES: Record<string, string> = {
+  has_customers: "has_first_customer",
+  has_orders: "has_first_order",
+  has_staff: "has_team_member",
+  has_quote: "has_first_quote",
+};
+const canonicalAutoKey = (k: string | null | undefined): string | null =>
+  k ? (LEGACY_KEY_ALIASES[k] ?? k) : null;
 
 // ============================================================================
 // Page
@@ -144,7 +163,11 @@ export default function AdminOnboardingConfig() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_onboarding" as never)
-        .select("template_id, status");
+        .select("template_id, status")
+        // il cap default PostgREST è 1000: oltre le 1000 aziende i KPI
+        // "aziende in onboarding"/completion rate venivano calcolati su un
+        // campione troncato senza alcun avviso.
+        .limit(10000);
       if (error) throw error;
       const byTpl = new Map<string, { assigned: number; completed: number }>();
       for (const r of (data ?? []) as Array<{ template_id: string; status: string }>) {
@@ -167,7 +190,8 @@ export default function AdminOnboardingConfig() {
       const { data, error } = await supabase
         .from("company_onboarding_completions" as never)
         .select("step_id")
-        .in("step_id" as never, stepIds as never);
+        .in("step_id" as never, stepIds as never)
+        .limit(50000); // cap default 1000 → barre di completamento sottostimate
       if (error) throw error;
       const counts = new Map<string, number>();
       for (const r of (data ?? []) as Array<{ step_id: string }>) {
@@ -289,6 +313,9 @@ export default function AdminOnboardingConfig() {
     },
     onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
+      // anche le stats (assegnati/completati): prima restavano stantie dopo
+      // create/update/delete/set-default del template
+      queryClient.invalidateQueries({ queryKey: ["admin-onboarding-template-stats"] });
       setShowNewTemplate(false);
       setDuplicateSource(null);
       setSelectedTemplateId(newId);
@@ -307,6 +334,9 @@ export default function AdminOnboardingConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
+      // anche le stats (assegnati/completati): prima restavano stantie dopo
+      // create/update/delete/set-default del template
+      queryClient.invalidateQueries({ queryKey: ["admin-onboarding-template-stats"] });
       setEditTemplate(null);
       toast.success("Template aggiornato");
     },
@@ -323,6 +353,9 @@ export default function AdminOnboardingConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
+      // anche le stats (assegnati/completati): prima restavano stantie dopo
+      // create/update/delete/set-default del template
+      queryClient.invalidateQueries({ queryKey: ["admin-onboarding-template-stats"] });
       if (selectedTemplateId === deleteTemplateTarget?.id) setSelectedTemplateId(null);
       setDeleteTemplateTarget(null);
       toast.success("Template eliminato");
@@ -346,6 +379,9 @@ export default function AdminOnboardingConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
+      // anche le stats (assegnati/completati): prima restavano stantie dopo
+      // create/update/delete/set-default del template
+      queryClient.invalidateQueries({ queryKey: ["admin-onboarding-template-stats"] });
       toast.success("Template predefinito aggiornato");
     },
     onError: (err: Error) => toast.error(err.message || "Errore"),
@@ -993,7 +1029,7 @@ function SortableStepRow({
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   const completionPct = maxCompletions > 0 ? (completions / maxCompletions) * 100 : 0;
-  const autoKeyMeta = AUTO_CHECK_KEYS.find(k => k.value === step.auto_check_key);
+  const autoKeyMeta = AUTO_CHECK_KEYS.find(k => k.value === canonicalAutoKey(step.auto_check_key));
 
   return (
     <div
@@ -1444,14 +1480,17 @@ function EditStepDialog({
   const [title, setTitle] = useState(step.title);
   const [desc, setDesc] = useState(step.description ?? "");
   const [required, setRequired] = useState(step.is_required);
-  const [autoKey, setAutoKey] = useState<string>(step.auto_check_key ?? "__none__");
+  // normalizza gli alias legacy: prima uno step col template seeded
+  // (has_company_profile) o con chiave legacy mostrava il Select vuoto e il
+  // salvataggio sostituiva la chiave funzionante con una a caso del catalogo.
+  const [autoKey, setAutoKey] = useState<string>(canonicalAutoKey(step.auto_check_key) ?? "__none__");
 
   useEffect(() => {
     if (open) {
       setTitle(step.title);
       setDesc(step.description ?? "");
       setRequired(step.is_required);
-      setAutoKey(step.auto_check_key ?? "__none__");
+      setAutoKey(canonicalAutoKey(step.auto_check_key) ?? "__none__");
     }
   }, [open, step]);
 
@@ -1575,7 +1614,7 @@ function PreviewDialog({
                     {s.auto_check_key && (
                       <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-1 flex items-center gap-1">
                         <Activity className="h-3 w-3" />
-                        Si completa automaticamente: {AUTO_CHECK_KEYS.find(k => k.value === s.auto_check_key)?.label ?? s.auto_check_key}
+                        Si completa automaticamente: {AUTO_CHECK_KEYS.find(k => k.value === canonicalAutoKey(s.auto_check_key))?.label ?? s.auto_check_key}
                       </p>
                     )}
                   </div>

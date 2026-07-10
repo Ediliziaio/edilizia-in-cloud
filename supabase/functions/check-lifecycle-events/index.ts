@@ -53,7 +53,10 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    // Data ITALIANA, non UTC: toISOString() dopo le 22/23 (ora legale) è già
+    // "domani" → notification_date sbagliata e dedup upsert che salta/duplica
+    // a cavallo di mezzanotte (convenzione repo: mai toISOString per le date).
+    const today = now.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
     // Fetch all trial companies with their trial end dates
     const { data: trialCompanies, error: trialErr } = await supabase

@@ -306,3 +306,34 @@ export function useTogglePlaybook() {
     },
   });
 }
+
+// ─── Esecuzione manuale ───────────────────────────────────
+
+/**
+ * Trigger manuale della edge function execute-playbooks (super_admin).
+ * Senza questo (e senza un cron schedulato) i playbook configurati non
+ * venivano MAI eseguiti: la coda esecuzioni restava vuota per sempre.
+ */
+export function useRunPlaybooksNow() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<{ executed: number; errors?: string[]; message?: string }> => {
+      const { data, error } = await supabase.functions.invoke("execute-playbooks", { body: {} });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return data as { executed: number; errors?: string[]; message?: string };
+    },
+    onSuccess: (data) => {
+      toast.success(`Esecuzione completata: ${data.executed} playbook scattati`, {
+        description: data.errors?.length
+          ? `${data.errors.length} errori — dettagli nel tab Esecuzioni`
+          : data.message || "Vedi il tab Esecuzioni per il log azioni",
+      });
+      void qc.invalidateQueries({ queryKey: EXECUTIONS_KEY });
+    },
+    onError: (err: Error) => {
+      toast.error("Esecuzione playbook fallita: " + err.message);
+    },
+  });
+}

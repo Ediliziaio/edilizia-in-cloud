@@ -60,16 +60,35 @@ async function verifyCronOrAuth(req: Request): Promise<void> {
       headers: secureHeaders,
     });
   }
+  // SECURITY FIX 2: un JWT valido non basta — QUALSIASI utente tenant poteva
+  // triggerare i playbook (invii massivi). Solo super_admin.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceKey) {
+    throw new Response(JSON.stringify({ error: "Server misconfigured" }), { status: 503, headers: secureHeaders });
+  }
+  const admin = createClient(sbUrl, serviceKey);
+  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+  const isSuperAdmin = (roles || []).some((r: { role: string }) => r.role === "super_admin");
+  if (!isSuperAdmin) {
+    throw new Response(JSON.stringify({ error: "Forbidden: super_admin only" }), {
+      status: 403,
+      headers: secureHeaders,
+    });
+  }
 }
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
 interface PlaybookAction {
+  // NB: la UI (usePlaybooks) usa anche "notify_superadmin" e "update_flag":
+  // prima finivano nel default "azione sconosciuta" e venivano ignorate.
   type:
     | "send_email"
     | "add_tag"
     | "send_message"
+    | "notify_superadmin"
     | "change_flag"
+    | "update_flag"
     | "wait";
   template_id?: string;
   tag?: string;
@@ -93,9 +112,26 @@ interface Company {
   status: string;
   trial_ends_at: string | null;
   consecutive_payment_failures: number | null;
+  dunning_status: string | null;
   subscription_plan_id: string | null;
   created_at: string;
 }
+
+// Placeholder supportati nei template/messaggi. La UI documentava {{name}},
+// {{plan}} e {{days}} ma l'executor sostituiva solo {{company_name}} (e solo
+// la PRIMA occorrenza): arrivavano messaggi con {{name}} letterale.
+function renderTemplate(text: string, company: Company, planName: string | null, now: Date): string {
+  const daysLeft = company.trial_ends_at
+    ? String(Math.max(0, Math.ceil((new Date(company.trial_ends_at).getTime() - now.getTime()) / 86400000)))
+    : "";
+  return text
+    .replaceAll("{{company_name}}", company.name)
+    .replaceAll("{{name}}", company.name)
+    .replaceAll("{{plan}}", planName ?? "")
+    .replaceAll("{{days}}", daysLeft);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── Valuta se un'azienda soddisfa il trigger ─────────────────────────────────
 
@@ -122,32 +158,36 @@ function companyMatchesTrigger(
         return daysLeft >= 6 && daysLeft <= 7;
       }
 
-    case "trial_expired":
+    case "trial_expired": {
       if (company.status !== "trial" || !company.trial_ends_at) return false;
-      return new Date(company.trial_ends_at) < now;
+      // solo scaduti negli ultimi 7 giorni: senza il limite ogni trial scaduto
+      // da mesi rimatchava a ogni run.
+      const expiredMs = now.getTime() - new Date(company.trial_ends_at).getTime();
+      return expiredMs > 0 && expiredMs <= 7 * 86400000;
+    }
 
     case "payment_failed":
       return (company.consecutive_payment_failures ?? 0) >= 3;
 
     case "payment_recovered":
-      // consecutive_payment_failures resettato a 0 dopo recupero:
-      // difficile da rilevare con cron puro — usiamo il caso base
-      return (company.consecutive_payment_failures ?? 0) === 0 &&
-        company.status === "active";
+      // BUGFIX: prima matchava OGNI azienda attiva senza fallimenti (cioè
+      // tutte quelle sane) → "grazie per il pagamento recuperato" a chi non ha
+      // mai fallito. Ora richiede il segnale reale del dunning.
+      return company.dunning_status === "recovered" && company.status === "active";
 
     case "account_suspended":
       return company.status === "suspended";
 
     case "churned":
-      return company.status === "churned";
+      // companies.status non vale mai "churned" (il dunning setta "suspended"
+      // e il churn vive su dunning_status): controlla entrambi.
+      return company.status === "churned" || company.dunning_status === "churned";
 
     case "reactivated":
-      // Status active + creato da più di 7 giorni (evita nuove iscrizioni)
-      if (company.status !== "active") return false;
-      return (
-        now.getTime() - new Date(company.created_at).getTime() >
-        7 * 86400000
-      );
+      // BUGFIX: prima bastava "active da più di 7 giorni" → matchava TUTTI i
+      // clienti attivi. Riattivato = attivo con recupero dunning alle spalle.
+      return company.status === "active" && company.dunning_status === "recovered" &&
+        now.getTime() - new Date(company.created_at).getTime() > 7 * 86400000;
 
     default:
       return false;
@@ -156,11 +196,19 @@ function companyMatchesTrigger(
 
 // ─── Esegue una singola azione ────────────────────────────────────────────────
 
+interface ExecContext {
+  planName: string | null;
+  now: Date;
+  superAdminIds: string[];
+  playbookName: string;
+}
+
 async function executeAction(
   supabase: ReturnType<typeof createClient>,
   action: PlaybookAction,
   company: Company,
   log: string[],
+  ctx: ExecContext,
 ): Promise<void> {
   switch (action.type) {
     case "send_email": {
@@ -168,15 +216,16 @@ async function executeAction(
         log.push(`send_email: template_id mancante`);
         return;
       }
-      // Carica template
-      const { data: tpl } = await supabase
-        .from("dunning_email_templates")
-        .select("subject, body_text")
-        .eq("id", action.template_id)
-        .single();
+      // BUGFIX: la UI/libreria passa slug testuali ("welcome_trial") ma la
+      // lookup era solo per id uuid → template mai trovato. Ora: uuid → id,
+      // altrimenti step_name (lo "slug" reale di dunning_email_templates).
+      const tplQ = supabase.from("dunning_email_templates").select("subject, body_text");
+      const { data: tpl } = UUID_RE.test(action.template_id)
+        ? await tplQ.eq("id", action.template_id).maybeSingle()
+        : await tplQ.eq("step_name", action.template_id).maybeSingle();
 
       if (!tpl) {
-        log.push(`send_email: template ${action.template_id} non trovato`);
+        log.push(`send_email: template "${action.template_id}" non trovato (né per id né per step_name)`);
         return;
       }
 
@@ -184,8 +233,8 @@ async function executeAction(
       const { error } = await supabase.from("superadmin_comunicazioni").insert({
         company_id: company.id,
         tipo: "email_automatica",
-        oggetto: tpl.subject.replace("{{company_name}}", company.name),
-        messaggio: tpl.body_text.replace("{{company_name}}", company.name),
+        oggetto: renderTemplate(tpl.subject, company, ctx.planName, ctx.now),
+        messaggio: renderTemplate(tpl.body_text, company, ctx.planName, ctx.now),
         inviata_da: null,
       });
 
@@ -224,7 +273,7 @@ async function executeAction(
         company_id: company.id,
         tipo: "messaggio_automatico",
         oggetto: "Messaggio automatico",
-        messaggio: action.message.replace("{{company_name}}", company.name),
+        messaggio: renderTemplate(action.message, company, ctx.planName, ctx.now),
         inviata_da: null,
       });
       log.push(
@@ -235,9 +284,36 @@ async function executeAction(
       break;
     }
 
-    case "change_flag": {
+    case "notify_superadmin": {
+      // Prima finiva in "azione sconosciuta": ora crea una notifica in-app
+      // per ogni super_admin (campanella), con link all'azienda.
+      const body = renderTemplate(action.message || `Playbook "${ctx.playbookName}" scattato per {{company_name}}`, company, ctx.planName, ctx.now);
+      if (ctx.superAdminIds.length === 0) {
+        log.push(`notify_superadmin: nessun super_admin trovato`);
+        return;
+      }
+      const rows = ctx.superAdminIds.map((uid) => ({
+        user_id: uid,
+        company_id: company.id,
+        type: "playbook_alert",
+        title: `Playbook: ${ctx.playbookName}`,
+        body,
+        action_url: `/admin/aziende/${company.id}`,
+      }));
+      const { error } = await supabase.from("notifications").insert(rows);
+      log.push(
+        error
+          ? `notify_superadmin: errore: ${error.message}`
+          : `notify_superadmin: notificati ${rows.length} super_admin`,
+      );
+      break;
+    }
+
+    case "change_flag":
+    case "update_flag": {
+      // "update_flag" è il nome usato dalla UI: prima veniva ignorato.
       if (!action.flag) {
-        log.push(`change_flag: flag mancante`);
+        log.push(`${action.type}: flag mancante`);
         return;
       }
       const { error } = await supabase
@@ -246,8 +322,8 @@ async function executeAction(
         .eq("id", company.id);
       log.push(
         error
-          ? `change_flag: errore: ${error.message}`
-          : `change_flag: ${action.flag}=${action.value} impostato`,
+          ? `${action.type}: errore: ${error.message}`
+          : `${action.type}: ${action.flag}=${action.value} impostato`,
       );
       break;
     }
@@ -296,20 +372,31 @@ Deno.serve(async (req) => {
     const { data: companies, error: compErr } = await supabase
       .from("companies")
       .select(
-        "id, name, status, trial_ends_at, consecutive_payment_failures, subscription_plan_id, created_at",
+        "id, name, status, trial_ends_at, consecutive_payment_failures, dunning_status, subscription_plan_id, created_at",
       )
       .in("status", ["active", "trial", "suspended", "churned"])
-      .eq("is_platform_admin_company", false);
+      .eq("is_platform_admin_company", false)
+      .limit(10000);
 
     if (compErr) throw compErr;
 
-    // 3. Carica esecuzioni recenti per dedup (ultime 24h)
-    const since24h = new Date(now.getTime() - 24 * 3600000).toISOString();
+    // Nomi piani per i placeholder {{plan}}
+    const { data: plans } = await supabase.from("subscription_plans").select("id, name");
+    const planNameById = new Map((plans || []).map((p: any) => [p.id, p.name as string]));
+
+    // Super admin per l'azione notify_superadmin
+    const { data: saRoles } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin");
+    const superAdminIds = [...new Set((saRoles || []).map((r: any) => r.user_id as string))];
+
+    // 3. Dedup ALL-TIME per (playbook, company): i trigger sono transizioni
+    // one-shot (welcome, winback, recovered…) — col vecchio dedup a sole 24h
+    // la stessa azienda rimatchava a ogni run e riceveva la stessa email OGNI
+    // GIORNO finché la condizione restava vera.
     const { data: recentExecs } = await supabase
       .from("playbook_executions")
       .select("playbook_id, company_id")
-      .gte("started_at", since24h)
-      .in("status", ["completed", "running", "pending"]);
+      .in("status", ["completed", "running", "pending"])
+      .limit(100000);
 
     const dedupSet = new Set(
       (recentExecs || []).map((e: any) => `${e.playbook_id}:${e.company_id}`),
@@ -361,8 +448,14 @@ Deno.serve(async (req) => {
 
         try {
           const actions = Array.isArray(playbook.actions) ? playbook.actions : [];
+          const ctx: ExecContext = {
+            planName: company.subscription_plan_id ? (planNameById.get(company.subscription_plan_id) ?? null) : null,
+            now,
+            superAdminIds,
+            playbookName: playbook.name,
+          };
           for (const action of actions) {
-            await executeAction(supabase, action, company, actionsLog);
+            await executeAction(supabase, action, company, actionsLog, ctx);
           }
         } catch (err) {
           execStatus = "failed";

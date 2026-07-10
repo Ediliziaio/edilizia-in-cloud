@@ -26,6 +26,7 @@ import {
   useUpdatePlaybook,
   useDeletePlaybook,
   useTogglePlaybook,
+  useRunPlaybooksNow,
 } from "@/hooks/superadmin/usePlaybooks";
 import type {
   Playbook,
@@ -42,8 +43,10 @@ const TRIGGER_EVENTI: Array<{ value: Playbook["trigger_event"]; label: string }>
   { value: "trial_expired", label: "Trial scaduto" },
   { value: "payment_failed", label: "Pagamento fallito" },
   { value: "payment_recovered", label: "Pagamento recuperato" },
-  { value: "plan_upgraded", label: "Piano upgradato" },
-  { value: "plan_downgraded", label: "Piano downgradato" },
+  // NB: upgrade/downgrade non sono ancora valutati dall'executor cron-based
+  // (serve un evento webhook Stripe): etichettati come "in arrivo".
+  { value: "plan_upgraded", label: "Piano upgradato (in arrivo)" },
+  { value: "plan_downgraded", label: "Piano downgradato (in arrivo)" },
   { value: "account_suspended", label: "Account sospeso" },
   { value: "churned", label: "Churnato" },
   { value: "reactivated", label: "Riattivato" },
@@ -146,7 +149,7 @@ function ActionCard({
           </div>
 
           <div className="w-28">
-            <Label className="text-xs text-muted-foreground">Ritardo (min)</Label>
+            <Label className="text-xs text-muted-foreground" title="NB: l'esecuzione attuale è sincrona — il ritardo per-azione non è ancora applicato (serve una task queue)">Ritardo (min) ⓘ</Label>
             <Input
               type="number"
               min={0}
@@ -169,13 +172,16 @@ function ActionCard({
 
         {azione.type === "send_email" && (
           <div>
-            <Label className="text-xs text-muted-foreground">ID Template email *</Label>
+            <Label className="text-xs text-muted-foreground">Template email (step_name o id) *</Label>
             <Input
               className="h-8 text-sm"
               placeholder="es. welcome_trial"
               value={azione.template_id ?? ""}
               onChange={(e) => onUpdate(indice, { template_id: e.target.value })}
             />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Deve corrispondere a <code>step_name</code> (o id) di un template in <em>dunning_email_templates</em>, altrimenti l'invio viene saltato con log "template non trovato".
+            </p>
           </div>
         )}
 
@@ -861,6 +867,7 @@ export default function PlaybooksPage() {
   const { data: executions = [] } = usePlaybookExecutions({ limit: 200 });
   const { mutate: elimina, isPending: eliminando } = useDeletePlaybook();
   const { mutate: toggle } = useTogglePlaybook();
+  const { mutate: runNow, isPending: runningNow } = useRunPlaybooksNow();
 
   // Filtro + search playbooks
   const filteredPlaybooks = useMemo(() => {
@@ -894,11 +901,23 @@ export default function PlaybooksPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="hidden md:block">
-        <h1 className="text-2xl font-bold">Playbook Automatici</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Configura sequenze di azioni automatiche scatenate da eventi del lifecycle
-        </p>
+      <div className="hidden md:flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Playbook Automatici</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Configura sequenze di azioni automatiche scatenate da eventi del lifecycle
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          className="gap-2 shrink-0"
+          disabled={runningNow || playbooks.every((p) => !p.is_active)}
+          onClick={() => runNow()}
+          title="Valuta subito i trigger di tutti i playbook attivi ed esegue le azioni (ogni playbook scatta al massimo 1 volta per azienda)"
+        >
+          {runningNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          Esegui ora
+        </Button>
       </div>
 
       {/* KPI stats */}
