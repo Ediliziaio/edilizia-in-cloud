@@ -133,6 +133,10 @@ export function useMarginalitaCommesse(
       // KPI attesi ricalcolati sulla scala corretta (la RPC li aveva gonfiati).
       result.kpi.margine_atteso_totale = righe.reduce((s, r) => s + (r.margine_atteso ?? 0), 0);
       result.kpi.n_in_perdita = righe.filter((r) => (r.margine_atteso ?? 0) < 0).length;
+      // Stessa svista di scala su in corso/completate: con pct 0–100 la RPC vedeva
+      // "completata" qualsiasi commessa ≥1% (mostrava 0 in corso · 22 completate).
+      result.kpi.n_in_corso = righe.filter((r) => r.pct_avanzamento > 0 && r.pct_avanzamento < 1).length;
+      result.kpi.n_completate = righe.filter((r) => r.pct_avanzamento >= 1).length;
       return result;
     },
     staleTime: 60_000,
