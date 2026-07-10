@@ -25,7 +25,6 @@ import { Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -89,12 +88,32 @@ function ratingTone(score?: number): { bg: string; text: string } {
 }
 
 export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
-  const baseQuery = usePianoIndustriale("base", 5);
   const scenariQuery = useScenari();
   const [whatIf, setWhatIf] = useState<PianoResult | null>(null);
   const [scenarioAttivo, setScenarioAttivo] = useState<PianoScenario>("base");
   const [bootstrapping, setBootstrapping] = useState(false);
   const qc = useQueryClient();
+
+  // Risoluzione scenario → riga di assunzioni da passare alla RPC.
+  // Il toggle Prudente/Base/Aggressivo è la sorgente primaria (per nome);
+  // il selettore Scenario della FilterBar viene onorato quando punta a uno
+  // scenario CUSTOM (nome fuori dai 3 base), che il toggle non può mostrare.
+  const scenari = scenariQuery.data ?? [];
+  const rowFromFilter = scenarioId ? scenari.find((s) => s.id === scenarioId) ?? null : null;
+  const isCustomFilter =
+    !!rowFromFilter && !(SCENARI_BASE as string[]).includes(rowFromFilter.scenario);
+  const assumptionFromToggle =
+    scenari.find((s) => s.scenario === scenarioAttivo)?.id ?? null;
+  const activeAssumptionId = isCustomFilter ? scenarioId : assumptionFromToggle;
+
+  const baseQuery = usePianoIndustriale(activeAssumptionId);
+
+  // Cambiare scenario azzera il what-if: le assunzioni personalizzate
+  // appartengono allo scenario su cui sono state costruite.
+  const handleChangeScenario = (s: PianoScenario) => {
+    setScenarioAttivo(s);
+    setWhatIf(null);
+  };
 
   const piano = whatIf ?? baseQuery.data ?? null;
   const noScenario = baseQuery.isError && isNoScenarioError(baseQuery.error);
@@ -112,7 +131,8 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
       } else {
         toast.success(`Creati ${data?.scenari_creati ?? 3} scenari di base`);
       }
-      await qc.invalidateQueries({ queryKey: queryKeys.controlloGestione.piano("base", 5) });
+      // Prefisso ["cg","piano"]: invalida la proiezione di TUTTI gli scenari.
+      await qc.invalidateQueries({ queryKey: ["cg", "piano"] });
       await baseQuery.refetch();
     } catch (e) {
       toast.error(`Errore creazione scenari: ${(e as Error).message ?? "sconosciuto"}`);
@@ -184,7 +204,7 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
         piano={piano}
         scenarioAttivo={scenarioAttivo}
         scenariDisponibili={scenariDisponibili}
-        onChangeScenario={setScenarioAttivo}
+        onChangeScenario={handleChangeScenario}
       />
       <CETablePrev periodi={piano.periodi} />
       <SPTablePrev periodi={piano.periodi} />
@@ -208,8 +228,9 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
               <AccordionContent>
                 <div className="pt-2">
                   <AssumptionEditor
-                    scenarioId={scenarioId}
+                    scenarioId={activeAssumptionId}
                     onResult={setWhatIf}
+                    onReset={() => setWhatIf(null)}
                     disabled={bootstrapping}
                   />
                 </div>

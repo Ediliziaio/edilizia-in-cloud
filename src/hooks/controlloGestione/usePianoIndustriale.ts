@@ -41,11 +41,20 @@ export interface PianoResult {
   periodi: PianoPeriodo[];
 }
 
-export function usePianoIndustriale(scenario: PianoScenario = "base", orizzonte = 5) {
+/**
+ * Proiezione del piano per una riga di assunzioni (scenario).
+ * `assumptionId` null = scenario predefinito lato DB (is_default).
+ * PRIMA la RPC veniva chiamata SENZA argomenti: il toggle
+ * Prudente/Base/Aggressivo cambiava solo il titolo mentre i numeri
+ * restavano sempre quelli dello scenario default.
+ */
+export function usePianoIndustriale(assumptionId: string | null = null) {
   return useQuery({
-    queryKey: queryKeys.controlloGestione.piano(scenario, orizzonte),
+    queryKey: queryKeys.controlloGestione.piano(assumptionId),
     queryFn: async (): Promise<PianoResult> => {
-            const { data, error } = await cgRpc("cg_simula_piano_safe", {});
+      const { data, error } = await cgRpc("cg_simula_piano_safe", {
+        p_assumption_id: assumptionId ?? null,
+      });
       if (error) throw error;
       return data as unknown as PianoResult;
     },
