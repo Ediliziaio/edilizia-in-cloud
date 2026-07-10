@@ -69,7 +69,9 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_rapportini")
-        .select("*, autore:profiles(first_name, last_name)")
+        // NB: FK esplicita — campo_rapportini ha DUE relazioni verso profiles
+        // (user_id e approvato_da): senza disambiguare PostgREST rifiuta l'embed.
+        .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
         .eq("order_id", orderId)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;
