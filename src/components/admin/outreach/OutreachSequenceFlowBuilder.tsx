@@ -243,6 +243,23 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
     setSelectedId(null);
   }, [setRfNodes, setRfEdges]);
 
+  // Duplica il nodo selezionato: stessa data (deep-copy), nuovo id, posizionato
+  // accanto; NON copia gli archi (i collegamenti si decidono a mano). Utile per
+  // varianti dello stesso messaggio su rami diversi.
+  const duplicateNode = useCallback((nodeId: string) => {
+    const src = rfNodes.find((n) => n.id === nodeId);
+    if (!src) return;
+    const id = crypto.randomUUID();
+    const copy: Node<FlowNodeData> = {
+      id,
+      type: src.type,
+      position: { x: src.position.x + 60, y: src.position.y + 60 },
+      data: JSON.parse(JSON.stringify(src.data ?? {})),
+    };
+    setRfNodes((nds) => [...nds, copy]);
+    setSelectedId(id);
+  }, [rfNodes, setRfNodes]);
+
   const updateNodeData = useCallback((nodeId: string, patch: Partial<FlowNodeData>) => {
     setRfNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n)));
   }, [setRfNodes]);
@@ -552,6 +569,7 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
             trackOpens={trackOpens}
             onChange={(patch) => updateNodeData(selectedNode.id, patch)}
             onDelete={() => deleteNode(selectedNode.id)}
+            onDuplicate={() => duplicateNode(selectedNode.id)}
             onClose={() => setSelectedId(null)}
           />
         ) : null}
