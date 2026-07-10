@@ -71,8 +71,8 @@ function calcDeltaPct(curr: number, prev: number): number | null {
   return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
-function formatPctValue(v: number): string {
-  if (!Number.isFinite(v)) return "—";
+function formatPctValue(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
   return `${new Intl.NumberFormat("it-IT", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -562,28 +562,32 @@ function SPTablePrev({ periodi }: { periodi: PianoPeriodo[] }) {
 
 interface IndicePrev {
   label: string;
-  /** Calcolo dell'indice come % a partire dal periodo. */
-  calc: (p: PianoPeriodo) => number;
+  /** Calcolo dell'indice come % a partire dal periodo. `null` = non calcolabile. */
+  calc: (p: PianoPeriodo) => number | null;
 }
 
 const INDICI: IndicePrev[] = [
   {
     label: "ROE %",
-    calc: (p) => (p.mezzi_propri !== 0 ? (p.utile / p.mezzi_propri) * 100 : 0),
+    // Con mezzi propri ≤ 0 (deficit patrimoniale, frequente in edilizia) il ROE
+    // non è interpretabile: utile negativo / MP negativo dava un ROE POSITIVO
+    // fuorviante. Meglio "—" che un numero falso.
+    calc: (p) => (p.mezzi_propri > 0 ? (p.utile / p.mezzi_propri) * 100 : null),
   },
   {
     label: "ROS %",
-    calc: (p) => (p.ricavi !== 0 ? (p.utile / p.ricavi) * 100 : 0),
+    calc: (p) => (p.ricavi > 0 ? (p.utile / p.ricavi) * 100 : null),
   },
   {
     label: "Margine EBITDA %",
-    calc: (p) => (p.ricavi !== 0 ? (p.ebitda / p.ricavi) * 100 : 0),
+    calc: (p) => (p.ricavi > 0 ? (p.ebitda / p.ricavi) * 100 : null),
   },
   {
     label: "Indipendenza %",
     calc: (p) => {
       const den = p.mezzi_propri + p.debito_mlt;
-      return den !== 0 ? (p.mezzi_propri / den) * 100 : 0;
+      // Indipendenza con MP negativi = non significativa.
+      return den > 0 && p.mezzi_propri >= 0 ? (p.mezzi_propri / den) * 100 : null;
     },
   },
 ];
@@ -630,7 +634,7 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
                       key={i}
                       className={cn(
                         "px-3 py-2 text-right tabular-nums",
-                        v < 0 && "text-destructive",
+                        v !== null && v < 0 && "text-destructive",
                       )}
                     >
                       {formatPctValue(v)}
