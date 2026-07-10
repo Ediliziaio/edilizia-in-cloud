@@ -780,10 +780,16 @@ function DnsRow({ type, host, value }: { type: string; host: string; value: stri
 }
 
 function Stat({ icon: Icon, label, value, hint, tone = "default" }: { icon: typeof Globe; label: string; value: number; hint?: string; tone?: "default" | "good" }) {
+  const chip = tone === "good"
+    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-300"
+    : "bg-muted text-muted-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-      <div className="flex items-center gap-1.5"><Icon className="h-3.5 w-3.5 text-muted-foreground" /><FieldLabel>{label}</FieldLabel></div>
-      <div className={`mt-1 text-2xl font-bold tabular-nums ${tone === "good" ? "text-emerald-600" : "text-foreground"}`}>{value.toLocaleString("it-IT")}</div>
+    <div className="rounded-xl border border-border bg-card p-3 shadow-sm transition-colors hover:border-primary/30">
+      <div className="flex items-center gap-2">
+        <span className={`flex h-6 w-6 items-center justify-center rounded-md ${chip}`}><Icon className="h-3.5 w-3.5" /></span>
+        <FieldLabel>{label}</FieldLabel>
+      </div>
+      <div className={`mt-1.5 text-2xl font-bold tabular-nums ${tone === "good" ? "text-emerald-600" : "text-foreground"}`}>{value.toLocaleString("it-IT")}</div>
       {hint && <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">{tone === "good" && <ChevronRight className="h-3 w-3" />}{hint}</div>}
     </div>
   );
