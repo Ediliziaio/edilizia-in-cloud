@@ -49,6 +49,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 type ChatMembership = {
   channel_id: string;
@@ -230,6 +231,10 @@ export default function CampoLayout() {
 
         {/* Main Area */}
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Ritorno a admin dopo "Accedi come utente" su un operaio/subappaltatore:
+              senza questo banner il super_admin restava bloccato in /campo senza
+              via d'uscita (nessun controllo di logout nell'area campo). */}
+          <QuickLoginReturnBanner />
           <OfflineBanner />
 
           {/* Preview banners */}

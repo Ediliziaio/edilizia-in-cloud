@@ -32,6 +32,7 @@ import {
   useAccountantNotifications,
 } from "@/hooks/accountant/useAccountantPortalData";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 interface SidebarItemDef {
   to: string;
@@ -207,6 +208,8 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
           </div>
         </header>
 
+        {/* Ritorno a admin dopo "Accedi come utente" su un commercialista. */}
+        <QuickLoginReturnBanner />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
             {children ?? <Outlet />}

@@ -256,7 +256,9 @@ export default function MultiCompanyUsersTab() {
           msg.includes("unknown action") ||
           msg.includes("invalid action") ||
           msg.includes("not implemented") ||
-          msg.includes("action not supported");
+          msg.includes("action not supported") ||
+          // Vedi PlatformTeamTab: la edge nuova dà "Azione non valida" (IT).
+          msg.includes("azione non valida");
         if (!isUnknownAction) throw err;
         await invokeAdminFunction("manage-super-admins", {
           action: "reset-password",
