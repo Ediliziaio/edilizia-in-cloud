@@ -60,6 +60,10 @@ export function useUpsertAliquote() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cg", "imposte"] });
+      // Le aliquote IRES/IRAP determinano utile post-imposte e DSCR mostrati
+      // negli Indici avanzati: senza questa, cambiando aliquota quei numeri
+      // restavano fermi fino allo staleTime.
+      qc.invalidateQueries({ queryKey: ["cg", "indici-avanzati"] });
     },
   });
 }
