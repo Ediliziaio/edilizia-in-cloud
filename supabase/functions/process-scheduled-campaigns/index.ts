@@ -33,6 +33,23 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // ── SWEEPER anti-stuck: una campagna può restare in 'sending' per sempre
+    // se send-email-campaign muore a metà (timeout edge runtime) — nessuno la
+    // ripescava e i destinatari rimanenti non ricevevano mai nulla. Requeue a
+    // 'scheduled' dopo 60 min: il claim CAS qui sotto la riprende e
+    // send-email-campaign salta i destinatari già consegnati (dedup su
+    // email_logs + idempotency_key in email_outbox).
+    const stuckBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: requeued } = await adminClient
+      .from("email_campaigns")
+      .update({ status: "scheduled" })
+      .eq("status", "sending")
+      .lt("updated_at", stuckBefore)
+      .select("id");
+    if (requeued?.length) {
+      console.warn(`[process-scheduled-campaigns] requeued ${requeued.length} stuck 'sending' campaigns:`, requeued.map((r: { id: string }) => r.id).join(","));
+    }
+
     // Find campaigns ready to send: scheduled_at is in the past, status is 'scheduled'
     const { data: campaigns, error: campError } = await adminClient
       .from("email_campaigns")

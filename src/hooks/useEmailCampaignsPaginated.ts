@@ -11,6 +11,8 @@ interface CampaignFilters {
   search: string;
   category: string;
   folderId: string | null;
+  /** filtro stato: "all" | draft | scheduled | sending | sent | failed */
+  status?: string;
 }
 
 export function useEmailCampaignsPaginated(
@@ -28,6 +30,7 @@ export function useEmailCampaignsPaginated(
       filters.folderId,
       page,
       perPage,
+      filters.status ?? "all",
     ),
     queryFn: async () => {
       let query = supabase
@@ -38,11 +41,16 @@ export function useEmailCampaignsPaginated(
         )
         .eq("company_id", companyId!);
 
-      // Folder filter
-      if (filters.folderId) {
-        query = query.eq("folder_id", filters.folderId);
-      } else {
-        query = query.is("folder_id", null);
+      const searching = !!filters.search.trim();
+
+      // Folder filter — SOLO quando non si sta cercando: la ricerca è globale
+      // (prima cercando dalla Home non si trovavano le campagne nelle cartelle).
+      if (!searching) {
+        if (filters.folderId) {
+          query = query.eq("folder_id", filters.folderId);
+        } else {
+          query = query.is("folder_id", null);
+        }
       }
 
       // Category filter
@@ -50,8 +58,15 @@ export function useEmailCampaignsPaginated(
         query = query.eq("type", filters.category);
       }
 
-      // Search (server-side)
-      if (filters.search.trim()) {
+      // Status filter (chips "Bozze/Pianificate/Inviate/…")
+      if (filters.status && filters.status !== "all") {
+        // "sent" raggruppa anche "completed" (stesso significato per l'utente)
+        if (filters.status === "sent") query = query.in("status", ["sent", "completed"]);
+        else query = query.eq("status", filters.status);
+      }
+
+      // Search (server-side, cross-cartelle)
+      if (searching) {
         query = query.ilike("name", `%${filters.search.trim()}%`);
       }
 
@@ -96,13 +111,14 @@ export function useEmailTemplatesPaginated(
         .select("*", { count: "exact" })
         .eq("company_id", companyId!);
 
-      if (filters.folderId) {
-        query = query.eq("folder_id", filters.folderId);
+      // ricerca globale cross-cartelle (come per le campagne)
+      if (!filters.search.trim()) {
+        if (filters.folderId) {
+          query = query.eq("folder_id", filters.folderId);
+        } else {
+          query = query.is("folder_id", null);
+        }
       } else {
-        query = query.is("folder_id", null);
-      }
-
-      if (filters.search.trim()) {
         query = query.ilike("name", `%${filters.search.trim()}%`);
       }
 

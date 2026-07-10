@@ -95,18 +95,32 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Marca come 'sending'
-  await (supabase
+  // Marca come 'sending' con CAS sullo stato: senza la guardia due invocazioni
+  // concorrenti (doppio click/retry) superavano entrambe il check qui sopra e
+  // TUTTI i contatti ricevevano l'email due volte.
+  const { data: locked, error: lockErr } = await supabase
     .from("crm_campaigns" as never)
     .update({ status: "sending" } as never)
-    .eq("id" as never, campaign_id) as unknown as Promise<void>);
+    .eq("id" as never, campaign_id)
+    .eq("status" as never, campaign.status as never)
+    .select("id")
+    .maybeSingle();
+  if (lockErr || !locked) {
+    return new Response(JSON.stringify({ error: "Campagna già presa in carico da un'altra invocazione" }), {
+      status: 409, headers: { ...corsH, "Content-Type": "application/json" },
+    });
+  }
 
-  // Costruisce query contatti
+  // Costruisce query contatti.
+  // GDPR: oltre a `unsubscribed`, escludi `optout_email` — il link "disiscriviti"
+  // delle campagne email setta optout_email=true (NON unsubscribed): prima chi
+  // si era disiscritto continuava a ricevere le campagne CRM.
   const filter = campaign.contact_filter;
   let contactQuery = supabase
     .from("marketing_contacts")
     .select("id, first_name, last_name, email, company_id")
     .eq("unsubscribed", false)
+    .or("optout_email.is.null,optout_email.eq.false")
     .not("email", "is", null);
 
   if (filter.contact_type) {
@@ -137,15 +151,17 @@ Deno.serve(async (req) => {
   }
 
   const rawRecipients = (contacts ?? []) as Array<{ id: string; first_name: string; last_name: string | null; email: string; company_id: string | null }>;
-  // Soppressioni GLOBALI (company_id IS NULL): hard bounce, reclami spam, opt-out
-  // a livello piattaforma. Coerente con send-email-campaign; protegge la
-  // reputazione del dominio mittente condiviso anche per le campagne cross-company.
-  const suppressed = await getSuppressedEmailMap(
-    supabase,
-    rawRecipients.map((c) => c.email),
-    null,
-    "marketing",
-  );
+  // Soppressioni: globali (company_id IS NULL) + PER-COMPANY dei destinatari.
+  // BUGFIX GDPR: prima si controllavano solo le globali, ma l'unsubscribe via
+  // link scrive la suppression CON company_id → chi si era disiscritto
+  // continuava a ricevere le campagne CRM.
+  const allEmails = rawRecipients.map((c) => c.email);
+  const suppressed = await getSuppressedEmailMap(supabase, allEmails, null, "marketing");
+  const recipientCompanyIds = [...new Set(rawRecipients.map((c) => c.company_id).filter(Boolean))] as string[];
+  for (const cid of recipientCompanyIds) {
+    const m = await getSuppressedEmailMap(supabase, allEmails, cid, "marketing");
+    for (const [k, v] of m) if (!suppressed.has(k)) suppressed.set(k, v);
+  }
   const recipients = rawRecipients.filter((c) => !suppressed.has(normalizeEmailAddress(c.email)));
   const total = recipients.length;
 

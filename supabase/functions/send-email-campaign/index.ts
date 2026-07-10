@@ -135,7 +135,13 @@ async function claimCampaignOutboxJob(
       .single();
     if (error) {
       console.error("[send-email-campaign] email_outbox insert error:", error);
-      return { id: null, shouldSend: true, attempts: nextAttempts, maxAttempts: 5 };
+      // 23505 = violazione UNIQUE su idempotency_key → un'invocazione
+      // concorrente ha già in carico questo destinatario: NON inviare (prima
+      // shouldSend=true vanificava l'idempotenza e produceva email doppie).
+      // Altri errori (transitori) restano shouldSend=true: meglio un raro
+      // duplicato che un'email persa.
+      const isDuplicate = (error as { code?: string }).code === "23505";
+      return { id: null, shouldSend: !isDuplicate, attempts: nextAttempts, maxAttempts: 5 };
     }
     return { id: data.id, shouldSend: true, attempts: data.attempts ?? nextAttempts, maxAttempts: data.max_attempts ?? 5 };
   }

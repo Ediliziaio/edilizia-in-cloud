@@ -292,7 +292,7 @@ export function EmailTemplatesTab() {
         </>
       )}
 
-      <TemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} template={editTemplate} />
+      <TemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} template={editTemplate} defaultFolderId={currentFolderId} />
       <CreateFolderDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
