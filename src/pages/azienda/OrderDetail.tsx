@@ -1798,10 +1798,15 @@ function OrderDetailInner() {
                   />
                 )}
               </div>
+              {/* Desktop largo (≥xl): timeline e rapportini affiancati per
+                  dimezzare lo scroll; sotto xl restano impilati. items-start:
+                  altezze indipendenti (nessuno stiramento). */}
               {effectiveCompany?.id && (
-                <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                  <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                  <OrdineRapportiniCampo orderId={id!} />
+                </div>
               )}
-              {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
             </div>
 
             {/* Documenti e fatturazione (spostati qui dal vecchio tab "Documenti e firma") */}
@@ -1811,6 +1816,8 @@ function OrderDetailInner() {
                 <h2 className="text-base font-semibold">Documenti e fatturazione</h2>
               </div>
 
+              {/* ≥xl: allegati e fatturazione affiancati (card correlate); sotto xl impilati. */}
+              <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
               {/* Documenti Commessa (allegati/file) */}
               <OrderAttachments orderId={id!} editable={true} />
 
@@ -1939,6 +1946,7 @@ function OrderDetailInner() {
                   </div>
                 </div>
               </QuoteCard>
+              </div>
             </div>
 
             {/* Card "Note Interne" (orders.internal_notes) rimossa dalla Panoramica:
