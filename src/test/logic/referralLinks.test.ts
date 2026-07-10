@@ -6,17 +6,17 @@ describe("referral links", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the configured app domain instead of the current admin origin", () => {
+  it("points to the tracked customer landing /ref/:code on the configured domain", () => {
     vi.stubEnv("VITE_REFERRAL_APP_URL", "https://app.example.com");
 
-    expect(buildReferralLink("ABC123")).toBe("https://app.example.com/referral-login?ref=ABC123");
+    expect(buildReferralLink("ABC123")).toBe("https://app.example.com/ref/ABC123");
   });
 
-  it("keeps custom landing paths and trims optional UTM values", () => {
+  it("uses the domain only (ignores any configured login path) and trims optional UTM values", () => {
     vi.stubEnv("VITE_REFERRAL_APP_URL", "https://app.example.com/prova");
 
     expect(buildReferralLink("ABC123", { utm_source: " facebook ", utm_campaign: "" })).toBe(
-      "https://app.example.com/prova?ref=ABC123&utm_source=facebook",
+      "https://app.example.com/ref/ABC123?utm_source=facebook",
     );
   });
 });

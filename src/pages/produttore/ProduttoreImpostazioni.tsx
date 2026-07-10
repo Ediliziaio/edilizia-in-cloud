@@ -43,12 +43,18 @@ export default function ProduttoreImpostazioni() {
     queryFn: async (): Promise<SelfData> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any;
-      const [compRes, brandRes, countRes] = await Promise.all([
+      const [compRes, brandRes, countRes, defPlanRes] = await Promise.all([
         sb.from("companies")
-          .select("name, email, sector, reseller_billing_mode, reseller_wholesale_pct, reseller_limit, subscription_plans:subscription_plan_id(name)")
+          .select("name, email, sector, reseller_billing_mode, reseller_wholesale_pct, reseller_limit")
           .eq("id", companyId).maybeSingle(),
         sb.from("company_branding").select("custom_domain, custom_domain_verified").eq("company_id", companyId).maybeSingle(),
         sb.from("companies").select("id", { count: "exact", head: true }).eq("parent_company_id", companyId),
+        // Piano PREDEFINITO dei nuovi rivenditori = stessa scelta di
+        // create-reseller (primo piano full attivo per position). Prima si
+        // mostrava il piano della company PRODUTTORE (mai valorizzato → "—").
+        sb.from("subscription_plans").select("name")
+          .eq("is_active", true).eq("is_full_plan", true)
+          .order("position", { ascending: true }).limit(1).maybeSingle(),
       ]);
       if (compRes.error) throw new Error(compRes.error.message);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,7 +68,7 @@ export default function ProduttoreImpostazioni() {
         billing_mode: (c.reseller_billing_mode ?? "fabbrica_paga") as SelfData["billing_mode"],
         wholesale_pct: Number(c.reseller_wholesale_pct ?? 0),
         reseller_limit: Number(c.reseller_limit ?? 0),
-        plan_name: c.subscription_plans?.name ?? null,
+        plan_name: (defPlanRes.data as { name?: string } | null)?.name ?? null,
         custom_domain: b.custom_domain ?? null,
         custom_domain_verified: !!b.custom_domain_verified,
         rivenditori_count: countRes.count ?? 0,
