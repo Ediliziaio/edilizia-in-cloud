@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Receipt, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
+import { Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, ListPlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -66,48 +68,69 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Build invoice lines from order items */
-function buildRigheFromItems(
-  items: OrderItemRow[],
-  orderCode: string | null,
-  defaultVat: number
-): RigaDocumento[] {
-  return items.map((item, idx) => {
-    const qty = item.quantity ?? 1;
-    const unitPrice = item.unit_price ?? 0;
-    const discountPct = item.discount_percent ?? 0;
-    const aliquotaNum = item.vat_rate ?? defaultVat;
-    const aliquota = String(aliquotaNum);
+/** Build a single invoice line from an order item (id stabile = item.id, così
+ *  la selezione checkbox non salta a ogni ricalcolo). */
+function buildRigaFromItem(item: OrderItemRow, defaultVat: number): RigaDocumento {
+  const qty = item.quantity ?? 1;
+  const unitPrice = item.unit_price ?? 0;
+  const discountPct = item.discount_percent ?? 0;
+  const aliquotaNum = item.vat_rate ?? defaultVat;
+  const aliquota = String(aliquotaNum);
 
-    // Prezzo unitario netto (senza sconto)
-    const prezzoNetto = discountPct > 0
-      ? round2(unitPrice * (1 - discountPct / 100))
-      : unitPrice;
+  const prezzoNetto = discountPct > 0
+    ? round2(unitPrice * (1 - discountPct / 100))
+    : unitPrice;
 
-    const imponibile = round2(prezzoNetto * qty);
-    const imposta = round2(imponibile * aliquotaNum / 100);
-    const totaleRiga = round2(imponibile + imposta);
+  const imponibile = round2(prezzoNetto * qty);
+  const imposta = round2(imponibile * aliquotaNum / 100);
+  const totaleRiga = round2(imponibile + imposta);
 
-    // Build rich description
-    let descrizione = item.name;
-    if (item.description) {
-      descrizione += `\n${item.description}`;
-    }
+  let descrizione = item.name;
+  if (item.description) descrizione += `\n${item.description}`;
 
-    return {
-      id: crypto.randomUUID(),
-      numero_linea: idx + 1,
-      descrizione,
-      quantita: qty,
-      unita_misura: "pz",
-      prezzo_unitario: prezzoNetto,
-      ...(discountPct > 0 && { sconto_percentuale: discountPct }),
-      imponibile,
-      aliquota_iva: aliquota,
-      imposta,
-      totale_riga: totaleRiga,
-    };
-  });
+  return {
+    id: item.id, // id stabile dell'articolo
+    numero_linea: 0, // rinumerato nella composizione finale
+    descrizione,
+    quantita: qty,
+    unita_misura: "pz",
+    prezzo_unitario: prezzoNetto,
+    ...(discountPct > 0 && { sconto_percentuale: discountPct }),
+    imponibile,
+    aliquota_iva: aliquota,
+    imposta,
+    totale_riga: totaleRiga,
+  };
+}
+
+/** Riga descrittiva LIBERA (aggiunta a mano): descrizione + qtà + prezzo + IVA.
+ *  Serve per fatture che NON elencano gli articoli ma una prestazione/servizio. */
+interface FreeLine {
+  id: string;
+  descrizione: string;
+  quantita: number;
+  prezzo: number;
+  aliquota: number;
+}
+
+function freeLineToRiga(fl: FreeLine, defaultVat: number): RigaDocumento {
+  const qty = fl.quantita > 0 ? fl.quantita : 1;
+  const price = fl.prezzo || 0;
+  const aliquotaNum = Math.max(0, fl.aliquota ?? defaultVat);
+  const imponibile = round2(price * qty);
+  const imposta = round2(imponibile * aliquotaNum / 100);
+  return {
+    id: fl.id,
+    numero_linea: 0,
+    descrizione: fl.descrizione.trim() || "Prestazione",
+    quantita: qty,
+    unita_misura: "pz",
+    prezzo_unitario: price,
+    imponibile,
+    aliquota_iva: String(aliquotaNum),
+    imposta,
+    totale_riga: round2(imponibile + imposta),
+  };
 }
 
 /** Build a single acconto line */
@@ -167,6 +190,14 @@ export function CreaFatturaDialog({
 
   const [mode, setMode] = useState<InvoiceMode>("articoli");
   const [selectedInstId, setSelectedInstId] = useState<string | null>(null);
+  // Articoli ESCLUSI dalla fattura (default: tutti inclusi). L'utente spunta via
+  // ciò che non vuole in fattura → "solo alcuni articoli".
+  const [excludedItemIds, setExcludedItemIds] = useState<Set<string>>(new Set());
+  // Righe descrittive LIBERE aggiunte a mano (prestazioni/servizi senza articolo).
+  const [freeLines, setFreeLines] = useState<FreeLine[]>([]);
+  const [draft, setDraft] = useState<{ descrizione: string; quantita: string; prezzo: string; aliquota: string }>({
+    descrizione: "", quantita: "1", prezzo: "", aliquota: "",
+  });
 
   // Auto-select first unpaid installment when dialog opens
   useEffect(() => {
@@ -180,6 +211,10 @@ export function CreaFatturaDialog({
         setSelectedInstId(null);
         setMode("articoli");
       }
+      // reset composizione a ogni apertura
+      setExcludedItemIds(new Set());
+      setFreeLines([]);
+      setDraft({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
     }
   }, [open, installments]);
 
@@ -234,12 +269,40 @@ export function CreaFatturaDialog({
     [installments, selectedInstId]
   );
 
+  // Righe articolo INCLUSE (tutte tranne le escluse), con id stabile dell'articolo.
+  const includedItemRighe = useMemo(
+    () => orderItems.filter((it) => !excludedItemIds.has(it.id)).map((it) => buildRigaFromItem(it, defaultVat)),
+    [orderItems, excludedItemIds, defaultVat],
+  );
+
+  // Composizione finale: base (acconto singola riga OPPURE articoli inclusi) +
+  // righe libere. numero_linea rinumerato in sequenza.
   const previewRighe = useMemo(() => {
-    if (mode === "acconto" && selectedInstallment) {
-      return [buildRigaAcconto(selectedInstallment, orderCode, orderDescription, defaultVat)];
-    }
-    return buildRigheFromItems(orderItems, orderCode, defaultVat);
-  }, [mode, selectedInstallment, orderItems, orderCode, orderDescription, defaultVat]);
+    const base = mode === "acconto" && selectedInstallment
+      ? [buildRigaAcconto(selectedInstallment, orderCode, orderDescription, defaultVat)]
+      : includedItemRighe;
+    const free = freeLines.map((fl) => freeLineToRiga(fl, defaultVat));
+    return [...base, ...free].map((r, i) => ({ ...r, numero_linea: i + 1 }));
+  }, [mode, selectedInstallment, includedItemRighe, freeLines, orderCode, orderDescription, defaultVat]);
+
+  const addFreeLine = () => {
+    const descrizione = draft.descrizione.trim();
+    if (!descrizione) { toast.error("Scrivi una descrizione per la riga"); return; }
+    setFreeLines((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      descrizione,
+      quantita: Math.max(1, Number(draft.quantita) || 1),
+      prezzo: Math.max(0, Number(draft.prezzo.replace(",", ".")) || 0),
+      aliquota: draft.aliquota.trim() ? Math.max(0, Number(draft.aliquota)) : defaultVat,
+    }]);
+    setDraft({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
+  };
+  const removeFreeLine = (id: string) => setFreeLines((prev) => prev.filter((f) => f.id !== id));
+  const toggleItem = (id: string) => setExcludedItemIds((prev) => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
 
   const totaleImponibile = useMemo(() => previewRighe.reduce((s, r) => s + r.imponibile, 0), [previewRighe]);
   const totaleIva = useMemo(() => previewRighe.reduce((s, r) => s + r.imposta, 0), [previewRighe]);
@@ -363,7 +426,8 @@ export function CreaFatturaDialog({
             Crea fattura da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
-            I dati del cliente, gli articoli e l'IVA verranno compilati automaticamente dalla commessa.
+            Cliente e IVA sono precompilati dalla commessa. Scegli <strong>quali articoli</strong> mettere in
+            fattura (o nessuno) e aggiungi <strong>righe descrittive libere</strong> per prestazioni/servizi.
           </DialogDescription>
         </DialogHeader>
 
@@ -458,8 +522,8 @@ export function CreaFatturaDialog({
 
         <Separator />
 
-        {/* ── Invoice lines preview ───────────────────────── */}
-        <div className="space-y-2">
+        {/* ── Composizione righe fattura ───────────────────── */}
+        <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             Righe fattura ({previewRighe.length})
@@ -469,62 +533,118 @@ export function CreaFatturaDialog({
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : previewRighe.length === 0 ? (
-            <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
-              <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nella commessa. La fattura verrà creata vuota.</span>
-            </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              {/* Table header */}
-              <div className="grid grid-cols-[1fr_50px_80px_45px_70px] gap-1 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>Descrizione</span>
-                <span className="text-right">Qtà</span>
-                <span className="text-right">Prezzo</span>
-                <span className="text-right">IVA</span>
-                <span className="text-right">Totale</span>
-              </div>
-              {/* Rows */}
-              <div className="divide-y max-h-48 overflow-auto">
-                {previewRighe.map((riga) => (
-                  <div
-                    key={riga.id}
-                    className="grid grid-cols-[1fr_50px_80px_45px_70px] gap-1 px-3 py-2 text-xs items-start"
-                  >
-                    <span className="text-gray-800 leading-tight line-clamp-2">
-                      {riga.descrizione}
+            <>
+              {/* Articoli della commessa con SELEZIONE (solo in modalità articoli):
+                  spunta cosa mettere in fattura → "solo alcuni articoli". */}
+              {mode === "articoli" && orderItems.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/60">
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Package className="h-3 w-3" /> Articoli · {includedItemRighe.length}/{orderItems.length} in fattura
                     </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {riga.quantita}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {fmt(riga.prezzo_unitario)}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {riga.aliquota_iva}%
-                    </span>
-                    <span className="text-right tabular-nums font-medium">
-                      {fmt(riga.totale_riga)}
-                    </span>
+                    <div className="flex gap-2">
+                      <button type="button" className="text-[10px] font-medium text-primary hover:underline" onClick={() => setExcludedItemIds(new Set())}>Tutti</button>
+                      <button type="button" className="text-[10px] font-medium text-muted-foreground hover:underline" onClick={() => setExcludedItemIds(new Set(orderItems.map((i) => i.id)))}>Nessuno</button>
+                    </div>
                   </div>
-                ))}
+                  <div className="divide-y max-h-48 overflow-auto">
+                    {orderItems.map((item) => {
+                      const riga = buildRigaFromItem(item, defaultVat);
+                      const included = !excludedItemIds.has(item.id);
+                      return (
+                        <label
+                          key={item.id}
+                          className={`grid grid-cols-[22px_1fr_44px_74px_40px_74px] gap-1 px-3 py-2 text-xs items-start cursor-pointer transition-colors hover:bg-muted/30 ${included ? "" : "opacity-45"}`}
+                        >
+                          <Checkbox checked={included} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
+                          <span className="leading-tight line-clamp-2 text-gray-800">{riga.descrizione}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{riga.quantita}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{fmt(riga.prezzo_unitario)}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{riga.aliquota_iva}%</span>
+                          <span className="text-right tabular-nums font-medium">{fmt(riga.totale_riga)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Riga acconto (modalità acconto): singola riga read-only */}
+              {mode === "acconto" && selectedInstallment && previewRighe[0] && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+                  <span className="leading-tight text-gray-800">{previewRighe[0].descrizione}</span>
+                  <span className="shrink-0 tabular-nums font-medium">{fmt(previewRighe[0].totale_riga)}</span>
+                </div>
+              )}
+
+              {/* Righe descrittive LIBERE (prestazioni/servizi senza articolo) */}
+              <div className="rounded-lg border overflow-hidden">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <ListPlus className="h-3 w-3" /> Righe descrittive (prestazioni, servizi, note)
+                </div>
+                {freeLines.length > 0 && (
+                  <div className="divide-y">
+                    {freeLines.map((fl) => {
+                      const riga = freeLineToRiga(fl, defaultVat);
+                      return (
+                        <div key={fl.id} className="grid grid-cols-[1fr_44px_74px_40px_74px_26px] gap-1 px-3 py-2 text-xs items-center">
+                          <span className="leading-tight line-clamp-2 text-gray-800">{riga.descrizione}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{riga.quantita}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{fmt(riga.prezzo_unitario)}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{riga.aliquota_iva}%</span>
+                          <span className="text-right tabular-nums font-medium">{fmt(riga.totale_riga)}</span>
+                          <button type="button" onClick={() => removeFreeLine(fl.id)} className="justify-self-end text-muted-foreground hover:text-red-600" title="Rimuovi riga">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="grid grid-cols-[1fr_52px_72px_52px_auto] gap-1.5 border-t bg-background p-2 items-center">
+                  <Input
+                    value={draft.descrizione}
+                    onChange={(e) => setDraft((d) => ({ ...d, descrizione: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFreeLine(); } }}
+                    placeholder="Descrizione (es. Manodopera, Sopralluogo…)"
+                    className="h-8 text-xs"
+                  />
+                  <Input value={draft.quantita} onChange={(e) => setDraft((d) => ({ ...d, quantita: e.target.value }))} inputMode="decimal" placeholder="Qtà" className="h-8 text-xs text-right" title="Quantità" />
+                  <Input value={draft.prezzo} onChange={(e) => setDraft((d) => ({ ...d, prezzo: e.target.value }))} inputMode="decimal" placeholder="Prezzo" className="h-8 text-xs text-right" title="Prezzo unitario (netto)" />
+                  <Input value={draft.aliquota} onChange={(e) => setDraft((d) => ({ ...d, aliquota: e.target.value }))} inputMode="decimal" placeholder={`${defaultVat}`} className="h-8 text-xs text-right" title="Aliquota IVA %" />
+                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={addFreeLine}>
+                    <Plus className="h-3.5 w-3.5" /> Aggiungi
+                  </Button>
+                </div>
               </div>
-              {/* Totals */}
-              <div className="bg-muted/30 border-t px-3 py-2 space-y-0.5">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Imponibile</span>
-                  <span className="tabular-nums">{fmt(totaleImponibile)}</span>
+
+              {/* Avviso fattura vuota */}
+              {previewRighe.length === 0 && (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                  <Info className="h-4 w-4 shrink-0" />
+                  <span>Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga descrittiva.</span>
                 </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>IVA</span>
-                  <span className="tabular-nums">{fmt(totaleIva)}</span>
+              )}
+
+              {/* Totali */}
+              {previewRighe.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-0.5">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Imponibile</span>
+                    <span className="tabular-nums">{fmt(totaleImponibile)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>IVA</span>
+                    <span className="tabular-nums">{fmt(totaleIva)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold pt-1 border-t border-dashed">
+                    <span>Totale fattura</span>
+                    <span className="tabular-nums text-primary">{fmt(totaleLordo)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm font-bold pt-1 border-t border-dashed">
-                  <span>Totale fattura</span>
-                  <span className="tabular-nums text-primary">{fmt(totaleLordo)}</span>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
 
@@ -556,7 +676,7 @@ export function CreaFatturaDialog({
           </Button>
           <Button
             onClick={handleCreaFattura}
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || previewRighe.length === 0}
           >
             {createMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
