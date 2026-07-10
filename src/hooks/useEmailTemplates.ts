@@ -217,7 +217,8 @@ export function usePreviewEmailTemplate() {
 // ============================================================================
 export interface EmailTemplateHistoryRow {
   id: string;
-  template_id: string;
+  /** NULL se il template è stato resettato al default dopo questa revisione. */
+  template_id: string | null;
   template_key: string;
   role_variant: string | null;
   subject: string;
@@ -233,32 +234,47 @@ export interface EmailTemplateHistoryRow {
 }
 
 /**
- * Storico revisioni per un template. `templateId` può essere null (es.
- * template non ancora salvato → nessuna history da leggere).
+ * Storico revisioni per un template, per chiave logica (template_key +
+ * role_variant). Non usa template_id: dopo un "Ripristina default" il
+ * template viene cancellato e ricreato con un id nuovo, ma la cronologia
+ * (FK ON DELETE SET NULL) resta consultabile tramite la chiave logica.
  */
-export function useEmailTemplateHistory(templateId: string | null) {
+export function useEmailTemplateHistory(
+  templateKey: string | null,
+  roleVariant: string | null,
+) {
   return useQuery({
-    queryKey: ["admin-email-template-history", templateId] as const,
-    enabled: !!templateId,
+    queryKey: ["admin-email-template-history", templateKey, roleVariant] as const,
+    enabled: !!templateKey,
     queryFn: async (): Promise<EmailTemplateHistoryRow[]> => {
-      if (!templateId) return [];
-      const { data, error } = await (supabase as unknown as {
+      if (!templateKey) return [];
+      type HistoryResult = Promise<{
+        data: EmailTemplateHistoryRow[] | null;
+        error: { message: string } | null;
+      }>;
+      interface HistoryTail {
+        order: (c: string, o: { ascending: boolean }) => {
+          limit: (n: number) => HistoryResult;
+        };
+      }
+      const filtered = (supabase as unknown as {
         from: (t: string) => {
           select: (c: string) => {
             eq: (c: string, v: string) => {
-              order: (c: string, o: { ascending: boolean }) => {
-                limit: (n: number) => Promise<{
-                  data: EmailTemplateHistoryRow[] | null;
-                  error: { message: string } | null;
-                }>;
-              };
+              eq: (c: string, v: string) => HistoryTail;
+              is: (c: string, v: null) => HistoryTail;
             };
           };
         };
       })
         .from("platform_email_template_history")
         .select("*")
-        .eq("template_id", templateId)
+        .eq("template_key", templateKey);
+
+      const { data, error } = await (roleVariant === null
+        ? filtered.is("role_variant", null)
+        : filtered.eq("role_variant", roleVariant)
+      )
         .order("changed_at", { ascending: false })
         .limit(50);
 
@@ -272,7 +288,9 @@ export function useEmailTemplateHistory(templateId: string | null) {
 /**
  * Ripristina una versione storica come contenuto corrente del template.
  * Usa la RPC `restore_email_template_from_history` che:
- *   - Aggiorna il template corrente con lo snapshot
+ *   - Risolve il template per chiave logica (template_key + role_variant) e
+ *     lo aggiorna con lo snapshot; se il template era stato resettato al
+ *     default, ricrea la personalizzazione dallo snapshot
  *   - Il trigger crea automaticamente una nuova riga history per la versione
  *     che abbiamo appena soppiantato (change_type='restore')
  */
@@ -296,7 +314,13 @@ export function useRollbackEmailTemplate() {
     },
     onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
-      qc.invalidateQueries({ queryKey: ["admin-email-template-history", row.id] });
+      qc.invalidateQueries({
+        queryKey: [
+          "admin-email-template-history",
+          row.template_key,
+          row.role_variant,
+        ],
+      });
       toast.success(`Template ripristinato alla versione ${row.version}`);
     },
     onError: (err: Error) => {

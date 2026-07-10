@@ -786,24 +786,17 @@ function SubjectVariableButton({
 
 // ── Sub-component: history list ─────────────────────────────────────────────
 function HistoryList({
-  templateId,
+  templateKey,
+  roleVariant,
   onRollback,
   onClose,
 }: {
-  templateId: string | null;
+  templateKey: string;
+  roleVariant: string | null;
   onRollback: (row: EmailTemplateHistoryRow) => void;
   onClose: () => void;
 }) {
-  const historyQuery = useEmailTemplateHistory(templateId);
-
-  if (!templateId) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Nessuna cronologia disponibile: questo template non ha ancora una
-        personalizzazione salvata.
-      </p>
-    );
-  }
+  const historyQuery = useEmailTemplateHistory(templateKey, roleVariant);
 
   if (historyQuery.isLoading) {
     return <Skeleton className="h-40 w-full" />;
@@ -823,7 +816,8 @@ function HistoryList({
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Ancora nessuna modifica salvata dopo la prima versione.
+        Nessuna revisione in cronologia: le revisioni compaiono dopo la prima
+        modifica a una personalizzazione salvata.
       </p>
     );
   }
@@ -1599,12 +1593,7 @@ export function EmailTemplatesPanel() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={!selectedRow}
-                      title={
-                        selectedRow
-                          ? "Mostra cronologia revisioni"
-                          : "Disponibile dopo il primo salvataggio"
-                      }
+                      title="Mostra cronologia revisioni"
                     >
                       <History className="h-4 w-4 mr-1" />
                       Cronologia
@@ -1625,7 +1614,8 @@ export function EmailTemplatesPanel() {
                     </SheetHeader>
                     <div className="mt-4">
                       <HistoryList
-                        templateId={selectedRow?.id ?? null}
+                        templateKey={selectedKey}
+                        roleVariant={variantToDb(selectedVariant)}
                         onRollback={handleRollback}
                         onClose={() => setHistoryOpen(false)}
                       />
@@ -2716,8 +2706,10 @@ function ActionBar({
               <AlertDialogTitle>Ripristinare il default?</AlertDialogTitle>
               <AlertDialogDescription>
                 La personalizzazione corrente verrà rimossa e il template tornerà
-                al contenuto hardcoded di default. La cronologia salverà
-                comunque una copia dello stato attuale.
+                al contenuto hardcoded di default. La cronologia revisioni viene
+                conservata (incluso uno snapshot dello stato attuale): puoi
+                riaprirla dal pulsante «Cronologia» e ripristinare qualsiasi
+                versione anche dopo il reset.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
