@@ -290,7 +290,7 @@ export function OrderEconomicsSummary({
           <Skeleton className="h-5 w-20 rounded-full" />
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-[1fr_200px] md:items-center">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-3">
                 <Skeleton className="h-16 rounded-lg" />
@@ -324,7 +324,10 @@ export function OrderEconomicsSummary({
         </Badge>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 md:grid-cols-[1fr_200px] md:items-center">
+        {/* Su desktop la colonna donut si allarga (era fissa 200px mentre la
+            colonna KPI si stirava a nastro sui monitor larghi → donut minuscolo
+            e sbilanciato). minmax(0,1fr) evita l'overflow del contenuto denso. */}
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px]">
           {/* KPI + cassa */}
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -464,12 +467,12 @@ export function OrderEconomicsSummary({
           {/* Donut composizione interattivo (SVG a dimensioni fisse, niente
               ResponsiveContainer → non può rompere il layout). Hover su
               segmento o legenda → dettaglio della voce al centro. */}
-          <div className="flex h-[170px] items-center justify-center">
+          <div className="flex min-h-[190px] items-center justify-center rounded-xl border bg-muted/20 p-3 md:h-full">
             {composition.length > 0 && compositionTotal > 0 ? (
               <DonutChart
                 data={composition}
-                size={156}
-                strokeWidth={18}
+                size={168}
+                strokeWidth={20}
                 animationDuration={0.9}
                 activeLabel={hoverSeg?.label ?? null}
                 onSegmentHover={handleSegmentHover}

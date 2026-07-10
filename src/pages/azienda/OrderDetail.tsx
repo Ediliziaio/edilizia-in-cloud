@@ -1713,20 +1713,26 @@ function OrderDetailInner() {
             visibile) mostra già margine/incassato/da incassare, e lo stato è
             nello stepper: una strip duplicherebbe quei numeri. */}
         <Tabs value={desktopTab} onValueChange={setDesktopTab} className="hidden sm:block">
-          <TabsList className="w-full flex flex-wrap gap-1 bg-white border rounded-lg p-1">
-            <TabsTrigger value="panoramica" className="text-sm">
-              <LayoutDashboard className="w-4 h-4 mr-1.5" />
-              Panoramica
-            </TabsTrigger>
-            <TabsTrigger value="articoli" className="text-sm">
-              <Package className="w-4 h-4 mr-1.5" />
-              Articoli e lavori
-            </TabsTrigger>
-            <TabsTrigger value="finanza" className="text-sm">
-              <Wallet className="w-4 h-4 mr-1.5" />
-              Finanza
-            </TabsTrigger>
-          </TabsList>
+          {/* Barra tab STICKY: nel mega-scroll della Panoramica la navigazione
+              Panoramica/Articoli/Finanza resta sempre raggiungibile. Il wrapper
+              rompe il padding di pagina (-mx) e usa lo sfondo pagina + blur così
+              il contenuto che scorre sotto non "trapela" attorno al pill. */}
+          <div className="sticky top-0 z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 py-2 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/75">
+            <TabsList className="w-full flex flex-wrap gap-1 bg-white border rounded-lg p-1 shadow-sm">
+              <TabsTrigger value="panoramica" className="text-sm">
+                <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                Panoramica
+              </TabsTrigger>
+              <TabsTrigger value="articoli" className="text-sm">
+                <Package className="w-4 h-4 mr-1.5" />
+                Articoli e lavori
+              </TabsTrigger>
+              <TabsTrigger value="finanza" className="text-sm">
+                <Wallet className="w-4 h-4 mr-1.5" />
+                Finanza
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="space-y-6 mt-4">
@@ -1871,7 +1877,9 @@ function OrderDetailInner() {
                       Nessun documento fiscale collegato
                     </p>
                   )}
-                  <div className="grid grid-cols-4 gap-2">
+                  {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
+                      su tutta la card larga desktop). flex-wrap li tiene compatti. */}
+                  <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
                     <Button
                       variant="outline"
                       size="sm"
