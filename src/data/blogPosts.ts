@@ -29,13 +29,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "1",
     slug: "ridurre-costi-cantieri-edili",
+    faqs: [
+      { q: "Quali sono i costi nascosti più comuni in un cantiere?", a: "Ore non registrate o non fatturate, materiali ordinati in eccesso o persi, tempi morti tra le lavorazioni, trasferte non pianificate, piccoli noli dimenticati e varianti eseguite senza preventivo. Da soli valgono il 15-20% del margine di una commessa tipica." },
+      { q: "Da dove inizio per ridurre i costi senza tagliare la qualità?", a: "Dalla misura: per 30 giorni registra ore per cantiere e confronta costi reali vs preventivo. I primi due interventi con più ritorno sono quasi sempre la timbratura digitale (elimina le ore fantasma) e gli ordini materiali basati sul computo invece che a stima." },
+      { q: "Quanto si risparmia digitalizzando la gestione del cantiere?", a: "Le imprese che adottano un gestionale verticale riportano mediamente una riduzione dei costi operativi del 15-22% nel primo anno, tra ore amministrative, sprechi di materiale e margini difesi. Il ritorno dell'investimento arriva tipicamente in 4-6 mesi." },
+    ],
     title: "Come Ridurre i Costi nei Cantieri Edili del 20%",
     excerpt:
       "Scopri 7 strategie pratiche per ridurre i costi operativi del tuo cantiere del 20-35% con la digitalizzazione: ore, materiali, sprechi e cash flow.",
     category: "Gestione Cantieri",
     tags: ["costi cantiere", "digitalizzazione edilizia", "risparmio", "gestione cantieri"],
     publishedAt: "2025-07-31",
-    updatedAt: "2026-03-10",
+    updatedAt: "2026-07-10",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -94,13 +99,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "2",
     slug: "gestione-cantieri-digitale",
+    faqs: [
+      { q: "Cosa significa gestire un cantiere in digitale?", a: "Avere in un unico sistema, aggiornato in tempo reale da cantiere e ufficio: presenze e ore per commessa, avanzamento lavori con foto, ordini e DDT dei materiali, budget vs costi reali, documenti di sicurezza e comunicazioni. Tutto accessibile da smartphone." },
+      { q: "I miei operai non sono pratici di tecnologia: funzionerà?", a: "Se lo strumento è pensato per il cantiere, sì: timbrare e compilare un rapportino con foto richiede meno passaggi di una telefonata più un foglio. Le imprese che partono dai capisquadra e formano il resto della squadra sul campo arrivano a piena adozione in poche settimane." },
+      { q: "Da quale processo conviene iniziare la digitalizzazione?", a: "Dalle presenze e dai rapportini di cantiere: danno un beneficio immediato (ore reali per commessa, fine delle ore fantasma) e abituano la squadra allo strumento. Subito dopo: preventivi e fatturazione, poi ordini e magazzino." },
+    ],
     title: "Gestione Cantieri 2026: Dalla Carta al Cloud",
     excerpt:
       "La guida per portare la gestione dei cantieri edili dalla carta al cloud: avanzamento lavori, commesse, costi e documenti sotto controllo nel 2026.",
     category: "Gestione Cantieri",
     tags: ["gestione cantieri", "cloud edilizia", "software cantiere", "avanzamento lavori"],
     publishedAt: "2025-08-10",
-    updatedAt: "2026-03-05",
+    updatedAt: "2026-07-10",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -165,7 +175,7 @@ export const blogPosts: BlogPost[] = [
     slug: "preventivi-edilizia-guida",
     title: "Preventivi Vincenti in Edilizia",
     excerpt:
-      "Il 74% delle imprese edili usa ancora preventivi in Word o Excel. Scopri come strutturare preventivi professionali che convincono il cliente e fanno marginare.",
+      "Il 74% delle imprese edili usa ancora preventivi in Word o Excel. Come strutturare preventivi professionali che vincono i lavori e proteggono i margini.",
     category: "Commerciale",
     tags: ["preventivi edilizia", "offerte commerciali", "conversione clienti", "margini"],
     publishedAt: "2025-08-20",
@@ -227,13 +237,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "4",
     slug: "hr-edilizia-presenze-buste-paga",
+    faqs: [
+      { q: "Cosa devo tracciare per ogni operaio edile ai fini paghe?", a: "Ore ordinarie e straordinarie per cantiere, trasferte e indennità, assenze (ferie, permessi, malattia, cassa integrazione), festività e ROL. Tutto va riconciliato con il calendario della Cassa Edile e consegnato al consulente del lavoro entro le scadenze mensili." },
+      { q: "Come semplifico il passaggio dati al consulente del lavoro?", a: "Con un export mensile unico che contiene ore per dipendente e cantiere, straordinari con maggiorazioni, trasferte e assenze già codificate. Se il consulente riceve un file ordinato invece di WhatsApp e fogli sparsi, riduci errori in busta e richieste di correzione." },
+      { q: "Quanto costa un errore in busta paga?", a: "Oltre al tempo per rettificare: conguagli, possibili vertenze e sanzioni in caso di ispezione. Gli errori nascono quasi sempre a monte, dalla raccolta ore fatta a mano. Digitalizzare presenze e straordinari elimina la fonte principale di errore." },
+    ],
     title: "HR in Edilizia: Presenze, Buste Paga e CCNL",
     excerpt:
       "La gestione del personale edile è tra le più complesse d'Italia. Scopri come semplificare presenze, buste paga e rispettare il CCNL Edilizia senza errori.",
     category: "HR & Personale",
     tags: ["HR edilizia", "CCNL edilizia", "presenze cantiere", "buste paga"],
     publishedAt: "2025-08-30",
-    updatedAt: "2026-02-10",
+    updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -290,13 +305,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "5",
     slug: "analisi-margini-imprese-edili",
+    faqs: [
+      { q: "Come si calcola il margine di una commessa edile?", a: "Margine lordo = ricavi di commessa meno costi diretti (manodopera ai costi aziendali reali, materiali, subappalti, noli). Margine netto = margine lordo meno la quota di costi indiretti e generali attribuita alla commessa. Vanno calcolati in corso d'opera, non a fine lavori." },
+      { q: "Qual è un buon margine per un'impresa edile?", a: "Dipende da segmento e rischio: nel residenziale privato un margine lordo del 20-30% e netto del 8-15% è sano; negli appalti a ribasso i margini sono più compressi. Sotto il 5% netto qualsiasi imprevisto ti porta in perdita: meglio saperlo prima di firmare." },
+      { q: "Perché il margine reale è sempre più basso di quello preventivato?", a: "Le cause ricorrenti: ore di manodopera sottostimate o non registrate, prezzi materiali cambiati tra preventivo e ordine, varianti fatte senza preventivo integrativo, e costi generali mai ribaltati sulle commesse. Il consuntivo in tempo reale serve a vederle mentre accadono." },
+    ],
     title: "Analisi dei Margini per Imprese Edili",
     excerpt:
-      "Il 68% delle imprese edili lavora senza conoscere i margini reali per commessa. Scopri come calcolare, monitorare e migliorare la redditività di ogni cantiere.",
+      "Il 68% delle imprese edili non conosce i margini reali per commessa. Come calcolarli, monitorarli in tempo reale e difenderli cantiere per cantiere.",
     category: "Finanza",
     tags: ["margini edilizia", "redditività cantieri", "analisi costi", "contabilità edilizia"],
     publishedAt: "2025-09-09",
-    updatedAt: "2026-01-25",
+    updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -426,13 +446,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "7",
     slug: "software-gestionale-vs-excel",
+    faqs: [
+      { q: "Excel è davvero gratis per un'impresa edile?", a: "No: il canone non si paga, ma si pagano le ore. Una PMI edile spende 8-12 ore a settimana tra aggiornamenti e riconciliazioni di fogli: 16.000-30.000€ l'anno di tempo del titolare o dell'amministrativa, più il costo degli errori che i fogli non segnalano." },
+      { q: "Quali sono i rischi fiscali dell'uso di Excel?", a: "Errori di formula su IVA e imponibili, SAL e fatture non riconciliati, versioni diverse dello stesso file: in caso di accertamento, le discrepanze si traducono in sanzioni. La ricerca citata da KPMG stima che l'88% dei fogli complessi contenga almeno un errore significativo." },
+      { q: "Quando ha senso restare su Excel?", a: "Se hai un solo cantiere alla volta, nessun dipendente e poche fatture al mese, Excel può bastare ancora. Il punto di rottura arriva con 2-3 cantieri paralleli e le prime squadre: da lì in poi il costo del disordine supera qualsiasi canone software." },
+    ],
     title: "Software Gestionale vs Excel",
     excerpt:
-      "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto di Excel: tempo perso, errori, opportunità mancate e rischi fiscali.",
+      "Excel sembra gratis, ma quanto costa davvero a un'impresa edile? Tempo perso, errori, rischi fiscali: i numeri del costo nascosto di Excel.",
     category: "Digitalizzazione",
     tags: ["excel edilizia", "software gestionale", "costi nascosti", "digitalizzazione"],
     publishedAt: "2025-09-29",
-    updatedAt: "2026-02-05",
+    updatedAt: "2026-07-10",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -485,7 +510,7 @@ export const blogPosts: BlogPost[] = [
     slug: "digitalizzare-impresa-edile",
     title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni",
     excerpt:
-      "Una roadmap concreta e testata per trasformare la tua impresa edile dal cartaceo al digitale in soli 30 giorni. Settimana per settimana, cosa fare e come farlo.",
+      "Roadmap testata per portare la tua impresa edile dal cartaceo al digitale in 30 giorni: cosa fare settimana per settimana, senza bloccare il lavoro.",
     category: "Digitalizzazione",
     tags: [
       "digitalizzazione impresa edile",
@@ -575,13 +600,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "9",
     slug: "come-organizzare-cantiere-edile",
+    faqs: [
+      { q: "Quali sono i passi per organizzare un cantiere prima dell'apertura?", a: "Verifica titoli abilitativi e notifica preliminare, prepara il budget di commessa per fasi, pianifica squadre e subappaltatori con date, programma gli approvvigionamenti critici, predisponi la documentazione di sicurezza (POS, eventuale PSC) e definisci chi registra ore e avanzamenti." },
+      { q: "Che differenza c'è tra preventivo cliente e budget di commessa?", a: "Il preventivo è il prezzo pattuito col cliente; il budget di commessa è il documento interno con i costi che prevedi davvero di sostenere, voce per voce. La differenza tra i due è il margine atteso: senza budget interno non puoi misurare gli scostamenti durante i lavori." },
+      { q: "Come tengo sotto controllo un cantiere durante i lavori?", a: "Tre numeri a cadenza settimanale: ore consumate vs previste, costi materiali impegnati vs budget, avanzamento fisico vs cronoprogramma. Se uno dei tre scosta oltre il 5-10%, intervieni subito: a fine cantiere ogni correzione costa il triplo." },
+    ],
     title: "Come Organizzare un Cantiere Edile",
     excerpt:
-      "Materiali introvabili, ore non imputate, SAL sfasati: l'organizzazione costa il 15-20% di margine. Ecco il metodo in 5 fasi per organizzare ogni cantiere edile.",
+      "Materiali introvabili, ore non imputate, SAL sfasati: la disorganizzazione costa il 15-20% di margine. Il metodo in 5 fasi per organizzare il cantiere.",
     category: "Gestione Cantieri",
     tags: ["organizzare cantiere edile", "gestione cantieri", "impresa edile", "margini cantiere"],
     publishedAt: "2025-10-19",
-    updatedAt: "2026-03-22",
+    updatedAt: "2026-07-10",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -673,13 +703,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "10",
     slug: "documentazione-obbligatoria-cantiere-2025",
+    faqs: [
+      { q: "Quali documenti devono essere sempre presenti in cantiere?", a: "In sintesi: titolo abilitativo (CILA, SCIA o permesso di costruire), notifica preliminare quando prevista, POS di ogni impresa, PSC se ci sono più imprese, DURC in corso di validità, registro presenze o badge, documentazione DPI e formazione dei lavoratori, e i DDT dei materiali." },
+      { q: "Quando è obbligatoria la notifica preliminare?", a: "Va inviata all'ASL e all'Ispettorato del Lavoro prima dell'inizio dei lavori quando in cantiere è prevista la presenza anche non contemporanea di più imprese, oppure una sola impresa con entità di lavoro pari o superiore a 200 uomini-giorno. Copia va affissa in cantiere." },
+      { q: "Cosa rischio se manca il POS?", a: "Il Piano Operativo di Sicurezza è obbligatorio per ogni impresa esecutrice: la sua mancanza comporta sanzioni penali a carico del datore di lavoro (arresto o ammenda), la possibile sospensione dell'attività e, negli appalti, la responsabilità verso committente e coordinatore." },
+    ],
     title: "Documentazione Obbligatoria Cantiere 2026",
     excerpt:
-      "Lista aggiornata di tutti i documenti obbligatori in cantiere nel 2026: POS, DURC, notifica preliminare, DDT e certificazioni finali, con le sanzioni da evitare.",
+      "Tutti i documenti obbligatori in cantiere nel 2026: POS, DURC, notifica preliminare, DDT e certificazioni, con le sanzioni da evitare.",
     category: "Normativa",
     tags: ["documentazione cantiere 2026", "POS cantiere", "DURC", "normativa edilizia"],
     publishedAt: "2025-10-29",
-    updatedAt: "2026-03-15",
+    updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -781,13 +816,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "11",
     slug: "come-fare-preventivo-edilizia",
+    faqs: [
+      { q: "Cosa deve contenere un preventivo edile professionale?", a: "Dati completi di impresa e cliente, descrizione analitica delle lavorazioni con quantità e prezzi unitari, esclusioni esplicite, tempi di esecuzione, modalità di pagamento legate agli avanzamenti, validità dell'offerta, oneri sicurezza e IVA applicata, e le condizioni per le varianti." },
+      { q: "Come calcolo il prezzo di un lavoro edile?", a: "Parti dai costi diretti: ore di manodopera previste per il costo orario aziendale reale, materiali da computo con i prezzi dei tuoi fornitori, subappalti e noli. Aggiungi l'incidenza delle spese generali (10-15%) e l'utile d'impresa (10-20% secondo mercato e rischio)." },
+      { q: "Quanto tempo ho per mandare un preventivo senza perdere il cliente?", a: "Nel residenziale privato le statistiche commerciali dicono che chi risponde entro 24-48 ore ha probabilità di chiusura molto più alte: dopo una settimana il cliente ha già altri preventivi in mano. La velocità è parte dell'offerta, non solo il prezzo." },
+    ],
     title: "Come Fare un Preventivo Edilizia Professionale",
     excerpt:
       "Come fare un preventivo edilizia che vince i lavori e protegge i margini: metodo in 5 passi per imprese edili che vogliono smettere di perdere il 12-18%.",
     category: "Commerciale",
     tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
     publishedAt: "2025-11-08",
-    updatedAt: "2026-03-08",
+    updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -873,13 +913,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "12",
     slug: "alternativa-excel-cantieri",
+    faqs: [
+      { q: "Perché Excel non basta per gestire i cantieri?", a: "Perché i dati vivono in file separati e copie disallineate: le ore stanno in un foglio, i costi in un altro, i DDT su carta. Nessun collegamento automatico con fatture e presenze, formule che si rompono, zero visibilità in tempo reale sul margine di commessa." },
+      { q: "Quanto costa davvero gestire i cantieri con Excel?", a: "Per una PMI edile tipica 8-12 ore a settimana di lavoro amministrativo tra aggiornamenti, riconciliazioni e report: 400-600 ore l'anno che, valorizzate al costo-opportunità del titolare, valgono 16.000-30.000€. Senza contare gli errori di margine che un foglio non segnala." },
+      { q: "Cosa dovrebbe avere un gestionale per sostituire Excel in cantiere?", a: "Commesse con budget e consuntivo in tempo reale, ore e presenze da smartphone, DDT e ordini collegati al cantiere, fatturazione elettronica integrata e report automatici. Se per usarlo servono più passaggi che con Excel, non è lo strumento giusto." },
+    ],
     title: "Alternativa a Excel per Cantieri",
     excerpt:
-      "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026, con i numeri reali.",
+      "Usi Excel per gestire i cantieri? Ti costa più di quanto pensi. Confronto diretto Excel vs gestionale di cantiere nel 2026, con i numeri reali.",
     category: "Gestione Cantieri",
     tags: ["alternativa excel cantieri", "gestionale edilizia cloud", "software cantieri", "digitalizzazione edilizia"],
     publishedAt: "2025-11-18",
-    updatedAt: "2026-03-01",
+    updatedAt: "2026-07-10",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -967,13 +1012,19 @@ export const blogPosts: BlogPost[] = [
   {
     id: "13",
     slug: "sal-cantiere-come-funziona",
+    faqs: [
+      { q: "Cos'è il SAL in edilizia?", a: "Il SAL (Stato Avanzamento Lavori) è il documento che certifica la percentuale di lavori eseguiti a una certa data e giustifica i pagamenti intermedi previsti dal contratto. Contiene le quantità eseguite per ogni lavorazione, i prezzi unitari applicati e l'importo maturato dall'impresa." },
+      { q: "Ogni quanto si emette un SAL?", a: "Dipende dal contratto: negli appalti privati è tipicamente mensile o bimestrale; negli appalti pubblici la frequenza è fissata dal capitolato speciale, spesso mensile o a soglie percentuali di avanzamento (es. ogni 25%). Un SAL in ritardo significa un incasso in ritardo." },
+      { q: "Chi firma il SAL?", a: "Negli appalti pubblici il SAL è redatto dal Direttore dei Lavori e liquidato dal RUP con il certificato di pagamento. Nei lavori privati viene di norma predisposto dall'impresa e approvato dal committente o dal suo tecnico, secondo quanto previsto dal contratto." },
+      { q: "Che differenza c'è tra SAL e fattura?", a: "Il SAL certifica l'avanzamento tecnico-economico dei lavori; la fattura è il documento fiscale emesso sulla base del SAL approvato. Prima si fa approvare il SAL, poi si fattura l'importo maturato, al netto di eventuali ritenute di garanzia." },
+    ],
     title: "SAL Cantiere: Cos'è, Come si Fa e Come Automatizzarlo",
     excerpt:
-      "Guida completa allo Stato Avanzamento Lavori: come si calcola, cosa deve contenere, come si certifica e come automatizzarlo con un gestionale per l'edilizia.",
+      "Guida allo Stato Avanzamento Lavori: come si calcola, cosa deve contenere, come si certifica e come automatizzarlo con un gestionale edile.",
     category: "Gestione Cantieri",
     tags: ["SAL cantiere", "stato avanzamento lavori", "gestione cantieri", "software edilizia"],
     publishedAt: "2025-11-28",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1029,6 +1080,27 @@ export const blogPosts: BlogPost[] = [
         author: "Alessandro M., impresa edile Milano",
       },
       {
+        type: "section",
+        heading: "Come si calcola un SAL: esempio numerico",
+        body: "Prendiamo un appalto da 300.000€ con contabilità a misura. Alla data del SAL hai eseguito: scavi per 18.000€ (100% della voce), fondazioni per 42.000€ (100%), murature per 35.000€ su 70.000€ previsti (50%). L'importo maturato è 95.000€. Se il contratto prevede una ritenuta di garanzia dello 0,5%, il SAL liquidabile è 94.525€. Se avevi già incassato un primo SAL da 40.000€, il nuovo certificato di pagamento vale 54.525€. Il calcolo è semplice — il difficile è avere le quantità eseguite aggiornate e documentate: per questo chi registra gli avanzamenti ogni settimana emette i SAL in giorni, chi ricostruisce a fine mese ci mette settimane.",
+      },
+      {
+        type: "section",
+        heading: "SAL negli appalti pubblici e privati: le differenze che contano",
+        body: "Negli appalti pubblici il flusso è formalizzato: il Direttore dei Lavori redige il SAL sulla base del libretto delle misure, il RUP emette il certificato di pagamento entro i termini di legge e la stazione appaltante paga entro 30 giorni (60 nei casi previsti). Su ogni SAL viene trattenuta la ritenuta dello 0,5% a garanzia dei lavoratori, svincolata a collaudo. Nei lavori privati vale il contratto: sei tu a dover definire soglie di avanzamento, tempi di approvazione e conseguenze del ritardato pagamento. La regola d'oro: mai lasciare al solo accordo verbale la frequenza dei SAL — scrivila nel preventivo accettato.",
+      },
+      {
+        type: "list",
+        heading: "Gli errori che ritardano l'incasso del SAL",
+        items: [
+          "Quantità non documentate: senza misure e foto degli avanzamenti, ogni SAL diventa una trattativa",
+          "SAL presentato in ritardo: se registri gli avanzamenti a fine mese, hai già perso settimane di incasso",
+          "Varianti eseguite ma mai formalizzate: lavori fatti che non puoi mettere in contabilità",
+          "Documenti non in regola: un DURC scaduto blocca il pagamento anche a SAL approvato",
+          "Nessun sollecito strutturato: dopo l'invio serve una data di approvazione attesa e un follow-up",
+        ],
+      },
+      {
         type: "cta",
         heading: "Automatizza i tuoi SAL con Edilizia in Cloud",
         body: "Genera SAL professionali in automatico dai dati di avanzamento inseriti in cantiere. Firma digitale integrata, tracciamento pagamenti e generazione fattura automatica. Prova gratis 31 giorni.",
@@ -1040,11 +1112,11 @@ export const blogPosts: BlogPost[] = [
     slug: "durc-edilizia-guida-completa",
     title: "DURC Edilizia 2026: Guida Completa per Imprese Edili",
     excerpt:
-      "Tutto sul DURC per le imprese edili: cos'è, come richiederlo, quando scade, cosa fare se è irregolare e come gestirne le scadenze con un software gestionale.",
+      "Tutto sul DURC per le imprese edili: cos'è, come richiederlo, quando scade, cosa fare se è irregolare e come gestirne le scadenze.",
     category: "Gestione Cantieri",
     tags: ["DURC edilizia", "regolarità contributiva", "appalti edilizia", "gestione documenti"],
     publishedAt: "2025-12-08",
-    updatedAt: "2026-07-04",
+    updatedAt: "2026-07-10",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1094,6 +1166,21 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
+        type: "section",
+        heading: "DURC irregolare: cosa fare nelle prime 48 ore",
+        body: "Se la verifica segnala irregolarità, il sistema attiva il preavviso di accertamento negativo: hai 15 giorni per regolarizzare prima che il DURC negativo diventi definitivo. Le mosse immediate: identifica l'ente e l'importo esatto (INPS, INAIL o Cassa Edile), verifica se si tratta di un errore di riconciliazione (capita più spesso di quanto pensi: F24 con codici errati, denunce disallineate), e se il debito è reale valuta il pagamento immediato o la rateizzazione — la domanda di rateizzazione accolta ripristina la regolarità. Documenta tutto: in molti casi puoi salvare un pagamento in scadenza dimostrando la regolarizzazione in corso.",
+      },
+      {
+        type: "section",
+        heading: "DURC e pagamenti: come funziona l'intervento sostitutivo",
+        body: "Negli appalti pubblici, se il tuo DURC è irregolare la stazione appaltante non blocca semplicemente il pagamento: attiva l'intervento sostitutivo, versando direttamente agli enti previdenziali quanto dovuto e trattenendolo dal tuo credito. Lo stesso meccanismo vale verso i subappaltatori: se il DURC del tuo subappaltatore è irregolare, sei tu a dover versare agli enti al posto suo. Per questo la verifica del DURC va fatta a ogni pagamento, non una volta all'anno: il documento vale 120 giorni, ma la posizione contributiva può degradare in qualsiasi momento.",
+      },
+      {
+        type: "section",
+        heading: "Il metodo per non farsi mai sorprendere",
+        body: "Il DURC non si 'richiede quando serve': si presidia. Il metodo che funziona nelle imprese organizzate: scadenzario con la data di scadenza dei 120 giorni di ogni DURC (tuo e dei subappaltatori), richiesta di rinnovo 20 giorni prima della scadenza, verifica mensile della regolarità delle denunce Cassa Edile e degli F24, e un unico responsabile aziendale del processo. Con un gestionale che tiene lo scadenzario documenti collegato a cantieri e subappaltatori, gli alert partono da soli e il DURC smette di essere un'emergenza ricorrente.",
+      },
+      {
         type: "cta",
         heading: "Gestisci DURC e documenti di cantiere con Edilizia in Cloud",
         body: "Archiviazione digitale di tutti i documenti di cantiere, alert automatici sulle scadenze e gestione completa dei subappaltatori. Nessun DURC scaduto passerà inosservato.",
@@ -1121,13 +1208,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "15",
     slug: "giornale-dei-lavori-cantiere",
+    faqs: [
+      { q: "Il giornale dei lavori è obbligatorio?", a: "Negli appalti pubblici sì: è previsto dal Codice dei Contratti e viene tenuto dal Direttore dei Lavori. Nei cantieri privati non è obbligatorio per legge, ma è fortemente consigliato perché documenta giorno per giorno l'esecuzione e tutela l'impresa in caso di contestazioni." },
+      { q: "Chi deve compilare il giornale dei lavori?", a: "Negli appalti pubblici lo compila e lo firma il Direttore dei Lavori, con la collaborazione dell'impresa. Nei lavori privati lo compila di solito il capocantiere o il titolare dell'impresa, annotando attività svolte, maestranze presenti, meteo ed eventi rilevanti." },
+      { q: "Cosa va scritto nel giornale dei lavori?", a: "Per ogni giorno: le lavorazioni eseguite, il numero di operai presenti e le loro qualifiche, i mezzi impiegati, le condizioni meteo, gli ordini di servizio ricevuti, le visite e i controlli, gli eventi particolari (sospensioni, varianti, contestazioni, infortuni)." },
+    ],
     title: "Giornale dei Lavori: Cos'è, Chi lo Compila e Come",
     excerpt:
-      "Il giornale dei lavori è obbligatorio negli appalti pubblici e tutela l'impresa in quelli privati. Guida su chi lo compila, cosa contiene e come digitalizzarlo.",
+      "Obbligatorio negli appalti pubblici, tutela l'impresa in quelli privati: chi compila il giornale dei lavori, cosa contiene e come digitalizzarlo.",
     category: "Gestione Cantieri",
     tags: ["giornale dei lavori", "documentazione cantiere", "appalti edilizia", "direttore lavori"],
     publishedAt: "2025-12-18",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1168,6 +1260,21 @@ export const blogPosts: BlogPost[] = [
         body: "In Edilizia in Cloud il giornale dei lavori è integrato nel modulo Gestione Cantieri. Il capocantiere aggiorna il giornale da app mobile ogni giorno: inserisce le maestranze presenti, le lavorazioni eseguite, le consegne di materiali e le note. Il DL riceve una notifica e firma digitalmente. Tutto è archiviato in modo automatico e collegato alla commessa.",
       },
       {
+        type: "section",
+        heading: "Le annotazioni che ti salvano in un contenzioso",
+        body: "Il giornale dei lavori vale quanto le annotazioni che contiene. Le voci che fanno la differenza davanti a un giudice o in una trattativa: le condizioni meteo che hanno impedito le lavorazioni (giustificano proroghe), gli ordini ricevuti dalla direzione lavori con data e contenuto, le interferenze causate da altre imprese, le consegne di materiali in ritardo con riferimento al DDT, le sospensioni e riprese dei lavori. Un'annotazione scritta il giorno stesso, con foto allegata, ha un peso probatorio enormemente superiore a una ricostruzione fatta mesi dopo via email.",
+      },
+      {
+        type: "section",
+        heading: "Giornale dei lavori e rapportini di cantiere: che differenza c'è",
+        body: "Sono strumenti complementari. Il rapportino è il documento operativo dell'impresa: chi c'era, quante ore, cosa è stato fatto, quali materiali sono stati usati — serve per contabilità industriale, paghe e consuntivi di commessa. Il giornale dei lavori è il registro ufficiale del cantiere verso l'esterno: raccoglie gli eventi rilevanti per il rapporto contrattuale con il committente. Se i rapportini sono digitali e quotidiani, il giornale dei lavori si compila in pochi minuti partendo dai loro dati — ed è sempre coerente con la contabilità.",
+      },
+      {
+        type: "section",
+        heading: "Come non dimenticare la compilazione quotidiana",
+        body: "Il giornale compilato 'quando c'è tempo' finisce sempre ricostruito a memoria — e si vede. Tre accorgimenti che funzionano: legare la compilazione a un momento fisso (fine giornata, prima di chiudere il cantiere), delegare la bozza al capocantiere da smartphone con la firma del DL o del titolare in un secondo momento, e usare un formato digitale che precompili data, cantiere e presenze dai dati già registrati. Obiettivo: meno di 5 minuti al giorno, senza fogli da trasportare.",
+      },
+      {
         type: "cta",
         heading: "Digitalizza il giornale dei lavori con Edilizia in Cloud",
         body: "Compilazione da app mobile in cantiere, firma digitale del DL, archiviazione automatica e export PDF. Il tuo cantiere sempre documentato, anche in caso di contestazioni.",
@@ -1177,13 +1284,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "16",
     slug: "subappalto-edilizia-guida",
+    faqs: [
+      { q: "Qual è il limite del subappalto negli appalti pubblici?", a: "Con il D.Lgs 36/2023 non esiste più un limite generale fisso: la stazione appaltante può motivare limiti specifici nel bando. Restano vietati il subappalto integrale dell'opera e il subappalto 'a cascata' non autorizzato. Va sempre letto il capitolato speciale della gara." },
+      { q: "Quando serve l'autorizzazione al subappalto?", a: "Negli appalti pubblici il subappalto va dichiarato in sede di offerta e autorizzato dalla stazione appaltante prima dell'ingresso in cantiere del subappaltatore. Nei lavori privati non serve autorizzazione pubblica, ma il contratto con il committente può richiederne il consenso." },
+      { q: "Quando scatta il pagamento diretto del subappaltatore?", a: "Negli appalti pubblici la stazione appaltante paga direttamente il subappaltatore nei casi previsti dalla legge, ad esempio se il subappaltatore è una microimpresa o PMI, in caso di inadempimento dell'appaltatore, o su richiesta se la natura del contratto lo consente." },
+    ],
     title: "Subappalto in Edilizia",
     excerpt:
       "Guida completa al subappalto in edilizia: limiti normativi dopo il nuovo Codice Appalti, obblighi documentali, pagamento diretto e responsabilità solidale.",
     category: "Finanza",
     tags: ["subappalto edilizia", "codice appalti", "gestione subappaltatori", "appalti pubblici"],
     publishedAt: "2025-12-28",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1222,6 +1334,28 @@ export const blogPosts: BlogPost[] = [
         body: "Un software gestionale come Edilizia in Cloud permette di centralizzare tutta la gestione dei subappaltatori: anagrafica con documenti e scadenze, contratti collegati alle commesse, tracciamento delle lavorazioni affidate, verifica automatica del DURC prima di ogni pagamento e rendicontazione per le stazioni appaltanti. Ogni subappaltatore è visibile sulla commessa con il suo stato documentale in tempo reale.",
       },
       {
+        type: "section",
+        heading: "Responsabilità solidale: il rischio più sottovalutato",
+        body: "Quando affidi lavorazioni in subappalto, rispondi in solido — nei limiti previsti dalla legge — dei trattamenti retributivi e dei contributi che il subappaltatore deve ai suoi lavoratori per il periodo del contratto. In pratica: se il tuo subappaltatore non paga operai o Cassa Edile, il conto può arrivare a te, anche anni dopo. Le difese concrete: DURC verificato a ogni pagamento (non solo alla firma), clausole contrattuali che condizionano i pagamenti alla regolarità documentale, e tracciabilità completa di fatture e bonifici. Negli appalti pubblici si aggiunge l'intervento sostitutivo della stazione appaltante in caso di inadempienza contributiva.",
+      },
+      {
+        type: "section",
+        heading: "Fisco e subappalto: reverse charge e ritenute",
+        body: "Due regole fiscali da non sbagliare. Prima: nei subappalti edili tra imprese si applica di norma il reverse charge IVA (inversione contabile) — il subappaltatore fattura senza IVA e sei tu a integrarla in contabilità; sbagliare regime significa sanzioni per entrambi. Seconda: per appalti e subappalti ad alta intensità di manodopera sopra i 200.000€ annui con prevalente utilizzo di manodopera presso le sedi del committente, la legge prevede controlli sulle ritenute fiscali dei dipendenti (art. 17-bis D.Lgs 241/1997): devi farti consegnare le deleghe F24 dei lavoratori impiegati nel tuo cantiere. Il commercialista va coinvolto prima di firmare, non dopo.",
+      },
+      {
+        type: "list",
+        heading: "Il contratto di subappalto nei lavori privati: cosa scrivere sempre",
+        items: [
+          "Oggetto preciso delle lavorazioni affidate, con riferimento a computo e disegni",
+          "Prezzi, modalità di misura e collegamento dei pagamenti ai SAL del committente principale",
+          "Obblighi documentali: DURC, POS, elenco lavoratori, formazione e idoneità sanitarie",
+          "Penali per ritardo e responsabilità per danni e difetti delle lavorazioni",
+          "Divieto di ulteriore subappalto senza consenso scritto",
+          "Clausola di sospensione dei pagamenti in caso di irregolarità contributiva",
+        ],
+      },
+      {
         type: "cta",
         heading: "Gestisci i subappaltatori con Edilizia in Cloud",
         body: "Registro subappaltatori con DURC, contratti e scadenze. Alert automatici, verifica documentale pre-pagamento e reportistica per stazioni appaltanti. Tutto in un'unica piattaforma.",
@@ -1233,7 +1367,7 @@ export const blogPosts: BlogPost[] = [
     slug: "acquisire-clienti-impresa-edile",
     title: "Come Acquisire Clienti per Impresa Edile",
     excerpt:
-      "Il 73% delle imprese edili trova clienti solo col passaparola. 7 strategie pratiche per acquisire nuovi clienti: recensioni Google, preventivi e partnership.",
+      "Il 73% delle imprese edili trova clienti solo col passaparola. 7 strategie per acquisirne di nuovi: recensioni Google, preventivi, partnership.",
     category: "Commerciale",
     tags: ["acquisire clienti edilizia", "commerciale impresa edile", "preventivi edilizia", "marketing cantieri"],
     publishedAt: "2026-01-06",
@@ -1285,13 +1419,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "18",
     slug: "gestione-operai-cantiere-presenze-ore",
+    faqs: [
+      { q: "Come funziona la timbratura da smartphone in cantiere?", a: "L'operaio timbra entrata e uscita dall'app sul suo telefono; la timbratura registra ora e posizione GPS ed è collegata alla commessa. Il titolare vede in tempo reale chi è presente su quale cantiere e le ore finiscono automaticamente nel consuntivo di commessa e nell'export paghe." },
+      { q: "La geolocalizzazione delle timbrature è legale?", a: "Sì se rispetta lo Statuto dei Lavoratori e il GDPR: rilevazione solo al momento della timbratura (non tracciamento continuo), informativa ai lavoratori, e accordo sindacale o autorizzazione dell'Ispettorato quando richiesto. I gestionali seri sono progettati per operare in questo perimetro." },
+      { q: "Come imputo le ore ai cantieri per conoscere il costo reale?", a: "Ogni timbratura o rapportino deve indicare la commessa: così le ore moltiplicate per il costo orario aziendale (paga + oneri + Cassa Edile) finiscono nel consuntivo del cantiere giusto. È l'unico modo per sapere quanto margine sta davvero facendo ogni commessa." },
+    ],
     title: "Gestione Operai in Cantiere: Presenze, Ore e Paghe nel 2026",
     excerpt:
       "Come gestire le presenze degli operai edili, tracciare le ore per cantiere, collegare le ore alle buste paga e rispettare il CCNL edilizia.",
     category: "HR & Personale",
     tags: ["gestione operai edilizia", "presenze cantiere", "CCNL edilizia", "ore lavoro cantiere"],
     publishedAt: "2026-01-09",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1439,10 +1578,16 @@ export const blogPosts: BlogPost[] = [
   {
     id: "21",
     slug: "computo-metrico-estimativo-guida",
+    faqs: [
+      { q: "Che differenza c'è tra computo metrico e computo metrico estimativo?", a: "Il computo metrico elenca le lavorazioni con le sole quantità misurate; il computo metrico estimativo (CME) aggiunge i prezzi unitari e quindi l'importo economico di ogni voce e dell'opera completa. Il CME è la base del preventivo e del budget di commessa." },
+      { q: "Quale prezzario devo usare per il computo?", a: "Per i lavori pubblici è obbligatorio il prezzario ufficiale della Regione dove si esegue l'opera, aggiornato annualmente. Per i lavori privati i prezzari regionali o il DEI sono un riferimento orientativo: conviene sempre verificare i prezzi reali dei propri fornitori." },
+      { q: "Chi redige il computo metrico estimativo?", a: "In fase di progetto lo redige il progettista o il geometra; in fase di offerta l'impresa lo rielabora con i propri costi reali per costruire preventivo e budget di commessa. Negli appalti pubblici il CME di progetto determina l'importo a base d'asta." },
+    ],
     title: "Computo Metrico Estimativo: Guida Completa 2026",
-    excerpt: "Guida pratica al computo metrico estimativo per imprese edili: struttura, prezzari regionali, esempi numerici concreti, errori da evitare e software per compilarlo in modo professionale e veloce.",
+    excerpt: "Computo metrico estimativo per imprese edili: struttura, prezzari regionali, esempi numerici, errori da evitare e come compilarlo velocemente.",
     category: "Gestione Cantieri",
     tags: ["computo metrico", "preventivo edile", "prezzario", "cme", "software edilizia", "prezzario regionale", "misurazioni edili"],
+    updatedAt: "2026-07-10",
     publishedAt: "2026-01-18",
     readTime: 14,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
@@ -1569,10 +1714,16 @@ export const blogPosts: BlogPost[] = [
   {
     id: "22",
     slug: "bim-edilizia-guida-pratica",
+    faqs: [
+      { q: "Il BIM è obbligatorio per le imprese edili?", a: "L'obbligo riguarda le stazioni appaltanti: dal 2025 devono usare metodi digitali BIM per i nuovi appalti sopra 1 milione di euro. Per l'impresa esecutrice significa saper ricevere e consultare i modelli e aggiornare l'as-built quando il capitolato lo richiede." },
+      { q: "Cosa serve a un'impresa esecutrice per iniziare con il BIM?", a: "Non serve modellare da zero: bastano un tecnico formato alla lettura dei modelli (corsi da poche decine di ore), un visualizzatore IFC anche gratuito e procedure per estrarre quantità e verificare interferenze. L'investimento iniziale è nell'ordine di poche migliaia di euro." },
+      { q: "Che vantaggi concreti dà il BIM in cantiere?", a: "Meno varianti e imprevisti: i conflitti tra strutture e impianti si vedono nel modello prima di costruire; le quantità per computi e ordini si estraggono dal modello riducendo errori; la comunicazione con DL e committente è più rapida perché tutti guardano lo stesso modello aggiornato." },
+    ],
     title: "BIM in Edilizia: Cos'è, Obblighi e Come Iniziare nel 2026",
-    excerpt: "Guida pratica al Building Information Modeling per imprese edili: obblighi normativi sugli appalti pubblici, vantaggi concreti e come iniziare passo dopo passo.",
+    excerpt: "BIM per imprese edili: obblighi negli appalti pubblici, vantaggi concreti e come iniziare passo dopo passo senza stravolgere l'azienda.",
     category: "Digitalizzazione",
     tags: ["BIM", "building information modeling", "digitalizzazione edilizia", "DM 560", "software BIM"],
+    updatedAt: "2026-07-10",
     publishedAt: "2026-01-21",
     readTime: 8,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
@@ -1621,6 +1772,16 @@ export const blogPosts: BlogPost[] = [
         author: "Titolare di impresa edile, Torino",
       },
       {
+        type: "section",
+        heading: "Il percorso pratico in 90 giorni per una PMI edile",
+        body: "Primo mese: forma un tecnico interno con un corso base di lettura modelli IFC (20-40 ore) e installa un visualizzatore gratuito. Secondo mese: prendi un progetto già eseguito e rifai il confronto — quantità estratte dal modello contro computo tradizionale, interferenze trovate contro varianti realmente subite in cantiere. Terzo mese: candidati a una gara o a un lavoro privato dove il modello BIM è disponibile e usa il modello per l'offerta. Obiettivo del trimestre: non 'fare BIM', ma smettere di essere tagliati fuori dai lavori dove il BIM c'è già.",
+      },
+      {
+        type: "section",
+        heading: "Quanto costa introdurre il BIM (e quanto rende)",
+        body: "Per un'impresa esecutrice l'ingresso è meno costoso di quanto si pensi: formazione di un tecnico (500-2.000€), visualizzatore gratuito o software di coordinamento entry-level (0-2.500€/anno), tempo interno per i primi progetti pilota. Il ritorno arriva da tre fonti: accesso a gare da cui saresti escluso, riduzione delle varianti in corso d'opera grazie alle interferenze individuate prima (storicamente il 5-10% del valore d'appalto), e computi più rapidi e precisi in fase di offerta. Il BIM completo di progettazione (autoring, 5.000-10.000€/anno a postazione) ha senso solo se fai anche progettazione interna.",
+      },
+      {
         type: "cta",
         heading: "Gestionale edile pronto per il BIM",
         body: "Edilizia in Cloud si integra con i flussi di lavoro BIM: importa le quantità dal modello, collega i costi agli elementi e monitora il cantiere digitalmente. Scopri come.",
@@ -1630,10 +1791,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "23",
     slug: "cassa-edile-come-funziona",
+    faqs: [
+      { q: "Chi è obbligato a iscriversi alla Cassa Edile?", a: "Tutte le imprese che applicano il CCNL Edilizia e hanno operai in forza: l'iscrizione va fatta alla Cassa Edile della provincia in cui si svolgono i lavori. Senza iscrizione e versamenti regolari il DURC risulta irregolare e non puoi lavorare negli appalti pubblici." },
+      { q: "Quanto costa la Cassa Edile all'impresa?", a: "I contributi variano per provincia e livello, ma complessivamente l'incidenza è tra il 12% e il 18% della retribuzione lorda degli operai. Coprono ferie, gratifica natalizia, anzianità professionale edile (APE), formazione e prestazioni assistenziali." },
+      { q: "Entro quando va inviata la denuncia mensile alla Cassa Edile?", a: "La denuncia dei lavoratori occupati (MUT) va trasmessa di norma entro la fine del mese successivo a quello di competenza, con il versamento dei relativi contributi. Ritardi e omissioni bloccano il rilascio del DURC." },
+      { q: "Cosa succede se lavoro in una provincia diversa?", a: "Vale il principio di territorialità: per cantieri fuori provincia di durata rilevante l'impresa deve iscriversi e versare alla Cassa Edile del territorio dove si svolge il lavoro, salvo convenzioni di trasferta tra Casse. Va verificato caso per caso con le Casse coinvolte." },
+    ],
     title: "Cassa Edile: Come Funziona, Contributi e Obblighi",
     excerpt: "Guida completa alla Cassa Edile per i titolari di imprese edili: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e impatto sul DURC.",
     category: "HR & Personale",
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
+    updatedAt: "2026-07-10",
     publishedAt: "2026-01-24",
     readTime: 7,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
@@ -1683,6 +1851,27 @@ export const blogPosts: BlogPost[] = [
         author: "Titolare di impresa edile, Napoli",
       },
       {
+        type: "section",
+        heading: "APE: l'anzianità professionale edile",
+        body: "L'APE è una delle prestazioni distintive del sistema Cassa Edile: un premio annuo erogato agli operai che maturano un minimo di ore denunciate nel biennio, finanziato dai contributi delle imprese. Per l'operaio è una quattordicesima di settore; per l'impresa è un motivo in più per denunciare correttamente tutte le ore: un operaio con ore 'in nero' perde APE e prestazioni, e prima o poi il conto arriva in vertenza. Le percentuali e le regole di maturazione variano leggermente tra Casse territoriali.",
+      },
+      {
+        type: "section",
+        heading: "Cassa Edile e DURC: un legame diretto",
+        body: "La regolarità verso la Cassa Edile è una delle tre gambe del DURC, insieme a INPS e INAIL. Una denuncia MUT inviata in ritardo o un versamento saltato rendono il DURC irregolare — e senza DURC non incassi dagli enti pubblici, non firmi subappalti e perdi lavori privati con committenti strutturati. Il meccanismo è automatico: la Cassa segnala la posizione al sistema DURC online. Per questo le scadenze Cassa Edile vanno trattate come gli F24: non negoziabili, con promemoria e responsabile chiaro in azienda.",
+      },
+      {
+        type: "list",
+        heading: "Gli errori più comuni nelle denunce mensili",
+        items: [
+          "Ore denunciate diverse da quelle in busta paga: incoerenza che emerge in sede di congruità",
+          "Cantieri non dichiarati o codici cantiere errati nella denuncia MUT",
+          "Operai in trasferta denunciati alla Cassa sbagliata (vale la territorialità del cantiere)",
+          "Dimenticare le variazioni: assunzioni, cessazioni e cambi livello vanno comunicati subito",
+          "Versare in ritardo contando sulla tolleranza: il DURC diventa irregolare comunque",
+        ],
+      },
+      {
         type: "cta",
         heading: "Gestisci presenze e Cassa Edile senza errori",
         body: "Edilizia in Cloud integra la gestione delle presenze con il calcolo automatico dei contributi Cassa Edile. Meno errori, DURC sempre regolare.",
@@ -1692,10 +1881,16 @@ export const blogPosts: BlogPost[] = [
   {
     id: "24",
     slug: "appalti-pubblici-edilizia-guida",
+    faqs: [
+      { q: "Cosa serve per partecipare a una gara pubblica di lavori?", a: "Requisiti generali (niente condanne rilevanti, regolarità fiscale e contributiva con DURC valido), iscrizione in CCIAA, e requisiti speciali: SOA per lavori sopra 150.000€, oppure — sotto soglia — lavori analoghi eseguiti, costo del personale e attrezzatura adeguati." },
+      { q: "Dove trovo i bandi di gara per l'edilizia?", a: "Sulla Banca Dati Nazionale ANAC e sulle piattaforme telematiche regionali (SINTEL in Lombardia, START in Toscana, ecc.), oltre ai portali delle singole stazioni appaltanti. Esistono anche servizi di alert che segnalano i bandi per categoria SOA e territorio." },
+      { q: "Come funziona il ribasso d'asta?", a: "L'impresa offre una percentuale di sconto sull'importo a base d'asta. Nei criteri al prezzo più basso vince il ribasso maggiore, con esclusione automatica delle offerte anomale nei casi previsti; nell'offerta economicamente più vantaggiosa il prezzo pesa insieme alla qualità tecnica." },
+    ],
     title: "Come Partecipare agli Appalti Pubblici in Edilizia",
-    excerpt: "Guida pratica per imprese edili che vogliono partecipare a gare d'appalto pubbliche: requisiti SOA, DURC, gare telematiche, ribasso d'asta e come organizzarsi.",
+    excerpt: "Come partecipare alle gare d'appalto pubbliche in edilizia: requisiti SOA, DURC, gare telematiche, ribasso d'asta e come organizzarsi.",
     category: "Commerciale",
     tags: ["appalti pubblici edilizia", "gare d'appalto", "SOA", "DURC", "codice appalti", "portale ANAC"],
+    updatedAt: "2026-07-10",
     publishedAt: "2026-01-27",
     readTime: 10,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
@@ -1838,13 +2033,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "26",
     slug: "ccnl-edilizia-guida",
+    faqs: [
+      { q: "Quali sono i livelli del CCNL Edilizia?", a: "Il CCNL Edilizia Industria prevede livelli per operai (dal comune al IV livello specializzato) e per impiegati tecnici e amministrativi (fino al VII livello e quadri). A ogni livello corrisponde una paga base tabellare su cui si aggiungono contingenza, EDR e indennità." },
+      { q: "Quanto costa davvero un operaio edile all'impresa?", a: "Molto più della paga base: al lordo in busta vanno aggiunti contributi INPS e INAIL, accantonamenti e contributi Cassa Edile (12-18%), TFR, ferie e gratifica, formazione e DPI. Come regola pratica, il costo aziendale è circa il doppio del netto percepito dall'operaio." },
+      { q: "Quante ore prevede il CCNL Edilizia e come si pagano gli straordinari?", a: "L'orario normale è di 40 ore settimanali. Gli straordinari sono maggiorati secondo le tabelle contrattuali (feriale, festivo, notturno hanno percentuali diverse). Il contratto disciplina anche trasferta, indennità di cantiere e ROL." },
+    ],
     title: "CCNL Edilizia Industria 2024-2026",
     excerpt:
       "Tutto sul CCNL Edilizia Industria 2024-2026: livelli, scatti, aumenti, orari, ferie, Cassa Edile e quanto costa davvero un operaio edile per l'impresa.",
     category: "HR & Personale",
     tags: ["CCNL edilizia", "contratto collettivo edilizia", "costo operaio edile", "livelli CCNL", "retribuzione edilizia"],
     publishedAt: "2026-02-02",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1897,13 +2097,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "27",
     slug: "attestazione-soa-imprese-edili",
+    faqs: [
+      { q: "Quando è obbligatoria la SOA?", a: "Per partecipare ad appalti pubblici di lavori con importo superiore a 150.000€. Sotto questa soglia bastano i requisiti dichiarati in gara (lavori analoghi, costo del personale, attrezzatura). La SOA certifica la categoria di lavori e la classifica d'importo fino a cui puoi concorrere." },
+      { q: "Quanto dura l'attestazione SOA?", a: "Cinque anni, con verifica obbligatoria di mantenimento dei requisiti al terzo anno. La revisione triennale va richiesta prima della scadenza del triennio per non perdere la continuità dell'attestazione — e quindi la possibilità di partecipare alle gare." },
+      { q: "Quanto costa ottenere la SOA?", a: "Il costo dipende da categorie e classifiche richieste: indicativamente da 4.000-5.000€ per una categoria in classifica I fino a decine di migliaia di euro per classifiche superiori o più categorie. Alla tariffa dell'organismo si aggiungono i costi di preparazione documentale." },
+    ],
     title: "Attestazione SOA per Imprese Edili",
     excerpt:
-      "Guida completa all'attestazione SOA per gli appalti pubblici oltre 150.000€: categorie OG/OS, requisiti di fatturato e personale, costi e tempi per ottenerla.",
+      "Attestazione SOA per appalti oltre 150.000€: categorie OG/OS, requisiti di fatturato e personale, costi e tempi per ottenerla.",
     category: "Normativa",
     tags: ["attestazione SOA", "SOA imprese edili", "appalti pubblici qualificazione", "categorie OG OS", "qualificazione SOA"],
     publishedAt: "2026-02-05",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -1961,13 +2166,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "28",
     slug: "superbonus-imprese-edili-2026",
+    faqs: [
+      { q: "Il Superbonus esiste ancora nel 2026?", a: "Il 110% è terminato: restano detrazioni ridotte solo per interventi già avviati con le condizioni previste dalle norme transitorie. Per i nuovi lavori si usano gli altri bonus: ristrutturazione al 50% sulla prima casa (36% sulle altre), Ecobonus e Sismabonus alle aliquote vigenti." },
+      { q: "Cessione del credito e sconto in fattura sono ancora possibili?", a: "Solo in casi residuali definiti dalla legge: per la generalità dei nuovi interventi privati non sono più disponibili. Il committente detrae in dichiarazione dei redditi in più anni, quindi l'impresa deve preventivare senza contare sullo sconto in fattura." },
+      { q: "Cosa deve conservare l'impresa per i lavori agevolati?", a: "Contratto e preventivo accettato, fatture e bonifici parlanti, asseverazioni tecniche e visto di conformità dove richiesti, comunicazioni ENEA per gli interventi energetici, e la documentazione di cantiere. In caso di controlli, la mancanza di un documento può far decadere il beneficio del cliente." },
+    ],
     title: "Superbonus 2025-2026: Cosa Resta per le Imprese Edili",
     excerpt:
       "Guida aggiornata al Superbonus 2025-2026 per le imprese edili: aliquote residue, cessione del credito, SAL e documentazione obbligatoria.",
     category: "Normativa",
     tags: ["superbonus 2026", "superbonus imprese edili", "bonus edilizi", "cessione credito", "ecobonus", "bonus ristrutturazione"],
     publishedAt: "2026-02-08",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -2020,12 +2230,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "29",
     slug: "gestione-liquidita-impresa-edile",
+    faqs: [
+      { q: "Perché le imprese edili vanno in crisi di liquidità anche con tanti lavori?", a: "Perché i costi (operai, fornitori, subappalti) escono prima e più velocemente dei ricavi, che arrivano solo a SAL approvato e spesso con 30-90 giorni di ritardo. Più cantieri apri, più cassa 'anticipi': senza previsione dei flussi, la crescita stessa può mandarti in tensione." },
+      { q: "Come faccio una previsione di cassa a 30-60-90 giorni?", a: "Metti in fila le entrate certe (SAL approvati, fatture emesse con scadenza) e quelle probabili (SAL da presentare), poi tutte le uscite: stipendi, F24, fornitori, subappaltatori, rate e leasing. Il saldo progressivo settimana per settimana ti dice in anticipo dove si crea il buco." },
+      { q: "Quali sono i segnali di allarme di una crisi di liquidità?", a: "Ritardi crescenti nei pagamenti ai fornitori, uso costante del fido al limite, F24 rateizzati, richieste di anticipo fatture su tutto il fatturabile, e SAL presentati in ritardo per mancanza di documentazione. Se ne riconosci due o più, serve subito una previsione di cassa seria." },
+    ],
     title: "Gestione della Liquidità per Imprese Edili",
-    excerpt: "La crisi di liquidità è la prima causa di fallimento in edilizia. Guida al ciclo finanziario del cantiere, alla previsione dei flussi di cassa e agli strumenti utili.",
+    excerpt: "La crisi di liquidità è la prima causa di fallimento in edilizia. Il ciclo finanziario del cantiere e come prevedere i flussi a 30-60-90 giorni.",
     category: "Finanza",
     tags: ["liquidità impresa edile", "gestione cassa cantiere", "flusso di cassa edilizia", "previsione finanziaria cantiere", "crisi liquidità impresa edile"],
     publishedAt: "2026-02-11",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 13,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80",
@@ -2120,12 +2335,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "30",
     slug: "pnrr-edilizia-imprese-2026",
+    faqs: [
+      { q: "Un'impresa piccola può lavorare sui cantieri PNRR?", a: "Sì: oltre alla partecipazione diretta ai bandi (dove serve spesso la SOA), le PMI edili entrano nei cantieri PNRR come subappaltatori o in ATI con imprese più grandi. Contano DURC impeccabile, capacità di rendicontazione e rispetto rigoroso dei tempi." },
+      { q: "Cosa rende diversi gli appalti PNRR da quelli ordinari?", a: "Le scadenze sono vincolanti a livello europeo: ritardi e rendicontazioni incomplete possono bloccare i pagamenti. Sono richiesti tracciabilità completa, comunicazioni digitali, rispetto del DNSH (non arrecare danno ambientale) e quote di manodopera giovanile e femminile in molti bandi." },
+      { q: "Fino a quando durano i cantieri PNRR?", a: "Il piano ha come orizzonte la metà del 2026 per il completamento delle opere finanziate, con eventuali code di rendicontazione successive. Molti cantieri sono in piena esecuzione: la domanda di imprese esecutrici e subappaltatori qualificati resta alta fino alla chiusura." },
+    ],
     title: "PNRR per Imprese Edili 2025-2026",
-    excerpt: "191 miliardi di opportunità: guida al PNRR per le imprese edili. Quali bandi sono ancora aperti, requisiti SOA e come gestire la rendicontazione senza perdere pagamenti.",
+    excerpt: "PNRR per imprese edili: quali bandi sono ancora aperti, requisiti per partecipare e come gestire la rendicontazione senza perdere i pagamenti.",
     category: "Normativa",
     tags: ["PNRR edilizia", "bandi PNRR imprese edili", "appalti PNRR 2026", "rendicontazione PNRR", "PNRR costruzioni", "fondi europei edilizia"],
     publishedAt: "2026-02-14",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1600&q=80",
@@ -2215,12 +2435,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "31",
     slug: "come-scegliere-software-gestionale-edilizia",
+    faqs: [
+      { q: "Quali funzionalità sono indispensabili in un gestionale per l'edilizia?", a: "Gestione commesse con margine in tempo reale, fatturazione elettronica SDI integrata, SAL e avanzamento lavori, ore e presenze per cantiere, DDT digitali, preventivi professionali e scadenzario. Tutto usabile da smartphone, perché l'impresa vive in cantiere e non in ufficio." },
+      { q: "Meglio un gestionale verticale per l'edilizia o un ERP generico?", a: "Per una PMI edile quasi sempre il verticale: parla la lingua del cantiere (commesse, SAL, subappalti, Cassa Edile), si avvia in giorni e non in mesi, e non richiede consulenti per ogni modifica. L'ERP generico ha senso solo per strutture grandi con processi molto personalizzati." },
+      { q: "Quanto dura l'implementazione di un gestionale edile?", a: "Con un cloud verticale: import dati e configurazione in pochi giorni, squadra operativa in 2-4 settimane. Diffida di implementazioni da 6-12 mesi: nel frattempo l'azienda continua a lavorare coi vecchi strumenti e il progetto muore. Il 40% degli abbandoni nasce da avvii troppo complessi." },
+    ],
     title: "Come Scegliere il Software Gestionale per l'Edilizia",
-    excerpt: "Il 40% delle imprese edili abbandona il gestionale entro 12 mesi. Guida per scegliere quello giusto: funzionalità indispensabili, criteri di valutazione e costi.",
+    excerpt: "Il 40% delle imprese edili abbandona il gestionale entro 12 mesi. Come scegliere quello giusto: funzionalità indispensabili, criteri e costi.",
     category: "Digitalizzazione",
     tags: ["come scegliere software gestionale edilizia", "software edilizia confronto", "gestionale impresa edile criteri", "ERP edilizia valutazione", "migliore software cantieri"],
     publishedAt: "2026-02-17",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80",
@@ -2313,12 +2538,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "32",
     slug: "gestione-subappaltatori-impresa-edile",
+    faqs: [
+      { q: "Quali documenti devo farmi dare da ogni subappaltatore?", a: "Prima dell'ingresso in cantiere: DURC in corso di validità, visura camerale, POS, dichiarazione sull'organico medio annuo, attestazione dei requisiti tecnico-professionali, elenco dei lavoratori con formazione e idoneità sanitaria, e — negli appalti pubblici — l'autorizzazione al subappalto." },
+      { q: "Cos'è la responsabilità solidale negli appalti?", a: "Il committente e l'appaltatore rispondono in solido, entro i limiti di legge, dei trattamenti retributivi e contributivi dovuti dal subappaltatore ai suoi dipendenti per il periodo del contratto. Per proteggersi: DURC a ogni pagamento e verifica delle buste paga in caso di dubbio." },
+      { q: "Posso pagare il subappaltatore se il suo DURC è irregolare?", a: "No: con DURC irregolare scatta l'intervento sostitutivo — il committente o l'appaltatore versa direttamente agli enti quanto dovuto, trattenendolo dal corrispettivo. Pagare comunque il subappaltatore espone alla responsabilità solidale per i debiti contributivi." },
+    ],
     title: "Gestione Subappaltatori",
-    excerpt: "Guida completa alla gestione dei subappaltatori in edilizia: contratti obbligatori, DURC, responsabilità solidale, ritenute fiscali e limiti negli appalti pubblici.",
+    excerpt: "Gestione subappaltatori in edilizia: contratti obbligatori, DURC, responsabilità solidale, ritenute e limiti negli appalti pubblici.",
     category: "Gestione Cantieri",
     tags: ["gestione subappaltatori", "subappalto edilizia", "contratto subappalto", "DURC subappaltatori", "responsabilità solidale subappalto", "limiti subappalto appalti pubblici"],
     publishedAt: "2026-02-20",
-    updatedAt: "2026-04-08",
+    updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1600&q=80",
@@ -2410,7 +2640,7 @@ export const blogPosts: BlogPost[] = [
     id: "33",
     slug: "cassa-impresa-edile-non-torna",
     title: "Ho Fatturato ma Non Ho Soldi",
-    excerpt: "Hai cantieri aperti e fatture emesse, ma il conto resta sotto pressione? Ecco perché ricavi e liquidità non sono la stessa cosa e come riprendere il controllo della cassa.",
+    excerpt: "Cantieri aperti e fatture emesse, ma il conto resta in tensione? Perché ricavi e liquidità non coincidono e come riprendere il controllo della cassa.",
     category: "Finanza",
     tags: ["cassa impresa edile", "liquidità edilizia", "cash flow cantiere", "SAL cantiere", "margini cantiere"],
     publishedAt: "2026-02-23",
@@ -2584,7 +2814,7 @@ export const blogPosts: BlogPost[] = [
     id: "35",
     slug: "passaparola-impresa-edile-non-basta",
     title: "Il Passaparola Non Basta Più",
-    excerpt: "Se aspetti che i clienti arrivino solo da conoscenze e raccomandazioni, non hai un sistema commerciale. Ecco come rendere prevedibili contatti, preventivi e cantieri.",
+    excerpt: "Se i clienti arrivano solo da conoscenze, non hai un sistema commerciale. Come rendere prevedibili contatti, preventivi e cantieri.",
     category: "Marketing",
     tags: ["clienti impresa edile", "marketing edilizia", "passaparola impresa edile", "lead edilizia", "preventivi edilizia"],
     publishedAt: "2026-03-01",
@@ -3110,7 +3340,7 @@ export const blogPosts: BlogPost[] = [
     id: "41",
     slug: "come-trovare-clienti-impresa-edile-marketing",
     title: "Come Trovare Clienti per un'Impresa Edile",
-    excerpt: "Vuoi più clienti per lavori edili, ristrutturazioni o manutenzioni? Ecco un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.",
+    excerpt: "Vuoi più clienti per lavori edili e ristrutturazioni? Un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.",
     category: "Marketing",
     tags: ["come trovare clienti impresa edile", "marketing impresa edile", "clienti edilizia", "lead edilizia", "acquisire clienti edilizia"],
     publishedAt: "2026-03-19",
@@ -3348,7 +3578,7 @@ export const blogPosts: BlogPost[] = [
     id: "43",
     slug: "lead-serramenti-come-generare-richieste-qualificate",
     title: "Lead Serramenti: Come Generare Richieste Qualificate",
-    excerpt: "Chi vende serramenti ha bisogno di lead con misure, zona, budget e urgenza. Ecco come evitare contatti inutili e trasformare le richieste online in preventivi.",
+    excerpt: "Chi vende serramenti ha bisogno di lead con misure, zona e budget. Come evitare contatti inutili e trasformare le richieste in preventivi.",
     category: "Marketing",
     tags: ["lead serramenti", "clienti serramenti", "marketing serramenti", "preventivi infissi", "vendere serramenti"],
     publishedAt: "2026-03-25",
@@ -4544,12 +4774,17 @@ export const blogPosts: BlogPost[] = [
   {
     id: "55",
     slug: "intelligenza-artificiale-edilizia-2026",
+    faqs: [
+      { q: "A cosa serve davvero l'AI in un'impresa edile?", a: "Alle cose ripetitive che rubano tempo: leggere un computo e trasformarlo in preventivo, segnalare margini di commessa in deriva, ricordare scadenze DURC e documenti, rispondere alle domande sui dati aziendali ('quanto ho speso di manodopera sul cantiere X?'). Non sostituisce il cantiere: toglie burocrazia." },
+      { q: "Serve una figura tecnica per usare l'AI in azienda?", a: "No, se l'AI è integrata nel gestionale che già usi: fai domande in italiano e ricevi risposte sui tuoi dati. Servono invece dati ordinati: ore, costi e documenti registrati con costanza — l'AI amplifica la qualità dei dati che le dai." },
+      { q: "L'AI può sbagliare sui dati del mio cantiere?", a: "Può interpretare male una domanda ambigua, per questo i sistemi seri mostrano sempre i numeri di partenza e permettono di verificare il dettaglio. Usala come un collaboratore veloce che prepara analisi da controllare, non come un oracolo da seguire alla cieca." },
+    ],
     title: "Intelligenza Artificiale in Edilizia 2026: 8 Use Case Reali",
     excerpt: "AI in edilizia non è futuro: è già qui. 8 use case reali con dati e ROI. Come le imprese edili italiane usano l'AI per margini, cantieri, preventivi.",
     category: "Digitalizzazione",
     tags: ["intelligenza-artificiale", "ai-cantiere", "innovazione-edilizia", "gestionale-ai"],
     publishedAt: "2026-05-22",
-    updatedAt: "2026-05-22",
+    updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1677442d019cecf8328cd4fab61a67a96f4a7e0d?auto=format&fit=crop&w=1600&q=80",
@@ -4586,6 +4821,21 @@ export const blogPosts: BlogPost[] = [
           "Step 2: Scegli un gestionale AI verticale edilizia — non generalista con 'modulo AI' appiccicato.",
           "Step 3: Pilota su 1 cantiere reale — attiva funzioni essenziali (margini + OCR fatture), misura prima/dopo.",
         ],
+      },
+      {
+        type: "section",
+        heading: "I casi d'uso che funzionano già oggi",
+        body: "Lasciando da parte le promesse futuristiche, ecco dove l'AI produce valore concreto in un'impresa edile nel 2026. Preventivazione: dai in pasto un computo metrico o un capitolato e ottieni la bozza di preventivo con voci e quantità già strutturate, da rifinire con i tuoi prezzi. Controllo di gestione: l'AI legge i consuntivi e segnala in italiano le commesse con margine in deriva e le anomalie di costo. Ricerca dati: domande come 'quanto ho speso di manodopera sul cantiere Rossi a giugno?' ricevono risposta immediata senza aprire dieci schermate. Documenti: bozze di contratti di subappalto, solleciti di pagamento e verbali partono da un modello già compilato con i dati della commessa.",
+      },
+      {
+        type: "section",
+        heading: "Cosa NON aspettarsi dall'AI in cantiere",
+        body: "L'AI non dirige il cantiere, non decide la sequenza delle lavorazioni, non sostituisce il sopralluogo e non firma i SAL. E soprattutto: non funziona sopra dati disordinati. Se le ore non vengono registrate, se i costi arrivano in contabilità tre mesi dopo, se i preventivi vivono in file Word sparsi, qualsiasi AI produrrà risposte inutili — o peggio, sbagliate con sicurezza. Diffida di chi vende 'l'AI che risolve tutto' senza chiederti prima come raccogli i dati: è il segnale che sta vendendo una demo, non uno strumento.",
+      },
+      {
+        type: "section",
+        heading: "Come partire: i dati prima dei modelli",
+        body: "Il percorso realistico per una PMI edile: primo, digitalizza la raccolta dati (presenze da smartphone, rapportini con foto, costi collegati alle commesse) — senza questo passo l'AI non ha materia prima. Secondo, scegli strumenti dove l'AI è integrata nel gestionale che usi ogni giorno, non un chatbot separato dove dovresti copiare i dati a mano. Terzo, parti da un caso d'uso solo — tipicamente i preventivi da computo o l'analisi dei margini — misura il tempo risparmiato per un mese, poi allarga. Le imprese che seguono quest'ordine vedono benefici in settimane; quelle che comprano 'l'AI' prima dei dati, mai.",
       },
       {
         type: "cta",
@@ -4719,13 +4969,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "58",
     slug: "miglior-gestionale-edilizia-guida-scelta",
+    faqs: [
+      { q: "Qual è il miglior gestionale per un'impresa edile?", a: "Quello che risolve il tuo problema principale e che la squadra usa davvero: per una PMI edile italiana significa cloud, verticale sul cantiere, con fatturazione SDI integrata, margini di commessa in tempo reale e app mobile per ore e rapportini. La prova sul campo vale più di ogni comparativa." },
+      { q: "Meglio un gestionale cloud o un software desktop?", a: "Il cloud non richiede server né installazioni, si aggiorna da solo, si usa da cantiere via smartphone e i dati sono sempre allineati. Il desktop ha senso solo se lavori sempre dallo stesso ufficio e senza squadre esterne — in edilizia è ormai un caso raro." },
+      { q: "Come faccio a capire se un gestionale fa per me prima di pagarlo?", a: "Usa il periodo di prova con dati veri: carica una commessa reale, fai timbrare la squadra per una settimana, emetti una fattura di prova. Se in 2 settimane la squadra lo usa senza lamentarsi e tu vedi i numeri del cantiere, è quello giusto." },
+    ],
     title: "Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta",
     excerpt:
-      "Cloud o desktop? Verticale o ERP generalista? I 7 criteri che contano davvero per scegliere il gestionale della tua impresa edile, con i range di prezzo reali e gli errori da evitare.",
+      "Cloud o desktop? Verticale o ERP? I 7 criteri che contano per scegliere il gestionale della tua impresa edile, con prezzi reali ed errori da evitare.",
     category: "Digitalizzazione",
     tags: ["gestionale edilizia", "software edilizia", "confronto software", "digitalizzazione"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-06-11",
+    updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -4786,13 +5041,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "59",
     slug: "quanto-costa-gestionale-impresa-edile",
+    faqs: [
+      { q: "Quanto costa un gestionale per un'impresa edile?", a: "I range 2026: gestionali cloud verticali da 100 a 550€/mese secondo dimensione e funzioni (spesso utenti illimitati); ERP generici 200-500€/mese più setup; software desktop con licenza una tantum 1.500-5.000€ più aggiornamenti annuali. Attenzione ai costi nascosti di setup e formazione." },
+      { q: "Il gestionale si ripaga davvero?", a: "Sì, se lo usi: il ROI tipico arriva in 4-6 mesi tra ore amministrative risparmiate (4-8 a settimana), ore fatturabili recuperate, sconti fornitori tracciati e margini difesi dagli errori. Un solo errore di margine evitato su una commessa media ripaga un anno di canone." },
+      { q: "Ci sono costi nascosti da controllare prima di firmare?", a: "Sì: costo per utente aggiuntivo (con le squadre cresce in fretta), moduli 'opzionali' indispensabili come la fatturazione SDI, setup e migrazione dati, formazione, assistenza a pagamento e vincoli contrattuali pluriennali. Chiedi sempre il costo totale del primo anno, tutto incluso." },
+    ],
     title: "Quanto Costa un Gestionale per Impresa Edile? Prezzi 2026",
     excerpt:
-      "Dai 200-500€/mese degli ERP alle licenze una tantum dei software desktop, fino ai gestionali cloud verticali: tutti i range di prezzo 2026, i costi nascosti e come calcolare il ritorno reale.",
+      "Dagli ERP alle licenze desktop ai gestionali cloud verticali: tutti i range di prezzo 2026, i costi nascosti e come calcolare il ritorno reale.",
     category: "Finanza",
     tags: ["prezzi gestionale", "costi software edilizia", "ROI", "budget impresa edile"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-06-11",
+    updatedAt: "2026-07-10",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -4848,7 +5108,7 @@ export const blogPosts: BlogPost[] = [
     slug: "patente-a-crediti-edilizia-guida",
     title: "Patente a Crediti in Edilizia: Come Funziona e Sanzioni",
     excerpt:
-      "Obbligatoria dal 1° ottobre 2024 per chi opera nei cantieri: come si ottiene la patente a crediti, come si perdono e si recuperano i punti, chi è esonerato e cosa rischia chi lavora sotto soglia.",
+      "Patente a crediti in edilizia: come si ottiene, come si perdono e recuperano i punti, chi è esonerato e cosa rischia chi lavora sotto soglia.",
     category: "Normativa",
     tags: ["patente a crediti", "sicurezza cantieri", "D.Lgs 81/2008", "normativa edilizia"],
     publishedAt: "2026-06-11",
@@ -4924,13 +5184,18 @@ export const blogPosts: BlogPost[] = [
   {
     id: "61",
     slug: "durc-congruita-manodopera-soglie",
+    faqs: [
+      { q: "Cos'è il DURC di congruità?", a: "È la verifica che l'incidenza della manodopera denunciata alle Casse Edili su un cantiere rispetti le percentuali minime fissate dal DM 143/2021 per categoria di lavori. Si applica ai lavori pubblici di qualsiasi importo e ai privati con valore pari o superiore a 70.000€." },
+      { q: "Quali sono le soglie di manodopera per la congruità?", a: "Il DM 143/2021 fissa percentuali minime di incidenza della manodopera sul valore dell'opera per categoria: ad esempio 14,28% per le nuove costruzioni civili. Se la manodopera denunciata è inferiore alla soglia, la Cassa Edile chiede giustificazioni prima di attestare la congruità." },
+      { q: "Cosa succede se il cantiere non è congruo?", a: "La Cassa Edile invita l'impresa a regolarizzare (integrando le denunce o documentando i motivi dello scostamento, come lavorazioni ad alta meccanizzazione o subappalti). Senza regolarizzazione l'attestazione viene negata: nei lavori pubblici questo blocca il saldo finale." },
+    ],
     title: "DURC di Congruità: Soglie Manodopera e Come Rispettarle",
     excerpt:
-      "Per i lavori pubblici e i privati sopra 70.000€ l'incidenza della manodopera deve rispettare le soglie del DM 143/2021. Come funziona la verifica CNCE, le percentuali per categoria e come monitorarle in corso d'opera.",
+      "DURC di congruità: soglie di manodopera del DM 143/2021 per lavori pubblici e privati sopra 70.000€, verifica CNCE e come monitorarle in corso d'opera.",
     category: "Normativa",
     tags: ["congruità manodopera", "DURC", "CNCE Edilconnect", "cassa edile", "lavori pubblici"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-06-11",
+    updatedAt: "2026-07-10",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
@@ -4973,6 +5238,327 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         body: "Vuoi vedere l'incidenza manodopera dei tuoi cantieri in tempo reale, con presenze e subappalti già tracciati? Prova Edilizia in Cloud gratis per 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "62",
+    slug: "cila-scia-permesso-di-costruire-differenze",
+    faqs: [
+      { q: "Che differenza c'è tra CILA e SCIA?", a: "La CILA copre la manutenzione straordinaria che non tocca le parti strutturali (impianti, tramezzi, bagni); la SCIA serve quando si interviene su elementi strutturali o sui prospetti. Entrambe permettono di iniziare subito i lavori, ma la SCIA richiede più elaborati tecnici e il Comune ha 30 giorni per bloccarla." },
+      { q: "Quando serve il permesso di costruire?", a: "Per nuove costruzioni, ampliamenti, ristrutturazioni pesanti che modificano volumetria o sagoma di edifici vincolati e cambi d'uso rilevanti con opere. Va atteso il rilascio da parte del Comune (istruttoria di 60-90 giorni o più) e si paga il contributo di costruzione." },
+      { q: "Cosa rischia l'impresa che lavora senza titolo abilitativo?", a: "Le sanzioni del DPR 380/2001 colpiscono anche l'esecutore: ammende penali, responsabilità del direttore tecnico, ordine di demolizione o rimessa in pristino delle opere abusive. In più l'impresa perde il diritto al compenso se il committente eccepisce l'abusività dei lavori." },
+      { q: "Chi prepara CILA e SCIA: il tecnico o l'impresa?", a: "Un tecnico abilitato (geometra, architetto, ingegnere) incaricato dal committente: assevera la conformità e presenta la pratica. L'impresa deve però verificarne l'esistenza prima di aprire il cantiere e conservarne copia con il protocollo tra i documenti di commessa." },
+    ],
+    title: "CILA, SCIA o Permesso di Costruire: le Differenze",
+    excerpt:
+      "Quale titolo abilitativo serve per il tuo cantiere? Differenze tra CILA, SCIA e permesso di costruire: quando si usano, costi, tempi e sanzioni.",
+    category: "Normativa",
+    tags: ["CILA", "SCIA", "permesso di costruire", "titoli abilitativi", "normativa edilizia"],
+    publishedAt: "2026-07-10",
+    readTime: 9,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "CILA, SCIA o permesso di costruire? È la prima domanda di ogni cantiere, e sbagliare titolo abilitativo significa lavori abusivi, sanzioni e cantieri fermi — anche quando l'errore è in buona fede. La differenza tra i tre titoli non dipende da quanto è grande il lavoro, ma da che tipo di intervento fai: capirlo prima di aprire il cantiere protegge te e il tuo cliente. In questa guida trovi i criteri pratici, aggiornati al Testo Unico dell'Edilizia (DPR 380/2001) e al glossario dell'edilizia libera.",
+      },
+      {
+        type: "section",
+        heading: "La Gerarchia dei Titoli Abilitativi",
+        body: "Il sistema italiano ordina gli interventi per impatto crescente. Alla base c'è l'edilizia libera: nessun titolo richiesto (manutenzione ordinaria, pavimentazioni esterne leggere, pompe di calore di piccola taglia). Poi la CILA — Comunicazione di Inizio Lavori Asseverata — per gli interventi 'leggeri' sotto asseverazione di un tecnico. Sopra ancora la SCIA — Segnalazione Certificata di Inizio Attività — per gli interventi che toccano parti strutturali o modificano l'aspetto dell'edificio. In cima il permesso di costruire, per le trasformazioni urbanistiche ed edilizie rilevanti. La regola pratica: più l'intervento incide su struttura, volumi e sagoma, più il titolo è pesante.",
+      },
+      {
+        type: "section",
+        heading: "CILA: Quando Basta la Comunicazione Asseverata",
+        body: "La CILA copre la manutenzione straordinaria che NON tocca le parti strutturali dell'edificio: rifacimento di impianti (elettrico, idraulico, termico), spostamento di tramezzi non portanti, rifacimento bagni e cucine, frazionamenti e accorpamenti di unità immobiliari senza opere strutturali. Si presenta al Comune tramite il tecnico (geometra, architetto, ingegnere) che assevera la conformità; i lavori possono iniziare immediatamente, senza attendere risposta. Costo tipico della pratica: 500-1.500€ di parcella tecnica più eventuali diritti comunali. La CILA è anche il titolo usato per la maggior parte dei bonus casa sulle ristrutturazioni leggere.",
+      },
+      {
+        type: "section",
+        heading: "SCIA: Quando i Lavori Toccano la Struttura",
+        body: "La SCIA serve quando l'intervento interessa le parti strutturali: apertura o chiusura di porte in muri portanti, rifacimento di solai, consolidamenti, modifiche ai prospetti, e in generale la ristrutturazione edilizia 'leggera'. Come la CILA permette di iniziare subito, ma il Comune ha 30 giorni per verificare e può ordinare lo stop. Richiede più elaborati tecnici: progetto strutturale dove serve, deposito sismico secondo la zona, relazioni specialistiche. Esiste anche la 'Super SCIA' (SCIA alternativa al permesso di costruire) per interventi maggiori dove la legge la ammette: in quel caso i lavori partono dopo 30 giorni dalla presentazione.",
+      },
+      {
+        type: "section",
+        heading: "Permesso di Costruire: le Trasformazioni Rilevanti",
+        body: "Il permesso di costruire è necessario per nuove costruzioni, ampliamenti fuori sagoma, ristrutturazioni 'pesanti' che modificano volumetria complessiva o sagoma degli edifici vincolati, e cambi di destinazione d'uso urbanisticamente rilevanti con opere. A differenza di CILA e SCIA non è un'autocertificazione: è un provvedimento che il Comune rilascia dopo istruttoria (60-90 giorni ordinari, spesso di più nella pratica), con il pagamento del contributo di costruzione (oneri di urbanizzazione + costo di costruzione). I lavori possono iniziare solo dopo il rilascio: pianificare il cantiere senza considerare questi tempi è uno degli errori più costosi per le imprese.",
+      },
+      {
+        type: "list",
+        heading: "Errori Frequenti che Bloccano i Cantieri",
+        items: [
+          "Partire con una CILA quando i lavori toccano un muro portante: variante strutturale = SCIA, e i lavori già fatti diventano difformi",
+          "Dimenticare i vincoli: in zona paesaggistica o su immobile vincolato serve anche l'autorizzazione paesaggistica o della Soprintendenza, qualunque sia il titolo",
+          "Non depositare la pratica sismica dove richiesta: blocca la SCIA e espone il tecnico e l'impresa",
+          "Iniziare prima del rilascio del permesso di costruire confidando nei tempi: è abusivismo a tutti gli effetti",
+          "Non chiudere la pratica a fine lavori: la comunicazione di fine lavori e la SCA (agibilità) mancanti bloccano rogiti e detrazioni del cliente",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cosa C'entra l'Impresa: Responsabilità e Organizzazione",
+        body: "Il titolo abilitativo è formalmente responsabilità del committente e del tecnico, ma l'impresa che esegue lavori senza titolo (o in difformità) risponde penalmente insieme a loro — il direttore tecnico dell'impresa è tra i soggetti sanzionabili del DPR 380/2001. Prima di aprire qualsiasi cantiere, l'impresa organizzata verifica e archivia: copia del titolo presentato con protocollo, elaborati allegati, eventuale autorizzazione paesaggistica, e nomina dei soggetti (DL, CSE dove serve). Tenere questi documenti collegati alla commessa in un gestionale — con scadenze e alert — significa non scoprire mai in cantiere che manca un pezzo di carta che vale il blocco dei lavori.",
+      },
+      {
+        type: "cta",
+        heading: "Documenti di Cantiere Sempre Sotto Controllo",
+        body: "Con Edilizia in Cloud ogni commessa ha i suoi documenti, le scadenze e gli alert: titoli abilitativi, DURC, POS e certificazioni sempre a portata di mano, anche dal telefono in cantiere.",
+      },
+    ],
+  },
+  {
+    id: "63",
+    slug: "contabilita-di-cantiere-guida",
+    faqs: [
+      { q: "Cos'è la contabilità di cantiere?", a: "È il sistema che misura produzione, costi e margine di ogni singolo cantiere. Ha due volti: la contabilità ufficiale dei lavori (libretto misure, registro, SAL — obbligatoria negli appalti pubblici) e la contabilità industriale interna, che attribuisce ogni costo alla commessa per conoscere il margine reale." },
+      { q: "Chi tiene la contabilità di cantiere?", a: "Negli appalti pubblici la contabilità ufficiale è tenuta dal Direttore dei Lavori. La contabilità industriale interna è dell'impresa: nelle PMI la alimentano capocantiere (ore e avanzamenti) e amministrazione (fatture e DDT), idealmente in un gestionale unico che consolida tutto per commessa." },
+      { q: "Che differenza c'è tra contabilità di cantiere e contabilità generale?", a: "La contabilità generale (fiscale) guarda l'azienda nel suo insieme: serve per bilancio e dichiarazioni. La contabilità di cantiere guarda ogni commessa: serve per sapere dove guadagni e dove perdi. La prima è obbligatoria per legge, la seconda è obbligatoria per sopravvivere." },
+      { q: "Ogni quanto va aggiornata?", a: "Le ore vanno registrate ogni giorno, i costi al momento in cui nascono (ordine o DDT, non alla fattura), l'avanzamento fisico almeno ogni settimana. La revisione dei numeri budget vs consuntivo si fa bene una volta al mese, per ogni cantiere aperto." },
+    ],
+    title: "Contabilità di Cantiere: la Guida Completa 2026",
+    excerpt:
+      "Come funziona la contabilità di cantiere: libretto misure, SAL, contabilità industriale per commessa e strumenti per controllare i costi in tempo reale.",
+    category: "Finanza",
+    tags: ["contabilità di cantiere", "contabilità industriale", "SAL", "controllo costi", "commessa"],
+    publishedAt: "2026-07-10",
+    readTime: 12,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La contabilità di cantiere è quello che separa le imprese che sanno quanto guadagnano da quelle che lo scoprono a fine anno dal commercialista — quando è troppo tardi. Non parliamo della contabilità fiscale (fatture, IVA, bilancio), ma del sistema che misura per ogni cantiere quanto hai prodotto, quanto hai speso e quanto margine ti resta. In questa guida trovi i due volti della contabilità di cantiere: quella 'ufficiale' dei lavori pubblici (libretto delle misure, registro di contabilità, SAL) e quella industriale interna che ogni impresa dovrebbe avere, con il metodo per impostarla senza assumere un controller.",
+      },
+      {
+        type: "section",
+        heading: "Contabilità Fiscale, Ufficiale e Industriale: Tre Cose Diverse",
+        body: "Primo chiarimento, perché qui nascono gli equivoci. La contabilità fiscale la tiene il commercialista: registrazioni IVA, bilancio, dichiarazioni — guarda l'azienda intera, non i cantieri. La contabilità dei lavori (o ufficiale) è quella regolata dal Codice dei Contratti negli appalti pubblici: documenta l'avanzamento dell'opera verso il committente e genera i SAL. La contabilità industriale (o analitica di commessa) è il sistema interno che attribuisce ogni costo e ogni ricavo al cantiere che li ha generati: è quella che ti dice se il cantiere Rossi sta guadagnando e il cantiere Bianchi sta perdendo. Un'impresa edile sana le ha tutte e tre — e la terza è quella che quasi sempre manca.",
+      },
+      {
+        type: "section",
+        heading: "La Contabilità dei Lavori Pubblici: i Documenti",
+        body: "Negli appalti pubblici la contabilità è formalizzata: il libretto delle misure registra le quantità di lavorazioni eseguite, rilevate in contraddittorio; il registro di contabilità riporta le partite in ordine cronologico con i prezzi contrattuali; lo stato avanzamento lavori riassume l'importo maturato alla data e genera il certificato di pagamento firmato dal RUP. Dal 2023 la contabilità dei lavori pubblici è tenuta con strumenti digitali. Per l'impresa il punto critico è la coerenza: le quantità nel libretto devono trovare riscontro nei tuoi rapportini, nei DDT dei materiali e nelle ore dei tuoi operai — se la tua contabilità interna non dialoga con quella ufficiale, ogni SAL diventa una ricostruzione.",
+      },
+      {
+        type: "section",
+        heading: "La Contabilità Industriale: il Conto Economico di Ogni Cantiere",
+        body: "Il cuore del sistema è semplice da descrivere: ogni euro che entra o esce deve avere il nome di un cantiere sopra. I ricavi di commessa sono i SAL maturati (non le fatture incassate: quella è cassa, altra cosa). I costi diretti sono manodopera valorizzata al costo aziendale reale (paga + oneri + Cassa Edile, non la paga base), materiali dai DDT e dalle fatture fornitori, subappalti, noli e trasporti. I costi indiretti (sede, amministrazione, mezzi generici, il tuo stipendio) si ribaltano sulle commesse con un criterio fisso — tipicamente in percentuale sui ricavi o sulle ore. Il risultato è il conto economico di cantiere: ricavi maturati meno costi diretti = margine lordo; meno quota indiretti = margine netto di commessa.",
+      },
+      {
+        type: "list",
+        heading: "Il Metodo in 6 Passi per Impostarla",
+        items: [
+          "Apri una commessa per ogni cantiere con un codice univoco: da oggi niente costi 'generici'",
+          "Budget di commessa prima di iniziare: ore, materiali, subappalti e noli previsti, voce per voce",
+          "Ore per cantiere da timbratura o rapportino quotidiano, valorizzate al costo orario aziendale",
+          "Ogni DDT, fattura fornitore e contratto di subappalto agganciato alla commessa al momento della registrazione",
+          "Avanzamento fisico registrato almeno settimanalmente (percentuale o quantità per lavorazione)",
+          "Riunione mensile sui numeri: budget vs consuntivo per ogni cantiere aperto, e decisioni conseguenti",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Gli Indicatori da Guardare Ogni Settimana",
+        body: "Non servono cinquanta report: bastano quattro numeri per cantiere, aggiornati. Primo: margine maturato (ricavi maturati meno costi sostenuti) confrontato con il margine di budget — se la forbice si allarga, qualcosa sta andando storto adesso. Secondo: incidenza della manodopera sul prodotto (ore consumate vs avanzamento fisico): è l'indicatore più precoce di un cantiere in deriva. Terzo: impegnato materiali (ordini emessi anche se non ancora fatturati) contro budget materiali — i fornitori si controllano all'ordine, non alla fattura. Quarto: fatturato maturato ma non ancora fatturato/incassato — è cassa tua ferma in cantiere. Un gestionale edile con la contabilità di commessa integrata calcola questi numeri da solo, man mano che ore, DDT e fatture entrano nel sistema.",
+      },
+      {
+        type: "quote",
+        quote: "Per anni ho saputo solo il fatturato totale. Il primo mese con la contabilità per commessa ho scoperto che il cantiere più grosso — quello di cui andavo fiero — era anche l'unico in perdita. Ora i numeri li vedo ogni venerdì, cantiere per cantiere.",
+        author: "Titolare impresa edile, 12 dipendenti, Veneto",
+      },
+      {
+        type: "section",
+        heading: "Errori Classici (e Come Evitarli)",
+        body: "Valorizzare la manodopera alla paga base invece che al costo aziendale: sottostimi il costo del 60-90% e i margini sembrano belli finché non arriva il bilancio. Registrare i costi solo quando arriva la fattura: un subappalto da 40.000€ eseguito a giugno e fatturato a settembre ti fa credere per tre mesi che il cantiere vada bene. Non ribaltare mai i costi indiretti: tutte le commesse sembrano in utile, l'azienda no. Contare come ricavo la fattura d'acconto invece del maturato: stai misurando la cassa, non la produzione. E il più insidioso: tenere il sistema su fogli Excel separati che nessuno aggiorna — la contabilità industriale funziona solo se i dati entrano una volta sola, dal cantiere, mentre le cose succedono.",
+      },
+      {
+        type: "cta",
+        heading: "Il Conto Economico di Ogni Cantiere, in Automatico",
+        body: "Edilizia in Cloud collega ore, DDT, fatture e SAL alla commessa: margine per cantiere in tempo reale, budget vs consuntivo e previsione di cassa, senza doppi inserimenti. Provalo gratis 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "64",
+    slug: "ritenuta-di-garanzia-appalti-come-funziona",
+    faqs: [
+      { q: "Qual è la percentuale della ritenuta di garanzia?", a: "Negli appalti pubblici la legge prevede lo 0,50% su ogni SAL a garanzia dei lavoratori, svincolato al collaudo con DURC regolare. Nei lavori privati la percentuale è contrattuale: tipicamente tra il 5% e il 10% di ogni stato avanzamento." },
+      { q: "Quando si svincolano le ritenute di garanzia?", a: "Nei pubblici con l'approvazione del certificato di collaudo o di regolare esecuzione. Nei privati alla data prevista dal contratto: collaudo, fine lavori o decorso del periodo di garanzia. Lo svincolo va richiesto formalmente, con il riepilogo delle ritenute operate." },
+      { q: "Posso evitare la ritenuta di garanzia?", a: "Spesso sì, sostituendola con una garanzia fideiussoria (polizza assicurativa o bancaria) di pari importo: paghi un premio ma liberi subito la liquidità. La possibilità va prevista nel contratto; su commesse lunghe e importi alti conviene quasi sempre." },
+      { q: "La ritenuta di garanzia si fattura?", a: "La prassi più comune è fatturare l'intero importo del SAL e incassare al netto della ritenuta, che resta un credito verso il committente. Il trattamento va comunque allineato con il contratto e con il proprio commercialista, soprattutto per l'esigibilità dell'IVA." },
+    ],
+    title: "Ritenuta di Garanzia negli Appalti: Come Funziona",
+    excerpt:
+      "Ritenute di garanzia negli appalti pubblici e privati: percentuali, quando si applicano, come si svincolano e come tracciarle per non perdere soldi.",
+    category: "Finanza",
+    tags: ["ritenuta di garanzia", "appalti", "SAL", "pagamenti", "collaudo"],
+    publishedAt: "2026-07-10",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La ritenuta di garanzia è quella percentuale che il committente trattiene da ogni SAL e che rivedi solo dopo il collaudo — se ti ricordi di chiederla. Sembra una voce minore, ma su un portafoglio di cantieri vale decine di migliaia di euro di liquidità congelata, e nelle imprese disorganizzate una parte non viene mai recuperata: cantieri chiusi anni fa, ritenute mai svincolate, crediti dimenticati. Vediamo come funziona negli appalti pubblici e privati, e come tenerla sotto controllo.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è e a Cosa Serve la Ritenuta di Garanzia",
+        body: "La ritenuta di garanzia è una trattenuta percentuale operata dal committente su ogni pagamento in acconto (tipicamente su ogni SAL), a tutela della buona esecuzione dell'opera e degli adempimenti dell'appaltatore. Non è un costo: è un tuo credito che matura e resta parcheggiato fino alla verifica finale. Negli appalti pubblici la trattenuta dello 0,50% su ogni SAL è prevista dalla legge a garanzia dei lavoratori (retribuzioni e contributi) e viene svincolata in sede di verifica di conformità o collaudo, previa verifica del DURC. Nei lavori privati la ritenuta è contrattuale: percentuali tipiche tra il 5% e il 10% di ogni SAL, con svincolo legato al collaudo o alla scadenza della garanzia.",
+      },
+      {
+        type: "section",
+        heading: "Ritenute nei Lavori Privati: Cosa Negoziare nel Contratto",
+        body: "Nel privato la ritenuta è tutta questione di contratto — e chi non la negozia subisce le condizioni del committente. I punti da definire per iscritto: la percentuale (il 5% è uno standard ragionevole; il 10% su commesse lunghe pesa molto sulla liquidità), la base di calcolo (sull'imponibile del SAL), il momento esatto dello svincolo (collaudo, fine lavori, o decorso del termine di garanzia — evita formule vaghe come 'a ultimazione soddisfacente'), e l'alternativa della garanzia sostitutiva: spesso puoi sostituire la ritenuta con una polizza fideiussoria, liberando cassa subito a fronte di un premio assicurativo. Su commesse importanti, la fideiussione conviene quasi sempre.",
+      },
+      {
+        type: "section",
+        heading: "Lo Svincolo: Quando e Come Chiederlo",
+        body: "Le ritenute non tornano da sole: vanno chieste. Negli appalti pubblici lo svincolo avviene con l'approvazione del certificato di collaudo o di regolare esecuzione, e richiede DURC regolare — un'irregolarità contributiva blocca anche le ritenute maturate anni prima. Nei privati fa fede il contratto: alla data prevista invia richiesta formale (PEC) con il riepilogo delle ritenute operate SAL per SAL, l'attestazione di fine lavori o il verbale di collaudo, e la fattura o nota di addebito secondo il regime concordato. Se il committente non risponde, le ritenute seguono la via del recupero crediti come qualsiasi credito: solleciti, messa in mora, azione.",
+      },
+      {
+        type: "list",
+        heading: "Il Sistema Anti-Dimenticanza in 4 Mosse",
+        items: [
+          "Registra la ritenuta su ogni SAL al momento dell'emissione: importo, percentuale e data di svincolo prevista",
+          "Tieni un saldo ritenute per ogni commessa, visibile nel conto economico di cantiere",
+          "Metti a scadenzario la data di svincolo con un alert 30 giorni prima: collaudo, fine garanzia o termine contrattuale",
+          "A chiusura commessa, la checklist deve includere 'ritenute recuperate?' — la commessa non si archivia finché il saldo non è zero",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Ritenuta di Garanzia e Liquidità: il Peso Reale",
+        body: "Facciamo i conti: impresa con 2 milioni di produzione annua in appalti privati con ritenuta al 5% = 100.000€ trattenuti nell'anno. Con collaudi a 6-12 mesi dalla fine lavori, il 'magazzino ritenute' a regime può superare i 100-150.000€ — liquidità tua, ferma, che spesso finanzi con il fido bancario pagando interessi. Per questo le ritenute vanno trattate come un asset da gestire: sapere sempre quanto hai fuori, presso chi, e quando matura lo svincolo. È esattamente il tipo di numero che un gestionale con la gestione delle ritenute di garanzia integrata ti mostra in una schermata — e che su Excel muore in un file che nessuno riapre.",
+      },
+      {
+        type: "cta",
+        heading: "Quante Ritenute Hai Ancora da Incassare?",
+        body: "Edilizia in Cloud traccia le ritenute di garanzia su ogni SAL, ti mostra il saldo per commessa e ti avvisa quando matura lo svincolo. Smetti di regalare liquidità ai committenti.",
+      },
+    ],
+  },
+  {
+    id: "65",
+    slug: "report-avanzamento-cantiere-guida",
+    faqs: [
+      { q: "Ogni quanto va fatto il report di avanzamento cantiere?", a: "Rapportino operativo ogni giorno (lo compila la squadra in pochi minuti), sintesi direzionale ogni settimana per il titolare, report verso il committente a ogni SAL o mensile. La frequenza giusta è quella che intercetta i problemi quando costano ancora poco." },
+      { q: "Come si calcola la percentuale di avanzamento di un cantiere?", a: "Sulle quantità eseguite rispetto al computo per le lavorazioni misurabili, sul valore delle opere eseguite per i SAL, mai solo sulle ore consumate (misurano lo sforzo, non il risultato). Meglio percentuali per singola fase che un numero unico per tutto il cantiere." },
+      { q: "Che differenza c'è tra rapportino e report di avanzamento?", a: "Il rapportino è il dato grezzo quotidiano (presenze, ore, lavorazioni, foto) compilato in cantiere. Il report di avanzamento è la sintesi periodica che aggrega i rapportini e li confronta con budget e cronoprogramma. Se i rapportini sono digitali, il report si genera da solo." },
+    ],
+    title: "Report Avanzamento Cantiere: Cosa Deve Contenere",
+    excerpt:
+      "Come fare un report di avanzamento cantiere utile: i dati da includere, la frequenza giusta e come produrlo in automatico dai rapportini di campo.",
+    category: "Gestione Cantieri",
+    tags: ["report avanzamento cantiere", "avanzamento lavori", "rapportini", "controllo cantiere"],
+    publishedAt: "2026-07-10",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il report di avanzamento cantiere è lo strumento che trasforma 'come va il cantiere?' da telefonata al capocantiere a numero verificabile. Serve a tre pubblici diversi: a te per capire se sei in linea con budget e tempi, al committente per giustificare i SAL, e alla banca quando chiedi anticipi su contratto. Eppure nella maggior parte delle PMI edili l'avanzamento vive nella testa del capocantiere — e si scopre solo a consuntivo che 'quasi finito' voleva dire 70%. Vediamo come impostare un report utile senza aggiungere burocrazia.",
+      },
+      {
+        type: "section",
+        heading: "I Tre Livelli di Report: Operativo, Direzionale, Commerciale",
+        body: "Il primo errore è fare un solo report per tutti. Il report operativo (quotidiano) è il rapportino di campo: chi c'era, ore per lavorazione, materiali usati, foto, problemi — lo compila la squadra in 3 minuti da smartphone. Il report direzionale (settimanale) è la sintesi per il titolare: avanzamento fisico per fase, ore consumate vs previste, costi impegnati vs budget, criticità aperte — si genera aggregando i rapportini. Il report commerciale (mensile o a SAL) è quello verso il committente: percentuali di completamento per lavorazione con foto e misure, pronto a diventare SAL. Se i tre livelli non condividono gli stessi dati di partenza, passerai la vita a riconciliarli.",
+      },
+      {
+        type: "list",
+        heading: "Cosa Deve Contenere un Report d'Avanzamento Fatto Bene",
+        items: [
+          "Percentuale di avanzamento per fase o lavorazione (non un numero unico per tutto il cantiere)",
+          "Ore di manodopera consumate nel periodo e cumulative, confrontate con le ore di budget",
+          "Materiali principali consegnati nel periodo (dai DDT) e ordini in arrivo",
+          "Foto datate e georeferenziate delle lavorazioni chiave",
+          "Scostamento rispetto al cronoprogramma: giorni di anticipo/ritardo e cause",
+          "Criticità e decisioni richieste: varianti in attesa, interferenze, forniture in ritardo",
+          "Previsione a finire aggiornata: quando finisce davvero e con quale margine",
+        ],
+      },
+      {
+        type: "section",
+        heading: "La Percentuale di Avanzamento: Come Calcolarla Onestamente",
+        body: "Il numero più delicato del report è la percentuale di completamento. I metodi principali: sulle quantità (metri quadri posati su totale da computo — il più oggettivo), sul valore (importo delle lavorazioni eseguite sul totale contratto — quello che serve per i SAL), o sulle ore (ore consumate su ore previste — attenzione: misura lo sforzo, non il risultato; un cantiere inefficiente sembra più avanti di quanto sia). La regola pratica: usa le quantità per le lavorazioni misurabili, il giudizio del capocantiere per il resto, e non fidarti mai di un cantiere che resta '90% completato' per tre settimane — l'ultimo 10% nasconde sempre il lavoro peggiore.",
+      },
+      {
+        type: "section",
+        heading: "Dal Rapportino al Report: la Filiera Automatica",
+        body: "Il report d'avanzamento non deve essere un lavoro in più: deve essere il sottoprodotto dei dati che il cantiere genera comunque. La filiera funziona così: la squadra compila il rapportino giornaliero da app (ore, lavorazioni, percentuale fase, foto); i DDT dei materiali vengono registrati alla consegna e agganciati alla commessa; il gestionale aggrega tutto e produce il report settimanale — ore vs budget, avanzamento per fase, costi impegnati — senza che nessuno debba 'preparare il report'. Quando arriva il momento del SAL, le percentuali e le foto sono già lì, documentate giorno per giorno. Le imprese che lavorano così emettono i SAL in 48 ore invece che in due settimane.",
+      },
+      {
+        type: "cta",
+        heading: "Report di Cantiere Pronti Ogni Settimana, in Automatico",
+        body: "Con Edilizia in Cloud i rapportini della squadra diventano report di avanzamento e SAL documentati: ore, foto, percentuali e costi per ogni commessa, senza lavoro d'ufficio in più.",
+      },
+    ],
+  },
+  {
+    id: "66",
+    slug: "nota-di-credito-edilizia-quando-come",
+    faqs: [
+      { q: "Quando si emette una nota di credito in edilizia?", a: "Quando devi ridurre una fattura già emessa: SAL contestato e ridotto, sconto concesso dopo la fatturazione, errori di importi o aliquote, doppia fatturazione, risoluzione del contratto. Va emessa elettronicamente via SDI con riferimento alla fattura originaria." },
+      { q: "Entro quanto tempo si può emettere una nota di credito con recupero IVA?", a: "Se la variazione nasce da un accordo tra le parti (sconto o riduzione consensuale), entro un anno dall'operazione. Per cause oggettive (risoluzione, errori, procedure concorsuali) non vale il limite dell'anno, ma il recupero va esercitato nei termini della dichiarazione IVA di riferimento." },
+      { q: "Come funziona la nota di credito con il reverse charge?", a: "Segue lo stesso regime della fattura che corregge: se la fattura del subappalto era in inversione contabile senza IVA esposta, anche la nota di credito viaggia senza IVA e il committente rettifica l'integrazione. Applicare il regime sbagliato espone entrambe le parti a sanzioni." },
+      { q: "La nota di credito riduce anche la ritenuta di garanzia?", a: "Sì: la ritenuta si calcola sull'importo dei SAL fatturati, quindi una nota di variazione riduce anche la base delle ritenute e il loro saldo da svincolare. Va aggiornato il riepilogo ritenute della commessa per non chiedere (o concedere) svincoli sbagliati." },
+    ],
+    title: "Nota di Credito in Edilizia: Quando e Come Emetterla",
+    excerpt:
+      "Nota di credito nei lavori edili: quando emetterla, come funziona con SAL, acconti e reverse charge, tempi per il recupero IVA ed errori da evitare.",
+    category: "Finanza",
+    tags: ["nota di credito", "fatturazione", "IVA", "SAL", "contabilità"],
+    publishedAt: "2026-07-10",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La nota di credito in edilizia è il documento con cui correggi una fattura già emessa: un SAL contestato e ridotto, uno sconto concesso dopo, una fattura doppia, un contratto risolto. Sbagliare la nota di credito significa perdere IVA già versata o litigare con il committente su importi che non tornano. E nei cantieri capita spesso: le variazioni sono la norma, non l'eccezione. Vediamo quando si può emettere, con quali tempi e come gestirla nei casi tipici dell'edilizia.",
+      },
+      {
+        type: "section",
+        heading: "Cos'è la Nota di Credito e Quando si Usa",
+        body: "La nota di credito (nota di variazione in diminuzione, art. 26 DPR 633/72) è il documento fiscale che riduce in tutto o in parte una fattura precedente, recuperando l'IVA corrispondente. In edilizia i casi tipici: riduzione concordata di un SAL dopo contestazioni del committente o della DL, sconti e abbuoni concessi dopo la fatturazione, errori di fatturazione (quantità, prezzi, aliquote, doppia emissione), risoluzione o recesso dal contratto, e applicazione di penali che le parti scelgono di regolare con variazione del corrispettivo. La nota di credito viaggia come le fatture: elettronica via SDI, con le stesse regole di trasmissione.",
+      },
+      {
+        type: "section",
+        heading: "I Tempi: Quando Puoi Recuperare l'IVA",
+        body: "Il punto che brucia di più: i termini. Se la variazione dipende da un accordo sopravvenuto tra le parti (es. sconto concesso dopo, riduzione consensuale del prezzo), la nota di variazione con recupero IVA va emessa entro un anno dall'operazione originaria. Se invece dipende da cause 'oggettive' — nullità o risoluzione del contratto, mancato pagamento per procedure concorsuali del cliente, errori di fatturazione — non c'è il limite dell'anno, ma il recupero dell'IVA va esercitato al più tardi con la dichiarazione relativa all'anno in cui matura il presupposto. Tradotto: se il committente ti chiede uno sconto sei mesi dopo la fattura, muoviti; se aspetti oltre l'anno, lo sconto lo fai al lordo dell'IVA — e la differenza la regali.",
+      },
+      {
+        type: "section",
+        heading: "Nota di Credito su SAL, Acconti e Reverse Charge",
+        body: "I casi speciali dell'edilizia. SAL contestato: se la DL riduce le quantità dopo che hai già fatturato, emetti nota di credito per la differenza e rifatturi secondo il SAL approvato — mai 'compensare' informalmente sul SAL successivo, perché disallinei contabilità e contratto. Acconti su lavori poi ridimensionati: la nota di credito segue l'acconto fatturato in eccesso. Subappalti in reverse charge: la nota di credito segue lo stesso regime della fattura originaria — quindi senza IVA esposta, con l'integrazione a cura del committente/appaltatore; sbagliare regime sulla nota è un classico da verbale. E per gli sconti in fattura da bonus edilizi, le variazioni seguono regole specifiche: caso da gestire sempre con il commercialista.",
+      },
+      {
+        type: "list",
+        heading: "Errori da Evitare",
+        items: [
+          "Compensare le contestazioni riducendo il SAL successivo invece di emettere nota di credito: contabilità e contratto si disallineano",
+          "Superare l'anno per le variazioni da accordo sopravvenuto: l'IVA non si recupera più",
+          "Emettere nota di credito con IVA su una fattura in reverse charge (o viceversa)",
+          "Nota di credito 'generica' senza riferimento alla fattura originaria e alla causale: contestabile in verifica",
+          "Dimenticare l'effetto sulle ritenute di garanzia e sugli importi maturati: la nota riduce anche la base delle ritenute",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Organizzarsi: la Nota di Credito nel Flusso di Commessa",
+        body: "La nota di credito non è solo un fatto fiscale: cambia i numeri della commessa. Quando la emetti, il ricavo maturato del cantiere scende, il margine si aggiorna, il saldo delle ritenute di garanzia cambia e lo scadenzario incassi va corretto. Se la fatturazione è integrata con la contabilità di commessa, tutto questo avviene in automatico: la nota di credito nasce collegata alla fattura e al SAL originari, con la causale tracciata, e i report di cantiere restano allineati. Se invece fatturazione e cantieri vivono in sistemi separati, ogni nota di credito è una riconciliazione manuale in più — e prima o poi una sfugge.",
+      },
+      {
+        type: "cta",
+        heading: "Fatture, Note di Credito e SAL Sempre Allineati",
+        body: "Con la fatturazione elettronica di Edilizia in Cloud ogni documento nasce collegato alla commessa: emetti note di credito in un minuto e margini, ritenute e scadenzario si aggiornano da soli.",
       },
     ],
   },

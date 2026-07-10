@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-07-04 (v5 — prezzi luglio, dati allineati, 61 guide)
+# Ultimo aggiornamento: 2026-07-10 (v6 — 66 guide, FAQ estese su 33 articoli, 5 nuove guide normative/finanza)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -99,8 +99,13 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
 - **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
 
-## Guide del blog (61 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
+## Guide del blog (66 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
+- Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida
+- CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze
+- Ritenuta di garanzia negli appalti: https://www.ediliziaincloud.com/blog/ritenuta-di-garanzia-appalti-come-funziona
+- Report avanzamento cantiere: https://www.ediliziaincloud.com/blog/report-avanzamento-cantiere-guida
+- Nota di credito in edilizia: https://www.ediliziaincloud.com/blog/nota-di-credito-edilizia-quando-come
 - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
 - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa
 - Giornale dei lavori: https://www.ediliziaincloud.com/blog/giornale-dei-lavori-cantiere

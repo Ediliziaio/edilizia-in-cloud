@@ -7,6 +7,7 @@ import { blogPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { linkifyNormative } from "@/lib/blog/normativeLinks";
+import { linkifyInternal } from "@/lib/blog/internalLinks";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -15,6 +16,7 @@ const categoryColors: Record<string, string> = {
   "Marketing": "bg-orange-100 text-orange-700",
   "Commerciale": "bg-rose-100 text-rose-700",
   "Digitalizzazione": "bg-slate-100 text-slate-700",
+  "Normativa": "bg-amber-100 text-amber-800",
 };
 
 function formatDate(iso: string): string {
@@ -308,8 +310,13 @@ export default function BlogPost() {
         }
       : null;
 
-  // Dedup dei link normativi a livello di articolo (prima occorrenza = link).
+  // Dedup dei link (normativi + interni) a livello di articolo:
+  // prima occorrenza = link, poi testo semplice.
   const seenNorms = new Set<string>();
+  const seenInternal = new Set<string>();
+  const internalCtx = { seen: seenInternal, currentPath: `/blog/${post.slug}/` };
+  const linkify = (text: string | undefined) =>
+    linkifyInternal(text, internalCtx, (part) => linkifyNormative(part, seenNorms));
 
   return (
     <div className="min-h-screen bg-white">
@@ -335,7 +342,7 @@ export default function BlogPost() {
           alt={post.title}
           width={1200}
           height={630}
-          fetchPriority="high"
+          fetchpriority="high"
           loading="eager"
           decoding="async"
           className="w-full object-cover"
@@ -403,7 +410,7 @@ export default function BlogPost() {
                       key={i}
                       className="text-xl text-gray-700 leading-relaxed mb-10 font-light border-l-4 border-[#F97415] pl-6"
                     >
-                      {linkifyNormative(section.body, seenNorms)}
+                      {linkify(section.body)}
                     </p>
                   );
 
@@ -421,7 +428,7 @@ export default function BlogPost() {
                       )}
                       {section.body && (
                         <p className="text-gray-600 leading-relaxed text-[1.05rem]">
-                          {linkifyNormative(section.body, seenNorms)}
+                          {linkify(section.body)}
                         </p>
                       )}
                     </div>
@@ -465,7 +472,7 @@ export default function BlogPost() {
                                 ✓
                               </span>
                               <span className="text-gray-600 leading-relaxed">
-                                {linkifyNormative(item, seenNorms)}
+                                {linkify(item)}
                               </span>
                             </li>
                           ))}
@@ -515,7 +522,7 @@ export default function BlogPost() {
                     <div key={i}>
                       <h3 className="text-lg font-semibold text-[#111111] mb-2">{f.q}</h3>
                       <p className="text-gray-600 leading-relaxed text-[1.05rem]">
-                        {linkifyNormative(f.a, seenNorms)}
+                        {linkify(f.a)}
                       </p>
                     </div>
                   ))}
