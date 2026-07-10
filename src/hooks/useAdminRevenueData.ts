@@ -156,7 +156,11 @@ export function useAdminRevenueData() {
           .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(name, price_monthly, price_yearly, max_orders, max_users)")
           .eq("is_platform_admin_company", false)
           .limit(5000),
-        supabase.rpc("get_company_health_data"),
+        // BUGFIX: senza range esplicito PostgREST tronca la RPC a 1000 righe →
+        // oltre le 1000 aziende le restanti risultavano "senza attività" e
+        // finivano tutte in critical (KPI e score medi falsati). Allineato al
+        // limit(5000) delle companies.
+        supabase.rpc("get_company_health_data").limit(5000),
       ]);
 
       const now = new Date();
@@ -323,9 +327,14 @@ export function useAdminRevenueData() {
       const convertedWithOrders = payingCompanies
         .map((c) => {
           const hd = healthDataMap.get(c.id);
-          if (!hd?.last_order_date) return null;
+          // BUGFIX: usava last_order_date (MAX ordini) → "giorni al PRIMO
+          // ordine" sovrastimato. first_order_date arriva dalla RPC aggiornata
+          // (migration 20271210000001); fallback al vecchio campo finché la
+          // migration non è applicata in prod.
+          const firstDate = hd?.first_order_date ?? hd?.last_order_date;
+          if (!firstDate) return null;
           const created = new Date(c.created_at);
-          const firstOrder = new Date(hd.last_order_date);
+          const firstOrder = new Date(firstDate);
           return Math.max(0, Math.floor((firstOrder.getTime() - created.getTime()) / 86400000));
         })
         .filter((d): d is number => d !== null);

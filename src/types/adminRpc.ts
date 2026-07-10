@@ -28,6 +28,8 @@ export interface CompanyHealthData {
   has_customers: boolean;
   has_staff: boolean;
   last_order_date: string | null;
+  /** MIN(orders.created_at) — presente dopo la migration 20271210000001; prima era assente. */
+  first_order_date?: string | null;
 }
 
 export interface CompanyLastAccess {

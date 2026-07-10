@@ -254,7 +254,10 @@ function CompanyCard({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
-            {(variant === "trial" || variant === "expired" || (variant === "suspended" && company.trialEndsAt)) && (
+            {/* BUGFIX: mai su "suspended" — la sospensione arriva dal dunning
+                (pagamenti falliti) e l'estensione forzava status="trial",
+                riattivando silenziosamente un moroso e regalandogli giorni. */}
+            {(variant === "trial" || variant === "expired") && (
               <TrialExtensionButton
                 companyId={company.companyId}
                 currentEnd={company.trialEndsAt}

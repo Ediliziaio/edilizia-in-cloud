@@ -8,12 +8,25 @@
  * sono soddisfatti e li scrive in `company_onboarding_completions`.
  *
  * Mappatura auto_check_key → query:
- *   has_company_profile   → companies.piva NOT NULL AND name NOT NULL
- *   has_first_customer    → COUNT(customers) > 0
- *   has_first_order       → COUNT(orders) > 0
- *   has_team_member       → COUNT(profiles WHERE company_id = X) > 1
- *   has_first_quote       → COUNT(quotes) > 0
+ *   has_company_profile   → companies.vat_number NOT NULL AND name NOT NULL
+ *   has_first_customer    → COUNT(customers) > 0        (alias: has_customers)
+ *   has_first_order       → COUNT(orders) > 0           (alias: has_orders)
+ *   has_team_member       → COUNT(profiles) > 1          (alias: has_staff)
+ *   has_first_quote       → COUNT(quotes) > 0            (alias: has_quote)
  *   has_billing_config    → companies.billing_mode_set_at NOT NULL
+ *   has_logo              → companies.logo_url NOT NULL
+ *   has_subscription      → companies.status = 'active'
+ *   has_payment_method    → companies.stripe_customer_id NOT NULL
+ *   has_invoice           → COUNT(invoices) > 0
+ *   has_supplier          → COUNT(suppliers) > 0
+ *   has_appointment       → COUNT(appointments) > 0
+ *
+ * BUGFIX storici: (1) la select usava `companies.piva` che NON esiste
+ * (colonna reale: vat_number) → l'intera query falliva e profilo/fatturazione
+ * non si auto-completavano mai; (2) le chiavi del catalogo admin
+ * (has_customers, has_orders, …) non erano riconosciute dal motore → gli step
+ * "auto" configurati dall'admin restavano manuali per sempre. Ora ogni chiave
+ * del catalogo ha un check reale, e le chiavi legacy sono alias.
  *
  * NB: un check positivo NON viene revertito se la condizione diventa falsa
  * in futuro (es. utente elimina tutti i clienti). Lo step resta completato
@@ -36,6 +49,30 @@ interface CheckResults {
   has_team_member: boolean;
   has_first_quote: boolean;
   has_billing_config: boolean;
+  has_logo: boolean;
+  has_subscription: boolean;
+  has_payment_method: boolean;
+  has_invoice: boolean;
+  has_supplier: boolean;
+  has_appointment: boolean;
+}
+
+// Chiavi legacy del catalogo admin → chiave canonica del motore.
+const KEY_ALIASES: Record<string, keyof CheckResults> = {
+  has_customers: "has_first_customer",
+  has_orders: "has_first_order",
+  has_staff: "has_team_member",
+  has_quote: "has_first_quote",
+};
+
+export function resolveAutoCheckKey(raw: string): keyof CheckResults | null {
+  const key = (KEY_ALIASES[raw] ?? raw) as keyof CheckResults;
+  const KNOWN: ReadonlySet<string> = new Set([
+    "has_company_profile", "has_first_customer", "has_first_order", "has_team_member",
+    "has_first_quote", "has_billing_config", "has_logo", "has_subscription",
+    "has_payment_method", "has_invoice", "has_supplier", "has_appointment",
+  ]);
+  return KNOWN.has(key) ? key : null;
 }
 
 export function useOnboardingAutoComplete(
@@ -60,12 +97,12 @@ export function useOnboardingAutoComplete(
     staleTime: 60 * 1000,
     refetchInterval: stillPending ? 5 * 60 * 1000 : false,
     queryFn: async (): Promise<CheckResults> => {
-      const [profileRes, custRes, ordRes, teamRes, quoteRes] = await Promise.all([
-        // 1. Profilo: piva + name set
+      const [profileRes, custRes, ordRes, teamRes, quoteRes, invRes, suppRes, apptRes] = await Promise.all([
+        // 1. Profilo azienda (vat_number, NON piva: colonna inesistente → query intera in errore)
         supabase
           .from("companies")
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .select("piva, name, billing_mode_set_at" as any)
+          .select("vat_number, name, billing_mode_set_at, logo_url, status, stripe_customer_id" as any)
           .eq("id", companyId!)
           .maybeSingle(),
         // 2. Clienti
@@ -88,17 +125,38 @@ export function useOnboardingAutoComplete(
           .from("quotes")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId!),
+        // 6. Fatture
+        supabase
+          .from("invoices")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!),
+        // 7. Fornitori
+        supabase
+          .from("suppliers")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!),
+        // 8. Appuntamenti
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!),
       ]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profile = profileRes.data as any;
       return {
-        has_company_profile: !!(profile?.piva && profile?.name),
+        has_company_profile: !!(profile?.vat_number && profile?.name),
         has_first_customer: (custRes.count ?? 0) > 0,
         has_first_order: (ordRes.count ?? 0) > 0,
         has_team_member: (teamRes.count ?? 0) > 1,
         has_first_quote: (quoteRes.count ?? 0) > 0,
         has_billing_config: !!profile?.billing_mode_set_at,
+        has_logo: !!profile?.logo_url,
+        has_subscription: profile?.status === "active",
+        has_payment_method: !!profile?.stripe_customer_id,
+        has_invoice: (invRes.count ?? 0) > 0,
+        has_supplier: (suppRes.count ?? 0) > 0,
+        has_appointment: (apptRes.count ?? 0) > 0,
       };
     },
   });
@@ -124,8 +182,8 @@ export function useOnboardingAutoComplete(
     for (const step of steps) {
       if (!step.auto_check_key) continue;
       if (completedIds.has(step.id)) continue;
-      const key = step.auto_check_key as keyof CheckResults;
-      if (checks[key] === true) {
+      const key = resolveAutoCheckKey(step.auto_check_key);
+      if (key && checks[key] === true) {
         toInsert.push({ company_id: companyId, step_id: step.id, completed_by: user.id });
       }
     }

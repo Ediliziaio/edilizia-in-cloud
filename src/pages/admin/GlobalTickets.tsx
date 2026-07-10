@@ -33,31 +33,43 @@ function useSupportStats(enabled: boolean) {
   return useQuery({
     queryKey: ["admin-support-stats-full"],
     queryFn: async () => {
-      // Limite di sicurezza: 2000 messaggi recenti (≈ 2 settimane su load medio)
-      // + 500 conversazioni aperte/in-progress/pending (le chiuse non contano).
-      const [messagesRes, conversationsRes] = await Promise.all([
-        supabase
-          .from("support_messages")
-          .select("company_id, sender_role, created_at")
-          .order("created_at", { ascending: false })
-          .limit(2000),
+      // RPC dedicata: ultimo messaggio per OGNI conversazione attiva (DISTINCT
+      // ON lato DB). Prima si incrociavano le conversazioni con gli ultimi
+      // 2000 messaggi globali: i ticket attivi più VECCHI della finestra
+      // sparivano da "da rispondere" e gonfiavano il response rate.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sp = supabase as any;
+      const [lastMsgRes, conversationsRes] = await Promise.all([
+        sp.rpc("admin_support_last_message_by_company").limit(5000),
         supabase
           .from("support_conversations")
           .select("company_id, status, last_message_at, created_at")
           .in("status", ["open", "in_progress", "pending"])
           .limit(500),
       ]);
-      if (messagesRes.error) throw messagesRes.error;
       if (conversationsRes.error) throw conversationsRes.error;
 
       const conversations = (conversationsRes.data ?? []) as ConversationRow[];
-      const messages = (messagesRes.data ?? []) as MessageRow[];
-
       const statusByCompany = new Map(conversations.map((c) => [c.company_id, c]));
       const latestByCompany = new Map<string, MessageRow>();
-      for (const m of messages) {
-        if (!latestByCompany.has(m.company_id)) {
+
+      if (!lastMsgRes.error) {
+        for (const m of (lastMsgRes.data ?? []) as MessageRow[]) {
           latestByCompany.set(m.company_id, m);
+        }
+      } else {
+        // Fallback (RPC non ancora migrata in questo ambiente): finestra 2000
+        // messaggi recenti — meno accurata sui ticket vecchi.
+        const messagesRes = await supabase
+          .from("support_messages")
+          .select("company_id, sender_role, created_at")
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        if (messagesRes.error) throw messagesRes.error;
+        for (const m of (messagesRes.data ?? []) as MessageRow[]) {
+          if (!latestByCompany.has(m.company_id)) {
+            latestByCompany.set(m.company_id, m);
+          }
         }
       }
 

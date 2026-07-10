@@ -14,8 +14,9 @@ interface CSData {
   healthRate: number;
   openTickets: number;
   slaViolations: number;
-  pendingTasks: number;
-  overdueTasks: number;
+  lastCalculatedAt: string | null;
+  healthAgeHours: number | null;
+  atRiskList: Array<{ company_id: string; name: string; score: number; health: string }>;
 }
 
 export default function AdminCSDashboard() {
@@ -24,27 +25,45 @@ export default function AdminCSDashboard() {
   const { data, isLoading } = useQuery<CSData>({
     queryKey: ['admin-cs-dashboard'],
     queryFn: async () => {
-      const [companiesRes, healthRes, ticketsRes] = await Promise.all([
+      // BUGFIX: la colonna reale è `health` (healthy|at_risk|critical), NON
+      // `health_status`; lo stato reale dei ticket è `open` (inglese), NON
+      // 'aperto'. I vecchi filtri non matchavano MAI → dashboard sempre a 0.
+      // Conteggi con head-count esatti (niente campione troncato a 500).
+      const [companiesRes, atRiskRes, healthyRes, scoredRes, freshRes, atRiskListRes, ticketsRes] = await Promise.all([
         supabase
           .from('companies')
-          .select('id,status,created_at')
+          .select('id,name,status,created_at')
           .eq('is_platform_admin_company', false),
         supabase
-          .from('company_health_scores' as never)
-          .select('company_id,health_status,score' as never)
-          .limit(500),
+          .from('company_health_scores')
+          .select('id', { count: 'exact', head: true })
+          .in('health', ['at_risk', 'critical']),
         supabase
-          .from('support_conversations' as never)
-          .select('id,status,created_at,first_response_at' as never)
-          .eq('status' as never, 'aperto' as never),
+          .from('company_health_scores')
+          .select('id', { count: 'exact', head: true })
+          .eq('health', 'healthy'),
+        supabase
+          .from('company_health_scores')
+          .select('id', { count: 'exact', head: true }),
+        supabase
+          .from('company_health_scores')
+          .select('calculated_at')
+          .order('calculated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('company_health_scores')
+          .select('company_id,health,score')
+          .in('health', ['at_risk', 'critical'])
+          .order('score', { ascending: true })
+          .limit(10),
+        supabase
+          .from('support_conversations')
+          .select('id,status,created_at,first_response_at')
+          .in('status', ['open', 'in_progress']),
       ]);
 
       const companies = companiesRes.data ?? [];
-      const health = (healthRes.data ?? []) as Array<{
-        company_id: string;
-        health_status: string;
-        score: number;
-      }>;
       const tickets = (ticketsRes.data ?? []) as Array<{
         id: string;
         status: string;
@@ -54,14 +73,21 @@ export default function AdminCSDashboard() {
 
       const activeCompanies = companies.filter((c) => c.status === 'active').length;
       const trialCompanies = companies.filter((c) => c.status === 'trial').length;
-      const atRisk = health.filter(
-        (h) => h.health_status === 'at_risk' || h.health_status === 'critical'
-      ).length;
-      const healthy = health.filter((h) => h.health_status === 'healthy').length;
-      const healthRate = health.length > 0 ? Math.round((healthy / health.length) * 100) : 0;
+      const atRisk = atRiskRes.count ?? 0;
+      const healthy = healthyRes.count ?? 0;
+      const scored = scoredRes.count ?? 0;
+      const healthRate = scored > 0 ? Math.round((healthy / scored) * 100) : 0;
+      // NB: first_response_at oggi non viene ancora popolato da nessun flusso →
+      // il KPI è "in attesa da >4h" (età conversazione), non un vero SLA di
+      // prima risposta. Quando first_response_at verrà scritto, il filtro
+      // escluderà automaticamente le conversazioni già risposte.
       const slaViolations = tickets.filter(
         (t) => (Date.now() - new Date(t.created_at).getTime()) / 3600000 > 4 && !t.first_response_at
       ).length;
+
+      const nameById = new Map(companies.map((c) => [c.id, c.name]));
+      const atRiskList = ((atRiskListRes.data ?? []) as Array<{ company_id: string; health: string; score: number }>)
+        .map((h) => ({ ...h, name: nameById.get(h.company_id) ?? 'Azienda' }));
 
       return {
         activeCompanies,
@@ -70,8 +96,11 @@ export default function AdminCSDashboard() {
         healthRate,
         openTickets: tickets.length,
         slaViolations,
-        pendingTasks: 0,
-        overdueTasks: 0,
+        lastCalculatedAt: freshRes.data?.calculated_at ?? null,
+        healthAgeHours: freshRes.data?.calculated_at
+          ? (Date.now() - new Date(freshRes.data.calculated_at).getTime()) / 3600000
+          : null,
+        atRiskList,
       };
     },
     staleTime: 2 * 60 * 1000,
@@ -140,6 +169,16 @@ export default function AdminCSDashboard() {
                 <AlertTriangle className="h-3 w-3" /> {data?.atRisk} a rischio — azione richiesta
               </Badge>
             )}
+            {/* Freschezza: se il cron compute-health-scores non gira, i numeri
+                sopra sono stantii — prima non c'era alcun indicatore. */}
+            {data?.lastCalculatedAt ? (
+              <p className={`text-[11px] ${(data.healthAgeHours ?? 0) > 24 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>
+                Ultimo calcolo: {new Date(data.lastCalculatedAt).toLocaleString('it-IT')}
+                {(data.healthAgeHours ?? 0) > 24 ? ' — dati vecchi, verifica il cron compute-health-scores' : ''}
+              </p>
+            ) : (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">Nessun health score calcolato — il cron compute-health-scores non è mai girato.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -149,7 +188,7 @@ export default function AdminCSDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Violazioni SLA</span>
+              <span className="text-sm text-muted-foreground">In attesa da &gt;4h (senza prima risposta)</span>
               <Badge variant={(data?.slaViolations ?? 0) > 0 ? 'destructive' : 'secondary'}>
                 {data?.slaViolations ?? 0}
               </Badge>
@@ -161,6 +200,31 @@ export default function AdminCSDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Drill-down: chi sono le aziende a rischio (prima solo un numero) */}
+      {(data?.atRiskList?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" /> Aziende a rischio (peggiori {data!.atRiskList.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {data!.atRiskList.map((c) => (
+              <a key={c.company_id} href={`/admin/aziende/${c.company_id}`}
+                className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors">
+                <span className="truncate font-medium">{c.name}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <Badge variant={c.health === 'critical' ? 'destructive' : 'secondary'} className="text-[10px]">
+                    {c.health === 'critical' ? 'critico' : 'a rischio'}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">score {c.score}</span>
+                </span>
+              </a>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
