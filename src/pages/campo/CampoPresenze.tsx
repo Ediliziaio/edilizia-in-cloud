@@ -177,13 +177,13 @@ export default function CampoPresenze() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <button onClick={() => setCurrentMonth(m => subMonths(m, 1))} className="p-2 hover:bg-muted rounded-lg">
+            <button onClick={() => setCurrentMonth(m => subMonths(m, 1))} className="p-2 hover:bg-muted active:bg-muted rounded-lg">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <CardTitle className="text-base capitalize">
               {format(currentMonth, "MMMM yyyy", { locale: it })}
             </CardTitle>
-            <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-2 hover:bg-muted rounded-lg">
+            <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-2 hover:bg-muted active:bg-muted rounded-lg">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>

@@ -237,7 +237,9 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
       };
 
       const effectiveOrderId = await resolveOrderId();
-      const dataLavoro = new Date().toISOString().slice(0, 10);
+      // Data LOCALE (non UTC): la sera toISOString() scavalca al giorno dopo
+      // e rompe l'upsert onConflict(user_id,order_id,data_lavoro)
+      const dataLavoro = new Date().toLocaleDateString("en-CA");
       const materiali = (draft.dati_estratti.materiali ?? []).filter((m) => m.nome?.trim());
       const oreLavorate = Number.isFinite(draft.dati_estratti.ore_lavorate)
         ? Math.min(24, Math.max(0, Number(draft.dati_estratti.ore_lavorate)))
@@ -337,6 +339,8 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
 
             queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+            queryClient.invalidateQueries({ queryKey: ["campo-lavoro-rapportino-oggi", effectiveOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["order-campo-rapportini", effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["order-events", profile.company_id, effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["order-diary-audit", effectiveOrderId, profile.company_id] });
           }

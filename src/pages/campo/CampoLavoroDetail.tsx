@@ -189,10 +189,10 @@ const STATO_FIRMA: Record<string, { label: string; cls: string; icon: LucideIcon
   cancelled:    { label: "Annullato",           cls: "bg-slate-100 text-slate-600", icon: AlertCircle },
 };
 
-function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T, onTimeout?: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<T>((resolve) => {
-    timer = setTimeout(() => resolve(fallback), timeoutMs);
+    timer = setTimeout(() => { onTimeout?.(); resolve(fallback); }, timeoutMs);
   });
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
 }
@@ -216,7 +216,7 @@ export default function CampoLavoroDetail() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
-  const { data: assignment, isLoading, isError, error } = useQuery<CampoAssignment | null>({
+  const { data: assignment, isLoading, isFetching, isError, error } = useQuery<CampoAssignment | null>({
     queryKey: ["campo-lavoro", orderId, currentUserKey, fallbackOrderCode, fallbackOrderTitle, fallbackOrderAddress],
     queryFn: async () => {
       const orderSelect = `
@@ -263,14 +263,20 @@ export default function CampoLavoroDetail() {
         } satisfies CampoAssignment;
       }
 
+      // Su rete lenta (cantiere) i probe possono scadere: distinguiamo il
+      // timeout dal "non assegnato" per non mostrare un falso negativo.
+      let probeTimedOut = false;
+      const flagTimeout = () => { probeTimedOut = true; };
+
       const directOrderPromise = withTimeout(
         supabase
           .from("orders")
           .select(orderSelect)
           .eq("id", orderId!)
           .maybeSingle(),
-        4000,
+        6000,
         { data: null, error: null },
+        flagTimeout,
       );
 
       if (currentUserIds.length === 0) {
@@ -296,8 +302,9 @@ export default function CampoLavoroDetail() {
           .in("user_id", currentUserIds)
           .limit(1)
           .maybeSingle(),
-        2500,
+        5000,
         { data: null, error: null },
+        flagTimeout,
       );
 
       const employeePromise = withTimeout(
@@ -307,8 +314,9 @@ export default function CampoLavoroDetail() {
           .in("user_id", currentUserIds)
           .limit(1)
           .maybeSingle(),
-        2500,
+        5000,
         { data: null, error: null },
+        flagTimeout,
       );
 
       const subcontractorPromise = withTimeout(
@@ -318,8 +326,9 @@ export default function CampoLavoroDetail() {
           .in("user_id", currentUserIds)
           .limit(1)
           .maybeSingle(),
-        2500,
+        5000,
         { data: null, error: null },
+        flagTimeout,
       );
 
       const [
@@ -343,8 +352,9 @@ export default function CampoLavoroDetail() {
             .eq("order_id", orderId!)
             .eq("employee_id", emp.id)
             .limit(1),
-          2500,
+          5000,
           { data: null, error: null },
+          flagTimeout,
         );
         if (rowsErr) throw rowsErr;
         const empAssign = empRows?.[0] ?? null;
@@ -368,8 +378,9 @@ export default function CampoLavoroDetail() {
             .eq("subappaltatore_id", subData.id)
             .eq("stato", "attivo")
             .maybeSingle(),
-          2500,
+          5000,
           { data: null, error: null },
+          flagTimeout,
         );
         if (contractErr) throw contractErr;
 
@@ -396,11 +407,22 @@ export default function CampoLavoroDetail() {
         };
       }
 
+      // Se qualche probe è scaduto non possiamo concludere "non assegnato":
+      // errore → react-query riprova da solo invece del falso negativo.
+      if (probeTimedOut) {
+        throw new Error("Connessione lenta: verifica assegnazione non completata");
+      }
+
       // Non assegnato — la UI mostra un fallback recuperabile.
       return null;
     },
     enabled: !!orderId,
     retry: 1,
+    // Query-cancello: un "non assegnato" (null) in cache/persister non deve
+    // essere riservito com'è — verifica sempre fresca al mount, altrimenti
+    // un null stantio mostra "Lavoro non disponibile" a operai assegnati.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {
@@ -425,6 +447,30 @@ export default function CampoLavoroDetail() {
       return (data ?? []) as CampoOrderItem[];
     },
     enabled: !!orderId && activeTab === "descrizione",
+  });
+
+  // Fasi di lavoro della commessa — stessa queryKey del wizard rapportino,
+  // così l'invalidazione post-invio riallinea anche questa vista.
+  const { data: fasiCommessa = [] } = useQuery({
+    queryKey: ["campo-fasi-commessa", orderId],
+    enabled: !!orderId && activeTab === "descrizione",
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ id: string; name: string; status: string; percentuale: number }[]> => {
+      // order_work_phases non è nei tipi generati → cast
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_phases")
+        .select("id, name, status, percentuale")
+        .eq("order_id", orderId)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((p) => ({
+        id: p.id as string,
+        name: (p.name as string) ?? "",
+        status: (p.status as string) ?? "da_iniziare",
+        percentuale: Number(p.percentuale) || 0,
+      }));
+    },
   });
 
   // Rapportini dell'utente su questo ordine
@@ -620,7 +666,7 @@ export default function CampoLavoroDetail() {
           : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
   const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
-    { key: "descrizione", label: "Descrizione" },
+    { key: "descrizione", label: "Info" },
     { key: "rapportini",  label: "Rapportini" },
     { key: "diario",      label: "Diario" },
     { key: "documenti",   label: "Documenti" },
@@ -645,43 +691,38 @@ export default function CampoLavoroDetail() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_260px] md:gap-3">
-          <div className="rounded-xl bg-muted/60 p-2.5 md:rounded-2xl md:p-3">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Indirizzo cantiere</p>
-            {order?.indirizzo_lavori ? (
-              <button
-                onClick={() => window.open(
-                  `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
-                  "_blank"
-                )}
-                className="flex w-full items-start gap-2 text-left text-primary"
-              >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="line-clamp-2 text-xs font-semibold md:text-sm">{order.indirizzo_lavori}</span>
-              </button>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nessun indirizzo impostato dall'ufficio.</p>
-            )}
-          </div>
-          <div className="rounded-xl bg-primary/10 p-2.5 text-primary md:rounded-2xl md:p-3">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide opacity-75">Avanzamento</p>
-            <div className="flex items-end justify-between gap-3">
-              <span className="text-2xl font-black">{order?.percentuale_avanzamento ?? 0}%</span>
-              <span className="text-xs font-semibold">{order?.status || "In lavorazione"}</span>
-            </div>
-            <div className="mt-2 h-2 rounded-full bg-primary/15">
+        {/* Avanzamento compatto: una riga sottile invece della card grande */}
+        <div className="rounded-xl bg-primary/10 px-3 py-2 text-primary md:rounded-2xl md:p-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg font-black leading-none md:text-2xl">{order?.percentuale_avanzamento ?? 0}%</span>
+            <div className="h-2 min-w-0 flex-1 rounded-full bg-primary/15">
               <div
                 className="h-2 rounded-full bg-primary transition-all"
                 style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
               />
             </div>
+            <span className="shrink-0 text-xs font-semibold">{order?.status || "In lavorazione"}</span>
           </div>
         </div>
 
-        <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
+        {/* Indirizzo: una riga tappabile che apre Maps (niente card doppia) */}
+        {order?.indirizzo_lavori && (
+          <button
+            onClick={() => window.open(
+              `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
+              "_blank"
+            )}
+            className="mt-2 flex w-full items-center gap-2 rounded-xl bg-muted/60 px-3 py-2 text-left active:bg-muted md:rounded-2xl"
+          >
+            <MapPin className="h-4 w-4 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-primary md:text-sm">{order.indirizzo_lavori}</span>
+            <Navigation className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        )}
+
+        <div className="mt-2 grid grid-cols-2 gap-1.5 md:mt-3 md:gap-2">
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(rapportinoManualeUrl)} />
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
-          <QuickAction icon={Navigation} label="Maps" disabled={!order?.indirizzo_lavori} onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`, "_blank")} />
         </div>
 
         {/* Tab selector */}
@@ -734,6 +775,56 @@ export default function CampoLavoroDetail() {
                 icon={CheckCircle}
               />
             </div>
+
+            {/* Fasi di lavoro della commessa */}
+            {fasiCommessa.length > 0 && (
+              <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Fasi di lavoro</p>
+                  <span className="text-xs font-semibold text-primary">
+                    {fasiCommessa.filter(f => f.status === "completata").length}/{fasiCommessa.length} completate
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {fasiCommessa.map((fase) => {
+                    const done = fase.status === "completata";
+                    const pct = done ? 100 : fase.percentuale;
+                    return (
+                      <div key={fase.id}>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            {done ? (
+                              <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
+                            ) : (
+                              <span
+                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                                  fase.status === "in_corso" ? "bg-primary" : "bg-border"
+                                }`}
+                              />
+                            )}
+                            <p className={`min-w-0 truncate text-sm ${done ? "text-muted-foreground line-through" : "font-medium text-foreground"}`}>
+                              {fase.name}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 text-xs font-bold ${done ? "text-green-600" : "text-primary"}`}>
+                            {pct}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${done ? "bg-green-500" : "bg-primary"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Aggiorna le fasi dal rapportino di fine giornata.
+                </p>
+              </div>
+            )}
 
             {/* Card cliente */}
             {customer && (
@@ -1029,7 +1120,9 @@ function CampoCloseDayCard({
         <CloseDayStep ok={giornataCompleta} icon={LogOut} label="Uscita" detail={giornataCompleta ? "Registrata" : readyToExit ? "Pronta" : `${requiredMissing} blocchi`} />
       </div>
 
-      {avanzamentoRapportino != null && (
+      {/* Solo se dichiarato davvero (>0): con le fasi la % la calcola il sistema
+          e uno "0%" qui sembrerebbe un lavoro fermo. */}
+      {avanzamentoRapportino != null && avanzamentoRapportino > 0 && (
         <div className="mt-3 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
           Avanzamento dichiarato oggi: <span className="text-foreground">{avanzamentoRapportino}%</span>
         </div>
@@ -1106,7 +1199,7 @@ function InfoTile({
     <div className="rounded-xl border bg-background p-2.5 shadow-sm md:rounded-2xl md:p-4">
       <div className="mb-1.5 flex items-center gap-1.5 text-muted-foreground md:mb-2 md:gap-2">
         <Icon className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-        <p className="truncate text-[9px] font-bold uppercase tracking-wide md:text-[10px]">{label}</p>
+        <p className="truncate text-[11px] font-bold uppercase tracking-wide">{label}</p>
       </div>
       <p className="truncate text-xs font-bold text-foreground md:text-sm">{value}</p>
     </div>
@@ -1400,7 +1493,9 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
     enabled: !!orderCode,
   });
 
-  if (isLoading) {
+  // Spinner anche durante il refetch di un null cache-stantio: senza,
+  // per un attimo comparirebbe il falso "Lavoro non disponibile".
+  if (isLoading || (!assignment && isFetching)) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

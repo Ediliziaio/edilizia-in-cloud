@@ -280,7 +280,7 @@ export default function CampoAttivita() {
                     )}
 
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <Badge className={cn("text-[9px] px-1.5 py-0 border", pCfg.badge)}>
+                      <Badge className={cn("text-[11px] px-1.5 py-0 border", pCfg.badge)}>
                         {pCfg.label}
                       </Badge>
 

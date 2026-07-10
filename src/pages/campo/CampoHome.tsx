@@ -98,12 +98,13 @@ export default function CampoHome() {
 
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
-      {isOperaio && <AssistenteCampoOperaio />}
 
       {/* Azioni rapide — griglia 4 colonne su mobile */}
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
 
-      {/* Grid principale — 1 col mobile, 2 col desktop */}
+      {/* Grid principale — 1 col mobile, 2 col desktop.
+          Priorità mobile: prima le cose da FARE (rapportini, cantieri),
+          poi l'assistente AI e il resto. */}
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
         {/* Cantieri assegnati */}
         <div className="space-y-3 md:space-y-6">
@@ -116,6 +117,7 @@ export default function CampoHome() {
 
         {/* Colonna destra */}
         <div className="space-y-3 md:space-y-6">
+          {isOperaio && <AssistenteCampoOperaio />}
           <MiniCalendarioCampo />
           <MieAttivitaCampo />
         </div>
@@ -589,24 +591,40 @@ function CantieriAssegnati() {
   });
 
   const { data: lavori = [], isLoading } = useQuery({
-    queryKey: ["campo-lavori-assegnati", employeeId],
+    queryKey: ["campo-lavori-assegnati", user?.id, employeeId ?? "no-employee"],
     queryFn: async () => {
-      // Usa order_employees (sempre popolata) come fonte primaria
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select(`
+      const orderSelect = `
           id, order_id,
           order:orders(
             id, order_code, description, status,
             indirizzo_lavori,
             percentuale_avanzamento
           )
-        `)
-        .eq("employee_id", employeeId!);
-      if (error) throw error;
+        `;
+      const rows: any[] = [];
+
+      // Fonte 1: assegnazioni campo dirette (order_campo_assignments) —
+      // è la fonte primaria dell'area campo (stessa usata dal dettaglio lavoro)
+      const { data: campoAss, error: campoErr } = await supabase
+        .from("order_campo_assignments")
+        .select(orderSelect)
+        .eq("user_id", user!.id);
+      if (campoErr) throw campoErr;
+      rows.push(...(campoAss ?? []));
+
+      // Fonte 2: manodopera (order_employees), se esiste la scheda dipendente
+      if (employeeId) {
+        const { data, error } = await supabase
+          .from("order_employees")
+          .select(orderSelect)
+          .eq("employee_id", employeeId);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+      }
+
       // Deduplica per order_id (possono esserci più righe per lo stesso ordine)
       const seen = new Set<string>();
-      return (data ?? []).filter((a: any) => {
+      return rows.filter((a: any) => {
         if (!a.order?.id || seen.has(a.order.id)) return false;
         seen.add(a.order.id);
         // Filtra ordini completati/annullati
@@ -615,7 +633,8 @@ function CantieriAssegnati() {
         return true;
       });
     },
-    enabled: !!employeeId,
+    // employeeId: undefined = ancora in caricamento, null = nessuna scheda
+    enabled: !!user?.id && employeeId !== undefined,
   });
 
   return (
@@ -1062,7 +1081,7 @@ function MiniCalendarioCampo() {
                     <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50" : "bg-muted/50"}`}>
                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
                       <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
-                      <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>
+                      <Badge className={`text-[11px] px-1.5 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>
                         {isDone ? "Fatto" : cfg.label}
                       </Badge>
                     </div>
@@ -1156,7 +1175,7 @@ function MieAttivitaCampo() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`text-[9px] px-1.5 py-0 ${cfg.badgeClass}`}>{cfg.label}</Badge>
+                  <Badge className={`text-[11px] px-1.5 py-0 ${cfg.badgeClass}`}>{cfg.label}</Badge>
                 </div>
               );
             })}
