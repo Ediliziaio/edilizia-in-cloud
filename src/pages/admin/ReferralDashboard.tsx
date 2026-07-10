@@ -338,14 +338,19 @@ export default function ReferralDashboard() {
     setEditingReferrer(null);
   };
 
+  // Stima mensile allineata al motore reale (calculate_monthly_commissions):
+  // MRR × commission_plan_pct del tier × commission_multiplier. Gli addon per
+  // azienda non sono replicabili qui (servirebbe company_feature_overrides),
+  // quindi la stima è leggermente conservativa.
   const getMonthlyCommission = (referrer: Referrer) => {
+    const planPct = referrer.referral_tiers?.commission_plan_pct ?? 20;
+    const multiplier = referrer.referral_tiers?.commission_multiplier ?? 1;
     const companies = referralCompanies.filter(
       (rc) => rc.referrer_id === referrer.id && rc.is_active && rc.company?.status === "active",
     );
     return companies.reduce((total, rc) => {
       const mrr = rc.plan?.price_monthly || 0;
-      if (referrer.commission_type === "percentage") return total + mrr * (referrer.commission_value / 100);
-      return total + referrer.commission_value;
+      return total + mrr * (planPct / 100) * multiplier;
     }, 0);
   };
 

@@ -650,7 +650,7 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
       <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Addebitare €{confirm?.amount}?</AlertDialogTitle>
+            <AlertDialogTitle>Addebitare {formatEuro(confirm?.amount ?? 0)}?</AlertDialogTitle>
             <AlertDialogDescription>
               Verrà addebitato il conto wholesale di <strong>{produttoreName}</strong> ({confirm?.period}) sulla sua carta.
               È un pagamento <strong>reale</strong> e immediato.
@@ -729,7 +729,7 @@ function ProduttorePiani({ produttoreId }: { produttoreId: string }) {
         <ul className="mb-2 divide-y">
           {plans.map((pl) => (
             <li key={pl.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-              <span className="truncate">{pl.name} <span className="text-muted-foreground">· €{pl.price_monthly}/mese</span></span>
+              <span className="truncate">{pl.name} <span className="text-muted-foreground">· {formatEuro(pl.price_monthly)}/mese</span></span>
               <Button size="sm" variant="ghost" className="h-7 shrink-0 text-destructive" disabled={deactivate.isPending} onClick={() => deactivate.mutate(pl.id)}>Disattiva</Button>
             </li>
           ))}

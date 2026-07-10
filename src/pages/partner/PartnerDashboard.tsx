@@ -140,7 +140,7 @@ export default function PartnerDashboard() {
       // S2-03: select chirurgico — UI usa icon/name/min_active/position/multiplier
       const { data } = await supabase
         .from("referral_tiers")
-        .select("id, icon, name, min_active_companies, position, commission_multiplier")
+        .select("id, icon, name, min_active_companies, position, commission_multiplier, commission_plan_pct")
         .gt("position", referrer!.referral_tiers?.position ?? 0)
         .order("position", { ascending: true })
         .limit(1)
@@ -175,9 +175,14 @@ export default function PartnerDashboard() {
   const monthlyCommission = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
   const referralLink = buildReferralLink(referrer.referral_code);
 
-  const tierProgress = nextTier
+  const tierProgress = nextTier && (nextTier.min_active_companies ?? 0) > 0
     ? Math.min(100, (activeCompanies / nextTier.min_active_companies) * 100)
     : 100;
+  // Aumento effettivo di commissione al tier successivo: il motore paga
+  // plan_pct × multiplier, quindi il confronto va fatto sul prodotto.
+  const currentRate = (tier?.commission_plan_pct ?? 20) * (tier?.commission_multiplier ?? 1);
+  const nextRate = nextTier ? (nextTier.commission_plan_pct ?? 20) * (nextTier.commission_multiplier ?? 1) : currentRate;
+  const tierBoostPct = currentRate > 0 ? Math.round((nextRate / currentRate - 1) * 100) : 0;
 
   // Build chart data for last 30 days
   const chartData = Array.from({ length: 30 }, (_, i) => {
@@ -287,7 +292,7 @@ export default function PartnerDashboard() {
             </div>
             <Progress value={tierProgress} className="h-3" />
             <p className="text-xs text-muted-foreground mt-2">
-              Ancora {nextTier.min_active_companies - activeCompanies} aziende per raggiungere {nextTier.icon} {nextTier.name} (+{Math.round((nextTier.commission_multiplier - 1) * 100)}% commissioni!)
+              Ancora {Math.max(0, (nextTier.min_active_companies ?? 0) - activeCompanies)} aziende per raggiungere {nextTier.icon} {nextTier.name}{tierBoostPct > 0 ? ` (+${tierBoostPct}% commissioni!)` : ""}
             </p>
           </CardContent>
         </Card>

@@ -583,8 +583,8 @@ export default function ReferralLogin() {
                     Diventa partner referral
                   </h2>
                   <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                    Registrati e ottieni subito il tuo link referral con commissioni del 10%
-                    su ogni cliente attivato.
+                    Registrati e ottieni subito il tuo link referral con commissioni
+                    ricorrenti sul canone di ogni cliente attivato.
                   </p>
                 </div>
               </div>

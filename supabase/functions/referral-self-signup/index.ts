@@ -246,14 +246,18 @@ Deno.serve(async (req) => {
         phone,
         referral_code: referralCode,
         commission_type: "percentage",
-        commission_value: 10, // Default 10% — modificabile da admin
+        commission_value: 10, // Legacy: il motore paga in base al tier, non a questo campo
         partner_type: partnerType,
         payout_method: "bank_transfer",
         is_active: true, // Auto-approve
         notes: `Self-signup da IP ${clientIp} il ${new Date().toISOString()}`,
         user_id: userId,
         created_by: null, // null perché self-signup
-        has_accepted_terms: true,
+        // false: il contratto va firmato nel portale (PartnerOnboardingModal).
+        // Con true il modal non compariva mai e il flag risultava "accettato"
+        // senza alcuna firma registrata — il payout restava comunque bloccato
+        // dal gate compliance, ma senza percorso guidato per sbloccarlo.
+        has_accepted_terms: false,
       })
       .select("*")
       .single();

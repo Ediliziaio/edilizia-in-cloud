@@ -126,6 +126,22 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
     },
   });
 
+  // Conteggio segnalazioni anti-frode del partner: la tabella è leggibile solo
+  // da super_admin, quindi si passa dalla RPC dedicata. Se la RPC non è ancora
+  // deployata (o errore), fallback 0 = comportamento precedente.
+  const { data: fraudLogCount = 0 } = useQuery({
+    queryKey: ["partner-fraud-count", referrer?.id],
+    enabled: !isPreview && !!referrer?.id,
+    staleTime: 60000,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (fn: string) => PromiseLike<{ data: number | null; error: unknown }>)(
+        "get_my_referral_fraud_count",
+      );
+      if (error) return 0;
+      return data ?? 0;
+    },
+  });
+
   const balance = (referrer?.total_earned || 0) - (referrer?.total_paid || 0);
   const [hasDefaultedAmount, setHasDefaultedAmount] = useState(false);
   useEffect(() => {
@@ -144,7 +160,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
   const payoutEligibility = evaluateReferralPayoutEligibility({
     amount: Number.isFinite(requestedAmount) ? requestedAmount : balance,
     referrer,
-    fraudLogCount: 0,
+    fraudLogCount,
     policy: payoutPolicy,
   });
   const payoutCompliance = getPartnerPayoutCompliance({
@@ -177,7 +193,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
       const eligibility = evaluateReferralPayoutEligibility({
         amount: amt,
         referrer,
-        fraudLogCount: 0,
+        fraudLogCount,
         policy: payoutPolicy,
       });
       if (!eligibility.eligible) throw new Error(eligibility.blockers.join(" · "));
