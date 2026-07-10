@@ -16,7 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import {
-  useMarginalitaCommesse, type Semaforo,
+  useMarginalitaCommesse, type Semaforo, type CommessaRiga,
 } from "@/hooks/controlloGestione/useMarginalitaCommesse";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,7 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 
 export function TabCommesse({ anno }: Props) {
   const [filter, setFilter] = useState<"all" | "in_corso" | "completato">("all");
+  const [sortBy, setSortBy] = useState<"preventivo" | "manodopera">("preventivo");
   const statusFilter = filter === "all" ? null : filter;
   const q = useMarginalitaCommesse(anno, statusFilter);
 
@@ -64,18 +65,43 @@ export function TabCommesse({ anno }: Props) {
     return bySem;
   }, [q.data]);
 
+  // Manodopera aggregata: soldi (€), tempo (ore) e incidenza sui costi diretti.
+  const labor = useMemo(() => {
+    if (!q.data) return null;
+    let costo = 0, ore = 0, consuntivo = 0;
+    q.data.righe.forEach((r) => {
+      costo += r.costo_manodopera ?? 0;
+      ore += r.ore_manodopera ?? 0;
+      consuntivo += r.consuntivo ?? 0;
+    });
+    return { costo, ore, incidenza: consuntivo > 0 ? (costo / consuntivo) * 100 : null };
+  }, [q.data]);
+
+  // Ordine tabella: default per valore contratto, oppure per incidenza manodopera
+  // (dove la manodopera pesa di più sul costo della commessa).
+  const righeSorted = useMemo(() => {
+    if (!q.data) return [];
+    const arr = [...q.data.righe];
+    if (sortBy === "manodopera") {
+      const incid = (r: CommessaRiga) => (r.consuntivo > 0 ? (r.costo_manodopera ?? 0) / r.consuntivo : 0);
+      arr.sort((a, b) => incid(b) - incid(a) || (b.costo_manodopera ?? 0) - (a.costo_manodopera ?? 0));
+    }
+    return arr;
+  }, [q.data, sortBy]);
+
   if (q.isLoading) {
     return <Skeleton className="h-96 w-full rounded-2xl" />;
   }
   if (q.isError) return <ErrorBlock onRetry={() => q.refetch()} />;
   if (!q.data) return null;
 
-  const { kpi, righe } = q.data;
+  const { kpi } = q.data;
+  const righe = righeSorted;
 
   return (
     <div className="space-y-4">
       {/* KPI bar */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <KPIMini
           label="Commesse"
           value={String(kpi.n_commesse)}
@@ -91,6 +117,16 @@ export function TabCommesse({ anno }: Props) {
           label="Consuntivato"
           value={formatCurrency(kpi.consuntivo_totale)}
           sub="Costi diretti sostenuti"
+          tone="amber"
+        />
+        <KPIMini
+          label="Manodopera"
+          value={labor ? formatCurrency(labor.costo) : "—"}
+          sub={
+            labor
+              ? `${labor.ore.toLocaleString("it-IT")} ore${labor.incidenza !== null ? ` · ${labor.incidenza.toFixed(0)}% dei costi` : ""}`
+              : "—"
+          }
           tone="amber"
         />
         <KPIMini
@@ -111,17 +147,30 @@ export function TabCommesse({ anno }: Props) {
         />
       </div>
 
-      {/* Filtro stato + semaforo summary */}
+      {/* Filtro stato + ordinamento + semaforo summary */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToggleGroup
-          type="single"
-          value={filter}
-          onValueChange={(v) => v && setFilter(v as typeof filter)}
-        >
-          <ToggleGroupItem value="all" variant="outline" size="sm">Tutte</ToggleGroupItem>
-          <ToggleGroupItem value="in_corso" variant="outline" size="sm">In corso</ToggleGroupItem>
-          <ToggleGroupItem value="completato" variant="outline" size="sm">Completate</ToggleGroupItem>
-        </ToggleGroup>
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            type="single"
+            value={filter}
+            onValueChange={(v) => v && setFilter(v as typeof filter)}
+          >
+            <ToggleGroupItem value="all" variant="outline" size="sm">Tutte</ToggleGroupItem>
+            <ToggleGroupItem value="in_corso" variant="outline" size="sm">In corso</ToggleGroupItem>
+            <ToggleGroupItem value="completato" variant="outline" size="sm">Completate</ToggleGroupItem>
+          </ToggleGroup>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Ordina:</span>
+            <ToggleGroup
+              type="single"
+              value={sortBy}
+              onValueChange={(v) => v && setSortBy(v as typeof sortBy)}
+            >
+              <ToggleGroupItem value="preventivo" variant="outline" size="sm">Valore</ToggleGroupItem>
+              <ToggleGroupItem value="manodopera" variant="outline" size="sm">Incidenza manodopera</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
 
         {counts && (
           <div className="flex flex-wrap gap-2 text-xs">
@@ -143,7 +192,8 @@ export function TabCommesse({ anno }: Props) {
           <div>
             <CardTitle className="text-base">Marginalità per cantiere</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Margine atteso = Preventivo − (Consuntivo / % avanzamento). Semaforo verde se ≥ 15%, rosso se &lt; 0.
+              Margine atteso = Preventivo − (Consuntivo / % avanzamento), stimato dal 20% di avanzamento in su
+              (sotto è troppo presto → «non valutabile»). Semaforo verde se ≥ 15%, rosso se &lt; 0.
             </p>
           </div>
           <ExportButton
@@ -161,6 +211,9 @@ export function TabCommesse({ anno }: Props) {
                     { header: "% avanz.", key: "pct_disp", width: 10 },
                     { header: "Preventivo", key: "preventivo", width: 14, type: "number" },
                     { header: "Consuntivo", key: "consuntivo", width: 14, type: "number" },
+                    { header: "Manodopera €", key: "costo_manodopera", width: 14, type: "number" },
+                    { header: "Ore manodopera", key: "ore_manodopera", width: 14, type: "number" },
+                    { header: "Incid. manodopera %", key: "incid_mo", width: 16 },
                     { header: "Margine ora", key: "margine", width: 14, type: "number" },
                     { header: "Costo atteso", key: "costo_atteso", width: 14, type: "number" },
                     { header: "Margine fine", key: "margine_atteso", width: 14, type: "number" },
@@ -170,6 +223,9 @@ export function TabCommesse({ anno }: Props) {
                   rows: righe.map((r) => ({
                     ...r,
                     pct_disp: `${(r.pct_avanzamento * 100).toFixed(0)}%`,
+                    incid_mo: r.consuntivo > 0
+                      ? `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}%`
+                      : "—",
                   })),
                 }],
               });
@@ -195,6 +251,7 @@ export function TabCommesse({ anno }: Props) {
                     <th className="min-w-[200px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Commessa</th>
                     <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Preventivo</th>
                     <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Consuntivo</th>
+                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Manodopera</th>
                     <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Avanz.</th>
                     <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine ora</th>
                     <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine fine prev.</th>
@@ -231,6 +288,26 @@ export function TabCommesse({ anno }: Props) {
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {formatCurrency(r.consuntivo)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {r.costo_manodopera > 0 ? (
+                          <>
+                            {formatCurrency(r.costo_manodopera)}
+                            <span
+                              className={cn(
+                                "ml-1 block text-[10px]",
+                                r.consuntivo > 0 && r.costo_manodopera / r.consuntivo >= 0.4
+                                  ? "font-medium text-amber-600"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {r.consuntivo > 0 && `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}% costi`}
+                              {r.ore_manodopera > 0 && ` · ${r.ore_manodopera.toLocaleString("it-IT")} h`}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
