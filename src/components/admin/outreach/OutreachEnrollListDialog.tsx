@@ -14,7 +14,7 @@ import { UserPlus, Loader2 } from "lucide-react";
  * dalla sequenza). Chiama la stessa edge function outreach-enroll.
  */
 
-export function OutreachEnrollListDialog({ companyId, tag, count }: { companyId: string; tag: string; count: number }) {
+export function OutreachEnrollListDialog({ companyId, tag, count, contactable }: { companyId: string; tag: string; count: number; contactable?: number }) {
   const [open, setOpen] = useState(false);
   const [sequenceId, setSequenceId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,8 +40,15 @@ export function OutreachEnrollListDialog({ companyId, tag, count }: { companyId:
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const enrolled = Number(data?.enrolled ?? 0);
-      if (enrolled > 0) toast.success(`${enrolled} contatti di "${tag}" iscritti alla sequenza`);
-      else toast.info("Nessun nuovo iscritto", { description: data?.note ?? "Già iscritti / opt-out / blocklist." });
+      if (enrolled > 0) {
+        toast.success(`${enrolled} contatti di "${tag}" iscritti alla sequenza`, {
+          description: data?.truncated
+            ? "Lista molto grande: iscritti i primi contatti. Rilancia l'arruolamento per continuare con i restanti."
+            : undefined,
+        });
+      } else {
+        toast.info("Nessun nuovo iscritto", { description: data?.note ?? "Già iscritti / opt-out / blocklist." });
+      }
       setOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore durante l'iscrizione");
@@ -61,8 +68,11 @@ export function OutreachEnrollListDialog({ companyId, tag, count }: { companyId:
         <DialogHeader><DialogTitle>Arruola la lista "{tag}"</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Iscrivi i <strong>{count.toLocaleString("it-IT")}</strong> contatti con tag <strong>{tag}</strong> a una sequenza.
-            Opt-out, blocklist e già-iscritti vengono saltati.
+            La lista <strong>{tag}</strong> ha <strong>{count.toLocaleString("it-IT")}</strong> contatti
+            {typeof contactable === "number" && (
+              <>, di cui <strong className="text-emerald-600">{contactable.toLocaleString("it-IT")}</strong> contattabili via email</>
+            )}.
+            Verranno iscritti solo questi ultimi: senza email, opt-out, blocklist e già-iscritti sono saltati.
           </p>
           <div className="space-y-1">
             <Label className="text-xs">Sequenza</Label>

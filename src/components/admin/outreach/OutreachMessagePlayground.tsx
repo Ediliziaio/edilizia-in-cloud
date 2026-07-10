@@ -92,6 +92,34 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, tpl, hasSpintax, seed, selected.id]);
 
+  // Copertura variabili: variabili usate SENZA fallback ({{x}} e non {{x|...}}).
+  // Su un contatto senza quel campo renderizzano vuoto ("Ciao ,") → brutta
+  // impressione + segnale spam. Contiamo quanti dei contatti d'anteprima le
+  // hanno vuote, così l'utente sa se serve un fallback.
+  const KNOWN_FIELDS = ["first_name", "last_name", "company_name", "email", "phone"] as const;
+  const coverage = useMemo(() => {
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\|[^}]*)?\}\}/g;
+    const bare = new Set<string>();
+    let m: RegExpExecArray | null;
+    const text = `${subject}\n${tpl}`;
+    while ((m = re.exec(text)) !== null) {
+      if (!m[2]) bare.add(m[1]); // gruppo 2 = fallback: assente = "nuda"
+    }
+    if (list.length === 0) return [];
+    return [...bare]
+      .filter((v) => (KNOWN_FIELDS as readonly string[]).includes(v))
+      .map((v) => {
+        const missing = list.filter((c) => {
+          const val = (c as unknown as Record<string, unknown>)[v];
+          return !val || String(val).trim() === "";
+        }).length;
+        return { variable: v, missing, total: list.length };
+      })
+      .filter((x) => x.missing > 0)
+      .sort((a, b) => b.missing - a.missing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject, tpl, list]);
+
   const score = useMemo(() => spamScore(renderedSubject, renderedBody, `${subject}\n${tpl}`), [renderedSubject, renderedBody, subject, tpl]);
   const bodyWords = renderedBody.trim() ? renderedBody.trim().split(/\s+/).length : 0;
   const level = LEVEL_META[score.level];
@@ -250,6 +278,24 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
             )}
           </div>
         </div>
+
+        {/* copertura variabili — avvisa se una variabile senza fallback resta vuota */}
+        {coverage.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-700 dark:bg-amber-950/20">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" /> Variabili senza valore
+            </p>
+            <ul className="space-y-1">
+              {coverage.map((c) => (
+                <li key={c.variable} className="text-[11px] text-amber-800 dark:text-amber-300">
+                  <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{`{{${c.variable}}}`}</code>{" "}
+                  è vuota per <strong>{c.missing}</strong> dei {c.total} contatti d'anteprima — aggiungi un fallback, es.{" "}
+                  <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{`{{${c.variable}|…}}`}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* spam-score */}
         <div className="rounded-lg border border-border p-3">

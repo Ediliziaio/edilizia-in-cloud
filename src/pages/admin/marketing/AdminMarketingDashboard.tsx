@@ -156,15 +156,17 @@ function OutreachCockpit() {
     queryFn: () => safeCount(supabase.from("crm_campaigns").select("*", { count: "exact", head: true })),
     staleTime: 60_000,
   });
-  // Contattabili = contatti della company NON in opt-out. Corretto per costruzione:
-  // prima si faceva contatti − soppressioni GLOBALI (insiemi non confrontabili) →
-  // numero sbagliato mascherato dal Math.max(0, …).
+  // Contattabili via email = contatti della company CON email valida e NON in
+  // opt-out email. Prima mancava il filtro email → il numero includeva anche
+  // chi non ha indirizzo (non raggiungibile col cold-email): su ~90k contatti
+  // solo ~30k hanno davvero un'email.
   const contactable = useQuery({
     queryKey: ["outreach-count", "contactable", companyId],
     queryFn: () =>
       safeCount(
         supabase.from("marketing_contacts").select("*", { count: "exact", head: true })
-          .eq("company_id", companyId).eq("optout_email", false),
+          .eq("company_id", companyId).eq("optout_email", false)
+          .not("email", "is", null).neq("email", ""),
       ),
     staleTime: 60_000,
   });
@@ -239,7 +241,7 @@ function OutreachCockpit() {
               <SectionLabel>Rubrica &amp; deliverability</SectionLabel>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
-                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="esclusi gli opt-out email" tone="good" />
+                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="con email, esclusi gli opt-out" tone="good" />
                 <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
                 <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
               </div>
