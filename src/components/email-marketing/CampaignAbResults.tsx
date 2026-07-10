@@ -42,22 +42,29 @@ export function CampaignAbResults({ campaignId }: Props) {
     refetchInterval: 60000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
-      const { data: logs, error } = await supabase
-        .from("email_logs")
-        .select("ab_variant, status")
-        .eq("campaign_id", campaignId);
-      if (error) throw error;
-
+      // Paginato: senza range PostgREST tronca a 1000 righe → su campagne
+      // grandi i totali delle varianti erano sottostimati e le proporzioni
+      // A/B falsate. Inoltre aperture/clic vivono in opened_at/clicked_at
+      // (lo status resta 'delivered'): contarli dallo status dava sempre 0.
+      const PAGE = 1000;
       const a: VariantStats = { total: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
       const b: VariantStats = { total: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
-
-      for (const log of logs || []) {
-        const target = (log as any).ab_variant === "B" ? b : a;
-        target.total++;
-        if (log.status === "delivered") target.delivered++;
-        else if (log.status === "opened") { target.delivered++; target.opened++; }
-        else if (log.status === "clicked") { target.delivered++; target.opened++; target.clicked++; }
-        else if (log.status === "failed") target.failed++;
+      for (let from = 0; from < 50000; from += PAGE) {
+        const { data: logs, error } = await supabase
+          .from("email_logs")
+          .select("ab_variant, status, opened_at, clicked_at")
+          .eq("campaign_id", campaignId)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        for (const log of logs || []) {
+          const target = (log as any).ab_variant === "B" ? b : a;
+          target.total++;
+          if (["delivered", "opened", "clicked"].includes(log.status as string)) target.delivered++;
+          else if (log.status === "failed") target.failed++;
+          if ((log as any).opened_at) target.opened++;
+          if ((log as any).clicked_at) target.clicked++;
+        }
+        if (!logs || logs.length < PAGE) break;
       }
 
       return { a, b };

@@ -19,6 +19,7 @@ import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRi
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
+import { useEmailMarketingBase } from "./useEmailMarketingBase";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
@@ -43,10 +44,12 @@ const CATEGORIES = [
 export function EmailCampaignsTab() {
   const { effectiveCompany: company, user } = useAuth();
   const navigate = useNavigate();
+  const emailBase = useEmailMarketingBase();
   const qc = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounce(searchInput, 350);
   const [category, setCategory] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: "Home" },
@@ -68,11 +71,11 @@ export function EmailCampaignsTab() {
   const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [search, category, currentFolderId]);
+  useEffect(() => { setPage(0); }, [search, category, currentFolderId, statusFilter]);
 
   const { data: campaignData, isLoading } = useEmailCampaignsPaginated(
     company?.id,
-    { search, category, folderId: currentFolderId },
+    { search, category, folderId: currentFolderId, status: statusFilter },
     { page, perPage }
   );
 
@@ -159,7 +162,11 @@ export function EmailCampaignsTab() {
         utm_tracking: campaign.utm_tracking ?? false,
         auto_tag: campaign.auto_tag ?? false,
         resend_to_unopened: campaign.resend_to_unopened ?? false,
-        send_mode: campaign.send_mode ?? "immediate",
+        template_id: campaign.template_id ?? null,
+        // la copia è una bozza: niente scheduling ereditato (prima restava
+        // send_mode="scheduled" senza data → tab Programma incoerente)
+        send_mode: "immediate",
+        scheduled_at: null,
       });
       if (error) throw error;
     },
@@ -275,10 +282,24 @@ export function EmailCampaignsTab() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 max-w-sm min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Cerca campagna..." value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
+            <Input className="pl-9" placeholder="Cerca campagna (in tutte le cartelle)..." value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {([["all", "Tutte"], ["draft", "Bozze"], ["scheduled", "Pianificate"], ["sending", "In invio"], ["sent", "Inviate"], ["failed", "Fallite"]] as const).map(([v, lbl]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setStatusFilter(v)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                  statusFilter === v ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -340,7 +361,7 @@ export function EmailCampaignsTab() {
                     <TableRow
                       key={c.id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/azienda/marketing/email/campagna/${c.id}/${c.json_content ? 'builder' : 'editor'}`)}
+                      onClick={() => navigate(`${emailBase}/campagna/${c.id}/${c.json_content ? 'builder' : 'editor'}`)}
                     >
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-1">

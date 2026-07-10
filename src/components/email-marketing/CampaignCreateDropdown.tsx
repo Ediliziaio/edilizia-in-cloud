@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, FileText, LayoutTemplate, FolderOpen, Search, Loader2, Palette } from "lucide-react";
 import { toast } from "sonner";
+import { useEmailMarketingBase } from "./useEmailMarketingBase";
 
 interface CampaignCreateDropdownProps {
   variant?: "default" | "outline";
@@ -29,6 +30,7 @@ interface CampaignCreateDropdownProps {
 export function CampaignCreateDropdown({ variant = "default", size = "sm" }: CampaignCreateDropdownProps) {
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
+  const emailBase = useEmailMarketingBase();
   const [open, setOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
@@ -67,9 +69,9 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
     },
     onSuccess: (data) => {
       if (data.navigateTo === "builder") {
-        navigate(`/azienda/marketing/email/campagna/${data.id}/builder`);
+        navigate(`${emailBase}/campagna/${data.id}/builder`);
       } else {
-        navigate(`/azienda/marketing/email/campagna/${data.id}/editor`);
+        navigate(`${emailBase}/campagna/${data.id}/editor`);
       }
     },
     onError: (e: any) => toast.error(e.message),
@@ -97,7 +99,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
     },
     onSuccess: (data) => {
       setTemplateDialogOpen(false);
-      navigate(`/azienda/marketing/email/campagna/${data.id}/editor`);
+      navigate(`${emailBase}/campagna/${data.id}/editor`);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -124,7 +126,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
             <Palette className="h-4 w-4 mr-2" />
             Progettazione custom
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { setOpen(false); navigate("/azienda/marketing/email?tab=modelli"); }}>
+          <DropdownMenuItem onClick={() => { setOpen(false); navigate(`${emailBase}?tab=modelli`); }}>
             <LayoutTemplate className="h-4 w-4 mr-2" />
             Modelli di email marketing
           </DropdownMenuItem>

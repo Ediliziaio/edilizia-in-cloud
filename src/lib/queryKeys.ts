@@ -105,7 +105,8 @@ export const queryKeys = {
       folderId: string | null,
       page: number,
       perPage: number,
-    ) => ["email-campaigns", "paginated", companyId, search, category, folderId, page, perPage] as const,
+      status = "all",
+    ) => ["email-campaigns", "paginated", companyId, search, category, folderId, page, perPage, status] as const,
     folders: (companyId: string | undefined) => ["email-campaigns", "folders", companyId] as const,
   },
 

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useEmailMarketingBase } from "@/components/email-marketing/useEmailMarketingBase";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +31,7 @@ const MAX_HISTORY = 50;
 export default function DragDropEmailBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const emailBase = useEmailMarketingBase();
   const qc = useQueryClient();
   const { effectiveCompany: company } = useAuth();
 
@@ -87,10 +89,14 @@ export default function DragDropEmailBuilder() {
 
   const saveMut = useMutation({
     mutationFn: async (payload: { name?: string; html_content?: string; json_content?: Json }) => {
+      if (!company?.id) throw new Error("Azienda non disponibile");
       const { error } = await supabase
         .from("email_campaigns")
         .update(payload)
-        .eq("id", id!);
+        .eq("id", id!)
+        // scope esplicito come in tutte le altre mutazioni del flusso
+        // (difesa in profondità oltre alla RLS)
+        .eq("company_id", company.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -363,7 +369,7 @@ export default function DragDropEmailBuilder() {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-muted-foreground">Campagna non trovata</p>
-        <Button onClick={() => navigate("/azienda/marketing/email")}>Torna alla lista</Button>
+        <Button onClick={() => navigate(emailBase)}>Torna alla lista</Button>
       </div>
     );
   }
@@ -373,7 +379,7 @@ export default function DragDropEmailBuilder() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/marketing/email")}>
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(emailBase)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
           </Button>
           <Separator orientation="vertical" className="h-6" />
@@ -440,7 +446,7 @@ export default function DragDropEmailBuilder() {
           <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saveMut.isPending}>
             <Save className="h-4 w-4 mr-1" /> Salva
           </Button>
-          <Button size="sm" onClick={() => { handleManualSave(); navigate(`/azienda/marketing/email/campagna/${id}/impostazioni`); }}>
+          <Button size="sm" onClick={() => { handleManualSave(); navigate(`${emailBase}/campagna/${id}/impostazioni`); }}>
             <Send className="h-4 w-4 mr-1" /> Invia
           </Button>
         </div>

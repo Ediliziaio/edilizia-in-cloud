@@ -17,12 +17,15 @@ export function EmailStatsTab() {
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState<"7" | "30" | "90" | "all" | "custom">("all");
   const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
   const rpcParams = useMemo(() => ({
     p_company_id: company?.id ?? "",
     p_campaign_id: campaignFilter !== "all" ? campaignFilter : null,
-    p_date_from: dateFrom ? new Date(dateFrom).toISOString() : null,
+    // "T00:00:00" = mezzanotte LOCALE (senza, "YYYY-MM-DD" è parsato come UTC
+    // → il filtro escludeva le prime 1-2 ore del giorno scelto)
+    p_date_from: dateFrom ? new Date(dateFrom + "T00:00:00").toISOString() : null,
     p_date_to: dateTo ? new Date(dateTo + "T23:59:59").toISOString() : null,
   }), [company?.id, campaignFilter, dateFrom, dateTo]);
 
@@ -107,7 +110,7 @@ export function EmailStatsTab() {
     // Group by date_label, aggregate types
     const byDate = new Map<string, {
       total: number; delivered: number; opened: number; clicked: number;
-      byType: Record<string, { delivered: number; opened: number; clicked: number }>;
+      byType: Record<string, { total: number; delivered: number; opened: number; clicked: number }>;
     }>();
 
     (dailyRaw as any[]).forEach((r) => {
@@ -116,9 +119,9 @@ export function EmailStatsTab() {
         byDate.set(date, {
           total: 0, delivered: 0, opened: 0, clicked: 0,
           byType: {
-            broadcast: { delivered: 0, opened: 0, clicked: 0 },
-            automation: { delivered: 0, opened: 0, clicked: 0 },
-            bulk: { delivered: 0, opened: 0, clicked: 0 },
+            broadcast: { total: 0, delivered: 0, opened: 0, clicked: 0 },
+            automation: { total: 0, delivered: 0, opened: 0, clicked: 0 },
+            bulk: { total: 0, delivered: 0, opened: 0, clicked: 0 },
           },
         });
       }
@@ -130,6 +133,7 @@ export function EmailStatsTab() {
       entry.clicked += Number(r.clicked);
       const cType = r.campaign_type || "broadcast";
       if (entry.byType[cType]) {
+        entry.byType[cType].total += t;
         entry.byType[cType].delivered += Number(r.delivered);
         entry.byType[cType].opened += Number(r.opened);
         entry.byType[cType].clicked += Number(r.clicked);
@@ -139,23 +143,28 @@ export function EmailStatsTab() {
     const pct = (n: number, d: number) => d > 0 ? Math.round((n / d) * 100) : 0;
     const entries = Array.from(byDate.entries());
 
+    // BUGFIX (doppio): (1) le serie per-tipo dividevano per il totale
+    // COMPLESSIVO del giorno, non per quello del tipo → tassi schiacciati;
+    // (2) open/click rate usavano il totale inviate come denominatore mentre
+    // la KPI Hero e la tabella usano le CONSEGNATE → tre percentuali diverse
+    // per la stessa metrica nella stessa pagina. Ora: open/click su delivered.
     const open_rate = entries.map(([date, v]) => ({
-      date, all: pct(v.opened, v.total),
-      broadcast: pct(v.byType.broadcast.opened, v.total),
-      automation: pct(v.byType.automation.opened, v.total),
-      bulk: pct(v.byType.bulk.opened, v.total),
+      date, all: pct(v.opened, v.delivered),
+      broadcast: pct(v.byType.broadcast.opened, v.byType.broadcast.delivered),
+      automation: pct(v.byType.automation.opened, v.byType.automation.delivered),
+      bulk: pct(v.byType.bulk.opened, v.byType.bulk.delivered),
     }));
     const click_rate = entries.map(([date, v]) => ({
-      date, all: pct(v.clicked, v.total),
-      broadcast: pct(v.byType.broadcast.clicked, v.total),
-      automation: pct(v.byType.automation.clicked, v.total),
-      bulk: pct(v.byType.bulk.clicked, v.total),
+      date, all: pct(v.clicked, v.delivered),
+      broadcast: pct(v.byType.broadcast.clicked, v.byType.broadcast.delivered),
+      automation: pct(v.byType.automation.clicked, v.byType.automation.delivered),
+      bulk: pct(v.byType.bulk.clicked, v.byType.bulk.delivered),
     }));
     const delivery_rate = entries.map(([date, v]) => ({
       date, all: pct(v.delivered, v.total),
-      broadcast: pct(v.byType.broadcast.delivered, v.total),
-      automation: pct(v.byType.automation.delivered, v.total),
-      bulk: pct(v.byType.bulk.delivered, v.total),
+      broadcast: pct(v.byType.broadcast.delivered, v.byType.broadcast.total),
+      automation: pct(v.byType.automation.delivered, v.byType.automation.total),
+      bulk: pct(v.byType.bulk.delivered, v.byType.bulk.total),
     }));
 
     return { open_rate, click_rate, delivery_rate };
@@ -177,9 +186,24 @@ export function EmailStatsTab() {
         </Select>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Dal</span>
-          <Input type="date" className="w-[150px] h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <Input type="date" className="w-[150px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
           <span>al</span>
-          <Input type="date" className="w-[150px] h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <Input type="date" className="w-[150px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {([["7", "7 gg"], ["30", "30 gg"], ["90", "90 gg"], ["all", "Tutto"]] as const).map(([days, lbl]) => (
+            <button key={days} type="button"
+              onClick={() => {
+                setDatePreset(days);
+                if (days === "all") { setDateFrom(""); setDateTo(""); return; }
+                const localDay = (d: Date) => d.toLocaleDateString("en-CA");
+                setDateFrom(localDay(new Date(Date.now() - Number(days) * 86400000)));
+                setDateTo(localDay(new Date()));
+              }}
+              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${datePreset === days ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
+              {lbl}
+            </button>
+          ))}
         </div>
       </div>
 

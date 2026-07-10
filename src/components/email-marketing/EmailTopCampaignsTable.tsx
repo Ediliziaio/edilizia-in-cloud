@@ -1,11 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { Download } from "lucide-react";
+import { escapeCsvCell } from "@/lib/csvExport";
 
 interface CampaignRow {
   id: string;
@@ -50,6 +53,24 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
   const rate = (num: number, den: number) => den > 0 ? ((num / den) * 100).toFixed(1) + "%" : "0%";
   const fmt = (num: number, den: number) => showNumbers ? num.toLocaleString("it-IT") : rate(num, den);
 
+  const exportCsv = () => {
+    const header = ["Titolo", "Data", "Consegnate", "Aperte", "Cliccate", "Tasso apertura", "Tasso clic", "Tipo"];
+    const rows = sorted.map((c) => [
+      c.name,
+      c.sent_at ? format(new Date(c.sent_at), "yyyy-MM-dd") : "",
+      c.delivered, c.opened, c.clicked,
+      rate(c.opened, c.delivered), rate(c.clicked, c.delivered),
+      TYPE_LABELS[c.type] || c.type,
+    ].map((v) => escapeCsvCell(v as string | number, ",")).join(","));
+    const blob = new Blob(["﻿" + [header.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campagne-email-${new Date().toLocaleDateString("en-CA")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -59,6 +80,9 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
             <span className="text-muted-foreground">Valori assoluti</span>
             <Switch checked={showNumbers} onCheckedChange={setShowNumbers} />
           </div>
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={exportCsv} disabled={sorted.length === 0}>
+            <Download className="h-3.5 w-3.5" /> CSV
+          </Button>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>

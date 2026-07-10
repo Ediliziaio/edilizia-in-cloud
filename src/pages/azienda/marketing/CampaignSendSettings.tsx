@@ -39,6 +39,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResults";
 import { EmailCreditsBanner } from "@/components/email-marketing/EmailCreditsBanner";
+import { useEmailMarketingBase } from "@/components/email-marketing/useEmailMarketingBase";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (value: string) => EMAIL_RE.test(value.trim());
@@ -64,6 +65,7 @@ const sanitizeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_")
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const emailBase = useEmailMarketingBase();
   const qc = useQueryClient();
   const { effectiveCompany: company, user, role } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -314,7 +316,7 @@ export default function CampaignSendSettings() {
       }
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
-      navigate("/azienda/marketing/email");
+      navigate(emailBase);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -374,16 +376,20 @@ export default function CampaignSendSettings() {
     <div className="flex flex-col h-screen bg-muted/30">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b shrink-0">
-        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(`/azienda/marketing/email/campagna/${id}/editor`)}>
+        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(`${emailBase}/campagna/${id}/editor`)}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Torna al builder
         </Button>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
             {saveMut.isPending ? "Salvataggio..." : "Salva"}
           </Button>
-          <Button size="sm" onClick={() => setConfirmSendOpen(true)} disabled={sendMut.isPending || missingCount > 0}>
+          {/* disabilitato anche su campagne già inviate/in invio: il server
+              rifiuta comunque (409), ma la UI non deve invitare al doppio invio */}
+          <Button size="sm" onClick={() => setConfirmSendOpen(true)}
+            disabled={sendMut.isPending || missingCount > 0 || ["sending", "sent", "completed"].includes(campaign?.status ?? "")}
+            title={["sending", "sent", "completed"].includes(campaign?.status ?? "") ? "Campagna già inviata o in invio — duplicala per rispedirla" : undefined}>
             <Send className="h-4 w-4 mr-1" />
-            {sendMut.isPending ? "Invio..." : "Rivedi e invia"}
+            {sendMut.isPending ? "Invio..." : campaign?.status === "sent" || campaign?.status === "completed" ? "Già inviata" : campaign?.status === "sending" ? "In invio…" : "Rivedi e invia"}
           </Button>
         </div>
       </div>
@@ -730,12 +736,15 @@ export default function CampaignSendSettings() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">€{(creditsData?.balance_eur ?? 0).toFixed(2)}</p>
+                {/* BUGFIX: prima si confrontava n° email con il saldo in EURO
+                    (1 email = 1 €!) → falsi "crediti insufficienti". Il gate
+                    reale è lato server al momento dell'invio. */}
                 <p className="text-xs text-muted-foreground">
-                  Stima invio: ~{recipientCount} crediti necessari
+                  Invio previsto a ~{recipientCount} destinatari · il costo viene scalato dal saldo al momento dell'invio
                 </p>
-                {recipientCount > (creditsData?.balance_eur ?? 0) && (
+                {(creditsData?.balance_eur ?? 0) <= 0 && recipientCount > 0 && (
                   <p className="text-xs text-destructive mt-1 font-medium">
-                    ⚠️ Crediti insufficienti per l'invio completo
+                    ⚠️ Saldo crediti esaurito: ricarica prima di inviare
                   </p>
                 )}
               </CardContent>

@@ -14,9 +14,11 @@ interface TemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template?: any;
+  /** cartella corrente della lista: pre-selezionata per i nuovi template */
+  defaultFolderId?: string | null;
 }
 
-export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogProps) {
+export function TemplateDialog({ open, onOpenChange, template, defaultFolderId }: TemplateDialogProps) {
   const { user, effectiveCompany: company } = useAuth();
   const qc = useQueryClient();
   const isEdit = !!template;
@@ -45,9 +47,11 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
       setName(template?.name || "");
       setSubject(template?.subject || "");
       setHtmlContent(template?.html_content || "");
-      setFolderId(template?.folder_id || "none");
+      // nuovo template creato dentro una cartella → finisce in QUELLA cartella
+      // (prima partiva sempre da "none" e finiva in Home)
+      setFolderId(template?.folder_id || defaultFolderId || "none");
     }
-  }, [open, template]);
+  }, [open, template, defaultFolderId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
