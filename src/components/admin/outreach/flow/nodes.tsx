@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Mail, Clock, GitBranch, Flag, AlertTriangle, Check, X, MessageCircle, Smartphone, FileText } from "lucide-react";
+import { Mail, Clock, GitBranch, Flag, AlertTriangle, Check, X, MessageCircle, Smartphone, FileText, Phone } from "lucide-react";
 import { htmlToPreviewText } from "../_shared";
 
 /**
@@ -106,24 +106,32 @@ function MessageNodeCard({
 }: {
   data: NodeData;
   selected: boolean | undefined;
-  accent: "emerald" | "sky";
+  accent: "emerald" | "sky" | "indigo";
   Icon: typeof Mail;
   label: string;
 }) {
   // Classi statiche per-accent (Tailwind non supporta interpolazione dinamica).
-  const styles = accent === "emerald"
-    ? {
-        strip: "bg-emerald-400 dark:bg-emerald-500",
-        iconWrap: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400",
-        pill: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300",
-        handle: "!bg-emerald-500",
-      }
-    : {
-        strip: "bg-sky-400 dark:bg-sky-500",
-        iconWrap: "bg-sky-100 text-sky-600 dark:bg-sky-900/60 dark:text-sky-400",
-        pill: "bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300",
-        handle: "!bg-sky-500",
-      };
+  const ACCENTS = {
+    emerald: {
+      strip: "bg-emerald-400 dark:bg-emerald-500",
+      iconWrap: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400",
+      pill: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300",
+      handle: "!bg-emerald-500",
+    },
+    sky: {
+      strip: "bg-sky-400 dark:bg-sky-500",
+      iconWrap: "bg-sky-100 text-sky-600 dark:bg-sky-900/60 dark:text-sky-400",
+      pill: "bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300",
+      handle: "!bg-sky-500",
+    },
+    indigo: {
+      strip: "bg-indigo-400 dark:bg-indigo-500",
+      iconWrap: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/60 dark:text-indigo-400",
+      pill: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300",
+      handle: "!bg-indigo-500",
+    },
+  } as const;
+  const styles = ACCENTS[accent];
   return (
     <div className={`${CARD_BASE} ${ringClasses(selected, data.hasWarning)}`}>
       <span className={`absolute inset-y-0 left-0 w-1 ${styles.strip}`} aria-hidden />
@@ -161,6 +169,13 @@ function WhatsappNodeComponent({ data, selected }: NodeProps) {
 // ── 📱 SMS ───────────────────────────────────────────────────────────────────
 function SmsNodeComponent({ data, selected }: NodeProps) {
   return <MessageNodeCard data={data as NodeData} selected={selected} accent="sky" Icon={Smartphone} label="SMS" />;
+}
+
+// ── 📞 Chiamata ──────────────────────────────────────────────────────────────
+// Non invia nulla: crea un promemoria di chiamata per il commerciale. Il corpo è
+// lo script/nota per la telefonata. Stessa anatomia dei nodi messaggio.
+function CallNodeComponent({ data, selected }: NodeProps) {
+  return <MessageNodeCard data={data as NodeData} selected={selected} accent="indigo" Icon={Phone} label="Chiamata" />;
 }
 
 // ── ⏱️ Attesa ────────────────────────────────────────────────────────────────
@@ -259,6 +274,7 @@ function EndNodeComponent({ selected }: NodeProps) {
 export const EmailNode = memo(EmailNodeComponent);
 export const WhatsappNode = memo(WhatsappNodeComponent);
 export const SmsNode = memo(SmsNodeComponent);
+export const CallNode = memo(CallNodeComponent);
 export const WaitNode = memo(WaitNodeComponent);
 export const ConditionNode = memo(ConditionNodeComponent);
 export const EndNode = memo(EndNodeComponent);

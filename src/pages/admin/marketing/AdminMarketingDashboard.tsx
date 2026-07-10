@@ -18,6 +18,7 @@ import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreac
 import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
+import { OutreachCallTasks } from "@/components/admin/outreach/OutreachCallTasks";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
@@ -278,6 +279,11 @@ function OutreachCockpit() {
           <Reveal className="space-y-3">
             <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
             <OutreachLists companyId={companyId} />
+          </Reveal>
+
+          <Reveal className="space-y-3" delay={0.03}>
+            <SectionLabel>Chiamate da fare</SectionLabel>
+            <OutreachCallTasks companyId={companyId} />
           </Reveal>
 
           <Reveal className="space-y-3" delay={0.06}>

@@ -12,15 +12,15 @@
 
 import type { Node, Edge } from "@xyflow/react";
 
-export type OutreachNodeType = "email" | "whatsapp" | "sms" | "wait" | "condition" | "end";
+export type OutreachNodeType = "email" | "whatsapp" | "sms" | "call" | "wait" | "condition" | "end";
 export type OutreachConditionType = "opened" | "not_opened" | "replied" | "not_replied";
 
-/** Canale d'invio per i node_type INVIANTI (email/whatsapp/sms). I non-invianti → null. */
-export function channelOfNodeType(t: OutreachNodeType): "email" | "whatsapp" | "sms" | null {
-  return t === "email" || t === "whatsapp" || t === "sms" ? t : null;
+/** Canale d'azione per i node_type azionabili (email/whatsapp/sms/call). Altri → null. */
+export function channelOfNodeType(t: OutreachNodeType): "email" | "whatsapp" | "sms" | "call" | null {
+  return t === "email" || t === "whatsapp" || t === "sms" || t === "call" ? t : null;
 }
 
-/** True se il node_type è un nodo d'invio (email/whatsapp/sms). */
+/** True se il node_type è un nodo azionabile (email/whatsapp/sms/call). */
 export function isSendNodeType(t: OutreachNodeType): boolean {
   return channelOfNodeType(t) !== null;
 }

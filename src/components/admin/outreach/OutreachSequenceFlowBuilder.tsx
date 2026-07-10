@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route, Plus } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Smartphone, Phone, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route, Plus } from "lucide-react";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { outreachNodeTypes, outreachEdgeTypes } from "./flow";
@@ -50,6 +50,7 @@ const PALETTE: { kind: PaletteKind; label: string; icon: typeof Mail; color: str
   { kind: "email", label: "Email", icon: Mail, color: "text-orange-600", hover: "hover:bg-orange-50 dark:hover:bg-orange-950/40", group: "msg" },
   { kind: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-emerald-600", hover: "hover:bg-emerald-50 dark:hover:bg-emerald-950/40", group: "msg" },
   { kind: "sms", label: "SMS", icon: Smartphone, color: "text-sky-600", hover: "hover:bg-sky-50 dark:hover:bg-sky-950/40", group: "msg" },
+  { kind: "call", label: "Chiamata", icon: Phone, color: "text-indigo-600", hover: "hover:bg-indigo-50 dark:hover:bg-indigo-950/40", group: "msg" },
   { kind: "wait", label: "Attesa", icon: Clock, color: "text-purple-600", hover: "hover:bg-purple-50 dark:hover:bg-purple-950/40", group: "logic" },
   { kind: "condition", label: "Condizione", icon: GitBranch, color: "text-amber-600", hover: "hover:bg-amber-50 dark:hover:bg-amber-950/40", group: "logic" },
   { kind: "end", label: "Fine", icon: Flag, color: "text-muted-foreground", hover: "hover:bg-muted", group: "logic" },
@@ -61,6 +62,8 @@ function defaultData(kind: OutreachNodeType): FlowNodeData {
     // nodi messaggio non-email: solo corpo + ritardo (niente oggetto).
     case "whatsapp": return { body: "", delay_days: 1, delay_hours: 0 };
     case "sms": return { body: "", delay_days: 1, delay_hours: 0 };
+    // chiamata: lo script/nota per il commerciale + ritardo (niente oggetto).
+    case "call": return { body: "", delay_days: 1, delay_hours: 0 };
     case "wait": return { delay_days: 1, delay_hours: 0 };
     case "condition": return { condition_type: null };
     case "end": return {};

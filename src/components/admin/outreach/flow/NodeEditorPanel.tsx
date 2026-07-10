@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Trash2, X, Split, Info, FileText, RefreshCw } from "lucide-react";
+import { Mail, MessageCircle, Smartphone, Phone, Clock, GitBranch, Flag, Trash2, X, Split, Info, FileText, RefreshCw } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import type { FlowNodeData, OutreachConditionType, TemplateParams } from "./graph";
 import { parseVariants } from "../../../../../supabase/functions/_shared/outreach-abz";
@@ -81,6 +81,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
     email: { icon: Mail, title: "Email", color: "text-orange-600" },
     whatsapp: { icon: MessageCircle, title: "WhatsApp", color: "text-emerald-600" },
     sms: { icon: Smartphone, title: "SMS", color: "text-sky-600" },
+    call: { icon: Phone, title: "Chiamata", color: "text-indigo-600" },
     wait: { icon: Clock, title: "Attesa", color: "text-purple-600" },
     condition: { icon: GitBranch, title: "Condizione", color: "text-amber-600" },
     end: { icon: Flag, title: "Fine", color: "text-muted-foreground" },
@@ -89,7 +90,10 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
   const Icon = m.icon;
   // Nodi messaggio non-email: solo corpo (niente oggetto, niente A/Z, niente tracking).
   const isMessageChannel = type === "whatsapp" || type === "sms";
-  const isSendNode = type === "email" || isMessageChannel;
+  // Chiamata: non invia, crea un task per il commerciale. Ha un corpo (script) ma
+  // non è un canale-messaggio (niente template/finestra 24h).
+  const isCall = type === "call";
+  const isSendNode = type === "email" || isMessageChannel || isCall;
 
   function insertChip(chip: string) {
     if (!isSendNode) return;
@@ -138,6 +142,13 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
           </p>
         )}
 
+        {isCall && (
+          <p className="flex items-start gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 p-2 text-[11px] text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Non invia nulla: crea un <strong>promemoria di chiamata</strong> per il commerciale (nella lista task chiamate). Serve il numero del contatto; senza numero (o con opt-out chiamate) lo step è saltato e la cadenza prosegue.
+          </p>
+        )}
+
         {/* WhatsApp: selettore template approvato (compliance Meta cold) + mappatura
             parametri. Senza template, il testo libero sotto vale solo in finestra 24h. */}
         {type === "whatsapp" && (
@@ -170,7 +181,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
             )}
             <div className="space-y-1">
               <Label className="text-xs">
-                {type === "email" ? "Corpo" : "Messaggio"}
+                {type === "email" ? "Corpo" : isCall ? "Script / promemoria" : "Messaggio"}
                 {type === "whatsapp" && data.template_name?.trim() && (
                   <span className="ml-1 font-normal text-[10px] text-muted-foreground">(testo libero, solo in finestra 24h)</span>
                 )}
@@ -181,7 +192,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
                 onFocus={() => setActiveField("body")}
                 onChange={(e) => onChange({ body: e.target.value })}
                 rows={8}
-                placeholder={"Ciao {{first_name}},\n…"}
+                placeholder={isCall ? "Cosa dire al telefono, note, obiettivo della chiamata…" : "Ciao {{first_name}},\n…"}
                 className="text-xs"
               />
             </div>

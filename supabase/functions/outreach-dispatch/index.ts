@@ -126,7 +126,8 @@ async function enqueuePlanned(
   // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
   // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
   const ch: OutreachChannel = kind === "send" ? (channelForNodeType(nodeType(node)) ?? "email") : "email";
-  const isMsg = ch === "whatsapp" || ch === "sms";
+  // whatsapp/sms/call recapitano sul TELEFONO (to_phone); email su to_email.
+  const isMsg = ch === "whatsapp" || ch === "sms" || ch === "call";
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -486,6 +487,119 @@ async function processMessageChannelQueue(
   }
 }
 
+/**
+ * PASS CALL — righe 'call' dovute (kind='send', channel='call'). Un nodo 'call'
+ * NON invia nulla: crea un promemoria di chiamata in outreach_call_tasks per il
+ * commerciale, poi AVANZA la cadenza (identico agli altri canali).
+ *
+ * Per ogni riga: gate iscrizione (pausa→lascia; terminale→annulla), poi
+ * planChannelSend('call', contact) — serve un telefono e nessun optout_call:
+ *   • non azionabile (telefono mancante / optout_call) → 'skipped' + advance;
+ *   • azionabile → lock 'sending', INSERT del task chiamata (note = body del
+ *     nodo renderizzato), riga 'done_task' → 'sent', advance.
+ *
+ * Non tocca provider/casella/warm-up. Isolato dal pass email (channel='call' non
+ * viene mai pescato dal select email). Best-effort: se channel 'call' non è
+ * ammesso (pre-migrazione) il select non trova righe → no-op.
+ */
+async function processCallQueue(
+  supabase: any,
+  now: Date,
+  result: { processed: number; sent: number; failed: number; skipped: number; deferred: number },
+): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from("outreach_send_queue")
+    .select("id, to_phone, body, contact_id, enrollment_id, brand_id, node_id")
+    .eq("status", "queued").eq("kind", "send").eq("channel", "call")
+    .lte("scheduled_for", now.toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(BATCH);
+  if (error) throw error;
+  if (!rows || rows.length === 0) return;
+
+  const enrIds = [...new Set(rows.map((r: any) => r.enrollment_id).filter(Boolean))];
+  const enrById = new Map<string, EnrRow & { status: string }>();
+  if (enrIds.length) {
+    const r = await supabase.from("outreach_enrollments")
+      .select("id,status,sequence_id,current_step,current_node_id").in("id", enrIds);
+    for (const e of (r.error ? [] : r.data) || []) enrById.set(e.id, e);
+  }
+
+  const contactIds = [...new Set(rows.map((r: any) => r.contact_id).filter(Boolean))];
+  const contactById = new Map<string, any>();
+  if (contactIds.length) {
+    const { data: cs } = await supabase.from("marketing_contacts")
+      .select("id,first_name,last_name,company_name,email,phone,optout_call").in("id", contactIds);
+    for (const c of cs || []) contactById.set(c.id, c);
+  }
+
+  for (const item of rows) {
+    result.processed++;
+    const enr = item.enrollment_id ? enrById.get(item.enrollment_id) : null;
+    if (enr) {
+      if (enr.status === "paused") { result.deferred++; continue; }
+      if (TERMINAL_ENROLLMENT.has(enr.status)) {
+        await supabase.from("outreach_send_queue")
+          .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);
+        result.skipped++;
+        continue;
+      }
+    }
+
+    const contact = item.contact_id ? contactById.get(item.contact_id) : null;
+    // telefono presente + nessun optout_call? Altrimenti SALTA e AVANZA.
+    const plan = planChannelSend("call", contact);
+    if (!plan.ok) {
+      await supabase.from("outreach_send_queue")
+        .update({ status: "skipped", last_error: plan.skipReason ?? "non azionabile" }).eq("id", item.id);
+      result.skipped++;
+      if (enr) {
+        try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
+        catch (e) { console.warn("[outreach-dispatch] advance post-skip call fallito:", e instanceof Error ? e.message : e); }
+      }
+      continue;
+    }
+
+    // claim atomico (idempotenza anti-doppio task)
+    const { data: claimed } = await supabase.from("outreach_send_queue")
+      .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
+    if (!claimed || claimed.length === 0) { result.skipped++; continue; }
+    try {
+      const vars = contact ? contactToVars(contact) : {};
+      const seed = hashSeed(plan.phone || item.id);
+      const note = renderTemplate(item.body || "", vars, { seed });
+      const contactName = contact
+        ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null
+        : null;
+      await supabase.from("outreach_call_tasks").insert({
+        company_id: PLATFORM_COMPANY,
+        enrollment_id: item.enrollment_id ?? null,
+        contact_id: item.contact_id ?? null,
+        sequence_id: enr?.sequence_id ?? null,
+        node_id: item.node_id ?? null,
+        phone: plan.phone,
+        contact_name: contactName,
+        company_name: contact?.company_name ?? null,
+        note: note || null,
+        status: "pending",
+        due_at: now.toISOString(),
+      });
+      await supabase.from("outreach_send_queue")
+        .update({ status: "sent", sent_at: now.toISOString(), to_phone: plan.phone }).eq("id", item.id);
+      result.sent++;
+      if (enr) {
+        try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
+        catch (e) { console.warn("[outreach-dispatch] advance post-call fallito:", e instanceof Error ? e.message : e); }
+      }
+    } catch (e) {
+      // il task non è stato creato: rimetti in coda (retry al prossimo tick).
+      await supabase.from("outreach_send_queue")
+        .update({ status: "queued", last_error: e instanceof Error ? e.message : String(e) }).eq("id", item.id);
+      result.failed++;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -552,6 +666,15 @@ Deno.serve(async (req) => {
       await processMessageChannelQueue(supabase, now, result);
     } catch (msgErr) {
       console.warn("[outreach-dispatch] message-channel-pass skip:", msgErr instanceof Error ? msgErr.message : msgErr);
+    }
+
+    // 0-ter. PASS CALL — righe 'call' dovute (kind='send', channel='call'): non
+    // spediscono, creano un task chiamata in outreach_call_tasks e avanzano la
+    // cadenza. Isolato dal path email. Best-effort: pre-migrazione → no-op.
+    try {
+      await processCallQueue(supabase, now, result);
+    } catch (callErr) {
+      console.warn("[outreach-dispatch] call-pass skip:", callErr instanceof Error ? callErr.message : callErr);
     }
 
     // 1. coda dovuta — SOLO righe spedibili (kind='send'). Le righe 'advance' sono

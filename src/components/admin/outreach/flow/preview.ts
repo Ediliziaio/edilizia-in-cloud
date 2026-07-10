@@ -25,8 +25,8 @@ export interface PreviewActivity {
   replied: boolean;
 }
 
-/** Canale di una tappa messaggio del cammino simulato. */
-export type PreviewChannel = "email" | "whatsapp" | "sms";
+/** Canale di una tappa azionabile del cammino simulato (call = task chiamata). */
+export type PreviewChannel = "email" | "whatsapp" | "sms" | "call";
 
 /** Una tappa MESSAGGIO del cammino simulato (ciò che il lead riceverebbe). */
 export interface PreviewEmail {
@@ -155,9 +155,9 @@ export function simulatePath(
     const t = nodeType(node);
     const data = (node.data ?? {}) as FlowNodeData;
 
-    // I nodi d'invio (email/whatsapp/sms) e i wait portano un ritardo cumulato.
+    // I nodi azionabili (email/whatsapp/sms/call) e i wait portano un ritardo cumulato.
     const sendChannel: PreviewChannel | null =
-      t === "email" ? "email" : t === "whatsapp" ? "whatsapp" : t === "sms" ? "sms" : null;
+      t === "email" ? "email" : t === "whatsapp" ? "whatsapp" : t === "sms" ? "sms" : t === "call" ? "call" : null;
     if (sendChannel || t === "wait") {
       cumulativeDays += Math.max(0, Math.trunc(data.delay_days ?? 0));
     }

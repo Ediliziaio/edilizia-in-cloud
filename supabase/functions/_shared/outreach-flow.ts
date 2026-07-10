@@ -25,13 +25,14 @@
  * "non aperto" (ramo NO per 'opened', ramo SÌ per 'not_opened').
  */
 
-export type NodeType = "email" | "wait" | "condition" | "end" | "whatsapp" | "sms";
+export type NodeType = "email" | "wait" | "condition" | "end" | "whatsapp" | "sms" | "call";
 export type ConditionType = "opened" | "not_opened" | "replied" | "not_replied";
 
-/** Tipi di nodo INVIANTI (accodano/spediscono un messaggio): email + canali msg. */
-const SEND_NODE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(["email", "whatsapp", "sms"]);
+/** Tipi di nodo AZIONABILI (il dispatcher si ferma e fa un effetto): email +
+ * canali msg + 'call' (che invece di inviare crea un task chiamata). */
+const SEND_NODE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(["email", "whatsapp", "sms", "call"]);
 
-/** True se il nodo è un nodo d'invio (email/whatsapp/sms): si ferma qui per spedire. */
+/** True se il nodo è azionabile (email/whatsapp/sms/call): si ferma qui per l'effetto. */
 export function isSendNode(t: NodeType): boolean {
   return SEND_NODE_TYPES.has(t);
 }
