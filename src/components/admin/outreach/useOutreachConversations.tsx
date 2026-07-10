@@ -11,8 +11,8 @@ import { parseVariants, pickVariant } from "../../../../supabase/functions/_shar
 /**
  * useOutreachConversations — logica condivisa dell'inbox cold.
  *
- * Estratta da OutreachInbox per essere riusata sia dall'inbox compatta sia dal
- * client a 3 pannelli (OutreachMailClient): query (inviate + risposte +
+ * Logica dell'inbox cold usata dal client a 3 pannelli
+ * (OutreachMailClient): query (inviate + risposte +
  * contatti + caselle), raggruppamento per contatto in conversazioni con thread,
  * derivazione della CASELLA di riferimento per conversazione, mutazioni
  * (segna-letto, bulk lette/archivia) e azioni di risposta (Bozza AI / Invia).

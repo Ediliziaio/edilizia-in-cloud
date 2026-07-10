@@ -44,8 +44,8 @@ import { isMissingColumnError } from "./_shared";
 /**
  * OutreachMailClient — client email a 3 pannelli dedicato al COLD outreach.
  * Modellato su /admin/email (EmailLayout): pannello caselle, lista conversazioni,
- * thread + risposta. A differenza dell'inbox compatta (OutreachInbox) qui c'è il
- * terzo pannello con le CASELLE del pool e si può filtrare per casella di invio.
+ * thread + risposta, con il terzo pannello delle CASELLE del pool per filtrare
+ * per casella di invio.
  *
  * Riusa tutta la logica via useOutreachConversations / useReplyComposer (DRY):
  * stesse query, stesso raggruppamento, stesse mutazioni (segna-letto/bulk) e
