@@ -43,10 +43,13 @@ Deno.serve(async (req) => {
   if (!authed) return errorResponse("Unauthorized", 401, corsH);
 
   try {
-    // 1) config attiva
+    // 1) config: stessa riga che edita la UI (prima per created_at, SENZA filtro
+    // enabled — prima cron e UI potevano puntare a due righe diverse), poi
+    // verifica del flag.
     const { data: cfg } = await admin.from("lead_scraper_autopilot")
-      .select("*").eq("enabled", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
-    if (!cfg) return jsonResponse({ skipped: "autopilot disabilitato o non configurato" }, 200, corsH);
+      .select("*").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (!cfg) return jsonResponse({ skipped: "autopilot non configurato" }, 200, corsH);
+    if (!cfg.enabled) return jsonResponse({ skipped: "autopilot disabilitato" }, 200, corsH);
 
     const cities: string[] = cfg.cities || [];
     const sectors: string[] = cfg.sectors || [];
@@ -59,6 +62,15 @@ Deno.serve(async (req) => {
     const cur = ((cfg.cursor || 0) % combos + combos) % combos;
     const city = cities[Math.floor(cur / sectors.length)];
     const sector = sectors[cur % sectors.length];
+
+    // 2b) CLAIM atomico della combinazione (compare-and-set sul cursore): due run
+    // concorrenti (cron + trigger manuale) leggevano lo stesso cursore, scrapavano
+    // la stessa combo e la rotazione avanzava di 1 invece di 2. Chi perde il CAS esce.
+    const { data: claimed } = await admin.from("lead_scraper_autopilot")
+      .update({ cursor: (cfg.cursor || 0) + 1 })
+      .eq("id", cfg.id).eq("cursor", cfg.cursor || 0)
+      .select("id").maybeSingle();
+    if (!claimed) return jsonResponse({ skipped: "run concorrente: combinazione già presa in carico" }, 200, corsH);
 
     // 3) chiama lo scraper-worker
     const url = (await getPlatformSetting("internal_scraper_url", "INTERNAL_SCRAPER_URL")).replace(/\/$/, "");
@@ -84,20 +96,29 @@ Deno.serve(async (req) => {
     // 4) upsert nel DB proprietario
     let upserted = 0;
     if (scraped.length) {
+      const engine = cfg.engine || "paginegialle";
       const rows = scraped.map((b) => {
         const dk = b.place_id ? `g:${b.place_id}`
           : b.phone ? `p:${String(b.phone).replace(/[^0-9+]/g, "")}`
           : `n:${String(b.business_name || "").trim().toLowerCase()}|${String(b.city || city || "").toLowerCase()}`;
-        return { ...b, region: b.region || null, dedupe_key: dk, categories: [sector.toLowerCase()] };
+        // source: prima restava NULL (reporting per fonte cieco)
+        return { ...b, region: b.region || null, source: b.source || `internal_${engine}`, dedupe_key: dk, categories: [sector.toLowerCase()] };
       });
-      const { data: n } = await admin.rpc("scraped_companies_upsert", { p_rows: rows });
-      upserted = typeof n === "number" ? n : rows.length;
+      const { data: n, error: upErr } = await admin.rpc("scraped_companies_upsert", { p_rows: rows });
+      if (upErr) {
+        // prima l'errore era inghiottito e si riportava upserted=rows.length
+        // (falso successo con 0 righe salvate): ora è visibile nel last_result.
+        console.error("autopilot: scraped_companies_upsert fallita:", upErr.message);
+        err = err || `upsert: ${upErr.message}`;
+        upserted = 0;
+      } else {
+        upserted = typeof n === "number" ? n : rows.length;
+      }
     }
 
-    // 5) avanza cursore + log
+    // 5) log del run (il cursore è già avanzato col claim atomico al punto 2b)
     const result = { city, sector, scraped: scraped.length, upserted, error: err };
     await admin.from("lead_scraper_autopilot").update({
-      cursor: (cfg.cursor || 0) + 1,
       last_run_at: new Date().toISOString(),
       last_result: result,
     }).eq("id", cfg.id);

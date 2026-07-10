@@ -17,6 +17,11 @@
 //   validate_vat → valida P.IVA su VIES (UE) e recupera ragione sociale. GRATIS
 //   qualify      → punteggio AI 0-100 vs ICP (aiRouter)
 //   push_crm     → inserisce i lead selezionati in marketing_contacts
+//   import_crm   → aziende già in marketing_contacts (es. con P.IVA ma senza
+//                  email) → ricerca scraper arricchibile con tutti gli strumenti
+//   sync_crm     → riscrive nel contatto CRM collegato i campi VUOTI riempiti
+//                  dall'enrichment (email/PEC affidabili, telefono, P.IVA, sito,
+//                  fatturato; ATECO/dipendenti/anno nelle note). Fill-empty only.
 //
 // Filosofia "minimo costo": tutto l'enrichment di base è gratuito (fetch siti +
 // DNS pubblico + VIES). Solo le fonti premium (Explorium) richiedono una chiave.
@@ -927,10 +932,12 @@ Deno.serve(async (req) => {
                     : b.phone
                       ? `p:${String(b.phone).replace(/[^0-9+]/g, "")}`
                       : `n:${String(b.business_name || "").trim().toLowerCase()}|${String(b.city || city || "").toLowerCase()}`;
-                  return { ...b, region: b.region || region || null, dedupe_key: dk, categories: [kw] };
+                  // source: prima restava NULL nel DB proprietario (reporting cieco)
+                  return { ...b, region: b.region || region || null, source: b.source || `internal_${engine}`, dedupe_key: dk, categories: [kw] };
                 });
-                await supabaseAdmin.rpc("scraped_companies_upsert", { p_rows: rows });
-                scrapedNew = rows.length;
+                const { error: upErr } = await supabaseAdmin.rpc("scraped_companies_upsert", { p_rows: rows });
+                if (upErr) console.error("internal: scraped_companies_upsert fallita:", upErr.message);
+                scrapedNew = upErr ? 0 : rows.length;
                 const re = await reuseQuery();
                 pool = re.data || pool;
               }
@@ -1510,7 +1517,7 @@ Deno.serve(async (req) => {
 
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
-        .select("id, business_name, website, phone, email, email_status, contact_name")
+        .select("id, business_name, website, phone, email, email_status, contact_name, partita_iva, facebook_url, instagram_url, linkedin_url, ateco, ateco_desc, company_size, fatturato, dipendenti, anno_fondazione, forma_giuridica, intent_signals, enrichment")
         .in("id", ids);
       if (error) return errorResponse(error.message, 500, corsH);
 
@@ -1519,7 +1526,9 @@ Deno.serve(async (req) => {
         const hasWebsite = !!l.website;
         const deep = hasWebsite ? await scrapeWebsiteDeep(l.website) : null;
 
-        const signals: Record<string, boolean> = deep?.intent_signals || {};
+        // Merge coi segnali precedenti: senza sito (o scrape fallito) non
+        // dobbiamo azzerare quanto già rilevato in passato.
+        const signals: Record<string, boolean> = { ...(l.intent_signals || {}), ...(deep?.intent_signals || {}) };
         if (!hasWebsite) signals.no_website = true;
 
         const bestEmail = l.email || deep?.emails?.[0] || null;
@@ -1527,36 +1536,41 @@ Deno.serve(async (req) => {
         const reachable = !!(bestEmail || bestPhone);
         const intent_score = computeIntentScore(signals, reachable, hasWebsite);
 
-        const enrichment: Record<string, unknown> = {};
+        // enrichment JSON: MERGE con l'esistente (validate_vat/find_email/registro
+        // scrivono qui: sovrascrivere l'oggetto intero perdeva quei dati).
+        const enrichment: Record<string, unknown> = { ...(l.enrichment || {}) };
         if (deep?.phones?.length) enrichment.phones = deep.phones;
         if (deep?.emails?.length) enrichment.emails = deep.emails;
         if (deep?.excerpt) enrichment.site_excerpt = deep.excerpt;
 
-        // VIES sulla P.IVA trovata
-        let viesName: string | undefined;
-        if (doVies && deep?.partita_iva) {
-          const vies = await viesValidate(deep.partita_iva);
-          if (vies) {
-            enrichment.vies = vies;
-            if (vies.valid && vies.name) viesName = vies.name;
-          }
+        // P.IVA: quella già nota (Registro/manuale) vince sul parsing del sito.
+        const piva: string | null = l.partita_iva || deep?.partita_iva || null;
+
+        // VIES sulla P.IVA disponibile (anche quella già presente sul lead)
+        if (doVies && piva) {
+          const vies = await viesValidate(piva);
+          if (vies) enrichment.vies = vies;
         }
 
-        // Firmografici (ATECO, dimensione, fatturato, dipendenti, anno) + PEC se token openapi configurato
-        let ateco: string | null = null, ateco_desc: string | null = null, company_size: string | null = null;
-        let fatturato: number | null = null, dipendenti: number | null = null;
-        let anno_fondazione: number | null = null, forma_giuridica: string | null = null;
+        // Firmografici (ATECO, dimensione, fatturato, dipendenti, anno) + PEC se
+        // token openapi configurato. Parti dai valori esistenti: mai regredire a null.
+        let ateco: string | null = l.ateco || null, ateco_desc: string | null = l.ateco_desc || null;
+        let company_size: string | null = l.company_size || null;
+        let fatturato: number | null = l.fatturato ?? null, dipendenti: number | null = l.dipendenti ?? null;
+        let anno_fondazione: number | null = l.anno_fondazione ?? null, forma_giuridica: string | null = l.forma_giuridica || null;
         let pecEmail: string | null = null;
-        if (openapiToken && deep?.partita_iva) {
-          const firmo = await fetchFirmografici(deep.partita_iva, openapiToken, await openapiBase());
+        // chiama openapi solo se manca qualcosa (risparmio crediti sul re-run)
+        const firmoMissing = !ateco || fatturato == null || dipendenti == null;
+        if (openapiToken && piva && firmoMissing) {
+          const firmo = await fetchFirmografici(piva, openapiToken, await openapiBase());
           if (firmo) {
-            ateco = firmo.ateco || null;
-            ateco_desc = firmo.ateco_desc || null;
-            company_size = firmo.company_size || null;
-            fatturato = firmo.fatturato ?? null;
-            dipendenti = firmo.dipendenti ?? null;
-            anno_fondazione = firmo.anno_fondazione ?? null;
-            forma_giuridica = firmo.forma_giuridica || null;
+            ateco = firmo.ateco || ateco;
+            ateco_desc = firmo.ateco_desc || ateco_desc;
+            company_size = firmo.company_size || company_size;
+            fatturato = firmo.fatturato ?? fatturato;
+            dipendenti = firmo.dipendenti ?? dipendenti;
+            anno_fondazione = firmo.anno_fondazione ?? anno_fondazione;
+            forma_giuridica = firmo.forma_giuridica || forma_giuridica;
             pecEmail = firmo.pec || null;
             enrichment.firmografici = firmo;
           }
@@ -1571,11 +1585,14 @@ Deno.serve(async (req) => {
           email: finalEmail,
           phone: bestPhone,
           email_status: finalEmailStatus,
-          partita_iva: deep?.partita_iva || null,
-          facebook_url: deep?.facebook_url || null,
-          instagram_url: deep?.instagram_url || null,
-          linkedin_url: deep?.linkedin_url || null,
-          contact_name: l.contact_name || viesName || null,
+          partita_iva: piva,
+          // social: il nuovo scrape vince, ma senza dato mantieni l'esistente
+          facebook_url: deep?.facebook_url || l.facebook_url || null,
+          instagram_url: deep?.instagram_url || l.instagram_url || null,
+          linkedin_url: deep?.linkedin_url || l.linkedin_url || null,
+          // NB: la ragione sociale VIES resta in enrichment.vies — NON va in
+          // contact_name ("Referente" è una persona; push_crm la spezzerebbe
+          // in nome/cognome creando contatti tipo "ROSSI COSTRUZIONI"/"SRL").
           ateco,
           ateco_desc,
           company_size,
@@ -1674,7 +1691,7 @@ Deno.serve(async (req) => {
 
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
-        .select("id, website, email, contact_name, business_name, email_status")
+        .select("id, website, email, contact_name, business_name, email_status, enrichment")
         .in("id", ids);
       if (error) return errorResponse(error.message, 500, corsH);
 
@@ -1698,7 +1715,8 @@ Deno.serve(async (req) => {
           // È un GUESS su dominio con MX valido, NON un'email verificata: etichetta
           // onesta "guessed" (prima "verified_mx" faceva inviare a indirizzi forse inesistenti).
           email_status: l.email ? l.email_status : "guessed",
-          enrichment: { email_candidates: candidates, mx: true },
+          // merge: non cancellare site_excerpt/vies/firmografici già raccolti
+          enrichment: { ...(l.enrichment || {}), email_candidates: candidates, mx: true },
         }).eq("id", l.id);
         updated++;
       });
@@ -1755,7 +1773,7 @@ Deno.serve(async (req) => {
       if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
-        .select("id, partita_iva, contact_name")
+        .select("id, partita_iva, enrichment")
         .in("id", ids);
       if (error) return errorResponse(error.message, 500, corsH);
 
@@ -1763,9 +1781,11 @@ Deno.serve(async (req) => {
       await poolMap((leads || []).filter((l: any) => l.partita_iva), 4, async (l: any) => {
         const vies = await viesValidate(l.partita_iva);
         if (vies) {
+          // La ragione sociale VIES resta in enrichment.vies: NON in contact_name
+          // (è un'azienda, non un referente — push_crm la spezzerebbe in nome/cognome).
+          // Merge con l'enrichment esistente, non sovrascrivere l'oggetto intero.
           await supabaseAdmin.from("lead_scraper_results").update({
-            enrichment: { vies },
-            contact_name: l.contact_name || (vies.valid ? vies.name : null) || null,
+            enrichment: { ...(l.enrichment || {}), vies },
           }).eq("id", l.id);
           if (vies.valid) validated++;
         }
@@ -2384,6 +2404,151 @@ Deno.serve(async (req) => {
         if (hasAny) { await supabaseAdmin.from("lead_scraper_results").update(patch).eq("id", l.id); enriched++; }
       });
       return jsonResponse({ enriched, withPec, attempted: withPiva.length }, 200, corsH);
+    }
+
+    // ═══════════ IMPORT CRM (aziende già nel sistema → lista arricchibile) ═══════════
+    // Pesca contatti da marketing_contacts (es. quelli con P.IVA ma senza email,
+    // o senza telefono) e li trasforma in una ricerca scraper: da lì si usano
+    // TUTTI gli strumenti (deep_enrich, Registro Imprese, PEC, VIES, email finder…)
+    // e con sync_crm i dati trovati tornano nel contatto CRM originale.
+    if (action === "import_crm") {
+      const qRaw = String(body.q || "").trim();
+      // sanitizza per la sintassi .or() di PostgREST (virgole/parentesi la rompono)
+      const q = qRaw.replace(/[,()]/g, " ").trim();
+      const missing = String(body.missing || ""); // email | phone | piva | website | ""
+      const onlyWithPiva = body.onlyWithPiva === true;
+      const limit = Math.max(1, Math.min(500, Number(body.limit) || 200));
+
+      let sel = supabaseAdmin
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, company_name, email, phone, website, address, city, province, vat_number, fatturato, source, created_at")
+        .eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+      if (q) sel = sel.or(`company_name.ilike.%${q}%,vat_number.ilike.%${q}%,city.ilike.%${q}%,email.ilike.%${q}%,last_name.ilike.%${q}%`);
+      if (missing === "email") sel = sel.is("email", null);
+      if (missing === "phone") sel = sel.is("phone", null);
+      if (missing === "piva") sel = sel.is("vat_number", null);
+      if (missing === "website") sel = sel.is("website", null);
+      if (onlyWithPiva) sel = sel.not("vat_number", "is", null);
+      const { data: contacts, error: cErr } = await sel.order("created_at", { ascending: false }).limit(limit);
+      if (cErr) return errorResponse(cErr.message, 500, corsH);
+      if (!contacts?.length) return jsonResponse({ searchId: null, count: 0 }, 200, corsH);
+
+      const rows = contacts.map((c: any) => {
+        const person = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+        const businessName = (c.company_name || person || "Azienda").trim();
+        const piva = c.vat_number ? String(c.vat_number).replace(/\D/g, "") : null;
+        return {
+          source: "crm",
+          business_name: businessName,
+          // il referente solo se distinto dalla ragione sociale (push_crm storicamente
+          // metteva il nome azienda in first_name quando non c'era una persona)
+          contact_name: c.company_name && person && person.toLowerCase() !== businessName.toLowerCase() ? person : null,
+          email: c.email || null,
+          email_status: c.email ? "found" : null,
+          phone: c.phone || null,
+          website: c.website || null,
+          address: c.address || null,
+          city: c.city || null,
+          region: c.province || null,
+          partita_iva: piva && piva.length === 11 ? piva : null,
+          fatturato: c.fatturato ?? null,
+          country: "IT",
+          crm_contact_id: c.id,
+          pushed_to_crm: true, // già nel CRM: push_crm non deve ricrearlo
+          dedupe_key: `crm:${c.id}`,
+          raw: { crm_source: c.source || null },
+        };
+      });
+
+      const missLbl: Record<string, string> = { email: "senza email", phone: "senza telefono", piva: "senza P.IVA", website: "senza sito" };
+      const label = body.label || `CRM · ${[q || null, missLbl[missing] || null, onlyWithPiva ? "con P.IVA" : null].filter(Boolean).join(" · ") || "tutti"}`;
+      const { data: searchRow, error: sErr } = await supabaseAdmin.from("lead_scraper_searches").insert({
+        created_by: userId, source: "crm", label,
+        query: { q: qRaw, missing, onlyWithPiva, limit, import: "crm" },
+        status: "completed", results_count: rows.length,
+      }).select("id").single();
+      if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
+
+      const { data: inserted, error: rErr } = await supabaseAdmin.from("lead_scraper_results")
+        .upsert(rows.map((r) => ({ ...r, search_id: searchRow.id })), { onConflict: "search_id,dedupe_key", ignoreDuplicates: true })
+        .select("id");
+      if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
+
+      return jsonResponse({
+        searchId: searchRow.id,
+        count: (inserted || []).length,
+        withPiva: rows.filter((r) => r.partita_iva).length,
+        withEmail: rows.filter((r) => r.email).length,
+        withWebsite: rows.filter((r) => r.website).length,
+      }, 200, corsH);
+    }
+
+    // ═══════════ SYNC CRM (enrichment del lead → contatto CRM, fill-empty) ═══════════
+    // Per i lead collegati a un contatto (crm_contact_id) riempie SOLO i campi
+    // vuoti del contatto con quanto trovato dall'enrichment. Mai sovrascrivere
+    // dati già presenti nel CRM. Le email "guessed" NON vengono propagate.
+    if (action === "sync_crm") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, crm_contact_id, business_name, email, email_status, phone, website, address, city, region, partita_iva, fatturato, ateco, ateco_desc, dipendenti, anno_fondazione, forma_giuridica, enrichment")
+        .in("id", ids)
+        .not("crm_contact_id", "is", null);
+      if (error) return errorResponse(error.message, 500, corsH);
+      const linked = leads || [];
+      if (!linked.length) return jsonResponse({ synced: 0, attempted: 0 }, 200, corsH);
+
+      const contactIds = [...new Set(linked.map((l: any) => l.crm_contact_id))];
+      const { data: contacts, error: ctErr } = await supabaseAdmin
+        .from("marketing_contacts")
+        .select("id, email, phone, website, vat_number, company_name, city, province, fatturato, notes, tags")
+        .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+        .in("id", contactIds);
+      if (ctErr) return errorResponse(ctErr.message, 500, corsH);
+      const byId = new Map((contacts || []).map((c: any) => [c.id, c]));
+
+      let synced = 0;
+      let filled_email = 0, filled_phone = 0, filled_piva = 0, filled_sito = 0, filled_fatturato = 0;
+      const TRUSTED_EMAIL = new Set(["found", "pec", "verified", "verified_mx"]);
+      for (const l of linked) {
+        const c = byId.get(l.crm_contact_id);
+        if (!c) continue;
+        const patch: Record<string, unknown> = {};
+        if (!c.email && l.email && TRUSTED_EMAIL.has(String(l.email_status || ""))) { patch.email = l.email; filled_email++; }
+        if (!c.phone && l.phone) { patch.phone = l.phone; filled_phone++; }
+        if (!c.website && l.website) { patch.website = l.website; filled_sito++; }
+        if (!c.vat_number && l.partita_iva) { patch.vat_number = l.partita_iva; filled_piva++; }
+        if (c.fatturato == null && l.fatturato != null) { patch.fatturato = l.fatturato; filled_fatturato++; }
+        if (!c.city && l.city) patch.city = l.city;
+        if (!c.province && l.region && String(l.region).trim().length <= 3) patch.province = String(l.region).trim().toUpperCase();
+        const viesName = (l.enrichment as any)?.vies?.name as string | undefined;
+        if (!c.company_name && (viesName || l.business_name)) patch.company_name = viesName || l.business_name;
+        // ATECO/dipendenti/anno nel campo note (marketing_contacts non ha colonne dedicate)
+        const noteBits = [
+          l.ateco && !(c.notes || "").includes("ATECO") ? `ATECO ${l.ateco}${l.ateco_desc ? ` (${l.ateco_desc})` : ""}` : null,
+          l.dipendenti != null && !(c.notes || "").includes("Dipendenti") ? `Dipendenti: ${l.dipendenti}` : null,
+          l.anno_fondazione && !(c.notes || "").includes("Anno fondazione") ? `Anno fondazione: ${l.anno_fondazione}` : null,
+          l.forma_giuridica && !(c.notes || "").includes("Forma:") ? `Forma: ${l.forma_giuridica}` : null,
+        ].filter(Boolean);
+        if (noteBits.length) patch.notes = [c.notes, `[Scraper] ${noteBits.join(" · ")}`].filter(Boolean).join("\n");
+        if (l.ateco) {
+          const tags = new Set<string>([...(c.tags || []), `ateco:${l.ateco}`]);
+          if (tags.size !== (c.tags || []).length) patch.tags = [...tags];
+        }
+        if (Object.keys(patch).length === 0) continue;
+        const { error: upErr } = await supabaseAdmin
+          .from("marketing_contacts").update(patch)
+          .eq("id", c.id).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+        if (!upErr) {
+          synced++;
+          // aggiorna la copia locale: più lead sullo stesso contatto non ri-riempiono
+          Object.assign(c, patch);
+        }
+      }
+      return jsonResponse({ synced, attempted: linked.length, filled_email, filled_phone, filled_piva, filled_sito, filled_fatturato }, 200, corsH);
     }
 
     // ═══════════ OPENAPI ENV (toggle sandbox/prod dalla UI) ═══════════

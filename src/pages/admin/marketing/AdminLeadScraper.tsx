@@ -632,6 +632,94 @@ function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
+// ── Importa dal CRM: aziende già nel sistema → lista arricchibile ─────────────
+// Il caso d'uso principe: "ho l'azienda con la P.IVA ma mi manca l'email/telefono"
+// → la importi qui, lanci gli strumenti (Registro, PEC, sito, VIES…) e con
+// "Aggiorna CRM" i dati trovati tornano nel contatto originale (solo campi vuoti).
+function ImportCrmSheet({ open, onClose, onImported }: {
+  open: boolean; onClose: () => void; onImported: (searchId: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [missing, setMissing] = useState<string>("email");
+  const [onlyWithPiva, setOnlyWithPiva] = useState(true);
+  const [limit, setLimit] = useState("200");
+
+  const imp = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: {
+          action: "import_crm",
+          q: q.trim() || undefined,
+          missing: missing === "none" ? undefined : missing,
+          onlyWithPiva,
+          limit: parseInt(limit, 10) || 200,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return data as { searchId: string | null; count: number; withPiva: number; withEmail: number; withWebsite: number };
+    },
+    onSuccess: (d) => {
+      if (!d.searchId || !d.count) { toast.info("Nessun contatto trovato con questi filtri"); return; }
+      toast.success(`${d.count} aziende importate dal CRM`, {
+        description: `${d.withPiva} con P.IVA · ${d.withEmail} con email · ${d.withWebsite} con sito — ora arricchiscile`,
+      });
+      onImported(d.searchId);
+      onClose();
+    },
+    onError: (e: Error) => toast.error("Import dal CRM fallito", { description: e.message }),
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader><SheetTitle className="text-base flex items-center gap-2"><Database className="h-4 w-4" /> Arricchisci aziende dal CRM</SheetTitle></SheetHeader>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Pesca le aziende già caricate nel sistema (es. con P.IVA ma senza email) e usale come lista: Registro Imprese, PEC, sito, VIES, email finder… I dati trovati tornano nel contatto CRM con «Aggiorna CRM» (solo campi vuoti, mai sovrascritti).
+        </p>
+        <div className="mt-4 space-y-3">
+          <div>
+            <Label className="text-xs">Cerca (nome, P.IVA, città, email)</Label>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="es. costruzioni · 01234567890 · Milano" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">A cui manca…</Label>
+            <Select value={missing} onValueChange={setMissing}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email (da trovare)</SelectItem>
+                <SelectItem value="phone">Telefono (da trovare)</SelectItem>
+                <SelectItem value="piva">P.IVA (da trovare)</SelectItem>
+                <SelectItem value="website">Sito web (da trovare)</SelectItem>
+                <SelectItem value="none">Niente — importa comunque</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-2.5">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs">Solo aziende con P.IVA</span>
+            </div>
+            <Switch checked={onlyWithPiva} onCheckedChange={setOnlyWithPiva} />
+          </div>
+          <div>
+            <Label className="text-xs">Massimo contatti</Label>
+            <Select value={limit} onValueChange={setLimit}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["50", "100", "200", "500"].map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full gap-1.5" disabled={imp.isPending} onClick={() => imp.mutate()}>
+            {imp.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />} Importa dal CRM
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function AdminLeadScraper() {
   const { hasAccess, permLoading } = useAdminMarketing();
   const queryClient = useQueryClient();
@@ -674,6 +762,7 @@ export default function AdminLeadScraper() {
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [enrichOpen, setEnrichOpen] = useState(false);
+  const [importCrmOpen, setImportCrmOpen] = useState(false);
 
   // ── ricerche salvate ───────────────────────────────────────────────────────
   const { data: searches = [] } = useQuery({
@@ -856,16 +945,17 @@ export default function AdminLeadScraper() {
     }
   };
 
+  // BUGFIX: l'azione edge "qualify" processa max 60 lead per chiamata (limite
+  // prompt AI). Prima con searchId/lista lunga troncava a 60 IN SILENZIO: ora
+  // la UI spezza sempre in lotti da 40 con barra di avanzamento.
   const qualifyMutation = useMutation({
-    mutationFn: (resultIds?: string[]) => invoke({
-      action: "qualify",
-      searchId: resultIds?.length ? undefined : currentSearchId,
-      resultIds: resultIds?.length ? resultIds : undefined,
-      icp: icp.trim(),
-    }),
+    mutationFn: (resultIds?: string[]) => {
+      const ids = resultIds?.length ? resultIds : results.map((r) => r.id);
+      return batchInvoke("Qualifica AI", "qualify", ids, 40, { icp: icp.trim() });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
-      toast.success(`${data.qualified} lead qualificati con AI`);
+      toast.success(`${data.qualified || 0} lead qualificati con AI`);
     },
     onError: (e: Error) => toast.error("Qualificazione fallita", { description: e.message }),
   });
@@ -953,7 +1043,7 @@ export default function AdminLeadScraper() {
     mutationFn: (resultIds: string[]) => batchInvoke("Valida P.IVA", "validate_vat", resultIds, 10),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
-      toast.success(`${data.validated} P.IVA valide (VIES)`, { description: `su ${data.attempted} con P.IVA · ragione sociale ufficiale aggiornata` });
+      toast.success(`${data.validated} P.IVA valide (VIES)`, { description: `su ${data.attempted} con P.IVA · ragione sociale ufficiale salvata nei dati azienda` });
     },
     onError: (e: Error) => toast.error("Validazione P.IVA fallita", { description: e.message }),
   });
@@ -1029,8 +1119,10 @@ export default function AdminLeadScraper() {
     try {
       await batchInvoke("Pipeline · arricchimento", "deep_enrich", ids, 10, { vies: true });
       await batchInvoke("Pipeline · buying signals", "compute_buying_signals", ids, 10);
-      await invoke({ action: "qualify", resultIds: ids, icp: icp.trim() });
-      await invoke({ action: "flag_existing_customers", resultIds: ids });
+      // a lotti: qualify processa max 60/chiamata, flag_existing filtra via .in()
+      // (migliaia di id in una chiamata = filtro PostgREST troppo lungo)
+      await batchInvoke("Pipeline · qualifica AI", "qualify", ids, 40, { icp: icp.trim() });
+      await batchInvoke("Pipeline · già clienti", "flag_existing_customers", ids, 200);
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
       toast.success("Pipeline completata", { description: "Arricchiti, valutati, qualificati e filtrati i già-clienti" });
     } catch (e) {
@@ -1053,6 +1145,24 @@ export default function AdminLeadScraper() {
       toast.success(`${data.pushed} contatti salvati nel CRM`, { description: extra || undefined });
     },
     onError: (e: Error) => toast.error("Salvataggio CRM fallito", { description: e.message }),
+  });
+
+  // Sync verso il CRM: riempie i campi VUOTI del contatto collegato con quanto
+  // trovato dall'enrichment (email/PEC affidabili, telefono, P.IVA, sito, fatturato).
+  const syncCrmMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Aggiorna CRM", "sync_crm", resultIds, 100),
+    onSuccess: (d) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      const detail = [
+        d.filled_email ? `${d.filled_email} email` : null,
+        d.filled_phone ? `${d.filled_phone} telefoni` : null,
+        d.filled_piva ? `${d.filled_piva} P.IVA` : null,
+        d.filled_sito ? `${d.filled_sito} siti` : null,
+        d.filled_fatturato ? `${d.filled_fatturato} fatturati` : null,
+      ].filter(Boolean).join(" · ");
+      toast.success(`${d.synced || 0} contatti CRM aggiornati`, { description: detail || "Nessun campo nuovo da riempire (solo i campi vuoti vengono toccati)" });
+    },
+    onError: (e: Error) => toast.error("Aggiornamento CRM fallito", { description: e.message }),
   });
 
   // AI: sintesi + icebreaker personalizzato
@@ -1161,6 +1271,11 @@ export default function AdminLeadScraper() {
   const updateLeadMutation = useMutation({
     mutationFn: async (patch: { id: string } & Record<string, unknown>) => {
       const { id, ...fields } = patch;
+      // "" → null: campi svuotati nel form non devono restare stringhe vuote nel
+      // DB (i filtri "con email" e il sync CRM trattano "" come valore presente).
+      for (const k of Object.keys(fields)) {
+        if (typeof fields[k] === "string" && !(fields[k] as string).trim()) fields[k] = null;
+      }
       const { error } = await fromLS("lead_scraper_results").update(fields).eq("id", id);
       if (error) throw error;
     },
@@ -1219,6 +1334,7 @@ export default function AdminLeadScraper() {
     verifyEmailMutation.isPending || buyingMutation.isPending || flagExistingMutation.isPending ||
     generateSequenceMutation.isPending || findPecMutation.isPending || enrichRegistroMutation.isPending ||
     validateVatMutation.isPending || enrichLinkedinMutation.isPending ||
+    syncCrmMutation.isPending ||
     sendOutreachMutation.isPending || pipelineRunning || jobId !== null || progress !== null;
 
   // ── filtri + ordinamento ──────────────────────────────────────────────────────
@@ -1271,6 +1387,10 @@ export default function AdminLeadScraper() {
   // corrente (non su selezionati poi nascosti da un filtro).
   const visibleIds = useMemo(() => new Set(visibleResults.map((r) => r.id)), [visibleResults]);
   const selectedIds = [...selected].filter((id) => visibleIds.has(id));
+  // Lead collegati a un contatto CRM (import dal CRM o già convertiti):
+  // bersaglio del bottone "Aggiorna CRM" (selezionati, altrimenti tutti i visibili).
+  const crmLinkedIds = (selectedIds.length ? visibleResults.filter((r) => selected.has(r.id)) : visibleResults)
+    .filter((r) => r.crm_contact_id).map((r) => r.id);
 
   // ── export CSV ─────────────────────────────────────────────────────────────────
   const CSV_HEADER = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
@@ -1538,6 +1658,10 @@ export default function AdminLeadScraper() {
                 {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Importa CSV
               </Button>
+              <Button variant="outline" className="w-full gap-2" onClick={() => setImportCrmOpen(true)} disabled={busy}
+                title="Aziende già nel sistema (es. con P.IVA ma senza email): importale, arricchiscile e riscrivi i dati nel CRM">
+                <Database className="h-4 w-4" /> Arricchisci dal CRM
+              </Button>
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvFile} />
             </CardContent>
           </Card>
@@ -1726,6 +1850,15 @@ export default function AdminLeadScraper() {
                   {pushMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                   Salva nel CRM ({selectedIds.length})
                 </Button>
+                {crmLinkedIds.length > 0 && (
+                  <Button size="sm" variant="outline" className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                    disabled={busy}
+                    onClick={() => syncCrmMutation.mutate(crmLinkedIds)}
+                    title="Riscrive nel contatto CRM collegato i campi vuoti riempiti dall'enrichment: email/PEC affidabili, telefono, P.IVA, sito, fatturato, ATECO nelle note. Mai sovrascritti i dati esistenti.">
+                    {syncCrmMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+                    Aggiorna CRM ({crmLinkedIds.length})
+                  </Button>
+                )}
                 <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
                   <Checkbox checked={createOpp} onCheckedChange={(v) => setCreateOpp(!!v)} /> + opportunità
                 </label>
@@ -2045,6 +2178,16 @@ export default function AdminLeadScraper() {
       <AnalyticsSheet open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
       <AutopilotSheet open={autopilotOpen} onClose={() => setAutopilotOpen(false)} />
       <EnrichCompanySheet open={enrichOpen} onClose={() => setEnrichOpen(false)} />
+      <ImportCrmSheet
+        open={importCrmOpen}
+        onClose={() => setImportCrmOpen(false)}
+        onImported={(searchId) => {
+          setCurrentSearchId(searchId);
+          setSelected(new Set());
+          setRenderLimit(200);
+          queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
+        }}
+      />
     </div>
   );
 }
