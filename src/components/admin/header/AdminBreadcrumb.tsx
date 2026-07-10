@@ -67,6 +67,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/impostazioni/ip-allowlist": "IP Allowlist",
   "/admin/impostazioni/sicurezza": "Sicurezza",
   "/admin/impostazioni/integrazioni": "Integrazioni",
+  "/admin/impostazioni/api-mcp": "API & MCP",
   "/admin/impostazioni/banking": "Banking",
 };
 

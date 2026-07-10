@@ -17,7 +17,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Building2, Users, ShoppingCart, Server, Wrench, Info, ExternalLink,
+  Building2, Users, ShoppingCart, Server, Wrench, Info, ExternalLink, Bot,
   Activity, ShieldCheck, Webhook, Mail, Cpu, BarChart3, FileText,
   Globe, AlertCircle, CheckCircle2, Copy, Check,
 } from "lucide-react";
@@ -437,6 +437,13 @@ const QUICK_LINKS: Array<{
     label: "Integrazioni",
     desc: "API keys e provider esterni",
     accent: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  },
+  {
+    to: "/admin/impostazioni/api-mcp",
+    icon: Bot,
+    label: "API & MCP",
+    desc: "Collega Claude e agenti AI alla piattaforma",
+    accent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   },
   {
     to: "/admin/impostazioni/webhooks",
