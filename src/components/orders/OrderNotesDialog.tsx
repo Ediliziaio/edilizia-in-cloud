@@ -30,6 +30,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 import { format, isToday, isYesterday } from "date-fns";
 import { it } from "date-fns/locale";
 import { useOrderNotesChannel } from "@/hooks/useOrderNotesChannel";
@@ -72,6 +73,14 @@ function shortTime(dateStr: string): string {
   if (isToday(d)) return format(d, "HH:mm");
   if (isYesterday(d)) return `Ieri ${format(d, "HH:mm")}`;
   return format(d, "d MMM, HH:mm", { locale: it });
+}
+
+// Etichetta del separatore-giorno tra i gruppi di note.
+function dayLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isToday(d)) return "Oggi";
+  if (isYesterday(d)) return "Ieri";
+  return format(d, "EEEE d MMMM yyyy", { locale: it });
 }
 
 // Evidenzia gli @mention come pill accent
@@ -261,9 +270,21 @@ export function OrderNotesDialog({
   const overlapAvatars = memberIds.slice(0, 4);
   const memberLabel = isSoloMe ? "Solo tu" : `Gruppo · ${memberIds.length}`;
 
+  // Raggruppa le note per giorno (separatore + card, stile thread ordinato).
+  const dayGroups = useMemo(() => {
+    const groups: { key: string; label: string; items: typeof messages }[] = [];
+    for (const msg of messages) {
+      const key = new Date(msg.created_at).toLocaleDateString("en-CA");
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.items.push(msg);
+      else groups.push({ key, label: dayLabel(msg.created_at), items: [msg] });
+    }
+    return groups;
+  }, [messages]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex h-[82vh] max-h-[88vh] w-[95vw] max-w-lg flex-col gap-0 p-0">
+      <DialogContent className="flex h-[84vh] max-h-[90vh] w-[95vw] max-w-xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -299,7 +320,7 @@ export function OrderNotesDialog({
         </DialogHeader>
 
         {/* Thread */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/20 px-4 py-4">
           {isLoading ? (
             <div className="flex h-full items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -315,48 +336,72 @@ export function OrderNotesDialog({
               </Button>
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
-                <NotebookPen className="h-5 w-5 text-muted-foreground" />
+            <div className="flex h-full flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-primary">
+                <NotebookPen className="h-6 w-6" />
               </div>
-              <p className="max-w-[16rem] text-sm text-muted-foreground">
-                Nessuna nota ancora. Scrivi un promemoria per il team o coinvolgi
-                un collega con @.
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">Nessuna nota ancora</p>
+                <p className="mx-auto max-w-[17rem] text-[13px] leading-relaxed text-muted-foreground">
+                  Scrivi un promemoria per il team o coinvolgi un collega con <span className="font-medium text-primary">@</span>. Le note restano interne, il cliente non le vede.
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              {messages.map((msg) => {
-                const isMe = msg.sender_id === currentUserId;
-                const author = profilesById[msg.sender_id];
-                const authorName =
-                  `${author?.first_name ?? ""} ${author?.last_name ?? ""}`.trim() ||
-                  (isMe ? "Tu" : "Utente");
-                return (
-                  <div key={msg.id} className="flex gap-2.5">
-                    <InitialAvatar
-                      id={msg.sender_id}
-                      first={author?.first_name}
-                      last={author?.last_name}
-                      size={28}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[13px] font-semibold text-foreground">
-                          {authorName}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                          {shortTime(msg.created_at)}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground">
-                        {renderContent(msg.content)}
-                      </div>
-                    </div>
+            <motion.div
+              className="space-y-4"
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+            >
+              {dayGroups.map((group) => (
+                <div key={group.key} className="space-y-2">
+                  {/* separatore giorno */}
+                  <div className="sticky top-0 z-[1] flex justify-center">
+                    <span className="rounded-full border border-border bg-background px-2.5 py-0.5 text-[11px] font-medium capitalize text-muted-foreground shadow-sm">
+                      {group.label}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  {group.items.map((msg) => {
+                    const isMe = msg.sender_id === currentUserId;
+                    const author = profilesById[msg.sender_id];
+                    const authorName =
+                      `${author?.first_name ?? ""} ${author?.last_name ?? ""}`.trim() ||
+                      (isMe ? "Tu" : "Utente");
+                    return (
+                      <motion.div
+                        key={msg.id}
+                        variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+                        className="flex gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-shadow hover:shadow"
+                      >
+                        <InitialAvatar
+                          id={msg.sender_id}
+                          first={author?.first_name}
+                          last={author?.last_name}
+                          size={32}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-[13px] font-semibold text-foreground">
+                              {authorName}
+                            </span>
+                            {isMe && (
+                              <span className="rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary">tu</span>
+                            )}
+                            <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+                              {shortTime(msg.created_at)}
+                            </span>
+                          </div>
+                          <div className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground">
+                            {renderContent(msg.content)}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ))}
+            </motion.div>
           )}
         </div>
 
