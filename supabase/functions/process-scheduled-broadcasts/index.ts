@@ -1,5 +1,20 @@
 // MP03 — process-scheduled-broadcasts (cron ogni 1min)
 // Processa broadcasts con scheduled_at ≤ NOW. Rispetta opt-out + rate limit 60/min/numero.
+//
+// FIX 2026-07 (schema drift + robustezza):
+//  • le select usavano colonne INESISTENTI (phone_number, variables) → la
+//    query falliva, recipients=null e il broadcast veniva marcato "completed"
+//    con 0 invii. Colonna reale: phone; le variabili si risolvono qui dal
+//    mapping broadcast.template_variables + dati contatto.
+//  • CLAIM ATOMICO per-recipient (pending→sending): prima due tick consecutivi
+//    ripescavano gli stessi pending (un lotto da 60 dura ~60s = 1 tick) →
+//    stesso destinatario inviato due volte a Meta.
+//  • window_start/window_end ora rispettate (prima decorative): fuori
+//    finestra il broadcast resta in coda al tick successivo.
+//  • opt-out canale-specifico: oltre a opt_out si controllano
+//    optout_whatsapp e unsubscribed (GDPR/Meta).
+//  • sent_count/failed_count sul broadcast ora aggiornati (prima sempre 0:
+//    barra progresso e riepiloghi morti) — ricalcolati con head-count esatti.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
@@ -18,6 +33,38 @@ function extractJwtRole(authHeader: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** "HH:MM" corrente in Europe/Rome (le finestre orarie sono in ora italiana). */
+function nowHHMMRome(): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(new Date());
+}
+
+function withinWindow(start: string | null, end: string | null): boolean {
+  if (!start || !end) return true;
+  const now = nowHHMMRome();
+  const s = start.slice(0, 5);
+  const e = end.slice(0, 5);
+  // finestra normale (09:00-18:00) o a cavallo di mezzanotte (22:00-06:00)
+  return s <= e ? now >= s && now <= e : now >= s || now <= e;
+}
+
+/** Risolve il mapping variabili del broadcast sui dati del contatto. */
+function resolveVariables(
+  mapping: Record<string, unknown> | null,
+  contact: { first_name?: string | null; last_name?: string | null; phone?: string | null } | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(mapping ?? {})) {
+    const v = String(value ?? "");
+    if (v === "nome") out[key] = contact?.first_name ?? "";
+    else if (v === "cognome") out[key] = contact?.last_name ?? "";
+    else if (v === "telefono") out[key] = contact?.phone ?? "";
+    else out[key] = v; // valore letterale
+  }
+  return out;
 }
 
 Deno.serve(async (req) => {
@@ -50,8 +97,16 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let deferred = 0;
 
   for (const b of broadcasts ?? []) {
+    // Finestra oraria: fuori orario il broadcast resta in coda (prima la
+    // finestra era salvata ma mai letta → messaggi anche di notte).
+    if (!withinWindow(b.window_start, b.window_end)) {
+      deferred++;
+      continue;
+    }
+
     if (b.status === "scheduled") {
       await supabase
         .from("whatsapp_broadcasts")
@@ -59,33 +114,67 @@ Deno.serve(async (req) => {
         .eq("id", b.id);
     }
 
-    const { data: recipients } = await supabase
+    // 1) candidati pending
+    const { data: candidates, error: candErr } = await supabase
       .from("whatsapp_broadcast_recipients")
-      .select("id, contact_id, phone_number, variables")
+      .select("id")
       .eq("broadcast_id", b.id)
       .eq("status", "pending")
       .limit(MAX_PER_TICK_PER_NUMBER);
+    if (candErr) {
+      console.error(`[broadcast ${b.id}] select pending fallita:`, candErr.message);
+      continue;
+    }
 
-    if (!recipients || recipients.length === 0) {
+    if (!candidates || candidates.length === 0) {
+      // niente pending → ricalcola i contatori e chiudi
+      const [sentRes, failedRes] = await Promise.all([
+        supabase.from("whatsapp_broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", b.id).eq("status", "sent"),
+        supabase.from("whatsapp_broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", b.id).eq("status", "failed"),
+      ]);
       await supabase
         .from("whatsapp_broadcasts")
-        .update({ status: "completed", completed_at: NOW_ISO })
+        .update({
+          status: "completed",
+          completed_at: NOW_ISO,
+          sent_count: sentRes.count ?? 0,
+          failed_count: failedRes.count ?? 0,
+        })
         .eq("id", b.id);
       continue;
     }
 
-    // Opt-out check in bulk
-    const contactIds = recipients.filter((r) => r.contact_id).map((r) => r.contact_id as string);
-    const { data: optOuts } = await supabase
-      .from("marketing_contacts")
-      .select("id, opt_out")
-      .in("id", contactIds);
-    const optOutSet = new Set((optOuts ?? []).filter((c) => c.opt_out).map((c) => c.id));
+    // 2) CLAIM atomico: pending → sending. Solo le righe effettivamente
+    //    claimate vengono inviate; un tick concorrente non le rivede.
+    const { data: claimed, error: claimErr } = await supabase
+      .from("whatsapp_broadcast_recipients")
+      .update({ status: "sending" })
+      .in("id", candidates.map((c) => c.id))
+      .eq("status", "pending")
+      .select("id, contact_id, phone");
+    if (claimErr || !claimed || claimed.length === 0) {
+      if (claimErr) console.error(`[broadcast ${b.id}] claim fallito:`, claimErr.message);
+      continue;
+    }
 
-    for (const r of recipients) {
+    // 3) dati contatto per opt-out + variabili (un solo roundtrip)
+    const contactIds = claimed.filter((r) => r.contact_id).map((r) => r.contact_id as string);
+    const { data: contacts } = contactIds.length
+      ? await supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, phone, opt_out, optout_whatsapp, unsubscribed")
+          .in("id", contactIds)
+      : { data: [] as never[] };
+    const contactById = new Map((contacts ?? []).map((c: { id: string }) => [c.id, c]));
+
+    const mapping = (b.template_variables ?? {}) as Record<string, unknown>;
+
+    for (const r of claimed) {
       processed++;
 
-      if (r.contact_id && optOutSet.has(r.contact_id)) {
+      const contact = r.contact_id ? contactById.get(r.contact_id) : undefined;
+      // opt-out ricontrollato al momento dell'invio (anche canale-specifico)
+      if (contact && (contact.opt_out || contact.optout_whatsapp || contact.unsubscribed)) {
         await supabase
           .from("whatsapp_broadcast_recipients")
           .update({ status: "skipped_opt_out" })
@@ -106,11 +195,11 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               wa_number_id: b.wa_number_id,
               company_id: b.company_id,
-              to: r.phone_number,
+              to: r.phone,
               template: {
                 name: b.template_name,
                 language: "it",
-                variables: r.variables ?? {},
+                variables: resolveVariables(mapping, contact),
               },
             }),
           },
@@ -144,6 +233,16 @@ Deno.serve(async (req) => {
       // Rate limit: 1 sec tra messaggi
       await new Promise((r) => setTimeout(r, 1000));
     }
+
+    // 4) aggiorna i contatori del broadcast (head-count esatti, race-safe)
+    const [sentRes, failedRes] = await Promise.all([
+      supabase.from("whatsapp_broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", b.id).eq("status", "sent"),
+      supabase.from("whatsapp_broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", b.id).eq("status", "failed"),
+    ]);
+    await supabase
+      .from("whatsapp_broadcasts")
+      .update({ sent_count: sentRes.count ?? 0, failed_count: failedRes.count ?? 0 })
+      .eq("id", b.id);
   }
 
   return new Response(
@@ -153,6 +252,7 @@ Deno.serve(async (req) => {
       sent,
       failed,
       skipped,
+      deferred,
       broadcasts: broadcasts?.length ?? 0,
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

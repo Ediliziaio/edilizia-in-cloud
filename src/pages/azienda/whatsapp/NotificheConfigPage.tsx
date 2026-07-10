@@ -26,6 +26,7 @@ import {
   type NotificaKind,
 } from "@/hooks/whatsapp/useWANotifiche";
 import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useWAMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 import type { Json } from "@/integrations/supabase/types";
 
 const KIND_ORDER: NotificaKind[] = [
@@ -77,6 +78,11 @@ export default function NotificheConfigPage() {
     refetch: refetchNumbers,
     isFetching: numbersFetching,
   } = useWhatsAppNumbers();
+  // Template APPROVED della company: per avvisare se il template configurato
+  // non esiste/non è approvato (prima i default erano nomi "indovinati" e gli
+  // invii fallivano in silenzio con lo switch verde acceso).
+  const { data: approvedTemplates = [] } = useWAMetaTemplates(undefined, true);
+  const approvedNames = new Set(approvedTemplates.map((t) => t.template_name));
   const toggle = useToggleWATrigger();
   const patch = usePatchWATrigger();
   const upsert = useUpsertWATrigger();
@@ -240,6 +246,12 @@ export default function NotificheConfigPage() {
                         }}
                         placeholder={DEFAULT_TEMPLATES[kind]}
                       />
+                      {t.template_name && approvedTemplates.length > 0 && !approvedNames.has(t.template_name) && (
+                        <p className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          Template non trovato tra quelli APPROVATI su Meta: gli invii falliranno finché non usi un template approvato (tab Template).
+                        </p>
+                      )}
                     </div>
                   </div>
 

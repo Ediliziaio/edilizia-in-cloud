@@ -175,7 +175,7 @@ export default function BroadcastDetailPage() {
                 <TableBody>
                   {(recipients ?? []).slice(0, 200).map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">{r.phone_number}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.phone}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">{r.status ?? "—"}</Badge>
                       </TableCell>

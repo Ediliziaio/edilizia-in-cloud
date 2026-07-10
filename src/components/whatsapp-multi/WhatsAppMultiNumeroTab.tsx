@@ -19,6 +19,7 @@ import {
 import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
 import { ConnectNumberWizard } from "./ConnectNumberWizard";
 import { WhatsAppStatsBar } from "./WhatsAppStatsBar";
+import { useWhatsAppBase } from "@/pages/azienda/whatsapp/useWhatsAppBase";
 
 const PURPOSE_ICONS: Record<WAPurpose, typeof MessageSquare> = {
   bot_operativo: MessageSquare,
@@ -99,6 +100,7 @@ function WhatsAppLinesOverview({
 
 export function WhatsAppMultiNumeroTab() {
   const navigate = useNavigate();
+  const { base: waBase } = useWhatsAppBase();
   const { byPurpose, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumbersByPurpose();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardPurpose, setWizardPurpose] = useState<WAPurpose | null>(null);
@@ -221,7 +223,7 @@ export function WhatsAppMultiNumeroTab() {
                     <WhatsAppNumberCard
                       key={n.id}
                       number={n}
-                      onOpenSettings={(id) => navigate(`/azienda/whatsapp/numeri/${id}`)}
+                      onOpenSettings={(id) => navigate(`${waBase}/numeri/${id}`)}
                     />
                   ))}
                   {missing.map((p) => {
