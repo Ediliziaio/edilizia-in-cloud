@@ -24,6 +24,7 @@ export default function CashFlowForecast() {
 
   const {
     isLoading,
+    isError,
     orders,
     expectedPayments,
     expectedExpenses,
@@ -59,12 +60,12 @@ export default function CashFlowForecast() {
           .eq("is_active", true),
         supabase
           .from("invoices")
-          .select("total, paid_amount")
+          .select("total, paid_amount, due_date")
           .eq("company_id", companyId!)
           .not("status", "in", '("paid","cancelled","draft")'),
         supabase
           .from("purchase_orders")
-          .select("total")
+          .select("total, expected_delivery_date")
           .eq("company_id", companyId!)
           .not("status", "in", '("ricevuto","annullato")'),
       ]);
@@ -79,11 +80,26 @@ export default function CashFlowForecast() {
         0
       );
 
+      // "Forecast 30gg" DEVE guardare solo i prossimi 30 giorni: prima sommava
+      // TUTTE le fatture/PO aperti senza bound temporale, quindi il numero non
+      // corrispondeva all'etichetta. Date locali (en-CA) per il confine giorno.
+      const todayStr = new Date().toLocaleDateString("en-CA");
+      const in30 = new Date();
+      in30.setDate(in30.getDate() + 30);
+      const in30Str = in30.toLocaleDateString("en-CA");
+
+      const income30 = (unpaidInvoicesRes.data || [])
+        .filter((inv: any) => inv.due_date && inv.due_date >= todayStr && inv.due_date <= in30Str)
+        .reduce((s: number, inv: any) => s + Math.max(0, (inv.total || 0) - (inv.paid_amount || 0)), 0);
+      const expenses30 = (openPurchaseOrdersRes.data || [])
+        .filter((po: any) => po.expected_delivery_date && po.expected_delivery_date >= todayStr && po.expected_delivery_date <= in30Str)
+        .reduce((s: number, po: any) => s + (po.total || 0), 0);
+
       return {
         bankBalance,
         pendingIncome,
         pendingExpenses,
-        forecast30: bankBalance + pendingIncome - pendingExpenses,
+        forecast30: bankBalance + income30 - expenses30,
       };
     },
     staleTime: 300_000,
@@ -149,7 +165,10 @@ export default function CashFlowForecast() {
     );
   }
 
-  if (!orders && !isLoading) {
+  // Stato d'errore reale sui dati core. Prima era `!orders` (sempre falso:
+  // orders default []), quindi questo blocco non compariva MAI e un errore
+  // di caricamento lasciava la pagina vuota senza spiegazione.
+  if (isError && !isLoading) {
     return (
       <div className="space-y-6">
         <div>
@@ -235,7 +254,9 @@ export default function CashFlowForecast() {
         </div>
       )}
       {bankingSummary && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        // 4 colonne solo da lg: sotto i 1024px le card restano larghe abbastanza
+        // da mostrare l'importo INTERO (es. €259.728) senza troncarlo a "€…".
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             { label: "Saldo Banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "blue" as const, hint: "saldo reale conti" },
             { label: "Entrate Attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "green" as const, hint: "incassi aperti" },

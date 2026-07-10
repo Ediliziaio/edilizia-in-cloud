@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -66,7 +66,7 @@ interface UnifiedTransaction {
   orderId: string | null;
 }
 
-export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo, bankBalance }: CashForecastTabProps) {
+export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo, bankBalance }: CashForecastTabProps) {
   const navigate = useNavigate();
   // S2-02: stabilize `now` via useMemo (era ricreata ad ogni render -> deps break)
   const now = useMemo(() => new Date(), []);
@@ -81,10 +81,13 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
   const thisMonthEnd = useMemo(() => endOfMonth(now), [now]);
 
-  // Calculate custom period stats from raw data
-  const customPeriodStats = useMemo(() => {
-    const start = startOfMonth(addMonths(now, 1));
-    const end = endOfMonth(addMonths(now, customMonths));
+  // Statistiche di periodo calcolate CLIENT-side dalle stesse fonti dei
+  // movimenti/bande: provvigioni NETTE (commission − deduction), pagamenti
+  // fornitori splittati acconto/saldo, scadenze deduplicate. La RPC
+  // get_cashflow_summary usava provvigioni LORDE e l'intero purchase_price
+  // senza split → le NetCard "Questo/Prossimo mese" divergevano dal resto
+  // della pagina. Ora tutte le card usano lo stesso motore.
+  const statsForRange = useCallback((start: Date, end: Date) => {
     const inRange = (d: Date | null) => d && isWithinInterval(d, { start, end });
 
     const income = expectedPayments.filter(p => inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
@@ -102,7 +105,14 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     const totalIncome = income + scadenzeIncome;
     const expenses = expExternal + expCommissions + expSupplier + expCosts + scadenzeExpenses;
     return { income: totalIncome, expenses, net: totalIncome - expenses };
-  }, [now, customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+
+  const thisMonthStats = useMemo(() => statsForRange(startOfMonth(now), endOfMonth(now)), [statsForRange, now]);
+  const nextMonthStats = useMemo(() => statsForRange(startOfMonth(addMonths(now, 1)), endOfMonth(addMonths(now, 1))), [statsForRange, now]);
+  const customPeriodStats = useMemo(
+    () => statsForRange(startOfMonth(addMonths(now, 1)), endOfMonth(addMonths(now, customMonths))),
+    [statsForRange, now, customMonths],
+  );
 
   // Preset logic
   const applyPreset = (preset: string) => {
@@ -292,21 +302,21 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
   return (
     <div className="space-y-6">
       {/* Cash Flow Alerts */}
-      {stats.nextMonth.net < 0 && (
+      {nextMonthStats.net < 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Attenzione: Cash Flow Negativo</AlertTitle>
           <AlertDescription>
-            Il saldo previsto per il prossimo mese è di {formatCurrency(stats.nextMonth.net)}. Verifica le uscite programmate e valuta azioni correttive.
+            Il saldo previsto per il prossimo mese è di {formatCurrency(nextMonthStats.net)}. Verifica le uscite programmate e valuta azioni correttive.
           </AlertDescription>
         </Alert>
       )}
-      {stats.nextMonth.net >= 0 && stats.nextMonth.net < CASH_FLOW_WARNING_THRESHOLD && (
+      {nextMonthStats.net >= 0 && nextMonthStats.net < CASH_FLOW_WARNING_THRESHOLD && (
         <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 [&>svg]:text-amber-600">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Cash flow vicino allo zero</AlertTitle>
           <AlertDescription>
-            Il saldo previsto per il prossimo mese è di soli {formatCurrency(stats.nextMonth.net)}. Monitora attentamente le entrate e le uscite.
+            Il saldo previsto per il prossimo mese è di soli {formatCurrency(nextMonthStats.net)}. Monitora attentamente le entrate e le uscite.
           </AlertDescription>
         </Alert>
       )}
@@ -454,8 +464,8 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
       {/* Net Cash Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <NetCard title="Questo mese" income={stats.thisMonth.income} expenses={stats.thisMonth.expenses} net={stats.thisMonth.net} />
-        <NetCard title="Prossimo mese" income={stats.nextMonth.income} expenses={stats.nextMonth.expenses} net={stats.nextMonth.net} />
+        <NetCard title="Questo mese" income={thisMonthStats.income} expenses={thisMonthStats.expenses} net={thisMonthStats.net} />
+        <NetCard title="Prossimo mese" income={nextMonthStats.income} expenses={nextMonthStats.expenses} net={nextMonthStats.net} />
         <Card>
           <CardContent className="pt-6 space-y-2">
             <div className="flex items-center justify-between">

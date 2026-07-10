@@ -255,10 +255,22 @@ export function TreasuryTab({
 
     const costiVariabiliMonthly = mergeMonthly(...costiVariabiliChildren.map((c) => c.monthlyAmounts));
 
+    // Stipendi proiettati sui mesi visibili, MA:
+    //  - non oltre il mese corrente (i mesi futuri sono previsionale, non
+    //    "sostenuto"/actual);
+    //  - non prima che il dipendente esistesse (created_at), altrimenti un
+    //    neo-assunto mostrava mesi di stipendio retroattivo mai pagato.
+    const currentMonthKey = format(startOfMonth(new Date()), "yyyy-MM");
     const salaryItems = activeEmployees.map((emp: any) => {
       const monthlySalary = Number(emp.gross_salary) || 0;
+      const empStartKey = emp.created_at ? format(startOfMonth(new Date(emp.created_at)), "yyyy-MM") : null;
       const items: { date: string | Date | null; amount: number }[] = [];
-      months.forEach((m) => { items.push({ date: m, amount: monthlySalary }); });
+      months.forEach((m) => {
+        const mk = format(m, "yyyy-MM");
+        if (mk > currentMonthKey) return;
+        if (empStartKey && mk < empStartKey) return;
+        items.push({ date: m, amount: monthlySalary });
+      });
       return { name: `${emp.first_name} ${emp.last_name}`, items };
     });
 
@@ -335,7 +347,10 @@ export function TreasuryTab({
     let cumulative = 0;
     monthKeys.forEach((k) => {
       cumulative += (totalIncomeMonthly[k] || 0) - (totalExpensesMonthly[k] || 0);
-      netMonthly[k] = Math.max(0, cumulative); // never below 0 for actual
+      // NIENTE clamp a 0: una tesoreria negativa DEVE restare visibile,
+      // altrimenti un'azienda in rosso appariva in pari e il mese successivo
+      // ripartiva da 0 falsando tutta la scaletta.
+      netMonthly[k] = cumulative;
     });
 
     const startMonthly: Record<string, number> = {};
@@ -396,7 +411,7 @@ export function TreasuryTab({
       const fIncome = forecastIncomeMonthly[k] || 0;
       const fExpenses = forecastExpensesMonthly[k] || 0;
       forecastCum += (actualIncome + fIncome) - (actualExpenses + fExpenses);
-      forecastNetMonthly[k] = Math.max(0, forecastCum);
+      forecastNetMonthly[k] = forecastCum;
     });
 
     return { forecastIncomeMonthly, forecastExpensesMonthly, forecastNetMonthly };
@@ -555,6 +570,9 @@ export function TreasuryTab({
                   finalBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                 )}>
                   {formatCurrency(finalBalance)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Variazione netta cumulata sul periodo (parte da 0, non è il saldo banca)
                 </p>
               </div>
               <div className={cn(
