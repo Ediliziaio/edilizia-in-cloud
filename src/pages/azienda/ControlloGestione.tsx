@@ -146,6 +146,9 @@ export default function ControlloGestione() {
         value={filters}
         onChange={setFilters}
         showScenario={activeTab === "piano"}
+        // Periodo/Mese oggi li consuma solo il CE riclassificato: altrove erano
+        // controlli morti. Li mostriamo solo dove filtrano davvero.
+        showPeriodo={activeTab === "ce"}
       />
 
       <Tabs

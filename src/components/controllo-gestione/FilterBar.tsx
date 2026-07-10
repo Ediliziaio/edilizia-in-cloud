@@ -23,6 +23,13 @@ interface FilterBarProps {
   onChange: (next: CGFilters) => void;
   /** Mostra il selettore scenario (solo nella tab piano) */
   showScenario?: boolean;
+  /**
+   * Mostra Periodo + Mese. Solo le tab che restringono davvero il calcolo per
+   * periodo (oggi il CE riclassificato) li consumano: sulle altre erano controlli
+   * "morti" (l'utente cambiava mese e non succedeva nulla). Come showScenario,
+   * li mostriamo solo dove hanno effetto.
+   */
+  showPeriodo?: boolean;
 }
 
 const MESI = [
@@ -30,7 +37,7 @@ const MESI = [
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
 
-export function FilterBar({ value, onChange, showScenario = false }: FilterBarProps) {
+export function FilterBar({ value, onChange, showScenario = false, showPeriodo = true }: FilterBarProps) {
   const { data: scenari = [], isLoading: scenariLoading } = useScenari();
 
   const anniDisponibili = useMemo(() => {
@@ -61,40 +68,44 @@ export function FilterBar({ value, onChange, showScenario = false }: FilterBarPr
         </Select>
       </div>
 
-      <div className="sm:space-y-1">
-        <Label className="hidden text-xs text-muted-foreground sm:block">Periodo</Label>
-        <Select
-          value={value.periodo}
-          onValueChange={(v) => update({ periodo: v as CGPeriodo })}
-        >
-          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="annuale">Anno completo</SelectItem>
-            <SelectItem value="ytd">Year to date (gen → mese)</SelectItem>
-            <SelectItem value="mese">Singolo mese</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {showPeriodo && (
+        <div className="sm:space-y-1">
+          <Label className="hidden text-xs text-muted-foreground sm:block">Periodo</Label>
+          <Select
+            value={value.periodo}
+            onValueChange={(v) => update({ periodo: v as CGPeriodo })}
+          >
+            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="annuale">Anno completo</SelectItem>
+              <SelectItem value="ytd">Year to date (gen → mese)</SelectItem>
+              <SelectItem value="mese">Singolo mese</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-      <div className="sm:space-y-1">
-        <Label className="hidden text-xs text-muted-foreground sm:block">Mese</Label>
-        <Select
-          value={String(value.mese)}
-          onValueChange={(v) => update({ mese: Number(v) })}
-          disabled={value.periodo === "annuale"}
-        >
-          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MESI.map((nome, idx) => (
-              <SelectItem key={idx + 1} value={String(idx + 1)}>{nome}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showPeriodo && (
+        <div className="sm:space-y-1">
+          <Label className="hidden text-xs text-muted-foreground sm:block">Mese</Label>
+          <Select
+            value={String(value.mese)}
+            onValueChange={(v) => update({ mese: Number(v) })}
+            disabled={value.periodo === "annuale"}
+          >
+            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MESI.map((nome, idx) => (
+                <SelectItem key={idx + 1} value={String(idx + 1)}>{nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {showScenario && (
         <div className="space-y-1">
