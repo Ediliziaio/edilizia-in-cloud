@@ -99,6 +99,11 @@ export function useUpsertLoan() {
       qc.invalidateQueries({ queryKey: ["cg", "loans"] });
       qc.invalidateQueries({ queryKey: ["cg", "pfn"] });
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow"] });
+      // SP prende i mutui MLT da cg_loans e gli Indici avanzati il DSCR dalle
+      // rate: senza queste, dopo aver aggiunto/tolto un mutuo la SP mostrava i
+      // vecchi mutui e il DSCR non cambiava (numeri incoerenti tra tab).
+      qc.invalidateQueries({ queryKey: ["cg", "sp"] });
+      qc.invalidateQueries({ queryKey: ["cg", "indici-avanzati"] });
     },
   });
 }
@@ -115,6 +120,11 @@ export function useDeleteLoan() {
       qc.invalidateQueries({ queryKey: ["cg", "loans"] });
       qc.invalidateQueries({ queryKey: ["cg", "pfn"] });
       qc.invalidateQueries({ queryKey: ["cg", "cash-flow"] });
+      // SP prende i mutui MLT da cg_loans e gli Indici avanzati il DSCR dalle
+      // rate: senza queste, dopo aver aggiunto/tolto un mutuo la SP mostrava i
+      // vecchi mutui e il DSCR non cambiava (numeri incoerenti tra tab).
+      qc.invalidateQueries({ queryKey: ["cg", "sp"] });
+      qc.invalidateQueries({ queryKey: ["cg", "indici-avanzati"] });
     },
   });
 }

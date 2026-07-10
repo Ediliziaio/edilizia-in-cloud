@@ -183,6 +183,13 @@ interface RigaConfronto {
   livello: LivelloRiga;
   /** Estrae il valore dal SPResult per la sezione interessata. */
   pick: (sp: SPResult) => number;
+  /**
+   * Per le voci di DEBITO/passività un aumento è NEGATIVO: il delta va colorato
+   * al contrario (aumento = rosso, calo = verde). Il patrimonio netto e l'attivo
+   * seguono la logica normale (aumento = verde). Prima ogni aumento era verde
+   * anche sui debiti → un mutuo che cresce sembrava "buono".
+   */
+  higherIsWorse?: boolean;
 }
 
 const RIGHE_ATTIVO: RigaConfronto[] = [
@@ -203,20 +210,23 @@ const RIGHE_ATTIVO: RigaConfronto[] = [
 ];
 
 const RIGHE_PASSIVO: RigaConfronto[] = [
+  // Patrimonio netto: aumento = buono (verde).
   { label: "Capitale", livello: "voce", pick: (sp) => sp.passivo.capitale_sociale },
   { label: "Riserve", livello: "voce", pick: (sp) => sp.passivo.riserve },
   { label: "Utile esercizio", livello: "voce", pick: (sp) => sp.passivo.utile_esercizio },
   { label: "Mezzi propri TOT", livello: "subtot", pick: (sp) => sp.passivo.mezzi_propri },
-  { label: "TFR", livello: "voce", pick: (sp) => sp.passivo.fondo_tfr },
-  { label: "Fondi rischi", livello: "voce", pick: (sp) => sp.passivo.fondi_rischi },
-  { label: "Mutui MLT", livello: "voce", pick: (sp) => sp.passivo.mutui_mlt },
-  { label: "Pas. Consol. TOT", livello: "subtot", pick: (sp) => sp.passivo.pas_consolidato },
-  { label: "Banche -", livello: "voce", pick: (sp) => sp.passivo.banche_negative },
-  { label: "Debiti forn.", livello: "voce", pick: (sp) => sp.passivo.debiti_fornitori },
-  { label: "Debiti trib.", livello: "voce", pick: (sp) => sp.passivo.debiti_tributari },
-  { label: "Debiti pers.", livello: "voce", pick: (sp) => sp.passivo.debiti_personale },
-  { label: "Debiti prev.", livello: "voce", pick: (sp) => sp.passivo.debiti_previdenziali },
-  { label: "Pas. Corrente TOT", livello: "subtot", pick: (sp) => sp.passivo.pas_corrente },
+  // Debiti/passività: aumento = negativo (rosso).
+  { label: "TFR", livello: "voce", pick: (sp) => sp.passivo.fondo_tfr, higherIsWorse: true },
+  { label: "Fondi rischi", livello: "voce", pick: (sp) => sp.passivo.fondi_rischi, higherIsWorse: true },
+  { label: "Mutui MLT", livello: "voce", pick: (sp) => sp.passivo.mutui_mlt, higherIsWorse: true },
+  { label: "Pas. Consol. TOT", livello: "subtot", pick: (sp) => sp.passivo.pas_consolidato, higherIsWorse: true },
+  { label: "Banche -", livello: "voce", pick: (sp) => sp.passivo.banche_negative, higherIsWorse: true },
+  { label: "Debiti forn.", livello: "voce", pick: (sp) => sp.passivo.debiti_fornitori, higherIsWorse: true },
+  { label: "Debiti trib.", livello: "voce", pick: (sp) => sp.passivo.debiti_tributari, higherIsWorse: true },
+  { label: "Debiti pers.", livello: "voce", pick: (sp) => sp.passivo.debiti_personale, higherIsWorse: true },
+  { label: "Debiti prev.", livello: "voce", pick: (sp) => sp.passivo.debiti_previdenziali, higherIsWorse: true },
+  { label: "Pas. Corrente TOT", livello: "subtot", pick: (sp) => sp.passivo.pas_corrente, higherIsWorse: true },
+  // Totale passivo = totale attivo per costruzione: neutro, nessun segnale buono/cattivo.
   { label: "TOTALE PASSIVO", livello: "totale", pick: (sp) => sp.passivo.totale },
 ];
 
@@ -348,6 +358,16 @@ function RigaConfrontoRow({
   const delta =
     corr !== null && prec !== null ? calcDeltaPct(corr, prec) : null;
 
+  // Colore del delta: sui debiti/passività un aumento è NEGATIVO → invertiamo
+  // (aumento rosso, calo verde). Attivo e patrimonio netto: logica normale
+  // (aumento verde). Variazione nulla = neutro (né verde né rosso).
+  const deltaColorClass =
+    delta === null || delta === 0
+      ? "text-muted-foreground"
+      : (riga.higherIsWorse ? delta < 0 : delta > 0)
+        ? "text-emerald-600"
+        : "text-rose-600";
+
   const isSub = riga.livello === "subtot";
   const isTot = riga.livello === "totale";
 
@@ -374,11 +394,7 @@ function RigaConfrontoRow({
       <td
         className={cn(
           "px-3 py-2 text-right tabular-nums text-xs font-medium",
-          delta === null
-            ? "text-muted-foreground"
-            : delta >= 0
-              ? "text-emerald-600"
-              : "text-rose-600",
+          deltaColorClass,
         )}
       >
         {delta === null ? "—" : formatPctDelta(delta)}

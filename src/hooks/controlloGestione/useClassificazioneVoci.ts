@@ -106,7 +106,12 @@ export function useUpdateClassificazione() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.controlloGestione.classificazione(effectiveCompany?.id) });
-      qc.invalidateQueries({ queryKey: ["cg", "ce"] });
+      // Cambiare tipo F/V/Z o macro_voce ricalcola CE, BEP, SP, Rating, Indici,
+      // Imposte, Budget e i dettagli mensili. Prima si invalidava solo il CE →
+      // l'UI prometteva "aggiorna il BEP" ma il BEP restava fermo fino allo
+      // staleTime. Invalidare l'intero namespace "cg" (prefix-match) tiene
+      // coerenti tutte le tab dopo la modifica.
+      qc.invalidateQueries({ queryKey: ["cg"] });
     },
     onError: (err) => toast.error(`Errore aggiornamento: ${(err as Error).message}`),
   });
