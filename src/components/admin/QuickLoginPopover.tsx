@@ -35,6 +35,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   platform_marketing: "Platform Marketing",
   platform_implementation: "Platform Implementation",
   multi_company_user: "Multi-Azienda",
+  produttore_admin: "Produttore",
 };
 
 const ROLE_COLORS: Record<AppRole, string> = {
@@ -54,8 +55,12 @@ const ROLE_COLORS: Record<AppRole, string> = {
   platform_marketing: "bg-amber-100 text-amber-800",
   platform_implementation: "bg-rose-100 text-rose-800",
   multi_company_user: "bg-teal-100 text-teal-800",
+  produttore_admin: "bg-lime-100 text-lime-800",
 };
 
+// TUTTI i ruoli dell'app: un ruolo assente qui rendeva i suoi utenti
+// INVISIBILI nel popover (venivano fetchati ma mai raggruppati) — es. i
+// produttori e i partner referral risultavano "Nessun utente trovato".
 const ROLE_ORDER: AppRole[] = [
   "super_admin",
   "company_admin",
@@ -66,6 +71,14 @@ const ROLE_ORDER: AppRole[] = [
   "salesperson",
   "call_center",
   "accountant",
+  "produttore_admin",
+  "referrer",
+  "multi_company_user",
+  "platform_manager",
+  "platform_sales",
+  "platform_support",
+  "platform_marketing",
+  "platform_implementation",
 ];
 
 const AVATAR_COLORS = [
@@ -99,6 +112,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   platform_marketing: "/admin",
   platform_implementation: "/admin",
   multi_company_user: "/azienda",
+  produttore_admin: "/produttore",
 };
 
 // Mappa ruolo → subdomain di produzione.
@@ -152,9 +166,15 @@ export function QuickLoginPopover() {
         .limit(50);
 
       if (debouncedSearch) {
-        profilesQuery = profilesQuery.or(
-          `first_name.ilike.%${debouncedSearch}%,last_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`
-        );
+        // Sanitizza il termine: virgole e parentesi spezzano la grammatica
+        // dell'or= di PostgREST (una virgola = nuova condizione → 400 e lista
+        // vuota cercando ad es. "rossi, mario"); % e _ sono wildcard ilike.
+        const term = debouncedSearch.replace(/[,()%_]/g, " ").trim();
+        if (term) {
+          profilesQuery = profilesQuery.or(
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`
+          );
+        }
       }
 
       const { data: profiles, error: profilesError } = await profilesQuery;
@@ -231,7 +251,7 @@ export function QuickLoginPopover() {
 
       setOpen(false);
       setSearch("");
-      toast.success(`Accesso effettuato come ${user.first_name} ${user.last_name}`);
+      toast.success(`Accesso effettuato come ${`${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email}`);
 
       const target = REDIRECT_MAP[user.role] || "/";
       const subdomain = subdomainForRole(user.role);
@@ -288,7 +308,9 @@ export function QuickLoginPopover() {
                 </div>
                 <div className="px-1 pb-1">
                   {group.users.map((user) => {
-                    const fullName = `${user.first_name} ${user.last_name}`;
+                    // Guard nomi null: i profili invitati pre-onboarding hanno
+                    // first/last_name vuoti — .charAt su null crashava il popover.
+                    const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email;
                     return (
                       <button
                         key={user.id}
@@ -300,7 +322,7 @@ export function QuickLoginPopover() {
                           <AvatarFallback
                             className={`${getAvatarColor(fullName)} text-white text-xs font-semibold`}
                           >
-                            {user.first_name.charAt(0).toUpperCase()}
+                            {fullName.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">

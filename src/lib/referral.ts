@@ -42,8 +42,16 @@ export function buildReferralLink(
   referralCode: string,
   params: ReferralLinkParams = {},
 ): string {
+  // Il link da condividere con un potenziale CLIENTE punta alla landing
+  // tracciata /ref/:code (ReferralLanding): registra il click via
+  // track-referral-click, salva ref_code + timestamp e porta a /register.
+  // Prima puntava a /referral-login ("Accesso riservato ai partner"): un
+  // prospect ci finiva su un login sbagliato e il click NON alimentava
+  // l'attribuzione. Codice nel PATH, UTM in query. Host = stesso dominio SPA.
   const url = new URL(getReferralLoginUrl());
-  url.searchParams.set("ref", referralCode.trim());
+  url.pathname = `/ref/${encodeURIComponent(referralCode.trim())}`;
+  url.search = "";
+  url.hash = "";
 
   Object.entries(params).forEach(([key, value]) => {
     const cleanValue = String(value ?? "").trim();

@@ -73,7 +73,7 @@ export default function ProduttoreDashboard() {
           .select("id, name, status, billing_comped, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
           .eq("parent_company_id", companyId)
           .order("created_at", { ascending: false }),
-        sb.from("companies").select("reseller_billing_mode").eq("id", companyId).maybeSingle(),
+        sb.from("companies").select("reseller_billing_mode, reseller_wholesale_pct").eq("id", companyId).maybeSingle(),
       ]);
       if (rivsRes.error) throw new Error(rivsRes.error.message);
       if (compRes.error) throw new Error(compRes.error.message);
@@ -89,6 +89,7 @@ export default function ProduttoreDashboard() {
           plan_price: Number((r.subscription_plans as { price_monthly?: number } | null)?.price_monthly ?? 0),
         })) as Rivenditore[],
         mode: (compRes.data?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
+        wholesalePct: Math.min(100, Math.max(0, Number(compRes.data?.reseller_wholesale_pct ?? 0))),
       };
     },
   });
@@ -150,11 +151,17 @@ export default function ProduttoreDashboard() {
 
   const rivenditori = data?.rivenditori ?? [];
   const mode = data?.mode ?? "fabbrica_paga";
+  const wholesalePct = data?.wholesalePct ?? 0;
   const attivi = rivenditori.filter((r) => r.status === "active").length;
   const comped = rivenditori.filter((r) => r.billing_comped).length;
   const paganti = rivenditori.length - comped;
-  // Quanto paghi TU al mese = somma dei prezzi-piano dei rivenditori comped.
-  const youPayMonthly = rivenditori.filter((r) => r.billing_comped).reduce((s, r) => s + (r.plan_price ?? 0), 0);
+  // Quanto paghi TU al mese = prezzi-piano dei rivenditori comped, scontati
+  // della % wholesale. Arrotondamento AL CENTESIMO PER RIGA come fa il server
+  // (get-produttore-billing: your_price = round2(list_price*factor) poi somma):
+  // senza il round per-riga la card divergeva di 1-2 cent dalla pagina Fatturazione.
+  const youPayMonthly = rivenditori
+    .filter((r) => r.billing_comped)
+    .reduce((s, r) => s + Math.round((r.plan_price ?? 0) * (1 - wholesalePct / 100) * 100) / 100, 0);
   const byPlan = plans.map((p) => ({ name: p.name, count: rivenditori.filter((r) => r.subscription_plan_id === p.id).length }));
 
   const ql = q.trim().toLowerCase();
