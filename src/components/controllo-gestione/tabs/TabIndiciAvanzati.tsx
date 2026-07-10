@@ -28,6 +28,13 @@ export function TabIndiciAvanzati({ anno }: Props) {
 
   const { rotazione, altman, dscr } = q.data;
 
+  // Componenti DSCR ricostruite dalla formula della RPC (DSCR = flusso / rate):
+  // così la tabellina quadra SEMPRE col valore mostrato. Il backend stima le
+  // imposte al 30% flat sull'utile ante imposte (convenzione bancaria prudente),
+  // diversa dall'IRES+IRAP puntuale della card sopra.
+  const dscrFlusso = dscr.valore !== null ? dscr.valore * dscr.rate_anno : null;
+  const dscrImposte = dscrFlusso !== null ? dscr.ebitda - dscrFlusso : null;
+
   return (
     <div className="space-y-4">
       {/* Sezione Imposte IRES + IRAP */}
@@ -283,11 +290,15 @@ export function TabIndiciAvanzati({ anno }: Props) {
                   </tr>
                   <tr className="border-b">
                     <td className="py-1.5">− Imposte stimate (30% utile a.i.)</td>
-                    <td className="py-1.5 text-right tabular-nums">—</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {dscrImposte !== null ? formatCurrency(dscrImposte) : "—"}
+                    </td>
                   </tr>
                   <tr className="border-b font-medium">
                     <td className="py-1.5">= Flusso disponibile</td>
-                    <td className="py-1.5 text-right tabular-nums">—</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {dscrFlusso !== null ? formatCurrency(dscrFlusso) : "—"}
+                    </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-1.5">Rate mutui annuali (capitale + interessi)</td>
