@@ -83,6 +83,13 @@ function statusColor(status: string | null): string {
     case "PENDING": return "bg-amber-100 text-amber-800";
     case "REJECTED": return "bg-red-100 text-red-800";
     case "PAUSED": return "bg-gray-200 text-gray-700";
+    // stati d'allarme Meta: prima cadevano nel default grigio neutro e un
+    // template FLAGGED/DISABLED sembrava uno stato sconosciuto, non un problema
+    case "DISABLED": return "bg-red-100 text-red-800";
+    case "FLAGGED": return "bg-red-100 text-red-800";
+    case "IN_APPEAL": return "bg-amber-100 text-amber-800";
+    case "PENDING_DELETION": return "bg-gray-200 text-gray-700";
+    case "REINSTATED": return "bg-green-100 text-green-800";
     default: return "bg-muted text-muted-foreground";
   }
 }
@@ -92,6 +99,11 @@ function statusLabel(status: string | null): string {
     case "PENDING": return "In attesa";
     case "REJECTED": return "Rifiutato";
     case "PAUSED": return "Sospeso";
+    case "DISABLED": return "Disabilitato da Meta";
+    case "FLAGGED": return "Segnalato da Meta";
+    case "IN_APPEAL": return "In appello";
+    case "PENDING_DELETION": return "In eliminazione";
+    case "REINSTATED": return "Ripristinato";
     default: return status ?? "—";
   }
 }
@@ -242,8 +254,10 @@ export default function TemplatesPage() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["wa", "templates", "live", companyId, waNumberId] });
-    queryClient.invalidateQueries({ queryKey: ["wa", "templates", "mappings", companyId, waNumberId] });
+    // prefisso intero: crea/modifica/elimina devono aggiornare anche la copia
+    // DB (useWAMetaTemplates) usata da Composer e Broadcast — prima restava
+    // stale finché non si premeva "Sincronizza da Meta".
+    queryClient.invalidateQueries({ queryKey: ["wa", "templates"] });
   };
 
   // ── Mutations (sempre con wa_number_id → niente mix tra WABA) ──
@@ -454,8 +468,8 @@ export default function TemplatesPage() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8"
-                              disabled={mappingsQuery.isLoading}
-                              title={mappingsQuery.isLoading ? "Carico le mappature…" : undefined}
+                              disabled={mappingsQuery.isLoading || mappingsQuery.isError}
+                              title={mappingsQuery.isLoading ? "Carico le mappature…" : mappingsQuery.isError ? "Mappature variabili non caricate: riapri la pagina prima di modificare (salvando ora le azzereresti)" : undefined}
                               onClick={() => openEdit(t)} aria-label={`Modifica ${t.name}`}>
                               <Pencil className="h-4 w-4" />
                             </Button>

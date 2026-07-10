@@ -328,7 +328,8 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/calendario" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCalendar /></RequireAdminPermission>} />
         <Route path="marketing/email" element={<RequireAdminPermission permission="can_manage_marketing"><AdminEmailMarketing /></RequireAdminPermission>} />
         <Route path="marketing/sms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSmsMarketing /></RequireAdminPermission>} />
-        <Route path="marketing/whatsapp" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsApp /></RequireAdminPermission>} />
+        {/* wildcard: AdminWhatsApp gestisce internamente broadcast/nuovo, broadcast/:id, numeri/:id */}
+        <Route path="marketing/whatsapp/*" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsApp /></RequireAdminPermission>} />
         <Route path="marketing/automazioni" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAutomations /></RequireAdminPermission>} />
         {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
         <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />

@@ -107,9 +107,24 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                   Attivo
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
                   <AlertTriangle className="mr-1 h-3 w-3" />
-                  {number.stato ?? "pending"}
+                  {/* prima: stato grezzo ("active" dentro un badge d'allarme se
+                      mancava solo il webhook) — ora label parlante */}
+                  {number.stato === "active" && !number.webhook_verified
+                    ? "Webhook da verificare"
+                    : ({ pending_verification: "In verifica", suspended: "Sospeso", removed: "Rimosso", pending: "In attesa" } as Record<string, string>)[number.stato ?? "pending"] ?? number.stato ?? "In attesa"}
+                </Badge>
+              )}
+              {/* Health Meta: quality rating early-warning (prima invisibile:
+                  un numero RED — verso il blocco Meta — appariva come uno GREEN) */}
+              {number.quality_rating && (
+                <Badge variant="outline" className={
+                  number.quality_rating === "GREEN" ? "border-green-300 text-green-700 dark:border-green-800 dark:text-green-400"
+                  : number.quality_rating === "YELLOW" ? "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400"
+                  : "border-red-300 text-red-700 dark:border-red-800 dark:text-red-400"
+                } title={`Qualità Meta: ${number.quality_rating}${number.messaging_limit_tier ? ` · tier ${number.messaging_limit_tier}` : ""}`}>
+                  {number.quality_rating === "GREEN" ? "Qualità ✓" : number.quality_rating === "YELLOW" ? "Qualità ⚠" : "Qualità ✗"}
                 </Badge>
               )}
             </div>

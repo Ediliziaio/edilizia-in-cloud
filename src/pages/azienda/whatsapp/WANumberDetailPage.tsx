@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ArrowLeft, Camera, Clock3, FileCheck2, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { useWhatsAppBase } from "./useWhatsAppBase";
 import {
   PURPOSE_AUTONOMY,
   PURPOSE_DESCRIPTIONS,
@@ -28,6 +29,7 @@ import {
 export default function WANumberDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { base: waBase } = useWhatsAppBase();
   const { data: number, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumber(id);
   const update = useUpdateWANumberSettings();
 
@@ -60,7 +62,7 @@ export default function WANumberDetailPage() {
   if (isError) {
     return (
       <div className="space-y-6 p-4 md:p-6 max-w-3xl mx-auto">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/whatsapp?tab=numeri")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(`${waBase}?tab=numeri`)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Torna ai numeri
         </Button>
@@ -108,7 +110,7 @@ export default function WANumberDetailPage() {
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/whatsapp?tab=numeri")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(`${waBase}?tab=numeri`)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Torna ai numeri
         </Button>

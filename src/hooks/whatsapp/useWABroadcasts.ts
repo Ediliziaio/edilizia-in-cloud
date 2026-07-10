@@ -35,6 +35,11 @@ export function useWABroadcast(id: string | undefined) {
   return useQuery({
     queryKey: ["wa", "broadcasts", "detail", id],
     enabled: !!id,
+    // progresso live mentre il cron invia (sending) o è in coda (scheduled)
+    refetchInterval: (query) => {
+      const st = (query.state.data as WABroadcast | null | undefined)?.status;
+      return st === "sending" || st === "scheduled" ? 10_000 : false;
+    },
     queryFn: async () => {
       const { data, error } = await withClientTimeout(
         supabase
@@ -58,9 +63,10 @@ export function useWABroadcastRecipients(broadcastId: string | undefined) {
       const { data, error } = await withClientTimeout(
         supabase
         .from("whatsapp_broadcast_recipients")
-        .select("id, phone_number, status, sent_at, read_at, delivered_at, error_message")
+        // colonne REALI: phone (non phone_number); niente created_at in tabella
+        .select("id, phone, status, sent_at, read_at, delivered_at, error_message")
         .eq("broadcast_id", broadcastId!)
-        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
         .limit(500),
         "Caricamento destinatari broadcast",
       );
@@ -129,12 +135,15 @@ export function useCancelBroadcast() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("whatsapp_broadcasts")
         .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("status", "scheduled");
+        .eq("status", "scheduled")
+        .select("id");
       if (error) throw error;
+      // prima: 0 righe aggiornate (es. già in invio) → toast di falso successo
+      if (!data?.length) throw new Error("Il broadcast è già in invio o concluso: non è più annullabile.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wa", "broadcasts"] });

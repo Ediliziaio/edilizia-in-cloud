@@ -226,7 +226,7 @@ export function useWhatsAppNumbers() {
         supabase
         .from("ai_whatsapp_numbers")
         .select(
-          "id, company_id, purpose, display_name, nome_account, numero, phone_number_id, waba_id, agent_id, stato, webhook_verified, messaggio_benvenuto, messaggio_fuori_orario, orario_attivo, operational_settings, daily_budget_eur, current_day_spend_eur, creato_il, updated_at",
+          "id, company_id, purpose, display_name, nome_account, numero, phone_number_id, waba_id, agent_id, stato, webhook_verified, quality_rating, messaging_limit_tier, messaggio_benvenuto, messaggio_fuori_orario, orario_attivo, operational_settings, daily_budget_eur, current_day_spend_eur, creato_il, updated_at",
         )
         .eq("company_id", companyId!)
         .is("deleted_at", null)
@@ -284,6 +284,7 @@ export function useDeleteWANumber() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: WA_NUMBERS_KEY });
+      qc.invalidateQueries({ queryKey: ["wa", "metrics"] }); // StatsBar "Numeri attivi" (prima stale fino a 60s)
       toast.success("Numero rimosso.");
     },
     onError: (err: Error) => toast.error(`Errore: ${err.message}`),
@@ -335,6 +336,7 @@ export function useConnectWANumber() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...WA_NUMBERS_KEY, companyId] });
+      qc.invalidateQueries({ queryKey: ["wa", "metrics"] });
       toast.success("Numero WhatsApp registrato. Completa la verifica webhook.");
     },
     onError: (err: Error) => toast.error(`Errore: ${err.message}`),
@@ -354,6 +356,7 @@ export function useUpdateWANumberSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: WA_NUMBERS_KEY });
+      qc.invalidateQueries({ queryKey: ["wa", "metrics"] }); // StatsBar "Numeri attivi" (prima stale fino a 60s)
       toast.success("Impostazioni salvate.");
     },
     onError: (err: Error) => toast.error(`Errore: ${err.message}`),

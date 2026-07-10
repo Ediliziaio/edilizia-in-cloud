@@ -26,6 +26,7 @@ import { useCreateBroadcast } from "@/hooks/whatsapp/useWABroadcasts";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useQuery } from "@tanstack/react-query";
+import { useWhatsAppBase } from "./useWhatsAppBase";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -37,6 +38,7 @@ const CONTACT_FIELD_OPTIONS = [
 
 export default function BroadcastCreatePage() {
   const navigate = useNavigate();
+  const { base: waBase } = useWhatsAppBase();
   const companyId = useEffectiveCompanyId();
   const create = useCreateBroadcast();
 
@@ -49,9 +51,12 @@ export default function BroadcastCreatePage() {
   const [statoFilter, setStatoFilter] = useState<string>("");
   const [excludeOptOut, setExcludeOptOut] = useState(true);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
-  const [scheduledDate, setScheduledDate] = useState<string>(
-    new Date(Date.now() + 10 * 60_000).toISOString().slice(0, 16),
-  );
+  const [scheduledDate, setScheduledDate] = useState<string>(() => {
+    // datetime-local vuole l'ora LOCALE: toISOString() è UTC e precompilava
+    // un orario 1-2 ore nel passato (broadcast "programmato" già scaduto).
+    const d = new Date(Date.now() + 10 * 60_000);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  });
   const [windowStart, setWindowStart] = useState("09:00");
   const [windowEnd, setWindowEnd] = useState("18:00");
 
@@ -80,7 +85,7 @@ export default function BroadcastCreatePage() {
         .from("marketing_contacts")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId!)
-        .not("telefono", "is", null);
+        .not("phone", "is", null);
       if (tipoFilter && tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
       if (statoFilter) q = q.eq("stato", statoFilter);
       if (excludeOptOut) q = q.eq("opt_out", false);
@@ -90,9 +95,10 @@ export default function BroadcastCreatePage() {
     },
   });
 
-  // FIX P1: preview count SOLO contatti con telefono in formato E.164 (+39...).
-  // Meta API rifiuta numeri "3331234567" senza prefisso → invio fallisce silenziosamente.
-  // Mostriamo agli utenti la differenza prima del send così sanno quanti sono spendibili.
+  // FIX P1 + schema drift: conta i contatti con telefono_normalized (E.164) —
+  // la STESSA condizione usata dalla RPC populate_broadcast_recipients: il
+  // numero mostrato coincide con quanto verrà davvero accodato. (Prima si
+  // interrogava la colonna inesistente `telefono` → 400 e wizard bloccato allo step 3.)
   const { data: previewE164Count } = useQuery({
     queryKey: ["wa", "broadcast", "preview-e164", companyId, tipoFilter, statoFilter, excludeOptOut],
     enabled: !!companyId && step >= 3,
@@ -101,7 +107,7 @@ export default function BroadcastCreatePage() {
         .from("marketing_contacts")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId!)
-        .like("telefono", "+%");
+        .not("telefono_normalized", "is", null);
       if (tipoFilter && tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
       if (statoFilter) q = q.eq("stato", statoFilter);
       if (excludeOptOut) q = q.eq("opt_out", false);
@@ -149,7 +155,7 @@ export default function BroadcastCreatePage() {
         window_end: windowEnd,
       },
       {
-        onSuccess: () => navigate("/azienda/whatsapp?tab=broadcast"),
+        onSuccess: () => navigate(`${waBase}?tab=broadcast`),
       },
     );
   };
@@ -471,7 +477,7 @@ export default function BroadcastCreatePage() {
         <Button
           variant="outline"
           onClick={() => {
-            if (step === 1) navigate("/azienda/whatsapp?tab=broadcast");
+            if (step === 1) navigate(`${waBase}?tab=broadcast`);
             else setStep((s) => (Math.max(1, s - 1) as Step));
           }}
         >

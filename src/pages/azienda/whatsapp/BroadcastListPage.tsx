@@ -18,6 +18,7 @@ import {
 import { Loader2, Plus, Eye } from "lucide-react";
 import { AlertTriangle, RefreshCw, Search } from "lucide-react";
 import { useWABroadcasts } from "@/hooks/whatsapp/useWABroadcasts";
+import { useWhatsAppBase } from "./useWhatsAppBase";
 
 function statusColor(status: string | null): string {
   switch ((status ?? "").toLowerCase()) {
@@ -37,6 +38,7 @@ function statusColor(status: string | null): string {
 }
 
 export default function BroadcastListPage() {
+  const { base: waBase } = useWhatsAppBase();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const { data: broadcasts, isLoading, isError, error, refetch, isFetching } = useWABroadcasts(
@@ -61,7 +63,7 @@ export default function BroadcastListPage() {
           </p>
         </div>
         <Button asChild aria-label="Nuova campagna broadcast">
-          <Link to="/azienda/whatsapp/broadcast/nuovo">
+          <Link to={`${waBase}/broadcast/nuovo`}>
             <Plus className="mr-2 h-4 w-4" />
             Nuova campagna
           </Link>
@@ -161,7 +163,7 @@ export default function BroadcastListPage() {
                           size="sm"
                           aria-label={`Dettaglio campagna ${b.nome}`}
                         >
-                          <Link to={`/azienda/whatsapp/broadcast/${b.id}`}>
+                          <Link to={`${waBase}/broadcast/${b.id}`}>
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
