@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { calculateStoredCommissionNet } from "@/lib/commissions";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -292,7 +292,7 @@ export function OrderEconomicsSummary({
         <CardContent>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <Skeleton className="h-16 rounded-lg" />
                 <Skeleton className="h-16 rounded-lg" />
                 <Skeleton className="h-16 rounded-lg" />
@@ -330,12 +330,13 @@ export function OrderEconomicsSummary({
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px]">
           {/* KPI + cassa */}
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi label="Ricavi" value={formatCurrency(totalAmount)} hint="imponibile" />
-              <Kpi label="Costi" value={formatCurrency(econ.costsTot)} hint="netto" />
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <Kpi label="Ricavi" value={formatCurrency(totalAmount)} valueCompact={formatCurrencyCompact(totalAmount)} hint="imponibile" />
+              <Kpi label="Costi" value={formatCurrency(econ.costsTot)} valueCompact={formatCurrencyCompact(econ.costsTot)} hint="netto" />
               <Kpi
                 label="Margine lordo"
                 value={formatCurrency(econ.margin)}
+                valueCompact={formatCurrencyCompact(econ.margin)}
                 valueClass={marginColor}
                 hint={econ.margin < 0 ? "in perdita" : "netto"}
               />
@@ -422,11 +423,14 @@ export function OrderEconomicsSummary({
 
             {/* Cassa */}
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="text-emerald-600 dark:text-emerald-400">
+              {/* gap + flex-wrap: a 375px "Incassato …" e "Da incassare …" si
+                  attaccavano (justify-between senza spazio) → ora minimo gap e
+                  vanno a capo se non entrano. */}
+              <div className="mb-1 flex items-center justify-between flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                <span className="text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                   Incassato {formatCurrency(cashColl)}
                 </span>
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground whitespace-nowrap">
                   Da incassare {formatCurrency(dueAmount)}
                 </span>
               </div>
@@ -533,18 +537,29 @@ export function OrderEconomicsSummary({
 function Kpi({
   label,
   value,
+  valueCompact,
   hint,
   valueClass,
 }: {
   label: string;
   value: string;
+  /** Variante corta per mobile (es. "€85k"): 3 colonne a 375px non reggono
+      l'importo pieno. Se assente, si usa `value` con truncate di sicurezza. */
+  valueCompact?: string;
   hint?: string;
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-2.5">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`text-base font-bold leading-tight ${valueClass ?? ""}`}>{value}</p>
+    <div className="rounded-lg border bg-muted/30 p-2 sm:p-2.5 min-w-0">
+      <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
+      <p className={`text-sm sm:text-base font-bold leading-tight tabular-nums truncate ${valueClass ?? ""}`} title={value}>
+        {valueCompact ? (
+          <>
+            <span className="sm:hidden">{valueCompact}</span>
+            <span className="hidden sm:inline">{value}</span>
+          </>
+        ) : value}
+      </p>
       {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
     </div>
   );

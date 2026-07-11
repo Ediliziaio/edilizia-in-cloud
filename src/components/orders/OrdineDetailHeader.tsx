@@ -81,7 +81,7 @@ export function OrdineDetailHeader({
             <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight line-clamp-2 sm:line-clamp-none">
               {descrizione || "Commessa senza descrizione"}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
@@ -95,23 +95,23 @@ export function OrdineDetailHeader({
           <QuotePrimaryButton
             size="sm"
             onClick={onRegistraIncasso}
-            className="flex-1 sm:flex-none"
+            className="flex-1 sm:flex-none whitespace-nowrap"
           >
             <Banknote className="h-3.5 w-3.5" />
             Registra incasso
           </QuotePrimaryButton>
-          {/* Modifica — visibile solo se canEdit */}
+          {/* Modifica — icona sola su mobile (il CTA incasso prende la larghezza),
+              testo su desktop. Visibile solo se canEdit. */}
           {canEdit && (
             <Button
               variant="outline"
               size="sm"
               onClick={onModifica}
-              className="text-xs flex-1 sm:flex-none"
+              className="text-xs shrink-0 w-9 px-0 sm:w-auto sm:px-3"
               aria-label="Modifica commessa"
             >
               <Pencil className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Modifica</span>
-              <span className="sm:hidden">Modifica</span>
             </Button>
           )}
           {/* Azioni secondarie: dropdown su mobile */}
