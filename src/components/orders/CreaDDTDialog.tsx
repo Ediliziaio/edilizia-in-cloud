@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Truck, Sparkles, Check, User, Loader2, Info } from "lucide-react";
+import { Truck, Check, User, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,20 +26,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
-import type { ClienteSnapshot, RigaDocumento } from "@/types/fatturazione";
+import type { ClienteSnapshot } from "@/types/fatturazione";
+import { useRigheComposer, type RigaComposerItem } from "@/components/orders/RigheComposer";
 
 // ── Types ────────────────────────────────────────────────────────
 
-interface OrderItemRow {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  unit_price: number | null;
-  vat_rate: number | null;
-  discount_percent: number | null;
-  position: number | null;
-}
+type OrderItemRow = RigaComposerItem;
 
 interface CreaDDTDialogProps {
   open: boolean;
@@ -54,55 +46,6 @@ interface CreaDDTDialogProps {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-/** Build DDT lines from order items */
-function buildRigheFromItems(
-  items: OrderItemRow[],
-  defaultVat: number
-): RigaDocumento[] {
-  return items.map((item, idx) => {
-    const qty = item.quantity ?? 1;
-    const unitPrice = item.unit_price ?? 0;
-    const discountPct = item.discount_percent ?? 0;
-    const aliquotaNum = item.vat_rate ?? defaultVat;
-    const aliquota = String(aliquotaNum);
-
-    const prezzoNetto = discountPct > 0
-      ? round2(unitPrice * (1 - discountPct / 100))
-      : unitPrice;
-
-    const imponibile = round2(prezzoNetto * qty);
-    const imposta = round2(imponibile * aliquotaNum / 100);
-    const totaleRiga = round2(imponibile + imposta);
-
-    let descrizione = item.name;
-    if (item.description) {
-      descrizione += `\n${item.description}`;
-    }
-
-    return {
-      id: crypto.randomUUID(),
-      numero_linea: idx + 1,
-      descrizione,
-      quantita: qty,
-      unita_misura: "pz",
-      prezzo_unitario: prezzoNetto,
-      ...(discountPct > 0 && { sconto_percentuale: discountPct }),
-      imponibile,
-      aliquota_iva: aliquota,
-      imposta,
-      totale_riga: totaleRiga,
-    };
-  });
-}
 
 const CAUSALI_TRASPORTO = [
   { value: "vendita", label: "Vendita" },
@@ -196,15 +139,11 @@ export function CreaDDTDialog({
     },
   });
 
-  // ── Derived data ─────────────────────────────────────────────
-  const previewRighe = useMemo(
-    () => buildRigheFromItems(orderItems, defaultVat),
-    [orderItems, defaultVat]
-  );
-
-  const totaleImponibile = useMemo(() => previewRighe.reduce((s, r) => s + r.imponibile, 0), [previewRighe]);
-  const totaleIva = useMemo(() => previewRighe.reduce((s, r) => s + r.imposta, 0), [previewRighe]);
-  const totaleLordo = useMemo(() => previewRighe.reduce((s, r) => s + r.totale_riga, 0), [previewRighe]);
+  // ── Composizione righe flessibile (articoli selezionabili + righe libere) ──
+  const { righe: previewRighe, totals, node: composerNode } = useRigheComposer({
+    orderItems, defaultVat, itemsLoading, open, label: "Righe DDT",
+  });
+  const totaleLordo = totals.lordo;
 
   // ── Create mutation ──────────────────────────────────────────
   const createMutation = useCreateDocumento();
@@ -286,10 +225,10 @@ export function CreaDDTDialog({
     );
   };
 
-  // Compute total colli from items if not manually set
+  // Compute total colli from the composed lines (rispetta le esclusioni)
   const autoColli = useMemo(
-    () => orderItems.reduce((sum, item) => sum + (item.quantity ?? 1), 0),
-    [orderItems]
+    () => previewRighe.reduce((sum, r) => sum + (r.quantita ?? 1), 0),
+    [previewRighe]
   );
 
   // ── Render ───────────────────────────────────────────────────
@@ -302,7 +241,8 @@ export function CreaDDTDialog({
             Crea DDT da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
-            Documento di Trasporto — i dati del cliente e gli articoli verranno compilati dalla commessa.
+            Documento di Trasporto. Scegli quali articoli inserire (o nessuno) e aggiungi righe
+            descrittive libere. Potrai modificarlo nell'editor prima di emetterlo.
           </DialogDescription>
         </DialogHeader>
 
@@ -399,75 +339,8 @@ export function CreaDDTDialog({
 
         <Separator />
 
-        {/* ── DDT lines preview ──────────────────────────── */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            Articoli DDT ({previewRighe.length})
-          </p>
-
-          {itemsLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : previewRighe.length === 0 ? (
-            <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
-              <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nella commessa. Il DDT verrà creato vuoto.</span>
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              {/* Table header */}
-              <div className="grid grid-cols-[1fr_50px_80px_45px_70px] gap-1 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>Descrizione</span>
-                <span className="text-right">Qtà</span>
-                <span className="text-right">Prezzo</span>
-                <span className="text-right">IVA</span>
-                <span className="text-right">Totale</span>
-              </div>
-              {/* Rows */}
-              <div className="divide-y max-h-48 overflow-auto">
-                {previewRighe.map((riga) => (
-                  <div
-                    key={riga.id}
-                    className="grid grid-cols-[1fr_50px_80px_45px_70px] gap-1 px-3 py-2 text-xs items-start"
-                  >
-                    <span className="text-gray-800 leading-tight line-clamp-2">
-                      {riga.descrizione}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {riga.quantita}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {fmt(riga.prezzo_unitario)}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground">
-                      {riga.aliquota_iva}%
-                    </span>
-                    <span className="text-right tabular-nums font-medium">
-                      {fmt(riga.totale_riga)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {/* Totals */}
-              <div className="bg-muted/30 border-t px-3 py-2 space-y-0.5">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Imponibile</span>
-                  <span className="tabular-nums">{fmt(totaleImponibile)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>IVA</span>
-                  <span className="tabular-nums">{fmt(totaleIva)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold pt-1 border-t border-dashed">
-                  <span>Totale DDT</span>
-                  <span className="tabular-nums text-primary">{fmt(totaleLordo)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* ── Composizione righe (articoli selezionabili + righe libere) ── */}
+        {composerNode}
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -475,7 +348,7 @@ export function CreaDDTDialog({
           </Button>
           <Button
             onClick={handleCreaDDT}
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || previewRighe.length === 0}
           >
             {createMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
