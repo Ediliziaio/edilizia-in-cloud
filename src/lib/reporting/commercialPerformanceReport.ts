@@ -63,6 +63,8 @@ export interface CommercialOpportunityRow {
   next_action?: string | null;
   next_action_date?: string | null;
   updated_at?: string | null;
+  won_at?: string | null;
+  lost_at?: string | null;
   created_at?: string | null;
   source?: string | null;
   lost_reason?: string | null;
@@ -496,7 +498,7 @@ function buildForecast(
 
   const wonThisMonthCents = sum(
     allOpportunities
-      .filter((opportunity) => isWonStatus(opportunity.status) && isSameMonth(opportunity.updated_at, now))
+      .filter((opportunity) => isWonStatus(opportunity.status) && isSameMonth(opportunity.won_at ?? opportunity.updated_at, now))
       .map((opportunity) => opportunityValueCents(opportunity)),
   );
   const projectedMonthCents = wonThisMonthCents + weighted30Cents;
@@ -625,7 +627,7 @@ function computeQuoteToSaleDays(
   const quoteDate = parseDate(quote.created_at);
   if (!quoteDate) return null;
   const orderDate = orders.map((order) => parseDate(order.created_at)).filter(Boolean).sort(sortDatesAsc)[0] as Date | undefined;
-  const opportunityWonDate = isWonStatus(opportunity?.status) ? parseDate(opportunity?.updated_at) : null;
+  const opportunityWonDate = isWonStatus(opportunity?.status) ? parseDate(opportunity?.won_at ?? opportunity?.updated_at) : null;
   const saleDate = orderDate ?? opportunityWonDate;
   return saleDate ? diffDays(quoteDate, saleDate) : null;
 }
@@ -760,7 +762,7 @@ function diffDays(from: Date, to: Date) {
 
 function isSameMonth(value: string | null | undefined, now: Date) {
   const date = parseDate(value);
-  return Boolean(date && date.getUTCFullYear() === now.getUTCFullYear() && date.getUTCMonth() === now.getUTCMonth());
+  return Boolean(date && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth());
 }
 
 function isoDate(date: Date) {

@@ -139,7 +139,7 @@ async function fetchQuotes(companyId: string, fromDate: string, toDate: string |
 async function fetchOpportunities(companyId: string): Promise<CommercialOpportunityRow[]> {
   try {
     const { data, error } = await table("marketing_opportunities")
-      .select("id, contact_id, assigned_to, status, value, probability, expected_close_date, next_action, next_action_date, updated_at, created_at, source, lost_reason, loss_reason, lost_reason_category, competitor_won")
+      .select("id, contact_id, assigned_to, status, value, probability, expected_close_date, next_action, next_action_date, updated_at, won_at, lost_at, created_at, source, lost_reason, loss_reason, lost_reason_category, competitor_won")
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })

@@ -463,12 +463,13 @@ export function useSellerPerformance(
       const month = refDate.getMonth() + 1;
 
       // Sprint 1.4: query parallele invece di seriali (-30ms latency)
+      // Nota: nessun filtro data a livello DB — il filtro per-status viene
+      // applicato client-side sotto per usare la data corretta (won_at/lost_at
+      // invece di updated_at che cambia a ogni modifica, causando doppi conteggi).
       let oppsQuery: any = supabase
         .from('marketing_opportunities')
-        .select('assigned_to, status, value, created_at')
-        .eq('company_id', companyId!)
-        .gte('updated_at', dateFrom)
-        .lt('updated_at', dateTo);
+        .select('assigned_to, status, value, created_at, won_at, lost_at')
+        .eq('company_id', companyId!);
       let targetsQuery: any = supabase
         .from('sales_targets')
         .select('assigned_to, user_id, target_amount, target_revenue, period_type, year, month')
@@ -499,6 +500,22 @@ export function useSellerPerformance(
 
       (opps ?? []).forEach((opp) => {
         const key = opp.assigned_to ?? 'unassigned';
+        const value = Number(opp.value ?? 0);
+
+        // Filtro per-status con la data corretta (fix: era updated_at, che cambia
+        // a ogni modifica e causava doppi conteggi per deal chiusi fuori periodo).
+        if (opp.status === 'won') {
+          const d = (opp.won_at ?? opp.created_at) as string | null;
+          if (!d || d < dateFrom || d >= dateTo) return;
+        } else if (opp.status === 'open') {
+          if (opp.created_at < dateFrom || opp.created_at >= dateTo) return;
+        } else if (opp.status === 'lost') {
+          const d = (opp.lost_at ?? opp.created_at) as string | null;
+          if (!d || d < dateFrom || d >= dateTo) return;
+        } else {
+          return;
+        }
+
         if (!sellerMap.has(key)) {
           const profile = profiles.find((p) => p.id === opp.assigned_to);
           const displayName = profile
@@ -521,7 +538,6 @@ export function useSellerPerformance(
           });
         }
         const seller = sellerMap.get(key)!;
-        const value = Number(opp.value ?? 0);
         if (opp.status === 'won') {
           seller.won_count++;
           seller.won_value += value;
