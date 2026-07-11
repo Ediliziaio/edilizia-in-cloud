@@ -79,6 +79,7 @@ export function useSocialManagerData(companyId: string | undefined) {
         const { data, error } = await fromTable("social_posts")
           .select("*")
           .eq("company_id", companyId)
+          .order("scheduled_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });
         if (error) {
           if (isSchemaUnavailable(error)) return null;

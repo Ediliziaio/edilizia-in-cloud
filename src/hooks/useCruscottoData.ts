@@ -156,7 +156,8 @@ export function useCruscottoData() {
         .from("order_installments")
         .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
         .eq("order.company_id", companyId!)
-        .eq("is_paid", false);
+        .eq("is_paid", false)
+        .limit(5000);
       if (error) throw error;
       return data as InstallmentRow[];
     },
@@ -222,18 +223,20 @@ export function useCruscottoData() {
       const dateFromStr = dateRange.from.toISOString();
       const dateToStr = dateRange.to.toISOString();
       const durationMs = dateRange.to.getTime() - dateRange.from.getTime();
-      const prevFromStr = new Date(dateRange.from.getTime() - durationMs - 86400000).toISOString();
+      const prevFromStr = new Date(dateRange.from.getTime() - durationMs).toISOString();
       const prevToStr = new Date(dateRange.from.getTime() - 1).toISOString();
 
       const [currentOrdersRes, prevOrdersRes, costsRes] = await Promise.all([
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
-          .gte("created_at", dateFromStr).lte("created_at", dateToStr),
+          .gte("created_at", dateFromStr).lte("created_at", dateToStr)
+          .limit(5000),
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
-          .gte("created_at", prevFromStr).lte("created_at", prevToStr),
+          .gte("created_at", prevFromStr).lte("created_at", prevToStr)
+          .limit(5000),
         supabase.from("company_costs").select("amount, due_date, is_paid")
           .eq("company_id", companyId!).eq("is_paid", false),
       ]);
@@ -343,7 +346,8 @@ export function useCruscottoData() {
         .select("document_type, status, issue_date, due_date, total, paid_amount, updated_at, deleted_at")
         .eq("company_id", companyId!)
         .in("document_type", [...CRUSCOTTO_INVOICE_DOCUMENT_TYPES])
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .limit(5000);
 
       if (fallbackError) throw fallbackError;
       return calculateCruscottoInvoiceStats((fallbackData ?? []) as CruscottoInvoiceStatsRow[]);
@@ -458,7 +462,8 @@ export function useCruscottoData() {
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
           .eq("is_paid", false)
-          .lt("expected_date", nowStr),
+          .lt("expected_date", nowStr)
+          .limit(5000),
         supabase.from("company_costs")
           .select("id, name, amount, due_date, category")
           .eq("company_id", companyId!)
@@ -553,9 +558,9 @@ export function useCruscottoData() {
       throwIfSupabaseError(futureInstallmentsError);
 
       const [ytdOrdersRes, monthOrdersRes, qOrdersRes] = await Promise.all([
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", yearStart),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", monthStart),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", quarterStart),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", yearStart).limit(5000),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", monthStart).limit(5000),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", quarterStart).limit(5000),
       ]);
       throwIfSupabaseError(ytdOrdersRes.error, monthOrdersRes.error, qOrdersRes.error);
 

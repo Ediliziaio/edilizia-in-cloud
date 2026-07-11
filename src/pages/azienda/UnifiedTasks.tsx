@@ -144,7 +144,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         `)
         .eq("company_id", companyId)
         .order("sort_order", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(5000);
       if (error) throw error;
       const rawTasks = data || [];
       const creatorIds = [...new Set(rawTasks.map((task: any) => task.created_by).filter(Boolean))];

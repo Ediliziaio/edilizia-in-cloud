@@ -558,6 +558,7 @@ export default function ReputationManager() {
   const [requestName, setRequestName] = useState("Clienti soddisfatti ultimo mese");
   const [requestSegment, setRequestSegment] = useState("commesse_concluse");
   const [requestChannel, setRequestChannel] = useState<Channel>("whatsapp");
+  const [isCreating, setIsCreating] = useState(false);
   const [targetOrderId, setTargetOrderId] = useState("__none__");
   const [messageTemplate, setMessageTemplate] = useState(
     `Ciao {{nome}}, grazie per aver scelto ${companyNameForCopy}. Ti va di lasciarci una recensione? Ci aiuta a migliorare e a far conoscere il nostro lavoro.`,
@@ -962,6 +963,7 @@ export default function ReputationManager() {
   };
 
   const createCampaign = () => {
+    if (isCreating) return;
     const trimmedName = requestName.trim();
     if (!trimmedName) {
       toast.error("Inserisci un nome per la richiesta recensioni.");
@@ -1008,8 +1010,10 @@ export default function ReputationManager() {
       targetCustomerId: selectedTargetOrder?.customerId ?? null,
       targetLabel,
     };
+    setIsCreating(true);
     setCampaigns((prev) => [newCampaign, ...prev]);
-    void saveCampaignToDatabase(newCampaign, messageTemplate.trim());
+    void saveCampaignToDatabase(newCampaign, messageTemplate.trim())
+      .finally(() => setIsCreating(false));
     addEvent({
       kind: "request_created",
       title: "Richiesta recensioni creata",
@@ -1532,7 +1536,7 @@ export default function ReputationManager() {
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Link inserito nel messaggio</p>
                   <p className="mt-1 break-all text-sm text-slate-700">{activeReviewLink}</p>
                 </div>
-                <Button className="w-full" onClick={createCampaign}>
+                <Button className="w-full" onClick={createCampaign} disabled={isCreating}>
                   <Send className="mr-2 h-4 w-4" />
                   Crea richiesta
                 </Button>
