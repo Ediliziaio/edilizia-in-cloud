@@ -268,26 +268,29 @@ async function fetchAssignedSalesVelocity(
   daysBack: number,
 ): Promise<SalesVelocity | null> {
   const since = new Date(Date.now() - daysBack * 86400000).toISOString();
+  // won_at/lost_at (migration 20271214000002): la data di chiusura VERA.
+  // updated_at resta come fallback per righe ante-backfill: prima qualsiasi
+  // edit successivo "spostava" la vittoria nel periodo corrente.
   const { data, error } = await supabase
     .from('marketing_opportunities')
-    .select('status, value, created_at, updated_at')
+    .select('status, value, created_at, updated_at, won_at, lost_at')
     .eq('company_id', companyId)
     .eq('assigned_to', userId)
-    .or(`status.eq.open,updated_at.gte.${since}`);
+    .or(`status.eq.open,updated_at.gte.${since},won_at.gte.${since},lost_at.gte.${since}`);
   if (error) throw error;
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as unknown as Array<{ status: string; value: number | null; created_at: string; updated_at: string; won_at?: string | null; lost_at?: string | null }>;
   const open = rows.filter((opp) => opp.status === 'open');
-  const won = rows.filter((opp) => opp.status === 'won' && opp.updated_at >= since);
-  const lost = rows.filter((opp) => opp.status === 'lost' && opp.updated_at >= since);
+  const won = rows.filter((opp) => opp.status === 'won' && (opp.won_at ?? opp.updated_at) >= since);
+  const lost = rows.filter((opp) => opp.status === 'lost' && (opp.lost_at ?? opp.updated_at) >= since);
   const closedCount = won.length + lost.length;
   const wonValue = won.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0);
   const avgDealSize = won.length > 0 ? wonValue / won.length : 0;
   const avgCycleDays = won.length > 0
     ? won.reduce((sum, opp) => {
         const created = new Date(opp.created_at).getTime();
-        const updated = new Date(opp.updated_at).getTime();
-        return sum + Math.max(1, Math.round((updated - created) / 86400000));
+        const closed = new Date(opp.won_at ?? opp.updated_at).getTime();
+        return sum + Math.max(1, Math.round((closed - created) / 86400000));
       }, 0) / won.length
     : 0;
   const winRate = closedCount > 0 ? (won.length / closedCount) * 100 : 0;
@@ -805,6 +808,8 @@ export function useUpdateOpportunityMutation() {
         next_action: string | null;
         next_action_date: string | null;
         lost_reason: string | null;
+        // colonna legacy: automazioni/report vecchi leggono loss_reason
+        loss_reason: string | null;
         lost_reason_category: string | null;
         competitor_won: string | null;
         status: string;

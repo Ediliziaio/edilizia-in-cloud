@@ -30,6 +30,7 @@ import {
 import type { OpportunitySortDir, OpportunitySortField } from "@/lib/marketingOpportunities";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
@@ -100,11 +101,16 @@ function MarketingOpportunitiesContent() {
     setURLParam("selectedPipelineId", v || "");
   }, [setURLParam]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Quick-add "+" dalla colonna kanban: fase pre-selezionata nel dialog.
+  const [quickAddStageId, setQuickAddStageId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(normalizedUrlState.searchInput);
   const searchQuery = useDebounce(searchInput, 350);
   const safeSearchQuery = useMemo(() => sanitizeOpportunitySearchTerm(searchQuery), [searchQuery]);
-  const viewMode = normalizedUrlState.viewMode;
+  const isMobile = useIsMobile();
+  // Su mobile il kanban è uno scroll orizzontale scomodo (1 colonna a schermo):
+  // forziamo la vista LISTA, molto più adatta al telefono.
+  const viewMode = isMobile ? "list" : normalizedUrlState.viewMode;
   const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -113,7 +119,9 @@ function MarketingOpportunitiesContent() {
   const initialDrillRef = useRef<OpportunityFilters | null>(null);
   if (initialDrillRef.current === null) {
     const seeded: OpportunityFilters = { ...EMPTY_FILTERS };
-    const qpStatus = searchParamsRaw.get("status");
+    const VALID_STATUSES = new Set(["open", "won", "lost", "abandoned"]);
+    const qpStatusRaw = searchParamsRaw.get("status");
+    const qpStatus = qpStatusRaw && VALID_STATUSES.has(qpStatusRaw) ? qpStatusRaw : null;
     const qpAssigned = searchParamsRaw.get("assigned_to");
     const qpSource = searchParamsRaw.get("source");
     if (qpStatus) seeded.statuses = [qpStatus];
@@ -271,7 +279,7 @@ function MarketingOpportunitiesContent() {
   );
   const stages = useMemo(() => selectedPipeline?.marketing_pipeline_stages || [], [selectedPipeline]);
 
-  const { data: opportunities = [], isLoading: loadingOpps, error: opportunitiesError, refetch: refetchOpportunities, isFetchingNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
+  const { data: opportunities = [], isLoading: loadingOpps, error: opportunitiesError, refetch: refetchOpportunities, isFetchingNextPage, hasNextPage, fetchNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -308,6 +316,8 @@ function MarketingOpportunitiesContent() {
         .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
         .eq("company_id", companyId)
         .eq("pipeline_id", selectedPipelineId)
+        // Coerente con la lista: mai esportare righe soft-deleted.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
 
@@ -656,6 +666,25 @@ function MarketingOpportunitiesContent() {
           <span className="text-xs text-muted-foreground">Caricamento opportunità… ({totalLoaded} caricate)</span>
         </div>
       )}
+      {/* Dataset parziale: l'auto-fetch si ferma al cap (500 mobile / 1500
+          desktop) — prima KPI e conteggi giravano sul sottoinsieme SENZA
+          alcun avviso né modo di caricare il resto. */}
+      {!isFetchingNextPage && hasNextPage && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-900">
+          <span>
+            Caricate le prime <strong>{totalLoaded}</strong> opportunità: KPI e conteggi si riferiscono solo a queste.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 border-blue-300 bg-white text-blue-900 hover:bg-blue-100"
+            onClick={() => fetchNextPage()}
+          >
+            Carica altre
+          </Button>
+        </div>
+      )}
       {opportunitiesError && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-center gap-2">
@@ -823,16 +852,16 @@ function MarketingOpportunitiesContent() {
           {viewMode === "list" ? (
             <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} />
           ) : (
-            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} /></div>
+            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }} /></div>
           )}
         </>
       )}
 
       {selectedPipelineId && stages.length > 0 && (
-        <OpportunityDialog open={dialogOpen} onOpenChange={setDialogOpen} pipelineId={selectedPipelineId} pipelineName={selectedPipeline?.name} stages={stages} />
+        <OpportunityDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setQuickAddStageId(null); }} pipelineId={selectedPipelineId} pipelineName={selectedPipeline?.name} stages={stages} initialStageId={quickAddStageId} />
       )}
 
-      <OpportunityFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} filters={filters} onApply={setFilters} staff={staff} availableTags={availableTags} />
+      <OpportunityFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} filters={filters} onApply={(f) => { setFilters(f); setActiveListId(null); }} staff={staff} availableTags={availableTags} />
 
       <BulkEditSheet open={bulkEditOpen} onOpenChange={setBulkEditOpen} selectedIds={[...selectedIds]} stages={stages} onDone={clearSelection} canEdit={canEditOpportunities} />
 

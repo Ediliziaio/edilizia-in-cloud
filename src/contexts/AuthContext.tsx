@@ -1623,7 +1623,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.isLoading, state.role, state.user, state.profile?.company_id, state.profile?.created_at, state.company]);
 
-  const switchMultiCompany = useCallback((companyId: string) => {
+  const switchMultiCompany = useCallback(async (companyId: string) => {
     const found = multiCompanyAccesses.find(a => a.company_id === companyId);
     if (!found) {
       toast.error("Azienda non disponibile", {
@@ -1642,6 +1642,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMultiCompanyState(prev => {
       return { ...prev, selectedId: companyId, selectedCompany: found?.company || null };
     });
+    // Propaga la selezione al DB PRIMA di ripulire la cache: get_effective_company_id()
+    // (usata nelle RLS) deve già puntare alla nuova azienda quando le query rifetchano,
+    // altrimenti l'utente vedrebbe i dati dell'azienda precedente / schermate vuote.
+    try {
+      await supabase.rpc("set_active_company", { p_company_id: companyId });
+    } catch (e) {
+      console.error("[multi-company] set_active_company fallita", e);
+    }
     queryClient.clear();
     toast.success("Azienda cambiata", {
       description: found.company?.name ?? "Il contesto aziendale è stato aggiornato.",
@@ -1661,6 +1669,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const effectiveCompany = isImpersonating
     ? impersonatedCompany
     : multiCompanyObj ?? state.company;
+
+  // Sincronizza la selezione multi-azienda col DB al ripristino di sessione (reload,
+  // nuova scheda): la selezione vive in sessionStorage lato client, ma get_effective_company_id()
+  // (usata nelle RLS) legge active_company_selection. Alla prima disponibilità di utente+accessi
+  // allineiamo il DB alla selezione ripristinata (o la azzeriamo → azienda primaria) e invalidiamo.
+  const activeCompanySyncedRef = useRef(false);
+  useEffect(() => {
+    if (activeCompanySyncedRef.current) return;
+    if (!state.user?.id || isImpersonating) return;
+    if (multiCompanyAccesses.length === 0) return; // solo utenti realmente multi-azienda
+    activeCompanySyncedRef.current = true;
+    (async () => {
+      try {
+        await supabase.rpc("set_active_company", { p_company_id: selectedMultiCompanyId ?? null });
+        queryClient.invalidateQueries();
+      } catch (e) {
+        console.error("[multi-company] sync selezione attiva fallita", e);
+      }
+    })();
+  }, [state.user?.id, isImpersonating, multiCompanyAccesses.length, selectedMultiCompanyId, queryClient]);
 
   const contextValue = useMemo(
     () => ({

@@ -229,7 +229,9 @@ export default function Tesoreria() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        {/* Mobile: riga singola scrollabile invece di flex-wrap (8 tab = muro
+            di 3-4 righe su 375px). */}
+        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" /> Overview
           </TabsTrigger>

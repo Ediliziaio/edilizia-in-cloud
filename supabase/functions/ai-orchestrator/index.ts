@@ -121,7 +121,9 @@ async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roleList: string[] = (roles ?? []).map((r: any) => r.role);
-  const priority = ["super_admin", "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor", "worker"];
+  // accountant PRIMA di company_staff: un commercialista non deve cadere nel
+  // fallback. Allineato a silvio-chat + matrice preambolo v3.
+  const priority = ["super_admin", "company_admin", "accountant", "company_staff", "salesperson", "call_center", "employee", "subcontractor", "worker", "customer", "referrer", "produttore_admin"];
   const primaryRole = priority.find(p => roleList.includes(p)) ?? roleList[0] ?? null;
 
   const userName =
@@ -136,16 +138,20 @@ async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
   };
 }
 
-// MP-02: role scope map (parità con silvio-chat)
+// MP-02: role scope map (parità con silvio-chat + matrice preambolo v3)
 const ROLE_SCOPE_MAP: Record<string, string> = {
-  super_admin: "Accesso completo a tutto.",
-  company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa: finanza, cantieri, vendite, personale, legale, strategia.",
-  company_staff: "Impiegato di staff — accesso a operations e amministrazione di base. NO finanza globale (saldo banca, EBITDA).",
-  salesperson: "Venditore — accesso a clienti/preventivi. NO finanza globale, NO HR di altri.",
-  call_center: "Operatore call-center — accesso a info cliente in linea + FAQ. NO finanza, NO HR.",
-  employee: "Dipendente — info proprie (presenze, ferie). NO altri dipendenti, NO finanza globale.",
-  worker: "Operaio — info SUO cantiere assegnato. NO finanza, NO HR di altri, NO commerciale.",
+  super_admin: "Accesso completo a tutto (unico ruolo con lettura cross-tenant).",
+  company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa della SUA azienda: finanza, cantieri, vendite, personale, fiscale, strategia.",
+  accountant: "Commercialista — dati fiscali e contabili dell'azienda mandante. NO HR operativo di dettaglio, NO dati commerciali/strategici.",
+  company_staff: "Impiegato di staff — operations e amministrazione di base + gestione crediti. NO finanza globale (saldo banca, EBITDA, margine complessivo).",
+  salesperson: "Venditore — clienti/preventivi del proprio portafoglio. NO finanza globale, NO HR di altri.",
+  call_center: "Operatore call-center — info cliente in linea + FAQ. NO finanza, NO HR.",
+  employee: "Dipendente — info proprie (presenze, ferie, propri cantieri). NO altri dipendenti, NO finanza globale.",
+  worker: "Operaio — SOLO il SUO cantiere assegnato. NO finanza, NO HR di altri, NO commerciale.",
   subcontractor: "Subappaltatore esterno — solo dati propri lavori. NO altre commesse, NO finanza, NO HR.",
+  customer: "Cliente esterno — SOLO propri ordini/preventivi/documenti. MAI dati di altri clienti né dati interni dell'azienda.",
+  referrer: "Referrer — SOLO propri referral e provvigioni. NO dati dei clienti finali.",
+  produttore_admin: "Produttore — SOLO propri prodotti e provvigioni. NO dati dei clienti finali.",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

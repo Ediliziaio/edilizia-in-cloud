@@ -13,7 +13,8 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info, FileText, Landmark } from "lucide-react";
+import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info, FileText, Landmark, Link2 } from "lucide-react";
+import { CompanyAccessManager } from "@/components/settings/CompanyAccessManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
@@ -26,9 +27,9 @@ import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team" | "commercialista";
+type PeopleTab = "utenti" | "accessi-azienda" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team" | "commercialista";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "template-permessi", "dipendenti", "subappaltatori", "venditori", "team", "commercialista"];
+const VALID_TABS: PeopleTab[] = ["utenti", "accessi-azienda", "sicurezza-accessi", "template-permessi", "dipendenti", "subappaltatori", "venditori", "team", "commercialista"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -79,6 +80,9 @@ export default function SettingsPeople() {
       if ((tabParam === "utenti" && canViewUsers) || (tabParam === "sicurezza-accessi" && canViewAccessSecurity)) {
         return tabParam;
       }
+      if (tabParam === "accessi-azienda" && canViewUsers) {
+        return tabParam;
+      }
       if (tabParam === "template-permessi" && canManagePermissionTemplates) {
         return tabParam;
       }
@@ -102,6 +106,12 @@ export default function SettingsPeople() {
           <TabsTrigger value="utenti" className="gap-1.5 shrink-0">
             <Shield className="h-4 w-4" />
             Utenti & Accessi
+          </TabsTrigger>
+        )}
+        {canViewUsers && (
+          <TabsTrigger value="accessi-azienda" className="gap-1.5 shrink-0">
+            <Link2 className="h-4 w-4" />
+            Accessi azienda
           </TabsTrigger>
         )}
         {canViewAccessSecurity && (
@@ -168,6 +178,12 @@ export default function SettingsPeople() {
             </div>
           </div>
           <UsersConfig />
+        </TabsContent>
+      )}
+
+      {canViewUsers && (
+        <TabsContent value="accessi-azienda">
+          <CompanyAccessManager />
         </TabsContent>
       )}
 

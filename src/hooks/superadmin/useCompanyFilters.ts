@@ -49,16 +49,18 @@ export const REGIONI_ITALIANE = [
   "Veneto",
 ];
 
-export const SETTORI_EDILIZIA = [
-  "Edilizia residenziale",
-  "Edilizia commerciale",
-  "Edilizia industriale",
-  "Ristrutturazioni",
-  "Impiantistica",
-  "Serramentistica",
-  "Pavimentazioni",
-  "Verde/Giardini",
-  "Altro",
+// Tassonomia REALE della colonna companies.sector (vedi companyUtils.sectors):
+// i valori devono coincidere con quelli salvati in DB, altrimenti il filtro
+// non matcha mai nulla.
+export const SETTORI_EDILIZIA: { value: string; label: string }[] = [
+  { value: "serramenti", label: "Serramenti" },
+  { value: "infissi", label: "Infissi" },
+  { value: "bagni", label: "Bagni" },
+  { value: "tetti", label: "Tetti" },
+  { value: "fotovoltaico", label: "Fotovoltaico" },
+  { value: "pittura", label: "Pittura" },
+  { value: "ristrutturazioni", label: "Ristrutturazioni" },
+  { value: "altro", label: "Altro" },
 ];
 
 // ─── Utilità ──────────────────────────────────────────────
@@ -128,6 +130,8 @@ export function applyFiltersToQuery(
 ): ReturnType<typeof Object.create> {
   if (filters.regions.length > 0) query = query.in("region", filters.regions);
   if (filters.sizes.length > 0) query = query.in("company_size", filters.sizes);
+  if (filters.sectors.length > 0) query = query.in("sector", filters.sectors);
+  if (filters.plans.length > 0) query = query.in("subscription_plan_id", filters.plans);
   if (filters.statuses.length > 0) query = query.in("status", filters.statuses);
   if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
   if (filters.dateTo) query = query.lte("created_at", filters.dateTo);
@@ -135,8 +139,11 @@ export function applyFiltersToQuery(
     const deadline = new Date();
     deadline.setDate(deadline.getDate() + filters.trialExpiringDays);
     query = query
-      .lte("trial_ends_at", deadline.toISOString())
-      .eq("status", "trial");
+      .eq("status", "trial")
+      // Finestra [oggi, oggi+N]: esclude i trial già scaduti (coerente col
+      // conteggio del preset "Trial in scadenza").
+      .gte("trial_ends_at", new Date().toISOString())
+      .lte("trial_ends_at", deadline.toISOString());
   }
   return query;
 }

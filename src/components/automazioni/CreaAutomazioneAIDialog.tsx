@@ -27,6 +27,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { TRIGGER_CATALOG_ITEMS, ACTION_CATALOG_ITEMS } from "@/lib/flow-node-catalog";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
 interface Props {
   open: boolean;
@@ -78,8 +79,15 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
     try {
       // Catalogo compatto (id+label+description) passato all'edge function:
       // l'AI può scegliere SOLO tra questi → nessuna azione inventata.
-      const triggers = TRIGGER_CATALOG_ITEMS.map((t) => ({ id: t.id, label: t.label, description: t.description }));
-      const actions = ACTION_CATALOG_ITEMS.map((a) => ({ id: a.id, label: a.label, description: a.description }));
+      // Gli item 'piattaforma' sono esclusi fuori dal contesto platform-admin:
+      // il motore li rifiuterebbe a runtime (flusso rotto in silenzio).
+      const isPlatformCtx = companyId === PLATFORM_ADMIN_COMPANY_ID;
+      const triggers = TRIGGER_CATALOG_ITEMS
+        .filter((t) => isPlatformCtx || t.category !== "piattaforma")
+        .map((t) => ({ id: t.id, label: t.label, description: t.description }));
+      const actions = ACTION_CATALOG_ITEMS
+        .filter((a) => isPlatformCtx || a.category !== "piattaforma")
+        .map((a) => ({ id: a.id, label: a.label, description: a.description }));
 
       const { data, error } = await supabase.functions.invoke("ai-genera-automazione", {
         body: { company_id: companyId, descrizione: desc, triggers, actions },
@@ -124,6 +132,11 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
           status: "draft",
           description: desc.slice(0, 280),
           created_by: user.id,
+          // Categoria dal trigger scelto dall'AI (prima finiva sempre in
+          // "Generale" e il filtro categoria della lista non lo trovava).
+          category: TRIGGER_CATALOG_ITEMS.find((t) =>
+            result.nodes?.some((n) => n.nodeType === "trigger" && (n.configJson?.item_id === t.id || n.configJson?.trigger_type === t.id)),
+          )?.category ?? "generale",
           config_json: { generated_by: "ai", prompt: desc.slice(0, 500) },
         } as never)
         .select("id")
@@ -157,7 +170,7 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
             company_id: companyId,
             from_node_id: idMap[c.fromId],
             to_node_id: idMap[c.toId],
-            label: null,
+            label: null as string | null,
           }))
           .filter((c) => c.from_node_id && c.to_node_id);
         if (connInserts.length) {

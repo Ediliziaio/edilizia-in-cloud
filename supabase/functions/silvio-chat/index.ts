@@ -461,21 +461,28 @@ serve(async (req: Request) => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const roleList: string[] = (userRoles ?? []).map((r: any) => r.role);
-    const rolePriority = ["super_admin", "company_admin", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker"];
+    // Allineato alla matrice del preambolo costituzionale v3. accountant era
+    // assente sia qui sia nella priorità → un commercialista cadeva nel
+    // fallback "Accesso limitato". Aggiunti anche i ruoli esterni per coerenza.
+    const rolePriority = ["super_admin", "company_admin", "accountant", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker", "customer", "referrer", "produttore_admin"];
     const primaryRole = rolePriority.find((p) => roleList.includes(p)) ?? roleList[0] ?? "company_staff";
     const userName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || "Utente";
 
     const roleScopeMap: Record<string, string> = {
-      super_admin: "Accesso completo a tutto.",
-      company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa: finanza, cantieri, vendite, personale, legale, strategia.",
-      company_staff: "Impiegato di staff — accesso a operations e amministrazione di base. Ha accesso a get_overdue_payments e get_revenue_forecast (gestione crediti). NO finanza globale (saldo banca, EBITDA).",
-      salesperson: "Venditore — accesso a clienti/preventivi. NO finanza globale, NO HR di altri.",
-      call_center: "Operatore call-center — accesso a info cliente in linea + FAQ. NO finanza, NO HR.",
-      employee: "Dipendente — info proprie (presenze, ferie). NO altri dipendenti, NO finanza globale.",
-      worker: "Operaio — info SUO cantiere assegnato. NO finanza, NO HR di altri, NO commerciale.",
+      super_admin: "Accesso completo a tutto (unico ruolo con lettura cross-tenant).",
+      company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa della SUA azienda: finanza, cantieri, vendite, personale, fiscale, strategia.",
+      accountant: "Commercialista — dati fiscali e contabili dell'azienda mandante. NO HR operativo di dettaglio, NO dati commerciali/strategici.",
+      company_staff: "Impiegato di staff — operations e amministrazione di base + gestione crediti (get_overdue_payments, get_revenue_forecast). NO finanza globale (saldo banca, EBITDA, margine complessivo).",
+      salesperson: "Venditore — clienti/preventivi del proprio portafoglio. NO finanza globale, NO HR di altri.",
+      call_center: "Operatore call-center — info cliente in linea + FAQ. NO finanza, NO HR.",
+      employee: "Dipendente — info proprie (presenze, ferie, propri cantieri). NO altri dipendenti, NO finanza globale.",
+      worker: "Operaio — SOLO il SUO cantiere assegnato (attività, materiali, foto, rapportini propri). NO finanza, NO HR di altri, NO commerciale.",
       subcontractor: "Subappaltatore esterno — solo dati propri lavori. NO altre commesse, NO finanza, NO HR.",
+      customer: "Cliente esterno — SOLO propri ordini/preventivi/documenti. MAI dati di altri clienti né dati interni dell'azienda.",
+      referrer: "Referrer — SOLO propri referral e provvigioni. NO dati dei clienti finali.",
+      produttore_admin: "Produttore — SOLO propri prodotti e provvigioni. NO dati dei clienti finali.",
     };
-    const userScope = roleScopeMap[primaryRole] ?? "Accesso limitato — chiedi conferma per dati sensibili.";
+    const userScope = roleScopeMap[primaryRole] ?? "Accesso limitato — nel dubbio tratta il dato come riservato e rinvia al responsabile competente.";
 
     // ── 5) System prompt arricchito con contesto utente + tool guidance ─
     // Data corrente esplicita: senza questo l'AI usa la data del training

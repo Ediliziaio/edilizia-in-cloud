@@ -5,26 +5,78 @@
 // che girano con SERVICE_ROLE_KEY (bypass RLS) — quindi devono replicare
 // manualmente la logica del helper SQL `public.get_effective_company_id()`.
 //
-// Logica:
-//   1. Se esiste una row in `active_impersonations` con admin_user_id = userId
-//      e expires_at > now() → torna target_company_id (la più recente).
-//   2. Altrimenti, torna profiles.company_id dell'utente.
-//   3. Se nessuno dei due → torna null.
+// Logica (allineata al SQL get_effective_company_id):
+//   1. Impersonation attiva (active_impersonations, super_admin) → target_company_id.
+//   2. Selezione multi-azienda del frontend (active_company_selection), SOLO se
+//      ancora accessibile (primaria o multi_company_access attiva).
+//   3. Altrimenti profiles.company_id (azienda primaria).
 //
 // Uso tipico:
 //   const supabaseAdmin = createClient(url, serviceRoleKey);
 //   const companyId = await resolveEffectiveCompanyId(supabaseAdmin, userId);
 //   if (!companyId) return 403;
-//   // ...lavora con companyId come "azienda corrente".
 // ============================================================================
+// deno-lint-ignore no-explicit-any
 type AdminClient = any;
 
+async function getPrimaryCompanyId(
+  supabaseAdmin: AdminClient,
+  userId: string,
+): Promise<string | null> {
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("company_id")
+    .eq("id", userId)
+    .maybeSingle();
+  return (profile as { company_id?: string | null } | null)?.company_id ?? null;
+}
+
+/** true se l'utente ha un accesso multi-azienda ATTIVO e non scaduto a targetCompanyId. */
+async function hasActiveMultiCompanyAccess(
+  supabaseAdmin: AdminClient,
+  userId: string,
+  targetCompanyId: string,
+): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const { data } = await supabaseAdmin
+    .from("multi_company_access")
+    .select("company_id, status, expires_at")
+    .eq("user_id", userId)
+    .eq("company_id", targetCompanyId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!data) return false;
+  const exp = (data as { expires_at?: string | null }).expires_at;
+  return !exp || exp > nowIso;
+}
+
+/** true se l'utente è membro attivo di uno studio commercialista con delega attiva sull'azienda. */
+async function hasAccountantAccess(
+  supabaseAdmin: AdminClient,
+  userId: string,
+  targetCompanyId: string,
+): Promise<boolean> {
+  const { data: firms } = await supabaseAdmin
+    .from("accountant_firm_members")
+    .select("firm_id")
+    .eq("user_id", userId)
+    .eq("status", "active");
+  const firmIds = (firms ?? []).map((r: { firm_id: string }) => r.firm_id);
+  if (firmIds.length === 0) return false;
+  const { data: access } = await supabaseAdmin
+    .from("accountant_company_access")
+    .select("company_id")
+    .eq("company_id", targetCompanyId)
+    .eq("status", "active")
+    .in("firm_id", firmIds)
+    .maybeSingle();
+  return !!access;
+}
+
 /**
- * Risolve la company_id "effettiva" di userId considerando impersonation attiva.
- * Ritorna null se l'utente non ha né profilo con company_id né impersonation.
- *
- * NOTA: questa funzione richiede un client creato con SERVICE_ROLE_KEY (bypass
- * RLS), perché `active_impersonations` è protetta da RLS per-super_admin.
+ * Risolve la company_id "effettiva" di userId considerando impersonation attiva e
+ * selezione multi-azienda. Ritorna null se l'utente non ha alcuna company.
+ * Richiede un client SERVICE_ROLE (bypass RLS).
  */
 export async function resolveEffectiveCompanyId(
   supabaseAdmin: AdminClient,
@@ -39,26 +91,38 @@ export async function resolveEffectiveCompanyId(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-
   if (imp && (imp as { target_company_id?: string }).target_company_id) {
     return (imp as { target_company_id: string }).target_company_id;
   }
 
-  // 2. Fallback: company del profilo
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("company_id")
-    .eq("id", userId)
-    .maybeSingle();
+  const primaryId = await getPrimaryCompanyId(supabaseAdmin, userId);
 
-  return (profile as { company_id?: string | null } | null)?.company_id ?? null;
+  // 2. Selezione multi-azienda del frontend, SOLO se ancora accessibile.
+  const { data: sel } = await supabaseAdmin
+    .from("active_company_selection")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const selectedId = (sel as { company_id?: string } | null)?.company_id ?? null;
+  if (selectedId && selectedId !== primaryId) {
+    if (await hasActiveMultiCompanyAccess(supabaseAdmin, userId, selectedId)) {
+      return selectedId;
+    }
+  } else if (selectedId && selectedId === primaryId) {
+    return primaryId;
+  }
+
+  // 3. Fallback: company primaria del profilo
+  return primaryId;
 }
 
 /**
  * Verifica che `targetCompanyId` sia accessibile dall'utente corrente:
- *   - matcha la company effettiva, OPPURE
- *   - l'utente ha accesso multi-company, OPPURE
- *   - l'utente ha ruolo super_admin (accesso globale).
+ *   - super_admin (accesso globale), OPPURE
+ *   - è la sua azienda primaria, OPPURE
+ *   - ha un'impersonation attiva su quella company, OPPURE
+ *   - ha un accesso multi-azienda ATTIVO e non scaduto, OPPURE
+ *   - è un commercialista con delega attiva su quella company.
  *
  * Ritorna true se ok, false se accesso negato.
  */
@@ -67,30 +131,34 @@ export async function canAccessCompany(
   userId: string,
   targetCompanyId: string,
 ): Promise<boolean> {
-  // Bypass super_admin
+  if (!targetCompanyId) return false;
+
+  // super_admin
   const { data: roles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
+  if ((roles ?? []).some((r: { role?: string }) => r.role === "super_admin")) return true;
 
-  const isSuperAdmin = (roles ?? []).some(
-    (r: { role?: string }) => r.role === "super_admin",
-  );
-  if (isSuperAdmin) return true;
+  // azienda primaria
+  const primaryId = await getPrimaryCompanyId(supabaseAdmin, userId);
+  if (primaryId === targetCompanyId) return true;
 
-  // Match con company effettiva (include impersonation)
-  const effective = await resolveEffectiveCompanyId(supabaseAdmin, userId);
-  if (effective === targetCompanyId) return true;
-
-  // Multi-company users and platform roles can switch the active tenant in the
-  // frontend without creating an active_impersonations row. Edge functions run
-  // with service role, so we must explicitly mirror that access model here.
-  const { data: multiCompanyAccess } = await supabaseAdmin
-    .from("multi_company_access")
-    .select("company_id")
-    .eq("user_id", userId)
-    .eq("company_id", targetCompanyId)
+  // impersonation attiva sulla company target
+  const { data: imp } = await supabaseAdmin
+    .from("active_impersonations")
+    .select("target_company_id")
+    .eq("admin_user_id", userId)
+    .eq("target_company_id", targetCompanyId)
+    .gt("expires_at", new Date().toISOString())
     .maybeSingle();
+  if (imp) return true;
 
-  return !!multiCompanyAccess;
+  // accesso multi-azienda attivo
+  if (await hasActiveMultiCompanyAccess(supabaseAdmin, userId, targetCompanyId)) return true;
+
+  // delega commercialista
+  if (await hasAccountantAccess(supabaseAdmin, userId, targetCompanyId)) return true;
+
+  return false;
 }

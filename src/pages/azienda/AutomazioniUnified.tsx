@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ const CATEGORIE: { value: CategoriaFiltro; label: string; icon: ReactNode }[] = 
 
 export default function AutomazioniUnified() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const routePrefix = useMarketingRoutePrefix();
@@ -123,7 +125,9 @@ export default function AutomazioniUnified() {
       {/* KPI globali — non reagiscono ai filtri (come pattern ordini).
           La card "Attivi" filtra a status=published; "Errori 24h" sarebbe un
           deeplink al primo flusso con errori — per ora toggle visivo. */}
-      {effectiveCompany?.id && !vistaTemplates && (
+      {/* 6 KPI-vetrina + 7 count query: solo desktop. Su mobile vai dritto
+          all'elenco flussi (operativo). */}
+      {effectiveCompany?.id && !vistaTemplates && !isMobile && (
         <AutomationOverviewStats companyId={effectiveCompany.id} />
       )}
 

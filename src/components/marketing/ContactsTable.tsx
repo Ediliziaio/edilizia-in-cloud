@@ -55,6 +55,7 @@ export interface MarketingContact {
   optout_email?: boolean | null;
   optout_sms?: boolean | null;
   optout_whatsapp?: boolean | null;
+  optout_call?: boolean | null;
   preferred_channel?: string | null;
   score?: number | null;
   unsubscribed?: boolean | null;

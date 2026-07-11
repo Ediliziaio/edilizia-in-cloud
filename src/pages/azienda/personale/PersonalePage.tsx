@@ -21,6 +21,7 @@ const TabDocumenti = lazy(() => import("./tabs/TabDocumenti").then(m => ({ defau
 const TabSelezioni = lazy(() => import("./tabs/TabSelezioni").then(m => ({ default: m.TabSelezioni })));
 import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 function TabFallback() {
@@ -34,6 +35,7 @@ function TabFallback() {
 export default function PersonalePage() {
   const hasFleetTrack = useFleetTrackAccess();
   const { isScopriPlan } = useSubscriptionLimits();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const availableTabs = useMemo(() => {
@@ -55,7 +57,10 @@ export default function PersonalePage() {
   }, [hasFleetTrack]);
 
   const rawTab = searchParams.get("tab");
-  const activeTab = rawTab && availableTabs.includes(rawTab) ? rawTab : "regia";
+  // Su mobile la tab di default è "timbrature" (operativa) invece di "regia"
+  // (cruscotto HR-vetrina con 5 query e KPI): si atterra sull'azione utile.
+  const defaultTab = isMobile ? "timbrature" : "regia";
+  const activeTab = rawTab && availableTabs.includes(rawTab) ? rawTab : defaultTab;
 
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(searchParams);

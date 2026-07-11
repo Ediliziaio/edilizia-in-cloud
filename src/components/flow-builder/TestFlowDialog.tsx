@@ -52,7 +52,12 @@ export function TestFlowDialog({ open, onClose, flow, companyId, onEnrollmentCre
     enabled: !!flow?.id && !!companyId && open,
   });
 
-  const triggerEvent = triggerNode?.config_json?.trigger_event;
+  // Il builder salva l'id catalogo in item_id (trigger_event resta vuoto):
+  // senza il fallback il test era SEMPRE disabilitato sui flussi del builder.
+  // Il motore normalizza gli id italiani in ingresso (TRIGGER_EVENT_MAP).
+  const triggerEvent = triggerNode?.config_json?.trigger_event
+    ?? triggerNode?.config_json?.item_id
+    ?? triggerNode?.config_json?.trigger_type;
 
   // Search contacts
   const { data: contacts = [], isLoading: loadingContacts } = useQuery({

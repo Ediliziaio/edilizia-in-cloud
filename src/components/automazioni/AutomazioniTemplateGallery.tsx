@@ -80,6 +80,9 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
           status: publish ? "published" : "draft",
           description: template.descrizione,
           created_by: user.id,
+          // Prima la categoria del template non veniva salvata → tutti i
+          // flussi finivano in "Generale" e il filtro categoria non li trovava.
+          category: template.categoria || "generale",
           config_json: { template_id: template.id, template_icona: template.icona },
         } as never)
         .select("id")

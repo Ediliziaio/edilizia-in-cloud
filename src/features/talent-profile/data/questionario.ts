@@ -288,4 +288,3 @@ export const DOMANDE: DomandaV5[] = [
 ];
 
 // Export totale domande per compatibilità
-export const TOTAL_QUESTIONS = DOMANDE.length; // 242

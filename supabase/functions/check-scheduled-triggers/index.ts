@@ -322,20 +322,16 @@ Deno.serve(async (req) => {
             const month = targetDate.getMonth() + 1;
             const day = targetDate.getDate();
 
+            // date_of_birth letta subito: prima c'era una ri-fetch PER OGNI
+            // contatto (N+1 — sul CRM piattaforma sarebbero 89k query).
             const { data: contacts } = await supabase
               .from("marketing_contacts")
-              .select("id")
+              .select("id, date_of_birth")
               .eq("company_id", flow.company_id)
               .not("date_of_birth", "is", null);
 
             if (contacts) {
-              for (const contact of contacts) {
-                const { data: c } = await supabase
-                  .from("marketing_contacts")
-                  .select("id, date_of_birth")
-                  .eq("id", contact.id)
-                  .single();
-
+              for (const c of contacts) {
                 if (!c?.date_of_birth) continue;
                 const dob = new Date(c.date_of_birth);
                 if (dob.getMonth() + 1 === month && dob.getDate() === day) {
@@ -614,12 +610,15 @@ Deno.serve(async (req) => {
             const oreSla = parseInt(cfg.ore_sla) || 24;
             const cutoff = new Date(Date.now() - oreSla * 3600000).toISOString();
 
+            // NB: .lte esclude i NULL → un ticket MAI risposto (last_message_at
+            // null) non scattava mai: fallback su created_at. Esclusi anche i
+            // ticket chiusi (prima solo 'risolto' → i chiusi rifiravano l'SLA).
             const { data: stale } = await supabase
               .from("tickets")
               .select("id, subject, customer_id, assigned_to, created_at, last_message_at, status")
               .eq("company_id", flow.company_id)
-              .neq("status", "risolto")
-              .lte("last_message_at", cutoff);
+              .not("status", "in", "(risolto,chiuso,closed,resolved)")
+              .or(`last_message_at.lte.${cutoff},and(last_message_at.is.null,created_at.lte.${cutoff})`);
 
             for (const t of stale || []) {
               const oreApertura = Math.max(0, Math.floor((Date.now() - new Date(t.created_at).getTime()) / 3600000));
@@ -916,12 +915,13 @@ Deno.serve(async (req) => {
 
     if (allCompanies) {
       for (const company of allCompanies) {
-        // Check if already sent today
+        // Check if already sent today. Colonna REALE: notification_type
+        // (con .eq("type",...) la query falliva → dedup mai applicato).
         const { data: alreadySent } = await supabase
           .from("lifecycle_notifications")
           .select("id")
           .eq("company_id", company.id)
-          .eq("type", "cash_flow_alert")
+          .eq("notification_type", "cash_flow_alert")
           .gte("created_at", todayStr)
           .maybeSingle();
 
@@ -971,13 +971,17 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (adminProfile) {
+            // Colonne REALI: notification_type (non "type"), nessuna colonna
+            // user_id (destinatario nel metadata), notification_date NULL per
+            // non collidere con l'indice unico dei digest. Prima l'insert
+            // falliva SEMPRE → l'alert cash-flow non è mai stato consegnato.
             await supabase.from("lifecycle_notifications").insert({
               company_id: company.id,
-              user_id: adminProfile.id,
-              type: "cash_flow_alert",
+              notification_type: "cash_flow_alert",
+              notification_date: null,
               title: "⚠️ Cash flow negativo previsto",
               message: `Il saldo previsto per il prossimo mese è di €${netForecast.toFixed(2)}. Verifica le uscite programmate.`,
-              metadata: { net_forecast: netForecast, month: nextMonthStart.toISOString().split("T")[0] },
+              metadata: { net_forecast: netForecast, month: nextMonthStart.toISOString().split("T")[0], user_id: adminProfile.id },
             });
             results.cash_flow_alert++;
           }

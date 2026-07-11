@@ -448,7 +448,8 @@ function OrdersListInner() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!effectiveCompany?.id,
+    // Grafico 12 mesi non mostrato su mobile → non scaricare i dati lì.
+    enabled: !!effectiveCompany?.id && !isMobile,
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000,
   });
@@ -1650,8 +1651,10 @@ function OrdersListInner() {
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Selettore anno commesse — in alto, sempre visibile (filtra le commesse
               dell'anno scelto; "Tutti" per la vista completa). */}
+          {/* Duplicato: l'anno è già nel pannello Filtri → su mobile toglilo
+              dalla toolbar per non affollarla. */}
           <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="h-9 w-auto min-w-[6.5rem] gap-1" aria-label="Filtra commesse per anno">
+            <SelectTrigger className="hidden sm:flex h-9 w-auto min-w-[6.5rem] gap-1" aria-label="Filtra commesse per anno">
               <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
@@ -1863,7 +1866,10 @@ function OrdersListInner() {
               </div>
 
               {orderPerms.canViewOrderAmounts && (<>
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              {/* "Totale venduto" e "Incassato" sono metriche da scrivania:
+                  su mobile confondono e allungano l'header → visibili da sm in su.
+                  Restano "Commesse totali" e "Da incassare" (operativi). */}
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
                     <Euro className="h-4 w-4" />
@@ -1889,7 +1895,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
                     <TrendingUp className="h-4 w-4" />
@@ -1944,7 +1950,7 @@ function OrdersListInner() {
             </div>
           </div>
 
-          {orderPerms.canViewOrderAmounts && (
+          {orderPerms.canViewOrderAmounts && !isMobile && (
           <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
             <div className="flex items-center justify-between gap-3">
               <div>

@@ -31,7 +31,7 @@ export default function ContabilitaFiscale() {
   const { calcola, isCalcolando, risultato, reset } = useLiquidazioneIVA();
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <FiscalitaNavigation />
 
       <div className="flex items-center justify-between">

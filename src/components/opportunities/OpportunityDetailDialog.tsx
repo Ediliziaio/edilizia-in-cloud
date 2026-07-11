@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedRendersList } from "@/components/render/LinkedRendersList";
@@ -76,6 +77,9 @@ const SELECT_TRIGGER_CLS =
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
+  // Rotte relative al contesto: dall'hub admin si resta su /admin/marketing
+  // (prima si finiva su /azienda/* perdendo il PlatformCompanyProvider).
+  const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -604,7 +608,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               {!pendingContactId && opportunity.contact_id ? (
                                 <button
                                   type="button"
-                                  onClick={() => { navigate(`/azienda/marketing/contatti/${opportunity.contact_id}`); onOpenChange(false); }}
+                                  onClick={() => { navigate(`${routePrefix}/contatti/${opportunity.contact_id}`); onOpenChange(false); }}
                                   className="group/clink inline-flex items-center gap-1 min-w-0 text-left hover:text-primary transition-colors"
                                   title="Apri scheda contatto"
                                 >
@@ -950,12 +954,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           defaultValue={opportunity.next_action_date ?? ""}
                           placeholder="Data scadenza azione"
                           className="mt-1 h-10 sm:h-8 text-sm"
-                          onChange={(e) =>
+                          // onBlur come gli altri campi (commit 5c9c21b9d): con
+                          // onChange ogni keystroke della data lanciava una
+                          // mutation (anche valori parziali/vuoti → null).
+                          onBlur={(e) => {
+                            const v = e.target.value || null;
+                            if (v === (opportunity.next_action_date ?? null)) return;
                             updateOpportunity.mutate({
                               id: opportunity.id,
-                              data: { next_action_date: e.target.value || null },
-                            })
-                          }
+                              data: { next_action_date: v },
+                            });
+                          }}
                         />
                       </div>
 
@@ -1171,6 +1180,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   data: {
                     status: pendingLostStatus as string,
                     lost_reason: lostReason || null,
+                    // Anche la colonna legacy: automazioni (opportunita.loss_reason)
+                    // e report vecchi leggono quella.
+                    loss_reason: lostReason || null,
                     lost_reason_category: lostCategory,
                     competitor_won: competitorWon || null,
                   },

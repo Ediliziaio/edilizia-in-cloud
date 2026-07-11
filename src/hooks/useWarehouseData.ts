@@ -195,7 +195,7 @@ export function useWarehouseData() {
             current_status_id,
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
-        `, { count: "exact" })
+        `, { count: "estimated" }) // "exact" su tabella grande rallenta il primo render (mobile): la stima basta per la paginazione
         .eq("order.company_id", companyId);
 
       // Server-side filters

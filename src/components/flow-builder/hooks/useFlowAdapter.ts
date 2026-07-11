@@ -28,11 +28,24 @@ export function nodesToReactFlow(dbNodes: AutomationNode[]): Node[] {
   });
 }
 
+// sourceHandle non è persistito in automation_connections: si ricostruisce
+// dal label (Sì/No → handle yes/no della condizione, A/B → split_0/split_1).
+// Senza, al reload gli archi dei rami ripartivano tutti dallo stesso handle.
+function labelToSourceHandle(label: string | null): string | undefined {
+  const v = String(label ?? "").trim().toLowerCase();
+  if (v === "sì" || v === "si" || v === "yes") return "yes";
+  if (v === "no") return "no";
+  if (v.startsWith("a")) return "split_0";
+  if (v.startsWith("b")) return "split_1";
+  return undefined;
+}
+
 export function connectionsToEdges(dbConnections: AutomationConnection[]): Edge[] {
   return dbConnections.map((c) => ({
     id: c.id,
     source: c.from_node_id,
     target: c.to_node_id,
+    sourceHandle: labelToSourceHandle(c.label),
     label: c.label ?? undefined,
     type: "addStep",
     animated: true,

@@ -201,11 +201,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const { data: teamUsers = [] } = useQuery({
     queryKey: ["company_team_users", companyId],
     queryFn: async () => {
+      // profiles NON ha la colonna `role` (i ruoli stanno in user_roles):
+      // il filtro .or("role.eq...") mandava la query in errore e il dropdown
+      // "Assegna a" era SEMPRE vuoto. Tutti i profili aziendali vanno bene.
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", companyId!)
-        .or("role.eq.admin,role.eq.staff");
+        .order("first_name");
       if (error) throw error;
       return (data || []) as { id: string; first_name: string; last_name: string }[];
     },
@@ -366,6 +369,9 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         company_id: companyId,
         calendar_id: calendarId,
         contact_id: contactId,
+        // Con più opportunità sullo stesso contatto l'attribuzione si perdeva:
+        // l'appuntamento creato DA QUI deve restare legato all'opportunità.
+        opportunity_id: opportunityId || null,
         appointment_date: format(date, "yyyy-MM-dd"),
         appointment_time: `${startTime}:00`,
         appointment_end_time: `${endTime}:00`,

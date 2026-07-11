@@ -113,13 +113,22 @@ const CSV_FIELDS: ImportField[] = [
 const QUALITY_FILTERS = [
   { value: "all", label: "Tutti", description: "Vista completa" },
   { value: "issues", label: "Da sistemare", description: "Dati incompleti o rischi marketing" },
-  { value: "missing_contact", label: "Senza recapiti", description: "Email o telefono mancanti" },
+  { value: "no_contact", label: "Non contattabili", description: "Né email né telefono" },
+  { value: "missing_email", label: "Senza email", description: "Email mancante" },
+  { value: "missing_phone", label: "Senza telefono", description: "Telefono mancante" },
   { value: "no_source", label: "Senza fonte", description: "Origine lead non tracciata" },
   { value: "optout", label: "No marketing", description: "Opt-out o unsubscribe" },
   { value: "stale", label: "Da ricontattare", description: "Attività vecchia o assente" },
 ] as const;
 
-type ContactQualityFilter = (typeof QUALITY_FILTERS)[number]["value"];
+// Valori accettati da ?qualita= ma senza pillola dedicata:
+// - missing_contact: vecchi deep-link (email O telefono mancante)
+// - has_email / has_phone / contactable: attivati dalle chip "Contattabilità"
+const EXTRA_QUALITY_FILTERS = ["missing_contact", "has_email", "has_phone", "contactable"] as const;
+
+type ContactQualityFilter =
+  | (typeof QUALITY_FILTERS)[number]["value"]
+  | (typeof EXTRA_QUALITY_FILTERS)[number];
 
 type ContactQualityIssue = {
   key: string;
@@ -128,7 +137,46 @@ type ContactQualityIssue = {
 };
 
 function isQualityFilter(value: string): value is ContactQualityFilter {
-  return QUALITY_FILTERS.some((filter) => filter.value === value);
+  return (
+    QUALITY_FILTERS.some((filter) => filter.value === value) ||
+    (EXTRA_QUALITY_FILTERS as readonly string[]).includes(value)
+  );
+}
+
+// Applica il filtro qualità/contattabilità alla query PostgREST.
+// Unica fonte di verità per lista, export e conteggi globali: la logica
+// deve restare identica nei tre punti. NB: due .or() concatenati vengono
+// ANDati da PostgREST (parametri or= ripetuti), è il modo per esprimere
+// "manca email E manca telefono".
+function applyQualityToQuery(query: any, quality: ContactQualityFilter) {
+  switch (quality) {
+    case "issues":
+      return query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
+    case "missing_contact":
+      return query.or("email.is.null,email.eq.,phone.is.null,phone.eq.");
+    case "no_contact":
+      return query.or("email.is.null,email.eq.").or("phone.is.null,phone.eq.");
+    case "missing_email":
+      return query.or("email.is.null,email.eq.");
+    case "missing_phone":
+      return query.or("phone.is.null,phone.eq.");
+    case "has_email":
+      return query.not("email", "is", null).neq("email", "");
+    case "has_phone":
+      return query.not("phone", "is", null).neq("phone", "");
+    case "contactable":
+      return query.or("and(email.not.is.null,email.neq.),and(phone.not.is.null,phone.neq.)");
+    case "no_source":
+      return query.or("source.is.null,source.eq.");
+    case "optout":
+      return query.or("unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true");
+    case "stale": {
+      const cutoff = new Date(Date.now() - getStaleThresholdMs()).toISOString();
+      return query.or(`last_activity_at.is.null,last_activity_at.lte.${cutoff}`);
+    }
+    default:
+      return query;
+  }
 }
 
 function hasText(value: string | null | undefined) {
@@ -619,7 +667,7 @@ export default function MarketingContacts() {
       while (hasMore) {
         let query = supabase
           .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, unsubscribed, unsubscribed_at")
+          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -635,18 +683,7 @@ export default function MarketingContacts() {
           query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
         }
 
-        if (qualityFilter === "issues") {
-          query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
-        } else if (qualityFilter === "missing_contact") {
-          query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.");
-        } else if (qualityFilter === "no_source") {
-          query = query.or("source.is.null,source.eq.");
-        } else if (qualityFilter === "optout") {
-          query = query.or("unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true");
-        } else if (qualityFilter === "stale") {
-          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-          query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
-        }
+        query = applyQualityToQuery(query, qualityFilter);
 
         if (sourceFilter) query = query.eq("source", sourceFilter);
 
@@ -791,6 +828,43 @@ export default function MarketingContacts() {
   const pipelines = filterData?.pipelines ?? [];
   const availableTags = filterData?.availableTags ?? [];
   const listCount = filterData?.listCount ?? 0;
+
+  // Contattabilità sull'INTERO database azienda: count esatti head-only in
+  // parallelo (mai fetch-e-conta). Su decine di migliaia di contatti i KPI
+  // calcolati sulla pagina corrente erano fuorvianti: qui i numeri dicono
+  // davvero quanti contatti hanno un recapito utilizzabile per le campagne.
+  const { data: reachStats } = useQuery({
+    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? user?.id : null],
+    staleTime: 5 * 60 * 1000,
+    enabled: !!companyId,
+    queryFn: async () => {
+      const base = () => {
+        let q = supabase
+          .from("marketing_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!);
+        if (permissions.onlyAssigned && user?.id) q = q.eq("assigned_to", user.id);
+        return q;
+      };
+      const results = await Promise.all([
+        base(),
+        applyQualityToQuery(base(), "has_email"),
+        applyQualityToQuery(base(), "has_phone"),
+        applyQualityToQuery(base(), "contactable"),
+        applyQualityToQuery(base(), "no_contact"),
+      ]);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+      const [totalRes, emailRes, phoneRes, reachableRes, unreachableRes] = results;
+      return {
+        total: totalRes.count || 0,
+        withEmail: emailRes.count || 0,
+        withPhone: phoneRes.count || 0,
+        reachable: reachableRes.count || 0,
+        unreachable: unreachableRes.count || 0,
+      };
+    },
+  });
 
   // Helper: apply a single group's rules to get matching contact IDs
   async function applyGroupRules(group: FilterGroup, companyId: string): Promise<string[] | null> {
@@ -938,7 +1012,7 @@ export default function MarketingContacts() {
         // L'elenco copre l'interfaccia MarketingContact (ContactsTable) incl.
         // opt_out/optout_*/unsubscribed usati da badge consensi e KPI qualità.
         .select(
-          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, unsubscribed, unsubscribed_at",
+          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, optout_call, unsubscribed, unsubscribed_at",
           { count: "exact" },
         )
         .eq("company_id", companyId)
@@ -958,18 +1032,7 @@ export default function MarketingContacts() {
       // Drill-down per fonte (dalla reportistica CRM-vendite)
       if (sourceFilter) query = query.eq("source", sourceFilter);
 
-      if (qualityFilter === "issues") {
-        query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
-      } else if (qualityFilter === "missing_contact") {
-        query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.");
-      } else if (qualityFilter === "no_source") {
-        query = query.or("source.is.null,source.eq.");
-      } else if (qualityFilter === "optout") {
-        query = query.or("unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true");
-      } else if (qualityFilter === "stale") {
-        const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-        query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
-      }
+      query = applyQualityToQuery(query, qualityFilter);
 
       // Preset "lead da contattare" — applicato server-side se ?filter=stale|stale_2h.
       // - stale_2h: lead nuovi (creati ≤ 2h fa) ma non ancora contattati
@@ -1658,8 +1721,58 @@ export default function MarketingContacts() {
               </div>
             </div>
 
-            {/* Mobile: 2×2 invece di 4 card impilate (metà altezza prima della lista) */}
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+            {/* Contattabilità globale: count esatti su TUTTO il database (non
+                sulla pagina corrente). Le chip sono cliccabili e filtrano la
+                lista: clic di nuovo sulla chip attiva → torna a "Tutti". */}
+            {reachStats && reachStats.total > 0 && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Contattabilità · intero database
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    <span className="font-semibold text-slate-900">{reachStats.total.toLocaleString("it-IT")}</span> contatti totali
+                  </p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-red-100" title={`${reachStats.reachable.toLocaleString("it-IT")} contattabili su ${reachStats.total.toLocaleString("it-IT")}`}>
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${reachStats.total > 0 ? Math.round((reachStats.reachable / reachStats.total) * 100) : 0}%` }}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {([
+                    { key: "contactable", label: "Contattabili", value: reachStats.reachable, Icon: CheckCircle2, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700", dotCls: "text-emerald-600" },
+                    { key: "has_email", label: "Con email", value: reachStats.withEmail, Icon: Mail, activeCls: "border-sky-300 bg-sky-50 text-sky-700", dotCls: "text-sky-600" },
+                    { key: "has_phone", label: "Con telefono", value: reachStats.withPhone, Icon: Phone, activeCls: "border-sky-300 bg-sky-50 text-sky-700", dotCls: "text-sky-600" },
+                    { key: "no_contact", label: "Non contattabili", value: reachStats.unreachable, Icon: AlertTriangle, activeCls: "border-red-300 bg-red-50 text-red-700", dotCls: "text-red-600" },
+                  ] as const).map(({ key, label, value, Icon, activeCls, dotCls }) => {
+                    const pct = reachStats.total > 0 ? Math.round((value / reachStats.total) * 100) : 0;
+                    const active = qualityFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        title={active ? "Rimuovi filtro" : `Mostra solo: ${label.toLowerCase()}`}
+                        onClick={() => setQualityFilter(active ? "all" : key)}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          active ? activeCls : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Icon className={`h-3.5 w-3.5 ${dotCls}`} />
+                        {label}
+                        <span className="font-bold tabular-nums">{value.toLocaleString("it-IT")}</span>
+                        <span className={active ? "" : "text-slate-400"}>· {pct}%</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Card qualità (solo numeri, non cliccabili): vetrina → nascoste
+                su mobile. I filtri veri sono le chip sotto, che restano. */}
+            <div className="mt-4 hidden md:grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase text-amber-700">Da sistemare</span>

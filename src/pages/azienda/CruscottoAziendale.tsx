@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
 import { AlertPanel } from "@/components/cruscotto/AlertPanel";
 import { TodayFocus } from "@/components/cruscotto/TodayFocus";
@@ -72,6 +73,7 @@ function pct(value: number) {
 
 export default function CruscottoAziendale() {
   const perms = usePermissions();
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const {
     marketing, operations, finance, weeklyAgenda, companyTargets,
@@ -431,6 +433,38 @@ export default function CruscottoAziendale() {
                 </div>
               </div>
 
+              {/* Su mobile il grafico recharts 12 mesi (multi-serie, gradienti,
+                  dot custom) è pesante da montare e illeggibile a 375px: lo
+                  sostituiamo con un riepilogo compatto degli ultimi valori. Il
+                  grafico completo resta su tablet/desktop. */}
+              {isMobile ? (
+                (() => {
+                  const last = executiveTrend[executiveTrend.length - 1] as
+                    | { mese?: string; venduto?: number; incassato?: number; cassa?: number } | undefined;
+                  if (!last || trendIsEmpty) return null;
+                  const cells = [
+                    { label: "Venduto", value: last.venduto, cls: "text-slate-900" },
+                    { label: "Incassato", value: last.incassato, cls: "text-slate-900" },
+                    { label: "Cassa", value: last.cassa, cls: safeNumber(last.cassa) < 0 ? "text-red-600" : "text-emerald-600" },
+                  ];
+                  return (
+                    <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-4">
+                      <p className="text-[11px] font-semibold uppercase text-slate-500">Ultimo mese ({last.mese})</p>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {cells.map((c) => (
+                          <div key={c.label} className="rounded-lg border border-slate-100 bg-white p-2 text-center">
+                            <div className={cn("text-sm font-bold leading-tight", c.cls)}>{eur(safeNumber(c.value))}</div>
+                            <div className="text-[10px] text-slate-400">{c.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <Link to="/azienda/controllo-gestione" className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-orange-600">
+                        Andamento completo <ArrowUpRight className="h-3 w-3" />
+                      </Link>
+                    </aside>
+                  );
+                })()
+              ) : (
               <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -582,6 +616,7 @@ export default function CruscottoAziendale() {
                   <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per aprire le commesse del periodo</p>
                 )}
               </aside>
+              )}
             </div>
           </section>
         </SectionErrorBoundary>

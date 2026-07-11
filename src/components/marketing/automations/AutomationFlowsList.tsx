@@ -40,9 +40,23 @@ type AutomationNodeRow = {
 const PUBLISHABLE_NODE_TYPES = new Set(["action", "condition", "delay", "goal", "split"]);
 
 function hasDelayDuration(config: Record<string, unknown> | null | undefined): boolean {
-  const value = config?.delay_durata ?? config?.delay_value;
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) && numericValue > 0;
+  const c = config ?? {};
+  // "Fino alle HH:MM" (builder, delay_tipo=fino_a): la durata non serve.
+  if (c.delay_tipo === "fino_a" && typeof c.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(c.delay_orario)) {
+    return true;
+  }
+  // Schema builder (delay_durata) / legacy (delay_value): invalida SOLO se
+  // impostata esplicitamente a un valore non valido.
+  const value = c.delay_durata ?? c.delay_value;
+  if (value != null && value !== "") {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) && numericValue > 0;
+  }
+  // Schema catalogo/template (giorni/ore/minuti): il motore lo supporta, ma
+  // PRIMA questa validazione bloccava il publish di TUTTI i template con
+  // attese ("Deal perso", "Solleciti fattura scaduta", ecc.).
+  // Nessuna durata configurata = ok: il motore applica il default sicuro (1h).
+  return true;
 }
 
 function validateAutomationForPublish(nodes: AutomationNodeRow[] | null | undefined): string[] {
@@ -120,6 +134,7 @@ interface Props {
 
 export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null }: Props) {
   const { effectiveCompany, user, role } = useAuth();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const queryClient = useQueryClient();
@@ -133,7 +148,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  // Su mobile la tabella a 11 colonne è inservibile → parti dalla vista card.
+  const [viewMode, setViewMode] = useState<"list" | "grid">(isMobile ? "grid" : "list");
 
   // Use internal filter chips (ignore external sub-tab status)
   const activeStatusFilter = externalStatus && externalStatus !== "all" ? externalStatus : (internalStatusFilter === "all" ? "all" : internalStatusFilter);
@@ -176,7 +192,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
-        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by, category")
+        // config_json + bulk_trigger_config servono a "Duplica" (prima la
+        // copia li perdeva sempre: flow.config_json era undefined) e alla
+        // publish-guard dei flussi bulk (0 nodi by-design).
+        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by, category, config_json, bulk_trigger_config")
         .eq("company_id", effectiveCompany!.id)
         .order("updated_at", { ascending: false });
 
@@ -186,7 +205,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
       const { data, error } = await withClientTimeout(query, "Caricamento flussi automazione");
       if (error) throw error;
-      return data as AutomationFlow[];
+      return data as unknown as AutomationFlow[];
     },
     enabled: !!effectiveCompany?.id,
     retry: retryListQuery,
@@ -323,6 +342,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           folder_id: flow.folder_id,
           category: flow.category,
           config_json: flow.config_json ?? null,
+          // Senza questa riga duplicare un "Messaggio programmato" produceva
+          // un flusso inerte (0 nodi e nessuna config bulk).
+          bulk_trigger_config: ((flow as unknown as { bulk_trigger_config?: unknown }).bulk_trigger_config ?? null) as never,
         })
         .select()
         .single();
@@ -377,13 +399,25 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (status === "published") {
-        const { data: nodeRows } = await supabase
-          .from("automation_nodes")
-          .select("node_type, config_json")
-          .eq("flow_id", id)
-          .eq("company_id", effectiveCompany!.id);
-        const validationErrors = validateAutomationForPublish(nodeRows as AutomationNodeRow[]);
-        if (validationErrors.length > 0) throw new Error(validationErrors[0]);
+        // I flussi bulk ("Messaggio programmato") hanno 0 nodi BY-DESIGN
+        // (il runner legge bulk_trigger_config): la validazione trigger+step
+        // li bloccava per sempre una volta messi in bozza.
+        const { data: flowRow } = await supabase
+          .from("automation_flows")
+          .select("bulk_trigger_config")
+          .eq("id", id)
+          .eq("company_id", effectiveCompany!.id)
+          .maybeSingle();
+        const isBulkFlow = !!flowRow?.bulk_trigger_config;
+        if (!isBulkFlow) {
+          const { data: nodeRows } = await supabase
+            .from("automation_nodes")
+            .select("node_type, config_json")
+            .eq("flow_id", id)
+            .eq("company_id", effectiveCompany!.id);
+          const validationErrors = validateAutomationForPublish(nodeRows as AutomationNodeRow[]);
+          if (validationErrors.length > 0) throw new Error(validationErrors[0]);
+        }
       }
       const { data: flow } = await supabase
         .from("automation_flows")
@@ -439,13 +473,25 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     return map;
   }, [allFolders]);
 
+  // "Necessita revisione" = flussi con problemi REALI di struttura (prima era
+  // un duplicato esatto del chip "Bozza"). I flussi bulk (0 nodi by-design)
+  // sono esclusi: per loro la validazione a nodi non ha senso.
+  const flowNeedsReview = useMemo(() => {
+    return (f: AutomationFlow) => {
+      if (f.status === "archived") return false;
+      if ((f as unknown as { bulk_trigger_config?: unknown }).bulk_trigger_config) return false;
+      const summary = nodeSummaries?.[f.id];
+      return !!summary && summary.issueCount > 0;
+    };
+  }, [nodeSummaries]);
+
   // --- Filtering ---
   const filtered = useMemo(() => {
     if (!allFlows) return [];
     let result = allFlows;
     if (activeStatusFilter !== "all") {
       if (activeStatusFilter === "needs_review") {
-        result = result.filter(f => f.status === "draft");
+        result = result.filter(flowNeedsReview);
       } else {
         result = result.filter(f => f.status === activeStatusFilter);
       }
@@ -463,7 +509,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       });
     }
     return result;
-  }, [allFlows, activeStatusFilter, searchQuery, folderMap]);
+  }, [allFlows, activeStatusFilter, searchQuery, folderMap, flowNeedsReview]);
 
   // Status counts for chips
   const statusCounts = useMemo(() => {
@@ -473,9 +519,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       draft: allFlows.filter(f => f.status === "draft").length,
       published: allFlows.filter(f => f.status === "published").length,
       archived: allFlows.filter(f => f.status === "archived").length,
-      needs_review: allFlows.filter(f => f.status === "draft").length,
+      needs_review: allFlows.filter(flowNeedsReview).length,
     };
-  }, [allFlows]);
+  }, [allFlows, flowNeedsReview]);
 
   // Group flows by folder for accordion view
   const { folderedGroups, unfolderedFlows } = useMemo(() => {
@@ -532,7 +578,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   }
 
   if (flowsError || foldersError) {
-    const message = flowsQueryError?.message || foldersQueryError?.message || "Impossibile caricare le automazioni.";
+    const message = (flowsQueryError as Error | null)?.message || (foldersQueryError as Error | null)?.message || "Impossibile caricare le automazioni.";
     return (
       <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center">
         <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />

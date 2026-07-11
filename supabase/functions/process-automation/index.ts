@@ -259,6 +259,12 @@ async function handleTrigger(supabase: any, body: any) {
     ...PLATFORM_TRIGGER_EVENT_MAP,
   };
 
+  // Normalizza anche l'evento IN INGRESSO: TestFlowDialog e altri chiamanti
+  // frontend mandano l'id catalogo italiano (es. "contatto_creato") — prima
+  // non matchava mai il nome canonico risolto dal nodo.
+  const canonicalEvent = TRIGGER_EVENT_MAP[trigger_event as string] ?? trigger_event;
+  const enrollmentIds: string[] = [];
+
   for (const flow of flows) {
     // Use in-memory lookup instead of per-flow query
     const nodes = nodesByFlow.get(flow.id) ?? [];
@@ -272,7 +278,7 @@ async function handleTrigger(supabase: any, body: any) {
         n.config_json?.item_id ??
         n.config_json?.trigger_type;
       if (!nodeEvent) return false;
-      if (nodeEvent === trigger_event) return true;
+      if (nodeEvent === trigger_event || nodeEvent === canonicalEvent) return true;
       return legacyEvents.includes(nodeEvent);
     });
 
@@ -395,17 +401,29 @@ async function handleTrigger(supabase: any, body: any) {
     // resterebbero per sempre "active"/"running" (stesso comportamento dei
     // nodi goal/end_automation e dei nodi foglia in queueNextNodes).
     if (connections.length === 0) {
+      // In test mode chiudi come 'canceled': 'completed' bloccherebbe il
+      // futuro arruolamento REALE del contatto (blockedStatuses).
+      const leafStatus = payload?.test_mode || payload?.dry_run ? "canceled" : "completed";
       await supabase
         .from("automation_enrollments")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .update({ status: leafStatus, updated_at: new Date().toISOString() })
         .eq("id", enrollment.id);
       await completeExecutionRun(supabase, enrollment.id, "completed");
     }
 
     enrolled++;
+    enrollmentIds.push(enrollment.id);
   }
 
-  return jsonResponse({ message: `Triggered`, enrolled });
+  // enrollment_id(s) in risposta: TestFlowDialog li usa per l'overlay
+  // "percorso sul canvas" (prima non venivano restituiti e l'overlay era
+  // codice morto).
+  return jsonResponse({
+    message: `Triggered`,
+    enrolled,
+    enrollment_ids: enrollmentIds,
+    enrollment_id: enrollmentIds[0] ?? null,
+  });
 }
 
 // ────────────────────────────────────────────────────
@@ -484,6 +502,14 @@ async function processQueue(supabase: any) {
         } else {
           // Permanent failure — write to dead letter queue before marking failed
           await markQueueItem(supabase, item.id, "failed", result.error);
+          // Chiudi con onestà: prima l'iscrizione restava "active" e la run
+          // "running" PER SEMPRE dopo un fallimento definitivo (status 'failed'
+          // ammesso dal CHECK, migration 20271214000000).
+          await supabase
+            .from("automation_enrollments")
+            .update({ status: "failed", updated_at: now })
+            .eq("id", item.enrollment_id);
+          await completeExecutionRun(supabase, item.enrollment_id, "error", result.error || "Fallimento dopo max tentativi");
           await supabase.from("automation_dead_letter").insert({
             flow_id: item.flow_id,
             company_id: item.company_id,
@@ -507,11 +533,20 @@ async function processQueue(supabase: any) {
       // Mark current item as done
       await markQueueItem(supabase, item.id, "completed");
 
-      // If node type is "goal" or "end_automation", complete enrollment
-      if (node.node_type === "goal" || node.config_json?.action_type === "end_automation") {
+      // If node type is "goal" or "end_automation", complete enrollment.
+      // item_id incluso: il builder salva l'id catalogo lì, non in action_type.
+      if (
+        node.node_type === "goal" ||
+        node.config_json?.action_type === "end_automation" ||
+        node.config_json?.item_id === "end_automation"
+      ) {
+        // In test mode 'canceled': 'completed' bloccherebbe il futuro
+        // arruolamento reale del contatto (blockedStatuses).
+        const doneStatus = item.context_json?.payload?.test_mode || item.context_json?.payload?.dry_run
+          ? "canceled" : "completed";
         await supabase
           .from("automation_enrollments")
-          .update({ status: "completed", updated_at: now })
+          .update({ status: doneStatus, updated_at: now })
           .eq("id", item.enrollment_id);
         // Complete the execution run
         await completeExecutionRun(supabase, item.enrollment_id, "completed");
@@ -747,7 +782,14 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
 
 // ── Split ──
 function executeSplit(cfg: Record<string, any>) {
-  const splitA = parseInt(cfg.split_a) || 50;
+  // Il builder salva `percentuali` come stringa "60,40": prima era ignorata
+  // e lo split era sempre 50/50. split_a resta prioritario (schema legacy).
+  let splitA = parseInt(cfg.split_a);
+  if (!Number.isFinite(splitA) && typeof cfg.percentuali === "string") {
+    const first = parseInt(cfg.percentuali.split(/[,;|]/)[0]);
+    if (Number.isFinite(first) && first > 0 && first < 100) splitA = first;
+  }
+  if (!Number.isFinite(splitA) || splitA <= 0 || splitA >= 100) splitA = 50;
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
   const rand = (arr[0] / 0xFFFFFFFF) * 100;
@@ -843,6 +885,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     if (c.destinatario && !c.email_to) c.email_to = c.destinatario;
     if (c.oggetto && !c.email_subject) c.email_subject = c.oggetto;
     if (c.corpo && !c.email_body) c.email_body = c.corpo;
+    // Mittente dal builder (EmailConfigPanel scrive da_nome/da_email:
+    // prima erano ignorati e si usava sempre il default di piattaforma)
+    if (c.da_nome && !c.from_name) c.from_name = c.da_nome;
+    if (c.da_email && !c.from_email) c.from_email = c.da_email;
     // WhatsApp fields
     if (c.numero && !c.whatsapp_to) c.whatsapp_to = c.numero;
     if (c.messaggio && !c.whatsapp_body && !c.whatsapp_text) c.whatsapp_text = c.messaggio;
@@ -864,6 +910,21 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   const rawActionType = cfg.action_type ?? cfg.item_id;
   const actionType = ACTION_ALIASES[rawActionType] || rawActionType;
   const ncfg = normalizeConfig(actionType, cfg);
+
+  // ── MODALITÀ TEST (TestFlowDialog invia payload.test_mode/dry_run) ──
+  // PRIMA era ignorata: il "test" spediva email/WhatsApp/SMS VERI ai contatti.
+  // In test le azioni con effetti esterni vengono simulate (successo + flag),
+  // così il percorso nel Registro è reale ma nessun messaggio parte davvero.
+  const testMode = queueItem?.context_json?.payload?.test_mode === true
+    || queueItem?.context_json?.payload?.dry_run === true;
+  const EXTERNAL_ACTIONS = new Set([
+    "send_email", "send_whatsapp", "send_sms", "send_ai_message",
+    "webhook_out", "call_with_ai_agent",
+    "invia_email_admin_azienda", "crea_account_azienda", "invia_fattura",
+  ]);
+  if (testMode && EXTERNAL_ACTIONS.has(actionType)) {
+    return { success: true, output: { action: actionType, simulated: true, test_mode: true } };
+  }
 
   // ── SEPARAZIONE AREA (azioni) ──
   // Le azioni di PIATTAFORMA girano SOLO se il flusso appartiene alla
@@ -913,8 +974,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
   switch (actionType) {
     case "add_tag": {
-      const tag = ncfg.tag_name;
-      if (!tag) return { success: false, error: "No tag_name configured" };
+      // Il builder salva `tags` come ARRAY (multi-select): prima veniva
+      // applicato solo il primo. Applica tutti i tag configurati.
+      const tags: string[] = (Array.isArray(ncfg.tags) ? ncfg.tags : [ncfg.tag_name])
+        .filter((t: unknown): t is string => typeof t === "string" && t.trim() !== "");
+      if (tags.length === 0) return { success: false, error: "No tag_name configured" };
       const { data: contact } = await supabase
         .from("marketing_contacts")
         .select("tags")
@@ -922,19 +986,21 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         .eq("company_id", companyId)
         .single();
       const currentTags: string[] = contact?.tags || [];
-      if (!currentTags.includes(tag)) {
+      const merged = [...new Set([...currentTags, ...tags])];
+      if (merged.length !== currentTags.length) {
         await supabase
           .from("marketing_contacts")
-          .update({ tags: [...currentTags, tag] })
+          .update({ tags: merged })
           .eq("id", entityId)
           .eq("company_id", companyId);
       }
-      return { success: true, output: { action: "add_tag", tag } };
+      return { success: true, output: { action: "add_tag", tags } };
     }
 
     case "remove_tag": {
-      const tag = ncfg.tag_name;
-      if (!tag) return { success: false, error: "No tag_name configured" };
+      const tags: string[] = (Array.isArray(ncfg.tags) ? ncfg.tags : [ncfg.tag_name])
+        .filter((t: unknown): t is string => typeof t === "string" && t.trim() !== "");
+      if (tags.length === 0) return { success: false, error: "No tag_name configured" };
       const { data: contact } = await supabase
         .from("marketing_contacts")
         .select("tags")
@@ -944,10 +1010,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const currentTags: string[] = contact?.tags || [];
       await supabase
         .from("marketing_contacts")
-        .update({ tags: currentTags.filter((t: string) => t !== tag) })
+        .update({ tags: currentTags.filter((t: string) => !tags.includes(t)) })
         .eq("id", entityId)
         .eq("company_id", companyId);
-      return { success: true, output: { action: "remove_tag", tag } };
+      return { success: true, output: { action: "remove_tag", tags } };
     }
 
     case "update_field": {
@@ -1088,6 +1154,12 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         assigned_to: ncfg.task_assigned_to || null,
         due_date: dueDate,
         status: "da_fare",
+        // Collega il task al contatto del flusso: prima il task nasceva
+        // "orfano" e non compariva nella timeline del contatto. Guard UUID:
+        // le entity dei trigger cron sono stringhe sintetiche ("cron:...").
+        contact_id: (!queueItem?.entity_type || queueItem?.entity_type === "contact") && UUID_RE.test(String(entityId))
+          ? entityId
+          : null,
         created_by: "00000000-0000-0000-0000-000000000000",
       });
       if (error) return { success: false, error: error.message };
@@ -1095,33 +1167,44 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "update_task": {
-      // Find the most recent non-completed task for this entity
-      const { data: existingTask } = await supabase
-        .from("tasks")
-        .select("id")
-        .eq("company_id", companyId)
-        .neq("status", "completato")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Aggiorna il task GIUSTO: se l'entità del flusso È un task (trigger
+      // task_creato/task_scaduto) usa direttamente quell'id; altrimenti il
+      // task più recente COLLEGATO al contatto. Prima prendeva il task più
+      // recente di TUTTA l'azienda, ignorando l'entità del flusso.
+      let taskId: string | null = null;
+      if (queueItem?.entity_type === "task") {
+        taskId = entityId;
+      } else {
+        const { data: existingTask } = await supabase
+          .from("tasks")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("contact_id", entityId)
+          .neq("status", "completato")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        taskId = existingTask?.id ?? null;
+      }
 
-      if (!existingTask) return { success: false, error: "Nessuna attività trovata da aggiornare" };
+      if (!taskId) return { success: false, error: "Nessuna attività trovata da aggiornare per questa entità" };
 
       const updateData: Record<string, any> = {};
-      if (ncfg.task_title) updateData.title = ncfg.task_title;
-      if (ncfg.task_notes) updateData.notes = ncfg.task_notes;
+      if (ncfg.task_title) updateData.title = rv(ncfg.task_title);
+      if (ncfg.task_notes) updateData.notes = rv(ncfg.task_notes);
       if (ncfg.task_priority) updateData.priority = ncfg.task_priority;
       if (ncfg.task_assigned_to) updateData.assigned_to = ncfg.task_assigned_to;
       if (ncfg.task_status) updateData.status = ncfg.task_status;
       if (ncfg.task_due_days != null) {
-        const due = new Date();
-        due.setDate(due.getDate() + (parseInt(ncfg.task_due_days) || 0));
-        updateData.due_date = due.toISOString().split("T")[0];
+        // Giorno ITALIANO, non UTC (convenzione anti UTC-drift, come create_task).
+        const days = parseInt(ncfg.task_due_days) || 0;
+        updateData.due_date = new Date(Date.now() + days * 86_400_000)
+          .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       }
 
-      const { error } = await supabase.from("tasks").update(updateData).eq("id", existingTask.id);
+      const { error } = await supabase.from("tasks").update(updateData).eq("id", taskId).eq("company_id", companyId);
       if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "update_task", task_id: existingTask.id, updated: Object.keys(updateData) } };
+      return { success: true, output: { action: "update_task", task_id: taskId, updated: Object.keys(updateData) } };
     }
 
     case "send_notification": {
@@ -1171,7 +1254,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         notification_date: null,
         title,
         message,
-        metadata: { entity_id: entityId, automation: true, recipient_type: ncfg.notification_recipient },
+        // user_ids nel metadata: lifecycle_notifications non ha una colonna
+        // destinatario — senza questi id la scelta assegnatario/admin/specifico
+        // era puramente cosmetica (notifica sempre company-wide).
+        metadata: { entity_id: entityId, automation: true, recipient_type: ncfg.notification_recipient, user_ids: targetUserIds },
       });
       if (notifErr) return { success: false, error: notifErr.message };
       return { success: true, output: { action: "send_notification", title, recipients: targetUserIds.length } };
@@ -1207,13 +1293,17 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       // Get contact (telefono + dati per la personalizzazione)
       const { data: smsContact } = await supabase
         .from("marketing_contacts")
-        .select("id, phone, first_name, last_name, email, city, province, company_name, source")
+        .select("id, phone, first_name, last_name, email, city, province, company_name, source, optout_sms, opt_out")
         .eq("id", entityId)
         .eq("company_id", companyId)
         .maybeSingle();
 
       if (!smsContact?.phone) {
         return { success: false, error: "Contatto senza numero di telefono" };
+      }
+      // Consenso: email e WhatsApp controllavano l'opt-out, l'SMS no.
+      if (smsContact.optout_sms || smsContact.opt_out) {
+        return { success: false, error: "Contact has opted out of SMS" };
       }
 
       // Personalizza il testo SMS (prima era inviato grezzo, con i {{...}} letterali).
@@ -1508,7 +1598,8 @@ Istruzione: ${aiPrompt}`;
         client_phone: cantiereContact?.phone || null,
         client_company: cantiereContact?.company_name || null,
         client_address: cantiereContact?.address || null,
-        work_start_date: workStart.toISOString().split("T")[0],
+        // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
+        work_start_date: workStart.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }),
         internal_notes: "Cantiere aperto automaticamente da un'automazione.",
       };
       // user_select → id profilo/utente valido; assigned_to ha FK su profiles ON DELETE SET NULL.
@@ -1526,13 +1617,14 @@ Istruzione: ${aiPrompt}`;
     case "crea_appuntamento": {
       const title = ncfg.titolo || "Appuntamento automatico";
       const giorniDaOggi = parseInt(ncfg.giorni_da_oggi) || 1;
-      const appointmentDate = new Date();
-      appointmentDate.setDate(appointmentDate.getDate() + giorniDaOggi);
+      // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
+      const appointmentDateStr = new Date(Date.now() + giorniDaOggi * 86_400_000)
+        .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const { data, error } = await supabase.from("appointments").insert({
         company_id: companyId,
         title,
         contact_id: ncfg.contact_id || entityId,
-        appointment_date: appointmentDate.toISOString().split("T")[0],
+        appointment_date: appointmentDateStr,
         appointment_time: ncfg.orario || "10:00",
         appointment_type: ncfg.tipo || "in_sede",
         assigned_to: ncfg.assegnato_a || null,
@@ -1560,14 +1652,15 @@ Istruzione: ${aiPrompt}`;
     case "crea_fattura": {
       const importo = parseFloat(String(ncfg.importo || 0)) || 0;
       const scadenzaGiorni = parseInt(ncfg.scadenza_giorni) || 30;
-      const scadenza = new Date();
-      scadenza.setDate(scadenza.getDate() + scadenzaGiorni);
+      // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
+      const scadenzaStr = new Date(Date.now() + scadenzaGiorni * 86_400_000)
+        .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const { data, error } = await supabase.from("invoices").insert({
         company_id: companyId,
         contact_id: ncfg.cliente_id || entityId,
         total_amount: importo,
         description: ncfg.descrizione || "Fattura automatica",
-        due_date: scadenza.toISOString().split("T")[0],
+        due_date: scadenzaStr,
         status: "draft",
       }).select("id").single();
       if (error) return { success: false, error: error.message };
@@ -1576,6 +1669,13 @@ Istruzione: ${aiPrompt}`;
 
     case "end_automation":
       return { success: true, output: { action: "end_automation" } };
+
+    case "attendi":
+      // Nodo "Attendi" creato per errore come AZIONE (dialog AI o inserimento
+      // dal catalogo sbagliato): prima cadeva nel default "Not implemented"
+      // e l'attesa non avveniva mai (il flusso proseguiva subito). Delega la
+      // semantica al delay: queueNextNodes gestisce result.isDelay.
+      return executeDelay(ncfg);
 
     case "sync_google":
       return await executeSyncGoogle(supabase, ncfg, entityId, companyId);
@@ -1668,7 +1768,9 @@ Istruzione: ${aiPrompt}`;
       let dueDate: string | null = null;
       const dueDays = cfg.scadenza_giorni != null ? parseInt(String(cfg.scadenza_giorni)) : NaN;
       if (!Number.isNaN(dueDays)) {
-        const d = new Date(); d.setDate(d.getDate() + dueDays); dueDate = d.toISOString().split("T")[0];
+        // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
+        dueDate = new Date(Date.now() + dueDays * 86_400_000)
+          .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       }
       const { data, error } = await supabase.from("cs_tasks").insert({
         company_id: subjectCompanyId,
@@ -1856,6 +1958,10 @@ Istruzione: ${aiPrompt}`;
 // QUEUE NEXT NODES
 // ────────────────────────────────────────────────────
 async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
+  // In test mode le iscrizioni si chiudono come 'canceled': 'completed'
+  // bloccherebbe il futuro arruolamento REALE del contatto (blockedStatuses).
+  const doneStatus = queueItem?.context_json?.payload?.test_mode || queueItem?.context_json?.payload?.dry_run
+    ? "canceled" : "completed";
   // ── vai_a (Go To): salta a un nodo specifico ignorando gli archi del grafo ──
   // Va prima del controllo "nessuna connessione": un nodo vai_a può non avere archi uscenti.
   if (result.isJump && result.jumpToNodeId) {
@@ -1912,7 +2018,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
     // No next node — complete enrollment
     await supabase
       .from("automation_enrollments")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .update({ status: doneStatus, updated_at: new Date().toISOString() })
       .eq("id", queueItem.enrollment_id);
     await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
     return;
@@ -1927,8 +2033,17 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
         c.label?.toLowerCase().charAt(0) === result.branch.toLowerCase()
       );
     } else {
-      // condition branches: labels are "yes" / "no"
-      nextConns = connections.filter((c: AutomationConnection) => c.label === result.branch);
+      // condition branches: il motore produce "yes"/"no", ma il builder salva
+      // gli archi come "Sì"/"No" (i flussi AI/legacy come yes/no) → PRIMA il
+      // match falliva su OGNI condizione disegnata nel builder e il flusso
+      // terminava lì. Normalizza il label prima del confronto.
+      const normBranch = (l: string | null) => {
+        const v = String(l ?? "").trim().toLowerCase();
+        if (v === "sì" || v === "si" || v === "yes" || v === "vero" || v === "true") return "yes";
+        if (v === "no" || v === "falso" || v === "false") return "no";
+        return v;
+      };
+      nextConns = connections.filter((c: AutomationConnection) => normBranch(c.label) === result.branch);
     }
     if (nextConns.length === 0) {
       // FIX ROUTING: il vecchio fallback "segui TUTTE le connessioni" faceva
@@ -1943,7 +2058,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       } else {
         await supabase
           .from("automation_enrollments")
-          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .update({ status: doneStatus, updated_at: new Date().toISOString() })
           .eq("id", queueItem.enrollment_id);
         return;
       }
@@ -2049,17 +2164,50 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
 function evaluateFilters(filters: any, payload: Record<string, any>): boolean {
   if (!filters || !filters.conditions) return true;
   const logic = filters.logic || "AND";
+  const dayMs = 86_400_000;
   const results = filters.conditions.map((c: any) => {
     if (c.logic) return evaluateFilters(c, payload); // Nested group
     const actual = payload[c.field];
+    const sa = String(actual ?? "").toLowerCase();
+    const sv = String(c.value ?? "").toLowerCase();
+    const na = Number(actual);
+    const nv = Number(c.value);
+    const da = actual != null ? new Date(String(actual)).getTime() : NaN;
+    const dv = c.value != null ? new Date(String(c.value)).getTime() : NaN;
     let match = false;
+    // Il TriggerConditionBuilder offre TUTTI questi operatori: prima solo 5
+    // erano implementati e il resto cadeva nel default → condizione sempre
+    // vera in silenzio (es. "valore > 1000" scattava per qualsiasi valore).
     switch (c.operator) {
       case "equals": match = String(actual) === String(c.value); break;
       case "not_equals": match = String(actual) !== String(c.value); break;
-      case "contains": match = String(actual || "").includes(String(c.value)); break;
+      case "contains": match = sa.includes(sv); break;
+      case "not_contains": match = !sa.includes(sv); break;
+      case "starts_with": match = sa.startsWith(sv); break;
+      case "ends_with": match = sa.endsWith(sv); break;
       case "is_empty": match = !actual; break;
       case "is_not_empty": match = !!actual; break;
-      default: match = true;
+      case "gt": match = Number.isFinite(na) && na > nv; break;
+      case "gte": match = Number.isFinite(na) && na >= nv; break;
+      case "lt": match = Number.isFinite(na) && na < nv; break;
+      case "lte": match = Number.isFinite(na) && na <= nv; break;
+      case "between": {
+        const [lo, hi] = String(c.value ?? "").split(/[,;|]/).map((x: string) => Number(x.trim()));
+        match = Number.isFinite(na) && Number.isFinite(lo) && Number.isFinite(hi) && na >= lo && na <= hi;
+        break;
+      }
+      case "is_true": match = actual === true || sa === "true" || sa === "1"; break;
+      case "is_false": match = actual === false || sa === "false" || sa === "0"; break;
+      case "is_assigned": match = actual != null && String(actual) !== ""; break;
+      case "is_not_assigned": match = actual == null || String(actual) === ""; break;
+      case "on": match = Number.isFinite(da) && Number.isFinite(dv) && new Date(da).toDateString() === new Date(dv).toDateString(); break;
+      case "before": match = Number.isFinite(da) && Number.isFinite(dv) && da < dv; break;
+      case "after": match = Number.isFinite(da) && Number.isFinite(dv) && da > dv; break;
+      case "today": match = Number.isFinite(da) && new Date(da).toDateString() === new Date().toDateString(); break;
+      case "yesterday": match = Number.isFinite(da) && new Date(da).toDateString() === new Date(Date.now() - dayMs).toDateString(); break;
+      case "in_last_x_days": match = Number.isFinite(da) && Number.isFinite(nv) && da >= Date.now() - nv * dayMs && da <= Date.now(); break;
+      case "in_next_x_days": match = Number.isFinite(da) && Number.isFinite(nv) && da >= Date.now() && da <= Date.now() + nv * dayMs; break;
+      default: match = true; // operatore sconosciuto: fail-open come prima
     }
     return c.negate ? !match : match;
   });
@@ -2255,13 +2403,24 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       return { success: false, error: `No API key configured for ${stream} email provider` };
     }
 
+    // Destinatario override (campo "destinatario" del builder, con supporto
+    // {{placeholder}}): PRIMA era ignorato e si inviava sempre al contatto.
+    // Default (vuoto o uguale) = email del contatto, comportamento invariato.
+    let toAddress: string = contact.email;
+    if (typeof cfg.email_to === "string" && cfg.email_to.trim() !== "") {
+      const resolvedTo = (await resolveContactText(supabase, cfg.email_to, contact, companyId)).trim();
+      if (resolvedTo && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(resolvedTo)) {
+        toAddress = resolvedTo;
+      }
+    }
+
     const suppressed = await getSuppressedEmailMap(
       supabase,
-      [contact.email],
+      [toAddress],
       companyId,
       stream,
     );
-    if (suppressed.has(normalizeEmailAddress(contact.email))) {
+    if (suppressed.has(normalizeEmailAddress(toAddress))) {
       return { success: false, error: "Contact is suppressed for this email stream" };
     }
 
@@ -2337,7 +2496,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     const result = await sendViaProviderWithFailover(stream, settings, {
       from: fromAddress,
-      to: [contact.email],
+      to: [toAddress],
       subject,
       html,
       headers: stream === "marketing"
@@ -2366,7 +2525,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Mirror to unified email_delivery_log for SuperAdmin P&L/audit
     await logEmailDelivery(supabase, {
       company_id: companyId,
-      recipient: contact.email,
+      recipient: toAddress,
       subject,
       template_name: "automation_send",
       status: result.ok ? "sent" : "failed",

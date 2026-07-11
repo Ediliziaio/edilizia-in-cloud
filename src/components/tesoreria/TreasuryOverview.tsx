@@ -8,6 +8,7 @@ import { Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, Composed
 import { formatCurrencyCompact, formatDateIt } from "@/lib/formatters";
 import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigateToTransactions }: Props) {
+  const isMobile = useIsMobile();
   const [summary, setSummary] = useState<any>(null);
   const [cashFlow, setCashFlow] = useState<any[]>([]);
   const [byCategory, setByCategory] = useState<{ category: string; total: number }[]>([]);
@@ -182,7 +184,9 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </div>
       )}
 
-      {/* Cash Flow Chart */}
+      {/* Cash Flow Chart: vetrina desktop (ComposedChart alto 320px,
+          illeggibile a 375px) → nascosto su mobile. I KPI sopra restano. */}
+      {!isMobile && (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Cash Flow — Ultimi 6 Mesi</CardTitle>
@@ -207,6 +211,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Spese per categoria */}
       <Card>
@@ -220,6 +225,9 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             </p>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 items-center">
+              {/* Donut recharts: solo desktop. Su mobile resta la lista con
+                  percentuali (stesso dato, più leggibile a dito). */}
+              {!isMobile && (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={60} outerRadius={95} paddingAngle={2}>
@@ -228,6 +236,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                   <Tooltip formatter={(v: number) => formatEur(v)} />
                 </PieChart>
               </ResponsiveContainer>
+              )}
               <div className="space-y-2">
                 {(() => { const tot = byCategory.reduce((s, c) => s + c.total, 0); return byCategory.slice(0, 8).map((c) => (
                   <div key={c.category} className="flex items-center gap-2 text-sm">

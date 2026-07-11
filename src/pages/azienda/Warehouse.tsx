@@ -812,7 +812,9 @@ export default function Warehouse() {
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
       <div className="space-y-3 print:hidden">
-        <div className="flex items-center justify-between gap-3">
+        {/* Intestazione + "Personalizza card": configurazione da scrivania,
+            nascosta su mobile per andare dritti alle metriche. */}
+        <div className="hidden sm:flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">Metriche magazzino</h2>
             <p className="text-xs text-muted-foreground">
@@ -831,12 +833,16 @@ export default function Warehouse() {
             onCardClick={handleStatsCardClick}
             visibleCards={metricPreferences.order}
           />
-          <WarehouseInventoryStats
-            stockItems={stockItems}
-            orderItems={items}
-            visibleCards={metricPreferences.inventory}
-            onCardClick={handleInventoryCardClick}
-          />
+          {/* KPI valorizzazione inventario: dato da scrivania → su mobile
+              occupa solo spazio, nascosto sotto md. Restano le card operative. */}
+          <div className="hidden md:block">
+            <WarehouseInventoryStats
+              stockItems={stockItems}
+              orderItems={items}
+              visibleCards={metricPreferences.inventory}
+              onCardClick={handleInventoryCardClick}
+            />
+          </div>
           {materialMetricCards.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {materialMetricCards.map((card) => {

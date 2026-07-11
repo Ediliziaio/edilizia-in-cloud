@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,17 @@ interface Props {
   opportunityId?: string | null;
 }
 
+// Gli stati REALI di quotes.status sono italiani (src/lib/quoteStatus.ts:
+// bozza/inviata/accettata/rifiutata/scaduta/convertita) — con le sole chiavi
+// inglesi OGNI preventivo appariva "Bozza" anche se firmato. Le chiavi
+// inglesi restano come alias per eventuali righe legacy.
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  bozza: { label: "Bozza", className: "bg-muted text-muted-foreground" },
+  inviata: { label: "Inviato", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
+  accettata: { label: "Accettato", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+  rifiutata: { label: "Rifiutato", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
+  scaduta: { label: "Scaduto", className: "bg-muted text-muted-foreground" },
+  convertita: { label: "Convertito", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
   draft: { label: "Bozza", className: "bg-muted text-muted-foreground" },
   sent: { label: "Inviato", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
   accepted: { label: "Accettato", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
@@ -98,6 +109,9 @@ const emptyItem = (): QuoteItemRow => ({
 
 export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Props) {
   const navigate = useNavigate();
+  // Rotte relative al contesto: dall'hub admin si resta su /admin/marketing
+  // (prima si finiva su /azienda/* perdendo il PlatformCompanyProvider).
+  const routePrefix = useMarketingRoutePrefix();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -287,7 +301,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
       const quoteData = {
         company_id: companyId,
-        status: "draft" as const,
+        // "bozza", NON "draft": lo status è testo libero in DB ma tutta la
+        // reportistica/filtri riconoscono solo il vocabolario italiano.
+        status: "bozza" as const,
         quote_number: numData || `OFF-${new Date().getFullYear()}-001`,
         contact_id: contactId,
         opportunity_id: opportunityId ?? null,
@@ -401,7 +417,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           <Button
             size="sm"
             variant="outline"
-            onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?${builderQs.toString()}`)}
+            onClick={() => navigate(`${routePrefix}/preventivi/nuovo?${builderQs.toString()}`)}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1" />
             Preventivo avanzato
@@ -758,11 +774,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       ) : (
         <div className="space-y-2">
           {quotes.map((q: any) => {
-            const st = STATUS_LABELS[q.status] || STATUS_LABELS.draft;
+            const st = STATUS_LABELS[q.status] || STATUS_LABELS.bozza;
             return (
               <button
                 key={q.id}
-                onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
+                onClick={() => navigate(`${routePrefix}/preventivi/${q.id}`)}
                 className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
               >
                 <div className="min-w-0 flex-1">

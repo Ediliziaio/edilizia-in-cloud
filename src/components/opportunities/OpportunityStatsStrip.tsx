@@ -40,7 +40,9 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
         case "abandoned": abandoned++; break;
       }
     }
-    return { open, won, lost, abandoned, pipeline_value: pipelineValue, weighted_value: weightedValue, won_value: wonValue, stale, unscored };
+    const closed = won + lost;
+    const winRate = closed > 0 ? Math.round((won / closed) * 100) : null;
+    return { open, won, lost, abandoned, pipeline_value: pipelineValue, weighted_value: weightedValue, won_value: wonValue, stale, unscored, winRate };
   }, [opportunities]);
 
   const fmt = (v: number, isCurrency: boolean) =>
@@ -57,6 +59,10 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
           key === "weighted_value" && stats.unscored > 0
             ? `${stats.unscored} opportunità senza probabilità: stimate al 50% nel ponderato`
             : undefined;
+        // Win-rate sotto "Vinte": vinte/(vinte+perse) — prima il tasso di
+        // conversione esisteva solo nella Reportistica separata.
+        const winRateHint =
+          key === "won" && stats.winRate != null ? `${stats.winRate}% win-rate` : undefined;
         return (
           <div
             key={key}
@@ -72,6 +78,11 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
               {weightedHint && (
                 <p className="text-[9px] leading-tight text-amber-600 dark:text-amber-400 truncate">
                   {stats.unscored} senza stima
+                </p>
+              )}
+              {winRateHint && (
+                <p className="text-[9px] leading-tight text-green-600 dark:text-green-400 truncate">
+                  {winRateHint}
                 </p>
               )}
             </div>

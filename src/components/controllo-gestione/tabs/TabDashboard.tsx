@@ -29,6 +29,7 @@ import {
   Sparkles, Target, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   anno: number;
@@ -53,6 +54,8 @@ interface RecommendedAction {
 interface CfoContext {
   anno: number;
   ricavi: number;
+  /** Valore della Produzione (voce "A" del CE) — denominatore ufficiale dei margini. */
+  pil: number;
   ebitda: number;
   utile: number;
   saldoChiusura: number | null;
@@ -96,6 +99,7 @@ const ACTION_PRIORITY_STYLES: Record<ActionPriority, string> = {
 };
 
 export function TabDashboard({ anno }: Props) {
+  const isMobile = useIsMobile();
   const ce  = useCEriclassificato(anno, 1, 12);
   const sp  = useStatoPatrimoniale(anno);
   const cf  = useCashFlow(anno, 1, 12);
@@ -119,6 +123,10 @@ export function TabDashboard({ anno }: Props) {
   const findCe = (codice: string) =>
     ce.data?.voci.find((v) => v.codice === codice)?.valore ?? 0;
   const ricavi = findCe("01");
+  // Denominatore margini = PIL (Valore della Produzione, voce "A") come nel tab
+  // CE: con rimanenze/LIC a zero coincide coi ricavi, ma appena si popolano i
+  // due tab divergerebbero. Fallback ai ricavi se il PIL non c'è ancora.
+  const pil    = findCe("A") || ricavi;
   const ebitda = findCe("E");
   const ebit   = findCe("F");
   const utile  = findCe("L");
@@ -346,6 +354,7 @@ export function TabDashboard({ anno }: Props) {
   const cfoContext: CfoContext = useMemo(() => ({
     anno,
     ricavi,
+    pil,
     ebitda,
     utile,
     saldoChiusura: cf.data?.meta.saldo_chiusura ?? null,
@@ -362,6 +371,7 @@ export function TabDashboard({ anno }: Props) {
   }), [
     anno,
     ricavi,
+    pil,
     ebitda,
     utile,
     cf.data,
@@ -442,7 +452,7 @@ export function TabDashboard({ anno }: Props) {
         <KPIMacro
           label="EBITDA"
           value={ce.data ? formatCurrency(ebitda) : "—"}
-          sub={ce.data && ricavi > 0 ? `${((ebitda / ricavi) * 100).toFixed(1)}% margine` : "—"}
+          sub={ce.data && pil > 0 ? `${((ebitda / pil) * 100).toFixed(1)}% del PIL` : "—"}
           icon={<Activity className="h-4 w-4" />}
           tone={ebitda >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
@@ -450,7 +460,7 @@ export function TabDashboard({ anno }: Props) {
         <KPIMacro
           label="Utile previsto"
           value={ce.data ? formatCurrency(utile) : "—"}
-          sub={ce.data && ricavi > 0 ? `${((utile / ricavi) * 100).toFixed(1)}% sul fatturato` : "—"}
+          sub={ce.data && pil > 0 ? `${((utile / pil) * 100).toFixed(1)}% del PIL` : "—"}
           icon={<Wallet className="h-4 w-4" />}
           tone={utile >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
@@ -528,6 +538,10 @@ export function TabDashboard({ anno }: Props) {
 
       {/* Mini-chart cash flow + commesse aside */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Grafico cassa (recharts): vetrina da scrivania, illeggibile a 375px
+            e pesante da montare → nascosto su mobile. Restano KPI + "Cantieri
+            attivi" (operativo). */}
+        {!isMobile && (
         <Card className="rounded-2xl lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Cassa: andamento previsto {anno}</CardTitle>
@@ -558,6 +572,7 @@ export function TabDashboard({ anno }: Props) {
             </div>
           </CardContent>
         </Card>
+        )}
 
         <Card className="rounded-2xl">
           <CardHeader className="pb-3">
@@ -638,6 +653,7 @@ function DashboardActionCenter({
   onQuestionChange: (value: string) => void;
   onAsk: (question?: string) => void;
 }) {
+  const isMobile = useIsMobile();
   const [openActionIds, setOpenActionIds] = useState<Set<string>>(() => new Set());
   const toggleAction = (actionId: string) => {
     setOpenActionIds((current) => {
@@ -683,6 +699,9 @@ function DashboardActionCenter({
         </CardContent>
       </Card>
 
+      {/* Assistente CFO (textarea + prompt): strumento da scrivania,
+          ingombrante su mobile → solo da tablet in su. */}
+      {!isMobile && (
       <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 via-white to-emerald-50">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -742,6 +761,7 @@ function DashboardActionCenter({
           <CfoAnswerPanel answer={cfoAnswer} />
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
@@ -937,8 +957,9 @@ function KPIMacro({
 
 function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
   const q = question.toLowerCase();
-  const ebitdaMargin = context.ricavi > 0 ? (context.ebitda / context.ricavi) * 100 : null;
-  const utileMargin = context.ricavi > 0 ? (context.utile / context.ricavi) * 100 : null;
+  // Margini sul PIL (Valore della Produzione), come nel tab CE.
+  const ebitdaMargin = context.pil > 0 ? (context.ebitda / context.pil) * 100 : null;
+  const utileMargin = context.pil > 0 ? (context.utile / context.pil) * 100 : null;
   const primaryAction = context.azioni[0];
 
   if (q.includes("cassa") || q.includes("cash") || q.includes("liquid")) {
@@ -999,7 +1020,7 @@ function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
         : "Non emergono commesse in perdita, conviene lavorare su forecast e costo atteso.",
       focus: [
         `Margine atteso commesse: ${context.margineAttesoCommesse !== null ? formatCurrency(context.margineAttesoCommesse) : "n.d."}.`,
-        ebitdaMargin !== null ? `EBITDA su ricavi: ${ebitdaMargin.toFixed(1)}%.` : "EBITDA non valutabile.",
+        ebitdaMargin !== null ? `EBITDA sul PIL: ${ebitdaMargin.toFixed(1)}%.` : "EBITDA non valutabile.",
         context.budgetRicaviVariancePct !== null
           ? `Scostamento forecast ricavi vs budget: ${formatSignedPercent(context.budgetRicaviVariancePct)}.`
           : "Budget ricavi non confrontabile.",

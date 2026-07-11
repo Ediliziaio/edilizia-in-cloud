@@ -893,10 +893,11 @@ function CustomersListInner() {
             <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
           </Button>
 
-          {/* Columns */}
+          {/* Columns — la scelta colonne agisce solo sulla tabella desktop;
+              su mobile la lista è a card, quindi il bottone è inutile. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Colonne">
+              <Button variant="outline" size="icon" aria-label="Colonne" className="hidden sm:inline-flex">
                 <Columns3 className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -974,20 +975,24 @@ function CustomersListInner() {
               trend={trend}
               hint="vs mese scorso"
             />
-            <KpiCard
-              label="Con ordini"
-              value={stats?.with_orders ?? 0}
-              icon={ShoppingBag}
-              accentClass="border-l-blue-500"
-              hint="Almeno 1 ordine"
-            />
-            <KpiCard
-              label="Solo anagrafica"
-              value={stats?.portal_disabled ?? 0}
-              icon={ShieldOff}
-              accentClass="border-l-amber-500"
-              hint="Senza portale"
-            />
+            {/* "Con ordini" e "Solo anagrafica": info da scrivania → su mobile
+                si tengono solo i 2 KPI principali (una riga pulita). */}
+            <div className="hidden sm:contents">
+              <KpiCard
+                label="Con ordini"
+                value={stats?.with_orders ?? 0}
+                icon={ShoppingBag}
+                accentClass="border-l-blue-500"
+                hint="Almeno 1 ordine"
+              />
+              <KpiCard
+                label="Solo anagrafica"
+                value={stats?.portal_disabled ?? 0}
+                icon={ShieldOff}
+                accentClass="border-l-amber-500"
+                hint="Senza portale"
+              />
+            </div>
           </>
         )}
       </div>
@@ -1202,8 +1207,10 @@ function CustomersListInner() {
         </SheetContent>
       </Sheet>
 
+      {/* Analisi anomalie: strumento da scrivania → nascosto su mobile
+          ("il troppo non va bene" sul telefono). */}
       {customers.length > 0 && anomalyTotals.total > 0 && (
-        <Card className="border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10">
+        <Card className="hidden md:block border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10">
           <CardContent className="py-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">

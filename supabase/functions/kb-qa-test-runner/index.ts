@@ -127,10 +127,14 @@ Deno.serve(async (req) => {
           concatContent.includes(p.toLowerCase())
         );
 
-        // 4. Verdict
+        // 4. Verdict. NB: senza must_cite_doc_ids il test era VACUAMENTE
+        // verde anche con ZERO chunk recuperati (la UI non permette nemmeno
+        // di impostarli) → il pass-rate non significava nulla. Ora, senza
+        // doc attesi, il test richiede almeno un chunk recuperato dalla KB.
         const expectedIds = pair.must_cite_doc_ids ?? [];
-        const mustCiteSatisfied =
-          expectedIds.length === 0 || matchedDocIds.some((id) => expectedIds.includes(id));
+        const mustCiteSatisfied = expectedIds.length === 0
+          ? matchedDocIds.length > 0
+          : matchedDocIds.some((id) => expectedIds.includes(id));
         const noForbidden = forbiddenHit.length === 0;
         const verdict: "ok" | "ko" = mustCiteSatisfied && noForbidden ? "ok" : "ko";
 

@@ -24,6 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { neutralizeXlsxCell } from "@/lib/csvExport";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -115,6 +116,7 @@ function formatDateSafe(s: string | null | undefined): string {
 
 export function UnifiedPreventiviList() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const sel = useTableSelection();
@@ -911,7 +913,10 @@ export function UnifiedPreventiviList() {
         </div>
       </div>
 
-      {/* ─── Grafici ─── */}
+      {/* ─── Grafici ─── (trend BarChart + distribuzione PieChart): vetrina
+          desktop, pesanti e illeggibili su telefono → i KPI hero sopra bastano;
+          su mobile non montiamo i grafici. */}
+      {!isMobile && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="lg:col-span-2">
           <CardContent className="p-4">
@@ -976,6 +981,7 @@ export function UnifiedPreventiviList() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
       <Card>

@@ -30,6 +30,7 @@ import { TabTrend } from "@/components/marketing/dashboard/tabs/TabTrend";
 import { TabCommerciale } from "@/components/marketing/dashboard/tabs/TabCommerciale";
 import { exportToCSV } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useMetaLeadNotifications } from "@/hooks/useMetaLeadNotifications";
 import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
@@ -69,8 +70,10 @@ function pct(value: number) {
 
 // Sub-component: Sede analytics (mostrato solo se ci sono sedi).
 function SedeFilterBarMarketing() {
+  const isMobile = useIsMobile();
   const { data: sedi = [] } = useSediList();
-  if (sedi.length === 0) return null;
+  // Grafico "Analytics per Sede" (recharts): vetrina desktop → non su mobile.
+  if (isMobile || sedi.length === 0) return null;
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -86,6 +89,7 @@ export default function MarketingDashboard() {
   const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
   const { activeTab, switchTab, tabs, visibleTabs, toggleTabVisibility } = useDashboardLayout();
   const { effectiveCompany } = useAuth();
+  const isMobile = useIsMobile();
   useMetaLeadNotifications();
   const { isScopriPlan } = useSubscriptionLimits();
   const companyId = effectiveCompany?.id;
@@ -123,7 +127,8 @@ export default function MarketingDashboard() {
         };
       });
     },
-    enabled: !!companyId,
+    // Grafico trend 12 mesi non mostrato su mobile → non scaricarne i dati.
+    enabled: !!companyId && !isMobile,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -449,6 +454,10 @@ export default function MarketingDashboard() {
               </div>
             </div>
 
+            {/* Grafico 12 mesi (recharts, multi-serie): "vetrina" desktop,
+                pesante e illeggibile su telefono. I numeri chiave sono già
+                nelle KPI del riquadro sopra → su mobile nascondiamo il grafico. */}
+            {!isMobile && (
             <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -565,6 +574,7 @@ export default function MarketingDashboard() {
                 <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per vedere i lead del periodo</p>
               )}
             </aside>
+            )}
           </div>
         </section>
       )}
@@ -594,7 +604,9 @@ export default function MarketingDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 mb-3">
-            <div className="lg:col-span-2">
+            {/* Salute commerciale: pannello-vetrina → nascosto su mobile;
+                resta "Azioni commerciali" (le cose da fare). */}
+            <div className="hidden lg:col-span-2 lg:block">
               <SaluteCommerciale
                 leadsNew={data.kpi.leads_new}
                 staleLeads={data.alerts?.stale_leads ?? 0}

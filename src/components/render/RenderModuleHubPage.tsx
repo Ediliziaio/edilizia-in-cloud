@@ -272,7 +272,9 @@ export function RenderModuleHubPage({
         </div>
       </section>
 
-      <section>
+      {/* Sezioni descrittive (workflow + qualità): vetrina → solo desktop, così
+          su mobile si arriva subito a "Render recenti" e "Sessioni". */}
+      <section className="hidden md:block">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Qualita del workflow
         </h2>
@@ -291,7 +293,7 @@ export function RenderModuleHubPage({
         </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-3">
+      <section className="hidden md:grid gap-3 lg:grid-cols-3">
         {qualityCards.map(({ icon: Icon, title: cardTitle, description: cardDescription }) => (
           <Card key={cardTitle} className="border-primary/10 bg-primary/[0.03]">
             <CardContent className="flex gap-3 p-4">

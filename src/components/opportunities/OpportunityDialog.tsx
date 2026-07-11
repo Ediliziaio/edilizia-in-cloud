@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers } from "@/hooks/useOpportunitiesData";
@@ -27,6 +27,8 @@ interface Props {
   pipelineId: string;
   pipelineName?: string;
   stages: { id: string; name: string; auto_status?: string | null }[];
+  /** Fase pre-selezionata (quick-add "+" dalla colonna kanban). */
+  initialStageId?: string | null;
 }
 
 type ContactSearchResult = {
@@ -53,7 +55,8 @@ function sanitizeSearchTerm(value: string) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
 
-export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages }: Props) {
+export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages, initialStageId }: Props) {
+  const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -81,6 +84,14 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [callCenterId, setCallCenterId] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
+
+  // Quick-add dalla colonna: all'apertura pre-seleziona la fase richiesta.
+  useEffect(() => {
+    if (open && initialStageId && stages.some(s => s.id === initialStageId)) {
+      setStageId(initialStageId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialStageId]);
 
   // Fix: sync stageId when stages load async
   useEffect(() => {
@@ -340,6 +351,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 if (cfErr) toast.error("Opportunità creata, ma i campi personalizzati non sono stati salvati", { description: cfErr.message });
               }
             }
+            // Ri-invalida DOPO tag/campi custom: l'onSuccess del hook aveva
+            // già invalidato prima di queste scritture → la card appariva
+            // in kanban senza etichette fino allo scadere dello staleTime.
+            queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
           }
           resetForm();
           onOpenChange(false);

@@ -13,7 +13,7 @@ interface BulkEditSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedIds: string[];
-  stages: { id: string; name: string }[];
+  stages: { id: string; name: string; auto_status?: string | null }[];
   onDone: () => void;
   canEdit?: boolean;
 }
@@ -63,6 +63,19 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
     } else if (selectedField === "source") {
       data.source = fieldValue.trim();
+    } else if (selectedField === "stage_id") {
+      // Coerenza col drag kanban e il quick-move lista: la fase può derivare
+      // lo status (auto_status). PRIMA il bulk spostava in una colonna
+      // "Vinta"/"Persa" lasciando le opportunità "open" → KPI e colori
+      // divergevano dalla colonna. Verso una fase "persa" vale la stessa
+      // regola del bulk-lost: serve il motivo, quindi si blocca.
+      const targetStage = stages.find((st) => st.id === fieldValue);
+      if (targetStage?.auto_status === "lost") {
+        toast.error("La fase scelta segna le opportunità come perse: serve il motivo, fallo dal dettaglio");
+        return;
+      }
+      data.stage_id = fieldValue;
+      if (targetStage?.auto_status) data.status = targetStage.auto_status;
     } else {
       data[selectedField] = fieldValue;
     }

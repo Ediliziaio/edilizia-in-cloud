@@ -497,7 +497,9 @@ export default function FirmaElettronicaHub() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-orange-50/70 p-4 shadow-sm">
+      {/* Banner esplicativo "Flusso corretto" (4 step): vetrina che occupa
+          tutto l'above-the-fold su mobile → solo desktop. */}
+      <div className="hidden md:block rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-orange-50/70 p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700">Flusso corretto</p>
@@ -535,8 +537,12 @@ export default function FirmaElettronicaHub() {
         <KpiCard icon={<Clock className="h-4 w-4 text-yellow-600" />} label="Da firmare" value={String(kpi.inAttesa)} accent="yellow" />
         <KpiCard icon={<CheckCircle2 className="h-4 w-4 text-green-600" />} label="Firmati" value={String(kpi.firmati)} accent="green"
           sub={kpi.firmatiThisMonth > 0 ? `${kpi.firmatiThisMonth} questo mese` : undefined} />
-        <KpiCard icon={<XCircle className="h-4 w-4 text-slate-400" />} label="Scaduti/annull." value={String(kpi.scaduti)} accent="slate" />
-        <KpiCard icon={<Target className="h-4 w-4 text-blue-600" />} label="Tasso firma" value={`${kpi.conversionRate}%`} accent="blue" />
+        {/* "Scaduti" e "Tasso firma": metriche vetrina → solo da md in su.
+            Su mobile restano le 3 operative (Tracciati/Da firmare/Firmati). */}
+        <div className="hidden md:contents">
+          <KpiCard icon={<XCircle className="h-4 w-4 text-slate-400" />} label="Scaduti/annull." value={String(kpi.scaduti)} accent="slate" />
+          <KpiCard icon={<Target className="h-4 w-4 text-blue-600" />} label="Tasso firma" value={`${kpi.conversionRate}%`} accent="blue" />
+        </div>
       </div>
 
       {!emailProvider?.is_active && (
@@ -654,7 +660,50 @@ export default function FirmaElettronicaHub() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
+            <>
+            {/* Vista MOBILE a card: la tabella a 7 colonne mandava le azioni
+                (copia link / apri) fuori schermo a destra. */}
+            <div className="space-y-2 md:hidden">
+              {filteredRequests.map((r) => {
+                const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.pending;
+                const StatusIcon = cfg.icon;
+                const isExpired = isFirmaExpired(r.expires_at, r.status);
+                return (
+                  <Card key={r.id} className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{r.documento_label || "Documento"}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground flex items-center gap-1">
+                          <Mail className="h-3 w-3 shrink-0" />{r.signer_name || "Cliente"} · {r.signer_email || "email non salvata"}
+                        </p>
+                      </div>
+                      <Badge className={`gap-1 shrink-0 ${cfg.className}`} variant="outline">
+                        <StatusIcon className="h-3 w-3" />{cfg.label}
+                      </Badge>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{TIPO_DOC_LABEL[r.tipo_documento] ?? r.tipo_documento}</Badge>
+                      <span>Inviata {formatFirmaDate(r.created_at)}</span>
+                      {r.signed_at && <span className="text-green-700 font-medium">· Firmata {formatFirmaDate(r.signed_at)}</span>}
+                      {r.expires_at && !r.signed_at && <span className={isExpired ? "text-red-600" : ""}>· scade {formatFirmaDate(r.expires_at)}{isExpired ? " (scaduto)" : ""}</span>}
+                    </div>
+                    {r.firma_url && (
+                      <div className="mt-2 flex gap-2">
+                        {r.status !== "signed" && r.status !== "refused" && (
+                          <Button variant="outline" size="sm" className="flex-1 h-10 gap-1.5" onClick={() => void copyLink(r.firma_url!)}>
+                            <Copy className="h-4 w-4" /> Copia link
+                          </Button>
+                        )}
+                        <Button variant="default" size="sm" className="flex-1 h-10 gap-1.5" asChild>
+                          <a href={r.firma_url} target="_blank" rel="noreferrer"><Send className="h-4 w-4" /> Apri</a>
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+            <Card className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -775,6 +824,7 @@ export default function FirmaElettronicaHub() {
                 </TableBody>
               </Table>
             </Card>
+            </>
           )}
         </TabsContent>
 

@@ -109,7 +109,9 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
     queryClient.invalidateQueries({
       predicate: (q) => {
         const k = q.queryKey?.[0];
-        return k === "unified_call_logs" || k === "reg-calls";
+        // marketing-opportunities: se sopra abbiamo scritto next_action sulla
+        // opportunità, kanban/worklist mostravano il valore stale per 2 minuti.
+        return k === "unified_call_logs" || k === "reg-calls" || k === "marketing-opportunities";
       },
     });
     onLogged?.();

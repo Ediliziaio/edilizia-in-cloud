@@ -50,6 +50,9 @@ export function WorkflowRightPanel({
   if (mode === "config" && selectedNode) {
     return (
       <FlowBuilderConfigPanel
+        // key per nodo: senza, lo stato interno (isDirty, form) restava
+        // appeso al nodo precedente cambiando selezione.
+        key={selectedNode.id}
         selectedNode={selectedNode}
         onUpdateData={onUpdateData}
         onDelete={onDelete}

@@ -110,46 +110,54 @@ async function enrichPage(data: any[], companyId: string) {
   const notesCountMap: Record<string, number> = {};
   const docsCountMap: Record<string, number> = {};
   const appointmentMap: Record<string, { date: string; time: string | null }> = {};
-  const today = new Date().toISOString().split("T")[0];
+  // Giorno ITALIANO, non UTC (convenzione anti UTC-drift del progetto).
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
   if (oppIds.length > 0) {
-    // Run all enrichment queries in parallel
-    const enrichPromises: Promise<any>[] = [
-      supabase.from("marketing_contact_notes").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", oppIds).limit(1000),
-      supabase.from("marketing_documents").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", oppIds).limit(1000),
-    ];
-    if (contactIds.length > 0) {
-      enrichPromises.push(
+    // Chunk da 100 id: PostgREST tronca comunque a max_rows (1000) per
+    // chiamata — con 500 opportunità in un colpo solo i badge note/documenti
+    // si azzeravano in silenzio oltre le 1000 righe totali.
+    const chunk = <T,>(arr: T[], size: number): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+    const oppChunks = chunk(oppIds, 100);
+    const contactChunks = chunk(contactIds, 100);
+
+    const [notesResults, docsResults, apptResults] = await Promise.all([
+      Promise.all(oppChunks.map((ids) =>
+        supabase.from("marketing_contact_notes").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", ids).limit(1000),
+      )),
+      Promise.all(oppChunks.map((ids) =>
+        supabase.from("marketing_documents").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", ids).limit(1000),
+      )),
+      Promise.all(contactChunks.map((ids) =>
         supabase
           .from("appointments")
           .select("contact_id, appointment_date, appointment_time")
           .eq("company_id", companyId)
-          .in("contact_id", contactIds)
+          .in("contact_id", ids)
           .gte("appointment_date", today)
           .neq("status", "annullato")
           .order("appointment_date", { ascending: true })
           .order("appointment_time", { ascending: true, nullsFirst: false })
-          .limit(1000)
-      );
-    }
+          .limit(1000),
+      )),
+    ]);
 
-    const results = await Promise.all(enrichPromises);
-    const notesRes = results[0];
-    const docsRes = results[1];
-    const apptRes = results[2];
-
-    if (notesRes?.data) {
-      notesRes.data.forEach((n: any) => {
+    for (const res of notesResults) {
+      res?.data?.forEach((n: any) => {
         if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
       });
     }
-    if (docsRes?.data) {
-      docsRes.data.forEach((d: any) => {
+    for (const res of docsResults) {
+      res?.data?.forEach((d: any) => {
         if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
       });
     }
-    if (apptRes?.data) {
-      apptRes.data.forEach((a: any) => {
+    for (const res of apptResults) {
+      res?.data?.forEach((a: any) => {
         if (a.contact_id && !appointmentMap[a.contact_id]) {
           appointmentMap[a.contact_id] = { date: a.appointment_date, time: a.appointment_time };
         }
@@ -172,15 +180,21 @@ export function useOpportunities(pipelineId: string | null) {
   const permissions = usePermissions();
 
   const infiniteQuery = useInfiniteQuery({
-    queryKey: queryKeys.opportunities.list(companyId, pipelineId),
+    // Scope permessi nella key: con onlyAssigned la query filtra assigned_to,
+    // ma la cache era condivisa → "Visualizza come" serviva il dataset pieno.
+    queryKey: [...queryKeys.opportunities.list(companyId, pipelineId), permissions.onlyAssigned ? user?.id ?? "me" : "all"],
     queryFn: async ({ pageParam = 0 }) => {
       const from = pageParam * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       let query = supabase
         .from("marketing_opportunities")
-        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags, last_activity_at, created_at)")
         .eq("company_id", companyId!)
         .eq("pipeline_id", pipelineId!)
+        // Soft-delete (migration 20260506200000): la colonna esiste con indice
+        // partial ma nessuna query la filtrava — righe soft-deleted sarebbero
+        // riapparse nel kanban.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, to);
       // Permission enforcement: restrict to assigned opportunities only
@@ -222,6 +236,7 @@ export function useOpportunities(pipelineId: string | null) {
     refetch: infiniteQuery.refetch,
     isFetchingNextPage: infiniteQuery.isFetchingNextPage,
     hasNextPage: infiniteQuery.hasNextPage,
+    fetchNextPage: infiniteQuery.fetchNextPage,
     totalLoaded: opportunities.length,
   };
 }
@@ -364,6 +379,15 @@ export function useUpdateOpportunityStage() {
         });
       }
       toast.error(e.message);
+    },
+    onSuccess: (_data, vars) => {
+      // Il drag verso una fase "persa" imposta lo status senza chiedere il
+      // motivo (gli altri percorsi lo esigono): non inventiamo dati, ma
+      // ricordiamo all'utente di completarlo — i report motivi-perdita
+      // dipendono da lost_reason_category.
+      if (vars.auto_status === "lost") {
+        toast.info("Opportunità segnata come persa: aggiungi il motivo dal dettaglio", { duration: 6000 });
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });

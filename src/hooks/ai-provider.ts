@@ -23,6 +23,11 @@ export type TaskKind =
   | "computo_metrico"
   | "bank_categorize"
   | "chat_routine"
+  // Task del rendering AI (migration 20270514180000): seedati in
+  // ai_model_config e usati a runtime dai processor render.
+  | "render_image_edit"
+  | "render_scene_analysis"
+  | "render_image_qa"
   | "default";
 
 // TASK_META sopravvive solo per UI SuperAdmin (import da admin panel). Per
@@ -38,6 +43,9 @@ export const TASK_META: Record<TaskKind, { label: string; desc: string }> = {
   computo_metrico: { label: "Computo Metrico", desc: "Parsing computi metrici" },
   bank_categorize: { label: "Categorizzazione Bancaria", desc: "Classifica movimenti" },
   chat_routine: { label: "Chat Routine", desc: "Conversazione routine basso costo" },
+  render_image_edit: { label: "Render — Modifica immagine", desc: "Editing AI delle foto rendering" },
+  render_scene_analysis: { label: "Render — Analisi scena", desc: "Analisi della scena per il rendering AI" },
+  render_image_qa: { label: "Render — QA immagine", desc: "Controllo qualità del risultato rendering" },
   default: { label: "Default", desc: "Fallback task senza config dedicata" },
 };
 

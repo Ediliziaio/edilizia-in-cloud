@@ -24,7 +24,8 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
   canEdit?: boolean;
-}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, canEdit = true }, _ref) {
+  onQuickAdd?: (stageId: string) => void;
+}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, canEdit = true, onQuickAdd }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
@@ -45,7 +46,21 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
-          <span className="text-[10px] font-semibold bg-muted rounded-full px-1.5 py-0.5 text-muted-foreground">{opportunities.length}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-semibold bg-muted rounded-full px-1.5 py-0.5 text-muted-foreground">{opportunities.length}</span>
+            {canEdit && onQuickAdd && (
+              // Quick-add con fase pre-selezionata (standard kanban CRM):
+              // prima l'unico "Aggiungi" era globale in header.
+              <button
+                type="button"
+                title={`Aggiungi opportunità in "${stage.name}"`}
+                onClick={() => onQuickAdd(stage.id)}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors text-sm leading-none"
+              >
+                +
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {formatCurrency(totalValue)} tot · {formatCurrency(avgValue)} avg
@@ -110,9 +125,10 @@ interface KanbanProps {
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
   canEdit?: boolean;
+  onQuickAdd?: (stageId: string) => void;
 }
 
-export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, canEdit = true }: KanbanProps) {
+export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, canEdit = true, onQuickAdd }: KanbanProps) {
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -205,6 +221,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
                 selectedIds={selectedIds}
                 onSelect={onSelect}
                 canEdit={canEdit}
+                onQuickAdd={onQuickAdd}
               />
             ))}
           </div>

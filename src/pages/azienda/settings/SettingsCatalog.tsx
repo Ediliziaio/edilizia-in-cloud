@@ -78,7 +78,8 @@ export default function SettingsCatalog() {
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prodotti</h1>
-            <p className="text-sm text-muted-foreground">
+            {/* Descrizione lunga: su mobile è solo testo che allunga l'header */}
+            <p className="hidden sm:block text-sm text-muted-foreground">
               Catalogo articoli organizzato per macrocategoria e categoria con prezzi,
               griglia L×H e variabili (colore, apertura…).
             </p>

@@ -288,7 +288,9 @@ export default function RenderGalleryDetail() {
               afterUrl={resultUrl}
               className="aspect-video"
             />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+            {/* Tap target ≥44px su mobile (h-11): sono le azioni commerciali
+                chiave — mostrare/condividere il render al cliente. */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 [&_button]:h-11 sm:[&_button]:h-9">
               <Button
                 variant="outline"
                 size="sm"

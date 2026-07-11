@@ -86,6 +86,10 @@ export default function TalentProfilePublic() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [completed, setCompleted] = useState(false);
+  // Evidenzia le domande senza risposta SOLO dopo che l'utente ha segnalato di
+  // voler finire (clic su "completa"/"vai alle mancanti"): niente nagging al
+  // primo sguardo, ma nessun vicolo cieco quando serve chiudere.
+  const [highlightMissing, setHighlightMissing] = useState(false);
   const loadedRef = useRef(false);
 
   const PAGE_SIZE = 10;
@@ -241,6 +245,21 @@ export default function TalentProfilePublic() {
     return () => window.clearTimeout(timeout);
   }, [completed, dirty, persistAnswers, started, saving]);
 
+  // Flush di sicurezza: se l'utente cambia scheda / chiude / mette in background
+  // con risposte non ancora salvate (finestra di 900ms dell'autosave), salviamo
+  // subito. Chiude l'unica finestra in cui l'ultima risposta poteva perdersi,
+  // senza il fastidio di un dialog "modifiche non salvate".
+  useEffect(() => {
+    if (!started || completed) return;
+    const flushIfDirty = () => {
+      if (document.visibilityState === "hidden" && dirty && !saving) {
+        persistAnswers({ silent: true }).catch(() => { /* riproverà l'autosave/manuale */ });
+      }
+    };
+    document.addEventListener("visibilitychange", flushIfDirty);
+    return () => document.removeEventListener("visibilitychange", flushIfDirty);
+  }, [started, completed, dirty, saving, persistAnswers]);
+
   // Cambio pagina "best-effort": tenta il salvataggio ma NON blocca la navigazione
   // se fallisce (le risposte restano in stato e verranno risalvate). Prima un save
   // in errore imprigionava l'utente sulla pagina, senza avanti né indietro.
@@ -306,6 +325,7 @@ export default function TalentProfilePublic() {
       // Se il backend segnala risposte mancanti (divergenza col conteggio locale),
       // porta l'utente direttamente alla prima domanda senza risposta.
       if (message === reasonLabel("incomplete")) {
+        setHighlightMissing(true);
         const firstMissingIdx = questions.findIndex((q) => !answers[q.question_id]);
         if (firstMissingIdx >= 0) {
           setPageIndex(Math.floor(firstMissingIdx / PAGE_SIZE));
@@ -498,7 +518,15 @@ export default function TalentProfilePublic() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40">
       {/* Top progress bar */}
-      <div className="fixed inset-x-0 top-0 z-20 h-1 bg-slate-100">
+      <div
+        className="fixed inset-x-0 top-0 z-20 h-1 bg-slate-100"
+        role="progressbar"
+        aria-label="Avanzamento questionario"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressPct}
+        aria-valuetext={`${answeredCount} di ${questions.length} domande risposte`}
+      >
         <motion.div
           className="h-full bg-gradient-to-r from-orange-500 to-amber-500"
           initial={{ width: 0 }}
@@ -563,25 +591,39 @@ export default function TalentProfilePublic() {
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="space-y-5"
           >
-            {currentPage.map((question, qIdx) => (
+            {currentPage.map((question, qIdx) => {
+              const isMissing = highlightMissing && !answers[question.question_id];
+              return (
               <motion.div
                 key={question.question_id}
+                id={`domanda-${question.question_id}`}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: qIdx * 0.04, duration: 0.3 }}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-orange-200 hover:shadow-md"
+                className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md ${
+                  isMissing ? "border-amber-400 ring-2 ring-amber-200" : "border-slate-200 hover:border-orange-200"
+                }`}
               >
                 <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3">
                   <div className="flex items-baseline gap-3">
                     <span className="text-xs font-bold tabular-nums text-orange-600">
                       {currentPageStartNum + qIdx}.
                     </span>
-                    <p className="text-base font-semibold leading-snug text-slate-950 sm:text-lg">
+                    <p className="flex-1 text-base font-semibold leading-snug text-slate-950 sm:text-lg">
                       {question.question_text}
                     </p>
+                    {isMissing && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Da rispondere
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="grid gap-2 p-3 sm:grid-cols-3">
+                <div
+                  className="grid gap-2 p-3 sm:grid-cols-3"
+                  role="radiogroup"
+                  aria-label={`Risposta alla domanda ${currentPageStartNum + qIdx}`}
+                >
                   {answerOptions.map((option) => {
                     const label = question.custom_answers?.[option.value.toLowerCase() as "a" | "b" | "c"] || option.label;
                     const active = answers[question.question_id] === option.value;
@@ -589,8 +631,9 @@ export default function TalentProfilePublic() {
                       <motion.button
                         key={option.value}
                         type="button"
-                        aria-pressed={active}
-                        aria-label={`${question.question_text} — ${label}`}
+                        role="radio"
+                        aria-checked={active}
+                        aria-label={label}
                         whileTap={{ scale: 0.96 }}
                         whileHover={{ y: -2 }}
                         onClick={() => {
@@ -621,7 +664,8 @@ export default function TalentProfilePublic() {
                   })}
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </AnimatePresence>
 
@@ -654,6 +698,7 @@ export default function TalentProfilePublic() {
                 size="lg"
                 disabled={saving}
                 onClick={() => {
+                  setHighlightMissing(true);
                   const firstMissingIdx = questions.findIndex((q) => !answers[q.question_id]);
                   if (firstMissingIdx >= 0) {
                     setPageIndex(Math.floor(firstMissingIdx / PAGE_SIZE));

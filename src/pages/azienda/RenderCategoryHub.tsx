@@ -400,7 +400,10 @@ export default function RenderCategoryHub() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      {/* Statistiche render: vetrina → nascoste su mobile (impilavano 4 card =
+          4 schermate prima dei moduli operativi). L'alert "da verificare" sotto
+          è azionabile e resta. */}
+      <div className="hidden md:grid gap-3 md:grid-cols-4">
         <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <CardContent className="p-4 flex items-center gap-3">
             <GalleryHorizontalEnd className="h-5 w-5 text-orange-500" />
@@ -458,7 +461,9 @@ export default function RenderCategoryHub() {
         </Card>
       )}
 
-      <Card className="border-blue-100 bg-blue-50/50">
+      {/* Banner "Controllo costi": informativo, duplica il widget crediti in
+          header → nascosto su mobile. */}
+      <Card className="hidden md:block border-blue-100 bg-blue-50/50">
         <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr_auto] md:items-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700">
             <Zap className="h-5 w-5" />
@@ -508,7 +513,8 @@ export default function RenderCategoryHub() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {/* Chip categoria: duplicano il Select qui sopra → solo desktop */}
+        <div className="hidden sm:flex flex-wrap gap-2">
           {(Object.keys(groupLabels) as CategoryGroup[]).map((group) => (
             <Button
               key={group}

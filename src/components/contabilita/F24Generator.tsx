@@ -212,8 +212,8 @@ export function F24Generator({
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-md border">
+      {/* Table — scroll orizzontale su mobile (6 colonne sfondavano il layout a 375px) */}
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

@@ -74,6 +74,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       .select("id, name, field_type, options")
       .eq("company_id", companyId)
       .eq("object_type", objectType)
+      .is("deleted_at", null)
       .then(({ data, error }) => {
         if (error) {
           logger.error("Error loading custom fields:", error.message);

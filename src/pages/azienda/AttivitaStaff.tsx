@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
@@ -1876,11 +1877,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 function TabAttivita() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
+  const isMobile = useIsMobile();
   const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
   const [calendarDate, setCalendarDate] = useState<string | null>(null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Timbratura in cima per lo staff non-admin */}
       {!isAdmin && <TimbraturaSede />}
 
@@ -1888,10 +1890,14 @@ function TabAttivita() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         <div className="lg:col-span-2 space-y-3 sm:space-y-6">
           <MeteoWidget />
-          <MiniCalendario
-            onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
-            onDateSelect={(date) => setCalendarDate(date)}
-          />
+          {/* Calendario mese: ingombrante e poco usato su mobile (la vista
+              "Oggi/Settimana" dei chip basta). Solo da tablet in su. */}
+          {!isMobile && (
+            <MiniCalendario
+              onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
+              onDateSelect={(date) => setCalendarDate(date)}
+            />
+          )}
         </div>
         <MieAttivita
           initialDueDate={addTaskDate}
@@ -1900,9 +1906,18 @@ function TabAttivita() {
         />
       </div>
 
-      {/* Strumenti del team (solo admin), a tutta larghezza sotto */}
-      {isAdmin && <TeamTaskPulse />}
-      {isAdmin && <TaskTeam />}
+      {/* Strumenti del team (solo admin). Su mobile NON montati (query pesanti
+          + scroll lungo): sono la vista desktop "Regia" — raggiungibile in 1
+          tap dal tab Regia. "Il troppo non va bene" sul telefono. */}
+      {isAdmin && !isMobile && <TeamTaskPulse />}
+      {isAdmin && !isMobile && <TaskTeam />}
+      {isAdmin && isMobile && (
+        <Button variant="outline" className="w-full gap-2" asChild>
+          <Link to="/azienda/attivita?tab=regia">
+            <ArrowUpCircle className="h-4 w-4" /> Apri regia team
+          </Link>
+        </Button>
+      )}
     </div>
   );
 }
@@ -2214,7 +2229,7 @@ export default function AttivitaStaff() {
             <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
           </TabsList>
         )}
-        <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>
+        <TabsContent value="attivita" className="mt-4 sm:mt-6"><TabAttivita /></TabsContent>
         {isAdmin && (
           <TabsContent value="regia" className="mt-6">
             <Suspense fallback={<TabFallback />}>

@@ -16,6 +16,7 @@
  *  - Opportunity dialog (futuro)
  */
 import { Link, useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ export function NewPreventivoMenu({
   onCreaConAI,
 }: NewPreventivoMenuProps) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const { moduli } = useModuliVendita();
   const { isModuloVisibile } = useModuliVisibilita();
 
@@ -78,7 +80,9 @@ export function NewPreventivoMenu({
     [moduli, isModuloVisibile],
   );
 
-  const classicoHref = `/azienda/marketing/preventivi/nuovo${qs ? `?${qs}` : ""}`;
+  // Contesto-aware: dall'hub admin il preventivo classico resta su
+  // /admin/marketing (prima usciva su /azienda/* perdendo il provider).
+  const classicoHref = `${routePrefix}/preventivi/nuovo${qs ? `?${qs}` : ""}`;
 
   // Se nessun modulo verticale è abilitato (e non c'è la voce AI) → niente
   // dropdown, solo button diretto al classico.

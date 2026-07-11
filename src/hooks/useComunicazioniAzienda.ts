@@ -21,16 +21,11 @@ export interface NuovaComunicazione {
 }
 
 /**
- * FIX SCHEMA: la tabella `superadmin_comunicazioni` non esiste nel DB
- * (errore PostgREST "Impossibile caricare le comunicazioni").
- *
- * Strategy: graceful degradation. La query intercetta l'errore "table not found"
- * e ritorna lista vuota invece di propagare. La UI mostra il banner standard
- * "nessuna comunicazione" e l'admin può comunque aprire il modal (la insert
- * fallirà esplicitamente, ma con messaggio comprensibile).
- *
- * Quando la tabella verrà creata via migration dedicata, il flow tornerà
- * funzionante senza modifiche a questo hook.
+ * NB: la tabella `superadmin_comunicazioni` è definita nella migration
+ * 20260821000001 ma al 2026-07-09 NON risulta applicata in produzione
+ * (verificato via to_regclass → null). Finché non viene applicata il modulo
+ * è dormiente: la graceful degradation qui sotto mostra storico vuoto e
+ * l'insert dal modal fallisce con messaggio esplicito.
  */
 
 // Codici errore Postgres che indicano "tabella non esiste"

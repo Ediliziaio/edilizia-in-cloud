@@ -290,47 +290,7 @@ export function calculateRoleMatchingV5Cached(
   return roleMatchingCache.getSingleRole(ruolo, traits, candidateAge);
 }
 
-/**
- * Versione cached di calculateAllRolesCompatibilityV5
- */
-export function calculateAllRolesCompatibilityV5Cached(
-  ruoloRichiesto: string,
-  traits: TraitScores,
-  candidateAge?: number
-): AllRolesCompatibilityV5 {
-  return roleMatchingCache.getAllRoles(ruoloRichiesto, traits, candidateAge);
-}
-
-// ============================================
-// HOOK PER REACT
-// ============================================
-
-import { useMemo } from 'react';
-
-/**
- * Hook React per calcolo role matching con cache automatica
- */
-export function useCachedRoleMatching(
-  ruolo: string,
-  traits: TraitScores | null | undefined,
-  candidateAge?: number
-): RoleMatchResultV5 | null {
-  return useMemo(() => {
-    if (!traits) return null;
-    return calculateRoleMatchingV5Cached(ruolo, traits, candidateAge);
-  }, [ruolo, traits, candidateAge]);
-}
-
-/**
- * Hook React per calcolo tutti i ruoli con cache automatica
- */
-export function useCachedAllRolesCompatibility(
-  ruoloRichiesto: string,
-  traits: TraitScores | null | undefined,
-  candidateAge?: number
-): AllRolesCompatibilityV5 | null {
-  return useMemo(() => {
-    if (!traits) return null;
-    return calculateAllRolesCompatibilityV5Cached(ruoloRichiesto, traits, candidateAge);
-  }, [ruoloRichiesto, traits, candidateAge]);
-}
+// Rimossi (dead code, audit 2026-07-10): calculateAllRolesCompatibilityV5Cached
+// + gli hook useCachedRoleMatching / useCachedAllRolesCompatibility — zero
+// riferimenti in tutto src/. La versione cached "singolo ruolo"
+// (calculateRoleMatchingV5Cached, sopra) resta: la usa PremiumReportPDFButton.

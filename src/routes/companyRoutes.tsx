@@ -113,6 +113,7 @@ const SettingsIndexRoute = lazy(() => import("@/pages/azienda/settings/SettingsI
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
+const AgencyOverview = lazy(() => import("@/pages/azienda/AgencyOverview"));
 const DashboardsList = lazy(() => import("@/pages/azienda/dashboards/DashboardsList"));
 const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardView"));
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
@@ -519,6 +520,7 @@ export default function CompanyRoutesContainer() {
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
         <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
         <Route path="cruscotto/aziendale" element={withCompanyPermission("canViewCruscotto", <CruscottoAziendale />)} />
+        <Route path="aziende" element={<ErrorBoundary title="Errore console aziende"><AgencyOverview /></ErrorBoundary>} />
 
         {/* Modulo Controllo di Gestione (MP-CG, add-on opzionale).
             Una sola route che accetta sub-path facoltativo: la pagina legge

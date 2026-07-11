@@ -959,29 +959,31 @@ export function CustomerBusinessTabs({
       {/* TabsList: solo in vista full (mobile / standalone). Nel pannello
           laterale 340px viene mostrato solo il contenuto della tab attiva. */}
       {!isCompactPanel && (
-        <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2">
-          <TabsTrigger value="ordini" className="text-xs px-1">
+        // Mobile: riga unica scrollabile (prima grid-cols-2 = 4 righe di tab
+        // che mangiavano mezza schermata); da sm in su torna a griglia.
+        <TabsList className="flex w-full gap-1 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2 justify-start">
+          <TabsTrigger value="ordini" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Ordini ({orders.length})
           </TabsTrigger>
-          <TabsTrigger value="preventivi" className="text-xs px-1">
+          <TabsTrigger value="preventivi" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Preventivi ({preventivi.length})
           </TabsTrigger>
-          <TabsTrigger value="assistenza" className="text-xs px-1">
+          <TabsTrigger value="assistenza" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Assistenza ({tickets.length})
           </TabsTrigger>
-          <TabsTrigger value="interventi" className="text-xs px-1">
+          <TabsTrigger value="interventi" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Interventi ({rapportini.length})
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="text-xs px-1">
+          <TabsTrigger value="documenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Documenti ({fatture.length + customerDocuments.length})
           </TabsTrigger>
-          <TabsTrigger value="email" className="text-xs px-1">
+          <TabsTrigger value="email" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Email ({emailConversations.length})
           </TabsTrigger>
-          <TabsTrigger value="appuntamenti" className="text-xs px-1">
+          <TabsTrigger value="appuntamenti" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Appuntamenti ({appuntamenti.length})
           </TabsTrigger>
-          <TabsTrigger value="rate" className="text-xs px-1">
+          <TabsTrigger value="rate" className="shrink-0 text-xs px-2 py-2 sm:px-1">
             Rate ({rate.length})
           </TabsTrigger>
         </TabsList>

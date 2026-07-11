@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
@@ -41,6 +42,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function PrimaNotaInner() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -247,8 +249,9 @@ function PrimaNotaInner() {
         <OperationalKpiCard icon={Wallet} label="Saldo netto" value={isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)} hint="entrate meno uscite" tone={(saldo?.saldo || 0) >= 0 ? "green" : "red"} />
       </div>
 
-      {/* Chart */}
-      {chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
+      {/* Chart andamento 6 mesi: vetrina → non su mobile (i 3 KPI Entrate/
+          Uscite/Saldo sopra bastano). */}
+      {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
         <Card>
           <CardContent className="pt-4 pb-2">
             <p className="text-sm font-medium mb-3">Andamento ultimi 6 mesi</p>

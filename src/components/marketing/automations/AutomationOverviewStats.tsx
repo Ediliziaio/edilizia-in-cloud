@@ -52,7 +52,9 @@ export function AutomationOverviewStats({ companyId, onErrorClick, onActiveClick
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso),
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso),
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).eq("status", "success"),
-        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).eq("status", "failed"),
+        // Il motore scrive status 'error' (CHECK: ok|success|error|skipped):
+        // con "failed" la card Errori 24h restava a 0 anche con errori reali.
+        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).eq("status", "error"),
       ]);
 
       return {

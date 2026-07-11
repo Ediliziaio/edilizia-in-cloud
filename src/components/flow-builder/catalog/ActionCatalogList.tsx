@@ -80,7 +80,9 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
         .map(c => ({
           id: c.id, label: c.label, description: c.description, icon: c.icon,
           category: "logica", categoryLabel: "Logica & Flusso",
-          kind: "condition" as const, configSchema: c.configSchema,
+          // actionKind, NON "condition" fisso: goal e split_ab venivano
+          // creati come nodi condition in DB (motore → sempre ramo "no").
+          kind: actionKind(c.id), configSchema: c.configSchema,
         }));
 
       // Add note

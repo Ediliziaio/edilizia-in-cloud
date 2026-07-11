@@ -169,7 +169,12 @@ function EnrollContactDialog({
     enabled: !!flowId && open,
   });
 
-  const triggerEvent = triggerNode?.config_json?.trigger_event;
+  // item_id come fallback: il builder salva l'id catalogo lì, non in
+  // trigger_event → il bottone Arruola era sempre disabilitato sui flussi
+  // del builder. Il motore normalizza gli id italiani (TRIGGER_EVENT_MAP).
+  const triggerEvent = triggerNode?.config_json?.trigger_event
+    ?? triggerNode?.config_json?.item_id
+    ?? triggerNode?.config_json?.trigger_type;
 
   const handleEnroll = async () => {
     if (!selectedContact || !triggerEvent) return;
@@ -329,7 +334,20 @@ export function WorkflowCronologia({ flowId }: Props) {
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
-      if (search.trim()) q = q.ilike("entity_id", `%${search.trim()}%`);
+      if (search.trim()) {
+        // entity_id è UUID: ilike su uuid = errore Postgres 42883 e tabella
+        // vuota. La ricerca "per contatto" passa da nome/email → id.
+        const s = search.trim();
+        const { data: matches } = await (supabase as any)
+          .from("marketing_contacts")
+          .select("id")
+          .eq("company_id", companyId!)
+          .or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%`)
+          .limit(100);
+        const ids = (matches ?? []).map((m: any) => m.id);
+        if (ids.length === 0) return { rows: [], total: 0 };
+        q = q.in("entity_id", ids);
+      }
 
       const { data: rows, error, count } = await q;
       if (error) throw error;

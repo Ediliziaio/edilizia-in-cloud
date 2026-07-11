@@ -37375,6 +37375,8 @@ export type Database = {
           tags: string[]
           tipo_opportunita: string | null
           updated_at: string
+          won_at: string | null
+          lost_at: string | null
           value: number
           wbraid: string | null
         }
@@ -37428,6 +37430,8 @@ export type Database = {
           tags?: string[]
           tipo_opportunita?: string | null
           updated_at?: string
+          won_at?: string | null
+          lost_at?: string | null
           value?: number
           wbraid?: string | null
         }
@@ -37481,6 +37485,8 @@ export type Database = {
           tags?: string[]
           tipo_opportunita?: string | null
           updated_at?: string
+          won_at?: string | null
+          lost_at?: string | null
           value?: number
           wbraid?: string | null
         }
@@ -72764,6 +72770,19 @@ export type Database = {
         Returns: Json
       }
       get_effective_company_id: { Args: never; Returns: string }
+      set_active_company: { Args: { p_company_id: string | null }; Returns: undefined }
+      agency_companies_overview: {
+        Args: never
+        Returns: {
+          company_id: string
+          company_name: string
+          is_primary: boolean
+          access_role: string
+          relation: string
+          open_orders_count: number
+          month_revenue: number
+        }[]
+      }
       get_email_stats_by_campaign: {
         Args: {
           p_campaign_id?: string

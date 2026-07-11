@@ -72,14 +72,22 @@ export interface HealthFactor {
   color: string;
 }
 
-export function getHealthBreakdown(hd: { score: number; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean; lastOrderDate: string | null } | undefined): HealthFactor[] {
+/**
+ * Scomposizione del punteggio: STESSE formule di calculateHealthScore, così la
+ * somma dei fattori coincide sempre con lo score mostrato (max 90). Prima
+ * usava formule diverse e il tooltip "spiegava" un numero che non tornava.
+ */
+export function getHealthBreakdown(hd: { score: number; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean; lastOrderDate: string | null; orders_last_30d?: number } | undefined): HealthFactor[] {
   if (!hd) return [];
   const daysSince = hd.lastOrderDate ? Math.floor((Date.now() - new Date(hd.lastOrderDate).getTime()) / 86400000) : null;
+  const users = hd.user_count || 0;
+  const recencyScore = daysSince === null ? 0 : daysSince <= 7 ? 20 : daysSince <= 30 ? 15 : daysSince <= 60 ? 5 : 0;
   return [
-    { label: "Ordini", score: Math.min(hd.order_count, 5) * 5, maxScore: 25, color: hd.order_count > 0 ? "bg-green-500" : "bg-red-400" },
-    { label: "Utenti", score: Math.min(hd.user_count || 0, 4) * 5, maxScore: 20, color: (hd.user_count || 0) >= 2 ? "bg-green-500" : "bg-amber-400" },
+    { label: "Ordini", score: hd.order_count > 0 ? 15 : 0, maxScore: 15, color: hd.order_count > 0 ? "bg-green-500" : "bg-red-400" },
+    { label: "Ordini recenti (30gg)", score: (hd.orders_last_30d || 0) > 0 ? 10 : 0, maxScore: 10, color: (hd.orders_last_30d || 0) > 0 ? "bg-green-500" : "bg-amber-400" },
+    { label: "Utenti", score: users >= 2 ? 20 : users >= 1 ? 10 : 0, maxScore: 20, color: users >= 2 ? "bg-green-500" : "bg-amber-400" },
     { label: "Clienti", score: hd.has_customers ? 15 : 0, maxScore: 15, color: hd.has_customers ? "bg-green-500" : "bg-red-400" },
     { label: "Staff", score: hd.has_staff ? 10 : 0, maxScore: 10, color: hd.has_staff ? "bg-green-500" : "bg-amber-400" },
-    { label: "Attività", score: daysSince === null ? 0 : daysSince <= 7 ? 20 : daysSince <= 14 ? 15 : daysSince <= 30 ? 8 : 0, maxScore: 20, color: daysSince !== null && daysSince <= 14 ? "bg-green-500" : "bg-red-400" },
+    { label: "Attività", score: recencyScore, maxScore: 20, color: daysSince !== null && daysSince <= 30 ? "bg-green-500" : "bg-red-400" },
   ];
 }

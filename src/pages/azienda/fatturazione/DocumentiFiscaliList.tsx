@@ -635,21 +635,25 @@ function DocumentiFiscaliListInner() {
       </div>
 
       {/* ── Monthly Timeline ───────────────────────────── */}
+      {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
+          Solo da tablet in su; su telefono si resta su "tutti i mesi". */}
       {!isTrash && timelineMonths && timelineMonths.length > 0 && (
-        <MonthlyTimeline
-          months={timelineMonths}
-          selectedMonth={selectedMonth}
-          onSelectMonth={(m) => {
-            setSelectedMonth(m);
-            setPage(0);
-          }}
-          year={timelineYear}
-          onYearChange={(y) => {
-            setTimelineYear(y);
-            setSelectedMonth(null);
-            setPage(0);
-          }}
-        />
+        <div className="hidden md:block">
+          <MonthlyTimeline
+            months={timelineMonths}
+            selectedMonth={selectedMonth}
+            onSelectMonth={(m) => {
+              setSelectedMonth(m);
+              setPage(0);
+            }}
+            year={timelineYear}
+            onYearChange={(y) => {
+              setTimelineYear(y);
+              setSelectedMonth(null);
+              setPage(0);
+            }}
+          />
+        </div>
       )}
 
       {/* ── Tabs ───────────────────────────────────────── */}
