@@ -21,7 +21,6 @@ interface CompanyLogoUploaderProps {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const OUTPUT_SIZE = 400; // px
-const SIGNED_URL_EXPIRES = 365 * 24 * 60 * 60; // 1 year in seconds
 
 /**
  * Ridimensiona e converte in WebP 400×400 via Canvas.
@@ -122,21 +121,13 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
           });
         if (uploadError) throw uploadError;
 
-        // Signed URL (1 anno)
-        // NB: architectural note — dopo 1 anno il signed URL scade. Mitigazione
-        // applicativa: ogni ri-upload rigenera il link. Per una soluzione robusta
-        // servirebbe un proxy server-side che rigenera on-demand.
-        const { data: signedData, error: signedError } = await supabase.storage
+        // Public URL permanente: il bucket company-logos è PUBBLICO (verificato
+        // su storage.buckets), quindi il vecchio signed URL a 1 anno — che
+        // scadeva rompendo il logo — era una complicazione inutile.
+        const { data: publicData } = supabase.storage
           .from("company-logos")
-          .createSignedUrl(storagePath, SIGNED_URL_EXPIRES);
-        if (signedError) {
-          // Cleanup: il blob appena caricato è orfano se non riusciamo a ottenere
-          // il signed URL, rimuoviamolo per evitare accumulo storage
-          await supabase.storage.from("company-logos").remove([storagePath]);
-          throw signedError;
-        }
-
-        const logoUrl = signedData.signedUrl;
+          .getPublicUrl(storagePath);
+        const logoUrl = publicData.publicUrl;
 
         // Aggiorna companies
         const { error: updateError } = await supabase

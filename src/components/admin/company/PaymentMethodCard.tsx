@@ -95,7 +95,6 @@ export function PaymentMethodCard({
   const [accountHolder, setAccountHolder] = useState(company.bank_account_holder || "");
   const [bankName, setBankName] = useState(company.bank_name || "");
   const [notes, setNotes] = useState(company.payment_notes || "");
-  const [bic, setBic] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedIban, setCopiedIban] = useState(false);
   const [checkoutPeriod, setCheckoutPeriod] = useState<"monthly" | "yearly">("monthly");
@@ -322,15 +321,10 @@ export function PaymentMethodCard({
               <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Es. Intesa Sanpaolo" />
             </div>
 
-            <div className="space-y-2">
-              <Label>BIC/SWIFT <span className="text-muted-foreground text-xs">(facoltativo, per bonifici internazionali)</span></Label>
-              <Input
-                value={bic}
-                onChange={(e) => setBic(e.target.value.toUpperCase())}
-                placeholder="Es. BCITITMM"
-                maxLength={11}
-              />
-            </div>
+            {/* Campo BIC/SWIFT rimosso: non esiste una colonna in DB e il
+                valore digitato veniva silenziosamente perso (write-to-nowhere).
+                Se servirà per bonifici esteri: migration companies.bank_bic +
+                salvataggio in handleSave. */}
           </div>
         )}
 

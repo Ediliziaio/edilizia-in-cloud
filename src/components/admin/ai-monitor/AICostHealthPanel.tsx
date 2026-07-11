@@ -57,7 +57,15 @@ export function AICostHealthPanel() {
   });
 
   if (isLoading) return <Skeleton className="mb-4 h-40 w-full" />;
-  if (isError || !data?.ok) return null;
+  // Errore visibile: prima il pannello spariva in silenzio e un fallimento
+  // era indistinguibile da "costi sotto controllo".
+  if (isError || !data?.ok) {
+    return (
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        Impossibile caricare la salute costi AI{data && !data.ok ? " (risposta non valida)" : ""}. Riprova più tardi.
+      </div>
+    );
+  }
 
   const s = data.spike;
   const models = data.per_modello ?? [];

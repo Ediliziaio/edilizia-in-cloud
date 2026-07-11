@@ -40,6 +40,8 @@ import {
   ShieldAlert,
   UserCheck,
   CalendarClock,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -323,6 +325,30 @@ export default function FormazioneDipendente() {
       {loading ? (
         <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-slate-500">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Caricamento corsi…
+        </div>
+      ) : coursesQuery.isError || enrollmentsQuery.isError ? (
+        // Errore reale (rete/RLS): NON mostrare "nessun corso" — sarebbe una
+        // bugia e, peggio, l'utente entrerebbe in un corso con enrollment a 0%
+        // rischiando di sovrascrivere il proprio avanzamento reale.
+        <div className="rounded-2xl border border-red-200 bg-red-50/50 py-16 text-center">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-400" />
+          <p className="mt-3 text-sm font-semibold text-slate-700">
+            Impossibile caricare i corsi
+          </p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            C'è stato un problema di connessione. Riprova tra un momento.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              void coursesQuery.refetch();
+              void enrollmentsQuery.refetch();
+            }}
+          >
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Riprova
+          </Button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">

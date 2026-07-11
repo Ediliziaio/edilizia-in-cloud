@@ -258,6 +258,8 @@ export function CompanyFeatureOverridesCard({
     queryClient.invalidateQueries({ queryKey: ["feature-access"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyResolved(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(companyId) });
+    // Lista feature del tab SaaS (stessa tabella, query key diversa).
+    queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
   };
 
   // Toggle rapido: upsert override `is_enabled` (preserva limit/expires/reason/price)

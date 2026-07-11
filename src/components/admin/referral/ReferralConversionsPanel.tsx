@@ -30,9 +30,9 @@ const FUNNEL_LABEL: Record<string, string> = {
 
 function funnelBadge(status: string | null, fraud: string | null) {
   if (fraud === "blocked") return <Badge variant="destructive">Bloccato</Badge>;
-  if (fraud === "review") return <Badge className="bg-amber-100 text-amber-800">In verifica</Badge>;
+  if (fraud === "review") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">In verifica</Badge>;
   if (!status) return <span className="text-xs text-muted-foreground">—</span>;
-  if (status === "paying" || status === "approved") return <Badge className="bg-emerald-100 text-emerald-800">{FUNNEL_LABEL[status] || status}</Badge>;
+  if (status === "paying" || status === "approved") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">{FUNNEL_LABEL[status] || status}</Badge>;
   if (status === "rejected" || status === "expired") return <Badge variant="secondary">{FUNNEL_LABEL[status] || status}</Badge>;
   return <Badge variant="outline">{FUNNEL_LABEL[status] || status}</Badge>;
 }

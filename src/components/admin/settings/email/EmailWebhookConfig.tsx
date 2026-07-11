@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,14 @@ export function EmailWebhookConfig() {
     },
   });
 
+  // Flag "l'admin ha modificato qualcosa": finché è true l'effect di sync
+  // NON sovrascrive i campi (un invalidate lanciato da un'altra card
+  // resettava l'input in corso di digitazione).
+  const userEditedRef = useRef(false);
+  const markEdited = () => { userEditedRef.current = true; };
+
   useEffect(() => {
+    if (userEditedRef.current) return;
     setWebhookSecret(storedSecrets?.[WEBHOOK_SECRET_KEY] ?? "");
     setMailgunSigningKey(storedSecrets?.[MAILGUN_SIGNING_KEY] ?? "");
     setResendWebhookSecret(storedSecrets?.[RESEND_WEBHOOK_SECRET_KEY] ?? "");
@@ -79,7 +86,12 @@ export function EmailWebhookConfig() {
   const secretConfigured = health?.email_webhook?.secretConfigured ?? false;
   const baseWebhookUrl = `${import.meta.env.VITE_SUPABASE_URL || ""}/functions/v1/email-provider-webhook`;
 
-  const effectiveDisplaySecret = secretSource === "platform_settings" ? webhookSecret.trim() : "";
+  // Gli URL copiabili usano il secret SALVATO, non quello editabile a
+  // schermo: copiare un secret non ancora salvato produce un URL che il
+  // webhook rifiuterà.
+  const savedSecret = (storedSecrets?.[WEBHOOK_SECRET_KEY] ?? "").trim();
+  const hasUnsavedSecret = webhookSecret.trim() !== savedSecret;
+  const effectiveDisplaySecret = secretSource === "platform_settings" ? savedSecret : "";
 
   const webhookUrls = useMemo(() => ({
     marketing: `${baseWebhookUrl}?stream=marketing${effectiveDisplaySecret
@@ -95,8 +107,12 @@ export function EmailWebhookConfig() {
   }), [baseWebhookUrl, effectiveDisplaySecret, secretSource]);
 
   const copyValue = async (value: string, label: string) => {
-    await navigator.clipboard.writeText(value);
-    toast.success(`${label} copiato`);
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiato`);
+    } catch {
+      toast.error("Copia negli appunti non riuscita");
+    }
   };
 
   const saveMutation = useMutation({
@@ -131,6 +147,7 @@ export function EmailWebhookConfig() {
       }
     },
     onSuccess: async () => {
+      userEditedRef.current = false;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [...queryKeys.admin.platformSettingsEmail(), "webhook-secret"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.apiHealth.all }),
@@ -198,7 +215,7 @@ export function EmailWebhookConfig() {
               <Input
                 type={showSecret ? "text" : "password"}
                 value={webhookSecret}
-                onChange={(event) => setWebhookSecret(event.target.value)}
+                onChange={(event) => { markEdited(); setWebhookSecret(event.target.value); }}
                 placeholder="Inserisci un secret condiviso per i webhook email"
               />
               <Button
@@ -233,7 +250,7 @@ export function EmailWebhookConfig() {
             <Input
               type={showSecret ? "text" : "password"}
               value={mailgunSigningKey}
-              onChange={(event) => setMailgunSigningKey(event.target.value)}
+              onChange={(event) => { markEdited(); setMailgunSigningKey(event.target.value); }}
               placeholder="Webhook signing key Mailgun"
             />
             <p className="text-xs text-muted-foreground">
@@ -251,7 +268,7 @@ export function EmailWebhookConfig() {
             <Input
               type={showSecret ? "text" : "password"}
               value={resendWebhookSecret}
-              onChange={(event) => setResendWebhookSecret(event.target.value)}
+              onChange={(event) => { markEdited(); setResendWebhookSecret(event.target.value); }}
               placeholder="whsec_..."
             />
             <p className="text-xs text-muted-foreground">
@@ -272,6 +289,16 @@ export function EmailWebhookConfig() {
             Salva webhook
           </Button>
         </div>
+
+        {hasUnsavedSecret && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Il secret nel campo qui sopra ha modifiche non salvate: gli URL qui sotto usano il secret <strong>salvato</strong>.
+              Salva prima di copiarli, altrimenti il provider punterà a un secret che il webhook rifiuterà.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2 rounded-lg border p-3">

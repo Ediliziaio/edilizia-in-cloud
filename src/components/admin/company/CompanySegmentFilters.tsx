@@ -184,7 +184,7 @@ export function CompanySegmentFilters({
           {/* 3 — Settore */}
           <SezioneCheckbox
             titolo="Settore"
-            voci={SETTORI_EDILIZIA.map(s => ({ value: s, label: s }))}
+            voci={SETTORI_EDILIZIA}
             selezionati={filters.sectors}
             onToggle={v => toggleArrayValue("sectors", v)}
           />

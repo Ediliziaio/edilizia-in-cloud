@@ -86,7 +86,10 @@ export function CompanyQuickActions({ company, permissions }: QuickActionsProps)
       if (permissions.allowed_company_ids?.length && !permissions.allowed_company_ids.includes(company.id)) {
         throw new Error("Permesso negato: azienda non autorizzata");
       }
-      const base = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+      // Base = max(oggi, fine trial): un trial scaduto da tempo va esteso da
+      // oggi, non dalla data passata (altrimenti resta scaduto).
+      const stored = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+      const base = stored.getTime() > Date.now() ? stored : new Date();
       const newEnd = new Date(base.getTime() + days * 86400000);
       const { error } = await supabase
         .from("companies")

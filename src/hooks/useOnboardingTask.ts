@@ -29,7 +29,7 @@ export interface OnboardingTemplate {
 export function useOnboardingTask(companyId: string | undefined) {
   const queryClient = useQueryClient();
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks, isLoading, isError, error } = useQuery({
     queryKey: ["onboarding-tasks", companyId],
     queryFn: async (): Promise<OnboardingTask[]> => {
       if (!companyId) return [];
@@ -86,5 +86,7 @@ export function useOnboardingTask(companyId: string | undefined) {
       )
     : 0;
 
-  return { tasks: tasks ?? [], isLoading, aggiornaStato, creaTask, completionePct };
+  // isError/error esposti: senza, un fetch fallito (es. tabella onboarding_task
+  // non ancora migrata in prod) appariva come "nessun task" — dato falso.
+  return { tasks: tasks ?? [], isLoading, isError, error, aggiornaStato, creaTask, completionePct };
 }

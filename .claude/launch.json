@@ -4,8 +4,15 @@
     {
       "name": "edilizia-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
-      "port": 8080,
+      "runtimeArgs": ["run", "dev", "--", "--port", "56835", "--strictPort"],
+      "port": 56835,
+      "autoPort": false
+    },
+    {
+      "name": "edilizia-dev-alt",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev", "--", "--port", "56845"],
+      "port": 56845,
       "autoPort": true
     },
     {

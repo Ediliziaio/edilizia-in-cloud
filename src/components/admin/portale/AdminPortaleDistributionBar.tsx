@@ -301,7 +301,13 @@ function AdminPortaleGrantsDialog({ open, onOpenChange }: AdminPortaleGrantsDial
                     <button
                       key={course.id}
                       type="button"
-                      onClick={() => setSelectedCourseId(course.id)}
+                      onClick={() => {
+                        // Reset della selezione aziende al cambio corso: senza,
+                        // le aziende scelte per il corso A restavano selezionate
+                        // e "Concedi accesso" le grantava sul corso B.
+                        if (course.id !== selectedCourseId) setSelectedCompanyIds(new Set());
+                        setSelectedCourseId(course.id);
+                      }}
                       className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-all ${
                         isSelected ? "bg-orange-50 ring-1 ring-orange-200" : "hover:bg-slate-50"
                       }`}

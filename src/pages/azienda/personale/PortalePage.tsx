@@ -1454,6 +1454,13 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
 
   const updateSelectedCourse = (patch: Partial<PortalCourse>) => {
     if (!selectedCourse) return;
+    // Corso della piattaforma (concesso via grant): sola lettura. Senza questo
+    // guard la UI mostrava il nuovo stato/pubblico ma persistCourse lo scartava
+    // in silenzio → modifica "fantasma" che spariva al reload.
+    if (selectedCourse.sourceType === "platform") {
+      toast.info("Corso fornito dalla piattaforma: è in sola lettura.");
+      return;
+    }
     const nextCourse = { ...selectedCourse, ...patch, updatedAt: "Aggiornato ora" };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
@@ -1461,6 +1468,10 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
 
   const changeCourseStatus = (status: PortalCourseStatus) => {
     if (!selectedCourse) return false;
+    if (selectedCourse.sourceType === "platform") {
+      toast.info("Corso fornito dalla piattaforma: è in sola lettura.");
+      return false;
+    }
     if (status === "pubblicato") {
       const publishQuality = getCourseQuality(selectedCourse);
       if (publishQuality.score < 80) {
@@ -1486,6 +1497,11 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
       enrolled: 0,
       completion: 0,
       updatedAt: "Creato ora",
+      // La copia è SEMPRE dell'azienda corrente: senza questo reset, duplicare
+      // un corso concesso dalla piattaforma manteneva sourceType="platform" →
+      // persistCourse la scartava e la copia spariva al reload.
+      sourceType: "own",
+      ownerCompanyId: companyId ?? selectedCourse.ownerCompanyId,
       modules: selectedCourse.modules.map((module) => ({
         ...module,
         id: moduleIdMap.get(module.id) ?? createId("module"),
@@ -3651,16 +3667,27 @@ function describeEnrollment(p: { status: string; dueAt: string | null; completed
   tone: "red" | "emerald" | "blue";
   due: string;
 } {
-  const now = Date.now();
-  const dueMs = p.dueAt ? new Date(p.dueAt).getTime() : null;
-  const hasDue = dueMs != null && Number.isFinite(dueMs);
-  const overdue = hasDue && (dueMs as number) < now && p.status !== "completato";
+  // due_at è salvato come data (mezzanotte UTC): la scadenza è il GIORNO di
+  // calendario, non l'istante. Confrontiamo per data locale — altrimenti in
+  // Italia la persona risultava "in ritardo" già dalle 02:00 del giorno stesso.
+  let dueDays: number | null = null;
+  if (p.dueAt) {
+    const [y, m, d] = p.dueAt.slice(0, 10).split("-").map(Number);
+    if (y && m && d) {
+      const dueStart = new Date(y, m - 1, d).getTime();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      dueDays = Math.round((dueStart - todayStart.getTime()) / 86_400_000);
+    }
+  }
+  const hasDue = dueDays != null;
+  const overdue = hasDue && (dueDays as number) < 0 && p.status !== "completato";
 
   let due = "Nessuna scadenza";
   if (p.completedAt) {
     due = "Completato";
   } else if (hasDue) {
-    const days = Math.round(((dueMs as number) - now) / 86_400_000);
+    const days = dueDays as number;
     if (days > 1) due = `Scade tra ${days} giorni`;
     else if (days === 1) due = "Scade domani";
     else if (days === 0) due = "Scade oggi";
@@ -3720,7 +3747,9 @@ function PeopleProgressPanel({
       return;
     }
     const behind = people.filter((p) => p.status !== "completato").length;
-    const remindOn = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    // toLocaleDateString("en-CA") = YYYY-MM-DD in fuso locale: con toISOString()
+    // tra mezzanotte e le 02:00 in Italia la data slittava al giorno prima.
+    const remindOn = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString("en-CA");
     const { error } = await supabase.rpc("silvio_tool_crea_promemoria" as never, {
       p_company_id: companyId,
       p_user_id: userId,

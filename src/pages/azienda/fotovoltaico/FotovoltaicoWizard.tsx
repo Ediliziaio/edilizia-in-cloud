@@ -44,6 +44,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
 import {
   useProgetto,
@@ -154,10 +155,15 @@ export default function FotovoltaicoWizard() {
   // (fv_progetti.opportunita_crm_id) alla creazione, in parità con SerramentiWizard.
   const urlOpportunityId = searchParams.get("opportunity_id");
 
+  // Scope per-azienda della bozza "nuovo preventivo": evita che la bozza di
+  // un'azienda ricompaia in un'altra sullo stesso browser (multi-company).
+  const { effectiveCompany, profile } = useAuth();
+  const draftScope = effectiveCompany?.id ?? profile?.company_id ?? null;
+
   // Restore draft da localStorage al primo render (solo per progetti nuovi
   // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
   // il draft viene scartato dal merge con progettoEsistente.
-  const initialDraft = useMemo(() => loadPersistedDraft(id ?? null), [id]);
+  const initialDraft = useMemo(() => loadPersistedDraft(id ?? null, draftScope), [id, draftScope]);
 
   const [step, setStep] = useState(initialDraft?.step ?? 1);
   // Merge con INITIAL: i draft salvati prima dell'aggiunta di nuovi campi
@@ -201,7 +207,7 @@ export default function FotovoltaicoWizard() {
           label: "Ricomincia",
           onClick: () => {
             // Cancella draft + dismiss toast + reload
-            clearPersistedDraft(null);
+            clearPersistedDraft(null, draftScope);
             toast.dismiss(toastId);
             window.location.reload();
           },
@@ -463,17 +469,22 @@ export default function FotovoltaicoWizard() {
   // Fix #9 Sprint 3: debounce 800ms per evitare localStorage thrashing
   // ad ogni keystroke (su slow devices il json.stringify del draft completo
   // può diventare un collo di bottiglia con form lunghi).
+  // Guardia dirty: senza, il solo APRIRE il wizard scriveva dopo 800ms un
+  // draft col form vuoto (INITIAL) → toast "bozza ripristinata" a ogni
+  // ingresso successivo anche se non era mai stato digitato nulla.
+  const dirtyRef = useRef(!!initialDraft);
   useEffect(() => {
     if (readOnlyMode) return;
+    if (!dirtyRef.current && step === 1 && !progettoId) return;
     const timer = setTimeout(() => {
       savePersistedDraft(progettoId, {
         step,
         data,
         completedSteps: Array.from(completedSteps),
-      });
+      }, draftScope);
     }, 800);
     return () => clearTimeout(timer);
-  }, [step, data, completedSteps, progettoId, readOnlyMode]);
+  }, [step, data, completedSteps, progettoId, readOnlyMode, draftScope]);
 
   // beforeunload guard: avvisa se l'utente refresha/chiude con dati non salvati
   useEffect(() => {
@@ -498,6 +509,7 @@ export default function FotovoltaicoWizard() {
       });
       return;
     }
+    dirtyRef.current = true;
     setData((d) => ({ ...d, [k]: v }));
   };
 
@@ -596,6 +608,11 @@ export default function FotovoltaicoWizard() {
           "fv-onboarding-cliente",
           {
             body: {
+              // Company effettiva del frontend (multi-azienda): il progetto va
+              // creato sotto l'azienda selezionata nello switcher, non sotto la
+              // primaria del profilo — altrimenti il salvataggio consumi non lo
+              // trova più (filtra per la company effettiva).
+              company_id: draftScope ?? undefined,
               titolo,
               // Link CRM: aggancia il contatto e l'opportunità di provenienza
               // alla creazione del progetto (parità con SerramentiWizard). Senza
@@ -631,6 +648,11 @@ export default function FotovoltaicoWizard() {
         if (!newId) throw new Error("Risposta del server priva di progetto_id");
         if (!mountedRef.current) return;
         setProgettoId(newId);
+        // Il progetto ora vive in DB (bozza nell'indice Fotovoltaico) e
+        // l'autosave passa alla chiave per-id: libera SUBITO lo slot "nuovo",
+        // altrimenti la bozza fantasma ricompariva a ogni preventivo nuovo
+        // finché non si emetteva o si cliccava "Ricomincia".
+        clearPersistedDraft(null, draftScope);
         toast.success("Progetto creato — continua con i consumi");
       } else {
         await aggiornaProgetto.mutateAsync({
@@ -1331,7 +1353,7 @@ export default function FotovoltaicoWizard() {
       if (!mountedRef.current) return;
       // Pulisci draft locale: progetto è emesso, niente più bozze locali
       clearPersistedDraft(progettoId);
-      clearPersistedDraft(null);
+      clearPersistedDraft(null, draftScope);
       toast.success("Preventivo emesso! Apri la scheda 'Preventivo' per visualizzarlo.");
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {

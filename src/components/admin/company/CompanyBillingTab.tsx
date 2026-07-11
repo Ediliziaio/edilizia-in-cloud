@@ -386,10 +386,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   const saveOverrideMutation = useMutation({
     mutationFn: async () => {
-      // FIX TIMEZONE: se la data è "YYYY-MM-DD" senza ora, la trasformiamo in
-      // ISO timestamp esplicito a midnight UTC per evitare ambiguità.
+      // FIX TIMEZONE: fine-giornata in ORA LOCALE (niente "Z"): salvando
+      // 23:59:59 UTC, il badge (formattato in locale IT, UTC+1/+2) mostrava
+      // il giorno DOPO quello inserito, mentre l'input mostrava quello giusto.
       const expiryIso = overrideExpiry
-        ? new Date(`${overrideExpiry}T23:59:59.999Z`).toISOString()
+        ? new Date(`${overrideExpiry}T23:59:59.999`).toISOString()
         : null;
       const priceNum = overridePrice ? Number(overridePrice) : null;
       if (priceNum != null && (!Number.isFinite(priceNum) || priceNum < 0)) {
@@ -414,6 +415,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       void refetchOverride();
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      // MRR di Panoramica/Abbonamento (prezzo effettivo con override)
+      queryClient.invalidateQueries({ queryKey: ["company-plan-price-override", companyId] });
       planOverrideSyncRef.current = false; // permette re-sync con nuovi dati
     },
     onError: (e: Error) => toast.error(e.message),
@@ -437,6 +440,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       void refetchOverride();
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({ queryKey: ["company-plan-price-override", companyId] });
       planOverrideSyncRef.current = false;
     },
     onError: (e: Error) => toast.error(e.message),
@@ -951,7 +955,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   type="date"
                   value={overrideExpiry}
                   onChange={(e) => setOverrideExpiry(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={new Date().toLocaleDateString("en-CA")}
                 />
               </div>
             </div>
@@ -1087,6 +1091,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 <SelectItem value="ai_agents">AI Agents</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
                 <SelectItem value="render">Render</SelectItem>
+                <SelectItem value="sms">SMS</SelectItem>
               </SelectContent>
             </Select>
             {(adjustmentsSearch || adjustmentsServiceFilter !== "all") && (

@@ -30,6 +30,8 @@ import { Progress } from "@/components/ui/progress";
 import { useCompanyHealthScore } from "@/hooks/useHealthScores";
 import { HealthScoreBadge } from "./HealthScoreBadge";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
+import { getOnboardingPct } from "@/lib/companyUtils";
+import { useCompanyPlanPriceOverride } from "@/hooks/useCompanyPlanPriceOverride";
 import {
   useCompanyCreditsSnapshot,
   useCompanyLastActivity,
@@ -174,7 +176,11 @@ export function CompanyOverviewTab({
 
   const avgOrderValue =
     stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
-  const nominalMrr = currentPlan?.price_monthly || 0;
+  // Prezzo REALE del piano: se nel tab Billing è attivo un override
+  // (custom_plan_price_eur), MRR e LTV usano quello — prima mostravano
+  // sempre il listino anche con un deal scontato.
+  const { data: customPlanPrice } = useCompanyPlanPriceOverride(companyId);
+  const nominalMrr = customPlanPrice ?? (currentPlan?.price_monthly || 0);
 
   // === Stato di pagamento effettivo ===
   // Prima mostravamo sempre nominalMrr come MRR: un'azienda in trial,
@@ -236,13 +242,22 @@ export function CompanyOverviewTab({
   const kpiClickable = !!onNavigateToTab;
   const go = (tab: string) => onNavigateToTab?.(tab);
 
+  // Onboarding reale dai numeri dell'azienda (prima era hardcoded 0 e la
+  // card conversione suggeriva sempre "completa onboarding").
+  const onboardingPct = getOnboardingPct(stats ? {
+    order_count: stats.ordersCount,
+    user_count: totalTeam,
+    has_customers: stats.customersCount > 0,
+    has_staff: totalTeam > 0,
+  } : undefined);
+
   return (
     <div className="space-y-6">
       {/* Trial Conversion Card (solo quando davvero in trial, non comped) */}
       {companyStatus === "trial" && effectiveStatus === "trial" && (
         <CompanyConversionCard
           trialEndsAt={trialEndsAt || null}
-          onboardingPct={0}
+          onboardingPct={onboardingPct}
           paymentMethod={paymentMethod || "none"}
           onExtendTrial={onExtendTrial}
           isExtendingTrial={isExtendingTrial}

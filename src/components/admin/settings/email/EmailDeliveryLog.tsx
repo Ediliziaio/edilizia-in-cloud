@@ -50,6 +50,8 @@ interface DeliveryLogRow {
   status: string;
   sent_at: string;
   error_message: string | null;
+  opened_at: string | null;
+  clicked_at: string | null;
 }
 
 /**
@@ -82,11 +84,17 @@ export function EmailDeliveryLog() {
     queryFn: async () => {
       let query = supabase
         .from("email_delivery_log")
-        .select("id, recipient, subject, template_type, provider, status, sent_at, error_message")
+        .select("id, recipient, subject, template_type, provider, status, sent_at, error_message, opened_at, clicked_at")
         .order("sent_at", { ascending: false })
         .limit(200);
 
-      if (statusFilter !== "all") {
+      // Nessun writer scrive status "opened"/"clicked": il webhook setta solo
+      // opened_at/clicked_at, quindi questi filtri usano i timestamp.
+      if (statusFilter === "opened") {
+        query = query.not("opened_at", "is", null);
+      } else if (statusFilter === "clicked") {
+        query = query.not("clicked_at", "is", null);
+      } else if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
 
@@ -110,10 +118,15 @@ export function EmailDeliveryLog() {
     });
   }, [logs, search]);
 
-  // Status counters per badge guida (es. "Falliti: 3")
+  // Status counters per badge guida (es. "Falliti: 3").
+  // Aperti/click contati dai timestamp, non dallo status (mai scritto così).
   const statusCounts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const l of logs) c[l.status] = (c[l.status] ?? 0) + 1;
+    for (const l of logs) {
+      c[l.status] = (c[l.status] ?? 0) + 1;
+      if (l.opened_at) c.opened = (c.opened ?? 0) + 1;
+      if (l.clicked_at) c.clicked = (c.clicked ?? 0) + 1;
+    }
     return c;
   }, [logs]);
 
@@ -140,7 +153,7 @@ export function EmailDeliveryLog() {
               <Mail className="h-5 w-5" /> Log Invii Email
             </CardTitle>
             <CardDescription>
-              Ultimi 200 invii della piattaforma
+              Ultimi 200 invii della piattaforma — la ricerca agisce solo su queste righe
               {logs.length > 0 && (
                 <span className="ml-1">
                   · <strong>{filtered.length}</strong>
@@ -255,7 +268,7 @@ export function EmailDeliveryLog() {
                   return (
                     <TableRow key={log.id}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {format(new Date(log.sent_at), "dd MMM HH:mm", { locale: it })}
+                        {format(new Date(log.sent_at), "dd MMM yy HH:mm", { locale: it })}
                       </TableCell>
                       <TableCell className="font-mono text-sm max-w-[220px] truncate" title={log.recipient ?? ""}>
                         {log.recipient || "—"}

@@ -71,6 +71,10 @@ function HistoryRow({ result }: { result: EmailTestResult }) {
   );
 }
 
+// Validazione leggera lato client: evita invii a indirizzi palesemente
+// malformati (il controllo vero resta al provider).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export function EmailTestPanel() {
   const { sendEmail, isSending, history, clearHistory } = useEmailTest();
 
@@ -78,6 +82,10 @@ export function EmailTestPanel() {
   const [template, setTemplate] = useState<EmailTemplate>("plain");
   const [subject, setSubject] = useState(DEFAULT_SUBJECTS.plain);
   const [body, setBody] = useState("");
+
+  const toTrimmed = to.trim();
+  const toIsValid = EMAIL_RE.test(toTrimmed);
+  const showToError = toTrimmed.length > 0 && !toIsValid;
 
   // FIX: standardizza reset su template change — prima il body veniva resettato
   // solo per non-plain ma il subject cambiava sempre, creando inconsistenza
@@ -90,7 +98,7 @@ export function EmailTestPanel() {
   };
 
   const handleSend = () => {
-    if (!to.trim()) return;
+    if (!toIsValid) return;
     // FIX: form veniva lasciato popolato dopo l'invio → rischio doppio-invio
     // accidentale allo stesso destinatario. Ora reset body/subject on success,
     // `to` viene mantenuto (utile per re-send rapido con altro template).
@@ -127,14 +135,22 @@ export function EmailTestPanel() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Destinatario *</Label>
+              <Label htmlFor="email-test-to">Destinatario *</Label>
               <Input
+                id="email-test-to"
                 type="email"
                 placeholder="test@esempio.it"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 disabled={isSending}
+                aria-invalid={showToError || undefined}
+                className={showToError ? "border-destructive focus-visible:ring-destructive" : undefined}
               />
+              {showToError && (
+                <p className="text-xs text-destructive">
+                  Indirizzo email non valido (es. nome@dominio.it)
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Template</Label>
@@ -156,8 +172,9 @@ export function EmailTestPanel() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Oggetto</Label>
+            <Label htmlFor="email-test-subject">Oggetto</Label>
             <Input
+              id="email-test-subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               disabled={isSending}
@@ -179,7 +196,7 @@ export function EmailTestPanel() {
 
           <Button
             onClick={handleSend}
-            disabled={isSending || !to.trim()}
+            disabled={isSending || !toIsValid}
             className="w-full sm:w-auto"
           >
             {isSending ? (

@@ -104,6 +104,7 @@ export function useCompanyDetail(id: string | undefined) {
         profilesCountRes,
         ticketsCountRes,
         openTicketsCountRes,
+        customersCountRes,
       ] = await Promise.all([
         supabase.from("companies").select("*").eq("id", id).single(),
         // Count orders senza payload
@@ -114,6 +115,9 @@ export function useCompanyDetail(id: string | undefined) {
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id),
         // Count tickets aperti (server-side filter via .neq)
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id).neq("status", "risolto"),
+        // Clienti VERI (tabella customers): prima customersCount copiava il
+        // count dei profiles e "Clienti" mostrava in realtà gli utenti.
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", id),
       ]);
       if (!companyRes.data) return null;
       const company = companyRes.data as unknown as Company;
@@ -124,7 +128,7 @@ export function useCompanyDetail(id: string | undefined) {
       const stats: CompanyStats = {
         ordersCount: ordersCountRes.count || 0,
         ordersValue,
-        customersCount: profilesCountRes.count || 0,
+        customersCount: customersCountRes.count || 0,
         ticketsCount: ticketsCountRes.count || 0,
         openTicketsCount: openTicketsCountRes.count || 0,
         teamCount: profilesCountRes.count || 0,
@@ -453,7 +457,11 @@ export function useCompanyDetail(id: string | undefined) {
     mutationFn: async (days: number) => {
       assertCanManage();
       if (!id || !company) return;
-      const currentEnd = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+      // Base = max(oggi, fine trial attuale): estendere un trial scaduto da
+      // tempo partiva dalla data passata → nuova scadenza ancora nel passato
+      // (status "trial" ma di fatto già scaduto).
+      const storedEnd = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+      const currentEnd = storedEnd.getTime() > Date.now() ? storedEnd : new Date();
       const newEnd = addDays(currentEnd, days);
       const { error } = await supabase.from("companies").update({ trial_ends_at: newEnd.toISOString(), status: "trial" }).eq("id", id);
       if (error) throw error;

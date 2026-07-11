@@ -4,6 +4,10 @@
 // Tabella SuperAdmin per gestire `public.email_suppressions`:
 //   - Filtro per reason (hard_bounce / spam_complaint / unsubscribe / manual /
 //     invalid / legal), per scope (globale vs per-azienda), per search email.
+//     Ricerca e filtri sono SERVER-SIDE: prima lavoravano sulle ultime 1000
+//     righe e una ricerca poteva rispondere "nessuna soppressione" per un
+//     indirizzo in realtà soppresso (diagnosi sbagliate). I KPI usano
+//     head-count exact, mai fetch-e-conta.
 //   - Delete puntuale (solo super_admin) — per "riabilitare" un indirizzo
 //     sbloccato dall'utente.
 //
@@ -15,9 +19,10 @@
 // con cast `as unknown as ...` per bypassare il tipo legacy.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useDebounce } from "@/hooks/useDebounce";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { toast } from "sonner";
 
@@ -103,7 +108,34 @@ type ReasonFilter = "all" | SuppressionReason;
 type ScopeFilter = "all" | "global" | "company";
 
 const PAGE_SIZE = 25;
-const SAFETY_CAP = 1000;
+const EXPORT_CAP = 10000;
+
+const SELECT_COLUMNS = `
+  id, email, reason, suppressed_at, company_id,
+  source_provider, source_event_id, notes,
+  companies:company_id ( name )
+` as "*";
+
+/** Escape dei metacaratteri pattern di ilike (%, _) nel termine di ricerca. */
+function escapeIlike(term: string): string {
+  return term.replace(/[\\%_]/g, (m) => `\\${m}`);
+}
+
+/** Applica i filtri correnti a una query PostgREST (server-side). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyFilters<T extends { ilike: any; eq: any; is: any; not: any }>(
+  q: T,
+  search: string,
+  reason: ReasonFilter,
+  scope: ScopeFilter,
+): T {
+  let out = q;
+  if (search) out = out.ilike("email", `%${escapeIlike(search)}%`);
+  if (reason !== "all") out = out.eq("reason", reason);
+  if (scope === "global") out = out.is("company_id", null);
+  if (scope === "company") out = out.not("company_id", "is", null);
+  return out;
+}
 
 export function EmailSuppressionsTable() {
   const queryClient = useQueryClient();
@@ -111,24 +143,56 @@ export function EmailSuppressionsTable() {
   const [reasonFilter, setReasonFilter] = useState<ReasonFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [page, setPage] = useState(0);
+  const debouncedSearch = useDebounce(search.trim(), 350);
 
-  const query = useQuery({
-    queryKey: ["admin-email-suppressions"],
+  // KPI globali (non filtrati): head-count exact paralleli.
+  const kpiQuery = useQuery({
+    queryKey: ["admin-email-suppressions-kpi"],
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const head = (reason?: SuppressionReason) => {
+        let q = supabase
+          .from("email_suppressions")
+          .select("id", { count: "exact", head: true });
+        if (reason) q = q.eq("reason", reason);
+        return q;
+      };
+      const [totalRes, bounceRes, spamRes, unsubRes] = await Promise.all([
+        head(),
+        head("hard_bounce"),
+        head("spam_complaint"),
+        head("unsubscribe"),
+      ]);
+      const firstErr = totalRes.error ?? bounceRes.error ?? spamRes.error ?? unsubRes.error;
+      if (firstErr) throw firstErr;
+      return {
+        total: totalRes.count ?? 0,
+        hardBounce: bounceRes.count ?? 0,
+        spam: spamRes.count ?? 0,
+        unsubscribe: unsubRes.count ?? 0,
+      };
+    },
+  });
+
+  // Lista paginata con filtri server-side + count exact filtrato (stessa query).
+  const query = useQuery({
+    queryKey: ["admin-email-suppressions", debouncedSearch, reasonFilter, scopeFilter, page],
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const base = supabase
         .from("email_suppressions")
-        .select(`
-          id, email, reason, suppressed_at, company_id,
-          source_provider, source_event_id, notes,
-          companies:company_id ( name )
-        ` as "*")
+        .select(SELECT_COLUMNS, { count: "exact" });
+      const { data, error, count } = await applyFilters(base, debouncedSearch, reasonFilter, scopeFilter)
         .order("suppressed_at", { ascending: false })
-        .limit(SAFETY_CAP);
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (error) throw error;
-      return ((data ?? []) as unknown) as SuppressionRow[];
+      return {
+        rows: ((data ?? []) as unknown) as SuppressionRow[],
+        filteredCount: count ?? 0,
+      };
     },
-    staleTime: 60_000,
   });
 
   const deleteMutation = useMutation({
@@ -142,6 +206,7 @@ export function EmailSuppressionsTable() {
     onSuccess: () => {
       toast.success("Soppressione rimossa. L'indirizzo riceverà di nuovo email.");
       queryClient.invalidateQueries({ queryKey: ["admin-email-suppressions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-email-suppressions-kpi"] });
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Errore imprevisto";
@@ -149,64 +214,60 @@ export function EmailSuppressionsTable() {
     },
   });
 
-  const filtered = useMemo(() => {
-    const rows = query.data ?? [];
-    const q = search.trim().toLowerCase();
+  const pageRows = query.data?.rows ?? [];
+  const filteredCount = query.data?.filteredCount ?? 0;
 
-    return rows.filter((r) => {
-      if (reasonFilter !== "all" && r.reason !== reasonFilter) return false;
-      if (scopeFilter === "global"  && r.company_id !== null) return false;
-      if (scopeFilter === "company" && r.company_id === null) return false;
-      if (q && !r.email.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [query.data, search, reasonFilter, scopeFilter]);
-
-  // Breakdown per motivo (per KPI + badge)
-  const reasonBreakdown = useMemo(() => {
-    const counts = new Map<SuppressionReason, number>();
-    for (const r of query.data ?? []) {
-      counts.set(r.reason, (counts.get(r.reason) ?? 0) + 1);
-    }
-    return counts;
-  }, [query.data]);
-
-  // Paginazione client (SAFETY_CAP = 1000 quindi fattibile)
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Paginazione server-side sul count exact filtrato.
+  const totalPages = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
-  const pageRows = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
-
-  // FIX: sincronizza `page` con `safePage` quando i filtri riducono la lista.
-  // Senza questo, cliccando "Successiva" da pagina 5 quando filtered ha solo 2
-  // pagine, il click alla pagina successiva partiva da `page=5+1=6` invece di
-  // `safePage+1`, lasciando l'utente bloccato sull'ultima pagina valida.
   useEffect(() => {
     if (page !== safePage) setPage(safePage);
   }, [page, safePage]);
 
-  const handleExportCsv = () => {
-    if (filtered.length === 0) return;
-    const headers = ["Email", "Motivo", "Scope", "Provider", "Data", "Note"];
-    const escape = (v: string | null | undefined) => escapeCsvCell(v, ",");
-    const rows = filtered.map((r) =>
-      [
-        escape(r.email),
-        escape(REASON_LABEL[r.reason]),
-        escape(r.company_id === null ? "globale" : "per-azienda"),
-        escape(r.source_provider),
-        escape(format(new Date(r.suppressed_at), "yyyy-MM-dd HH:mm")),
-        escape(r.notes),
-      ].join(","),
-    );
-    const csv = [headers.join(","), ...rows].join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `email-suppressions-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Esportate ${filtered.length} soppressioni`);
+  const [exporting, setExporting] = useState(false);
+  // CSV: la pagina corrente ha solo 25 righe \u2014 l'export rif\u00E0 la query filtrata
+  // per intero (cap 10.000) al momento del click.
+  const handleExportCsv = async () => {
+    if (filteredCount === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const base = supabase.from("email_suppressions").select(SELECT_COLUMNS);
+      const { data, error } = await applyFilters(base, debouncedSearch, reasonFilter, scopeFilter)
+        .order("suppressed_at", { ascending: false })
+        .limit(EXPORT_CAP);
+      if (error) throw error;
+      const allRows = ((data ?? []) as unknown) as SuppressionRow[];
+
+      const headers = ["Email", "Motivo", "Scope", "Provider", "Data", "Note"];
+      const escape = (v: string | null | undefined) => escapeCsvCell(v, ",");
+      const rows = allRows.map((r) =>
+        [
+          escape(r.email),
+          escape(REASON_LABEL[r.reason]),
+          escape(r.company_id === null ? "globale" : "per-azienda"),
+          escape(r.source_provider),
+          escape(format(new Date(r.suppressed_at), "yyyy-MM-dd HH:mm")),
+          escape(r.notes),
+        ].join(","),
+      );
+      const csv = [headers.join(","), ...rows].join("\r\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `email-suppressions-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(
+        allRows.length >= EXPORT_CAP
+          ? `Esportate le prime ${EXPORT_CAP.toLocaleString("it-IT")} soppressioni (cap export)`
+          : `Esportate ${allRows.length.toLocaleString("it-IT")} soppressioni`,
+      );
+    } catch (e) {
+      toast.error(`Export non riuscito: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (query.isLoading) {
@@ -232,10 +293,10 @@ export function EmailSuppressionsTable() {
     );
   }
 
-  const totalSuppressed = query.data?.length ?? 0;
-  const hardBounce = reasonBreakdown.get("hard_bounce") ?? 0;
-  const spam = reasonBreakdown.get("spam_complaint") ?? 0;
-  const unsubscribe = reasonBreakdown.get("unsubscribe") ?? 0;
+  const totalSuppressed = kpiQuery.data?.total ?? 0;
+  const hardBounce = kpiQuery.data?.hardBounce ?? 0;
+  const spam = kpiQuery.data?.spam ?? 0;
+  const unsubscribe = kpiQuery.data?.unsubscribe ?? 0;
 
   return (
     <div className="space-y-4">
@@ -352,24 +413,26 @@ export function EmailSuppressionsTable() {
         {/* Counter + Export */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground">
-            {filtered.length.toLocaleString("it-IT")} risultati
-            {filtered.length !== (query.data?.length ?? 0) && (
-              <> (di {(query.data?.length ?? 0).toLocaleString("it-IT")} totali)</>
+            {filteredCount.toLocaleString("it-IT")} risultati
+            {filteredCount !== totalSuppressed && (
+              <> (di {totalSuppressed.toLocaleString("it-IT")} totali)</>
             )}
           </span>
-          {query.data && query.data.length >= SAFETY_CAP && (
-            <Badge variant="outline" className="text-xs">
-              Mostrate solo le ultime {SAFETY_CAP.toLocaleString("it-IT")}
-            </Badge>
+          {query.isFetching && (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-label="Aggiornamento…" />
           )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportCsv}
-            disabled={filtered.length === 0}
+            disabled={filteredCount === 0 || exporting}
             className="ml-auto h-8"
           >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
+            {exporting ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+            )}
             Esporta CSV
           </Button>
         </div>

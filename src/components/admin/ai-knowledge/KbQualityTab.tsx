@@ -60,10 +60,15 @@ export function KbQualityTab() {
         .from("v_kb_quality_alerts")
         .select("*")
         .neq("alert_type", "ok")
-        .order("severity", { ascending: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
-      return (data ?? []) as QualityAlert[];
+      // severity è TEXT: l'ORDER BY testuale metteva "warning" > "info" >
+      // "critical" → i critici finivano in fondo ed erano i primi tagliati
+      // dal limit. Ordina per rank reale lato client.
+      const rank: Record<string, number> = { critical: 3, warning: 2, info: 1 };
+      return ((data ?? []) as QualityAlert[]).sort(
+        (a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0),
+      );
     },
   });
 

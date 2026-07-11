@@ -43,7 +43,7 @@ function exportCsv(events: ReturnType<typeof useLifecycleEvents>["events"]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `lifecycle_events_${new Date().toISOString().split("T")[0]}.csv`;
+  a.download = `lifecycle_events_${new Date().toLocaleDateString("en-CA")}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

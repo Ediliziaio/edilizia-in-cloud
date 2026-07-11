@@ -41,6 +41,7 @@ import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
 import {
   getEffectivePaymentStatus, getEffectiveMRR, PAYMENT_STATUS_META,
 } from "@/lib/paymentStatus";
+import { useCompanyPlanPriceOverride } from "@/hooks/useCompanyPlanPriceOverride";
 import { cn } from "@/lib/utils";
 
 // Forma minima di un piano tariffario — solo i campi letti qui.
@@ -120,7 +121,10 @@ export function CompanySubscriptionTab({
     trial_ends_at: company.trial_ends_at,
   });
   const paymentMeta = PAYMENT_STATUS_META[effectiveStatus];
-  const nominalMrr = currentPlan?.price_monthly ?? 0;
+  // Prezzo reale: override dal tab Billing se attivo, altrimenti listino
+  // (coerente con Panoramica — prima entrambe ignoravano il prezzo custom).
+  const { data: customPlanPrice } = useCompanyPlanPriceOverride(company.id);
+  const nominalMrr = customPlanPrice ?? currentPlan?.price_monthly ?? 0;
   const effectiveMrr = getEffectiveMRR(
     {
       status: company.status,
@@ -802,7 +806,7 @@ function GiftPlanButton({
                   type="date"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={new Date().toLocaleDateString("en-CA")}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Se compilata, è una nota informativa: dovrai gestire manualmente

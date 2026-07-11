@@ -98,7 +98,7 @@ function TaskItem({
 }
 
 export function TabOnboarding({ companyId }: TabOnboardingProps) {
-  const { tasks, isLoading, aggiornaStato, creaTask, completionePct } =
+  const { tasks, isLoading, isError, error, aggiornaStato, creaTask, completionePct } =
     useOnboardingTask(companyId);
   const [nuovoOpen, setNuovoOpen] = useState(false);
   const [nuovoTitolo, setNuovoTitolo] = useState("");
@@ -167,6 +167,16 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : isError ? (
+            // Errore ≠ lista vuota: prima un fetch fallito (es. tabella non
+            // ancora migrata in prod) veniva mostrato come "nessun task".
+            <div className="py-8 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-3" />
+              <p className="text-sm font-medium">Impossibile caricare i task onboarding</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {error instanceof Error ? error.message : "Errore sconosciuto"}
+              </p>
             </div>
           ) : tasks.length === 0 ? (
             <div className="py-8 text-center">

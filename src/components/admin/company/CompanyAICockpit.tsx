@@ -11,6 +11,7 @@
  */
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -61,6 +62,7 @@ interface WorkflowRun {
 
 export function CompanyAICockpit({ companyId }: Props) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useCustomerProfile(companyId);
   const { data: context, isLoading: contextLoading } = useCustomerContext(companyId);
 
@@ -100,7 +102,8 @@ export function CompanyAICockpit({ companyId }: Props) {
 
   const triggerMutation = useMutation({
     mutationFn: async (workflowKey: WorkflowKey) => {
-      const runId = await enqueueWorkflow(workflowKey, companyId, { triggered_manually_by: "florin" });
+      // Operatore reale nell'audit del workflow (prima era hardcoded "florin").
+      const runId = await enqueueWorkflow(workflowKey, companyId, { triggered_manually_by: user?.email ?? user?.id ?? "super_admin" });
       if (!runId) throw new Error("Enqueue failed");
       return runId;
     },

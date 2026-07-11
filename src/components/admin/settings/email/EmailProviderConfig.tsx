@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -182,8 +183,14 @@ export function EmailProviderConfig({ stream }: Props) {
     staleTime: 60_000,
   });
 
+  // Flag "l'admin ha modificato qualcosa": finché è true l'effect di sync
+  // NON sovrascrive i campi (un invalidate lanciato dall'altra card montata
+  // insieme resettava l'input in corso di digitazione).
+  const userEditedRef = useRef(false);
+  const markEdited = () => { userEditedRef.current = true; };
+
   useEffect(() => {
-    if (settings) {
+    if (settings && !userEditedRef.current) {
       const get = (k: string) => settings.find((s) => s.key === k)?.value || "";
       if (get(providerKey)) setProvider(get(providerKey));
       if (get(apiKeyKey)) setApiKey(get(apiKeyKey));
@@ -193,6 +200,19 @@ export function EmailProviderConfig({ stream }: Props) {
       setFailoverProviders(get(failoverProvidersKey));
     }
   }, [apiKeyKey, domainKey, failoverProvidersKey, fromAddressKey, fromNameKey, providerKey, settings]);
+
+  // Dirty = stato locale diverso dai valori salvati in DB. Il test invio
+  // usa SEMPRE la configurazione salvata (send-test-email ignora il campo
+  // provider del body), quindi con modifiche non salvate il test è bloccato.
+  const getSavedValue = (k: string) => settings?.find((s) => s.key === k)?.value || "";
+  const savedProvider = getSavedValue(providerKey) || (stream === "marketing" ? "elastic_email" : "resend");
+  const isDirty =
+    provider !== savedProvider ||
+    apiKey.trim() !== getSavedValue(apiKeyKey) ||
+    fromAddress.trim() !== getSavedValue(fromAddressKey) ||
+    fromName.trim() !== getSavedValue(fromNameKey) ||
+    domain.trim() !== getSavedValue(domainKey) ||
+    failoverProviders.trim() !== getSavedValue(failoverProvidersKey);
 
   // Connection status badge
   const getConnectionStatus = (): { status: ConnectionStatus; lastTest?: string } => {
@@ -284,7 +304,10 @@ export function EmailProviderConfig({ stream }: Props) {
           );
         if (error) throw error;
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
+      // Invalida SOLO la chiave di questo stream: il prefix-match senza
+      // stream resettava lo stato locale delle altre card montate insieme.
+      userEditedRef.current = false;
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail(stream) });
       queryClient.invalidateQueries({ queryKey: queryKeys.apiHealth.all });
       toast.success(`Provider ${STREAM_LABELS[stream].title} salvato`);
     } catch (err) {
@@ -329,19 +352,26 @@ export function EmailProviderConfig({ stream }: Props) {
         { onConflict: "key" as never }
       );
       if (r2.error) logger.error("persist lastTestStatusKey ok", r2.error);
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail(stream) });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Errore sconosciuto";
       setTestResult({ ok: false, message });
 
-      // Save failed test status (auxiliary — log-only su errore)
+      // Save failed test status + data (auxiliary — log-only su errore):
+      // senza la data, il badge Errore restava associato al timestamp del
+      // test precedente.
       const now = new Date().toISOString();
-      const r = await supabase.from("platform_settings" as never).upsert(
+      const r1 = await supabase.from("platform_settings" as never).upsert(
+        { key: lastTestKey, value: now, updated_at: now } as never,
+        { onConflict: "key" as never }
+      );
+      if (r1.error) logger.error("persist lastTestKey fail", r1.error);
+      const r2 = await supabase.from("platform_settings" as never).upsert(
         { key: lastTestStatusKey, value: "fail", updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      if (r.error) logger.error("persist lastTestStatusKey fail", r.error);
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
+      if (r2.error) logger.error("persist lastTestStatusKey fail", r2.error);
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail(stream) });
     } finally {
       setIsTesting(false);
     }
@@ -350,9 +380,13 @@ export function EmailProviderConfig({ stream }: Props) {
   // Webhook URL (read-only)
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL || ""}/functions/v1/email-provider-webhook?stream=${stream}`;
 
-  const copyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    toast.success("URL webhook copiato");
+  const copyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      toast.success("URL webhook copiato");
+    } catch {
+      toast.error("Copia negli appunti non riuscita");
+    }
   };
 
   const label = STREAM_LABELS[stream];
@@ -482,7 +516,7 @@ export function EmailProviderConfig({ stream }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Provider</Label>
-            <Select value={provider} onValueChange={setProvider}>
+            <Select value={provider} onValueChange={(v) => { markEdited(); setProvider(v); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PROVIDERS.map((p) => (
@@ -497,7 +531,7 @@ export function EmailProviderConfig({ stream }: Props) {
               <Input
                 type={showKey ? "text" : "password"}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => { markEdited(); setApiKey(e.target.value); }}
                 placeholder="Inserisci la chiave API"
               />
               <Button
@@ -517,7 +551,7 @@ export function EmailProviderConfig({ stream }: Props) {
             <Label>Email Mittente</Label>
             <Input
               value={fromAddress}
-              onChange={(e) => setFromAddress(e.target.value)}
+              onChange={(e) => { markEdited(); setFromAddress(e.target.value); }}
               placeholder="noreply@tuodominio.it"
             />
           </div>
@@ -525,7 +559,7 @@ export function EmailProviderConfig({ stream }: Props) {
             <Label>Nome Mittente</Label>
             <Input
               value={fromName}
-              onChange={(e) => setFromName(e.target.value)}
+              onChange={(e) => { markEdited(); setFromName(e.target.value); }}
               placeholder="EdiliziaCloud"
             />
           </div>
@@ -534,7 +568,7 @@ export function EmailProviderConfig({ stream }: Props) {
               <Label>Dominio Mailgun</Label>
               <Input
                 value={domain}
-                onChange={(e) => setDomain(e.target.value)}
+                onChange={(e) => { markEdited(); setDomain(e.target.value); }}
                 placeholder="mg.tuodominio.it"
                 aria-invalid={!isMailgunDomainValid}
               />
@@ -552,7 +586,7 @@ export function EmailProviderConfig({ stream }: Props) {
           <Label>Failover provider</Label>
           <Input
             value={failoverProviders}
-            onChange={(e) => setFailoverProviders(e.target.value)}
+            onChange={(e) => { markEdited(); setFailoverProviders(e.target.value); }}
             placeholder={stream === "marketing" ? "brevo,sendgrid" : "mailgun,sendgrid"}
           />
           <p className="text-xs text-muted-foreground">
@@ -618,10 +652,24 @@ export function EmailProviderConfig({ stream }: Props) {
               onChange={(e) => setTestEmail(e.target.value)}
               className="w-64"
             />
-            <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting}>
-              {isTesting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-              Invia Test
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* span wrapper: i bottoni disabilitati non emettono eventi mouse */}
+                  <span>
+                    <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting || isDirty}>
+                      {isTesting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                      Invia Test
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {isDirty && (
+                  <TooltipContent>
+                    Salva prima: il test usa la configurazione salvata
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
             {testResult && (
               <span className={`text-sm ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
                 {testResult.message}

@@ -149,9 +149,9 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
           (t.stato === "aperto" || t.stato === "in_lavorazione") &&
           differenceInDays(today, new Date(t.created_at)) > 7,
       ).length,
-      resolved: tickets.filter(
-        (t) => t.stato === "risolto" || t.stato === "chiuso",
-      ).length,
+      // "chiuso" non esiste tra gli stati (vedi union in useTicketAzienda):
+      // il vecchio confronto era codice morto sempre-falso.
+      resolved: tickets.filter((t) => t.stato === "risolto").length,
     };
   }, [tickets, openCount]);
 

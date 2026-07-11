@@ -75,7 +75,7 @@ export default function AIOperatePage() {
       const [approvals, queue, missions] = await Promise.all([
         sp.from("silvio_pending_approvals").select("id", { count: "exact", head: true }).eq("status", "awaiting"),
         sp.from("silvio_action_queue").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
-        sp.from("silvio_agent_missions").select("id", { count: "exact", head: true }).in("status", ["running", "waiting_approval"]),
+        sp.from("silvio_agent_missions").select("id", { count: "exact", head: true }).in("status", ["planning", "queued", "running", "waiting_approval"]),
       ]);
       return {
         approvals: approvals.count ?? 0,
@@ -197,7 +197,7 @@ export default function AIOperatePage() {
             <>
               <SectionAlert.warning
                 title="Approvals — azioni che richiedono il tuo OK"
-                description="Silvio propone azioni rischiose (yellow/red risk level) e si ferma in attesa che tu approvi o rifiuti. Click 'Approva' → eseguito. Click 'Modifica' → puoi cambiare i parametri prima di eseguire."
+                description="Silvio propone azioni rischiose (yellow/red risk level) e si ferma in attesa che tu approvi o rifiuti. Click 'Approva' → eseguito. Click 'Rifiuta' → scartato con motivazione."
                 bullets={[
                   "Le approvazioni scadono dopo X minuti (default 60min)",
                   "Reject + feedback alimenta self-learning loop",

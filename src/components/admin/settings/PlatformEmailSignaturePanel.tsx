@@ -17,6 +17,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CheckCircle2, Code2, Eye, Info, Loader2, Mail, Save, WandSparkles } from "lucide-react";
 import { formatError } from "@/lib/errors";
 import {
@@ -83,8 +93,24 @@ export function PlatformEmailSignaturePanel() {
     setDirty(true);
   };
 
+  // "Usa preset" sostituisce signature_html/text: se contengono già una firma
+  // personalizzata serve conferma esplicita (platform_settings non ha history,
+  // un click accidentale + salva = firma persa per sempre).
+  const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
+  const handlePresetClick = () => {
+    if (form.signature_html.trim() || form.signature_text.trim()) {
+      setPresetConfirmOpen(true);
+    } else {
+      applyPreset();
+    }
+  };
+
+  const supportMailInvalid =
+    form.support_mail.trim() !== "" &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.support_mail.trim());
+
   const handleSave = () => {
-    if (!form.from_name.trim()) return;
+    if (!form.from_name.trim() || supportMailInvalid) return;
     upsert.mutate(form, {
       onSuccess: () => setDirty(false),
     });
@@ -140,10 +166,26 @@ export function PlatformEmailSignaturePanel() {
                 <CardTitle className="text-base">Firma predefinita</CardTitle>
                 <CardDescription>Mittente, supporto, footer e chiusura email.</CardDescription>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={applyPreset}>
+              <Button type="button" variant="outline" size="sm" onClick={handlePresetClick}>
                 <WandSparkles className="mr-2 h-4 w-4" />
                 Usa preset
               </Button>
+              <AlertDialog open={presetConfirmOpen} onOpenChange={setPresetConfirmOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Sostituire la firma personalizzata?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      La firma HTML/testo attuale verrà sostituita dal preset
+                      predefinito. Non esiste una cronologia: dopo il salvataggio
+                      la firma personalizzata non sarà recuperabile.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={applyPreset}>Sostituisci</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -166,7 +208,14 @@ export function PlatformEmailSignaturePanel() {
                   value={form.support_mail}
                   onChange={(e) => update("support_mail", e.target.value)}
                   placeholder="supporto@ediliziaincloud.com"
+                  aria-invalid={supportMailInvalid || undefined}
+                  className={supportMailInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
                 />
+                {supportMailInvalid && (
+                  <p className="text-xs text-destructive">
+                    Indirizzo email non valido (es. supporto@ediliziaincloud.com)
+                  </p>
+                )}
               </div>
             </div>
 
@@ -229,7 +278,7 @@ export function PlatformEmailSignaturePanel() {
             <div className="flex items-center gap-2 border-t pt-2">
               <Button
                 onClick={handleSave}
-                disabled={upsert.isPending || !dirty || !form.from_name.trim()}
+                disabled={upsert.isPending || !dirty || !form.from_name.trim() || supportMailInvalid}
               >
                 {upsert.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

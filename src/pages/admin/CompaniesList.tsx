@@ -38,7 +38,7 @@ import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
 import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/company/CompanyFilterPresets";
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
-import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
+import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters, type CompanyFilters } from "@/hooks/superadmin/useCompanyFilters";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, type AdminRevenueState } from "@/lib/adminRevenue";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -62,7 +62,7 @@ const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string;
         <div ref={ref} {...props} className="flex items-center gap-1.5">
           <Clock className={`h-3.5 w-3.5 ${color}`} />
           <span className={`text-sm font-medium ${color}`}>
-            {daysLeft > 0 ? `${daysLeft}gg rimasti` : "Scaduto"}
+            {daysLeft > 0 ? `${daysLeft}gg rimasti` : daysLeft === 0 ? "Scade oggi" : "Scaduto"}
           </span>
         </div>
       );
@@ -93,7 +93,9 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
 
 type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "customers" | "lastAccess";
 type SortDir = "asc" | "desc";
-type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
+// "attenzione" = at_risk + critical insieme: è il filtro applicato dal preset
+// e dal KPI "A rischio", che contano entrambe le fasce.
+type HealthFilter = "all" | "healthy" | "at_risk" | "critical" | "attenzione";
 /**
  * Filtro "Tipo Cliente" — segmenta le aziende per stato di revenue:
  * - all: tutte
@@ -114,7 +116,7 @@ const REVENUE_LABELS_MAP: Record<RevenueFilter, string> = {
 };
 type ColKey = "sector" | "plan" | "mrr" | "users" | "customers" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
-type CompanyHealthMap = Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }>;
+type CompanyHealthMap = Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean; orders_last_30d?: number }>;
 
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
@@ -145,6 +147,7 @@ const HEALTH_LABELS_MAP: Record<string, string> = {
   healthy: "Healthy",
   at_risk: "A rischio",
   critical: "Critico",
+  attenzione: "A rischio + critico",
 };
 
 function isNoPaymentAccessCompany(company: {
@@ -160,6 +163,36 @@ function isNoPaymentAccessCompany(company: {
 
 function sanitizeOrSearchTerm(value: string): string {
   return value.trim().replace(/[,%]/g, " ").replace(/\s+/g, " ");
+}
+
+// ── Override prezzo piano (company_billing_overrides, service='plan') ──────
+// Il tab Billing può assegnare un prezzo custom: MRR/KPI/CSV devono usare
+// QUELLO, non il listino. Le query embeddano gli override e qui il prezzo del
+// piano viene sostituito prima di ogni calcolo (getCompanyMonthlyRevenue &co
+// leggono subscription_plans.price_monthly).
+interface PlanPriceOverrideRow {
+  service: string | null;
+  custom_plan_price_eur: number | null;
+  override_expires_at: string | null;
+  is_enabled: boolean | null;
+}
+function applyPlanPriceOverride<T>(rows: T[]): T[] {
+  return rows.map((r) => {
+    const row = r as { subscription_plans?: unknown; company_billing_overrides?: PlanPriceOverrideRow[] | null };
+    const ov = (row.company_billing_overrides ?? []).find((o) =>
+      o.service === "plan" &&
+      o.is_enabled !== false &&
+      (!o.override_expires_at || new Date(o.override_expires_at) >= new Date()) &&
+      typeof o.custom_plan_price_eur === "number" &&
+      Number.isFinite(o.custom_plan_price_eur) &&
+      o.custom_plan_price_eur >= 0,
+    );
+    if (!ov || !row.subscription_plans) return r;
+    return {
+      ...row,
+      subscription_plans: { ...(row.subscription_plans as object), price_monthly: ov.custom_plan_price_eur },
+    } as T;
+  });
 }
 
 function csvCell(value: unknown): string {
@@ -298,6 +331,10 @@ export default function CompaniesList() {
       default: return "created_at";
     }
   }, [sortKey]);
+  // Colonne ordinabili solo client-side (derivano da RPC aggregate): con una
+  // di queste attive la query scarica TUTTO il set filtrato e la paginazione
+  // avviene client-side, così l'ordinamento è sull'intero dataset.
+  const isClientSort = !!sortKey && ["plan", "mrr", "orders", "users", "customers", "lastAccess"].includes(sortKey);
 
   // ⚠️ Lightweight all-companies summary loaded EARLY (used by KPI strip,
   // preset counts e revenue state filter). Spostato sopra alla main query così
@@ -307,14 +344,15 @@ export default function CompaniesList() {
     queryFn: async () => {
       let q = supabase
         .from("companies")
-        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
+        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)")
         .eq("is_platform_admin_company", false);
       if (permissions.allowed_company_ids?.length) {
         q = q.in("id", permissions.allowed_company_ids);
       }
       const { data, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      // Prezzo custom al posto del listino dove c'è un override attivo.
+      return applyPlanPriceOverride(data ?? []);
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -391,10 +429,46 @@ export default function CompaniesList() {
   const healthFilterIds = useMemo<string[] | null>(() => {
     if (healthFilter === "all") return null;
     return Object.entries(healthData)
-      .filter(([, health]) => health.health === healthFilter)
+      .filter(([, health]) =>
+        healthFilter === "attenzione"
+          ? health.health === "at_risk" || health.health === "critical"
+          : health.health === healthFilter,
+      )
       .map(([companyId]) => companyId);
   }, [healthFilter, healthData]);
   const healthFilterIdsKey = healthFilterIds?.join(",") ?? "all";
+
+  // Last access per company. Dichiarata PRIMA della query paginata perché il
+  // filtro "Inattive" (preset) si basa su questi dati.
+  const { data: lastAccessData = {}, isLoading: isLastAccessLoading } = useQuery({
+    queryKey: queryKeys.admin.companiesLastAccess,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_last_access");
+      if (error) throw error;
+      const map: Record<string, string | null> = {};
+      ((data || []) as CompanyLastAccess[]).forEach((row) => {
+        map[row.company_id] = row.last_access || null;
+      });
+      return map;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Filtro "Inattive" (?inactive=1): attive senza accesso da 14+ giorni o mai
+  // loggate. Stessa definizione del conteggio preset, così badge e righe
+  // coincidono sempre.
+  const inactiveFilter = searchParams.get("inactive") === "1";
+  const inactiveIds = useMemo<string[] | null>(() => {
+    if (!inactiveFilter) return null;
+    return allCompaniesSummary
+      .filter((c) => {
+        if (c.status !== "active") return false;
+        const la = lastAccessData[c.id];
+        return !la || differenceInDays(new Date(), new Date(la)) > 14;
+      })
+      .map((c) => c.id);
+  }, [inactiveFilter, allCompaniesSummary, lastAccessData]);
+  const inactiveIdsKey = inactiveIds?.join(",") ?? "all";
 
   // Info rivenditori (parent_company_id non è nei tipi generati → client non tipizzato):
   // ID dei rivenditori + nome del produttore padre, per il badge e il filtro "Tipo".
@@ -471,10 +545,13 @@ export default function CompaniesList() {
       healthFilter,
       healthFilterIdsKey,
       noPaymentFilter,
+      inactiveFilter,
+      inactiveIdsKey,
       revenueFilter,
       revenueFilterIds?.length ?? -1,
       serverSortColumn,
       sortDir,
+      isClientSort,
       permissions.allowed_company_ids,
       segmentFilters,
     ],
@@ -485,7 +562,7 @@ export default function CompaniesList() {
       let query = supabase
         .from("companies")
         .select(
-          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users)",
+          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users), company_billing_overrides(service, custom_plan_price_eur, override_expires_at, is_enabled)",
           { count: "exact" }
         )
         .eq("is_platform_admin_company", false);
@@ -512,9 +589,13 @@ export default function CompaniesList() {
         query = query.not("id", "in", `(${resellerIds.join(",")})`);
       }
       if (noPaymentFilter) {
+        // Stessa semantica di isNoPaymentAccessCompany (conteggio preset):
+        // i metodi "regalo" (comped e sinonimi) sono ESCLUSI — gratuiti per
+        // policy, non un problema di incasso. Prima il filtro li includeva e
+        // il badge del preset mostrava un numero diverso dalle righe.
         query = query
           .in("status", ["active", "trial"])
-          .or("payment_method.is.null,payment_method.eq.,payment_method.eq.none,payment_method.eq.free,payment_method.eq.trial,payment_method.eq.gift,payment_method.eq.gifted,payment_method.eq.gratis,payment_method.eq.omaggio,payment_method.eq.manual_free,payment_method.eq.complimentary,payment_method.eq.comp,and(payment_method.eq.stripe,stripe_subscription_status.is.null),and(payment_method.eq.stripe,stripe_subscription_status.neq.active)");
+          .or("payment_method.is.null,payment_method.eq.,payment_method.eq.none,payment_method.eq.free,payment_method.eq.trial,and(payment_method.eq.stripe,stripe_subscription_status.is.null),and(payment_method.eq.stripe,stripe_subscription_status.neq.active)");
       }
 
       // Revenue-state filter: precomputiamo gli ID dal summary già in cache
@@ -529,6 +610,12 @@ export default function CompaniesList() {
         if (isHealthRowsError) throw new Error("Impossibile calcolare la salute delle aziende.");
         if (healthFilterIds === null || healthFilterIds.length === 0) return { data: [], totalCount: 0 };
         query = query.in("id", healthFilterIds);
+      }
+
+      // Filtro "Inattive" (preset): ID precalcolati da summary + last access.
+      if (inactiveFilter) {
+        if (inactiveIds === null || inactiveIds.length === 0) return { data: [], totalCount: 0 };
+        query = query.in("id", inactiveIds);
       }
 
       // Segment filters (Feature 6)
@@ -548,24 +635,35 @@ export default function CompaniesList() {
         query = query.order(serverSortColumn, { ascending });
       }
 
-      query = query.range(from, to);
+      // Le colonne calcolate client-side (mrr/ordini/utenti/ultimo accesso/…)
+      // non sono ordinabili dal server: per non mentire (prima si ordinava
+      // SOLO la pagina corrente, spacciandola per top globale) scarichiamo
+      // l'intero set filtrato e ordiniamo/paginiamo client-side. Il costo è
+      // paragonabile alla query summary già eseguita a ogni load.
+      if (isClientSort) {
+        query = query.limit(5000);
+      } else {
+        query = query.range(from, to);
+      }
 
       const { data, error, count } = await query;
       if (error) throw error;
-      return { data: data ?? [], totalCount: count ?? 0 };
+      // Prezzo custom al posto del listino dove c'è un override attivo:
+      // MRR di riga/CSV/pipeline riflettono il prezzo reale del deal.
+      return { data: applyPlanPriceOverride(data ?? []), totalCount: count ?? 0 };
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
-    enabled: healthFilter === "all" || !isHealthRowsLoading,
+    enabled: (healthFilter === "all" || !isHealthRowsLoading) && (!inactiveFilter || !isLastAccessLoading),
   });
 
   const allCompanies = pagedResult?.data ?? [];
   const serverTotalCount = pagedResult?.totalCount ?? 0;
 
-  // companies = current page data (allowed_company_ids already applied server-side)
+  // companies = current page data (allowed_company_ids already applied server-side).
+  // NB: con isClientSort contiene l'INTERO set filtrato; la finestra di pagina
+  // è estratta più sotto in pagedCompanies (pageCompanyIds deriva da quella).
   const companies = allCompanies;
-  const pageCompanyIds = useMemo(() => companies.map((c) => c.id), [companies]);
-  const pageCompanyIdsKey = pageCompanyIds.join(",");
 
   const { data: orderStats = {} } = useQuery({
     queryKey: queryKeys.admin.companiesOrderStats,
@@ -630,20 +728,73 @@ export default function CompaniesList() {
     ? userCountsData.customers
     : {};
 
-  // Last access per company
-  const { data: lastAccessData = {} } = useQuery({
-    queryKey: queryKeys.admin.companiesLastAccess,
+  // Fetch available subscription plans for the filter dropdown (lightweight, independent of page)
+  const { data: uniquePlans = [] } = useQuery({
+    queryKey: ["admin-subscription-plans-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_company_last_access");
+      // Solo piani globali nel filtro (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("subscription_plans")
+        .select("id, name")
+        .eq("is_active", true)
+        .is("produttore_id", null)
+        .order("position", { ascending: true });
       if (error) throw error;
-      const map: Record<string, string | null> = {};
-      ((data || []) as CompanyLastAccess[]).forEach((row) => {
-        map[row.company_id] = row.last_access || null;
-      });
-      return map;
+      return (data ?? []) as { id: string; name: string }[];
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
+
+  // Reset to page 1 whenever server-side filter/sort params change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+
+  // Health/no-payment filters are pushed into the server query so pagination
+  // and counts stay coherent across the whole dataset.
+  const filteredCompanies = useMemo(() => {
+    return companies;
+  }, [companies]);
+
+  // Client-side sort for sort keys that require cross-query data (mrr, orders, users, lastAccess).
+  // Con isClientSort la query ha scaricato TUTTO il set filtrato: qui si
+  // ordina l'intero dataset e si estrae la finestra della pagina corrente.
+  const pagedCompanies = useMemo(() => {
+    if (!isClientSort) {
+      // Already sorted server-side
+      return filteredCompanies;
+    }
+    const dir = sortDir === "asc" ? 1 : -1;
+    const sorted = [...filteredCompanies].sort((a, b) => {
+      const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+      const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+      switch (sortKey) {
+        case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
+        case "mrr":
+          return dir * (
+            (isRevenueEligibleCompany(a) ? getCompanyMonthlyRevenue(a) : 0) -
+            (isRevenueEligibleCompany(b) ? getCompanyMonthlyRevenue(b) : 0)
+          );
+        case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
+        case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
+        case "customers": return dir * ((customerCounts[a.id] || 0) - (customerCounts[b.id] || 0));
+        case "lastAccess": {
+          const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
+          const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
+          return dir * (la - lb);
+        }
+        default: return 0;
+      }
+    });
+    const from = (currentPage - 1) * SERVER_PAGE_SIZE;
+    return sorted.slice(from, from + SERVER_PAGE_SIZE);
+  }, [filteredCompanies, isClientSort, sortKey, sortDir, orderStats, userCounts, customerCounts, lastAccessData, currentPage]);
+
+  // ID della PAGINA visibile (dopo sort/paginazione client): tags e note
+  // vengono caricate solo per queste righe.
+  const pageCompanyIds = useMemo(() => pagedCompanies.map((c) => c.id), [pagedCompanies]);
+  const pageCompanyIdsKey = pageCompanyIds.join(",");
 
   // Company tags
   const { data: companyTags = {} } = useQuery({
@@ -666,8 +817,6 @@ export default function CompaniesList() {
     enabled: pageCompanyIds.length > 0,
     staleTime: 2 * 60 * 1000,
   });
-
-
 
   // Latest CRM notes per company
   const { data: latestNotes = {} } = useQuery({
@@ -723,72 +872,13 @@ export default function CompaniesList() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch available subscription plans for the filter dropdown (lightweight, independent of page)
-  const { data: uniquePlans = [] } = useQuery({
-    queryKey: ["admin-subscription-plans-list"],
-    queryFn: async () => {
-      // Solo piani globali nel filtro (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("subscription_plans")
-        .select("id, name")
-        .eq("is_active", true)
-        .is("produttore_id", null)
-        .order("position", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-
-  // Reset to page 1 whenever server-side filter/sort params change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
-
-  // Health/no-payment filters are pushed into the server query so pagination
-  // and counts stay coherent across the whole dataset.
-  const filteredCompanies = useMemo(() => {
-    return companies;
-  }, [companies]);
-
-  // Client-side sort for sort keys that require cross-query data (mrr, orders, users, lastAccess)
-  const pagedCompanies = useMemo(() => {
-    if (!sortKey || ["name", "sector", "status", "trial"].includes(sortKey)) {
-      // Already sorted server-side
-      return filteredCompanies;
-    }
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...filteredCompanies].sort((a, b) => {
-      const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-      const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
-      switch (sortKey) {
-        case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
-        case "mrr":
-          return dir * (
-            (isRevenueEligibleCompany(a) ? getCompanyMonthlyRevenue(a) : 0) -
-            (isRevenueEligibleCompany(b) ? getCompanyMonthlyRevenue(b) : 0)
-          );
-        case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
-        case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
-        case "customers": return dir * ((customerCounts[a.id] || 0) - (customerCounts[b.id] || 0));
-        case "lastAccess": {
-          const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
-          const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
-          return dir * (la - lb);
-        }
-        default: return 0;
-      }
-    });
-  }, [filteredCompanies, sortKey, sortDir, orderStats, userCounts, customerCounts, lastAccessData]);
-
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
-  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || tipoFilter !== "all" || healthFilter !== "all" || noPaymentFilter || revenueFilter !== "all" || segmentActiveCount > 0;
+  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || tipoFilter !== "all" || healthFilter !== "all" || noPaymentFilter || inactiveFilter || revenueFilter !== "all" || segmentActiveCount > 0;
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -812,14 +902,19 @@ export default function CompaniesList() {
       return method === "stripe" && stripe !== "active";
     }).length;
 
+    // Inattive = attive senza accesso da 14+ giorni O mai loggate (le più
+    // inattive di tutte: prima erano escluse dal conteggio).
     const inactive = allCompaniesSummary.filter((c) => {
+      if (c.status !== "active") return false;
       const la = lastAccessData[c.id];
-      if (!la || c.status !== "active") return false;
-      return differenceInDays(new Date(), new Date(la)) > 14;
+      return !la || differenceInDays(new Date(), new Date(la)) > 14;
     }).length;
 
-    const applyPreset = (params: Record<string, string>, presetKey: string) => {
+    const applyPreset = (params: Record<string, string>, presetKey: string, segments?: CompanyFilters) => {
       setInputSearch("");
+      // I preset descrivono un insieme preciso: azzera i filtri di segmento
+      // residui così le righe corrispondono sempre al conteggio del badge.
+      setSegmentFilters(segments ?? EMPTY_FILTERS);
       setSearchParams(new URLSearchParams(params), { replace: true });
       setActivePreset(presetKey);
     };
@@ -832,7 +927,13 @@ export default function CompaniesList() {
         description: "Trial che scadono entro 7 giorni",
         color: "amber",
         count: trialExpiring,
-        apply: () => applyPreset({ status: "trial", sort: "trial", dir: "asc" }, "trial_expiring"),
+        // trialExpiringDays=7 applica la stessa finestra [oggi, +7gg] del
+        // conteggio: prima mostrava TUTTI i trial, non solo quelli in scadenza.
+        apply: () => applyPreset(
+          { status: "trial", sort: "trial", dir: "asc" },
+          "trial_expiring",
+          { ...EMPTY_FILTERS, trialExpiringDays: 7 },
+        ),
       },
       {
         key: "at_risk",
@@ -841,7 +942,8 @@ export default function CompaniesList() {
         description: "Aziende con health score basso",
         color: "red",
         count: atRiskCount,
-        apply: () => applyPreset({ health: "at_risk" }, "at_risk"),
+        // "attenzione" = at_risk + critical, coerente col conteggio qui sopra.
+        apply: () => applyPreset({ health: "attenzione" }, "at_risk"),
       },
       {
         key: "no_payment",
@@ -865,10 +967,12 @@ export default function CompaniesList() {
         key: "inactive",
         label: "Inattive",
         icon: UserX,
-        description: "Aziende attive senza accesso da 14+ giorni",
+        description: "Aziende attive senza accesso da 14+ giorni (o mai)",
         color: "gray",
         count: inactive,
-        apply: () => applyPreset({ status: "active", sort: "lastAccess", dir: "asc" }, "inactive"),
+        // ?inactive=1 filtra davvero (attive con 14+ giorni senza accesso o
+        // mai loggate): prima mostrava TUTTE le attive, solo riordinate.
+        apply: () => applyPreset({ inactive: "1", sort: "lastAccess", dir: "asc" }, "inactive"),
       },
     ];
   }, [allCompaniesSummary, healthData, lastAccessData, setInputSearch, setSearchParams]);
@@ -893,9 +997,10 @@ export default function CompaniesList() {
     { key: "tipo", label: "Tipo", value: tipoFilter === "all" ? "all" : (tipoFilter === "rivenditore" ? "Rivenditori" : "Dirette"), onClear: () => setFilter({ tipo: null }) },
     { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
     { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
+    { key: "inactive", label: "Inattive", value: inactiveFilter ? "14+ giorni senza accesso" : "all", onClear: () => setFilter({ inactive: null }) },
     { key: "revenue", label: "Tipo cliente", value: revenueFilter === "all" ? "all" : REVENUE_LABELS_MAP[revenueFilter], onClear: () => setFilter({ revenue: null }) },
     { key: "segments", label: "Segmenti", value: segmentActiveCount > 0 ? `${segmentActiveCount} attivi` : "all", onClear: () => setSegmentFilters(EMPTY_FILTERS) },
-  ], [inputSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
+  ], [inputSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -939,7 +1044,9 @@ export default function CompaniesList() {
         csvCell(orderStats[c.id]?.count || 0),
         csvCell(userCounts[c.id] || 0),
         csvCell(customerCounts[c.id] || 0),
-        csvCell(plan?.price_monthly || 0),
+        // Stessa logica della colonna "MRR pagante" in tabella: le aziende
+        // regalate/gratuite esportano 0, non il prezzo di listino.
+        csvCell(isRevenueEligibleCompany(c) ? getCompanyMonthlyRevenue(c) : 0),
         csvCell(c.stripe_customer_id || ""),
         csvCell(format(new Date(c.created_at), "dd/MM/yyyy")),
         csvCell(c.trial_ends_at ? format(new Date(c.trial_ends_at), "dd/MM/yyyy") : ""),
@@ -1113,7 +1220,7 @@ export default function CompaniesList() {
         activeKpi={
           revenueFilter === "paying" ? "paying"
           : revenueFilter === "complimentary" ? "excluded"
-          : healthFilter === "at_risk" || healthFilter === "critical" ? "atRisk"
+          : healthFilter === "at_risk" || healthFilter === "critical" || healthFilter === "attenzione" ? "atRisk"
           : statusFilter === "active" && revenueFilter === "all" && healthFilter === "all" ? "active"
           : null
         }
@@ -1135,8 +1242,9 @@ export default function CompaniesList() {
             const isAlready = revenueFilter === "complimentary";
             setFilter({ revenue: isAlready ? null : "complimentary", noPayment: null, health: null });
           } else if (kpi === "atRisk") {
-            const isAlready = healthFilter === "at_risk";
-            setFilter({ health: isAlready ? null : "at_risk", revenue: null, noPayment: null });
+            // Il KPI conta at_risk + critical: il filtro deve includerle entrambe.
+            const isAlready = healthFilter === "attenzione";
+            setFilter({ health: isAlready ? null : "attenzione", revenue: null, noPayment: null });
           }
         }}
       />
@@ -1291,6 +1399,7 @@ export default function CompaniesList() {
                 <SelectItem value="healthy">Healthy</SelectItem>
                 <SelectItem value="at_risk">A rischio</SelectItem>
                 <SelectItem value="critical">Critico</SelectItem>
+                <SelectItem value="attenzione">A rischio + critico</SelectItem>
               </SelectContent>
             </Select>
             <Select

@@ -21,17 +21,27 @@ export function AdminAiPerCompanyTable() {
     queryFn: async () => {
       const since = new Date();
       since.setDate(since.getDate() - 30);
-      const { data, error } = await supabase
-        .from("ai_model_usage_log")
-        .select("company_id, cost_real_eur, cost_billed_eur, margin_eur")
-        .gte("ts", since.toISOString())
-        .eq("ok", true)
-        .eq("credits_deducted", true)
-        .not("company_id", "is", null);
-      if (error) throw error;
+      // Paginazione esplicita: senza, PostgREST tronca a 1000 righe in
+      // silenzio e chiamate/costi/margini per azienda erano sottostimati.
+      const PAGE = 1000;
+      const rows: Array<{ company_id: string | null; cost_real_eur: number | null; cost_billed_eur: number | null; margin_eur: number | null }> = [];
+      for (let pageIdx = 0; pageIdx < 50; pageIdx++) {
+        const { data, error } = await supabase
+          .from("ai_model_usage_log")
+          .select("company_id, cost_real_eur, cost_billed_eur, margin_eur")
+          .gte("ts", since.toISOString())
+          .eq("ok", true)
+          .eq("credits_deducted", true)
+          .not("company_id", "is", null)
+          .order("ts", { ascending: true })
+          .range(pageIdx * PAGE, (pageIdx + 1) * PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if ((data?.length ?? 0) < PAGE) break;
+      }
 
       const map = new Map<string, CompanyStats>();
-      for (const r of data ?? []) {
+      for (const r of rows) {
         const id = r.company_id as string;
         const cur = map.get(id) ?? {
           company_id: id,

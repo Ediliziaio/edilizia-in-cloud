@@ -16,6 +16,7 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
+import { getOnboardingPct } from "@/lib/companyUtils";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { StaffUserDialog } from "@/components/users/StaffUserDialog";
 import { PermissionsDialog } from "@/components/users/PermissionsDialog";
@@ -37,6 +38,7 @@ import { TabSupporto } from "@/components/admin/company/TabSupporto";
 import { TabOnboarding } from "@/components/admin/company/TabOnboarding";
 import { AuditLogTab } from "@/components/admin/company/AuditLogTab";
 import { TabWhiteLabel } from "@/components/admin/company/TabWhiteLabel";
+import { CompanyAICockpit } from "@/components/admin/company/CompanyAICockpit";
 import { CompanyEmailTab } from "@/components/admin/company/CompanyEmailTab";
 import { SuperAdminCompanyOverrides } from "@/components/admin/SuperAdminCompanyOverrides";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
@@ -58,6 +60,7 @@ const COMPANY_TABS = new Set([
   "supporto",
   "onboarding",
   "whitelabel",
+  "ai",
   "audit",
 ]);
 
@@ -361,11 +364,17 @@ export default function CompanyDetail() {
         </Alert>
       )}
 
-      {/* Next Best Actions */}
+      {/* Next Best Actions — onboarding calcolato dai numeri reali (prima
+          era hardcoded 0 e suggeriva sempre "completa onboarding"). */}
       <CompanyNextActions
         status={h.company.status}
         trialEndsAt={h.company.trial_ends_at}
-        onboardingPct={0}
+        onboardingPct={getOnboardingPct(h.stats ? {
+          order_count: h.stats.ordersCount,
+          user_count: totalTeam,
+          has_customers: h.stats.customersCount > 0,
+          has_staff: totalTeam > 0,
+        } : undefined)}
         daysSinceLastOrder={h.daysSinceLastOrder}
         paymentMethod={h.company.payment_method || "none"}
       />
@@ -433,6 +442,9 @@ export default function CompanyDetail() {
           </TabsTrigger>
           <TabsTrigger value="whitelabel" className="gap-1.5">
             <Palette className="h-3.5 w-3.5" /> White-Label
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" /> AI Cockpit
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ShieldAlert className="h-3.5 w-3.5" /> Audit Log
@@ -549,6 +561,10 @@ export default function CompanyDetail() {
 
         <TabsContent value="whitelabel">
           {isTabMounted("whitelabel") && <TabWhiteLabel companyId={h.company.id} />}
+        </TabsContent>
+
+        <TabsContent value="ai">
+          {isTabMounted("ai") && <CompanyAICockpit companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="audit">

@@ -20,6 +20,8 @@
  */
 import { lazy, Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Mail,
   Settings,
@@ -169,6 +171,62 @@ function isValidTab(value: string | null): value is TabId {
   return value !== null && VALID_TAB_IDS.has(value as TabId);
 }
 
+const FAILED_STATUSES = ["failed", "bounced", "error"];
+
+/**
+ * Stato reale del sistema email nelle ultime 24h (email_delivery_log).
+ * Prima il badge "Sistema operativo" era hardcoded sempre-verde: mentiva
+ * anche a provider giù. null = dato non disponibile (RLS/errore) → nascondi.
+ */
+function useEmailSystemHealth() {
+  return useQuery({
+    queryKey: ["admin-email-system-health-24h"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const [totalRes, failedRes] = await Promise.all([
+        supabase
+          .from("email_delivery_log")
+          .select("id", { count: "exact", head: true })
+          .gte("sent_at", since),
+        supabase
+          .from("email_delivery_log")
+          .select("id", { count: "exact", head: true })
+          .gte("sent_at", since)
+          .in("status", FAILED_STATUSES),
+      ]);
+      if (totalRes.error || failedRes.error) throw totalRes.error ?? failedRes.error;
+      return { total: totalRes.count ?? 0, failed: failedRes.count ?? 0 };
+    },
+  });
+}
+
+function SystemHealthBadge() {
+  const health = useEmailSystemHealth();
+
+  // Dato non disponibile (loading/RLS/errore): meglio nessun badge che uno finto.
+  if (!health.data) return null;
+
+  const { total, failed } = health.data;
+  const failRate = total > 0 ? failed / total : 0;
+  const degraded = failed > 0 && (failRate >= 0.05 || failed >= 10);
+
+  if (degraded) {
+    return (
+      <Badge variant="secondary" className="gap-1.5" title={`${failed} email fallite su ${total} nelle ultime 24 ore`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+        {failed.toLocaleString("it-IT")} errori 24h
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1.5" title={`${total.toLocaleString("it-IT")} email nelle ultime 24 ore, ${failed} fallite`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+      Sistema operativo
+    </Badge>
+  );
+}
+
 export default function AdminSettingsEmail() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -177,6 +235,17 @@ export default function AdminSettingsEmail() {
   // PERF: lazy-mount delle 8 tab. Senza, tutti i 7 lazy chunk verrebbero
   // scaricati al primo paint anche se l'utente vede solo "Configurazione".
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set<TabId>([activeTab]));
+
+  // Il tab attivo può cambiare anche SENZA passare da handleTabChange
+  // (?tab= modificato da link esterni, back/forward, ri-click sulla voce di
+  // menu): va marcato visitato anche in quel caso, altrimenti il pannello
+  // resta vuoto. State-update-in-render (pattern React docs) per evitare
+  // il flash di un frame vuoto che darebbe useEffect.
+  if (!visitedTabs.has(activeTab)) {
+    const merged = new Set(visitedTabs);
+    merged.add(activeTab);
+    setVisitedTabs(merged);
+  }
 
   const handleTabChange = (next: TabId) => {
     setSearchParams(
@@ -222,10 +291,7 @@ export default function AdminSettingsEmail() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Badge variant="secondary" className="gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            Sistema operativo
-          </Badge>
+          <SystemHealthBadge />
           <Badge variant="outline" className="font-normal">
             {TABS.length} sezioni
           </Badge>
@@ -328,12 +394,14 @@ export default function AdminSettingsEmail() {
                 </div>
               </div>
 
-              {/* Pannelli — solo il tab attivo viene effettivamente reso.
-                  visitedTabs garantisce che ogni sub-component venga montato
-                  una sola volta (preserva stato interno tra cambi tab). */}
+              {/* Pannelli — ogni tab viene montato alla prima visita e poi
+                  resta montato ma NASCOSTO (`hidden`) quando non attivo: così
+                  cambiare sezione non smonta il componente e non perde stato
+                  interno (filtri, scroll, modifiche non salvate della Firma,
+                  editor template). I lazy chunk restano scaricati on-demand. */}
               <div role="tabpanel" aria-label={activeDef.label}>
-                {activeTab === "settings" && isMounted("settings") && (
-                  <div className="space-y-4">
+                {isMounted("settings") && (
+                  <div hidden={activeTab !== "settings"} className="space-y-4">
                     <Suspense fallback={<Skeleton className="h-[400px]" />}>
                       <EmailSettingsTab />
                     </Suspense>
@@ -343,37 +411,53 @@ export default function AdminSettingsEmail() {
                     <AdminTransactionalLogPanel />
                   </div>
                 )}
-                {activeTab === "templates" && isMounted("templates") && (
-                  <Suspense fallback={<Skeleton className="h-[500px]" />}>
-                    <EmailTemplatesPanel />
-                  </Suspense>
+                {isMounted("templates") && (
+                  <div hidden={activeTab !== "templates"}>
+                    <Suspense fallback={<Skeleton className="h-[500px]" />}>
+                      <EmailTemplatesPanel />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "custom-fields" && isMounted("custom-fields") && (
-                  <Suspense fallback={<Skeleton className="h-[500px]" />}>
-                    <PlatformCustomFieldsPanel />
-                  </Suspense>
+                {isMounted("custom-fields") && (
+                  <div hidden={activeTab !== "custom-fields"}>
+                    <Suspense fallback={<Skeleton className="h-[500px]" />}>
+                      <PlatformCustomFieldsPanel />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "signature" && isMounted("signature") && (
-                  <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                    <PlatformEmailSignaturePanel />
-                  </Suspense>
+                {isMounted("signature") && (
+                  <div hidden={activeTab !== "signature"}>
+                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
+                      <PlatformEmailSignaturePanel />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "deliverability" && isMounted("deliverability") && (
-                  <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                    <EmailDeliverabilityDashboard />
-                  </Suspense>
+                {isMounted("deliverability") && (
+                  <div hidden={activeTab !== "deliverability"}>
+                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
+                      <EmailDeliverabilityDashboard />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "suppressions" && isMounted("suppressions") && (
-                  <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                    <EmailSuppressionsTable />
-                  </Suspense>
+                {isMounted("suppressions") && (
+                  <div hidden={activeTab !== "suppressions"}>
+                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
+                      <EmailSuppressionsTable />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "rate-limits" && isMounted("rate-limits") && (
-                  <Suspense fallback={<Skeleton className="h-[300px]" />}>
-                    <EmailRateLimitsPanel />
-                  </Suspense>
+                {isMounted("rate-limits") && (
+                  <div hidden={activeTab !== "rate-limits"}>
+                    <Suspense fallback={<Skeleton className="h-[300px]" />}>
+                      <EmailRateLimitsPanel />
+                    </Suspense>
+                  </div>
                 )}
-                {activeTab === "test" && isMounted("test") && <EmailTestPanel />}
+                {isMounted("test") && (
+                  <div hidden={activeTab !== "test"}>
+                    <EmailTestPanel />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

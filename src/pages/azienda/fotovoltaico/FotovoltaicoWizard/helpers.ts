@@ -98,8 +98,15 @@ const ALLOWED_VALUES: Partial<Record<keyof WizardData, readonly string[]>> = {
   finanziamento_modalita: ["cash", "rate", "zero", "noleggio"],
 };
 
-function draftKey(progettoId: string | null): string {
-  return progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+/**
+ * Chiave del draft locale. Per i progetti già creati la chiave è per-id; per
+ * il preventivo NUOVO (pre-creazione) la chiave è scoped per azienda (`scope`):
+ * la vecchia chiave globale unica faceva riapparire la bozza di un'azienda
+ * dentro un'altra (browser condiviso / multi-company).
+ */
+function draftKey(progettoId: string | null, scope?: string | null): string {
+  if (progettoId) return `${LS_KEY_PREFIX}${progettoId}`;
+  return scope ? `${LS_KEY_NEW}::${scope}` : LS_KEY_NEW;
 }
 
 function removeDraftKey(key: string): void {
@@ -207,9 +214,12 @@ export function validatePersistedDraft(value: unknown): PersistedDraft | null {
   };
 }
 
-export function loadPersistedDraft(progettoId: string | null): PersistedDraft | null {
+export function loadPersistedDraft(progettoId: string | null, scope?: string | null): PersistedDraft | null {
   if (typeof window === "undefined") return null;
-  const key = draftKey(progettoId);
+  // Migrazione: la vecchia chiave globale non-scoped viene eliminata (non
+  // adottata: potrebbe appartenere a un'altra azienda sullo stesso browser).
+  if (!progettoId && scope) removeDraftKey(LS_KEY_NEW);
+  const key = draftKey(progettoId, scope);
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
@@ -232,10 +242,11 @@ export function loadPersistedDraft(progettoId: string | null): PersistedDraft | 
 export function savePersistedDraft(
   progettoId: string | null,
   draft: Omit<PersistedDraft, "savedAt">,
+  scope?: string | null,
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const key = draftKey(progettoId);
+    const key = draftKey(progettoId, scope);
     window.localStorage.setItem(
       key,
       JSON.stringify({ ...draft, savedAt: Date.now() }),
@@ -245,11 +256,12 @@ export function savePersistedDraft(
   }
 }
 
-export function clearPersistedDraft(progettoId: string | null): void {
+export function clearPersistedDraft(progettoId: string | null, scope?: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    const key = draftKey(progettoId);
-    window.localStorage.removeItem(key);
+    window.localStorage.removeItem(draftKey(progettoId, scope));
+    // Rimuove anche l'eventuale residuo legacy non-scoped.
+    if (!progettoId) window.localStorage.removeItem(LS_KEY_NEW);
   } catch {
     /* noop */
   }

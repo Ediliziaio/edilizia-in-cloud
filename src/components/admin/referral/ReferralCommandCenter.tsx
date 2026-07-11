@@ -33,6 +33,7 @@ interface Props {
   clicks: ReferralClick[];
   events: ReferralEvent[];
   fraudLogs: ReferralFraudLog[];
+  counts?: { clicks90d: number; conversionsTotal: number; conversionsPaying: number; conversionsPaying90d?: number };
   getMonthlyCommission: (r: Referrer) => number;
   onSelectTab: (tab: string) => void;
   onDetail: (r: Referrer) => void;
@@ -57,11 +58,14 @@ export function ReferralCommandCenter({
   clicks,
   events,
   fraudLogs,
+  counts,
   getMonthlyCommission,
   onSelectTab,
   onDetail,
   onPayout,
 }: Props) {
+  // Conteggio click accurato (server-side, non l'array cappato a 500).
+  const clicksTotal = counts?.clicks90d ?? clicks.length;
   const insights = useMemo(() => {
     const activeCompanies = referralCompanies.filter(isBillableReferralCompany);
     const pendingPayouts = payouts.filter((p) => p.status === "pending");
@@ -114,7 +118,7 @@ export function ReferralCommandCenter({
       .slice(0, 5);
 
     const totalMrr = activeCompanies.reduce((sum, row) => sum + Number(row.plan?.price_monthly || 0), 0);
-    const conversionRate = clicks.length > 0 ? Math.round((activeCompanies.length / clicks.length) * 1000) / 10 : 0;
+    const conversionRate = clicksTotal > 0 ? Math.round((activeCompanies.length / clicksTotal) * 1000) / 10 : 0;
 
     return {
       activeCompanies,
@@ -187,7 +191,7 @@ export function ReferralCommandCenter({
             <MousePointerClick className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{clicks.length}</div>
+            <div className="text-2xl font-bold">{clicksTotal}</div>
             <p className="text-xs text-muted-foreground">{insights.conversionRate}% click to active</p>
           </CardContent>
         </Card>

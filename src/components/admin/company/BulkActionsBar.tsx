@@ -167,7 +167,10 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             .select("trial_ends_at")
             .eq("id", id)
             .single();
-          const baseDate = company?.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+          // Base = max(oggi, fine trial): estendere un trial già scaduto
+          // dalla data passata produrrebbe una scadenza ancora nel passato.
+          const stored = company?.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
+          const baseDate = stored.getTime() > Date.now() ? stored : new Date();
           const newDate = new Date(baseDate);
           newDate.setDate(newDate.getDate() + days);
           const { error: updateErr } = await supabase

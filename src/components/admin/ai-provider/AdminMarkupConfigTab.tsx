@@ -18,6 +18,9 @@ interface MarkupRow {
   display_label: string;
   description: string | null;
   enabled: boolean;
+  // per_model_markup (migration 20270512000200): righe per-modello + cap.
+  model_pattern: string | null;
+  markup_max: number | null;
 }
 
 export function AdminMarkupConfigTab() {
@@ -86,6 +89,8 @@ export function AdminMarkupConfigTab() {
                   </p>
                   <code className="text-xs text-muted-foreground">
                     {r.task_kind}
+                    {r.model_pattern ? ` · modello: ${r.model_pattern}` : ""}
+                    {r.markup_max != null ? ` · cap ×${r.markup_max}` : ""}
                   </code>
                 </div>
                 <Switch
@@ -106,12 +111,17 @@ export function AdminMarkupConfigTab() {
                     type="number"
                     step="0.1"
                     min="1"
-                    max="20"
+                    // Il DB ha CHECK markup_max >= markup_multiplier: senza il
+                    // clamp l'update falliva con errore constraint criptico.
+                    max={r.markup_max ?? 20}
                     defaultValue={r.markup_multiplier}
                     onBlur={(e) => {
                       const val = Number(e.target.value);
-                      if (val !== r.markup_multiplier && val >= 1 && val <= 20) {
+                      const cap = r.markup_max ?? 20;
+                      if (val !== r.markup_multiplier && val >= 1 && val <= cap) {
                         updateMut.mutate({ id: r.id, markup_multiplier: val });
+                      } else if (val > cap) {
+                        toast.error(`Markup oltre il cap ×${cap} per questa riga (limite DB)`);
                       }
                     }}
                   />

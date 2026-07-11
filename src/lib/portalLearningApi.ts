@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
 export type PortalCourseStatus = "bozza" | "pubblicato" | "revisione";
 export type PortalArea = "sicurezza" | "procedure" | "commerciale" | "onboarding" | "tecnica";
@@ -284,7 +285,18 @@ export async function listPortalCourses(companyId: string): Promise<PortalLearni
     data = fallback.data;
   }
 
-  return ((data ?? []) as PortalCourseRow[]).map((row) => mapCourse(row, companyId));
+  // PRIVACY: la query "open" si affida alla RLS, ma per un super_admin la RLS
+  // restituisce i corsi di TUTTE le aziende, e per un utente multi-azienda i
+  // corsi della sua seconda azienda. Entrambi finirebbero mislabellati come
+  // "piattaforma". Teniamo solo: corsi PROPRI dell'azienda visualizzatrice +
+  // corsi della piattaforma (gli unici concessi via grant nel flusso reale).
+  return ((data ?? []) as PortalCourseRow[])
+    .filter(
+      (row) =>
+        row.company_id === companyId ||
+        row.company_id === PLATFORM_ADMIN_COMPANY_ID,
+    )
+    .map((row) => mapCourse(row, companyId));
 }
 
 export async function listPortalCourseEnrollments(companyId: string, userId: string): Promise<PortalLearningEnrollment[]> {
@@ -416,11 +428,41 @@ export async function savePortalCourseEnrollment(
   progressPercent: number,
   status?: PortalEnrollmentStatus,
 ) {
-  const normalizedProgress = Math.max(0, Math.min(100, Math.round(progressPercent)));
+  const requestedProgress = Math.max(0, Math.min(100, Math.round(progressPercent)));
+
+  // ANTI-REGRESSIONE: il progresso è ricalcolato client-side dai moduli spuntati
+  // in localStorage, che su un nuovo dispositivo (cache pulita) è vuoto → senza
+  // guardia un semplice "apri il corso e spunta un modulo" farebbe crollare la %
+  // su DB (es. 80% → 20%) e azzererebbe completed_at. In un LMS il progresso non
+  // regredisce: leggiamo lo stato attuale e teniamo il massimo, preservando la
+  // data di completamento già registrata. (`status` esplicito = azione admin
+  // intenzionale → bypassa la guardia.)
+  const db = getDb();
+  let normalizedProgress = requestedProgress;
+  let existingCompletedAt: string | null = null;
+  if (status === undefined) {
+    const { data: existing } = await db
+      .from("portal_course_enrollments")
+      .select("progress_percent, completed_at")
+      .eq("company_id", companyId)
+      .eq("course_id", courseId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing) {
+      normalizedProgress = Math.max(requestedProgress, existing.progress_percent ?? 0);
+      existingCompletedAt = existing.completed_at ?? null;
+    }
+  }
+
   const nextStatus: PortalEnrollmentStatus =
     status ?? (normalizedProgress >= 100 ? "completato" : normalizedProgress > 0 ? "in_corso" : "assegnato");
 
-  const { error } = await getDb()
+  const completedAt =
+    nextStatus === "completato"
+      ? existingCompletedAt ?? new Date().toISOString() // non riscrivere la data ad ogni tocco
+      : existingCompletedAt; // non cancellare un completamento già registrato
+
+  const { error } = await db
     .from("portal_course_enrollments")
     .upsert(
       {
@@ -429,7 +471,7 @@ export async function savePortalCourseEnrollment(
         user_id: userId,
         status: nextStatus,
         progress_percent: normalizedProgress,
-        completed_at: nextStatus === "completato" ? new Date().toISOString() : null,
+        completed_at: completedAt,
       },
       { onConflict: "company_id,course_id,user_id" },
     );
@@ -512,16 +554,23 @@ export async function logPortalCourseActivity(
   eventType: string,
   metadata: Record<string, unknown> = {},
 ) {
-  const user = (await supabase.auth.getUser()).data.user;
-  const { error } = await getDb().from("portal_course_activity").insert({
-    company_id: companyId,
-    course_id: courseId,
-    actor_id: user?.id ?? null,
-    event_type: eventType,
-    metadata,
-  });
-
-  if (error) throw error;
+  // Best-effort: l'activity log è telemetria, NON deve mai far fallire l'azione
+  // che l'ha innescata. Prima rilanciava l'errore → in openAsset era un
+  // unhandled rejection e in persist faceva comparire "Avanzamento non salvato"
+  // anche quando l'iscrizione ERA stata salvata (le due await nello stesso try).
+  try {
+    const user = (await supabase.auth.getUser()).data.user;
+    const { error } = await getDb().from("portal_course_activity").insert({
+      company_id: companyId,
+      course_id: courseId,
+      actor_id: user?.id ?? null,
+      event_type: eventType,
+      metadata,
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.warn("[portale] activity log non registrata (best-effort):", e);
+  }
 }
 
 export async function savePortalCourse(companyId: string, course: PortalLearningCourse) {

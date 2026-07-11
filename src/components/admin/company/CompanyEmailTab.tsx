@@ -343,6 +343,10 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
       toast.success("Override email salvato");
       queryClient.invalidateQueries({ queryKey: ["company-email-quota", companyId] });
       queryClient.invalidateQueries({ queryKey: ["company-email-usage-breakdown", companyId] });
+      // La mutation scrive anche su company_flag_audit_log: aggiorna il tab
+      // Audit e la card override-audit senza aspettare il prossimo remount.
+      queryClient.invalidateQueries({ queryKey: ["audit-log", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-company-flag-audit-log", companyId] });
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";

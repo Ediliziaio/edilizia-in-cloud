@@ -16,13 +16,14 @@ interface Props {
   getMonthlyCommission: (r: Referrer) => number;
 }
 
-const COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
+// Colore SEMANTICO per il conversion rate: prima era un arcobaleno (un colore
+// per referrer) che non veicolava alcuna informazione. Ora il colore dice
+// "com'è la conversione": verde = buona, ambra = media, rosso = bassa.
+function convRateColor(rate: number): string {
+  if (rate >= 50) return "hsl(160 84% 39%)"; // emerald
+  if (rate >= 20) return "hsl(38 92% 50%)";  // amber
+  return "hsl(347 77% 50%)";                  // rose
+}
 
 export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payouts, getMonthlyCommission }: Props) {
   const [calculating, setCalculating] = useState(false);
@@ -114,16 +115,27 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
     );
   };
 
-  const leaderboard = analytics.referrerStats.slice(0, 5);
-  const maxMrr = leaderboard[0]?.totalMrr || 1;
+  // Ordina e dimensiona la barra sulla COMMISSIONE mensile (il valore mostrato
+  // accanto): prima la barra seguiva l'MRR mentre il numero era la commissione
+  // → barra e numero potevano contraddirsi.
+  const leaderboard = [...analytics.referrerStats]
+    .sort((a, b) => b.monthlyCommission - a.monthlyCommission)
+    .slice(0, 5);
+  const maxCommission = leaderboard[0]?.monthlyCommission || 1;
 
+  // Solo i referrer con ≥2 aziende (con 1 sola il rate è 0/100%, rumore) e
+  // massimo i primi 12 per conversione: oltre, le barre si schiacciano a pochi
+  // px in un'altezza fissa. L'altezza cresce col numero di barre.
   const conversionChartData = analytics.referrerStats
-    .filter((r) => r.totalCompanies > 0)
+    .filter((r) => r.totalCompanies >= 2)
+    .sort((a, b) => b.conversionRate - a.conversionRate)
+    .slice(0, 12)
     .map((r) => ({
       id: r.id,
       name: r.name.length > 12 ? r.name.substring(0, 12) + "…" : r.name,
       rate: r.conversionRate,
     }));
+  const conversionChartHeight = Math.max(180, conversionChartData.length * 34);
 
   return (
     <div className="space-y-6">
@@ -175,6 +187,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{analytics.overallROI}x</div>
+            <p className="text-xs text-muted-foreground">MRR annualizzato ÷ commissioni pagate</p>
           </CardContent>
         </Card>
       </div>
@@ -203,7 +216,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
                   <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full bg-primary"
-                      style={{ width: `${(r.totalMrr / maxMrr) * 100}%` }}
+                      style={{ width: `${(r.monthlyCommission / maxCommission) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -221,9 +234,9 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
           </CardHeader>
           <CardContent>
             {conversionChartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessun dato disponibile</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Nessun referrer con almeno 2 aziende</p>
             ) : (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={conversionChartHeight}>
                 <BarChart data={conversionChartData} layout="vertical" margin={{ left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
@@ -233,8 +246,8 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
                     contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
                   />
                   <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
-                    {conversionChartData.map((entry, i) => (
-                      <Cell key={entry.id} fill={COLORS[i % COLORS.length]} />
+                    {conversionChartData.map((entry) => (
+                      <Cell key={entry.id} fill={convRateColor(entry.rate)} />
                     ))}
                   </Bar>
                 </BarChart>

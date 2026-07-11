@@ -20,6 +20,7 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   Pie,
@@ -55,7 +56,7 @@ interface Props {
   events: ReferralEvent[];
   payouts: ReferralPayout[];
   fraudLogs: ReferralFraudLog[];
-  counts?: { clicks90d: number; conversionsTotal: number; conversionsPaying: number };
+  counts?: { clicks90d: number; conversionsTotal: number; conversionsPaying: number; conversionsPaying90d?: number };
   onSelectTab: (tab: string) => void;
   onDetail: (r: Referrer) => void;
 }
@@ -91,6 +92,7 @@ const COLOR = {
   blue: "hsl(214 80% 50%)",
   emerald: "hsl(160 84% 39%)",
   emeraldDark: "hsl(160 84% 30%)",
+  lime: "hsl(90 62% 42%)",
   amber: "hsl(38 92% 50%)",
   violet: "hsl(262 83% 58%)",
   rose: "hsl(347 77% 50%)",
@@ -103,7 +105,8 @@ const STATUS_COLOR: Record<string, string> = {
   registered: COLOR.blue,
   active: COLOR.violet,
   paying: COLOR.emerald,
-  approved: COLOR.emeraldDark,
+  // lime (non emeraldDark): distinguibile da "paying" anche per i daltonici
+  approved: COLOR.lime,
   rejected: COLOR.rose,
   expired: COLOR.slate,
 };
@@ -132,6 +135,7 @@ const TOOLTIP_STYLE = {
   border: "1px solid hsl(var(--border))",
   borderRadius: 8,
   fontSize: 12,
+  color: "hsl(var(--foreground))", // testo leggibile anche in dark mode
 } as const;
 
 function compactEuro(value: number) {
@@ -184,17 +188,26 @@ export function ReferralMegaDashboard({
     const clicksTotal = counts?.clicks90d ?? clicks.length;
     const conversionsTotal = counts?.conversionsTotal ?? conversions.length;
     const payingTotal = counts?.conversionsPaying ?? payingCount;
+    // Paganti negli ultimi 90g: omogeneo ai click 90g per il conversion rate.
+    const payingTotal90d = counts?.conversionsPaying90d ?? payingTotal;
 
     // Funnel cumulativo: ogni stadio include quelli successivi.
     const reached = (statuses: string[]) => conversions.filter((c) => statuses.includes(c.status)).length;
-    const funnel = [
+    const funnelRaw = [
       { stage: "Click 90g", value: clicksTotal },
       { stage: "Registrati", value: reached(["registered", "active", "paying", "approved"]) },
       { stage: "Attivi", value: reached(["active", "paying", "approved"]) },
       { stage: "Paganti", value: reached(["paying", "approved"]) },
       { stage: "Approvati", value: reached(["approved"]) },
     ];
-    const conversionRate = clicksTotal > 0 ? Math.round((payingTotal / clicksTotal) * 1000) / 10 : 0;
+    // % rispetto ai click (primo stadio): la barra "Click" schiaccia le altre,
+    // quindi mostriamo il conteggio + % così i pochi paganti restano leggibili.
+    const funnelTop = funnelRaw[0].value || 1;
+    const funnel = funnelRaw.map((f, i) => ({
+      ...f,
+      label: i === 0 ? String(f.value) : `${f.value} · ${Math.round((f.value / funnelTop) * 1000) / 10}%`,
+    }));
+    const conversionRate = clicksTotal > 0 ? Math.round((payingTotal90d / clicksTotal) * 1000) / 10 : 0;
 
     // Distribuzione stati (tutte le referenze)
     const statusDist = STATUS_ORDER
@@ -352,16 +365,16 @@ export function ReferralMegaDashboard({
         <button
           type="button"
           onClick={() => onSelectTab("referrers")}
-          className="flex w-full items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
+          className="flex w-full items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
         >
           <div className="flex items-center gap-3">
-            <UserX className="h-5 w-5 text-amber-600" />
+            <UserX className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div>
-              <p className="text-sm font-medium text-amber-800">{stats.orphanCount} partner senza accesso al portale</p>
-              <p className="text-xs text-amber-700">Creati senza account collegato — reinvitali dalla scheda Partner</p>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{stats.orphanCount} partner senza accesso al portale</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400/80">Creati senza account collegato — reinvitali dalla scheda Partner</p>
             </div>
           </div>
-          <ArrowRight className="h-4 w-4 text-amber-600" />
+          <ArrowRight className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </button>
       )}
 
@@ -442,10 +455,14 @@ export function ReferralMegaDashboard({
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="stage" width={84} tick={{ fontSize: 12 }} />
                   <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, "Conteggio"]} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} minPointSize={2}>
                     {stats.funnel.map((entry, i) => (
                       <Cell key={entry.stage} fill={FUNNEL_COLORS[i % FUNNEL_COLORS.length]} />
                     ))}
+                    {/* Etichetta conteggio + % sui click: gli stadi bassi
+                        (pochi paganti) restano leggibili anche se la barra è
+                        minuscola accanto a "Click 90g". */}
+                    <LabelList dataKey="label" position="right" style={{ fill: "hsl(var(--foreground))", fontSize: 11 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -460,6 +477,9 @@ export function ReferralMegaDashboard({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {stats.months.every((m) => m.referenze === 0 && m.revenue === 0) ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">Nessun dato negli ultimi 6 mesi</p>
+            ) : (
             <ResponsiveContainer width="100%" height={260}>
               <ComposedChart data={stats.months} margin={{ left: -8, right: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -475,6 +495,7 @@ export function ReferralMegaDashboard({
                 <Line yAxisId="right" dataKey="revenue" name="revenue" stroke={COLOR.emerald} strokeWidth={2} dot={{ r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -544,22 +565,22 @@ export function ReferralMegaDashboard({
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-amber-200">
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700">Payout in attesa</CardTitle></CardHeader>
+        <Card className="border-amber-200 dark:border-amber-900/50">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Payout in attesa</CardTitle></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.payout.pendingAmount)}</div>
             <p className="text-xs text-muted-foreground">{stats.payout.pendingCount} richieste</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-200">
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-blue-700">Approvati / in corso</CardTitle></CardHeader>
+        <Card className="border-blue-200 dark:border-blue-900/50">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Approvati / in corso</CardTitle></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.payout.approvedAmount)}</div>
             <p className="text-xs text-muted-foreground">{stats.payout.approvedCount} payout</p>
           </CardContent>
         </Card>
-        <Card className="border-emerald-200">
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-emerald-700">Pagati</CardTitle></CardHeader>
+        <Card className="border-emerald-200 dark:border-emerald-900/50">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Pagati</CardTitle></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.payout.paidAmount)}</div>
             <p className="text-xs text-muted-foreground">{stats.payout.paidCount} payout</p>

@@ -996,6 +996,10 @@ export function EmailTemplatesPanel() {
   const currentSelectionRef = useRef(`${selectedKey}::${selectedVariant}`);
   const currentFingerprintRef = useRef("");
   const saveRequestRef = useRef(0);
+  const seededSelectionRef = useRef<string | null>(null);
+  // La shell tiene i tab montati ma nascosti (`hidden`): i listener window
+  // devono ignorare gli eventi quando il pannello non è visibile.
+  const panelRootRef = useRef<HTMLDivElement | null>(null);
 
   const selectedMeta = TEMPLATE_META[selectedKey];
   const selectedRow = dbMap.get(`${selectedKey}::${selectedVariant}`);
@@ -1013,14 +1017,14 @@ export function EmailTemplatesPanel() {
     const allowed = new Set(availablePlaceholders.map((p) => p.key));
     const used = new Set<string>();
     const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\}\}/g;
-    for (const text of [subject, htmlBody]) {
+    for (const text of [subject, htmlBody, textBody]) {
       let m: RegExpExecArray | null;
       while ((m = re.exec(text)) !== null) used.add(m[1]);
     }
     return [...used].filter(
       (k) => !allowed.has(k) && !/^link_url_\d+$/.test(k) && k !== "companyName",
     );
-  }, [subject, htmlBody, availablePlaceholders]);
+  }, [subject, htmlBody, textBody, availablePlaceholders]);
   const currentSaveInput = useMemo<EmailTemplateUpsert>(
     () => ({
       template_key: selectedKey,
@@ -1052,7 +1056,20 @@ export function EmailTemplatesPanel() {
   }, [currentFingerprint]);
 
   // ── Sync form quando cambia selezione o dati DB ──
+  // GUARDIA anti-race autosave↔refetch: dopo ogni salvataggio l'invalidate
+  // produce un NUOVO riferimento per selectedRow (version/updated_at cambiati)
+  // e senza guardia questo effect risovrascriveva il form con lo snapshot
+  // appena salvato — cancellando i caratteri digitati nel frattempo e
+  // perdendo il caret. Il re-seed avviene solo se: (a) è cambiata la
+  // selezione template/variante, oppure (b) stessa selezione ma il form è
+  // pulito e in attesa del primo load dal DB (status idle/unsaved senza dirty).
   useEffect(() => {
+    const selKey = `${selectedKey}::${selectedVariant}`;
+    const selectionChanged = seededSelectionRef.current !== selKey;
+    if (!selectionChanged && (dirty || savePending || saveStatus === "saved" || saveStatus === "error")) {
+      return;
+    }
+    seededSelectionRef.current = selKey;
     if (selectedRow) {
       setSubject(selectedRow.subject);
       setHtmlBody(selectedRow.html_body);
@@ -1090,6 +1107,9 @@ export function EmailTemplatesPanel() {
     setPreviewHtml(null);
     setPreviewIsLocal(false);
     setPreviewWarning(null);
+    // dirty/savePending/saveStatus servono SOLO alla guardia anti-race sopra:
+    // non devono ri-triggerare il seed (la guardia li esclude comunque).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey, selectedVariant, selectedRow, selectedMeta]);
 
   useBeforeUnload(dirty || savePending);
@@ -1284,6 +1304,8 @@ export function EmailTemplatesPanel() {
     const handler = (e: KeyboardEvent) => {
       const isSaveCombo = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s";
       if (!isSaveCombo) return;
+      // Pannello nascosto (tab non attivo nella shell): non intercettare.
+      if (panelRootRef.current?.offsetParent === null) return;
       e.preventDefault();
       if (dirty && canPersistTemplate && !savePending) {
         handleSave();
@@ -1450,7 +1472,7 @@ export function EmailTemplatesPanel() {
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={panelRootRef} className="space-y-4">
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-sm">
@@ -1646,8 +1668,9 @@ export function EmailTemplatesPanel() {
                   <Label
                     htmlFor={`enabled-${selectedKey}-${selectedVariant}`}
                     className="text-xs cursor-pointer"
+                    title="Se disattivata, l'email parte comunque ma col contenuto di default"
                   >
-                    {enabled ? "Attivo" : "Disattivato"}
+                    {enabled ? "Attivo" : "Disattivato — l'email userà il default"}
                   </Label>
                 </div>
               </div>
@@ -1690,7 +1713,9 @@ export function EmailTemplatesPanel() {
             </div>
 
             {/* Invia email di prova — usa send-transactional-v2 (super_admin).
-                Funziona per i template già deployati; i template nuovi solo dopo deploy. */}
+                Il server rende la versione SALVATA in DB: con modifiche non
+                salvate il bottone è disabilitato, altrimenti l'admin testerebbe
+                contenuto vecchio credendolo aggiornato. */}
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <Send className="h-4 w-4 text-muted-foreground" />
               <Label className="text-xs text-muted-foreground mr-1">Invia prova a:</Label>
@@ -1704,7 +1729,12 @@ export function EmailTemplatesPanel() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={sendingTest || !testEmail.trim()}
+                disabled={sendingTest || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(testEmail.trim()) || dirty || saveStatus === "error"}
+                title={
+                  dirty || saveStatus === "error"
+                    ? "Salva prima le modifiche: la prova invia la versione salvata in DB"
+                    : "Invia la versione salvata del template a questo indirizzo"
+                }
                 onClick={async () => {
                   const to = testEmail.trim();
                   if (!to) { toast.error("Inserisci un'email di prova"); return; }
@@ -1713,6 +1743,10 @@ export function EmailTemplatesPanel() {
                     const { data, error } = await supabase.functions.invoke("send-transactional-v2", {
                       body: {
                         templateName: selectedKey,
+                        // NB: la edge function oggi NON inoltra roleVariant al
+                        // renderer (testa sempre la variante default). Campo già
+                        // pronto per quando il forward verrà deployato.
+                        roleVariant: variantToDb(selectedVariant),
                         props: getPreviewMockProps(selectedMeta),
                         to,
                         companyId: null,
@@ -1731,6 +1765,11 @@ export function EmailTemplatesPanel() {
               >
                 {sendingTest ? "Invio…" : "Invia prova"}
               </Button>
+              {(dirty || saveStatus === "error") && (
+                <span className="text-[11px] text-amber-600">
+                  Modifiche non salvate: salva prima di inviare la prova
+                </span>
+              )}
             </div>
           </CardHeader>
 
@@ -1767,7 +1806,12 @@ export function EmailTemplatesPanel() {
               )}
 
               <TabsContent value="visual" className="space-y-4">
+                {/* key: rimonta il builder al cambio template/variante, altrimenti
+                    gli stack undo/redo sopravvivono e Ctrl+Z inietterebbe i
+                    blocchi del template PRECEDENTE in quello corrente
+                    (che l'autosave poi persisterebbe). */}
                 <VisualTemplateBuilder
+                  key={`${selectedKey}::${selectedVariant}`}
                   templateKey={selectedKey}
                   subject={subject}
                   setSubject={(v) => {
@@ -1803,6 +1847,20 @@ export function EmailTemplatesPanel() {
 
               {/* ── TAB SPLIT: editor sx + preview dx, live ── */}
               <TabsContent value="split" className="space-y-4">
+                {/* Editando in HTML un template con struttura a blocchi, il
+                    salvataggio scrive design_json=null: il layout visuale
+                    diventa un singolo blocco HTML. Avvisare PRIMA, non dopo. */}
+                {lastEditedMode === "html" && selectedRow?.design_json != null && dirty && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Questo template ha un layout a blocchi (editor Visuale):
+                      salvando le modifiche fatte qui in HTML, la struttura a
+                      blocchi verrà sostituita da un unico blocco HTML.
+                      Recuperabile solo dalla cronologia.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="grid gap-4 xl:grid-cols-2">
                   <EditorForm
                     subject={subject}
@@ -1855,6 +1913,17 @@ export function EmailTemplatesPanel() {
 
               {/* ── TAB CONTENT: solo editor a piena larghezza ── */}
               <TabsContent value="content" className="space-y-4">
+                {lastEditedMode === "html" && selectedRow?.design_json != null && dirty && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Questo template ha un layout a blocchi (editor Visuale):
+                      salvando le modifiche fatte qui in HTML, la struttura a
+                      blocchi verrà sostituita da un unico blocco HTML.
+                      Recuperabile solo dalla cronologia.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <EditorForm
                   subject={subject}
                   setSubject={(v) => {
@@ -1949,6 +2018,9 @@ function VisualTemplateBuilder({
   const [undoStack, setUndoStack] = useState<BuilderBlockType[][]>([]);
   const [redoStack, setRedoStack] = useState<BuilderBlockType[][]>([]);
   const isUndoRedoAction = useRef(false);
+  // Gate visibilità: la shell tiene i tab montati ma nascosti — l'undo/redo
+  // da tastiera non deve scattare quando il builder non è a schermo.
+  const builderRootRef = useRef<HTMLDivElement | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const previewHtml = useMemo(
     () => buildLocalPreviewHtml(
@@ -2000,13 +2072,13 @@ function VisualTemplateBuilder({
         active?.isContentEditable;
       const isMod = event.metaKey || event.ctrlKey;
 
-      if (isMod && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        if (canSave) onSave();
-        return;
-      }
+      // Ctrl/Cmd+S NON viene gestito qui: c'è già il listener a livello
+      // pannello. Con entrambi attivi partivano DUE salvataggi concorrenti
+      // (doppia versione in cronologia + doppio toast).
 
       if (!isMod || isEditable) return;
+      // Builder non visibile (tab nascosto o TabsContent inattivo): ignora.
+      if (builderRootRef.current?.offsetParent === null) return;
 
       if (event.key.toLowerCase() === "z" && !event.shiftKey) {
         event.preventDefault();
@@ -2019,7 +2091,7 @@ function VisualTemplateBuilder({
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canSave, handleRedo, handleUndo, onSave]);
+  }, [handleRedo, handleUndo]);
 
   const handleAddChildBlock = useCallback(
     (parentId: string, colIndex: number, childType: BlockType) => {
@@ -2286,7 +2358,7 @@ function VisualTemplateBuilder({
   return (
     // NB: rimosso `overflow-hidden` dal contenitore esterno — su narrow viewport
     // il toolbar wrappa e il bottone Salva veniva clippato (visibile come "Salv...")
-    <div className="rounded-lg border bg-background shadow-sm">
+    <div ref={builderRootRef} className="rounded-lg border bg-background shadow-sm">
       {/* ── Toolbar superiore — 2 righe distinte:
           Riga 1: Oggetto (input + variabili)
           Riga 2: Status sx · Tools dx · Salva sempre visibile a destra (no clip) */}
@@ -2642,7 +2714,8 @@ function LivePreview({
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Preview server non disponibile: sto mostrando una preview locale.
+            Preview server non disponibile ({warning}) — sto mostrando una
+            preview locale.
           </AlertDescription>
         </Alert>
       )}
@@ -2715,8 +2788,9 @@ function ActionBar({
               <AlertDialogTitle>Ripristinare il default?</AlertDialogTitle>
               <AlertDialogDescription>
                 La personalizzazione corrente verrà rimossa e il template tornerà
-                al contenuto hardcoded di default. La cronologia salverà
-                comunque una copia dello stato attuale.
+                al contenuto di default. <strong>Attenzione:</strong> verrà
+                eliminata definitivamente anche tutta la cronologia revisioni di
+                questo template — non sarà possibile alcun ripristino.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

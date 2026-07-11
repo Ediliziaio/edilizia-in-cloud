@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 import { differenceInDays } from "date-fns";
 
 interface PipelineCompany {
@@ -13,7 +14,12 @@ interface PipelineCompany {
   created_at: string;
   trial_ends_at: string | null;
   logo_url: string | null;
-  subscription_plans: { name: string; price_monthly: number } | null;
+  subscription_plans: { name: string; price_monthly: number; price_yearly?: number | null } | null;
+  // Campi billing per il calcolo MRR "pagante" (stessa fonte della lista).
+  payment_method?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_status?: string | null;
+  is_platform_admin_company?: boolean | null;
 }
 
 interface CompanyPipelineViewProps {
@@ -22,10 +28,12 @@ interface CompanyPipelineViewProps {
 }
 
 const COLUMNS: { key: string; label: string; color: string }[] = [
+  { key: "free", label: "Scopri", color: "border-t-sky-500" },
   { key: "trial", label: "Trial", color: "border-t-blue-500" },
   { key: "active", label: "Attivo", color: "border-t-green-500" },
   { key: "suspended", label: "Sospeso", color: "border-t-amber-500" },
   { key: "expired", label: "Scaduto", color: "border-t-red-500" },
+  { key: "other", label: "Altro", color: "border-t-gray-400" },
 ];
 
 const healthBadge: Record<string, { label: string; className: string }> = {
@@ -38,20 +46,28 @@ export function CompanyPipelineView({ companies, healthScores = {} }: CompanyPip
   const navigate = useNavigate();
 
   const grouped = useMemo(() => {
-    const map: Record<string, PipelineCompany[]> = { trial: [], active: [], suspended: [], expired: [] };
+    const map: Record<string, PipelineCompany[]> = { free: [], trial: [], active: [], suspended: [], expired: [], other: [] };
     companies.forEach((c) => {
       const st = c.status || "trial";
+      // Stati sconosciuti in "Altro": prima finivano dentro "Trial" (falso).
       if (map[st]) map[st].push(c);
-      else map.trial.push(c);
+      else map.other.push(c);
     });
     return map;
   }, [companies]);
 
+  // Colonne "Scopri" e "Altro" solo se popolate: il layout resta compatto.
+  const visibleColumns = COLUMNS.filter(
+    (col) => !["free", "other"].includes(col.key) || (grouped[col.key] || []).length > 0,
+  );
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-      {COLUMNS.map((col) => {
+      {visibleColumns.map((col) => {
         const items = grouped[col.key] || [];
-        const totalMrr = items.reduce((s, c) => s + (c.subscription_plans?.price_monthly || 0), 0);
+        // Solo aziende davvero paganti (stessa fonte di verità della lista):
+        // le regalate/gratuite non gonfiano più l'MRR di colonna.
+        const totalMrr = items.reduce((s, c) => s + (isRevenueEligibleCompany(c) ? getCompanyMonthlyRevenue(c) : 0), 0);
         return (
           <div key={col.key} className="space-y-2">
             <div className={`rounded-lg border border-t-4 ${col.color} bg-card p-3`}>
@@ -60,7 +76,9 @@ export function CompanyPipelineView({ companies, healthScores = {} }: CompanyPip
                 <Badge variant="secondary" className="text-xs">{items.length}</Badge>
               </div>
               {totalMrr > 0 && (
-                <p className="text-xs text-muted-foreground mt-0.5">MRR: {formatCurrency(totalMrr)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" title="Somma dei soli abbonamenti paganti delle aziende in questa pagina">
+                  MRR pagante: {formatCurrency(totalMrr)}
+                </p>
               )}
             </div>
             <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
@@ -90,7 +108,7 @@ export function CompanyPipelineView({ companies, healthScores = {} }: CompanyPip
                       </div>
                       <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                         <span>{plan ? formatCurrency(plan.price_monthly) : "—"}</span>
-                        <span>{daysInStatus}gg</span>
+                        <span title="Giorni dalla creazione dell'azienda">{daysInStatus}gg su EiC</span>
                       </div>
                     </CardContent>
                   </Card>

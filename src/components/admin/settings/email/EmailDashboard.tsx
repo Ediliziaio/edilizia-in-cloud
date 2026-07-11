@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar, DollarSign, Percent, Send, Zap } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar, DollarSign, Percent, RefreshCw, Send, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
+import { formatError } from "@/lib/errors";
 
 interface PlatformStats {
   total_sent: number;
@@ -73,7 +75,7 @@ function getPeriodDates(period: PeriodKey): { from: string | null; to: string | 
 export function EmailDashboard() {
   const [period, setPeriod] = useState<PeriodKey>("30d");
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErrorObj, refetch: refetchStats } = useQuery({
     queryKey: ["platform-email-stats", period],
     queryFn: async () => {
       const { from, to } = getPeriodDates(period);
@@ -87,7 +89,7 @@ export function EmailDashboard() {
     },
   });
 
-  const { data: topCompanies, isLoading: topLoading } = useQuery({
+  const { data: topCompanies, isLoading: topLoading, isError: topError, refetch: refetchTop } = useQuery({
     queryKey: ["email-top-companies"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_top_companies_by_email" as never, { p_limit: 10 } as never);
@@ -131,37 +133,70 @@ export function EmailDashboard() {
 
   // Real volumes per stream from the unified email_delivery_log — this is the
   // SOURCE OF TRUTH for transactional emails (which never touch email_logs).
-  const { data: streamBreakdown } = useQuery({
+  // Conteggi via head-count exact (il fetch senza .limit() veniva troncato a
+  // 1000 righe da PostgREST). Il webhook muta lo status in place
+  // (delivered→spam/unsubscribed/deferred), quindi "inviate" = tutto ciò che
+  // non è failed/bounced/dropped, e spam/unsubscribed sono sottoinsiemi
+  // delle consegnate.
+  const { data: streamBreakdown, isError: breakdownError, refetch: refetchBreakdown } = useQuery({
     queryKey: ["email-stream-breakdown", period],
     queryFn: async () => {
       const { from, to } = getPeriodDates(period);
+      const FAILED_STATUSES = ["failed", "bounced", "dropped"];
+      const DELIVERED_STATUSES = ["delivered", "spam", "unsubscribed"];
+      const failedIn = `(${FAILED_STATUSES.join(",")})`;
+
+      const countBase = (stream: "marketing" | "transactional") => {
+        let q = supabase
+          .from("email_delivery_log")
+          .select("id", { count: "exact", head: true });
+        if (from) q = q.gte("sent_at", from);
+        if (to) q = q.lte("sent_at", to);
+        // stream è nullable: le righe senza stream vanno nel bucket transazionale
+        return stream === "marketing"
+          ? q.eq("stream", "marketing")
+          : q.or("stream.neq.marketing,stream.is.null");
+      };
+
+      const [mkSent, mkDelivered, mkFailed, trSent, trDelivered, trFailed, trUnbilled] = await Promise.all([
+        countBase("marketing").not("status", "in", failedIn),
+        countBase("marketing").in("status", DELIVERED_STATUSES),
+        countBase("marketing").in("status", FAILED_STATUSES),
+        countBase("transactional").not("status", "in", failedIn),
+        countBase("transactional").in("status", DELIVERED_STATUSES),
+        countBase("transactional").in("status", FAILED_STATUSES),
+        countBase("transactional").not("status", "in", failedIn).or("charged_eur.is.null,charged_eur.eq.0"),
+      ]);
+      for (const res of [mkSent, mkDelivered, mkFailed, trSent, trDelivered, trFailed, trUnbilled]) {
+        if (res.error) throw res.error;
+      }
+
+      // Somme revenue/cost: nessuna RPC di aggregazione disponibile →
+      // fetch con limite esplicito ampio + flag di troncamento per la UI.
+      const SUM_FETCH_LIMIT = 50000;
       let q = supabase
         .from("email_delivery_log")
-        .select("stream, status, charged_eur, cost_eur");
+        .select("stream, charged_eur, cost_eur")
+        .limit(SUM_FETCH_LIMIT);
       if (from) q = q.gte("sent_at", from);
       if (to) q = q.lte("sent_at", to);
       const { data, error } = await q;
       if (error) throw error;
       const rows = (data ?? []) as Array<{
         stream: string | null;
-        status: string;
         charged_eur: number | null;
         cost_eur: number | null;
       }>;
-      const mktg = { sent: 0, delivered: 0, failed: 0, revenue: 0, cost: 0 };
-      const trans = { sent: 0, delivered: 0, failed: 0, revenue: 0, cost: 0, unbilled: 0 };
+      const truncated = rows.length >= SUM_FETCH_LIMIT;
+
+      const mktg = { sent: mkSent.count ?? 0, delivered: mkDelivered.count ?? 0, failed: mkFailed.count ?? 0, revenue: 0, cost: 0 };
+      const trans = { sent: trSent.count ?? 0, delivered: trDelivered.count ?? 0, failed: trFailed.count ?? 0, revenue: 0, cost: 0, unbilled: trUnbilled.count ?? 0 };
       for (const r of rows) {
         const bucket = r.stream === "marketing" ? mktg : trans;
-        if (r.status === "sent" || r.status === "delivered") bucket.sent++;
-        if (r.status === "delivered") bucket.delivered++;
-        if (r.status === "failed" || r.status === "bounced" || r.status === "dropped") bucket.failed++;
         bucket.revenue += Number(r.charged_eur ?? 0);
         bucket.cost += Number(r.cost_eur ?? 0);
-        if (r.stream === "transactional" && (r.status === "sent" || r.status === "delivered") && Number(r.charged_eur ?? 0) === 0) {
-          trans.unbilled++;
-        }
       }
-      return { mktg, trans };
+      return { mktg, trans, truncated };
     },
   });
 
@@ -219,25 +254,55 @@ export function EmailDashboard() {
         ))}
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.label}>
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 mb-1">
-                <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-                <span className="text-xs text-muted-foreground">{kpi.label}</span>
-              </div>
-              <p className="text-2xl font-bold">{kpi.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* KPI Grid — su errore RPC non mostrare 0 come dati veri */}
+      {statsError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>Errore caricamento statistiche email: {formatError(statsErrorObj)}</span>
+            <Button variant="outline" size="sm" onClick={() => refetchStats()} className="h-7 gap-1 text-xs">
+              <RefreshCw className="h-3 w-3" /> Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {kpis.map((kpi) => (
+            <Card key={kpi.label}>
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                  <span className="text-xs text-muted-foreground">{kpi.label}</span>
+                </div>
+                <p className="text-2xl font-bold">{kpi.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Stream breakdown — real volumes from email_delivery_log */}
+      {breakdownError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+            <span>Errore caricamento volumi per stream.</span>
+            <Button variant="outline" size="sm" onClick={() => refetchBreakdown()} className="h-7 gap-1 text-xs">
+              <RefreshCw className="h-3 w-3" /> Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {streamBreakdown && (
         <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">📬 Volumi reali per stream (email_delivery_log)</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-muted-foreground">📬 Volumi reali per stream (email_delivery_log)</h3>
+            {streamBreakdown.truncated && (
+              <Badge variant="secondary" className="text-xs" title="Il periodo contiene più di 50.000 righe: ricavi e costi sono calcolati su un campione parziale. I conteggi restano esatti.">
+                Ricavi su dati parziali
+              </Badge>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
@@ -295,7 +360,8 @@ export function EmailDashboard() {
         </div>
       )}
 
-      {/* Financial KPIs */}
+      {/* Financial KPIs — derivano dalla RPC stats: nascosti su errore */}
+      {!statsError && (
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground mb-3">📊 KPI Finanziari</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -313,6 +379,7 @@ export function EmailDashboard() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Top 10 Companies */}
       <Card>
@@ -323,6 +390,16 @@ export function EmailDashboard() {
         <CardContent>
           {topLoading ? (
             <Skeleton className="h-[200px]" />
+          ) : topError ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+                <span>Errore caricamento classifica aziende.</span>
+                <Button variant="outline" size="sm" onClick={() => refetchTop()} className="h-7 gap-1 text-xs">
+                  <RefreshCw className="h-3 w-3" /> Riprova
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : !topCompanies?.length ? (
             <p className="text-sm text-muted-foreground">Nessun dato disponibile</p>
           ) : (

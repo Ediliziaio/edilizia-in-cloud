@@ -47,14 +47,17 @@ interface ToolHealth {
   last_error_message: string | null;
 }
 
+// Colonne REALI di silvio_self_improvement_log (migration 20260509090000):
+// run_at/ok/duration_ms — prima si leggevano ran_at/status/cost_usd
+// (inesistenti) → query in errore 42703 e pannello sempre "vuoto".
 interface LearningLog {
   id: string;
-  ran_at: string;
-  status: string;
+  run_at: string;
+  ok: boolean;
   gold_added: number;
   avoid_added: number;
   promoted_to_memory: number;
-  cost_usd: number;
+  duration_ms: number | null;
 }
 
 export function AIHealthDashboard() {
@@ -107,8 +110,8 @@ export function AIHealthDashboard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("silvio_self_improvement_log")
-        .select("id, ran_at, status, gold_added, avoid_added, promoted_to_memory, cost_usd")
-        .order("ran_at", { ascending: false })
+        .select("id, run_at, ok, gold_added, avoid_added, promoted_to_memory, duration_ms")
+        .order("run_at", { ascending: false })
         .limit(8);
       if (error) throw error;
       return (data ?? []) as LearningLog[];
@@ -272,15 +275,15 @@ export function AIHealthDashboard() {
             <div className="space-y-2">
               {learning.map((l) => (
                 <div key={l.id} className="flex items-center justify-between text-xs border-b pb-1">
-                  <span className="font-mono">{new Date(l.ran_at).toLocaleString("it-IT")}</span>
+                  <span className="font-mono">{new Date(l.run_at).toLocaleString("it-IT")}</span>
                   <div className="flex gap-2">
-                    <Badge variant="outline" className={l.status === "success" ? "text-emerald-700" : "text-rose-700"}>
-                      {l.status}
+                    <Badge variant="outline" className={l.ok ? "text-emerald-700" : "text-rose-700"}>
+                      {l.ok ? "ok" : "errore"}
                     </Badge>
                     <span>+{l.gold_added} gold</span>
                     <span>+{l.avoid_added} avoid</span>
                     <span>↑{l.promoted_to_memory} promoted</span>
-                    <span>${l.cost_usd?.toFixed(3) ?? "0"}</span>
+                    <span>{l.duration_ms != null ? `${Math.round(l.duration_ms / 1000)}s` : "—"}</span>
                   </div>
                 </div>
               ))}

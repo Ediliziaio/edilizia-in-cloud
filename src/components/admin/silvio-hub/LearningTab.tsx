@@ -10,6 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
+// format/it erano usati ma MAI importati: il tab crashava (ReferenceError)
+// appena esisteva una run nello storico.
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
 interface LearningLog {
   id: string;

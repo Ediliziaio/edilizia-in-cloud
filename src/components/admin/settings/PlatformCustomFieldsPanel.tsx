@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check, Copy, Lock, Plus, Search, Trash2, UserRound, Variable, X,
+  Check, Copy, Loader2, Lock, Plus, Search, Trash2, UserRound, Variable, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -347,6 +347,18 @@ export function PlatformCustomFieldsPanel() {
   });
 
   const computedKey = useMemo(() => toSnakeCase(name.trim() || ""), [name]);
+
+  // Chiavi normalizzate ("ns.key") di TUTTI i preset di sistema: un campo
+  // custom non deve mai collidere con un preset, altrimenti la stessa
+  // variabile {{ ns.key }} avrebbe due definizioni e risoluzione ambigua.
+  const systemFieldKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const field of [...ACCESS_USER_FIELD_PRESETS, ...BUILTIN_FIELDS, ...ADMIN_FIELD_PRESETS]) {
+      keys.add(field.uniqueKey.replace(/[{}\s]/g, ""));
+    }
+    return keys;
+  }, []);
+
   const validationError = useMemo(() => {
     const cleanName = name.trim();
     if (!cleanName) return null; // niente messaggio finché vuoto
@@ -354,16 +366,21 @@ export function PlatformCustomFieldsPanel() {
     if (cleanName.length > 60) return "Massimo 60 caratteri";
     if (!computedKey) return "Nome non valido (almeno una lettera o un numero)";
     if (RESERVED_KEYS.has(computedKey)) return `"${computedKey}" è una chiave riservata di sistema`;
+    if (systemFieldKeys.has(`${namespace}.${computedKey}`)) {
+      return `{{ ${namespace}.${computedKey} }} è già un campo di sistema`;
+    }
     const exists = customFields.some(
       (field) => field.namespace === namespace && toSnakeCase(field.name) === computedKey,
     );
     if (exists) return "Esiste già un campo con questa chiave nella stessa area";
     return null;
-  }, [name, namespace, customFields, computedKey]);
+  }, [name, namespace, customFields, computedKey, systemFieldKeys]);
 
   const addField = () => {
     const cleanName = name.trim();
-    if (!cleanName || validationError) return;
+    // Guard anche su isPending: l'Enter nel campo nome non passa dal bottone
+    // disabilitato e senza guard creava doppi submit ravvicinati.
+    if (!cleanName || validationError || saveFields.isPending) return;
     // ID uuid per evitare collisioni anche su inserimenti ravvicinati
     const uuid =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -755,7 +772,7 @@ export function PlatformCustomFieldsPanel() {
               disabled={saveFields.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {saveFields.isPending && <Trash2 className="h-4 w-4 mr-2" />}
+              {saveFields.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Elimina campo
             </AlertDialogAction>
           </AlertDialogFooter>

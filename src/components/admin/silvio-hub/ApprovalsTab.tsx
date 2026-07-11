@@ -138,7 +138,9 @@ export function ApprovalsTab() {
   // Ordinamento: prima per risk_level (critical → low), poi per created_at desc.
   const sortedFiltered = useMemo(() => {
     const list = data ?? [];
-    const filtered = riskFilter === "all" ? list : list.filter((a) => normalizeRisk(a.risk_level) === riskFilter);
+    // Stesso fallback "low" del counter: senza, le approval con risk NULL
+    // erano contate come "Basso (N)" ma il filtro ne mostrava 0.
+    const filtered = riskFilter === "all" ? list : list.filter((a) => (normalizeRisk(a.risk_level) ?? "low") === riskFilter);
     return [...filtered].sort((a, b) => {
       const aWeight = RISK_WEIGHT[normalizeRisk(a.risk_level) ?? "low"] ?? 0;
       const bWeight = RISK_WEIGHT[normalizeRisk(b.risk_level) ?? "low"] ?? 0;

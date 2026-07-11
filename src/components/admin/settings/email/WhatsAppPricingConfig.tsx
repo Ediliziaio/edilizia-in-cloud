@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -45,6 +45,11 @@ export function WhatsAppPricingConfig() {
   const [globalMarkup, setGlobalMarkup] = useState("2.2");
   const [editedPricing, setEditedPricing] = useState<WhatsAppPricingRow[]>([]);
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
+  const [isApplying, setIsApplying] = useState(false);
+  // Draft stringa per gli input numerici: svuotare il campo non deve far
+  // saltare il valore a un default (parseFloat(...) || N) sotto le dita.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const draftKey = (id: string, field: string) => `${id}:${field}`;
 
   const { data: pricing, isLoading } = useQuery({
     queryKey: ["whatsapp-pricing"],
@@ -58,8 +63,24 @@ export function WhatsAppPricingConfig() {
     },
   });
 
+  // Ref per leggere le righe dirty nell'effect di merge senza metterle
+  // nelle deps (un dep su dirtyRows farebbe ri-sincronizzare con dati
+  // stale al save). Deve stare PRIMA dell'effect di merge.
+  const dirtyRowsRef = useRef(dirtyRows);
   useEffect(() => {
-    if (pricing) setEditedPricing(pricing);
+    dirtyRowsRef.current = dirtyRows;
+  }, [dirtyRows]);
+
+  useEffect(() => {
+    if (!pricing) return;
+    // Merge: le righe con modifiche non salvate NON vengono sovrascritte
+    // dal refetch (l'invalidate di un'altra riga resettava tutto).
+    setEditedPricing((prev) =>
+      pricing.map((serverRow) => {
+        const local = prev.find((r) => r.id === serverRow.id);
+        return dirtyRowsRef.current.has(serverRow.id) && local ? local : serverRow;
+      })
+    );
   }, [pricing]);
 
   const updateRow = (id: string, field: keyof WhatsAppPricingRow, value: unknown) => {
@@ -78,7 +99,44 @@ export function WhatsAppPricingConfig() {
     setDirtyRows((prev) => new Set(prev).add(id));
   };
 
+  const handleNumericChange = (
+    id: string,
+    field: "cost_real_per_unit" | "markup_multiplier",
+    raw: string
+  ) => {
+    setDrafts((prev) => ({ ...prev, [draftKey(id, field)]: raw }));
+    const parsed = parseFloat(raw);
+    if (!isNaN(parsed)) {
+      updateRow(id, field, parsed);
+    } else {
+      // Campo vuoto/non parsabile: la riga resta dirty ma il valore
+      // precedente non viene sostituito da un default.
+      setDirtyRows((prev) => new Set(prev).add(id));
+    }
+  };
+
+  const validateRow = (row: WhatsAppPricingRow): string | null => {
+    const realDraft = drafts[draftKey(row.id, "cost_real_per_unit")];
+    const markupDraft = drafts[draftKey(row.id, "markup_multiplier")];
+    if (realDraft !== undefined && isNaN(parseFloat(realDraft))) return "Costo reale non valido";
+    if (markupDraft !== undefined && isNaN(parseFloat(markupDraft))) return "Markup non valido";
+    if (row.cost_real_per_unit < 0) return "Il costo reale deve essere ≥ 0";
+    if (row.markup_multiplier < 1) return "Il markup deve essere almeno 1.0";
+    return null;
+  };
+
+  const clearRowDrafts = (id: string) => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[draftKey(id, "cost_real_per_unit")];
+      delete next[draftKey(id, "markup_multiplier")];
+      return next;
+    });
+  };
+
   const savePricingRow = async (row: WhatsAppPricingRow) => {
+    const validationError = validateRow(row);
+    if (validationError) { toast.error(validationError); return; }
     const { error } = await supabase
       .from("whatsapp_pricing" as never)
       .update({
@@ -93,21 +151,56 @@ export function WhatsAppPricingConfig() {
     if (error) { toast.error("Errore nel salvataggio"); return; }
     toast.success(`Tariffa "${row.label || row.category}" aggiornata`);
     setDirtyRows((prev) => { const next = new Set(prev); next.delete(row.id); return next; });
+    clearRowDrafts(row.id);
+    queryClient.invalidateQueries({ queryKey: ["whatsapp-pricing"] });
+  };
+
+  // Salvataggio immediato on-toggle: azione atomica per riga, non passa
+  // dallo stato dirty (il flip locale senza save si perdeva).
+  const toggleActive = async (row: WhatsAppPricingRow, value: boolean) => {
+    setEditedPricing((prev) => prev.map((r) => (r.id === row.id ? { ...r, is_active: value } : r)));
+    const { error } = await supabase
+      .from("whatsapp_pricing" as never)
+      .update({ is_active: value, updated_at: new Date().toISOString() } as never)
+      .eq("id" as never, row.id as never);
+    if (error) {
+      setEditedPricing((prev) => prev.map((r) => (r.id === row.id ? { ...r, is_active: !value } : r)));
+      toast.error("Errore nell'aggiornamento dello stato");
+      return;
+    }
+    toast.success(`Tariffa "${row.label || row.category}" ${value ? "attivata" : "disattivata"}`);
     queryClient.invalidateQueries({ queryKey: ["whatsapp-pricing"] });
   };
 
   const applyGlobalMarkup = async () => {
     const markup = parseFloat(globalMarkup);
     if (isNaN(markup) || markup < 1) { toast.error("Markup deve essere almeno 1.0"); return; }
-    for (const row of editedPricing) {
-      const newBilled = Number((row.cost_real_per_unit * markup).toFixed(6));
-      await supabase
-        .from("whatsapp_pricing" as never)
-        .update({ markup_multiplier: markup, cost_billed_per_unit: newBilled, updated_at: new Date().toISOString() } as never)
-        .eq("id" as never, row.id as never);
+    // Base di calcolo = valori salvati (pricing), non lo stato locale non
+    // salvato: evita di scrivere billed incoerenti col cost_real in DB.
+    const rows = pricing ?? [];
+    if (rows.length === 0) { toast.error("Nessuna tariffa da aggiornare"); return; }
+    setIsApplying(true);
+    try {
+      let done = 0;
+      for (const row of rows) {
+        const newBilled = Number((row.cost_real_per_unit * markup).toFixed(6));
+        const { error } = await supabase
+          .from("whatsapp_pricing" as never)
+          .update({ markup_multiplier: markup, cost_billed_per_unit: newBilled, updated_at: new Date().toISOString() } as never)
+          .eq("id" as never, row.id as never);
+        if (error) {
+          toast.error(`Errore: applicate ${done} tariffe su ${rows.length}`, {
+            description: error.message ?? "Aggiornamento interrotto.",
+          });
+          return;
+        }
+        done++;
+      }
+      toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
+    } finally {
+      setIsApplying(false);
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-pricing"] });
     }
-    toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-    queryClient.invalidateQueries({ queryKey: ["whatsapp-pricing"] });
   };
 
   const previewReal = 0.054;
@@ -155,8 +248,8 @@ export function WhatsAppPricingConfig() {
           <p className="text-xs text-primary font-mono mt-2">
             Margine: {previewMarginPct}% · {formatEur(previewBilled - previewReal, 4)} per messaggio
           </p>
-          <Button size="sm" className="mt-3" onClick={applyGlobalMarkup}>
-            Applica Markup a Tutte le Tariffe
+          <Button size="sm" className="mt-3" onClick={applyGlobalMarkup} disabled={isApplying}>
+            {isApplying ? "Applicazione in corso..." : "Applica Markup a Tutte le Tariffe"}
           </Button>
         </div>
 
@@ -197,13 +290,15 @@ export function WhatsAppPricingConfig() {
                         <span className="text-xs font-mono">{row.country_code}</span>
                       </TableCell>
                       <TableCell>
-                        <Input type="number" step={0.00001} min={0} value={row.cost_real_per_unit}
-                          onChange={(e) => updateRow(row.id, "cost_real_per_unit", parseFloat(e.target.value) || 0)}
+                        <Input type="number" step={0.00001} min={0}
+                          value={drafts[draftKey(row.id, "cost_real_per_unit")] ?? row.cost_real_per_unit}
+                          onChange={(e) => handleNumericChange(row.id, "cost_real_per_unit", e.target.value)}
                           className="w-28 font-mono text-sm" />
                       </TableCell>
                       <TableCell>
-                        <Input type="number" step={0.5} min={1} value={row.markup_multiplier}
-                          onChange={(e) => updateRow(row.id, "markup_multiplier", parseFloat(e.target.value) || 2.2)}
+                        <Input type="number" step={0.5} min={1}
+                          value={drafts[draftKey(row.id, "markup_multiplier")] ?? row.markup_multiplier}
+                          onChange={(e) => handleNumericChange(row.id, "markup_multiplier", e.target.value)}
                           className="w-16 font-mono text-sm" />
                       </TableCell>
                       <TableCell>
@@ -215,7 +310,7 @@ export function WhatsAppPricingConfig() {
                         <Badge variant="secondary" className="text-xs">{marginPct}%</Badge>
                       </TableCell>
                       <TableCell>
-                        <Switch checked={row.is_active} onCheckedChange={(v) => updateRow(row.id, "is_active", v)} />
+                        <Switch checked={row.is_active} onCheckedChange={(v) => toggleActive(row, v)} />
                       </TableCell>
                       <TableCell>
                         {dirtyRows.has(row.id) && (

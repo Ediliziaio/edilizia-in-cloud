@@ -78,8 +78,9 @@ export function CompanySaaSTab({
 
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
-  const ordersPercent = maxOrders === -1 ? 0 : Math.min(100, ((stats?.ordersCount || 0) / maxOrders) * 100);
-  const usersPercent = maxUsers === -1 ? 0 : Math.min(100, ((stats?.customersCount || 0) / maxUsers) * 100);
+  // Guardia <= 0: un piano con max 0 produceva Infinity/NaN nella Progress.
+  const ordersPercent = maxOrders <= 0 ? 0 : Math.min(100, ((stats?.ordersCount || 0) / maxOrders) * 100);
+  const usersPercent = maxUsers <= 0 ? 0 : Math.min(100, ((stats?.customersCount || 0) / maxUsers) * 100);
 
   // Feature flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
@@ -131,6 +132,13 @@ export function CompanySaaSTab({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
       queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
+      // Stessa tabella modificata anche dal tab Abbonamento (ModuliVenduta +
+      // FeatureOverridesCard) e dalla RPC di risoluzione: senza queste
+      // invalidazioni un toggle qui non aggiornava gli altri tab (e viceversa
+      // i loro dati restavano stale qui).
+      queryClient.invalidateQueries({ queryKey: ["admin-company-feature-overrides"] });
+      queryClient.invalidateQueries({ queryKey: ["company-features-resolved"] });
+      queryClient.invalidateQueries({ queryKey: ["feature-access"] });
       toast.success("Feature flag aggiornato");
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
@@ -393,8 +401,14 @@ export function CompanySaaSTab({
                           <p className="text-xs text-muted-foreground">{flag.description}</p>
                         </div>
                       </div>
+                      {/* Lo switch rappresenta l'OVERRIDE manuale (on = crea
+                          override abilitante, off = lo rimuove), NON lo stato
+                          effettivo: una feature attiva dal piano ha switch
+                          spento. Il title lo esplicita, prima sembrava un
+                          contraddittorio "attiva ma spenta". */}
                       <Switch
                         checked={hasOverride ? enabled : false}
+                        title={hasOverride ? "Override manuale attivo" : "Nessun override manuale (lo stato a sinistra deriva da piano/default)"}
                         onCheckedChange={(checked) =>
                           toggleOverrideMutation.mutate({ flagKey: flag.key, enabled: checked })
                         }

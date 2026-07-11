@@ -88,6 +88,21 @@ export function MemoryTab() {
     },
   });
 
+  // Totale ESATTO (head count): la lista è cappata a 200 e "N memorie"
+  // sul campione mentiva oltre quella soglia.
+  const totalQuery = useQuery({
+    queryKey: ["silvio-persona-memory-count", selectedPersona],
+    queryFn: async () => {
+      let q = supabase
+        .from("silvio_persona_memory")
+        .select("id", { count: "exact", head: true });
+      if (selectedPersona !== "all") q = q.eq("persona_key", selectedPersona);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   const addMutation = useMutation({
     mutationFn: async () => {
       if (!newPersonaKey || !newContent.trim())
@@ -173,7 +188,7 @@ export function MemoryTab() {
             </SelectContent>
           </Select>
           <span className="text-xs text-muted-foreground">
-            {memories.length} memorie
+            {totalQuery.data ?? memories.length} memorie{(totalQuery.data ?? 0) > 200 ? " (prime 200 mostrate)" : ""}
           </span>
         </div>
         <Button

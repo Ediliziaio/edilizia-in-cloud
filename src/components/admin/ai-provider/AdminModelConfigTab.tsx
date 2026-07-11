@@ -37,6 +37,11 @@ const TASKS: TaskKind[] = [
   "computo_metrico",
   "bank_categorize",
   "chat_routine",
+  // Task del rendering AI (migration 20270514180000): esistono e sono usati
+  // a runtime, ma prima erano invisibili e non modificabili da questa tab.
+  "render_image_edit",
+  "render_scene_analysis",
+  "render_image_qa",
   "default",
 ];
 

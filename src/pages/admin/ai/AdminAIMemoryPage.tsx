@@ -149,6 +149,25 @@ export default function AdminAIMemoryPage() {
     },
   });
 
+  // Totale ESATTO (head count, stessi filtri): la lista è cappata a 500 e
+  // il "Memorie totali" calcolato sul campione mentiva oltre quella soglia.
+  const { data: exactTotal } = useQuery({
+    queryKey: ["admin-ai-persona-memory-count", filterCompany, filterPersona, filterType, showDisabled],
+    queryFn: async (): Promise<number> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from("ai_persona_memory")
+        .select("id", { count: "exact", head: true });
+      if (filterCompany !== "all") q = q.eq("company_id", filterCompany);
+      if (filterPersona !== "all") q = q.eq("persona_key", filterPersona);
+      if (filterType !== "all") q = q.eq("memory_type", filterType);
+      if (!showDisabled) q = q.eq("enabled", true);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   // Realtime: invalida la query quando una memoria cambia ovunque nel sistema.
   // Per super_admin non filtriamo per company_id — segue tutti gli aggiornamenti.
   useEffect(() => {
@@ -198,7 +217,7 @@ export default function AdminAIMemoryPage() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
     return {
-      total: memories.length,
+      total: memories.length, // sovrascritto sotto col count esatto se disponibile
       byType,
       companies: byCompany.size,
       manual,
@@ -337,7 +356,7 @@ export default function AdminAIMemoryPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <div className="rounded-lg border bg-card p-3">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Memorie totali</div>
-          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.total}</div>
+          <div className="text-2xl font-bold tabular-nums mt-0.5">{exactTotal ?? stats.total}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
             {stats.manual} manuali · {stats.auto} auto
           </div>

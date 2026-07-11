@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Inbox, Play, RefreshCw } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatError } from "@/lib/errors";
 
 type OutboxStatus = "all" | "queued" | "processing" | "sent" | "failed" | "dead" | "suppressed";
 
@@ -46,11 +50,42 @@ const STATUS_STYLES: Record<string, string> = {
   suppressed: "bg-slate-100 text-slate-800",
 };
 
+const COUNT_STATUSES = ["queued", "processing", "sent", "failed", "dead", "suppressed"] as const;
+
 export function EmailOutboxPanel() {
   const qc = useQueryClient();
   const [status, setStatus] = useState<OutboxStatus>("all");
 
-  const { data: rows = [], isLoading, refetch, isFetching } = useQuery({
+  // Conteggi per stato via head-count exact, indipendenti dal filtro
+  // corrente (prima erano calcolati sulle sole 200 righe filtrate).
+  const { data: counts = {} } = useQuery({
+    queryKey: ["admin-email-outbox", "counts"],
+    queryFn: async () => {
+      const results = await Promise.all(
+        COUNT_STATUSES.map((s) =>
+          supabase
+            .from("email_outbox" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("status" as never, s as never)
+        )
+      );
+      const next: Record<string, number> = {};
+      COUNT_STATUSES.forEach((s, i) => {
+        if (results[i].error) throw results[i].error;
+        next[s] = results[i].count ?? 0;
+      });
+      return next;
+    },
+    staleTime: 20_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as Record<string, number> | undefined;
+      return data && (data.queued ?? 0) + (data.processing ?? 0) > 0 ? 15_000 : false;
+    },
+  });
+
+  const hasActiveJobs = (counts.queued ?? 0) + (counts.processing ?? 0) > 0;
+
+  const { data: rows = [], isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["admin-email-outbox", status],
     queryFn: async () => {
       let query = supabase
@@ -64,13 +99,8 @@ export function EmailOutboxPanel() {
       return (data ?? []) as unknown as OutboxRow[];
     },
     staleTime: 20_000,
+    refetchInterval: hasActiveJobs ? 15_000 : false,
   });
-
-  const counts = useMemo(() => {
-    const next: Record<string, number> = {};
-    for (const row of rows) next[row.status] = (next[row.status] ?? 0) + 1;
-    return next;
-  }, [rows]);
 
   const processQueue = useMutation({
     mutationFn: async () => {
@@ -141,6 +171,16 @@ export function EmailOutboxPanel() {
           <div className="space-y-2">
             {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
+        ) : error ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+              <span>Errore caricamento coda email: {formatError(error)}</span>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="h-7 gap-1 text-xs">
+                <RefreshCw className="h-3 w-3" /> Riprova
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             Nessun job email trovato per questo filtro.
@@ -150,6 +190,7 @@ export function EmailOutboxPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Data</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead>Stream</TableHead>
                   <TableHead>Destinatario</TableHead>
@@ -161,6 +202,12 @@ export function EmailOutboxPanel() {
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id}>
+                    <TableCell
+                      className="whitespace-nowrap text-xs"
+                      title={`Creata: ${format(new Date(row.created_at), "dd MMM yy HH:mm", { locale: it })}`}
+                    >
+                      {format(new Date(row.scheduled_at || row.created_at), "dd MMM yy HH:mm", { locale: it })}
+                    </TableCell>
                     <TableCell>
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", STATUS_STYLES[row.status] ?? "bg-muted text-muted-foreground")}>
                         {STATUS_LABELS[row.status] ?? row.status}

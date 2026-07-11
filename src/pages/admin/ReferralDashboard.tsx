@@ -302,15 +302,20 @@ export default function ReferralDashboard() {
     queryKey: ["referral_counts", "admin"],
     queryFn: async () => {
       const since90Days = new Date(Date.now() - 90 * 86_400_000).toISOString();
-      const [clicks90d, conversionsTotal, conversionsPaying] = await Promise.all([
+      const [clicks90d, conversionsTotal, conversionsPaying, conversionsPaying90d] = await Promise.all([
         supabase.from("referral_clicks").select("id", { count: "exact", head: true }).gte("created_at", since90Days),
         supabase.from("referral_conversions").select("id", { count: "exact", head: true }),
         supabase.from("referral_conversions").select("id", { count: "exact", head: true }).in("status", ["paying", "approved"]),
+        // Paganti NELLA STESSA finestra dei click (90g): il conversion rate
+        // deve dividere grandezze omogenee (prima: paganti all-time ÷ click 90g
+        // = tasso gonfiato/insensato).
+        supabase.from("referral_conversions").select("id", { count: "exact", head: true }).in("status", ["paying", "approved"]).gte("created_at", since90Days),
       ]);
       return {
         clicks90d: clicks90d.count ?? 0,
         conversionsTotal: conversionsTotal.count ?? 0,
         conversionsPaying: conversionsPaying.count ?? 0,
+        conversionsPaying90d: conversionsPaying90d.count ?? 0,
       };
     },
     staleTime: 60000,
@@ -475,6 +480,7 @@ export default function ReferralDashboard() {
             clicks={referralClicks}
             events={referralEvents}
             fraudLogs={referralFraudLogs}
+            counts={referralCounts}
             getMonthlyCommission={getMonthlyCommission}
             onSelectTab={setActiveTab}
             onDetail={setDetailReferrer}

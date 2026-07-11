@@ -392,9 +392,10 @@ export function CreditManagerCard({ companyId }: Props) {
         </CardTitle>
         <CardDescription>
           Saldo corrente per wallet. Usa <strong>Aggiungi</strong> per ricaricare un bonus,
-          <strong> Deduci</strong> per stornare: ogni movimento è atomico (FOR UPDATE) e loggato in
-          <code className="text-[0.7rem] mx-1">admin_credit_adjustments</code> (EUR) o
-          <code className="text-[0.7rem] mx-1">render_credit_ledger</code> (render).
+          <strong> Deduci</strong> per stornare: i movimenti EUR sono atomici (FOR UPDATE) e loggati in
+          <code className="text-[0.7rem] mx-1">admin_credit_adjustments</code>; i render usano
+          <code className="text-[0.7rem] mx-1">render_credit_ledger</code> (fallback client-side,
+          evita adjust render simultanei sulla stessa azienda).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

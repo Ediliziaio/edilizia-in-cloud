@@ -690,7 +690,13 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                 <SidebarMenuButton asChild tooltip={`${item.title}${tooltipExtra}`}>
                   <NavLink
                     to={itemUrl}
-                    end={itemUrl === "/azienda"}
+                    // Match ESATTO per gli hub che hanno sotto-route proprie:
+                    // con end=false su "/azienda/marketing" (smart-path del
+                    // Cruscotto per gli utenti marketing) la voce Cruscotto si
+                    // illuminava su QUALSIASI pagina marketing (wizard FV,
+                    // contatti, preventivi…). Stessa regola del match esatto
+                    // già usata da MacroAreaCollapsible.isActive.
+                    end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
@@ -947,7 +953,8 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 
 const CompanySidebar = memo(function CompanySidebar() {
   const isMobile = useIsMobile();
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, multiCompanyAccesses } = useAuth();
+  const hasMultipleCompanies = (multiCompanyAccesses?.length ?? 0) > 1;
   // usePermissions è già "viewAs-aware": quando `viewAsRole` è attivo
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
@@ -1162,6 +1169,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       return applyCommercialistaScope(items.filter((item) => {
         if (item.url === "/azienda/contenuti-multimediali") return true;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
+        if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
         if (!item.featureKey) return true;
         if (item.featureKey === "billing_external" || item.featureKey === "billing_native") {
           return passesFeatureGate(item.featureKey) !== "hidden";
@@ -1174,6 +1182,7 @@ const CompanySidebar = memo(function CompanySidebar() {
         return false;
       }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
+      if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&
@@ -1205,7 +1214,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies]);
 
   useEffect(() => {
     if (!gatingLoading) {

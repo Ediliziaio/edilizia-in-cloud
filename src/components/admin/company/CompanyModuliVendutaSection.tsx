@@ -112,6 +112,9 @@ export function CompanyModuliVendutaSection({ companyId, companyName }: Props) {
         queryKey: queryKeys.admin.companyFeatureOverrides(companyId),
       });
       queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+      // Stessa tabella letta anche dal tab SaaS e dalla RPC di risoluzione.
+      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyResolved(companyId) });
     },
     onError: (err) => {
       toast.error("Errore aggiornamento modulo", {
@@ -323,6 +326,8 @@ function ModuloEditDialog({ modulo, override, companyId, companyName, onClose }:
         queryKey: queryKeys.admin.companyFeatureOverrides(companyId),
       });
       queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyResolved(companyId) });
       onClose();
     },
     onError: (err) => {

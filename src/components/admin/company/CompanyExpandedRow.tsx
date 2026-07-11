@@ -256,7 +256,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">Health Score</span>
-              <Badge variant="outline" className="text-xs">{hd.score}/100</Badge>
+              <Badge variant="outline" className="text-xs">{hd.score}/90</Badge>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />

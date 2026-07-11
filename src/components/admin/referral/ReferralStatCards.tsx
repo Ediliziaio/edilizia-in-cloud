@@ -13,9 +13,11 @@ export function ReferralStatCards({ referrers, referralCompanies, getMonthlyComm
   const activeReferrers = referrers.filter((r) => r.is_active).length;
   const totalCompanies = referralCompanies.length;
   const monthlyTotal = referrers.filter(r => r.is_active).reduce((sum, r) => sum + getMonthlyCommission(r), 0);
-  const totalEarned = referrers.reduce((sum, r) => sum + r.total_earned, 0);
   const totalPaid = referrers.reduce((sum, r) => sum + r.total_paid, 0);
-  const toPay = totalEarned - totalPaid;
+  // "Da pagare" PER-PARTNER: Σ max(0, earned−paid). Prima era Σearned−Σpaid
+  // aggregato, dove un partner sovra-pagato mascherava il debito verso un altro
+  // → importo diverso da quello mostrato in Panoramica. Ora coincidono.
+  const toPay = referrers.reduce((sum, r) => sum + Math.max(0, r.total_earned - r.total_paid), 0);
 
   const cards = [
     { title: "Referrer Attivi", value: activeReferrers.toString(), icon: Users, description: `${referrers.length} totali` },

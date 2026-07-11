@@ -37,11 +37,11 @@ import { cn } from "@/lib/utils";
  * del SuperAdmin. Paginazione server-side, filtro per tipo wallet.
  */
 
-type CreditType = "all" | "ai" | "email" | "whatsapp" | "render";
+type CreditType = "all" | "ai" | "email" | "whatsapp" | "render" | "sms";
 
 interface UnifiedRow {
   id: string;
-  credit_type: "ai" | "email" | "whatsapp" | "render";
+  credit_type: "ai" | "email" | "whatsapp" | "render" | "sms";
   company_id: string;
   direction: "in" | "out";
   amount: number;
@@ -62,6 +62,7 @@ const TYPE_LABELS: Record<CreditType, string> = {
   email: "Email",
   whatsapp: "WhatsApp",
   render: "Render AI",
+  sms: "SMS",
 };
 
 const TYPE_BADGE: Record<UnifiedRow["credit_type"], string> = {
@@ -69,6 +70,7 @@ const TYPE_BADGE: Record<UnifiedRow["credit_type"], string> = {
   email:    "bg-blue-100 text-blue-700 border-blue-200",
   whatsapp: "bg-emerald-100 text-emerald-700 border-emerald-200",
   render:   "bg-amber-100 text-amber-700 border-amber-200",
+  sms:      "bg-sky-100 text-sky-700 border-sky-200",
 };
 
 interface Props {
@@ -121,9 +123,9 @@ function useKPIs(companyId: string, type: CreditType, dateRange: DateRange,
       let totalOut = 0;
       let countIn = 0;
       let countOut = 0;
-      // Render è "integer" quindi non sommiamo render dentro EUR
+      // Render e SMS sono wallet a UNITÀ (non EUR): esclusi dalla somma in euro
       for (const row of (data ?? []) as Array<Pick<UnifiedRow, "direction" | "amount" | "credit_type">>) {
-        if (row.credit_type === "render") continue; // render escluso dalla somma EUR
+        if (row.credit_type === "render" || row.credit_type === "sms") continue;
         if (row.direction === "in") {
           totalIn += row.amount;
           countIn++;
@@ -463,7 +465,8 @@ export function CreditTransactionsTable({ companyId }: Props) {
                 <TableBody>
                   {rows.map((row) => {
                     const isOut = row.direction === "out";
-                    const isIntegerWallet = row.credit_type === "render";
+                    // Render e SMS = wallet a unità intere, non euro
+                    const isIntegerWallet = row.credit_type === "render" || row.credit_type === "sms";
                     const amountLabel = isIntegerWallet
                       ? `${isOut ? "-" : "+"}${row.amount}`
                       : `${isOut ? "-" : "+"}${formatCurrency(row.amount)}`;

@@ -58,6 +58,29 @@ export function EmailDeliverabilityDashboard() {
     [query.data],
   );
 
+  // Risolve gli UUID delle top companies in nomi leggibili. Query dipendente:
+  // parte solo quando l'aggregazione ha prodotto id (max 10, lookup leggero).
+  const topCompanyIds = useMemo(
+    () => buckets.topCompanies.map((c) => c.id).filter((id) => id && id !== "unknown"),
+    [buckets.topCompanies],
+  );
+  const companyNamesQuery = useQuery({
+    queryKey: ["admin-email-deliverability-company-names", topCompanyIds],
+    enabled: topCompanyIds.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name")
+        .in("id", topCompanyIds);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of data ?? []) map[row.id] = row.name;
+      return map;
+    },
+  });
+  const companyNames = companyNamesQuery.data ?? {};
+
   if (query.isLoading) {
     return (
       <div className="space-y-4">
@@ -164,8 +187,11 @@ export function EmailDeliverabilityDashboard() {
         </CardHeader>
         <CardContent>
           <BreakdownTable
-            labelHeader="Company ID"
-            rows={buckets.topCompanies.map((c) => ({ label: c.id, ...c }))}
+            labelHeader="Azienda"
+            rows={buckets.topCompanies.map((c) => ({
+              label: companyNames[c.id] ?? c.id,
+              ...c,
+            }))}
           />
         </CardContent>
       </Card>
