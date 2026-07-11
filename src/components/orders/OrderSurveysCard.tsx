@@ -43,16 +43,16 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ClipboardCheck className="h-4 w-4 text-orange-500" />
-          Rilievi e sopralluoghi
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg min-w-0">
+          <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-500" />
+          <span className="truncate">Rilievi e sopralluoghi</span>
           {surveys && surveys.length > 0 && (
-            <span className="text-xs font-normal text-muted-foreground">({surveys.length})</span>
+            <span className="text-xs font-normal text-muted-foreground shrink-0">({surveys.length})</span>
           )}
         </CardTitle>
         <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={goNew}>
-          <Plus className="h-4 w-4 mr-1" />
-          Nuovo sopralluogo
+          <Plus className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">Nuovo sopralluogo</span>
         </Button>
       </CardHeader>
       <CardContent>

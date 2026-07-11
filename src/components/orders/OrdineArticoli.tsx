@@ -67,7 +67,7 @@ export function OrdineArticoli({
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Package className="h-4 w-4 text-orange-500" />
             Articoli
           </CardTitle>

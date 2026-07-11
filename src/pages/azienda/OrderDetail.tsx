@@ -1191,7 +1191,11 @@ function OrderDetailInner() {
           della persona. Strip sottile per decisione rapida, coerente con quella di
           Silvio. ── */}
       {permissions.canViewOrders && (
-        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
+        // Quando NON c'è una prossima task, su mobile nascondiamo l'intera
+        // strip (i CTA "Applica processo / Attività / Gestisci" erano solo
+        // rumore: le attività si gestiscono dalla sezione dedicata più sotto).
+        // Se c'è una task, il promemoria resta utile anche su mobile.
+        <div className={cn("bg-white border-b border-gray-100 px-3 sm:px-6 py-2", !prossimaTask && "hidden sm:block")}>
           <div className="flex items-center gap-2 flex-wrap text-sm">
             <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Attività</span>

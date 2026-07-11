@@ -131,7 +131,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
       className={`relative transition-colors ${isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
     >
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <Paperclip className="h-5 w-5" />
           Documenti Commessa
         </CardTitle>

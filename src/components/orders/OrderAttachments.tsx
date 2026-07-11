@@ -349,7 +349,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Paperclip className="h-5 w-5" />
             Documenti Commessa
           </CardTitle>
@@ -374,7 +374,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       className={`relative transition-colors ${editable && isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-        <CardTitle className="flex items-center gap-2 min-w-0">
+        <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
           <span className="truncate">Documenti Commessa</span>
         </CardTitle>

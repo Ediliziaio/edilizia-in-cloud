@@ -228,7 +228,14 @@ export function OrderQuickActions({
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuContent
+            align="start"
+            // collisionPadding: lascia respiro dalla bottom-nav mobile;
+            // max-h + overflow: se le azioni non entrano, il menu scrolla
+            // (prima le ultime finivano sotto la barra e non erano raggiungibili).
+            collisionPadding={16}
+            className="w-60 max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain"
+          >
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Comunica col cliente
             </DropdownMenuLabel>
