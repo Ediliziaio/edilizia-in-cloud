@@ -875,14 +875,22 @@ function StepEditor({
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Canale</Label>
-          <Select value={channel} onValueChange={setChannel}>
+          {/* Editor lineare = solo Email. Gli step WhatsApp/SMS richiedono il
+              modello a GRAFO (node_type + collegamenti): creati qui verrebbero
+              salvati con channel ma node_type 'email' e il dispatcher li
+              salterebbe in silenzio. Il multicanale si costruisce dal Builder
+              visuale (bottone in alto nella sequenza). */}
+          <Select value="email" disabled>
             <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="whatsapp">WhatsApp</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="email">Email</SelectItem></SelectContent>
           </Select>
         </div>
         <DelayStepper label="Giorni" value={delayDays} onChange={setDelayDays} onBump={(d) => bumpDelay("days", d)} max={365} />
         <DelayStepper label="Ore" value={delayHours} onChange={setDelayHours} onBump={(d) => bumpDelay("hours", d)} max={23} />
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        Per step <strong>WhatsApp</strong> o <strong>SMS</strong> usa il <strong>Builder visuale</strong> della sequenza.
+      </p>
 
       {channel === "email" && (
         <div className="space-y-1">

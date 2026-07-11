@@ -43262,7 +43262,7 @@ export type Database = {
           notes: string | null
           role_variant: string | null
           subject: string
-          template_id: string
+          template_id: string | null
           template_key: string
           text_body: string | null
           version: number
@@ -43278,7 +43278,7 @@ export type Database = {
           notes?: string | null
           role_variant?: string | null
           subject: string
-          template_id: string
+          template_id?: string | null
           template_key: string
           text_body?: string | null
           version: number
@@ -43294,7 +43294,7 @@ export type Database = {
           notes?: string | null
           role_variant?: string | null
           subject?: string
-          template_id?: string
+          template_id?: string | null
           template_key?: string
           text_body?: string | null
           version?: number
@@ -74163,12 +74163,12 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           version: number
-        }[]
+        }
         SetofOptions: {
           from: "*"
           to: "platform_email_templates"
-          isOneToOne: false
-          isSetofReturn: true
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       restore_record: { Args: { p_id: string; p_table: string }; Returns: Json }

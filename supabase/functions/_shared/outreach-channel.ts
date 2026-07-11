@@ -15,32 +15,34 @@
  *   • Rispettano l'opt-out PER-CANALE del contatto (optout_sms / optout_whatsapp).
  */
 
-export type OutreachChannel = "email" | "whatsapp" | "sms";
+export type OutreachChannel = "email" | "whatsapp" | "sms" | "call";
 
-/** node_type dei nodi inarguabilmente "di invio" (accodano/spediscono un messaggio). */
-export type SendNodeType = "email" | "whatsapp" | "sms";
+/** node_type dei nodi inarguabilmente "di invio/azione" (accodano un'azione). */
+export type SendNodeType = "email" | "whatsapp" | "sms" | "call";
 
-/** Tutti i node_type del grafo (allineato a outreach-flow.NodeType + i due canali msg). */
-export type AnyNodeType = "email" | "wait" | "condition" | "end" | "whatsapp" | "sms";
+/** Tutti i node_type del grafo (allineato a outreach-flow.NodeType + canali msg/call). */
+export type AnyNodeType = "email" | "wait" | "condition" | "end" | "whatsapp" | "sms" | "call";
 
-/** Canale d'invio per un node_type. I tipi non-invianti (wait/condition/end) → null. */
+/** Canale d'invio/azione per un node_type. I tipi non-azione (wait/condition/end) → null. */
 export function channelForNodeType(t: AnyNodeType | null | undefined): OutreachChannel | null {
   switch (t) {
     case "whatsapp":
       return "whatsapp";
     case "sms":
       return "sms";
+    case "call":
+      return "call";
     case "email":
       return "email";
     default:
-      // wait / condition / end / sconosciuto: non sono nodi d'invio.
+      // wait / condition / end / sconosciuto: non sono nodi d'azione.
       return null;
   }
 }
 
-/** True se il node_type è un nodo messaggio NON-email (whatsapp/sms). */
+/** True se il node_type è un nodo che usa il TELEFONO (whatsapp/sms/call). */
 export function isMessageChannelNode(t: AnyNodeType | null | undefined): boolean {
-  return t === "whatsapp" || t === "sms";
+  return t === "whatsapp" || t === "sms" || t === "call";
 }
 
 /** Campi opt-out per-canale di un contatto marketing (solo quelli che servono qui). */
@@ -48,6 +50,7 @@ export interface ContactOptouts {
   optout_email?: boolean | null;
   optout_sms?: boolean | null;
   optout_whatsapp?: boolean | null;
+  optout_call?: boolean | null;
 }
 
 /**
@@ -64,6 +67,8 @@ export function isOptedOut(channel: OutreachChannel, c: ContactOptouts | null | 
       return c.optout_sms === true;
     case "whatsapp":
       return c.optout_whatsapp === true;
+    case "call":
+      return c.optout_call === true;
   }
 }
 

@@ -102,7 +102,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
                 />
                 {/* Chat badge */}
                 {item.label === "Chat" && unreadCount > 0 && (
-                  <span className="absolute top-1 right-1/2 translate-x-4 h-4 min-w-[16px] px-1 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[9px] font-bold leading-none">
+                  <span className="absolute top-1 right-1/2 translate-x-4 h-4 min-w-[16px] px-1 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[10px] font-bold leading-none">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}

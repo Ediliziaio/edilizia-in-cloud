@@ -12,15 +12,15 @@
 
 import type { Node, Edge } from "@xyflow/react";
 
-export type OutreachNodeType = "email" | "whatsapp" | "sms" | "wait" | "condition" | "end";
+export type OutreachNodeType = "email" | "whatsapp" | "sms" | "call" | "wait" | "condition" | "end";
 export type OutreachConditionType = "opened" | "not_opened" | "replied" | "not_replied";
 
-/** Canale d'invio per i node_type INVIANTI (email/whatsapp/sms). I non-invianti → null. */
-export function channelOfNodeType(t: OutreachNodeType): "email" | "whatsapp" | "sms" | null {
-  return t === "email" || t === "whatsapp" || t === "sms" ? t : null;
+/** Canale d'azione per i node_type azionabili (email/whatsapp/sms/call). Altri → null. */
+export function channelOfNodeType(t: OutreachNodeType): "email" | "whatsapp" | "sms" | "call" | null {
+  return t === "email" || t === "whatsapp" || t === "sms" || t === "call" ? t : null;
 }
 
-/** True se il node_type è un nodo d'invio (email/whatsapp/sms). */
+/** True se il node_type è un nodo azionabile (email/whatsapp/sms/call). */
 export function isSendNodeType(t: OutreachNodeType): boolean {
   return channelOfNodeType(t) !== null;
 }
@@ -327,7 +327,7 @@ export function validateFlow(nodes: Node<FlowNodeData>[], edges: Edge[]): Valida
   // Serve almeno un nodo d'INVIO (email/whatsapp/sms); altrimenti nulla viene spedito.
   const hasSend = nodes.some((n) => isSendNodeType((n.type ?? "email") as OutreachNodeType));
   if (!hasSend) {
-    issues.push({ level: "warning", message: "Il flusso non ha nessun nodo messaggio (Email, WhatsApp o SMS): nessun messaggio verrà inviato." });
+    issues.push({ level: "warning", message: "Il flusso non ha nessun nodo azione (Email, WhatsApp, SMS o Chiamata): non succederà nulla." });
   }
 
   // Raggiungibilità dall'entry (nodi senza edge in ingresso). Se il grafo è
@@ -444,9 +444,9 @@ export function aiFlowToReactFlow(
             delay_days: Math.max(0, Math.trunc(Number(n.delay_days) || 0)),
             delay_hours: Math.max(0, Math.trunc(Number(n.delay_hours) || 0)),
           }
-        : type === "whatsapp" || type === "sms"
+        : type === "whatsapp" || type === "sms" || type === "call"
         ? {
-            // nodi messaggio non-email: solo corpo + ritardo (niente oggetto).
+            // nodi non-email (messaggio o chiamata): solo corpo + ritardo (niente oggetto).
             body: n.body ?? "",
             delay_days: Math.max(0, Math.trunc(Number(n.delay_days) || 0)),
             delay_hours: Math.max(0, Math.trunc(Number(n.delay_hours) || 0)),

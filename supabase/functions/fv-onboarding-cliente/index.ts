@@ -127,24 +127,23 @@ Deno.serve(async (req: Request) => {
       return errorResponse(errore, 400, corsHeaders);
     }
 
-    // Company effettiva. BUGFIX multi-azienda: un utente con più aziende
-    // (multi_company_access) che cambia tenant col company-switcher del frontend
-    // NON crea una riga active_impersonations, quindi resolveEffectiveCompanyId
-    // tornava la sua company PRIMARIA. Il progetto veniva creato sotto l'azienda
-    // sbagliata e il salvataggio consumi (useAggiornaProgetto, filtrato per la
-    // company effettiva del frontend) falliva con "Progetto non trovato o non
-    // modificabile". Ora il frontend passa company_id nel body: se presente e
-    // accessibile all'utente (canAccessCompany copre multi-company + super_admin)
-    // lo usiamo; altrimenti fallback alla logica precedente.
+    // Company effettiva: gestisce "Visualizza come" / impersonation super-admin
+    // (active_impersonations) con fallback a profiles.company_id. Prima si leggeva
+    // direttamente profiles.company_id → sotto impersonation tornava "no company_id".
+    // BUGFIX multi-azienda: un utente con più aziende (multi_company_access) che
+    // cambia tenant col company-switcher del frontend NON crea una riga
+    // active_impersonations, quindi resolveEffectiveCompanyId tornava la sua
+    // company PRIMARIA. Il progetto veniva creato sotto l'azienda sbagliata e il
+    // salvataggio consumi (useAggiornaProgetto, filtrato per la company effettiva
+    // del frontend) falliva con "Progetto non trovato o non modificabile". Ora il
+    // frontend passa company_id nel body: se presente e accessibile all'utente
+    // (canAccessCompany copre multi-company + super_admin) lo usiamo.
     const bodyCompanyId = typeof (payload as { company_id?: unknown }).company_id === "string"
       ? (payload as { company_id: string }).company_id
       : null;
-    let company_id: string | null = null;
-    if (bodyCompanyId && await canAccessCompany(supabaseAdmin, userId, bodyCompanyId)) {
-      company_id = bodyCompanyId;
-    } else {
-      company_id = await resolveEffectiveCompanyId(supabaseAdmin, userId);
-    }
+    const company_id = (bodyCompanyId && await canAccessCompany(supabaseAdmin, userId, bodyCompanyId))
+      ? bodyCompanyId
+      : await resolveEffectiveCompanyId(supabaseAdmin, userId);
     if (!company_id) {
       await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payload, 403, "no company_id", Date.now() - startTime);
       return errorResponse("Company non identificata", 403, corsHeaders);

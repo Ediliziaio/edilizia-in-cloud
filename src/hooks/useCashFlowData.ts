@@ -30,12 +30,14 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const startDate = new Date().toISOString().slice(0, 10);
-  const endDate = addMonthsJs(new Date(), monthsAhead).toISOString().slice(0, 10);
-  const costDateFrom = subMonthsJs(new Date(), 3).toISOString().slice(0, 10);
+  // Date LOCALI (en-CA = YYYY-MM-DD in fuso locale). Con toISOString() vicino a
+  // mezzanotte il confine finestra slittava di un giorno (UTC vs Europe/Rome).
+  const startDate = new Date().toLocaleDateString("en-CA");
+  const endDate = addMonthsJs(new Date(), monthsAhead).toLocaleDateString("en-CA");
+  const costDateFrom = subMonthsJs(new Date(), 3).toLocaleDateString("en-CA");
 
   // Query installments (rate dinamiche da order_installments con join su orders)
-  const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
+  const { data: installmentsData = [], isLoading: loadingOrders, isError: errOrders } = useQuery({
     queryKey: queryKeys.cashflow.installments(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -57,7 +59,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Query squadre esterne non pagate
-  const { data: externalTeamPayments = [], isLoading: loadingTeams } = useQuery({
+  const { data: externalTeamPayments = [], isLoading: loadingTeams, isError: errTeams } = useQuery({
     queryKey: queryKeys.cashflow.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -79,7 +81,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Query provvigioni non pagate
-  const { data: unpaidCommissions = [], isLoading: loadingCommissions } = useQuery({
+  const { data: unpaidCommissions = [], isLoading: loadingCommissions, isError: errCommissions } = useQuery({
     queryKey: queryKeys.cashflow.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -101,7 +103,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Query articoli da ordinare/ordinati
-  const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
+  const { data: pendingItems = [], isLoading: loadingItems, isError: errItems } = useQuery({
     queryKey: queryKeys.cashflow.pendingItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -124,7 +126,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Query supplier payment tracking (installments from order_items)
-  const { data: supplierBalances = [], isLoading: loadingSupplierBalances } = useQuery({
+  const { data: supplierBalances = [], isLoading: loadingSupplierBalances, isError: errSupplierBalances } = useQuery({
     queryKey: queryKeys.cashflow.supplierBalances(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -150,7 +152,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Query costi aziendali non pagati
-  const { data: companyCosts = [], isLoading: loadingCosts } = useQuery({
+  const { data: companyCosts = [], isLoading: loadingCosts, isError: errCosts } = useQuery({
     queryKey: queryKeys.cashflow.companyCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -269,7 +271,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, gross_salary, net_salary, role_type, is_active")
+        .select("id, first_name, last_name, gross_salary, net_salary, role_type, is_active, created_at")
         .eq("company_id", companyId!)
         .eq("is_active", true);
       if (error) throw error;
@@ -298,7 +300,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Open scadenze (da_pagare, parziale) for forecast integration
-  const { data: openScadenze = [], isLoading: loadingScadenze } = useQuery({
+  const { data: openScadenze = [], isLoading: loadingScadenze, isError: errScadenze } = useQuery({
     queryKey: queryKeys.cashflow.scadenze(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -318,7 +320,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   // Aggregated cashflow summary via RPC (replaces heavy client-side stats + prima nota)
-  const { data: cashflowSummary, isLoading: loadingSummary } = useQuery({
+  const { data: cashflowSummary, isLoading: loadingSummary, isError: errSummary } = useQuery({
     queryKey: queryKeys.cashflow.summary(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_cashflow_summary", {
@@ -341,6 +343,11 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   });
 
   const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSummary;
+
+  // Errore sui dati CORE (quelli che alimentano tab e KPI sempre visibili).
+  // Prima la pagina non aveva alcuno stato d'errore per questi: se una query
+  // falliva, restava un previsionale vuoto silenzioso.
+  const isError = errOrders || errTeams || errCommissions || errItems || errSupplierBalances || errCosts || errScadenze || errSummary;
 
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
@@ -572,12 +579,16 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
 
   // Le query sorgente hanno .limit(1000): se una torna esattamente 1000
   // righe la proiezione potrebbe essere PARZIALE — la pagina mostra un avviso.
-  const dataTruncated = [installmentsData, externalTeamPayments, openScadenze].some(
-    (arr) => Array.isArray(arr) && arr.length >= 1000,
-  );
+  // Copre TUTTE le fonti previsionali (prima solo 3), altrimenti con >1000
+  // righe di commissioni/articoli/costi la proiezione era parziale in silenzio.
+  const dataTruncated = [
+    installmentsData, externalTeamPayments, unpaidCommissions,
+    pendingItems, supplierBalances, companyCosts, openScadenze,
+  ].some((arr) => Array.isArray(arr) && arr.length >= 1000);
 
   return {
     isLoading,
+    isError,
     dataTruncated,
     orders,
     expectedPayments,

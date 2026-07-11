@@ -190,6 +190,11 @@ const BLOG_POST_META = {
   "quanto-costa-gestionale-impresa-edile": { title: "Quanto costa un gestionale per impresa edile? Prezzi reali 2026 | Blog Edilizia in Cloud", description: "Dai 200-500€/mese degli ERP alle licenze una tantum dei software desktop, fino ai gestionali cloud verticali: tutti i range di prezzo 2026, i costi nascosti e come calcolare il ritorno reale.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80" },
   "patente-a-crediti-edilizia-guida": { title: "Patente a crediti in edilizia: come funziona, punteggi e sanzioni | Blog Edilizia in Cloud", description: "Obbligatoria dal 1° ottobre 2024 per chi opera nei cantieri: come si ottiene la patente a crediti, come si perdono e si recuperano i punti, chi è esonerato e cosa rischia chi lavora sotto soglia.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1600&q=80" },
   "durc-congruita-manodopera-soglie": { title: "DURC di congruità: soglie di manodopera e come evitare lo scarto | Blog Edilizia in Cloud", description: "Per i lavori pubblici e i privati sopra 70.000€ l'incidenza della manodopera deve rispettare le soglie del DM 143/2021. Come funziona la verifica CNCE, le percentuali per categoria e come monitorarle in corso d'opera.", publishedAt: "2026-06-11", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80" },
+      "cila-scia-permesso-di-costruire-differenze": { title: "CILA, SCIA o Permesso di Costruire: le Differenze | Blog Edilizia in Cloud", description: "Quale titolo abilitativo serve per il tuo cantiere? Differenze tra CILA, SCIA e permesso di costruire: quando si usano, costi, tempi e sanzioni.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80" },
+      "contabilita-di-cantiere-guida": { title: "Contabilità di Cantiere: la Guida Completa 2026 | Blog Edilizia in Cloud", description: "Come funziona la contabilità di cantiere: libretto misure, SAL, contabilità industriale per commessa e strumenti per controllare i costi in tempo reale.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80" },
+      "ritenuta-di-garanzia-appalti-come-funziona": { title: "Ritenuta di Garanzia negli Appalti: Come Funziona | Blog Edilizia in Cloud", description: "Ritenute di garanzia negli appalti pubblici e privati: percentuali, quando si applicano, come si svincolano e come tracciarle per non perdere soldi.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80" },
+      "report-avanzamento-cantiere-guida": { title: "Report Avanzamento Cantiere: Cosa Deve Contenere | Blog Edilizia in Cloud", description: "Come fare un report di avanzamento cantiere utile: i dati da includere, la frequenza giusta e come produrlo in automatico dai rapportini di campo.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80" },
+      "nota-di-credito-edilizia-quando-come": { title: "Nota di Credito in Edilizia: Quando e Come Emetterla | Blog Edilizia in Cloud", description: "Nota di credito nei lavori edili: quando emetterla, come funziona con SAL, acconti e reverse charge, tempi per il recupero IVA ed errori da evitare.", publishedAt: "2026-07-10", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80" },
 };
 
 // slug → categoria (pagine /blog/categoria/* + related links nei post)
@@ -255,6 +260,11 @@ const BLOG_POST_CATEGORY = {
   "quanto-costa-gestionale-impresa-edile": "finanza-edilizia",
   "patente-a-crediti-edilizia-guida": "normativa-edilizia",
   "durc-congruita-manodopera-soglie": "normativa-edilizia",
+  "cila-scia-permesso-di-costruire-differenze": "normativa-edilizia",
+  "contabilita-di-cantiere-guida": "finanza-edilizia",
+  "ritenuta-di-garanzia-appalti-come-funziona": "finanza-edilizia",
+  "report-avanzamento-cantiere-guida": "gestione-cantieri",
+  "nota-di-credito-edilizia-quando-come": "finanza-edilizia",
 };
 
 // Tutti i post ordinati per data di pubblicazione (desc), come link interni.

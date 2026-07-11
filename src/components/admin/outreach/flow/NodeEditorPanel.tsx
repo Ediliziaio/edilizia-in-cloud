@@ -1,14 +1,18 @@
 import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Trash2, X, Split, Info, FileText, RefreshCw } from "lucide-react";
+import { Mail, MessageCircle, Smartphone, Phone, Clock, GitBranch, Flag, Trash2, X, Split, Info, FileText, RefreshCw, Copy, Zap, Eye } from "lucide-react";
 import type { Node } from "@xyflow/react";
+import { supabase } from "@/integrations/supabase/client";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import type { FlowNodeData, OutreachConditionType, TemplateParams } from "./graph";
 import { parseVariants } from "../../../../../supabase/functions/_shared/outreach-abz";
+import { renderTemplate, contactToVars, hashSeed } from "../../../../../supabase/functions/_shared/outreach-template";
 import { useWAMetaTemplates, useSyncMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 
 /**
@@ -68,9 +72,26 @@ type Props = {
   onChange: (data: Partial<FlowNodeData>) => void;
   onDelete: () => void;
   onClose: () => void;
+  /** Duplica il nodo corrente (stesso contenuto, nuovo id accanto). */
+  onDuplicate?: () => void;
 };
 
-export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose }: Props) {
+/** Contatto d'anteprima per la personalizzazione live del nodo. */
+interface PreviewContact {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  company_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+const PREVIEW_FALLBACK: PreviewContact = {
+  id: "", first_name: "Mario", last_name: "Rossi",
+  company_name: "Rossi Costruzioni", email: "mario@rossi.it", phone: "3931234567",
+};
+
+export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose, onDuplicate }: Props) {
   const data = (node.data ?? {}) as FlowNodeData;
   const type = node.type as string;
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -81,6 +102,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
     email: { icon: Mail, title: "Email", color: "text-orange-600" },
     whatsapp: { icon: MessageCircle, title: "WhatsApp", color: "text-emerald-600" },
     sms: { icon: Smartphone, title: "SMS", color: "text-sky-600" },
+    call: { icon: Phone, title: "Chiamata", color: "text-indigo-600" },
     wait: { icon: Clock, title: "Attesa", color: "text-purple-600" },
     condition: { icon: GitBranch, title: "Condizione", color: "text-amber-600" },
     end: { icon: Flag, title: "Fine", color: "text-muted-foreground" },
@@ -89,7 +111,10 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
   const Icon = m.icon;
   // Nodi messaggio non-email: solo corpo (niente oggetto, niente A/Z, niente tracking).
   const isMessageChannel = type === "whatsapp" || type === "sms";
-  const isSendNode = type === "email" || isMessageChannel;
+  // Chiamata: non invia, crea un task per il commerciale. Ha un corpo (script) ma
+  // non è un canale-messaggio (niente template/finestra 24h).
+  const isCall = type === "call";
+  const isSendNode = type === "email" || isMessageChannel || isCall;
 
   function insertChip(chip: string) {
     if (!isSendNode) return;
@@ -120,6 +145,35 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
 
   const bodyVariants = parseVariants(data.body ?? "");
 
+  // ── Anteprima personalizzata live su un contatto REALE ────────────────────
+  // Stesso motore degli invii (renderTemplate + seed per-contatto): quello che
+  // vedi qui è quello che il destinatario riceverebbe. "Cambia contatto" ruota
+  // tra i contatti recenti per controllare variabili/fallback su dati veri.
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const previewContacts = useQuery({
+    queryKey: ["flow-preview-contacts"],
+    staleTime: 5 * 60_000,
+    enabled: isSendNode,
+    queryFn: async (): Promise<PreviewContact[]> => {
+      const { data: rows, error } = await supabase
+        .from("marketing_contacts")
+        .select("id,first_name,last_name,company_name,email,phone")
+        .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+        .order("last_activity_at", { ascending: false, nullsFirst: false })
+        .limit(20);
+      if (error) return [];
+      return (rows ?? []) as PreviewContact[];
+    },
+  });
+  const pcList = previewContacts.data ?? [];
+  const previewContact = pcList.length > 0 ? pcList[previewIdx % pcList.length] : PREVIEW_FALLBACK;
+  const previewVars = contactToVars(previewContact);
+  const previewSeed = hashSeed(previewContact.email || previewContact.id || "seed");
+  // Email con varianti A/Z: anteprima sulla variante A (la rotazione è del dispatcher).
+  const previewBodyRaw = bodyVariants.length > 1 ? bodyVariants[0] : (data.body ?? "");
+  const previewBody = renderTemplate(previewBodyRaw, previewVars, { seed: previewSeed });
+  const previewSubject = type === "email" ? renderTemplate(data.subject ?? "", previewVars, { seed: previewSeed }) : "";
+
   return (
     <div className="flex h-full w-[340px] shrink-0 flex-col border-l bg-background">
       <div className="flex items-center justify-between border-b px-3 py-2.5">
@@ -135,6 +189,13 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
           <p className="flex items-start gap-1.5 rounded-lg border bg-muted/30 p-2 text-[11px] text-muted-foreground">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Richiede il numero di telefono del contatto: chi non ha un numero (o ha l'opt-out {type === "whatsapp" ? "WhatsApp" : "SMS"}) viene saltato e la cadenza prosegue.
+          </p>
+        )}
+
+        {isCall && (
+          <p className="flex items-start gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 p-2 text-[11px] text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Non invia nulla: crea un <strong>promemoria di chiamata</strong> per il commerciale (nella lista task chiamate). Serve il numero del contatto; senza numero (o con opt-out chiamate) lo step è saltato e la cadenza prosegue.
           </p>
         )}
 
@@ -170,7 +231,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
             )}
             <div className="space-y-1">
               <Label className="text-xs">
-                {type === "email" ? "Corpo" : "Messaggio"}
+                {type === "email" ? "Corpo" : isCall ? "Script / promemoria" : "Messaggio"}
                 {type === "whatsapp" && data.template_name?.trim() && (
                   <span className="ml-1 font-normal text-[10px] text-muted-foreground">(testo libero, solo in finestra 24h)</span>
                 )}
@@ -181,7 +242,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
                 onFocus={() => setActiveField("body")}
                 onChange={(e) => onChange({ body: e.target.value })}
                 rows={8}
-                placeholder={"Ciao {{first_name}},\n…"}
+                placeholder={isCall ? "Cosa dire al telefono, note, obiettivo della chiamata…" : "Ciao {{first_name}},\n…"}
                 className="text-xs"
               />
             </div>
@@ -209,6 +270,38 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
                 </div>
               )}
             </div>
+
+            {/* Anteprima personalizzata: rendering VERO (stesso motore degli invii)
+                su un contatto reale della rubrica. */}
+            {(previewBody.trim() || previewSubject.trim()) && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Eye className="h-3 w-3" /> Anteprima per {previewContact.first_name} {previewContact.last_name ?? ""}
+                    {previewContact.company_name ? ` · ${previewContact.company_name}` : ""}
+                  </Label>
+                  {pcList.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewIdx((i) => i + 1)}
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10"
+                      title="Prova su un altro contatto reale"
+                    >
+                      <RefreshCw className="h-3 w-3" /> cambia contatto
+                    </button>
+                  )}
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-2 text-xs">
+                  {type === "email" && previewSubject.trim() && (
+                    <p className="mb-1 border-b border-border/60 pb-1 font-medium">{previewSubject}</p>
+                  )}
+                  <p className="line-clamp-6 whitespace-pre-wrap leading-relaxed">{previewBody}</p>
+                  {bodyVariants.length > 1 && (
+                    <p className="mt-1 text-[10px] italic text-muted-foreground">Variante A — il dispatcher ruota le {bodyVariants.length} varianti tra i destinatari.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -271,14 +364,29 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
                 <span className="block text-center text-[10px] text-muted-foreground">ore</span>
               </div>
             </div>
+            {/* Ritardo 0 su un nodo d'azione = parte INSIEME allo step precedente:
+                è così che si mandano più canali "contemporaneamente" (email+WhatsApp
+                +SMS in cascata immediata, orario umanizzato di qualche minuto). */}
+            {isSendNode && (data.delay_days ?? 0) === 0 && (data.delay_hours ?? 0) === 0 && (
+              <p className="flex items-start gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] p-2 text-[11px] text-muted-foreground">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                Ritardo zero: parte <strong>subito dopo lo step precedente</strong>. Concatena più nodi a ritardo zero per mandare
+                email, WhatsApp e SMS praticamente insieme (l'orario viene umanizzato di qualche minuto).
+              </p>
+            )}
           </div>
         )}
       </div>
 
       {type !== "end" && (
-        <div className="border-t p-3">
-          <Button size="sm" variant="outline" className="h-8 w-full gap-1 text-destructive hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" /> Elimina nodo
+        <div className="flex gap-2 border-t p-3">
+          {onDuplicate && (
+            <Button size="sm" variant="outline" className="h-8 flex-1 gap-1" onClick={onDuplicate} title="Crea una copia di questo nodo">
+              <Copy className="h-3.5 w-3.5" /> Duplica
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="h-8 flex-1 gap-1 text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" /> Elimina
           </Button>
         </div>
       )}

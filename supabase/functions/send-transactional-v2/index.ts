@@ -37,6 +37,7 @@ interface SendRequest {
   templateName: TemplateName;
   props: Record<string, unknown>;
   to: string | string[];
+  roleVariant?: string | null;
   unsubscribeUrl?: string | null;
   brandingOverride?: Record<string, unknown>;
   replyTo?: string;
@@ -172,6 +173,7 @@ Deno.serve(async (req) => {
           companyId,
           props: body.props as any,
           adminClient: admin,
+          roleVariant: typeof body.roleVariant === "string" ? body.roleVariant : null,
           brandingOverride: body.brandingOverride,
           unsubscribeUrl: body.unsubscribeUrl ?? null,
         }),

@@ -18,6 +18,8 @@ import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreac
 import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
+import { OutreachCallTasks } from "@/components/admin/outreach/OutreachCallTasks";
+import { OutreachRubricaCard } from "@/components/admin/outreach/OutreachRubricaCard";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
@@ -62,38 +64,6 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value, hint, tone = "default" }: {
-  icon: typeof Users; label: string; value: string; hint?: string;
-  tone?: "default" | "good" | "warn";
-}) {
-  const toneCls = tone === "good" ? "text-emerald-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
-  // chip icona con gradiente pieno (contrasto forte, look SaaS moderno)
-  const grad = tone === "good" ? "from-emerald-500 to-teal-400" : tone === "warn" ? "from-amber-500 to-orange-400" : "from-blue-500 to-indigo-500";
-  // hint come chip pill tonale, non testo grigio piatto
-  const hintChip = tone === "good"
-    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400"
-    : tone === "warn"
-      ? "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400"
-      : "bg-muted text-muted-foreground";
-  return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-xl hover:shadow-slate-900/[0.08]">
-      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${grad}`} />
-      <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${grad} opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20`} />
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${grad} text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3`}>
-          <Icon className="h-4 w-4" />
-        </span>
-      </div>
-      <div className={`mt-2 text-2xl font-bold leading-tight tabular-nums ${toneCls}`}>{value}</div>
-      {hint && (
-        <span className={`mt-1.5 inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${hintChip}`}>
-          {hint}
-        </span>
-      )}
-    </div>
-  );
-}
 
 function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Mail; label: string; desc: string }) {
   return (
@@ -143,33 +113,9 @@ function OutreachCockpit() {
     queryFn: () => safeCount(supabase.from("marketing_contacts").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
     staleTime: 60_000,
   });
-  // email_suppressions HA company_id: senza filtro il KPI mostrava il totale
-  // GLOBALE della piattaforma accanto a contatori per-azienda (numeri di
-  // insiemi diversi affiancati = confronto fuorviante).
-  const suppressed = useQuery({
-    queryKey: ["outreach-count", "suppressed", companyId],
-    queryFn: () => safeCount(supabase.from("email_suppressions").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
-    staleTime: 60_000,
-  });
-  const campaigns = useQuery({
-    queryKey: ["outreach-count", "campaigns"],
-    queryFn: () => safeCount(supabase.from("crm_campaigns").select("*", { count: "exact", head: true })),
-    staleTime: 60_000,
-  });
-  // Contattabili = contatti della company NON in opt-out. Corretto per costruzione:
-  // prima si faceva contatti − soppressioni GLOBALI (insiemi non confrontabili) →
-  // numero sbagliato mascherato dal Math.max(0, …).
-  const contactable = useQuery({
-    queryKey: ["outreach-count", "contactable", companyId],
-    queryFn: () =>
-      safeCount(
-        supabase.from("marketing_contacts").select("*", { count: "exact", head: true })
-          .eq("company_id", companyId).eq("optout_email", false),
-      ),
-    staleTime: 60_000,
-  });
+  // I contatori di rubrica (contattabili/soppressi/campagne) vivono ora dentro
+  // OutreachRubricaCard con le STESSE queryKey → cache condivisa, zero doppioni.
 
-  const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString("it-IT"));
 
   const tabs = [
     { value: "oggi", icon: Flame, label: "Oggi" },
@@ -237,12 +183,10 @@ function OutreachCockpit() {
 
             <Reveal className="space-y-3" delay={0.12}>
               <SectionLabel>Rubrica &amp; deliverability</SectionLabel>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
-                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="esclusi gli opt-out email" tone="good" />
-                <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
-                <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
-              </div>
+              {/* Mini-dashboard interattiva (analytics-dashboard): anello =
+                  % contattabile, tab Panoramica/Liste/Insight sui numeri veri.
+                  Sostituisce la griglia di 4 KPI statici. */}
+              <OutreachRubricaCard companyId={companyId} />
             </Reveal>
 
             <Reveal className="space-y-3" delay={0.18}>
@@ -273,19 +217,31 @@ function OutreachCockpit() {
             contatti" (import + scraper/CRM) compatto, infine strumenti
             secondari (playground AI, conformità) sotto una loro sezione. */}
         <TabsContent value="lead" className="mt-4 space-y-6">
-          <Reveal className="space-y-3">
-            <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
-            <OutreachLists companyId={companyId} />
-          </Reveal>
+          {/* Layout denso stile Instantly: liste protagoniste a sinistra,
+              operatività (chiamate da fare, import, scorciatoie) a destra.
+              Sotto xl le sezioni tornano impilate nello stesso ordine. */}
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <Reveal className="space-y-3">
+              <SectionLabel>Le tue liste — arruola in una sequenza</SectionLabel>
+              <OutreachLists companyId={companyId} />
+            </Reveal>
 
-          <Reveal className="space-y-3" delay={0.06}>
-            <SectionLabel>Aggiungi contatti</SectionLabel>
-            <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
-              <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
+            <div className="space-y-6">
+              <Reveal className="space-y-3" delay={0.03}>
+                <SectionLabel>Chiamate da fare</SectionLabel>
+                <OutreachCallTasks companyId={companyId} />
+              </Reveal>
+
+              <Reveal className="space-y-3" delay={0.06}>
+                <SectionLabel>Aggiungi contatti</SectionLabel>
+                <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+                <div className="grid gap-3">
+                  <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
+                  <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
+                </div>
+              </Reveal>
             </div>
-          </Reveal>
+          </div>
 
           <Reveal className="space-y-3" delay={0.12}>
             <SectionLabel>Strumenti &amp; conformità</SectionLabel>

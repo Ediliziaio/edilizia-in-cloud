@@ -690,12 +690,6 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                 <SidebarMenuButton asChild tooltip={`${item.title}${tooltipExtra}`}>
                   <NavLink
                     to={itemUrl}
-                    // Match ESATTO per gli hub che hanno sotto-route proprie:
-                    // con end=false su "/azienda/marketing" (smart-path del
-                    // Cruscotto per gli utenti marketing) la voce Cruscotto si
-                    // illuminava su QUALSIASI pagina marketing (wizard FV,
-                    // contatti, preventivi…). Stessa regola del match esatto
-                    // già usata da MacroAreaCollapsible.isActive.
                     end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"

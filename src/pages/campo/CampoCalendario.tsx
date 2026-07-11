@@ -788,7 +788,7 @@ function SummaryTile({
         <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
         <span className="text-lg font-black tabular-nums leading-none md:text-xl">{value}</span>
       </div>
-      <p className="truncate text-[9px] font-bold uppercase tracking-wide opacity-80 md:text-[11px]">{label}</p>
+      <p className="truncate text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</p>
     </div>
   );
 }

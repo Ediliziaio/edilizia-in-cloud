@@ -1172,9 +1172,7 @@ export default function MarketingCalendar() {
           Lavori operativo per consistenza. Mostra metriche del periodo che
           l'utente sta filtrando, NON dell'intera azienda. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        {/* "Visibili" e "Settimana": solo numeri (già scritti nell'header) →
-            nascosti su mobile; restano Oggi/Da assegnare/Conflitti (cliccabili). */}
-        <div className="hidden md:block rounded-lg border bg-card px-3 py-2">
+        <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Visibili</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.visible}</p>
         </div>
@@ -1187,7 +1185,7 @@ export default function MarketingCalendar() {
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggi</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.todayCount}</p>
         </button>
-        <div className="hidden md:block rounded-lg border bg-card px-3 py-2">
+        <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Settimana</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.weekCount}</p>
         </div>

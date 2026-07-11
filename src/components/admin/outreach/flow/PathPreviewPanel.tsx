@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mail, MessageCircle, Smartphone, X, Route, AlertTriangle, Flag, CheckCircle2 } from "lucide-react";
+import { Mail, MessageCircle, Smartphone, Phone, X, Route, AlertTriangle, Flag, CheckCircle2 } from "lucide-react";
 import type { PreviewActivity, PreviewChannel, PreviewResult } from "./preview";
 import { htmlToPreviewText } from "../_shared";
 
@@ -17,6 +17,7 @@ const CHANNEL_META: Record<PreviewChannel, { Icon: typeof Mail; color: string; l
   email: { Icon: Mail, color: "text-orange-500", label: "Email" },
   whatsapp: { Icon: MessageCircle, color: "text-emerald-500", label: "WhatsApp" },
   sms: { Icon: Smartphone, color: "text-sky-500", label: "SMS" },
+  call: { Icon: Phone, color: "text-indigo-500", label: "Chiamata" },
 };
 
 type Props = {

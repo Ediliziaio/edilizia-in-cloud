@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wand2, ArrowRight, Sparkles, Loader2, Send, ShieldCheck, AlertTriangle, ShieldAlert, Shuffle, Monitor, Smartphone } from "lucide-react";
+import { Wand2, ArrowRight, Sparkles, Loader2, Send, ShieldCheck, AlertTriangle, ShieldAlert, Shuffle } from "lucide-react";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { spamScore } from "../../../../supabase/functions/_shared/outreach-spam-score";
 
@@ -53,7 +53,6 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
   const [testEmail, setTestEmail] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [activeField, setActiveField] = useState<"subject" | "body">("body");
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
 
   const subjRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -61,18 +60,6 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
   const me = useQuery({
     queryKey: ["admin-email"], staleTime: Infinity,
     queryFn: async () => (await supabase.auth.getUser()).data.user?.email ?? "",
-  });
-
-  // Mittente reale (prima casella non in pausa) per rendere l'anteprima come una
-  // vera email: "Da: outreach@…". Se il pool è vuoto mostriamo un segnaposto.
-  const senderFrom = useQuery({
-    queryKey: ["playground-sender", companyId], staleTime: 60_000, retry: false,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("outreach_sender_accounts").select("email,status").order("daily_sent", { ascending: true }).limit(10);
-      const s = (data ?? []).find((c) => c.status !== "paused" && c.status !== "disabled");
-      return s?.email ?? "";
-    },
   });
 
   const contacts = useQuery({
@@ -104,6 +91,34 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, tpl, hasSpintax, seed, selected.id]);
+
+  // Copertura variabili: variabili usate SENZA fallback ({{x}} e non {{x|...}}).
+  // Su un contatto senza quel campo renderizzano vuoto ("Ciao ,") → brutta
+  // impressione + segnale spam. Contiamo quanti dei contatti d'anteprima le
+  // hanno vuote, così l'utente sa se serve un fallback.
+  const KNOWN_FIELDS = ["first_name", "last_name", "company_name", "email", "phone"] as const;
+  const coverage = useMemo(() => {
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\|[^}]*)?\}\}/g;
+    const bare = new Set<string>();
+    let m: RegExpExecArray | null;
+    const text = `${subject}\n${tpl}`;
+    while ((m = re.exec(text)) !== null) {
+      if (!m[2]) bare.add(m[1]); // gruppo 2 = fallback: assente = "nuda"
+    }
+    if (list.length === 0) return [];
+    return [...bare]
+      .filter((v) => (KNOWN_FIELDS as readonly string[]).includes(v))
+      .map((v) => {
+        const missing = list.filter((c) => {
+          const val = (c as unknown as Record<string, unknown>)[v];
+          return !val || String(val).trim() === "";
+        }).length;
+        return { variable: v, missing, total: list.length };
+      })
+      .filter((x) => x.missing > 0)
+      .sort((a, b) => b.missing - a.missing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject, tpl, list]);
 
   const score = useMemo(() => spamScore(renderedSubject, renderedBody, `${subject}\n${tpl}`), [renderedSubject, renderedBody, subject, tpl]);
   const bodyWords = renderedBody.trim() ? renderedBody.trim().split(/\s+/).length : 0;
@@ -219,7 +234,7 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
                 <Label className="text-xs">Corpo</Label>
                 <span className="text-[10px] text-muted-foreground">{bodyWords} parole · {renderedBody.length} caratteri</span>
               </div>
-              <Textarea ref={bodyRef} value={tpl} onFocus={() => setActiveField("body")} onChange={(e) => setTpl(e.target.value)} rows={8} className="text-sm leading-relaxed" />
+              <Textarea ref={bodyRef} value={tpl} onFocus={() => setActiveField("body")} onChange={(e) => setTpl(e.target.value)} rows={8} className="font-mono text-xs" />
             </div>
             <div className="space-y-1">
               <p className="text-[10px] text-muted-foreground">Clicca per inserire al cursore ({activeField === "subject" ? "oggetto" : "corpo"}):</p>
@@ -234,66 +249,28 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
             </div>
           </div>
 
-          {/* preview — come una vera email */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+          {/* preview — sticky su desktop: resta in vista mentre scorri l'editor */}
+          <div className="space-y-2 md:sticky md:top-4 md:self-start">
+            <div className="flex items-center justify-between">
               <Label className="text-xs">Anteprima per</Label>
-              <div className="flex items-center gap-1.5">
-                {/* toggle dispositivo desktop/mobile */}
-                <div className="flex rounded-md border border-border p-0.5">
-                  <button type="button" onClick={() => setDevice("desktop")} title="Desktop"
-                    className={`flex h-6 w-6 items-center justify-center rounded ${device === "desktop" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-                    <Monitor className="h-3.5 w-3.5" />
-                  </button>
-                  <button type="button" onClick={() => setDevice("mobile")} title="Mobile"
-                    className={`flex h-6 w-6 items-center justify-center rounded ${device === "mobile" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-                    <Smartphone className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {list.length > 0 && (
-                  <Select value={selected.id} onValueChange={setContactId}>
-                    <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {list.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name ?? ""} {c.company_name ? `· ${c.company_name}` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              {list.length > 0 && (
+                <Select value={selected.id} onValueChange={setContactId}>
+                  <SelectTrigger className="h-7 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {list.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name ?? ""} {c.company_name ? `· ${c.company_name}` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-
-            {/* cornice: su mobile stringiamo la mail come su smartphone */}
-            <div className={`rounded-xl border border-border bg-muted/30 p-3 ${device === "mobile" ? "flex justify-center" : ""}`}>
-              <div className={`overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-all ${device === "mobile" ? "w-[340px] max-w-full" : "w-full"}`}>
-                {/* oggetto */}
-                <div className="border-b border-border px-4 pt-3.5 pb-2.5">
-                  <p className="text-[15px] font-semibold leading-snug text-foreground">
-                    {renderedSubject || <span className="font-normal text-muted-foreground">(oggetto vuoto)</span>}
-                  </p>
-                </div>
-                {/* identità mittente/destinatario, come in Gmail */}
-                <div className="flex items-center gap-2.5 px-4 py-2.5">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-sm font-semibold text-white">
-                    {(senderFrom.data || "O").charAt(0).toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <p className="truncate text-[13px] font-medium text-foreground">
-                      {senderFrom.data || "il tuo mittente"}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      a {selected.email || `${selected.first_name.toLowerCase()}@esempio.it`}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">ora</span>
-                </div>
-                {/* corpo — tipografia da lettura, sans, come una mail vera */}
-                <div className="whitespace-pre-wrap px-4 pb-4 pt-1 text-[15px] leading-relaxed text-foreground/90">
-                  {renderedBody || <span className="text-muted-foreground">(corpo vuoto)</span>}
-                </div>
+            <div className="min-h-[180px] overflow-hidden rounded-lg border border-border bg-muted/20 text-sm">
+              <div className="border-b border-border bg-card px-3 py-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggetto</span>
+                <p className="font-medium leading-snug">{renderedSubject || <span className="text-muted-foreground">(vuoto)</span>}</p>
               </div>
+              <div className="whitespace-pre-wrap px-3 py-2.5 leading-relaxed">{renderedBody}</div>
             </div>
-
             {list.length === 0 && (
               <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <ArrowRight className="h-3 w-3" /> Nessun contatto: anteprima su un esempio. Importa una lista per provare sui tuoi lead.
@@ -301,6 +278,24 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
             )}
           </div>
         </div>
+
+        {/* copertura variabili — avvisa se una variabile senza fallback resta vuota */}
+        {coverage.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-700 dark:bg-amber-950/20">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" /> Variabili senza valore
+            </p>
+            <ul className="space-y-1">
+              {coverage.map((c) => (
+                <li key={c.variable} className="text-[11px] text-amber-800 dark:text-amber-300">
+                  <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{`{{${c.variable}}}`}</code>{" "}
+                  è vuota per <strong>{c.missing}</strong> dei {c.total} contatti d'anteprima — aggiungi un fallback, es.{" "}
+                  <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/40">{`{{${c.variable}|…}}`}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* spam-score */}
         <div className="rounded-lg border border-border p-3">

@@ -62,21 +62,35 @@ Deno.serve(async (req) => {
     const first = firstEmailStep(steps);
     if (!first) return errorResponse("La sequenza non ha step email: aggiungi almeno uno step email prima di iscrivere.", 400, corsH);
 
-    // 2. contatti candidati (platform company)
-    let q = admin
-      .from("marketing_contacts")
-      .select("id,email,optout_email")
-      .eq("company_id", PLATFORM_COMPANY)
-      .limit(MAX_CONTACTS);
-    if (contactIds.length) q = q.in("id", contactIds);
-    if (tag) q = q.contains("tags", [tag]);
-    if (source) q = q.eq("source", source);
-    const { data: contactsRaw, error: cErr } = await q;
-    if (cErr) throw cErr;
-    const contacts = (contactsRaw ?? []) as ContactRow[];
+    // 2. contatti candidati (platform company).
+    // PostgREST tronca a max-rows (~1000) per singola risposta: una lista da
+    // decine di migliaia di contatti veniva iscritta solo per i primi 1000,
+    // in silenzio. Paginiamo con .range() fino a MAX_CONTACTS e segnaliamo se
+    // il tetto viene comunque raggiunto.
+    const PAGE = 1000;
+    const contacts: ContactRow[] = [];
+    let truncated = false;
+    for (let from = 0; from < MAX_CONTACTS; from += PAGE) {
+      let q = admin
+        .from("marketing_contacts")
+        .select("id,email,optout_email")
+        .eq("company_id", PLATFORM_COMPANY)
+        .order("id", { ascending: true })
+        .range(from, Math.min(from + PAGE, MAX_CONTACTS) - 1);
+      if (contactIds.length) q = q.in("id", contactIds);
+      if (tag) q = q.contains("tags", [tag]);
+      if (source) q = q.eq("source", source);
+      const { data: pageRows, error: cErr } = await q;
+      if (cErr) throw cErr;
+      const rows = (pageRows ?? []) as ContactRow[];
+      contacts.push(...rows);
+      if (rows.length < PAGE) break;              // ultima pagina
+      if (from + PAGE >= MAX_CONTACTS) truncated = true; // raggiunto il tetto
+    }
 
     const stats = {
       candidates: contacts.length,
+      truncated, // true se la lista supera MAX_CONTACTS: iscritti solo i primi
       enrolled: 0,
       skipped_no_email: 0,
       skipped_optout: 0,

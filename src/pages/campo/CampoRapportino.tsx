@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
   Camera, X, Minus, Plus, Loader2, Send,
@@ -90,6 +91,9 @@ export default function CampoRapportino() {
   const [percentuale, setPercentuale] = useState(0);
   // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
   const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
+  // Materiali usati oggi: key (order_item id o "libero_<n>") → nome+quantità
+  const [materialiSel, setMaterialiSel] = useState<Record<string, { nome: string; quantita: number }>>({});
+  const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -143,6 +147,48 @@ export default function CampoRapportino() {
 
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
+
+  // ── Articoli/materiali della commessa (order_items) ─────────────────
+  // L'operaio può confermare quali ha usato oggi (facoltativo). Se la
+  // commessa non ha articoli resta solo l'aggiunta libera.
+  const { data: articoliCommessa = [] } = useQuery({
+    queryKey: ["campo-articoli-commessa-rapportino", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("id, name")
+        .eq("order_id", orderId!)
+        .order("position", { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []).map(i => ({ id: i.id, name: i.name }));
+    },
+  });
+
+  const toggleMateriale = (id: string, nome: string) => {
+    setMaterialiSel(prev => {
+      const next = { ...prev };
+      if (id in next) delete next[id];
+      else next[id] = { nome, quantita: 1 };
+      return next;
+    });
+  };
+
+  const aggiungiMaterialeLibero = () => {
+    const nome = materialeLibero.trim();
+    if (!nome) return;
+    setMaterialiSel(prev => ({ ...prev, [`libero_${Date.now()}`]: { nome, quantita: 1 } }));
+    setMaterialeLibero("");
+  };
+
+  const materialiPayload = Object.values(materialiSel).map(m => ({
+    nome: m.nome,
+    quantita: m.quantita,
+    unita: "pz",
+    da_furgone: false,
+  }));
 
   const toggleFase = (fase: FaseCommessa) => {
     setFasiDichiarate(prev => {
@@ -304,6 +350,8 @@ export default function CampoRapportino() {
           stato: "inviato",
           // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
           ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
+          // Materiali confermati oggi (facoltativi): stesso formato del vocale
+          ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
           // Firme SOLO sul fine lavori: il payload del giornaliero resta invariato
           ...(lavoro_completato && firmaClienteUrl
             ? {
@@ -389,8 +437,11 @@ export default function CampoRapportino() {
           });
       }
 
-      // Aggiorna avanzamento sull'ordine se impostato
-      if (percentuale > 0) {
+      // Aggiorna avanzamento sull'ordine se impostato.
+      // Se la commessa ha fasi, la % ordine è DERIVATA dal trigger DB
+      // (recompute_order_progress) a ogni update di fase: qui si scrive
+      // solo per le commesse senza fasi, come prima.
+      if (percentuale > 0 && fasiCommessa.length === 0) {
         const { data: currentOrder, error: currentOrderError } = await supabase
           .from("orders")
           .select("percentuale_avanzamento")
@@ -455,6 +506,14 @@ export default function CampoRapportino() {
       navigator.vibrate?.([10, 50, 10]);
       toast.success("Rapportino inviato!");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
+      // Header dettaglio lavoro: la % ordine è ricalcolata dal trigger DB
+      queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] });
+      // Card "rapportini da compilare" in home + indicatore "già fatto oggi" nel dettaglio
+      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+      queryClient.invalidateQueries({ queryKey: ["campo-lavoro-rapportino-oggi", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
+      // Lista rapportini lato azienda (stessa sessione admin+campo)
+      queryClient.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-events", companyId, orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId, companyId] });
       // Fasi aggiornate dal rapportino: riallinea lavorazioni + semaforo tempi
@@ -588,26 +647,62 @@ export default function CampoRapportino() {
               </div>
             </div>
 
+            {/* Ore straordinario */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-muted-foreground">Avanzamento lavori</p>
-                <span className="text-primary font-bold">{percentuale}%</span>
+                <p className="text-sm text-muted-foreground">Ore straordinario</p>
+                <span className="text-primary font-bold">{oreStraordinario}h</span>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={percentuale}
-                onChange={e => setPercentuale(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
+                  className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
+                >
+                  <Minus className="w-4 h-4 text-foreground" />
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={6}
+                  step={0.5}
+                  value={oreStraordinario}
+                  onChange={e => setOreStraordinario(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+                <button
+                  onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
+                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
+                >
+                  <Plus className="w-4 h-4 text-primary-foreground" />
+                </button>
               </div>
             </div>
+
+
+            {/* Avanzamento generale SOLO senza fasi: con le fasi la % commessa
+                è derivata dal DB, chiederla di nuovo qui confonde. */}
+            {fasiCommessa.length === 0 && (
+              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Avanzamento lavori</p>
+                  <span className="text-primary font-bold">{percentuale}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={percentuale}
+                  onChange={e => setPercentuale(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>0%</span>
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            )}
 
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
             {fasiDichiarabili.length > 0 && (
@@ -653,43 +748,122 @@ export default function CampoRapportino() {
                       }
                       className="w-full accent-primary"
                     />
-                    {fase.percentuale > 0 && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        Avanzamento attuale: {fase.percentuale}%
-                      </p>
-                    )}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {fase.percentuale > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Avanzamento attuale: {fase.percentuale}%
+                        </p>
+                      ) : <span />}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFasiDichiarate(prev => ({
+                            ...prev,
+                            [fase.id]: prev[fase.id] === 100 ? fase.percentuale : 100,
+                          }))
+                        }
+                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          fasiDichiarate[fase.id] === 100
+                            ? "border-green-500 bg-green-500/10 text-green-600"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {fasiDichiarate[fase.id] === 100 ? "✓ Fase completata" : "Segna completata"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Ore straordinario */}
+            {/* ── Materiali usati oggi (facoltativo) ── */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-muted-foreground">Ore straordinario</p>
-                <span className="text-primary font-bold">{oreStraordinario}h</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
-                  className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
-                >
-                  <Minus className="w-4 h-4 text-foreground" />
-                </button>
+              <p className="text-sm font-semibold text-foreground">Materiali usati oggi</p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Tocca i materiali della commessa che hai usato (facoltativo)
+              </p>
+              {articoliCommessa.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {articoliCommessa.map(item => {
+                    const selected = item.id in materialiSel;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleMateriale(item.id, item.name)}
+                        className={`max-w-full truncate rounded-full border px-3 py-2 text-sm transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {item.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {Object.entries(materialiSel).map(([key, m]) => (
+                <div key={key} className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-3">
+                  <p className="min-w-0 flex-1 text-sm font-medium leading-tight text-foreground line-clamp-2">{m.nome}</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaterialiSel(prev => ({
+                        ...prev,
+                        [key]: { ...m, quantita: Math.max(1, m.quantita - 1) },
+                      }))
+                    }
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted"
+                  >
+                    <Minus className="w-4 h-4 text-foreground" />
+                  </button>
+                  <span className="w-8 shrink-0 text-center font-bold text-primary">{m.quantita}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaterialiSel(prev => ({
+                        ...prev,
+                        [key]: { ...m, quantita: m.quantita + 1 },
+                      }))
+                    }
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary"
+                  >
+                    <Plus className="w-4 h-4 text-primary-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaterialiSel(prev => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return next;
+                      })
+                    }
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10"
+                  >
+                    <X className="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
+              ))}
+
+              <div className="mt-3 flex items-center gap-2">
                 <input
-                  type="range"
-                  min={0}
-                  max={6}
-                  step={0.5}
-                  value={oreStraordinario}
-                  onChange={e => setOreStraordinario(Number(e.target.value))}
-                  className="flex-1 accent-primary"
+                  type="text"
+                  className="min-w-0 flex-1 rounded-xl border border-border bg-muted/60 px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Altro materiale…"
+                  value={materialeLibero}
+                  onChange={e => setMaterialeLibero(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") aggiungiMaterialeLibero(); }}
                 />
                 <button
-                  onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
-                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
+                  type="button"
+                  onClick={aggiungiMaterialeLibero}
+                  disabled={!materialeLibero.trim()}
+                  className="flex h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
                 >
-                  <Plus className="w-4 h-4 text-primary-foreground" />
+                  Aggiungi
                 </button>
               </div>
             </div>
@@ -748,7 +922,7 @@ export default function CampoRapportino() {
             <div className="space-y-3 rounded-2xl border border-border bg-muted/60 p-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Data</span>
-                <span className="text-foreground">{format(new Date(), "d MMMM yyyy")}</span>
+                <span className="text-foreground">{format(new Date(), "d MMMM yyyy", { locale: it })}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Ore lavorate</span>
@@ -760,14 +934,39 @@ export default function CampoRapportino() {
                   <span className="text-primary font-bold">{oreStraordinario}h</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Avanzamento</span>
-                <span className="text-primary font-bold">{percentuale}%</span>
-              </div>
+              {fasiCommessa.length === 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Avanzamento</span>
+                  <span className="text-primary font-bold">{percentuale}%</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Foto</span>
                 <span className="text-foreground">{fotoUrls.length} foto</span>
               </div>
+              {materialiPayload.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Materiali usati</p>
+                  {materialiPayload.map((m, i) => (
+                    <p key={i} className="text-sm text-foreground">
+                      {m.nome} <span className="font-semibold text-primary">× {m.quantita}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {Object.keys(fasiDichiarate).length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Fasi dichiarate</p>
+                  {fasiCommessa.filter(f => f.id in fasiDichiarate).map(f => (
+                    <p key={f.id} className="text-sm text-foreground">
+                      {f.name}{" "}
+                      <span className="font-semibold text-primary">
+                        {fasiDichiarate[f.id] === 100 ? "✓ completata" : `→ ${fasiDichiarate[f.id]}%`}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              )}
               {descrizione && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-1">Descrizione</p>
@@ -799,7 +998,7 @@ export default function CampoRapportino() {
                 <p className="text-xs text-muted-foreground">
                   {lavoro_completato
                     ? "Al passo successivo servirà la firma del cliente"
-                    : "Il cantiere è terminato"}
+                    : "Attivalo solo se il cantiere è finito: chiederemo la firma del cliente"}
                 </p>
               </div>
             </div>

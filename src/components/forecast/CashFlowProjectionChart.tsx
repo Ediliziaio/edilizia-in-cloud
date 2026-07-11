@@ -90,7 +90,13 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
             />
             <YAxis
               tick={{ fontSize: 10 }}
-              tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+              tickFormatter={(v) => {
+                // Sotto i 1.000€ la formattazione "k" mostrava €0k su tutte le
+                // tacche: passa a valore intero quando la scala è piccola.
+                const abs = Math.abs(v);
+                if (abs >= 1000) return `€${(v / 1000).toFixed(0)}k`;
+                return `€${Math.round(v)}`;
+              }}
               domain={[Math.min(minBalance * 1.1, -100), maxBalance * 1.1]}
             />
             <Tooltip

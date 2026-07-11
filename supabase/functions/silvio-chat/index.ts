@@ -196,11 +196,19 @@ function attachmentLogLabel(storagePath: string): string {
  *
  * Ritorna stringa vuota se l'entità non esiste, non appartiene alla company
  * corrente, o il fetch fallisce. Mai throw — Silvio risponde senza context.
+ *
+ * SICUREZZA (RBAC): l'admin client bypassa la RLS, quindi gli IMPORTI
+ * (commesse, documenti fiscali, preventivi) vengono iniettati nel prompt solo
+ * per i ruoli autorizzati a vederli in app — altrimenti la pagina aperta
+ * diventerebbe un canale per far leggere cifre a chi non può (es. call_center).
  */
+const PAGE_CONTEXT_AMOUNT_ROLES = ["super_admin", "company_admin", "company_staff", "salesperson", "accountant"];
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ctx: CurrentPageContext): Promise<string> {
+async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ctx: CurrentPageContext, primaryRole: string): Promise<string> {
   const { entity_type, entity_id, route_label } = ctx;
   if (!entity_type) return "";
+  const showAmounts = PAGE_CONTEXT_AMOUNT_ROLES.includes(primaryRole);
 
   // ── Overview pages (no ID): solo il route label ─────────────────────
   if (!entity_id) {
@@ -228,7 +236,8 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
         ?? (data.cliente_snapshot?.profile_data as { ragione_sociale?: string } | undefined)?.ragione_sociale
         ?? "cliente sconosciuto";
       const stato = data.balance_paid ? "saldata" : "aperta";
-      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}", importo totale €${data.total_amount}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}.`;
+      const importoOrder = showAmounts ? `, importo totale €${data.total_amount}` : "";
+      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}"${importoOrder}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}.`;
     }
     if (entity_type === "customer") {
       const { data, error } = await supabaseAdmin
@@ -252,7 +261,8 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       if (error || !data) return "";
       const cs = (data.cliente_snapshot ?? {}) as { ragione_sociale?: string; nome?: string; cognome?: string };
       const cliente = cs.ragione_sociale ?? `${cs.nome ?? ""} ${cs.cognome ?? ""}`.trim() ?? "cliente sconosciuto";
-      return `Sta guardando il documento fiscale ${data.tipo} n. ${data.numero}/${data.anno} a ${cliente}, importo €${data.totale_documento}, stato: ${data.stato}, emesso il ${data.data_emissione}.`;
+      const importoDoc = showAmounts ? `, importo €${data.totale_documento}` : "";
+      return `Sta guardando il documento fiscale ${data.tipo} n. ${data.numero}/${data.anno} a ${cliente}${importoDoc}, stato: ${data.stato}, emesso il ${data.data_emissione}.`;
     }
     if (entity_type === "quote") {
       const { data, error } = await supabaseAdmin
@@ -262,7 +272,8 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
         .eq("company_id", companyId)
         .maybeSingle();
       if (error || !data) return "";
-      return `Sta guardando il preventivo "${data.title ?? data.id.slice(0, 8)}", importo €${data.total_amount}, stato: ${data.status}, creato il ${data.created_at?.split("T")[0]}.`;
+      const importoQuote = showAmounts ? `, importo €${data.total_amount}` : "";
+      return `Sta guardando il preventivo "${data.title ?? data.id.slice(0, 8)}"${importoQuote}, stato: ${data.status}, creato il ${data.created_at?.split("T")[0]}.`;
     }
     if (entity_type === "employee") {
       const { data, error } = await supabaseAdmin
@@ -503,7 +514,7 @@ serve(async (req: Request) => {
     let pageContextSummary = "";
     if (pageContext?.entity_type && companyId) {
       try {
-        pageContextSummary = await buildPageContextSummary(supabaseAdmin, companyId, pageContext);
+        pageContextSummary = await buildPageContextSummary(supabaseAdmin, companyId, pageContext, primaryRole);
       } catch (e) {
         console.warn("[silvio-chat] page context fetch failed", e);
         // Non bloccare: Silvio risponde senza context aggiuntivo

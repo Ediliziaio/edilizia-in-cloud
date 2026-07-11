@@ -24,9 +24,14 @@ export function useCashFlowRealData(companyId: string | null | undefined) {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<CashFlowRealData> => {
+      // Date LOCALI (en-CA = YYYY-MM-DD nel fuso locale). Con toISOString() la
+      // proiezione confrontava per uguaglianza esatta stringhe UTC contro
+      // due_date date-only: a cavallo di mezzanotte/ora legale allocava
+      // entrate/uscite nel giorno sbagliato.
+      const localYmd = (d: Date) => d.toLocaleDateString("en-CA");
       const in90 = new Date();
       in90.setDate(in90.getDate() + 90);
-      const in90Str = in90.toISOString().split("T")[0];
+      const in90Str = localYmd(in90);
 
       const [accountsRes, receivablesRes, payablesRes] = await Promise.all([
         // 1. Saldo attuale banking
@@ -63,14 +68,14 @@ export function useCashFlowRealData(companyId: string | null | undefined) {
       const hasBanking = accounts.length > 0;
 
       const today = new Date();
-      const todayStr = today.toISOString().split("T")[0];
+      const todayStr = localYmd(today);
 
       // Build 90-day projection
       let running = currentBalance;
       const projection: CashFlowProjectionDay[] = Array.from({ length: 90 }, (_, i) => {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split("T")[0];
+        const dateStr = localYmd(d);
 
         const inflows = receivables
           .filter((r) => r.due_date === dateStr)
@@ -86,8 +91,7 @@ export function useCashFlowRealData(companyId: string | null | undefined) {
       });
 
       // 30-day summary
-      const in30Str = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30)
-        .toISOString().split("T")[0];
+      const in30Str = localYmd(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30));
 
       const pendingIncome30 = receivables
         .filter((r) => r.due_date && r.due_date >= todayStr && r.due_date <= in30Str)

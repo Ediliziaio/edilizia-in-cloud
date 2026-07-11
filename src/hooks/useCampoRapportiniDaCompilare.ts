@@ -61,13 +61,15 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
     staleTime: 60_000, // refetch ogni minuto
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<RapportinoMancante[]> => {
-      const today = new Date().toISOString().slice(0, 10);
-      const todayStartIso = `${today}T00:00:00.000Z`;
-      const tomorrowStartIso = (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 1);
-        return `${d.toISOString().slice(0, 10)}T00:00:00.000Z`;
-      })();
+      // Giornata LOCALE: mezzanotte locale → mezzanotte locale successiva.
+      // Con le stringhe UTC la sera (UTC+2) le timbrature finivano nel giorno sbagliato.
+      const today = new Date().toLocaleDateString("en-CA");
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      const todayStartIso = startOfDay.toISOString();
+      const tomorrowStartIso = endOfDay.toISOString();
 
       // 1) Timbrature di oggi (con order_id + dati cantiere)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -196,9 +196,52 @@ function CostIntegrationPanel({
   );
 }
 
-export default function CompanyCostsManager() {
+// Preset di filtro applicabili via URL (?preset=...) quando si arriva alla
+// tab Spese da un drill-down della tab Pianificazione.
+type SpesePreset =
+  | "order"
+  | "unscheduled"
+  | "missing-categories"
+  | "missing-suppliers"
+  | "sostenuti"
+  | "previsti"
+  | "in_ritardo"
+  | "in_scadenza"
+  | "senza_scadenza";
+
+const STATUS_TAB_PRESETS: StatusTabFilter[] = ["sostenuti", "previsti", "in_ritardo", "in_scadenza", "senza_scadenza"];
+
+export default function CompanyCostsManager({
+  view = "spese",
+}: {
+  /**
+   * "spese"          → gestione operativa (filtri, tabella, pagamenti, import)
+   * "pianificazione" → regia integrazioni, statistiche, budget e semaforo cassa
+   */
+  view?: "spese" | "pianificazione";
+}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Preset letto UNA volta al mount (inizializza i filtri sotto), poi ripulito
+  // dalla URL per non ri-applicarlo alla prossima visita della tab.
+  const [preset] = useState<SpesePreset | null>(() =>
+    view === "spese" ? (searchParams.get("preset") as SpesePreset | null) : null,
+  );
+
+  /** Naviga alla tab Spese applicando un preset di filtro. */
+  const goToSpese = (p: SpesePreset) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tab", "spese");
+        next.set("preset", p);
+        return next;
+      },
+      { replace: false },
+    );
+  };
 
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -219,16 +262,38 @@ export default function CompanyCostsManager() {
   // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
   const [generatingRecurring, setGeneratingRecurring] = useState(false);
 
-  // Filters
+  // Filters (inizializzati dall'eventuale preset in URL)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">("all");
+  const [supplierFilter, setSupplierFilter] = useState<string>(preset === "missing-suppliers" ? "none" : "all");
+  const [categoryFilter, setCategoryFilter] = useState<string>(preset === "missing-categories" ? "none" : "all");
+  const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">(
+    preset === "order" ? "order" : preset === "missing-categories" || preset === "missing-suppliers" ? "manual" : "all",
+  );
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [statusTabFilter, setStatusTabFilter] = useState<StatusTabFilter>("all");
+  const [statusTabFilter, setStatusTabFilter] = useState<StatusTabFilter>(
+    preset === "unscheduled"
+      ? "senza_scadenza"
+      : preset && STATUS_TAB_PRESETS.includes(preset as StatusTabFilter)
+        ? (preset as StatusTabFilter)
+        : "all",
+  );
+
+  // Ripulisci il preset dalla URL dopo averlo applicato (evita ri-applicazioni
+  // al prossimo mount della tab).
+  useEffect(() => {
+    if (view !== "spese" || !searchParams.get("preset")) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("preset");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [view, searchParams, setSearchParams]);
 
   // Data hook
   const data = useCompanyCostsData(companyId, {
@@ -342,17 +407,6 @@ export default function CompanyCostsManager() {
     setSupplierFilter("all");
     setCategoryFilter("all");
     setStatusTabFilter("all");
-  };
-
-  const showUnscheduledCosts = () => {
-    setPeriodFilter("all");
-    setSearchQuery("");
-    setCustomDateRange(null);
-    setOriginFilter("all");
-    setStatusFilter("all");
-    setSupplierFilter("all");
-    setCategoryFilter("all");
-    setStatusTabFilter("senza_scadenza");
   };
 
   // Mutations hook
@@ -507,6 +561,56 @@ export default function CompanyCostsManager() {
     );
   }
 
+  // ── Vista PIANIFICAZIONE: regia, statistiche, budget e semaforo cassa ──────
+  if (view === "pianificazione") {
+    return (
+      <div className="space-y-6">
+        <CostIntegrationPanel
+          summary={integrationSummary}
+          missingCategory={operationalControl.missingCategory}
+          missingSupplier={operationalControl.missingSupplier}
+          unscheduled={operationalControl.unscheduled}
+          onShowOrderCosts={() => goToSpese("order")}
+          onShowUnscheduled={() => goToSpese("unscheduled")}
+          onShowMissingCategories={() => goToSpese("missing-categories")}
+          onShowMissingSuppliers={() => goToSpese("missing-suppliers")}
+        />
+
+        <CostsStatsCards
+          stats={data.stats}
+          vatStats={data.vatStats}
+          monthlyDistribution={data.monthlyDistribution}
+          periodLabel={periodLabel}
+          yearlyStats={data.yearlyStats}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          activeStatusTab="all"
+          onStatusTabChange={(tab) => {
+            if (tab !== "all" && STATUS_TAB_PRESETS.includes(tab)) goToSpese(tab as SpesePreset);
+          }}
+          categoryDistribution={data.categoryDistribution}
+          availableYears={data.availableYears}
+          fixedCostsTrend={data.fixedCostsTrend}
+          breakEvenData={data.breakEvenData}
+        />
+
+        <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Semaforo Cassa — Proiezione 30/60/90 giorni
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CashFlowAlert upcomingCosts={data.allCostsSorted} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Vista SPESE: gestione operativa (filtri, tabella, pagamenti) ───────────
   return (
     <>
       <Card className="rounded-2xl border-slate-200 shadow-sm">
@@ -680,33 +784,6 @@ export default function CompanyCostsManager() {
               <p className="mt-1 text-xs text-muted-foreground">ordini, team, personale e provvigioni</p>
             </button>
           </div>
-
-          <CostIntegrationPanel
-            summary={integrationSummary}
-            missingCategory={operationalControl.missingCategory}
-            missingSupplier={operationalControl.missingSupplier}
-            unscheduled={operationalControl.unscheduled}
-            onShowOrderCosts={showOrderCosts}
-            onShowUnscheduled={showUnscheduledCosts}
-            onShowMissingCategories={showMissingCategories}
-            onShowMissingSuppliers={showMissingSuppliers}
-          />
-
-          <CostsStatsCards
-            stats={data.stats}
-            vatStats={data.vatStats}
-            monthlyDistribution={data.monthlyDistribution}
-            periodLabel={periodLabel}
-            yearlyStats={data.yearlyStats}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            activeStatusTab={statusTabFilter}
-            onStatusTabChange={setStatusTabFilter}
-            categoryDistribution={data.categoryDistribution}
-            availableYears={data.availableYears}
-            fixedCostsTrend={data.fixedCostsTrend}
-            breakEvenData={data.breakEvenData}
-          />
 
           {/* Filters */}
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row flex-wrap">
@@ -885,21 +962,6 @@ export default function CompanyCostsManager() {
         isSaving={mutations.saveMutation.isPending}
         onClose={() => { setEditingCost(null); setFormData(defaultFormData); }}
       />
-
-      {/* Budget Section */}
-      <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
-
-      {/* Cash Flow Semaforo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            Semaforo Cassa — Proiezione 30/60/90 giorni
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CashFlowAlert upcomingCosts={data.allCostsSorted} />
-        </CardContent>
-      </Card>
 
       <CostsDialogs
         deleteConfirmId={deleteConfirmId}
