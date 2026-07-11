@@ -168,8 +168,8 @@ export default function MarketingCalendarMonthView({
 
         {/* Weeks */}
         <div className="grid min-h-0 flex-1" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
-          {weeks.map((week, wi) => (
-            <div key={wi} className="grid min-h-0 grid-cols-7 border-b last:border-b-0">
+          {weeks.map((week) => (
+            <div key={format(week[0], "yyyy-MM-dd")} className="grid min-h-0 grid-cols-7 border-b last:border-b-0">
               {week.map((day) => {
                 const inMonth = isSameMonth(day, currentDate);
                 const maxShow = 3;

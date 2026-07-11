@@ -209,7 +209,7 @@ export default function FirmaElettronicaHub() {
       if (statusFilter !== "tutti") q = q.eq("status", statusFilter) as typeof q;
       if (tipoDocFilter !== "tutti") q = q.eq("tipo_documento", tipoDocFilter) as typeof q;
 
-      const requestTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
+      const requestTimeout = createTimeoutSignal(SIGNATURE_REQUESTS_TIMEOUT_MS, signal);
       let feaRows: SignatureRequestBaseRow[];
       try {
         // Query PRINCIPALE: l'errore deve propagarsi, così la UI mostra
@@ -217,7 +217,7 @@ export default function FirmaElettronicaHub() {
         const { data, error } = await withClientTimeout(
           q.abortSignal(requestTimeout.signal) as unknown as PromiseLike<{ data: SignatureRequestBaseRow[] | null; error?: unknown }>,
           "Archivio FEA",
-          SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS,
+          SIGNATURE_REQUESTS_TIMEOUT_MS,
         );
         if (error) {
           throw error instanceof Error

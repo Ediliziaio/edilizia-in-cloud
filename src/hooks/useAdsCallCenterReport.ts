@@ -43,7 +43,7 @@ export function useAdsCallCenterReport({
       const contacts = await fetchContacts(companyId, fromDate);
       const contactIds = contacts.map((contact) => contact.id).filter(Boolean);
       const [calls, appointments] = await Promise.all([
-        fetchCalls(companyId, contactIds),
+        fetchCalls(companyId, contactIds, fromDate),
         fetchAppointments(companyId, contactIds),
       ]);
 
@@ -103,13 +103,14 @@ async function fetchContacts(companyId: string, fromDate: string): Promise<AdsCa
   }
 }
 
-async function fetchCalls(companyId: string, contactIds: string[]): Promise<AdsCallCenterCallRow[]> {
+async function fetchCalls(companyId: string, contactIds: string[], fromDate: string): Promise<AdsCallCenterCallRow[]> {
   if (contactIds.length === 0) return [];
   try {
     const { data, error } = await table("call_logs")
       .select("id, contact_id, outcome, started_at, duration_sec")
       .eq("company_id", companyId)
       .in("contact_id", contactIds)
+      .gte("started_at", fromDate)
       .limit(5000);
     if (error) throw error;
     return (data ?? []) as AdsCallCenterCallRow[];

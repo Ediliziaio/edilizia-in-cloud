@@ -431,7 +431,7 @@ export default function MarketingCalendarWeekView({
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="text-xs max-w-[280px] space-y-0.5">
                                   {tooltipLines.map((line, i) => (
-                                    <p key={i} className={cn(
+                                    <p key={line.slice(0, 30)} className={cn(
                                       i === 0 && "font-semibold text-sm",
                                       line.startsWith("⚠️") && "text-destructive font-medium"
                                     )}>{line}</p>

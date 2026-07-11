@@ -530,6 +530,7 @@ export default function MarketingAppointmentDialog({
   }, [appleSync, googleSync]);
 
   const handleSave = async () => {
+    if (saving) return; // guard sincrono contro doppio-click prima del re-render
     const isBlocked = activeTab === "blocked";
 
     if (!calendarId || calendarId === "none") {
