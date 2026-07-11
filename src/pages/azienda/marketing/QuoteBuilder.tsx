@@ -1299,6 +1299,47 @@ export default function QuoteBuilder() {
         discount_percent: discountPercent,
         updated_at: new Date().toISOString(),
       }).eq("id", id!).eq("company_id", companyId);
+      // P2 FIX (2026-07): l'autosave ora persiste ANCHE le righe. Prima
+      // scriveva solo client_name+discount ma l'hash includeva le righe →
+      // l'indicatore "Salvataggio automatico" diventava verde pur NON avendo
+      // salvato le modifiche a quantità/prezzo/righe, perse poi al refresh.
+      // Stessa RPC atomica del salvataggio manuale (transazione: nessuna
+      // perdita parziale). L'UI non ri-legge le righe dopo, quindi il
+      // delete+insert lato DB non tocca lo stato locale. Payload allineato a
+      // quello di handleSave — modificarli insieme.
+      if (items.length > 0) {
+        const payload = items.map((it, idx) => ({
+          sort_order: idx,
+          client_temp_id: it.client_temp_id ?? null,
+          parent_temp_id: it.parent_temp_id ?? null,
+          item_type: it.item_type,
+          name: it.name,
+          description: it.description ?? null,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          discount_percent: it.discount_percent ?? 0,
+          vat_rate: it.vat_rate ?? 22,
+          unit_of_measure: it.unit_of_measure,
+          article_template_id: it.article_template_id ?? null,
+          item_category: it.item_category ?? "prodotto",
+          tariffa_id: it.tariffa_id ?? null,
+          prezzo_acquisto: it.prezzo_acquisto ?? 0,
+          mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+          is_optional: it.is_optional ?? false,
+          misura_x: it.misura_x ?? null,
+          misura_y: it.misura_y ?? null,
+          family_id: it.family_id ?? null,
+          axis_selections: it.axis_selections ?? null,
+          supplier_catalog_id: it.supplier_catalog_id ?? null,
+          supplier_product_line_id: it.supplier_product_line_id ?? null,
+        }));
+        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
+          p_quote_id: id!,
+          p_company_id: companyId,
+          p_items: payload,
+        });
+        if (rpcErr) throw rpcErr;
+      }
       lastSavedHashRef.current = hash;
       setAutosaveFailed(false);
     } catch {
@@ -3388,8 +3429,16 @@ export default function QuoteBuilder() {
       )}
 
       {/* Sticky action bar (replica FvFooter) */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
-        <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      {/* md:pr-36 riserva lo spazio del FAB Silvio (fixed bottom-6 right-6, z-40):
+          senza, il pulsante primario (Avanti/Salva) finiva SOTTO il FAB e il
+          click sul 50-80% del CTA apriva Silvio invece di salvare. Su mobile il
+          FAB desktop è hidden, quindi il padding è solo md+. */}
+      {/* bottom-[84px] su mobile: la bottom-nav mobile (MobileBottomNav, pill
+          flottante 80px, md:hidden, z-40) copriva la parte bassa dell'action
+          bar — incluso il CTA "Avanti/Salva" → non tappabile su telefono. Da md
+          in su la nav non c'è e l'action bar torna a bottom-0. */}
+      <div className="fixed bottom-[84px] md:bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
             {saving ? (
               <span className="flex items-center gap-1.5 text-blue-600 font-medium">
