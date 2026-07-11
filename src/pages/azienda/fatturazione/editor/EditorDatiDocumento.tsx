@@ -67,7 +67,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
                 mode="single"
                 selected={state.data_emissione ? parseISO(state.data_emissione) : undefined}
                 onSelect={(d) => d && setField("data_emissione", format(d, "yyyy-MM-dd"))}
-                initialFocus
+                autoFocus
                 className="p-3 pointer-events-auto"
               />
             </PopoverContent>
@@ -137,7 +137,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled }: Props) {
                 mode="single"
                 selected={dataScadenzaParsed}
                 onSelect={(d) => d && setField("data_scadenza", format(d, "yyyy-MM-dd"))}
-                initialFocus
+                autoFocus
                 className="p-3 pointer-events-auto"
               />
             </PopoverContent>

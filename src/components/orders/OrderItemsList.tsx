@@ -255,7 +255,7 @@ export function OrderItemsList({
 
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
 
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   // v8.6.34 — Usa fallbackCompanyId (companyId della commessa corrente) se
   // effectiveCompany è null. Necessario per super_admin che opera su una
   // company senza essere in impersonation: senza fallback, queries
@@ -370,7 +370,7 @@ export function OrderItemsList({
 
   // v8.6.35 — Upload helper riusabile per pendingAttachment
   const uploadAttachmentForItem = async (orderItemId: string, file: File) => {
-    if (!companyId) return;
+    if (!companyId || !user) return;
     try {
       const ts = Date.now();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -385,6 +385,7 @@ export function OrderItemsList({
         file_url: path,
         file_type: file.type,
         file_size: file.size,
+        uploaded_by: user.id,
       });
       if (dbErr) throw dbErr;
       onAttachmentsRefresh?.();

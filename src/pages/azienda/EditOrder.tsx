@@ -910,7 +910,7 @@ function EditOrderInner() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={expectedDate} onSelect={setExpectedDate} initialFocus className="pointer-events-auto" />
+                    <Calendar mode="single" selected={expectedDate} onSelect={setExpectedDate} autoFocus className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -924,7 +924,7 @@ function EditOrderInner() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={warehouseArrivalDate} onSelect={setWarehouseArrivalDate} initialFocus className="pointer-events-auto" />
+                    <Calendar mode="single" selected={warehouseArrivalDate} onSelect={setWarehouseArrivalDate} autoFocus className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -938,7 +938,7 @@ function EditOrderInner() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={workStartDate} onSelect={setWorkStartDate} initialFocus className="pointer-events-auto" />
+                    <Calendar mode="single" selected={workStartDate} onSelect={setWorkStartDate} autoFocus className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -952,7 +952,7 @@ function EditOrderInner() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={workEndDate} onSelect={setWorkEndDate} initialFocus className="pointer-events-auto" />
+                    <Calendar mode="single" selected={workEndDate} onSelect={setWorkEndDate} autoFocus className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>

@@ -1000,6 +1000,7 @@ export default function RenderNewV2() {
             }}
             transomChoice={state.traverso}
             onTransomChange={(v) => setState((current) => ({ ...current, traverso: v }))}
+            onCassonettoStyleChange={overrideOpeningCassonettoStyle}
           />
         )}
 
@@ -1204,6 +1205,7 @@ function StepAnalysis({
   onRetry,
   transomChoice,
   onTransomChange,
+  onCassonettoStyleChange,
 }: {
   analysis: WindowSceneAnalysis | null;
   loading: boolean;
@@ -1215,6 +1217,8 @@ function StepAnalysis({
   // v8.6.17 — Decisione traverso inline (se rilevato in foto)
   transomChoice?: WizardTraverso;
   onTransomChange?: (v: WizardTraverso) => void;
+  // v8.6.31 — Override manuale cassonettoStyle (definito nel padre RenderNewV2)
+  onCassonettoStyleChange: (openingId: string, style: "external_box" | "internal_monoblocco" | "absent") => void;
 }) {
   const openings = analysis?.openings ?? [];
   return (
@@ -1334,7 +1338,7 @@ function StepAnalysis({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="text-xs">
                             <DropdownMenuItem
-                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "external_box")}
+                              onClick={() => onCassonettoStyleChange(opening.id, "external_box")}
                             >
                               <span className={cn("mr-2", opening.cassonettoStyle === "external_box" && "font-bold")}>
                                 {opening.cassonettoStyle === "external_box" ? "✓" : " "}
@@ -1342,7 +1346,7 @@ function StepAnalysis({
                               Scatola esterna (sporgente sopra il telaio)
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "internal_monoblocco")}
+                              onClick={() => onCassonettoStyleChange(opening.id, "internal_monoblocco")}
                             >
                               <span className={cn("mr-2", opening.cassonettoStyle === "internal_monoblocco" && "font-bold")}>
                                 {opening.cassonettoStyle === "internal_monoblocco" ? "✓" : " "}
@@ -1350,7 +1354,7 @@ function StepAnalysis({
                               Monoblocco a scomparsa (incassato)
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "absent")}
+                              onClick={() => onCassonettoStyleChange(opening.id, "absent")}
                             >
                               <span className={cn("mr-2", (!opening.hasCassonetto || opening.cassonettoStyle === "absent") && "font-bold")}>
                                 {(!opening.hasCassonetto || opening.cassonettoStyle === "absent") ? "✓" : " "}

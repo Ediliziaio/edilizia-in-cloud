@@ -350,7 +350,7 @@ export function EmployeeAttachments({
                         mode="single"
                         selected={expiryDate}
                         onSelect={setExpiryDate}
-                        initialFocus
+                        autoFocus
                       />
                     </PopoverContent>
                   </Popover>

@@ -1478,7 +1478,7 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
   const navigate = useNavigate();
   const channelName = "cantiere-" + orderCode.toLowerCase().replace(/\s+/g, "-");
 
-  const { data: canale, isLoading } = useQuery({
+  const { data: canale, isLoading, isFetching } = useQuery({
     queryKey: ["campo-canale-cantiere", orderId, orderCode],
     queryFn: async () => {
       if (!orderCode) return null;
@@ -1494,8 +1494,8 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
   });
 
   // Spinner anche durante il refetch di un null cache-stantio: senza,
-  // per un attimo comparirebbe il falso "Lavoro non disponibile".
-  if (isLoading || (!assignment && isFetching)) {
+  // per un attimo comparirebbe il falso "canale non disponibile".
+  if (isLoading || (!canale && isFetching)) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

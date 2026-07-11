@@ -10,6 +10,7 @@ import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
+import { toast } from "sonner";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Home,
   CheckCircle2, XCircle, Zap, Clock,

@@ -348,7 +348,7 @@ export function ExternalTeamAttachments({
                         mode="single"
                         selected={expiryDate}
                         onSelect={setExpiryDate}
-                        initialFocus
+                        autoFocus
                       />
                     </PopoverContent>
                   </Popover>

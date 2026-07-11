@@ -1162,6 +1162,12 @@ function summarizeRows(rows: FinanceRowInput[]) {
   };
 }
 
+/** Formatta un importo it-IT senza simbolo (il "€" lo mette il chiamante). */
+function formatEur(n: number, decimals = 0): string {
+  const v = Number.isFinite(n) ? n : 0;
+  return v.toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border bg-muted/20 p-3">

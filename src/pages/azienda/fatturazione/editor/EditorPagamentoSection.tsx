@@ -170,7 +170,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                     mode="single"
                     selected={sc.data_scadenza ? parseISO(sc.data_scadenza) : undefined}
                     onSelect={(d) => d && dispatch({ type: "UPDATE_SCADENZA", index: i, scadenza: { data_scadenza: format(d, "yyyy-MM-dd") } })}
-                    initialFocus
+                    autoFocus
                     className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>

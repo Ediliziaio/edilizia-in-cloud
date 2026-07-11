@@ -2657,7 +2657,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             )}
 
             {/* Typing indicator */}
-            {typingUsers.length > 0 && !isLuciaChannel && (
+            {typingUsers.length > 0 && (
               <div className="px-4 py-1 bg-[#f0f2f5] dark:bg-[#1f2c34]">
                 <p className="text-xs text-[#667781] flex items-center gap-1">
                   <span className="inline-flex gap-0.5">
@@ -2857,7 +2857,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   ref={newMsgTextareaRef}
                   placeholder={isSilvioChannel ? "Scrivi a Silvio..." : "Scrivi un messaggio"}
                   value={newMsg}
-                  onChange={(e) => { setNewMsg(e.target.value); if (!isLuciaChannel) broadcastTyping(); }}
+                  onChange={(e) => { setNewMsg(e.target.value); broadcastTyping(); }}
                   onKeyDown={handleKeyDown}
                   disabled={aiTyping}
                   rows={1}

@@ -50,7 +50,7 @@ import {
   useProgetto, useCreateProgetto, useUpdateProgetto, useDuplicaProgetto,
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
-import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
+import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";

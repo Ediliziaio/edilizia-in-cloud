@@ -1896,7 +1896,7 @@ function SnoozeControl({
         <PopoverContent align="end" className="w-auto p-0">
           <Calendar
             mode="single"
-            initialFocus
+            autoFocus
             disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
             onSelect={(d) => {
               if (!d) return;

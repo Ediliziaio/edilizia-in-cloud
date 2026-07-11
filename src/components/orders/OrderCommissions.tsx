@@ -579,7 +579,7 @@ export function OrderCommissions({
                           mode="single"
                           selected={sp.payment_expected_date ? new Date(sp.payment_expected_date) : undefined}
                           onSelect={(date) => handleUpdateExpectedDate(sp, date)}
-                          initialFocus
+                          autoFocus
                           className={cn("p-3 pointer-events-auto")}
                         />
                       </PopoverContent>
@@ -691,7 +691,7 @@ export function OrderCommissions({
               mode="single"
               selected={selectedPaidDate}
               onSelect={(date) => date && setSelectedPaidDate(date)}
-              initialFocus
+              autoFocus
               className={cn("p-3 pointer-events-auto")}
             />
           </div>

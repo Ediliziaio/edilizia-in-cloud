@@ -62,7 +62,7 @@ function DatePickerField({ label, date, onDateChange, disabled = false }: {
           mode="single"
           selected={date}
           onSelect={onDateChange}
-          initialFocus
+          autoFocus
           className="pointer-events-auto"
         />
       </PopoverContent>

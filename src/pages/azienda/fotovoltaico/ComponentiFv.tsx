@@ -64,6 +64,7 @@ import {
   useMacroListinoFv,
   useSyncListinoFv,
   type CategoriaFvListino,
+  type MacroListinoFv,
 } from "@/lib/fotovoltaico/collegaListino";
 
 const eur = (n: number | null | undefined) =>
@@ -646,7 +647,7 @@ function CollegaListinoDialog({
                     <Select
                       value={r.tipologia ?? SELECT_NONE}
                       onValueChange={(v) =>
-                        setRow(m.id, {
+                        setRow(m, {
                           tipologia: v === SELECT_NONE ? null : v,
                           fv_categoria: v === "fotovoltaico" ? r.fv_categoria : null,
                         })
@@ -666,7 +667,7 @@ function CollegaListinoDialog({
                       <Select
                         value={r.fv_categoria ?? SELECT_NONE}
                         onValueChange={(v) =>
-                          setRow(m.id, { fv_categoria: v === SELECT_NONE ? null : (v as CategoriaFvListino) })
+                          setRow(m, { fv_categoria: v === SELECT_NONE ? null : (v as CategoriaFvListino) })
                         }
                       >
                         <SelectTrigger className="w-[180px] h-9 text-xs">

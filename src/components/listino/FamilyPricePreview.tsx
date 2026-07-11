@@ -803,7 +803,7 @@ export function FamilyPricePreview({ family }: Props) {
                   const cHMm = toMm(parseFloat(c.h) || 0, unit);
                   const cLookup =
                     cWMm > 0 && cHMm > 0
-                      ? lookupGridPrice(gridCells, cWMm, cHMm)
+                      ? findGridCell(cWMm, cHMm, gridCells)
                       : null;
                   const cellPrice = cLookup && (cLookup.kind === "exact" || cLookup.kind === "round_up")
                     ? cLookup.cell.prezzo_vendita ?? null
