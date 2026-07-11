@@ -159,6 +159,43 @@ export function FlowBuilderPage() {
     }
   }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading]);
 
+  // Undo/Redo → risincronizza il canvas dal mirror del hook. Il mirror
+  // (builder.nodes/connections) è ciò che "Salva" persiste: senza questo
+  // resync Ctrl+Z non cambiava nulla a schermo ma il salvataggio scriveva
+  // comunque lo stato rollbackato → perdita dati silenziosa. I nodi solo
+  // visivi (Fine, trigger placeholder) e i loro archi non vivono nel mirror:
+  // si preservano dal canvas corrente finché i loro estremi esistono ancora.
+  useEffect(() => {
+    if (builder.revision === 0) return;
+    const rebuilt = nodesToReactFlow(builder.nodes).map((n) => {
+      if (n.type === "trigger" && !n.data?.itemId) {
+        return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
+      }
+      if (n.type === "trigger" && n.data?.itemId) {
+        return { ...n, data: { ...n.data, onAddTrigger: () => openCatalog("trigger") } };
+      }
+      return n;
+    });
+    const rebuiltIds = new Set(rebuilt.map((n) => n.id));
+    const visualOnlyNodes = rfNodes.filter(
+      (n) => !rebuiltIds.has(n.id) && (n.type === "end" || Boolean(n.data?.isEmpty))
+    );
+    const allIds = new Set([...rebuilt, ...visualOnlyNodes].map((n) => n.id));
+    const mirrorEdgeIds = new Set(builder.connections.map((c) => c.id));
+    const rebuiltEdges = connectionsToEdges(builder.connections)
+      .filter((e) => allIds.has(e.source) && allIds.has(e.target))
+      .map((e) => ({ ...e, data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) } }));
+    const visualOnlyEdges = rfEdges.filter(
+      (e) => !mirrorEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
+    );
+    setRfNodes([...rebuilt, ...visualOnlyNodes]);
+    setRfEdges([...rebuiltEdges, ...visualOnlyEdges]);
+    setSelectedNodeId((prev) => (prev && !allIds.has(prev) ? null : prev));
+    // Solo `revision` nelle deps: rfNodes/rfEdges cambiano ad ogni resync e
+    // rimetterli qui creerebbe un loop; servono solo come snapshot corrente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builder.revision]);
+
   // Auto-ordina alla prima apertura: ogni flusso viene mostrato con un layout
   // verticale pulito e CENTRATO (connettori dritti, stile GHL) senza dover
   // cliccare "Riordina". È solo VISIVO (non scrive su DB, non marca dirty) e
@@ -476,14 +513,24 @@ export function FlowBuilderPage() {
 
             // Shift target node and all nodes below it down by 160px
             const targetY = targetNode.position.y;
+            const shouldShift = (n: Node) =>
+              n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger";
             setRfNodes((nds) =>
               nds.map((n) => {
-                if (n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger") {
+                if (shouldShift(n)) {
                   return { ...n, position: { ...n.position, y: n.position.y + 160 } };
                 }
                 return n;
               })
             );
+            // Lo shift va propagato anche al mirror: applicarlo solo a ReactFlow
+            // faceva salvare le posizioni VECCHIE → al reload i nodi tornavano
+            // sovrapposti. (I nodi solo-visivi non nel mirror vengono ignorati.)
+            const shiftedPositions: Record<string, { x: number; y: number }> = {};
+            for (const n of rfNodes) {
+              if (shouldShift(n)) shiftedPositions[n.id] = { x: n.position.x, y: n.position.y + 160 };
+            }
+            if (Object.keys(shiftedPositions).length > 0) updateNodePositions(shiftedPositions);
 
             const newNodeId = crypto.randomUUID();
             const pos = { x: sourceNode.position.x, y: midY };
@@ -630,7 +677,7 @@ export function FlowBuilderPage() {
 
       addNodeFromItem(item);
     },
-    [addNodeFromItem, pendingInsertEdgeId, rfEdges, rfNodes, flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, openCatalogForEdge]
+    [addNodeFromItem, pendingInsertEdgeId, rfEdges, rfNodes, flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, updateNodePositions, openCatalogForEdge]
   );
 
   const onNodeDragStop = useCallback(
