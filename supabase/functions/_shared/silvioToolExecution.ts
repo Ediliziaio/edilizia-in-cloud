@@ -13,6 +13,7 @@
  */
 
 import {
+  DEFAULT_TOOL_ALLOWED_ROLES,
   SILVIO_TOOLS,
   type Channel,
   type RiskLevel,
@@ -75,8 +76,13 @@ export async function executeToolWithRouting(
   }
 
   // ── Permission: roles ──
-  if (tool.allowedRoles && tool.allowedRoles.length > 0) {
-    if (!tool.allowedRoles.includes(ctx.primaryRole) && !tool.allowedRoles.includes("*")) {
+  // FAIL-CLOSED: un tool senza allowedRoles è riservato agli admin
+  // (DEFAULT_TOOL_ALLOWED_ROLES), mai eseguibile da qualsiasi ruolo.
+  {
+    const toolRoles = tool.allowedRoles && tool.allowedRoles.length > 0
+      ? tool.allowedRoles
+      : DEFAULT_TOOL_ALLOWED_ROLES;
+    if (!toolRoles.includes(ctx.primaryRole) && !toolRoles.includes("*")) {
       await logAudit(ctx, tool, toolName, {
         inputPayload: sanitize(input),
         outputPayload: null,

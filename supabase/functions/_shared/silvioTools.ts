@@ -482,6 +482,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_status: args?.status ?? "active",
       p_limit: args?.limit ?? 20,
     }),
+      allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
       allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "sales", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
     riskLevel: "safe",
@@ -692,6 +693,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
       p_status: args?.status ?? "all",
     }),
+      allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
       allowedPersonas: ["silvio", "sales", "direttore_vendite", "assistente_imprenditore", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
     riskLevel: "safe",
@@ -717,6 +719,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
       p_query: args?.query ?? "",
     }),
+      allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
       allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "sales", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
     riskLevel: "safe",
@@ -850,6 +853,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_query: args?.query ?? "",
       p_limit: args?.limit ?? 20,
     }),
+      allowedRoles: ["super_admin", "company_admin", "company_staff"],
       allowedPersonas: ["silvio", "assistente_imprenditore", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
     riskLevel: "safe",
@@ -4483,24 +4487,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   approve_proposal_with_edits: {
     schema: { type: "function", function: { name: "approve_proposal_with_edits", description: "Approva una proposal con payload modificato dall'utente. Salva diff originale vs modificato.", parameters: { type: "object", properties: { proposal_id: { type: "string" }, user_edited_payload: { type: "object" }, edit_reasoning: { type: "string" } }, required: ["proposal_id", "user_edited_payload"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_approve_proposal_with_edits", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_user_edited_payload: args?.user_edited_payload, p_edit_reasoning: args?.edit_reasoning ?? null }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "*"], allowedChannels: ["web_persona", "internal_chat"], riskLevel: "red", domain: "ai",
   },
 
   batch_approve_proposals: {
     schema: { type: "function", function: { name: "batch_approve_proposals", description: "Approva in batch multiple proposal pendenti. Crea batch_id condiviso.", parameters: { type: "object", properties: { proposal_ids: { type: "array", items: { type: "string" } } }, required: ["proposal_ids"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_batch_approve_proposals", { p_company_id: ctx.companyId, p_proposal_ids: args?.proposal_ids }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "*"], allowedChannels: ["web_persona", "internal_chat"], riskLevel: "red", domain: "ai",
   },
 
   undo_executed_action: {
     schema: { type: "function", function: { name: "undo_executed_action", description: "Annulla un'azione eseguita entro l'undo window. Solo per azioni reversibili (is_reversible=true).", parameters: { type: "object", properties: { proposal_id: { type: "string" }, reason: { type: "string" } }, required: ["proposal_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_undo_executed_action", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_reason: args?.reason ?? null }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "*"], riskLevel: "yellow", domain: "ai",
   },
 
   get_proposal_audit_log: {
     schema: { type: "function", function: { name: "get_proposal_audit_log", description: "Ritorna l'audit log completo (created/viewed/edited/approved/rejected/executed/undone) di una proposal.", parameters: { type: "object", properties: { proposal_id: { type: "string" } }, required: ["proposal_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_proposal_audit_log", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "compliance", "*"], riskLevel: "safe", domain: "ai",
   },
 
@@ -4511,36 +4519,42 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   identifica_tipo_pratica: {
     schema: { type: "function", function: { name: "identifica_tipo_pratica", description: "AI suggerisce il tipo di pratica edilizia (CILA/SCIA/PdC) basato su descrizione intervento.", parameters: { type: "object", properties: { tipologia_intervento: { type: "string" }, ubicazione: { type: "string" } }, required: ["tipologia_intervento"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_tipo_pratica", { p_company_id: ctx.companyId, p_tipologia_intervento: args?.tipologia_intervento, p_ubicazione: args?.ubicazione ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
   },
 
   checklist_documenti_pratica: {
     schema: { type: "function", function: { name: "checklist_documenti_pratica", description: "Genera checklist documenti per pratica edilizia (CILA/SCIA/PdC).", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_checklist_documenti_pratica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
   },
 
   genera_relazione_tecnica: {
     schema: { type: "function", function: { name: "genera_relazione_tecnica", description: "Avvia generazione AI della relazione tecnica per una pratica edilizia (template_type: standard|superbonus|paesaggistica).", parameters: { type: "object", properties: { pratica_id: { type: "string" }, template_type: { type: "string" } }, required: ["pratica_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_relazione_tecnica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id, p_template_type: args?.template_type ?? "standard" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "yellow", domain: "compliance", estimatedCostEur: 0.05,
   },
 
   verifica_completezza_pratica: {
     schema: { type: "function", function: { name: "verifica_completezza_pratica", description: "Verifica documenti caricati vs richiesti. Ritorna mancanti.", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_completezza_pratica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
   },
 
   prepara_invio_sue: {
     schema: { type: "function", function: { name: "prepara_invio_sue", description: "Prepara invio pratica al SUE comunale (se completa). Setta scadenza_silenzio_assenso.", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prepara_invio_sue", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "tecnico", "compliance"], riskLevel: "red", domain: "compliance",
   },
 
   monitoraggio_pratica_status: {
     schema: { type: "function", function: { name: "monitoraggio_pratica_status", description: "Lista pratiche edilizie attive con giorni da invio + giorni a silenzio assenso.", parameters: { type: "object", properties: { pratica_id: { type: "string" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_monitoraggio_pratica_status", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "tecnico", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "compliance",
   },
 
@@ -4551,18 +4565,21 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   genera_report_cfo_settimanale: {
     schema: { type: "function", function: { name: "genera_report_cfo_settimanale", description: "Genera report CFO settimanale (skeleton + narrative AI). Idempotente per company+week_start.", parameters: { type: "object", properties: { week_start: { type: "string", format: "date" }, force_regenerate: { type: "boolean" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_report_cfo_settimanale", { p_company_id: ctx.companyId, p_week_start: args?.week_start ?? null, p_force_regenerate: args?.force_regenerate ?? false }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "*"], riskLevel: "safe", domain: "fattura", estimatedCostEur: 0.04,
   },
 
   invia_report_cfo: {
     schema: { type: "function", function: { name: "invia_report_cfo", description: "Invia report CFO via email/whatsapp. Aggiorna sent_at.", parameters: { type: "object", properties: { report_id: { type: "string" }, channels: { type: "array", items: { type: "string", enum: ["email", "whatsapp"] } } }, required: ["report_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_report_cfo", { p_company_id: ctx.companyId, p_report_id: args?.report_id, p_channels: args?.channels ?? ["email"] }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller"], riskLevel: "yellow", domain: "fattura",
   },
 
   chiedi_riassunto_settimana: {
     schema: { type: "function", function: { name: "chiedi_riassunto_settimana", description: "Recupera l'ultimo report CFO settimanale generato per quick chat.", parameters: { type: "object", properties: {} } } },
     executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_chiedi_riassunto_settimana", { p_company_id: ctx.companyId }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "fattura",
   },
 
@@ -4573,30 +4590,35 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   genera_lipe_trimestrale: {
     schema: { type: "function", function: { name: "genera_lipe_trimestrale", description: "Genera Liquidazione Periodica IVA trimestrale (LIPE).", parameters: { type: "object", properties: { year: { type: "integer" }, quarter: { type: "integer", minimum: 1, maximum: 4 } }, required: ["year", "quarter"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_lipe_trimestrale", { p_company_id: ctx.companyId, p_year: args?.year, p_quarter: args?.quarter }),
+    allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "controller", "cfo", "*"], riskLevel: "yellow", domain: "fattura",
   },
 
   genera_f24_mese: {
     schema: { type: "function", function: { name: "genera_f24_mese", description: "Genera F24 mensile (ritenute + INPS + IVA).", parameters: { type: "object", properties: { year: { type: "integer" }, month: { type: "integer", minimum: 1, maximum: 12 } }, required: ["year", "month"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_f24_mese", { p_company_id: ctx.companyId, p_year: args?.year, p_month: args?.month }),
+    allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "controller", "amministrazione"], riskLevel: "yellow", domain: "fattura",
   },
 
   genera_cu_anno: {
     schema: { type: "function", function: { name: "genera_cu_anno", description: "Genera Certificazione Unica annuale per dipendenti/collaboratori.", parameters: { type: "object", properties: { year: { type: "integer" } }, required: ["year"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_cu_anno", { p_company_id: ctx.companyId, p_year: args?.year }),
+    allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "hr", "amministrazione"], riskLevel: "yellow", domain: "fattura",
   },
 
   verifica_quadrature_contabili: {
     schema: { type: "function", function: { name: "verifica_quadrature_contabili", description: "Verifica quadrature contabili per periodo (IVA esigibile/detraibile, ritenute).", parameters: { type: "object", properties: { period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["period_start", "period_end"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_quadrature_contabili", { p_company_id: ctx.companyId, p_period_start: args?.period_start, p_period_end: args?.period_end }),
+    allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista", "controller", "cfo", "*"], riskLevel: "safe", domain: "fattura",
   },
 
   invia_lipe_ade: {
     schema: { type: "function", function: { name: "invia_lipe_ade", description: "Invia LIPE all'Agenzia Entrate (action red, richiede HITL).", parameters: { type: "object", properties: { report_id: { type: "string" } }, required: ["report_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_lipe_ade", { p_company_id: ctx.companyId, p_report_id: args?.report_id }),
+    allowedRoles: ["super_admin", "company_admin", "accountant"],
     allowedPersonas: ["silvio", "commercialista"], riskLevel: "red", domain: "fattura",
   },
 
@@ -4607,30 +4629,35 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   suggerisci_squadra_cantiere: {
     schema: { type: "function", function: { name: "suggerisci_squadra_cantiere", description: "Suggerisce top-N operai per un cantiere/lavorazione basato su skill + productivity score.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, lavorazione: { type: "string" }, team_size: { type: "integer", default: 3 } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_squadra_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_lavorazione: args?.lavorazione ?? null, p_team_size: args?.team_size ?? 3 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
   },
 
   analizza_competenze_operaio: {
     schema: { type: "function", function: { name: "analizza_competenze_operaio", description: "Skill matrix di un operaio (proficiency, ore, productivity per skill).", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_competenze_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
   },
 
   aggiorna_skill_da_rapportini: {
     schema: { type: "function", function: { name: "aggiorna_skill_da_rapportini", description: "Aggiorna employee_skills.productivity_score aggregando rapportini periodo.", parameters: { type: "object", properties: { employee_id: { type: "string" }, period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["employee_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_skill_da_rapportini", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_period_start: args?.period_start ?? null, p_period_end: args?.period_end ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr"], riskLevel: "yellow", domain: "hr",
   },
 
   top_performer_lavorazione: {
     schema: { type: "function", function: { name: "top_performer_lavorazione", description: "Top-N performer per skill_key.", parameters: { type: "object", properties: { skill_key: { type: "string" }, top_n: { type: "integer", default: 5 } }, required: ["skill_key"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_top_performer_lavorazione", { p_company_id: ctx.companyId, p_skill_key: args?.skill_key, p_top_n: args?.top_n ?? 5 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "hr", "capocantiere", "*"], riskLevel: "safe", domain: "hr",
   },
 
   analizza_squadra_storia: {
     schema: { type: "function", function: { name: "analizza_squadra_storia", description: "Storia performance squadra (employee_ids → media produttività/qualità).", parameters: { type: "object", properties: { employee_ids: { type: "array", items: { type: "string" } } }, required: ["employee_ids"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_squadra_storia", { p_company_id: ctx.companyId, p_employee_ids: args?.employee_ids }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
   },
 
@@ -4641,36 +4668,42 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   stato_sicurezza_operaio: {
     schema: { type: "function", function: { name: "stato_sicurezza_operaio", description: "Stato compliance operaio: formazioni + visite + DPI essenziali.", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_stato_sicurezza_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "hr",
   },
 
   operai_non_conformi_sicurezza: {
     schema: { type: "function", function: { name: "operai_non_conformi_sicurezza", description: "Lista operai non conformi (formazioni mancanti, visite scadute, DPI assenti).", parameters: { type: "object", properties: {} } } },
     executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_operai_non_conformi_sicurezza", { p_company_id: ctx.companyId }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "hr",
   },
 
   formazioni_in_scadenza: {
     schema: { type: "function", function: { name: "formazioni_in_scadenza", description: "Formazioni operai in scadenza nei prossimi N giorni.", parameters: { type: "object", properties: { days_ahead: { type: "integer", default: 30 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_formazioni_in_scadenza", { p_company_id: ctx.companyId, p_days_ahead: args?.days_ahead ?? 30 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "compliance", "*"], riskLevel: "safe", domain: "hr",
   },
 
   prenota_formazione_operaio: {
     schema: { type: "function", function: { name: "prenota_formazione_operaio", description: "Registra formazione completata (o pianificata) per operaio.", parameters: { type: "object", properties: { employee_id: { type: "string" }, formation_type: { type: "string" }, ente_erogante: { type: "string" }, data_completamento: { type: "string", format: "date" } }, required: ["employee_id", "formation_type"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prenota_formazione_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_formation_type: args?.formation_type, p_ente_erogante: args?.ente_erogante ?? null, p_data_completamento: args?.data_completamento ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "yellow", domain: "hr",
   },
 
   genera_modulo_consegna_dpi: {
     schema: { type: "function", function: { name: "genera_modulo_consegna_dpi", description: "Registra consegna DPI per operaio (insert multipli da array dpi_items).", parameters: { type: "object", properties: { employee_id: { type: "string" }, dpi_items: { type: "array", items: { type: "object" } } }, required: ["employee_id", "dpi_items"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_modulo_consegna_dpi", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_dpi_items: args?.dpi_items }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "yellow", domain: "hr",
   },
 
   blocca_operaio_da_cantiere: {
     schema: { type: "function", function: { name: "blocca_operaio_da_cantiere", description: "Blocca operaio (is_active=false) per non conformità.", parameters: { type: "object", properties: { employee_id: { type: "string" }, reason: { type: "string" } }, required: ["employee_id", "reason"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_blocca_operaio_da_cantiere", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_reason: args?.reason }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "red", domain: "hr",
   },
 
@@ -4681,30 +4714,35 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   pianifica_cantiere: {
     schema: { type: "function", function: { name: "pianifica_cantiere", description: "Crea allocazioni cantiere (employees/subcontractors/mezzi).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, resources: { type: "array", items: { type: "object" } }, start_date: { type: "string", format: "date" }, end_date: { type: "string", format: "date" } }, required: ["cantiere_id", "resources"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_pianifica_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_resources: args?.resources, p_start_date: args?.start_date ?? null, p_end_date: args?.end_date ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "yellow", domain: "cantiere",
   },
 
   ottimizza_allocazioni_settimana: {
     schema: { type: "function", function: { name: "ottimizza_allocazioni_settimana", description: "AI ottimizza allocazioni per settimana (scenario: balanced|max_throughput|min_overtime).", parameters: { type: "object", properties: { start_date: { type: "string", format: "date" }, scenario: { type: "string" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_ottimizza_allocazioni_settimana", { p_company_id: ctx.companyId, p_start_date: args?.start_date ?? null, p_scenario: args?.scenario ?? "balanced" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.06,
   },
 
   identifica_conflitti_allocazione: {
     schema: { type: "function", function: { name: "identifica_conflitti_allocazione", description: "Lista conflitti (stesso operaio su 2+ cantieri stesso periodo).", parameters: { type: "object", properties: {} } } },
     executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_conflitti_allocazione", { p_company_id: ctx.companyId }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   prevedi_impatto_ritardo: {
     schema: { type: "function", function: { name: "prevedi_impatto_ritardo", description: "Stima allocazioni impattate da ritardo cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prevedi_impatto_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   sposta_allocazione: {
     schema: { type: "function", function: { name: "sposta_allocazione", description: "Sposta una allocazione su nuove date.", parameters: { type: "object", properties: { allocation_id: { type: "string" }, new_start: { type: "string", format: "date" }, new_end: { type: "string", format: "date" }, reason: { type: "string" } }, required: ["allocation_id", "new_start", "new_end"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_sposta_allocazione", { p_company_id: ctx.companyId, p_allocation_id: args?.allocation_id, p_new_start: args?.new_start, p_new_end: args?.new_end, p_reason: args?.reason ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere",
   },
 
@@ -4715,24 +4753,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   genera_pos_cantiere: {
     schema: { type: "function", function: { name: "genera_pos_cantiere", description: "Genera POS (Piano Operativo Sicurezza) per cantiere conforme D.Lgs 81/08.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, force_regenerate: { type: "boolean" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_pos_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_force_regenerate: args?.force_regenerate ?? false }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance", "tecnico"], riskLevel: "red", domain: "compliance", estimatedCostEur: 0.08,
   },
 
   genera_duvri_cantiere: {
     schema: { type: "function", function: { name: "genera_duvri_cantiere", description: "Genera DUVRI per cantiere con subappalti.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_duvri_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance"], riskLevel: "red", domain: "compliance", estimatedCostEur: 0.05,
   },
 
   valida_dpi_operai_cantiere: {
     schema: { type: "function", function: { name: "valida_dpi_operai_cantiere", description: "Valida DPI degli operai allocati al cantiere (casco/scarpe).", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_valida_dpi_operai_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance", "pm_cantiere", "capocantiere"], riskLevel: "safe", domain: "compliance",
   },
 
   verifica_formazioni_operai: {
     schema: { type: "function", function: { name: "verifica_formazioni_operai", description: "Verifica formazioni e visite mediche operai allocati al cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_formazioni_operai", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance", "pm_cantiere", "hr"], riskLevel: "safe", domain: "compliance",
   },
 
@@ -4743,30 +4785,35 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   predici_data_fine_cantiere: {
     schema: { type: "function", function: { name: "predici_data_fine_cantiere", description: "Ultima previsione data fine cantiere + risk level.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_predici_data_fine_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   analizza_cause_ritardo: {
     schema: { type: "function", function: { name: "analizza_cause_ritardo", description: "Analizza cause primarie e fattori contribuenti al ritardo.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_cause_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   genera_piano_recovery_cantiere: {
     schema: { type: "function", function: { name: "genera_piano_recovery_cantiere", description: "AI propone piano recovery cantiere a rischio.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, target_date: { type: "string", format: "date" } }, required: ["cantiere_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_piano_recovery_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_target_date: args?.target_date ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.05,
   },
 
   lista_cantieri_a_rischio: {
     schema: { type: "function", function: { name: "lista_cantieri_a_rischio", description: "Lista cantieri con risk_level >= soglia (low/medium/high/critical).", parameters: { type: "object", properties: { risk_level_min: { type: "string", enum: ["low", "medium", "high", "critical"] } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_cantieri_a_rischio", { p_company_id: ctx.companyId, p_risk_level_min: args?.risk_level_min ?? "medium" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   calcola_costo_ritardo: {
     schema: { type: "function", function: { name: "calcola_costo_ritardo", description: "Stima costo ritardo cantiere (penali + costi extra).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_calcola_costo_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "cfo", "controller", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
@@ -4777,24 +4824,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   genera_proposal_commerciale: {
     schema: { type: "function", function: { name: "genera_proposal_commerciale", description: "Genera proposal commerciale PDF da preventivo (cover, about us, case studies, FAQ, CTA).", parameters: { type: "object", properties: { quote_id: { type: "string" }, force_regenerate: { type: "boolean" }, target_audience: { type: "string" } }, required: ["quote_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_proposal_commerciale", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id, p_force_regenerate: args?.force_regenerate ?? false, p_target_audience: args?.target_audience ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "yellow", domain: "crm", estimatedCostEur: 0.10,
   },
 
   trova_case_studies_simili: {
     schema: { type: "function", function: { name: "trova_case_studies_simili", description: "Trova orders completati simili a una quote (per tipo lavoro + importo).", parameters: { type: "object", properties: { quote_id: { type: "string" }, similarity_threshold: { type: "number" } }, required: ["quote_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_trova_case_studies_simili", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id, p_similarity_threshold: args?.similarity_threshold ?? 0.6 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   analizza_proposal_engagement: {
     schema: { type: "function", function: { name: "analizza_proposal_engagement", description: "Engagement proposal (sent/opened/page views/outcome).", parameters: { type: "object", properties: { proposal_id: { type: "string" } }, required: ["proposal_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_proposal_engagement", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   invia_proposal_cliente: {
     schema: { type: "function", function: { name: "invia_proposal_cliente", description: "Invia proposal al cliente via canali specificati.", parameters: { type: "object", properties: { proposal_id: { type: "string" }, channels: { type: "array", items: { type: "string", enum: ["email", "whatsapp", "portal"] } }, message: { type: "string" } }, required: ["proposal_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_proposal_cliente", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_channels: args?.channels ?? ["email"], p_message: args?.message ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite"], riskLevel: "yellow", domain: "crm",
   },
 
@@ -4802,11 +4853,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   componi_e_invia_messaggio: {
     schema: { type: "function", function: { name: "componi_e_invia_messaggio", description: "Compone e invia un messaggio a un contatto (cliente/fornitore/dipendente/lead) sul canale scelto. Richiede conferma (non invia subito).", parameters: { type: "object", properties: { destinatario_tipo: { type: "string", enum: ["cliente", "fornitore", "dipendente", "lead"] }, destinatario_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp", "sms"], default: "email" }, oggetto: { type: "string" }, corpo: { type: "string" }, scopo: { type: "string", enum: ["sollecito", "followup", "informativo", "richiesta_doc", "offerta"] } }, required: ["destinatario_tipo", "destinatario_id", "corpo"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_componi_e_invia_messaggio", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dest_tipo: args?.destinatario_tipo, p_dest_id: args?.destinatario_id, p_canale: args?.canale ?? "email", p_oggetto: args?.oggetto ?? null, p_corpo: args?.corpo, p_scopo: args?.scopo ?? "informativo" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "cfo", "pm_cantiere"], riskLevel: "yellow", domain: "sales", estimatedCostEur: 0.01,
   },
   rispondi_a_email: {
     schema: { type: "function", function: { name: "rispondi_a_email", description: "Risponde a un thread email entrante. Silvio redige, l'utente conferma l'invio.", parameters: { type: "object", properties: { thread_id: { type: "string" }, corpo: { type: "string" }, allega_documento_id: { type: "string" } }, required: ["thread_id", "corpo"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_rispondi_a_email", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_thread_id: args?.thread_id, p_corpo: args?.corpo, p_doc_id: args?.allega_documento_id ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore"], riskLevel: "yellow", domain: "sales", estimatedCostEur: 0.01,
   },
 
@@ -4814,36 +4867,43 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   invia_sollecito_pagamento: {
     schema: { type: "function", function: { name: "invia_sollecito_pagamento", description: "Invia sollecito al cliente per fattura scaduta. Escalation per giorni di ritardo. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, fattura_id: { type: "string" }, tono: { type: "string", enum: ["cortese", "fermo", "ultimo_avviso"], default: "cortese" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["fattura_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_sollecito_pagamento", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id ?? null, p_fattura_id: args?.fattura_id, p_tono: args?.tono ?? "cortese", p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "cfo", "assistente_imprenditore"], riskLevel: "yellow", domain: "finance", estimatedCostEur: 0.01,
   },
   invia_followup_preventivo: {
     schema: { type: "function", function: { name: "invia_followup_preventivo", description: "Invia follow-up al cliente per un preventivo in attesa. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, quote_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["quote_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_followup_preventivo", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id ?? null, p_quote_id: args?.quote_id, p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "assistente_imprenditore"], riskLevel: "yellow", domain: "crm", estimatedCostEur: 0.01,
   },
   invia_ordine_fornitore: {
     schema: { type: "function", function: { name: "invia_ordine_fornitore", description: "Prepara e invia un ordine al fornitore (es. stockout imminente). Conferma richiesta.", parameters: { type: "object", properties: { fornitore_id: { type: "string" }, articolo_id: { type: "string" }, quantita: { type: "number" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["fornitore_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_ordine_fornitore", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_fornitore_id: args?.fornitore_id, p_articolo_id: args?.articolo_id ?? null, p_quantita: args?.quantita ?? null, p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"], riskLevel: "yellow", domain: "warehouse", estimatedCostEur: 0.01,
   },
   convoca_formazione_operaio: {
     schema: { type: "function", function: { name: "convoca_formazione_operaio", description: "Convoca un dipendente per una formazione/rinnovo in scadenza. Conferma richiesta.", parameters: { type: "object", properties: { dipendente_id: { type: "string" }, formazione: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["dipendente_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_convoca_formazione_operaio", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dipendente_id: args?.dipendente_id, p_formazione: args?.formazione ?? null, p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "hr", "assistente_imprenditore"], riskLevel: "yellow", domain: "hr", estimatedCostEur: 0.01,
   },
   lancia_winback: {
     schema: { type: "function", function: { name: "lancia_winback", description: "Lancia una campagna win-back verso un cliente dormiente. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, offerta: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["cliente_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lancia_winback", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id, p_offerta: args?.offerta ?? null, p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "assistente_imprenditore"], riskLevel: "yellow", domain: "crm", estimatedCostEur: 0.01,
   },
   invia_cedolino_dipendente: {
     schema: { type: "function", function: { name: "invia_cedolino_dipendente", description: "Invia il cedolino a un dipendente. Conferma richiesta.", parameters: { type: "object", properties: { dipendente_id: { type: "string" }, cedolino_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["dipendente_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_cedolino", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dipendente_id: args?.dipendente_id, p_cedolino_id: args?.cedolino_id ?? null, p_canale: args?.canale ?? "email" }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "hr", "assistente_imprenditore"], riskLevel: "yellow", domain: "hr", estimatedCostEur: 0.01,
   },
   blocca_slot_calendario: {
     schema: { type: "function", function: { name: "blocca_slot_calendario", description: "Blocca uno slot nel calendario (es. per sopralluogo). Conferma richiesta.", parameters: { type: "object", properties: { inizio: { type: "string", description: "ISO timestamp" }, fine: { type: "string", description: "ISO timestamp" }, motivo: { type: "string" } }, required: ["inizio"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_blocca_slot_calendario", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_inizio: args?.inizio, p_fine: args?.fine ?? null, p_motivo: args?.motivo ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"], riskLevel: "yellow", domain: "operations", estimatedCostEur: 0.01,
   },
 
@@ -4851,11 +4911,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   guida_a: {
     schema: { type: "function", function: { name: "guida_a", description: "Spiega come fare un'operazione nell'app (passi) e fornisce il deep-link (route_path + query_params) per aprire la schermata giusta, eventualmente pre-compilata. Usalo quando l'utente chiede 'come faccio a...' o 'dove sta...'.", parameters: { type: "object", properties: { operazione: { type: "string", description: "es: creare una nota di credito" }, precompila: { type: "boolean", default: false }, entita_id: { type: "string", description: "id entità per pre-compilare (es. fattura da stornare, cliente)" } }, required: ["operazione"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_guida_a", { p_company_id: ctx.companyId, p_operazione: args?.operazione, p_precompila: args?.precompila ?? false, p_entita_id: args?.entita_id ?? null }),
+    allowedRoles: ["*"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "support", estimatedCostEur: 0.005,
   },
   salva_regola_decisionale: {
     schema: { type: "function", function: { name: "salva_regola_decisionale", description: "Salva una preferenza decisionale del titolare (es. 'sotto 5000€ approva sempre i preventivi'). NON esegue nulla: registra solo la regola, che resta consultiva finché il titolare non attiva l'auto-approvazione. Vale solo per azioni a rischio medio (mai contratti/HR critici).", parameters: { type: "object", properties: { dominio: { type: "string", description: "es: preventivi, pagamenti, fornitori" }, campo: { type: "string", description: "campo da valutare, es: importo" }, operatore: { type: "string", enum: ["<", "<=", ">", ">=", "=", "!="], default: "<" }, valore: { type: "number", description: "soglia numerica (es. 5000)" }, azione: { type: "string", enum: ["auto_approva", "auto_rifiuta", "avvisa"], default: "avvisa" } }, required: ["dominio", "campo", "valore"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_salva_regola_decisionale", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dominio: args?.dominio, p_condizione: { field: args?.campo, op: args?.operatore ?? "<", value: args?.valore }, p_azione: args?.azione ?? "avvisa", p_origine: "esplicito" }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "cfo"], riskLevel: "safe", domain: "support", estimatedCostEur: 0.005,
   },
 
@@ -4863,6 +4925,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   genera_creativita: {
     schema: { type: "function", function: { name: "genera_creativita", description: "Genera un'immagine/grafica social brandizzata seguendo i canoni di brand. Asincrono: accoda un job e ritorna subito {job_id, eta_seconds}. Conferma richiesta (consuma crediti).", parameters: { type: "object", properties: { tipo: { type: "string", enum: ["immagine"], default: "immagine" }, brief: { type: "string", description: "cosa rappresentare, es: post vendita ristrutturazione bagno chiavi in mano" }, formato: { type: "string", enum: ["1:1", "4:5", "9:16", "16:9"], default: "4:5" }, contesto_commessa_id: { type: "string", description: "opzionale: aggancia dati reali di una commessa" } }, required: ["brief"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_enqueue_creativita", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_tipo: "immagine", p_brief: args?.brief, p_formato: args?.formato ?? "4:5", p_commessa_id: args?.contesto_commessa_id ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "marketing"], riskLevel: "safe", domain: "marketing", estimatedCostEur: 0.06,
     resultContract: "Se il tool risponde ok:false → NON dire che stai creando l'immagine: spiega l'errore in una frase semplice. Se ok:true (hai un job_id reale) → rispondi SOLO con UNA frase breve e umana (es. \"Sto creando l'immagine, sarà pronta tra pochi secondi 👇\"), SENZA tecnicismi (vietato 'job', 'Job ID', 'controlla il job', 'in elaborazione', 'eta_seconds', 'stato'). Poi emetti SUBITO, su righe a parte, un blocco fenced con linguaggio 'silvio-image' contenente ESATTAMENTE {\"job_id\":\"<il job_id ricevuto>\"} — usa il job_id vero, mai inventato. L'immagine si rivela da sola nella chat. Dopo, in una riga, puoi offrire di preparare una campagna sponsorizzata.",
   },
@@ -4874,6 +4937,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   simula_scenario_aziendale: {
     schema: { type: "function", function: { name: "simula_scenario_aziendale", description: "Simula uno scenario composito (nuova commessa, termini di pagamento, assunzione, sconto) e ne valuta l'impatto su cassa, margine e carico squadre su un orizzonte temporale. Restituisce numeri base reali + impatto stimato + leve concrete (incassi anticipabili): usa questi dati per raccontare se la cassa regge e cosa fare. Sola lettura, non modifica nulla.", parameters: { type: "object", properties: { ipotesi: { type: "string", description: "descrizione naturale dello scenario" }, orizzonte_mesi: { type: "integer", default: 6 }, variabili: { type: "object", description: "es {nuova_commessa_eur:80000, incasso_giorni:60, fornitori_giorni:30, costo_fornitori_eur:50000}" } }, required: ["ipotesi"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_simula_scenario", { p_company_id: ctx.companyId, p_ipotesi: args?.ipotesi, p_orizzonte: args?.orizzonte_mesi ?? 6, p_variabili: args?.variabili ?? {} }),
+    allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "finance", estimatedCostEur: 0.02,
   },
 
@@ -4884,24 +4948,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   stima_probabilita_close_quote: {
     schema: { type: "function", function: { name: "stima_probabilita_close_quote", description: "Stima probabilità close quote (heuristic baseline + AI factors).", parameters: { type: "object", properties: { quote_id: { type: "string" } }, required: ["quote_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_stima_probabilita_close_quote", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   get_pipeline_forecast: {
     schema: { type: "function", function: { name: "get_pipeline_forecast", description: "Forecast pipeline aggregato MULTI-FONTE (totale, weighted, 30/60/90gg): opportunità CRM aperte + preventivi inviati non collegati a un'opportunità (i collegati contano una volta sola — molte aziende fanno preventivi cartacei fuori EiC, quindi le opportunità sono la fonte primaria). Leggi 'fonti' per il breakdown e 'nota_lettura' per i caveat (es. opportunità senza valore stimato).", parameters: { type: "object", properties: { horizon_days: { type: "integer", default: 90 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_pipeline_forecast", { p_company_id: ctx.companyId, p_horizon_days: args?.horizon_days ?? 90 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "cfo", "*"], riskLevel: "safe", domain: "crm",
   },
 
   identifica_quotes_da_followup: {
     schema: { type: "function", function: { name: "identifica_quotes_da_followup", description: "Quotes attive con probabilità >= soglia (priorità follow-up).", parameters: { type: "object", properties: { priority_threshold: { type: "number", default: 60 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_quotes_da_followup", { p_company_id: ctx.companyId, p_priority_threshold: args?.priority_threshold ?? 60 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   suggerisci_azione_per_quote: {
     schema: { type: "function", function: { name: "suggerisci_azione_per_quote", description: "Suggerisce next-action per quote (call/email/wait).", parameters: { type: "object", properties: { quote_id: { type: "string" } }, required: ["quote_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_azione_per_quote", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
@@ -4912,36 +4980,42 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   create_capture_run: {
     schema: { type: "function", function: { name: "create_capture_run", description: "Crea un nuovo run di estrazione preventivo da foto/audio/testo. Ritorna run_id.", parameters: { type: "object", properties: { capture_mode: { type: "string", enum: ["foto", "audio", "testo", "mixed"] }, image_paths: { type: "array", items: { type: "string" } }, audio_path: { type: "string" }, description: { type: "string" }, vertical_key: { type: "string" } }, required: ["capture_mode"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_capture_run", { p_company_id: ctx.companyId, p_capture_mode: args?.capture_mode, p_image_paths: args?.image_paths ?? null, p_audio_path: args?.audio_path ?? null, p_description: args?.description ?? null, p_vertical_key: args?.vertical_key ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "preventivi",
   },
 
   get_capture_run: {
     schema: { type: "function", function: { name: "get_capture_run", description: "Recupera dati di un capture run (estratto cliente + prodotti + status).", parameters: { type: "object", properties: { run_id: { type: "string" } }, required: ["run_id"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_capture_run", { p_company_id: ctx.companyId, p_run_id: args?.run_id }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "preventivi",
   },
 
   apply_capture_review: {
     schema: { type: "function", function: { name: "apply_capture_review", description: "Trasforma un capture run reviewato in quote + quote_items + auto-create/update marketing_contact. Strategia contact: auto/manual/always_new/use_existing.", parameters: { type: "object", properties: { run_id: { type: "string" }, corrections: { type: "object", properties: { customer: { type: "object" }, products: { type: "array" }, contact_strategy: { type: "string", enum: ["auto", "manual", "always_new", "use_existing"] }, existing_contact_id: { type: "string" } } } }, required: ["run_id", "corrections"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_apply_capture_review", { p_company_id: ctx.companyId, p_run_id: args?.run_id, p_corrections: args?.corrections ?? {} }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite"], riskLevel: "yellow", domain: "preventivi",
   },
 
   match_product_alias: {
     schema: { type: "function", function: { name: "match_product_alias", description: "Cerca alias prodotto cached per nome locale (es. 'infisso PVC' → article_template_id). Bumpa use_count.", parameters: { type: "object", properties: { alias_text: { type: "string" } }, required: ["alias_text"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_match_product_alias", { p_company_id: ctx.companyId, p_alias_text: args?.alias_text }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "*"], riskLevel: "safe", domain: "preventivi",
   },
 
   register_product_alias: {
     schema: { type: "function", function: { name: "register_product_alias", description: "Registra un alias prodotto dopo che l'utente ha confermato il match.", parameters: { type: "object", properties: { alias_text: { type: "string" }, article_template_id: { type: "string" }, family_id: { type: "string" }, tariffa_id: { type: "string" }, learned_from: { type: "string", enum: ["manual", "capture_review", "history", "import"] }, confidence: { type: "number" } }, required: ["alias_text"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_register_product_alias", { p_company_id: ctx.companyId, p_alias_text: args?.alias_text, p_article_template_id: args?.article_template_id ?? null, p_family_id: args?.family_id ?? null, p_tariffa_id: args?.tariffa_id ?? null, p_learned_from: args?.learned_from ?? "capture_review", p_confidence: args?.confidence ?? 0.95 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "*"], riskLevel: "safe", domain: "preventivi",
   },
 
   lookup_contact_live: {
     schema: { type: "function", function: { name: "lookup_contact_live", description: "Cerca contact candidates per email/telefono/nome (UI suggestion live).", parameters: { type: "object", properties: { email: { type: "string" }, phone: { type: "string" }, name_hint: { type: "string" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lookup_contact_live", { p_company_id: ctx.companyId, p_email: args?.email ?? null, p_phone: args?.phone ?? null, p_name_hint: args?.name_hint ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
@@ -4951,12 +5025,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   create_visit_debrief: {
     schema: { type: "function", function: { name: "create_visit_debrief", description: "Crea debrief visita commerciale (audio + foto + note). L'edge ai-visit-debrief-analyzer poi analizza.", parameters: { type: "object", properties: { contact_id: { type: "string" }, quote_id: { type: "string" }, order_id: { type: "string" }, audio_path: { type: "string" }, image_paths: { type: "array", items: { type: "string" } }, free_notes: { type: "string" }, visit_location: { type: "string" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_visit_debrief", { p_company_id: ctx.companyId, p_contact_id: args?.contact_id ?? null, p_quote_id: args?.quote_id ?? null, p_order_id: args?.order_id ?? null, p_audio_path: args?.audio_path ?? null, p_image_paths: args?.image_paths ?? null, p_free_notes: args?.free_notes ?? null, p_visit_location: args?.visit_location ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   lista_visite_a_rischio: {
     schema: { type: "function", function: { name: "lista_visite_a_rischio", description: "Visite ad alta probabilità di close ma senza follow-up (rischio perdita).", parameters: { type: "object", properties: { days_back: { type: "integer", default: 14 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_visite_a_rischio", { p_company_id: ctx.companyId, p_days_back: args?.days_back ?? 14 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
@@ -4966,12 +5042,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   get_dynamic_pricing_factors: {
     schema: { type: "function", function: { name: "get_dynamic_pricing_factors", description: "Aggrega fattori dinamici di pricing: domanda, stagione, materie prime, concorrenti. Ritorna suggested_adjustment_pct.", parameters: { type: "object", properties: { product_category: { type: "string" }, material_keys: { type: "array", items: { type: "string" } } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_dynamic_pricing_factors", { p_company_id: ctx.companyId, p_product_category: args?.product_category ?? null, p_material_keys: args?.material_keys ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "controller", "cfo", "*"], riskLevel: "safe", domain: "preventivi",
   },
 
   record_competitor_signal: {
     schema: { type: "function", function: { name: "record_competitor_signal", description: "Registra un segnale di pricing competitor (es. 'X ha alzato +5%').", parameters: { type: "object", properties: { competitor_name: { type: "string" }, product_category: { type: "string" }, signal_type: { type: "string", enum: ["price_increase", "price_decrease", "promotion", "new_product", "market_share"] }, signal_value: { type: "number" }, description: { type: "string" }, zone: { type: "string" } }, required: ["competitor_name", "product_category", "signal_type"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_record_competitor_signal", { p_company_id: ctx.companyId, p_competitor_name: args?.competitor_name, p_product_category: args?.product_category, p_signal_type: args?.signal_type, p_signal_value: args?.signal_value ?? null, p_description: args?.description ?? null, p_zone: args?.zone ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
@@ -4981,12 +5059,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   optimize_route: {
     schema: { type: "function", function: { name: "optimize_route", description: "Ottimizza percorso operaio: nearest-neighbor TSP su stops disponibili in distance_matrix_cache.", parameters: { type: "object", properties: { start_location_id: { type: "string" }, stop_location_ids: { type: "array", items: { type: "string" } }, end_location_id: { type: "string" }, default_stop_min: { type: "integer", default: 60 } }, required: ["start_location_id", "stop_location_ids"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_optimize_route_nearest_neighbor", { p_company_id: ctx.companyId, p_start_location_id: args?.start_location_id, p_stop_location_ids: args?.stop_location_ids, p_end_location_id: args?.end_location_id ?? null, p_default_stop_min: args?.default_stop_min ?? 60 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
   },
 
   save_route_plan: {
     schema: { type: "function", function: { name: "save_route_plan", description: "Salva piano percorso giornaliero per un operaio.", parameters: { type: "object", properties: { plan_date: { type: "string", format: "date" }, employee_id: { type: "string" }, start_location_id: { type: "string" }, end_location_id: { type: "string" }, stops: { type: "array" }, total_distance_km: { type: "number" }, total_duration_min: { type: "integer" } }, required: ["plan_date", "employee_id", "stops"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_save_route_plan", { p_company_id: ctx.companyId, p_plan_date: args?.plan_date, p_employee_id: args?.employee_id, p_start_location_id: args?.start_location_id ?? null, p_end_location_id: args?.end_location_id ?? null, p_stops: args?.stops, p_total_distance_km: args?.total_distance_km ?? null, p_total_duration_min: args?.total_duration_min ?? null, p_strategy: args?.strategy ?? "nearest_neighbor" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere"], riskLevel: "safe", domain: "cantiere",
   },
 
@@ -4996,12 +5076,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   register_camera_device: {
     schema: { type: "function", function: { name: "register_camera_device", description: "Registra dispositivo camera per cantiere (IP cam, drone, helmet cam, app mobile).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, device_name: { type: "string" }, device_type: { type: "string", enum: ["ip_camera", "drone", "mobile_app", "helmet_cam", "webhook"] }, alert_phone: { type: "string" }, alert_email: { type: "string" } }, required: ["cantiere_id", "device_name", "device_type"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_register_camera_device", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_device_name: args?.device_name, p_device_type: args?.device_type, p_alert_phone: args?.alert_phone ?? null, p_alert_email: args?.alert_email ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance", "pm_cantiere"], riskLevel: "yellow", domain: "compliance",
   },
 
   lista_violazioni_attive: {
     schema: { type: "function", function: { name: "lista_violazioni_attive", description: "Violazioni cantiere recenti high/critical da camera devices.", parameters: { type: "object", properties: { hours_back: { type: "integer", default: 24 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_violazioni_attive", { p_company_id: ctx.companyId, p_hours_back: args?.hours_back ?? 24 }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "compliance", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "compliance",
   },
 
@@ -5011,18 +5093,21 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   create_complaint: {
     schema: { type: "function", function: { name: "create_complaint", description: "Crea reclamo cliente da qualsiasi sorgente. L'edge ai-complaint-analyzer poi analizza e auto-escalate se critical.", parameters: { type: "object", properties: { source: { type: "string", enum: ["email", "whatsapp", "telegram", "web_form", "phone", "review_google", "review_facebook", "visit_in_person", "manual"] }, raw_text: { type: "string" }, customer_name: { type: "string" }, customer_email: { type: "string" }, customer_phone: { type: "string" }, contact_id: { type: "string" }, related_order_id: { type: "string" }, related_quote_id: { type: "string" } }, required: ["source", "raw_text"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_complaint", { p_company_id: ctx.companyId, p_source: args?.source, p_raw_text: args?.raw_text, p_customer_name: args?.customer_name ?? null, p_customer_email: args?.customer_email ?? null, p_customer_phone: args?.customer_phone ?? null, p_contact_id: args?.contact_id ?? null, p_related_order_id: args?.related_order_id ?? null, p_related_quote_id: args?.related_quote_id ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "call_center"],
     allowedPersonas: ["silvio", "assistente_cliente", "*"], riskLevel: "safe", domain: "crm",
   },
 
   lista_reclami_aperti: {
     schema: { type: "function", function: { name: "lista_reclami_aperti", description: "Reclami aperti ordinati per urgenza.", parameters: { type: "object", properties: { urgency_min: { type: "string", enum: ["low", "medium", "high", "critical"], default: "low" } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_reclami_aperti", { p_company_id: ctx.companyId, p_urgency_min: args?.urgency_min ?? "low" }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "call_center"],
     allowedPersonas: ["silvio", "assistente_cliente", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 
   resolve_complaint: {
     schema: { type: "function", function: { name: "resolve_complaint", description: "Marca reclamo come risolto con note risoluzione.", parameters: { type: "object", properties: { complaint_id: { type: "string" }, resolution_notes: { type: "string" }, action_taken: { type: "string" }, customer_satisfied: { type: "boolean" } }, required: ["complaint_id", "resolution_notes"] } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_resolve_complaint", { p_company_id: ctx.companyId, p_complaint_id: args?.complaint_id, p_resolution_notes: args?.resolution_notes, p_action_taken: args?.action_taken ?? null, p_customer_satisfied: args?.customer_satisfied ?? null }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "assistente_cliente", "*"], riskLevel: "yellow", domain: "crm",
   },
 
@@ -5096,9 +5181,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
  * canale-aware). Mantenuto per back-compat con silvio-chat esistente.
  */
 export function getToolsForRole(role: string): SilvioTool[] {
-  return Object.values(SILVIO_TOOLS).filter(t =>
-    !t.allowedRoles || t.allowedRoles.length === 0 || t.allowedRoles.includes(role) || t.allowedRoles.includes("*")
-  );
+  // FAIL-CLOSED: senza allowedRoles il tool è riservato a DEFAULT_TOOL_ALLOWED_ROLES.
+  return Object.values(SILVIO_TOOLS).filter(t => {
+    const roles = t.allowedRoles && t.allowedRoles.length > 0 ? t.allowedRoles : DEFAULT_TOOL_ALLOWED_ROLES;
+    return roles.includes(role) || roles.includes("*");
+  });
 }
 
 /**
@@ -5167,13 +5254,22 @@ export function domainsForClassification(opts: {
 }
 
 /**
+ * Ruoli di default per i tool che NON dichiarano `allowedRoles`.
+ * SICUREZZA (fail-closed): l'assenza di allowedRoles NON significa "tutti" —
+ * significa "solo i ruoli privilegiati". Un tool pensato per staff/venditori/
+ * operai deve dichiararlo esplicitamente (es. `allowedRoles: [..., "company_staff"]`).
+ */
+export const DEFAULT_TOOL_ALLOWED_ROLES = ["super_admin", "company_admin"];
+
+/**
  * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
  * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
  * telegram-bot-processor, internal-agent-tools (voice).
  *
  * Logica:
  *   - allowedChannels vuoto/undefined = disponibile su TUTTI i canali
- *   - allowedRoles vuoto/undefined o include "*" = disponibile per TUTTI i ruoli
+ *   - allowedRoles vuoto/undefined = FAIL-CLOSED su DEFAULT_TOOL_ALLOWED_ROLES
+ *     (solo admin); include "*" = disponibile per TUTTI i ruoli
  *   - allowedPersonas vuoto/undefined o include "*" = disponibile per TUTTE le personas
  *   - domain filter è opzionale (omettilo per ricevere tutti)
  *   - domains (plurale) filtra in OR su un set di domini; i tool SENZA domain
@@ -5193,10 +5289,12 @@ export function getToolsForChannel(opts: {
     if (tool.allowedChannels && tool.allowedChannels.length > 0) {
       if (!tool.allowedChannels.includes(opts.channel)) continue;
     }
-    // Role filter
-    if (tool.allowedRoles && tool.allowedRoles.length > 0) {
-      if (!tool.allowedRoles.includes(opts.role) && !tool.allowedRoles.includes("*")) continue;
-    }
+    // Role filter — FAIL-CLOSED: un tool senza allowedRoles è riservato agli
+    // admin (default DEFAULT_TOOL_ALLOWED_ROLES), mai esposto a tutti i ruoli.
+    const toolRoles = tool.allowedRoles && tool.allowedRoles.length > 0
+      ? tool.allowedRoles
+      : DEFAULT_TOOL_ALLOWED_ROLES;
+    if (!toolRoles.includes(opts.role) && !toolRoles.includes("*")) continue;
     // Persona filter
     if (opts.personaKey && tool.allowedPersonas && tool.allowedPersonas.length > 0) {
       if (!tool.allowedPersonas.includes(opts.personaKey) && !tool.allowedPersonas.includes("*")) continue;
@@ -5234,7 +5332,9 @@ export async function executeTool(
   const tool = SILVIO_TOOLS[name];
   if (!tool) return { error: `Tool sconosciuto: ${name}` };
   const channel = ctx.channel ?? "internal_chat";
-  if (tool.allowedRoles && !tool.allowedRoles.includes(ctx.primaryRole) && !tool.allowedRoles.includes("*")) {
+  // FAIL-CLOSED: senza allowedRoles il tool è riservato a DEFAULT_TOOL_ALLOWED_ROLES.
+  const toolRoles = tool.allowedRoles && tool.allowedRoles.length > 0 ? tool.allowedRoles : DEFAULT_TOOL_ALLOWED_ROLES;
+  if (!toolRoles.includes(ctx.primaryRole) && !toolRoles.includes("*")) {
     return { error: `Tool ${name} non autorizzato per ruolo ${ctx.primaryRole}` };
   }
   if (ctx.personaKey && tool.allowedPersonas && !tool.allowedPersonas.includes(ctx.personaKey) && !tool.allowedPersonas.includes("*")) {
