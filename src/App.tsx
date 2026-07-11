@@ -145,6 +145,7 @@ const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));
 const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
+const SelezionaAzienda = lazy(() => import("@/pages/SelezionaAzienda"));
 const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
@@ -662,6 +663,7 @@ const App = () => (
               <Route path="/produttore-login" element={<ProduttoreLogin />} />
               <Route path="/commercialista-login" element={<CommercialistaLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
+              <Route path="/seleziona-azienda" element={<ProtectedRoute><Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}><SelezionaAzienda /></Suspense></ProtectedRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}
