@@ -151,6 +151,26 @@ export function FlowBuilderConfigPanel({
   const [isDirty, setIsDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
+  // Snapshot dei dati del nodo all'apertura (ri-catturato al cambio nodo):
+  // handleChange applica SUBITO ogni modifica al mirror, quindi "Chiudi senza
+  // salvare" deve poter ripristinare i valori pre-modifica — senza snapshot
+  // scartava il dialog ma teneva le modifiche.
+  const initialDataRef = useRef<Record<string, any> | null>(null);
+  const snapshotNodeIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedNode) {
+      initialDataRef.current = null;
+      snapshotNodeIdRef.current = null;
+      return;
+    }
+    if (selectedNode.id !== snapshotNodeIdRef.current) {
+      snapshotNodeIdRef.current = selectedNode.id;
+      initialDataRef.current = { ...(selectedNode.data as Record<string, any>) };
+      setIsDirty(false);
+      setShowUnsavedDialog(false);
+    }
+  }, [selectedNode]);
+
   if (!selectedNode) return null;
 
   const schema = catalog?.configSchema ?? [];
@@ -179,6 +199,11 @@ export function FlowBuilderConfigPanel({
   };
 
   const handleDiscardAndClose = () => {
+    // Ripristina i valori pre-modifica nel mirror/canvas: le modifiche sono
+    // già state applicate in tempo reale da handleChange/handleFiltersChange.
+    if (isDirty && initialDataRef.current) {
+      onUpdateData(selectedNode.id, initialDataRef.current);
+    }
     setIsDirty(false);
     setShowUnsavedDialog(false);
     onClose();
@@ -197,6 +222,9 @@ export function FlowBuilderConfigPanel({
   // Filters state
   const filters: TriggerFilters = nodeData.trigger_filters || { logic: "AND", conditions: [] };
   const handleFiltersChange = (newFilters: TriggerFilters) => {
+    // Anche i filtri sono modifiche applicate subito: senza isDirty il
+    // pannello si chiudeva senza chiedere e senza possibilità di ripristino.
+    setIsDirty(true);
     onUpdateData(selectedNode.id, { ...nodeData, trigger_filters: newFilters });
   };
 

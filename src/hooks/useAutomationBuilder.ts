@@ -26,9 +26,21 @@ function isPersistableNode(node: AutomationNode): boolean {
 }
 
 function hasDelayDuration(config: AutomationConfig): boolean {
-  const value = config.delay_durata ?? config.delay_value;
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) && numericValue > 0;
+  const c = (config ?? {}) as Record<string, unknown>;
+  // "Fino alle HH:MM": la durata non serve.
+  if (c.delay_tipo === "fino_a" && typeof c.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(c.delay_orario)) {
+    return true;
+  }
+  // Invalida SOLO una durata esplicitamente non valida; assente = ok
+  // (il motore applica il default sicuro di 1h, e i template usano lo
+  // schema giorni/ore/minuti che PRIMA veniva bocciato qui).
+  const value = c.delay_durata ?? c.delay_value;
+  if (value != null && value !== "") {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) && numericValue > 0;
+  }
+  const totalMin = (Number(c.giorni) || 0) * 1440 + (Number(c.ore) || 0) * 60 + (Number(c.minuti) || 0);
+  return totalMin >= 0;
 }
 
 export function useAutomationBuilder(flowId: string | undefined) {
@@ -44,8 +56,13 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Use refs for history to avoid callback recreation cascades
   const historyRef = useRef<BuilderState[]>([]);
   const historyIndexRef = useRef(-1);
+  const historySeededRef = useRef(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  // Contatore incrementato SOLO da undo/redo: il builder lo osserva per
+  // ricostruire il canvas ReactFlow dal mirror. Le modifiche normali partono
+  // già dal canvas, quindi non devono far scattare la ricostruzione.
+  const [revision, setRevision] = useState(0);
 
   const updateUndoRedoState = useCallback(() => {
     setCanUndo(historyIndexRef.current > 0);
@@ -128,6 +145,25 @@ export function useAutomationBuilder(flowId: string | undefined) {
     if (dbConnections) setConnections(dbConnections);
   }, [dbConnections]);
 
+  // History: reset al cambio flusso e seed del baseline caricato dal DB.
+  // Senza il seed la prima entry di history è la PRIMA MODIFICA (indice 0,
+  // canUndo=false): lo stato appena caricato non è mai raggiungibile con
+  // Ctrl+Z e la prima modifica non è annullabile.
+  useEffect(() => {
+    historyRef.current = [];
+    historyIndexRef.current = -1;
+    historySeededRef.current = false;
+    updateUndoRedoState();
+  }, [flowId, updateUndoRedoState]);
+  useEffect(() => {
+    if (historySeededRef.current) return;
+    if (!dbNodes || !dbConnections) return;
+    historyRef.current = [{ nodes: dbNodes, connections: dbConnections }];
+    historyIndexRef.current = 0;
+    historySeededRef.current = true;
+    updateUndoRedoState();
+  }, [dbNodes, dbConnections, updateUndoRedoState]);
+
   // Push to history (no state deps — uses refs)
   const pushHistory = useCallback((newNodes: AutomationNode[], newConns: AutomationConnection[]) => {
     const truncated = historyRef.current.slice(0, historyIndexRef.current + 1);
@@ -138,13 +174,16 @@ export function useAutomationBuilder(flowId: string | undefined) {
     updateUndoRedoState();
   }, [updateUndoRedoState]);
 
-  // Undo / Redo
+  // Undo / Redo — bump di `revision` per far ricostruire il canvas ReactFlow
+  // dal mirror: senza, Ctrl+Z cambiava solo lo stato salvato (non lo schermo)
+  // e il prossimo "Salva" persisteva un grafo diverso da quello visibile.
   const undo = useCallback(() => {
     if (historyIndexRef.current <= 0) return;
     historyIndexRef.current--;
     const prev = historyRef.current[historyIndexRef.current];
     setNodes(prev.nodes);
     setConnections(prev.connections);
+    setRevision(r => r + 1);
     setHasUnsavedChanges(true);
     updateUndoRedoState();
   }, [updateUndoRedoState]);
@@ -155,6 +194,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     const next = historyRef.current[historyIndexRef.current];
     setNodes(next.nodes);
     setConnections(next.connections);
+    setRevision(r => r + 1);
     setHasUnsavedChanges(true);
     updateUndoRedoState();
   }, [updateUndoRedoState]);
@@ -507,7 +547,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     selectedNodeId, selectedNode, setSelectedNodeId,
     addNode, updateNode, updateNodePositions, removeNode,
     addConnection, removeConnection,
-    undo, redo, canUndo, canRedo,
+    undo, redo, canUndo, canRedo, revision,
     saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   };

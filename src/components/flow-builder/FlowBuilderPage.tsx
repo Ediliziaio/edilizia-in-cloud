@@ -35,7 +35,8 @@ import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
-import { Loader2, AlertCircle, Wand2 } from "lucide-react";
+import { Loader2, AlertCircle, Wand2, Monitor } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -47,6 +48,7 @@ import { toast } from "sonner";
 export function FlowBuilderPage() {
   const { id: routeId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const isMobileDevice = useIsMobile();
   const [searchParams] = useSearchParams();
   const { toast: uiToast } = useToast();
   const isNewFlowRoute = !routeId || routeId === "nuova";
@@ -159,6 +161,43 @@ export function FlowBuilderPage() {
     }
   }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading]);
 
+  // Undo/Redo → risincronizza il canvas dal mirror del hook. Il mirror
+  // (builder.nodes/connections) è ciò che "Salva" persiste: senza questo
+  // resync Ctrl+Z non cambiava nulla a schermo ma il salvataggio scriveva
+  // comunque lo stato rollbackato → perdita dati silenziosa. I nodi solo
+  // visivi (Fine, trigger placeholder) e i loro archi non vivono nel mirror:
+  // si preservano dal canvas corrente finché i loro estremi esistono ancora.
+  useEffect(() => {
+    if (builder.revision === 0) return;
+    const rebuilt = nodesToReactFlow(builder.nodes).map((n) => {
+      if (n.type === "trigger" && !n.data?.itemId) {
+        return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
+      }
+      if (n.type === "trigger" && n.data?.itemId) {
+        return { ...n, data: { ...n.data, onAddTrigger: () => openCatalog("trigger") } };
+      }
+      return n;
+    });
+    const rebuiltIds = new Set(rebuilt.map((n) => n.id));
+    const visualOnlyNodes = rfNodes.filter(
+      (n) => !rebuiltIds.has(n.id) && (n.type === "end" || Boolean(n.data?.isEmpty))
+    );
+    const allIds = new Set([...rebuilt, ...visualOnlyNodes].map((n) => n.id));
+    const mirrorEdgeIds = new Set(builder.connections.map((c) => c.id));
+    const rebuiltEdges = connectionsToEdges(builder.connections)
+      .filter((e) => allIds.has(e.source) && allIds.has(e.target))
+      .map((e) => ({ ...e, data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) } }));
+    const visualOnlyEdges = rfEdges.filter(
+      (e) => !mirrorEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
+    );
+    setRfNodes([...rebuilt, ...visualOnlyNodes]);
+    setRfEdges([...rebuiltEdges, ...visualOnlyEdges]);
+    setSelectedNodeId((prev) => (prev && !allIds.has(prev) ? null : prev));
+    // Solo `revision` nelle deps: rfNodes/rfEdges cambiano ad ogni resync e
+    // rimetterli qui creerebbe un loop; servono solo come snapshot corrente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builder.revision]);
+
   // Auto-ordina alla prima apertura: ogni flusso viene mostrato con un layout
   // verticale pulito e CENTRATO (connettori dritti, stile GHL) senza dover
   // cliccare "Riordina". È solo VISIVO (non scrive su DB, non marca dirty) e
@@ -232,7 +271,14 @@ export function FlowBuilderPage() {
         animated: true,
         style: { strokeWidth: 2 },
         data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
-        label: params.sourceHandle === "yes" ? "Sì" : params.sourceHandle === "no" ? "No" : undefined,
+        // Label di ramo: il motore li normalizza (Sì/yes, No/no) — per gli
+        // split gli handle split_0/split_1 diventano "A"/"B" (prima restavano
+        // senza label e il motore seguiva ENTRAMBI i rami).
+        label: params.sourceHandle === "yes" ? "Sì"
+          : params.sourceHandle === "no" ? "No"
+          : params.sourceHandle === "split_0" ? "A"
+          : params.sourceHandle === "split_1" ? "B"
+          : undefined,
       };
       setRfEdges((eds) => addEdge(newEdge, eds));
       if (flowId && effectiveCompany) {
@@ -270,18 +316,6 @@ export function FlowBuilderPage() {
     e.dataTransfer.dropEffect = "move";
   }, []);
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const data = e.dataTransfer.getData("application/flow-node");
-      if (!data || !reactFlowInstance || !flowId || !effectiveCompany || !user) return;
-
-      const item: CatalogItem = JSON.parse(data);
-      const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      addNodeFromItem(item, position);
-    },
-    [reactFlowInstance, flowId, effectiveCompany, user, setRfNodes, addNode]
-  );
   // Open catalog panel with context filtering
   const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
     const ctx = tab === "trigger" ? "trigger" : "action";
@@ -462,6 +496,22 @@ export function FlowBuilderPage() {
     [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, rfNodes, rfEdges, openCatalogForEdge]
   );
 
+  // (spostato dopo addNodeFromItem: TS2448 used-before-declaration)
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const data = e.dataTransfer.getData("application/flow-node");
+      if (!data || !reactFlowInstance || !flowId || !effectiveCompany || !user) return;
+
+      const item: CatalogItem = JSON.parse(data);
+      const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      addNodeFromItem(item, position);
+    },
+    // addNodeFromItem nelle deps: la closure stale ragionava su rfNodes/rfEdges
+    // del primo render → auto-connessioni sbagliate dal secondo drop in poi.
+    [reactFlowInstance, flowId, effectiveCompany, user, addNodeFromItem]
+  );
+
   const handleSelectItem = useCallback(
     (item: CatalogItem) => {
       // If we have a pending edge insertion, insert node into that edge
@@ -476,14 +526,24 @@ export function FlowBuilderPage() {
 
             // Shift target node and all nodes below it down by 160px
             const targetY = targetNode.position.y;
+            const shouldShift = (n: Node) =>
+              n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger";
             setRfNodes((nds) =>
               nds.map((n) => {
-                if (n.position.y >= targetY && n.id !== sourceNode.id && n.type !== "trigger") {
+                if (shouldShift(n)) {
                   return { ...n, position: { ...n.position, y: n.position.y + 160 } };
                 }
                 return n;
               })
             );
+            // Lo shift va propagato anche al mirror: applicarlo solo a ReactFlow
+            // faceva salvare le posizioni VECCHIE → al reload i nodi tornavano
+            // sovrapposti. (I nodi solo-visivi non nel mirror vengono ignorati.)
+            const shiftedPositions: Record<string, { x: number; y: number }> = {};
+            for (const n of rfNodes) {
+              if (shouldShift(n)) shiftedPositions[n.id] = { x: n.position.x, y: n.position.y + 160 };
+            }
+            if (Object.keys(shiftedPositions).length > 0) updateNodePositions(shiftedPositions);
 
             const newNodeId = crypto.randomUUID();
             const pos = { x: sourceNode.position.x, y: midY };
@@ -588,9 +648,11 @@ export function FlowBuilderPage() {
               setRfNodes((nds) => [...nds, rfNode]);
             }
 
-            // Persist node + edges (for non-condition; condition already persisted above)
+            // Persist node + edges (condition e split hanno già persistito le
+            // LORO connessioni etichettate sopra: ri-aggiungerle qui creava id
+            // duplicati → upsert Postgres in errore al salvataggio).
             if (item.kind !== "condition") {
-              removeConnection(pendingInsertEdgeId);
+              if (item.kind !== "split") removeConnection(pendingInsertEdgeId);
               addNode({
                 id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
                 node_type: nodeType as any,
@@ -598,16 +660,18 @@ export function FlowBuilderPage() {
                 config_json: { item_id: item.id },
                 label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
               });
-              addConnection({
-                id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
-                from_node_id: edge.source, to_node_id: newNodeId,
-                label: null, created_at: new Date().toISOString(),
-              });
-              addConnection({
-                id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
-                from_node_id: newNodeId, to_node_id: edge.target,
-                label: null, created_at: new Date().toISOString(),
-              });
+              if (item.kind !== "split") {
+                addConnection({
+                  id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
+                  from_node_id: edge.source, to_node_id: newNodeId,
+                  label: null, created_at: new Date().toISOString(),
+                });
+                addConnection({
+                  id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
+                  from_node_id: newNodeId, to_node_id: edge.target,
+                  label: null, created_at: new Date().toISOString(),
+                });
+              }
             } else {
               // Condition node already persisted; just persist the main node
               addNode({
@@ -630,7 +694,7 @@ export function FlowBuilderPage() {
 
       addNodeFromItem(item);
     },
-    [addNodeFromItem, pendingInsertEdgeId, rfEdges, rfNodes, flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, openCatalogForEdge]
+    [addNodeFromItem, pendingInsertEdgeId, rfEdges, rfNodes, flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, updateNodePositions, openCatalogForEdge]
   );
 
   const onNodeDragStop = useCallback(
@@ -884,7 +948,11 @@ export function FlowBuilderPage() {
       { label: "Trigger configurato", ok: hasTrigger },
       { label: "Almeno uno step operativo", ok: hasAction },
       { label: "Nessun errore bloccante", ok: blockingErrors === 0 },
-      { label: "Controlli anti-loop verificati", ok: warnings === 0 },
+      // Gli AVVISI non bloccano il publish: i nodi Fine non vengono persistiti
+      // by-design, quindi alla riapertura l'ultimo nodo risulta "senza uscita"
+      // e con `ok: warnings === 0` NESSUN flusso lineare era ripubblicabile.
+      // Il motore chiude comunque l'iscrizione sui nodi foglia.
+      { label: warnings === 0 ? "Controlli anti-loop verificati" : `${warnings} avvisi (non bloccanti)`, ok: true, warning: warnings > 0 },
     ];
   }, [rfNodes, validationErrors]);
 
@@ -1064,6 +1132,21 @@ export function FlowBuilderPage() {
           <AlertCircle className="h-10 w-10 text-destructive" />
           <p className="text-sm text-muted-foreground">Errore nel caricamento del flow.</p>
           <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna indietro</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Il builder è un canvas drag-drop (ReactFlow): inusabile a dito su 375px.
+  // Su mobile mostriamo un messaggio invece del canvas rotto.
+  if (isMobileDevice) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <Monitor className="h-10 w-10 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Il builder delle automazioni richiede un computer</p>
+          <p className="text-xs text-muted-foreground">L'editor a nodi (trascina e collega) non è utilizzabile da telefono. Aprilo da desktop per creare o modificare un flusso.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna ai flussi</Button>
         </div>
       </div>
     );
