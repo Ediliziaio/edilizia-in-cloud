@@ -139,14 +139,18 @@ export function calcolaTotaliPreventivo(
 
   const overhead_totale = round2(costo_totale * (overhead_pct / 100));
   const vatFactor = 1 - discount_global_pct / 100;
-  const vatAmount = round2(
-    Object.values(iva_breakdown).reduce((s, v) => s + v, 0) * vatFactor
-  );
-  // Aggiusta iva_breakdown per riflettere il fattore sconto globale
+  // IVA PER ALIQUOTA arrotondata al centesimo, POI sommata (standard fiscale
+  // italiano: l'imposta si calcola e arrotonda per singola aliquota). Il
+  // totale IVA è così ESATTO e coincide con la somma delle righe mostrate nel
+  // PDF/UI. Il vecchio round-of-sum (Σ raw, poi un solo arrotondamento)
+  // divergeva di ±1 cent sui preventivi multi-aliquota → footing rotto.
   const iva_breakdown_netto: Record<string, number> = {};
   for (const [k, v] of Object.entries(iva_breakdown)) {
     iva_breakdown_netto[k] = round2(v * vatFactor);
   }
+  const vatAmount = round2(
+    Object.values(iva_breakdown_netto).reduce((s, v) => s + v, 0)
+  );
   const totale = round2(subtotale_netto + vatAmount);
 
   // Il margine è calcolato sul ricavo netto effettivo (post-sconto globale)

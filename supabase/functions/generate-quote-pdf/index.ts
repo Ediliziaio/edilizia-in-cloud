@@ -706,11 +706,14 @@ Deno.serve(async (req) => {
       const boxH = 100;
       chipBox(margin, boxTop, boxW, boxH, "DATI AZIENDA");
       chipBox(margin + boxW + 14, boxTop, boxW, boxH, "DATI CLIENTE");
-      let ay = boxTop - 30;
+      // Passo 11 + offset 26 (erano 12 e 30): un cliente B2B completo ha 7
+      // righe (nome, azienda, indirizzo, CF, P.IVA, tel, email) e col vecchio
+      // packing la 7ª — di solito l'email — veniva tagliata in silenzio.
+      let ay = boxTop - 26;
       const aLine = (s: string, bold = false) => {
         if (ay < boxTop - boxH + 8) return;
         page.drawText(s.slice(0, 46), { x: margin + 10, y: ay, size: 8.5, font: bold ? fontBold : font, color: textC });
-        ay -= 12;
+        ay -= 11;
       };
       if (company?.name) aLine(company.name, true);
       if (company?.address) aLine(company.address);
@@ -718,11 +721,11 @@ Deno.serve(async (req) => {
       if (company?.phone) aLine(`Tel. ${company.phone}`);
       if (company?.email) aLine(`Email: ${company.email}`);
       const bX = margin + boxW + 14 + 10;
-      let by = boxTop - 30;
+      let by = boxTop - 26;
       const bLine = (s: string, bold = false) => {
         if (by < boxTop - boxH + 8) return;
         page.drawText(s.slice(0, 46), { x: bX, y: by, size: 8.5, font: bold ? fontBold : font, color: textC });
-        by -= 12;
+        by -= 11;
       };
       if (quote.client_name) bLine(quote.client_name, true);
       if (quote.client_company) bLine(quote.client_company);
@@ -783,8 +786,12 @@ Deno.serve(async (req) => {
 
     drawWatermark(page);
 
-    // ─── Items table ───
-    if (items.length > 0) {
+    // ─── Items table + totali ───
+    // Blocco SEMPRE eseguito: header e righe della tabella sono guardati da
+    // items.length, ma totali/finanziamento/QR/firme devono comparire anche su
+    // un preventivo senza righe visibili (tutte mostra_nel_pdf=false, oppure
+    // lump-sum). Prima erano dentro `if (items.length > 0)` e sparivano.
+    {
       // Nel classic la tabella resta sulla prima pagina se c'è spazio
       // (documento monopagina come da impaginazione professionale).
       if (!classicPremium || y < 280) {
@@ -799,7 +806,7 @@ Deno.serve(async (req) => {
       const itemLeftX = t.layout === "bold" ? 100 : margin;
       const itemWidth = t.layout === "bold" ? contentWidth - 50 : contentWidth;
 
-      if (!classicPremium) {
+      if (!classicPremium && items.length > 0) {
         page.drawText("DETTAGLIO PRODOTTI E SERVIZI", { x: itemLeftX, y, size: 12, font: fontBold, color: primaryC });
         y -= 25;
       }
@@ -808,9 +815,16 @@ Deno.serve(async (req) => {
       // (numeri allineati a destra; lo sconto riga, se presente, è accodato al prezzo)
       const nX = itemLeftX + 4;
       const descX = itemLeftX + 26;
-      const qtyRight = itemLeftX + itemWidth - 200;
-      const umX = qtyRight + 12;
+      // Q.tà spostata a -220 (era -200) per dare respiro alla colonna prezzo:
+      // con lo sconto riga accodato il prezzo può arrivare a ~80pt e con il
+      // vecchio layout invadeva la cella U.M.
+      const qtyRight = itemLeftX + itemWidth - 220;
+      const umX = qtyRight + 10;
+      const umMaxW = 30; // cella U.M.: oltre → troncamento per larghezza misurata
       const priceRight = itemLeftX + itemWidth - 90;
+      // Bordo sinistro GARANTITO della colonna prezzo: il prezzo non scende mai
+      // sotto questa x, così non tocca mai la U.M. (fine cella = umX + umMaxW).
+      const priceLeftBound = umX + umMaxW + 8;
       // IVA a -70 (≈475): lascia 64pt alla colonna TOTALE (i totali riga da
       // 100.000+ € sono larghi ~50pt) senza invadere PREZZO UNIT. a sinistra.
       const ivaRight = itemLeftX + itemWidth - 70;
@@ -827,7 +841,8 @@ Deno.serve(async (req) => {
         drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
         y -= 24;
       };
-      drawTableHeader();
+      // Header solo se ci sono righe da mostrare (con 0 righe si va dritti ai totali).
+      if (items.length > 0) drawTableHeader();
       let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
@@ -865,7 +880,11 @@ Deno.serve(async (req) => {
             page.drawLine({ start: { x: itemLeftX, y: y + 5 }, end: { x: itemLeftX + itemWidth, y: y + 5 }, thickness: 0.5, color: lightGrayC });
             const subVal = items.slice(0, idx).reduce((s: number, i: any) => {
               if ((i as any).is_optional) return s;
-              return s + Number(i.line_total || (i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100)));
+              const lt = (i as any).line_total;
+              const amt = lt != null && lt !== ""
+                ? Number(lt)
+                : i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100);
+              return s + amt;
             }, 0);
             page.drawText("Subtotale", { x: descX, y, size: 9, font: fontBold, color: textC });
             drawRight(page, fmtEur(subVal), totRight, y, 9, fontBold, primaryC);
@@ -899,14 +918,28 @@ Deno.serve(async (req) => {
 
           // Q.tà formato italiano, U.M. in colonna separata, sconto riga accodato al prezzo
           const qtyText = Number(item.quantity ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const umText = String(item.unit_of_measure || "pz").slice(0, 6);
+          // U.M. troncata per LARGHEZZA misurata (non per numero di caratteri):
+          // una unità di misura larga non deve invadere la colonna prezzo.
+          let umText = String(item.unit_of_measure || "pz");
+          while (umText.length > 1 && textW(umText, 8.5) > umMaxW) umText = umText.slice(0, -1);
           const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
           const discPct = Number(item.discount_percent || 0);
-          // Sconto riga accodato al prezzo, ma senza invadere la colonna U.M.
-          let priceText = fmtEur(Number(item.unit_price || 0)) + (showDiscount && discPct > 0 ? ` (-${discPct}%)` : "");
-          if (priceText.length > 17) priceText = fmtEur(Number(item.unit_price || 0));
+          const priceBase = fmtEur(Number(item.unit_price || 0));
+          // Sconto riga accodato al prezzo SOLO se la stringa completa entra
+          // nella cella prezzo senza scavalcare il bordo sinistro garantito
+          // (quindi senza mai toccare la colonna U.M.).
+          let priceText = priceBase;
+          if (showDiscount && discPct > 0) {
+            const withDisc = `${priceBase} (-${discPct}%)`;
+            if (priceRight - textW(withDisc, 8.5) >= priceLeftBound) priceText = withDisc;
+          }
           const vatText = `${Number(item.vat_rate || 0)}%`;
-          const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100)));
+          // null-safe: un line_total legittimamente 0 (riga omaggio / 100% sconto)
+          // NON deve ricadere sul calcolo (|| inghiottiva lo zero).
+          const ltRaw = (item as any).line_total;
+          const lineTotal = ltRaw != null && ltRaw !== ""
+            ? Number(ltRaw)
+            : Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100);
 
           page.drawText(String(rowNumber), { x: nX, y, size: 8.5, font, color: grayC });
           page.drawText(nameText, { x: descX, y, size: 8.5, font, color: rowColor });
@@ -964,37 +997,64 @@ Deno.serve(async (req) => {
         y -= 15;
       };
 
-      drawTotal("SUBTOTALE", `${fmtEur(Number(quote.subtotal || 0))}`);
-      if (Number(quote.discount_percent || 0) > 0) {
-        drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(Number(quote.discount_amount || 0))}`);
+      // ── FOOTING garantito al centesimo: SUBTOTALE − Sconto + ΣIVA = TOTALE ──
+      // Valori AUTORITATIVI stored (subtotal / total). L'IVA è DERIVATA dal
+      // totale (non fidata a quote.vat_amount, che a monte può divergere per
+      // gli arrotondamenti a catena). Calcolati PRIMA di disegnarli.
+      const round2q = (n: number) => Math.round(n * 100) / 100;
+      const subTotShown = round2q(Number(quote.subtotal || 0));
+      const totShown = round2q(Number(quote.total || 0));
+      let scontoShown = round2q(Number(quote.discount_amount || 0));
+      let ivaToShow = round2q(totShown - (subTotShown - scontoShown));
+      if (ivaToShow < 0) {
+        // Preventivo (quasi) esente con sconto: uno scarto di arrotondamento
+        // ≤1 cent renderebbe l'IVA negativa. Lo assorbiamo nello SCONTO (già
+        // esposto), così l'IVA resta ≥ 0 e il documento torna comunque.
+        scontoShown = round2q(scontoShown - ivaToShow);
+        ivaToShow = 0;
       }
 
-      // ── IVA breakdown per aliquota ─────────────────────────────────
+      drawTotal("SUBTOTALE", `${fmtEur(subTotShown)}`);
+      if (Number(quote.discount_percent || 0) > 0) {
+        drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(scontoShown)}`);
+      }
+
       const ivaBreakdown: Record<number, number> = {};
       const discFactor = 1 - Number(quote.discount_percent || 0) / 100;
       for (const item of items.filter((i: any) => !i.is_optional)) {
         const rate = Number(item.vat_rate ?? 22);
-        const lineAmt = Number(
-          item.line_total ??
-          (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100))
-        );
+        const lt = (item as any).line_total;
+        const lineAmt = lt != null && lt !== ""
+          ? Number(lt)
+          : Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100);
         ivaBreakdown[rate] = (ivaBreakdown[rate] || 0) + lineAmt * (rate / 100);
       }
-      const ivaRates = Object.keys(ivaBreakdown)
-        .map(Number)
-        .sort((a, b) => a - b);
-      if (ivaRates.length > 1) {
-        // Show per-rate breakdown
-        for (const rate of ivaRates) {
-          const iva = Math.round(ivaBreakdown[rate] * discFactor * 100) / 100;
-          drawTotal(`IVA ${rate}%`, `${fmtEur(iva)}`);
+      const ivaRates = Object.keys(ivaBreakdown).map(Number).sort((a, b) => a - b);
+      // Aliquote che contribuiscono davvero (≥ 0,01 € dopo sconto globale).
+      const positiveRates = ivaRates.filter((r) => ivaBreakdown[r] * discFactor >= 0.005);
+
+      if (positiveRates.length > 1) {
+        // Più aliquote: ciascuna arrotondata, poi il residuo di arrotondamento
+        // viene assorbito dalla riga di VALORE MASSIMO (mai negativa: dominare
+        // il residuo di ±0.01 è garantito). Così Σrighe = ESATTAMENTE ivaToShow.
+        const rows = positiveRates.map((rate) => ({ rate, value: round2q(ivaBreakdown[rate] * discFactor) }));
+        const sumRows = round2q(rows.reduce((s, r) => s + r.value, 0));
+        const residual = round2q(ivaToShow - sumRows);
+        if (residual !== 0) {
+          let maxI = 0;
+          for (let i = 1; i < rows.length; i++) if (rows[i].value > rows[maxI].value) maxI = i;
+          rows[maxI].value = round2q(rows[maxI].value + residual);
         }
+        for (const r of rows) drawTotal(`IVA ${r.rate}%`, `${fmtEur(r.value)}`);
       } else {
-        // Aliquota unica: mostrala nell'etichetta (es. "IVA 10%")
-        drawTotal(`IVA${ivaRates.length === 1 ? ` ${ivaRates[0]}%` : ""}`, `${fmtEur(Number(quote.vat_amount || 0))}`);
+        // Aliquota unica (o tutte a 0): una sola riga IVA = ivaToShow.
+        const soleRate = positiveRates.length === 1
+          ? positiveRates[0]
+          : (ivaRates.length === 1 ? ivaRates[0] : null);
+        drawTotal(`IVA${soleRate != null ? ` ${soleRate}%` : ""}`, `${fmtEur(ivaToShow)}`);
       }
 
-      drawTotal("TOTALE", `${fmtEur(Number(quote.total || 0))}`, true);
+      drawTotal("TOTALE", `${fmtEur(totShown)}`, true);
 
       // ── Box Finanziamento (se presente nel preventivo) ─────────────
       // I 6 campi quotes.financing_* vengono popolati dal QuoteBuilder
@@ -1008,7 +1068,10 @@ Deno.serve(async (req) => {
         newPageIfNeeded(80);
         y -= 10;
         const finBoxX = totX - 10;
-        const finBoxW = (totValX + 50) - finBoxX + 10;
+        // Bordo destro allineato al contenuto (itemLeftX + itemWidth): la
+        // formula precedente (totValX + 50 …) portava il box a x≈599, oltre il
+        // bordo pagina (595.28) e ~54pt fuori dal margine dei contenuti.
+        const finBoxW = (itemLeftX + itemWidth) - finBoxX;
         const finBoxH = 56;
         const finBoxY = y - finBoxH + 20;
         const blueLight = rgb(0.94, 0.97, 1);
@@ -1031,9 +1094,11 @@ Deno.serve(async (req) => {
           x: finBoxX + 8, y: y - 8,
           size: 18, font: fontBold, color: blueAccent,
         });
-        // " × N rate"
+        // " × N rate" — posizionato con la LARGHEZZA MISURATA della rata (la
+        // stima char × 9 disallineava il testo con importi a più cifre).
+        const rataW = textW(rataStr, 18, fontBold);
         page.drawText(`× ${fin.financing_num_installments} rate`, {
-          x: finBoxX + 8 + (rataStr.length * 9), y: y - 6,
+          x: finBoxX + 8 + rataW + 8, y: y - 4,
           size: 9, font: font, color: textC,
         });
         // Riga TAN/totale dovuto

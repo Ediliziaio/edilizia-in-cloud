@@ -75,6 +75,33 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
       expect(source).toContain("newPageIfNeeded(80)");
       expect(source).toContain("newPageIfNeeded(100)");
     });
+
+    it("footing IVA: totale derivato + residuo sull'aliquota maggiore (mai negativa)", () => {
+      expect(source).toContain("ivaToShow");
+      expect(source).toContain("subTotShown - scontoShown");
+      // il residuo di arrotondamento va sulla riga di valore massimo
+      expect(source).toContain("rows[maxI].value = round2q(rows[maxI].value + residual)");
+      // clamp IVA ≥ 0: lo scarto ≤1 cent (esente+sconto) è assorbito nello sconto
+      expect(source).toContain("scontoShown = round2q(scontoShown - ivaToShow)");
+    });
+
+    it("colonna prezzo con bordo sinistro garantito (no collisione con U.M.)", () => {
+      expect(source).toContain("priceLeftBound");
+      expect(source).toContain("priceRight - textW(withDisc, 8.5) >= priceLeftBound");
+    });
+
+    it("box finanziamento allineato al contenuto (non sfora la pagina)", () => {
+      expect(source).toContain("const finBoxW = (itemLeftX + itemWidth) - finBoxX");
+      expect(source).not.toContain("(totValX + 50) - finBoxX + 10");
+    });
+
+    it("totali/firme renderizzati anche con 0 righe visibili (header guardato, blocco no)", () => {
+      expect(source).toContain("if (items.length > 0) drawTableHeader()");
+    });
+
+    it("line_total nullo-sicuro: uno 0 legittimo non ricade sul calcolo qtà×prezzo", () => {
+      expect(source).toContain('ltRaw != null && ltRaw !== ""');
+    });
   });
 
   describe("genera-pdf-rapportino", () => {
