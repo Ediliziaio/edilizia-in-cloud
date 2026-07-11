@@ -1502,7 +1502,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               {calendarDate && (
                 <button
                   onClick={() => { onCalendarDateClear?.(); }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                  className="tap-compact inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
                   title="Rimuovi filtro data"
                 >
                   <CalendarDays className="h-3 w-3" />
@@ -1536,26 +1536,27 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             </div>
           )}
 
-          {/* Assignee filter (admin only) */}
+          {/* Assignee filter (admin only) — "chi". tap-compact: opt-out dal min
+              44×44 mobile che gonfiava i chip in ovali (vedi index.css). */}
           {isAdmin && teamMembers.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[
                 { key: "me", label: "Le mie" },
-                { key: "all", label: "Tutte" },
+                { key: "all", label: "Team" },
                 ...teamMembers.filter(m => m.id !== user?.id).map(m => ({
                   key: m.id, label: `${m.first_name?.[0] || ""}. ${m.last_name || ""}`.trim()
                 })),
               ].map(f => (
                 <button key={f.key} onClick={() => setFilterAssignee(f.key)}
-                  className={`inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                  className={`tap-compact inline-flex shrink-0 items-center gap-1 h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                   {f.label}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Filtri stato */}
-          <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
+          {/* Filtri stato — "quando". */}
+          <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {([
               { key: "tutte", label: "Tutte", count: stats.total },
               { key: "oggi", label: "Oggi", count: stats.today + stats.overdue },
@@ -1564,7 +1565,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
               <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>}
               </button>
@@ -1644,7 +1645,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               {/* Quick add */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
-                  <Input ref={quickAddRef} placeholder="+ Aggiungi attività veloce... (Invio)" value={quickAddTitle}
+                  <Input ref={quickAddRef} placeholder="Aggiungi attività…" value={quickAddTitle}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
