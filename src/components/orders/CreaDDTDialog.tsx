@@ -172,7 +172,7 @@ export function CreaDDTDialog({
           indirizzo_comune: matchedAnagrafica.indirizzo_comune || undefined,
           indirizzo_provincia: matchedAnagrafica.indirizzo_provincia || undefined,
           indirizzo_nazione: matchedAnagrafica.indirizzo_nazione || "IT",
-          tipo_cliente: matchedAnagrafica.tipo_cliente || "B2B",
+          tipo_cliente: (matchedAnagrafica.tipo_cliente as ClienteSnapshot["tipo_cliente"]) || "B2B",
         }
       : undefined;
 
