@@ -173,6 +173,24 @@ Deno.serve(async (req) => {
       if (rErr) return errorResponse(`Rivenditore creato ma ruolo non assegnato: ${rErr.message}`, 500, corsH);
     }
 
+    // 5. Ponte agenzia (stile GoHighLevel): il produttore che crea il rivenditore
+    //    ottiene accesso operativo al sub-account. Così può entrarci dallo switcher
+    //    senza dover essere invitato manualmente. Best-effort: se fallisce, il
+    //    rivenditore è comunque creato (l'accesso si può concedere dopo dalla UI).
+    if (userId !== adminUserId) {
+      const { error: mcaErr } = await supabaseAdmin.from("multi_company_access").upsert(
+        {
+          user_id: userId,
+          company_id: childId,
+          access_role: "company_admin",
+          status: "active",
+          granted_by: userId,
+        },
+        { onConflict: "user_id,company_id" },
+      );
+      if (mcaErr) console.error("create-reseller: accesso produttore non concesso:", mcaErr.message);
+    }
+
     return jsonResponse({ success: true, reseller_id: childId, admin_user_id: adminUserId, invited: !invErr }, 200, corsH);
   } catch (e) {
     if (e instanceof Response) return e;
