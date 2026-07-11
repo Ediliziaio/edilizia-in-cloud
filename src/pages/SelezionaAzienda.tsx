@@ -14,7 +14,8 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCompanyAccessRoleLabel } from "@/lib/auth/multiCompany";
-import { Loader2, Building2, ArrowRight, Search, LogOut, Star } from "lucide-react";
+import { Loader2, ArrowRight, Search, LogOut, Star } from "lucide-react";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 // Palette deterministica per gli avatar azienda (theme-aware via classi Tailwind).
 const AVATAR_STYLES = [
@@ -100,13 +101,12 @@ export default function SelezionaAzienda() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-primary/5 via-background to-background">
       <div className="w-full max-w-3xl">
         {/* Brand */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-primary" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">
-            Edilizia<span className="text-primary">InCloud</span>
-          </span>
+        <div className="flex items-center justify-center mb-8">
+          <img
+            src={ediliziaLogo}
+            alt="Edilizia in Cloud"
+            className="h-11 object-contain dark:brightness-0 dark:invert"
+          />
         </div>
 
         {/* Header */}
