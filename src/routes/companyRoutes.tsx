@@ -103,7 +103,7 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -113,7 +113,6 @@ const SettingsIndexRoute = lazy(() => import("@/pages/azienda/settings/SettingsI
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
-const AgencyOverview = lazy(() => import("@/pages/azienda/AgencyOverview"));
 const DashboardsList = lazy(() => import("@/pages/azienda/dashboards/DashboardsList"));
 const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardView"));
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
@@ -452,9 +451,22 @@ function AziendaIndex() {
  * azienda è legittimo e il guard lo lascia passare.
  */
 function CompanyAppGuard({ children }: { children: ReactNode }) {
-  const { role, isImpersonating } = useAuth();
+  const { role, isImpersonating, multiCompanyAccesses, multiCompanyLoaded } = useAuth();
   if (role === "super_admin" && !isImpersonating) {
     return <Navigate to="/admin" replace />;
+  }
+  // Selettore d'ingresso multi-azienda (stile GHL): al primo ingresso nell'app,
+  // un utente con accesso a più aziende sceglie in quale entrare (una sola volta
+  // per sessione, flag COMPANY_CHOSEN_KEY). NON blocca chi ha una sola azienda,
+  // chi impersona, o chi ha già scelto. Il selettore vive fuori da /azienda/*
+  // quindi non si crea loop di redirect.
+  if (
+    !isImpersonating &&
+    multiCompanyLoaded &&
+    (multiCompanyAccesses?.length ?? 0) > 1 &&
+    !sessionStorage.getItem(COMPANY_CHOSEN_KEY)
+  ) {
+    return <Navigate to="/seleziona-azienda" replace />;
   }
   return <>{children}</>;
 }
@@ -520,7 +532,6 @@ export default function CompanyRoutesContainer() {
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
         <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
         <Route path="cruscotto/aziendale" element={withCompanyPermission("canViewCruscotto", <CruscottoAziendale />)} />
-        <Route path="aziende" element={<ErrorBoundary title="Errore console aziende"><AgencyOverview /></ErrorBoundary>} />
 
         {/* Modulo Controllo di Gestione (MP-CG, add-on opzionale).
             Una sola route che accetta sub-path facoltativo: la pagina legge

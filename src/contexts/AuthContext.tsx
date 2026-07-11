@@ -1636,6 +1636,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.isLoading, state.role, state.user, state.profile?.company_id, state.profile?.created_at, state.company]);
 
+  // Backstop di affidabilità: l'effect di fetch sopra si auto-aborta ad ogni cambio
+  // di dipendenza durante l'inizializzazione auth, quindi il set di multiCompanyLoaded
+  // può perdersi in una race a freddo. Qui garantiamo che, appena l'auth si è assestata
+  // con un utente, il flag diventi true entro un breve timeout — così il selettore
+  // d'ingresso non resta mai bloccato su "Caricamento".
+  useEffect(() => {
+    if (state.isLoading || !state.user) return;
+    if (multiCompanyLoaded) return;
+    const t = window.setTimeout(() => setMultiCompanyLoaded(true), 1200);
+    return () => window.clearTimeout(t);
+  }, [state.isLoading, state.user, multiCompanyLoaded]);
+
   const switchMultiCompany = useCallback(async (companyId: string) => {
     const found = multiCompanyAccesses.find(a => a.company_id === companyId);
     if (!found) {
