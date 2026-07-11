@@ -84,7 +84,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
       { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
-      { title: "Le mie aziende", url: "/azienda/aziende", icon: Building2, multiCompanyOnly: true }, // console agenzia — visibile solo con accesso a più aziende
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
       { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione
     ],

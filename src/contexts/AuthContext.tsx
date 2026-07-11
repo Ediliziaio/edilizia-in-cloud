@@ -47,6 +47,7 @@ interface AuthContextType extends AuthState {
   effectiveCompany: Company | null;
   // Multi-company
   multiCompanyAccesses: MultiCompanyAccess[];
+  multiCompanyLoaded: boolean;
   selectedMultiCompanyId: string | null;
   switchMultiCompany: (companyId: string) => void;
   // View-as (simula ruolo utente company senza cambio sessione)
@@ -69,6 +70,11 @@ const SESSION_ID_KEY = "user_session_id";
 const IMP_COMPANY_KEY = "imp_company_id";
 const IMP_TOKEN_KEY = "imp_token";
 const MULTI_COMPANY_KEY = "multi_company_selected";
+// Flag di sessione: settato quando l'utente sceglie ESPLICITAMENTE un'azienda
+// (dal selettore d'ingresso o dallo switcher). Serve a mostrare il selettore
+// /seleziona-azienda una sola volta per sessione ai multi-azienda, distinguendo
+// la scelta esplicita dalla selezione auto-risolta al login.
+export const COMPANY_CHOSEN_KEY = "company_choice_made";
 const MULTI_COMPANY_ACCESS_CACHE_KEY = "multi_company_accesses_v1";
 const MULTI_COMPANY_ACCESS_CACHE_TTL_MS = 15 * 60 * 1000;
 // Timestamp (ms) of when the impersonation token was created — used to skip redundant
@@ -316,6 +322,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const multiCompanyAccesses = multiCompanyState.accesses;
   const selectedMultiCompanyId = multiCompanyState.selectedId;
+  // true quando il fetch degli accessi multi-azienda è completato almeno una volta
+  // (necessario a RoleBasedRedirect per decidere se mostrare il selettore d'ingresso).
+  const [multiCompanyLoaded, setMultiCompanyLoaded] = useState(false);
   const multiCompanyObj = multiCompanyState.selectedCompany;
 
   const recoverInvalidAuthSession = useCallback((source: string, error?: unknown) => {
@@ -1495,7 +1504,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!state.user) {
         if (!cancelled) {
           clearMultiCompanySession();
+          sessionStorage.removeItem(COMPANY_CHOSEN_KEY);
           setMultiCompanyState({ accesses: [], selectedId: null, selectedCompany: null });
+          setMultiCompanyLoaded(false);
         }
         return;
       }
@@ -1517,6 +1528,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         if (!isAbortLikeError(error)) {
           logger.error("Error fetching multi-company accesses:", error);
+          if (!cancelled) setMultiCompanyLoaded(true);
         }
         return;
       }
@@ -1614,6 +1626,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           selectedCompany: selected.selectedCompany,
         };
       });
+      if (!cancelled) setMultiCompanyLoaded(true);
     }
 
     fetchMultiCompanyAccesses();
@@ -1631,6 +1644,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       return;
     }
+    // Segna la scelta esplicita anche se si ri-seleziona la stessa azienda,
+    // così il selettore d'ingresso non riappare.
+    sessionStorage.setItem(COMPANY_CHOSEN_KEY, "1");
     if (companyId === selectedMultiCompanyId) return;
 
     sessionStorage.setItem(MULTI_COMPANY_KEY, companyId);
@@ -1705,13 +1721,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       exitImpersonation,
       effectiveCompany,
       multiCompanyAccesses,
+      multiCompanyLoaded,
       selectedMultiCompanyId,
       switchMultiCompany,
       viewAsRole,
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (

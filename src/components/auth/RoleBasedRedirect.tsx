@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
@@ -20,7 +20,7 @@ function LoadingSpinner({ text }: { text: string }) {
 }
 
 export function RoleBasedRedirect() {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, isLoading, multiCompanyAccesses, multiCompanyLoaded, isImpersonating } = useAuth();
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
 
@@ -125,5 +125,19 @@ export function RoleBasedRedirect() {
     return <Navigate to={COMPANY_APP_HOME} replace />;
   }
 
-  return <Navigate to={getRoleHomePath(role)} replace />;
+  // Selettore d'ingresso multi-azienda (stile GHL): se l'utente atterrerebbe
+  // nell'app azienda ed ha accesso a più aziende, prima gli facciamo scegliere
+  // in quale entrare — una sola volta per sessione (flag COMPANY_CHOSEN_KEY).
+  const homePath = getRoleHomePath(role);
+  if (homePath === COMPANY_APP_HOME && !isImpersonating) {
+    if (!multiCompanyLoaded) {
+      return <LoadingSpinner text="Caricamento aziende..." />;
+    }
+    const alreadyChosen = sessionStorage.getItem(COMPANY_CHOSEN_KEY);
+    if ((multiCompanyAccesses?.length ?? 0) > 1 && !alreadyChosen) {
+      return <Navigate to="/seleziona-azienda" replace />;
+    }
+  }
+
+  return <Navigate to={homePath} replace />;
 }
