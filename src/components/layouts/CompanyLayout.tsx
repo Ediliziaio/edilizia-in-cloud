@@ -690,7 +690,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                 <SidebarMenuButton asChild tooltip={`${item.title}${tooltipExtra}`}>
                   <NavLink
                     to={itemUrl}
-                    end={itemUrl === "/azienda"}
+                    end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >

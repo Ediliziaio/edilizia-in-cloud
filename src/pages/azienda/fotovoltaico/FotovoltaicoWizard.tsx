@@ -66,6 +66,7 @@ import {
   type FvRigaFinanziamento,
 } from "@/lib/fotovoltaico/queries";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import type {
@@ -144,6 +145,9 @@ function describeError(e: unknown): string {
 
 export default function FotovoltaicoWizard() {
   const { id } = useParams<{ id?: string }>();
+  // Company effettiva del frontend (multi-azienda): serve a creare il progetto
+  // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
+  const effectiveCompanyId = useEffectiveCompanyId();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // Pre-link da CRM/Opportunità: ?contact_id=… (eventualmente con &opportunity_id=…).
@@ -596,6 +600,10 @@ export default function FotovoltaicoWizard() {
           "fv-onboarding-cliente",
           {
             body: {
+              // Company effettiva (multi-azienda): il progetto va creato sotto
+              // l'azienda dello switcher, altrimenti il salvataggio consumi
+              // (filtrato per la company effettiva) non lo troverebbe.
+              company_id: effectiveCompanyId ?? undefined,
               titolo,
               // Link CRM: aggancia il contatto e l'opportunità di provenienza
               // alla creazione del progetto (parità con SerramentiWizard). Senza
