@@ -854,10 +854,16 @@ function OrdersListInner() {
     },
   });
 
+  // Eliminazione commesse: richiede il permesso dedicato "Elimina Ordini"
+  // (can_delete_orders) — prima il toggle esisteva nella dialog ma non era
+  // applicato da nessuna parte.
+  const canDeleteOrders = orderPerms.isAdmin || orderPerms.canDeleteOrders;
+
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const companyId = effectiveCompany?.id;
       if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      if (!canDeleteOrders) throw new Error("Non hai il permesso di eliminare le commesse (chiedi all'amministratore).");
       return deleteOrderCascading(orderId, companyId);
     },
     onSuccess: () => {
@@ -918,6 +924,10 @@ function OrdersListInner() {
   };
 
   const handleBulkDelete = async (orderIds: string[]) => {
+    if (!canDeleteOrders) {
+      toast({ title: "Permesso mancante", description: "Non hai il permesso di eliminare le commesse (chiedi all'amministratore).", variant: "destructive" });
+      return;
+    }
     setIsBulkUpdating(true);
     try {
       const companyId = effectiveCompany?.id;

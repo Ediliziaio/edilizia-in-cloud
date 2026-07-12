@@ -9,6 +9,7 @@
     "build:fast": "NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=12288 tsc --noEmit -p tsconfig.app.json",
     "seo:audit": "node scripts/seo-audit.mjs",
     "prerender": "node scripts/prerender.mjs",
     "prerender:verify": "node scripts/prerender-verify.mjs",

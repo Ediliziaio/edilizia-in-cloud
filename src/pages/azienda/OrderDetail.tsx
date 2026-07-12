@@ -558,11 +558,14 @@ function OrderDetailInner() {
     onError: () => { toast.error("Errore nel salvataggio delle note."); },
   });
 
-  // Delete order mutation
+  // Delete order mutation — richiede il permesso "Elimina Ordini" (can_delete_orders)
   const deleteOrderMutation = useMutation({
     mutationFn: () => {
       const companyId = effectiveCompany?.id;
       if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      if (!permissions.isAdmin && !permissions.canDeleteOrders) {
+        throw new Error("Non hai il permesso di eliminare le commesse (chiedi all'amministratore).");
+      }
       return deleteOrderCascading(id!, companyId);
     },
     onSuccess: () => {

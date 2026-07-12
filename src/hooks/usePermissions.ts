@@ -19,6 +19,20 @@ export interface Permissions {
   canViewCustomers: boolean;
   canEditCustomers: boolean;
   canViewEmployees: boolean;
+  /** Può approvare ordini/commesse */
+  canApproveOrders: boolean;
+  /** Può eliminare ordini/commesse (singola e bulk) */
+  canDeleteOrders: boolean;
+  /** Può esportare l'anagrafica clienti */
+  canExportClients: boolean;
+  /** Gestione pagamenti/incassi */
+  canManagePayments: boolean;
+  /** Gestione fornitori */
+  canManageSuppliers: boolean;
+  /** Gestione articoli/listino magazzino */
+  canManageWarehouseItems: boolean;
+  /** Report finanziari */
+  canViewFinancialReports: boolean;
   /** Attività (pagina /azienda/attivita): vede le task di tutto il team; false = solo le proprie. */
   canViewTeamTasks: boolean;
   /** Calendario: vede appuntamenti/eventi di tutto il team; false = solo i propri. */
@@ -109,7 +123,10 @@ export interface Permissions {
   visibleAreas: string[];
 }
 
-const STAFF_PERMISSIONS_SELECT = [
+// Esportato per il test contratto permissionsRegistryParity: ogni permesso
+// configurabile nelle dialog DEVE essere caricato qui, altrimenti è un
+// "toggle morto" (classe di bug: can_view_all_team_calendar, can_approve_discounts).
+export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_dashboard",
   "can_view_orders",
   "can_edit_orders",
@@ -183,9 +200,19 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_reputazione",
   "can_view_team_tasks",
   "can_view_all_team_calendar",
+  // 2026-07-12: erano configurabili nelle dialog ma MAI caricati a runtime
+  // (toggle morti). NB: can_view_messaggi_esterni resta fuori — feature rimossa.
+  "can_approve_orders",
+  "can_delete_orders",
+  "can_export_clients",
+  "can_manage_payments",
+  "can_manage_suppliers",
+  "can_manage_warehouse_items",
+  "can_view_financial_reports",
   "only_assigned",
   "visible_areas",
-].join(",");
+];
+const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
 
 const ALL_PERMISSIONS: Permissions = {
   canViewDashboard: true, canViewOrders: true, canEditOrders: true,
@@ -227,6 +254,9 @@ const ALL_PERMISSIONS: Permissions = {
   canViewFirmaElettronica: true, canViewReputazione: true,
   canViewControlloGestione: true,
   canViewTeamTasks: true, canViewAllTeamCalendar: true,
+  canApproveOrders: true, canDeleteOrders: true, canExportClients: true,
+  canManagePayments: true, canManageSuppliers: true, canManageWarehouseItems: true,
+  canViewFinancialReports: true,
   isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -270,6 +300,9 @@ const NO_PERMISSIONS: Permissions = {
   canViewFirmaElettronica: false, canViewReputazione: false,
   canViewControlloGestione: false,
   canViewTeamTasks: false, canViewAllTeamCalendar: false,
+  canApproveOrders: false, canDeleteOrders: false, canExportClients: false,
+  canManagePayments: false, canManageSuppliers: false, canManageWarehouseItems: false,
+  canViewFinancialReports: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -335,6 +368,10 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Supervisione in sola lettura: vede il calendario del team ma non gestisce attività
   canViewTeamTasks: false,
   canViewAllTeamCalendar: true,
+  // Sola lettura: nessuna azione dispositiva; i report finanziari sì (è il commercialista)
+  canApproveOrders: false, canDeleteOrders: false, canExportClients: false,
+  canManagePayments: false, canManageSuppliers: false, canManageWarehouseItems: false,
+  canViewFinancialReports: true,
   canViewAutomazioni: false,
   canViewRenderAi: false,
   // Settings amministrativi → no
@@ -443,6 +480,13 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewReputazione:       g("can_view_reputazione"),
     canViewTeamTasks:         g("can_view_team_tasks"),
     canViewAllTeamCalendar:   g("can_view_all_team_calendar"),
+    canApproveOrders:         g("can_approve_orders"),
+    canDeleteOrders:          g("can_delete_orders"),
+    canExportClients:         g("can_export_clients"),
+    canManagePayments:        g("can_manage_payments"),
+    canManageSuppliers:       g("can_manage_suppliers"),
+    canManageWarehouseItems:  g("can_manage_warehouse_items"),
+    canViewFinancialReports:  g("can_view_financial_reports"),
     // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
     // più feature flag controllo_gestione_v1 lato UI (utility separata).
     canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs") || g("can_view_controllo_gestione"),
