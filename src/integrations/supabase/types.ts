@@ -586,6 +586,46 @@ export type Database = {
           },
         ]
       }
+      active_company_selection: {
+        Row: {
+          company_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "active_company_selection_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "active_company_selection_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "active_company_selection_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       active_impersonations: {
         Row: {
           admin_user_id: string
@@ -1385,6 +1425,408 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      aedix_commission_rules: {
+        Row: {
+          applies_to: string
+          attivo: boolean
+          commerciale: string | null
+          created_at: string
+          id: string
+          note: string | null
+          package_id: string | null
+          priorita: number
+          product_line_id: string | null
+          tipo: string
+          updated_at: string
+          valore: number
+        }
+        Insert: {
+          applies_to?: string
+          attivo?: boolean
+          commerciale?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          package_id?: string | null
+          priorita?: number
+          product_line_id?: string | null
+          tipo?: string
+          updated_at?: string
+          valore?: number
+        }
+        Update: {
+          applies_to?: string
+          attivo?: boolean
+          commerciale?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          package_id?: string | null
+          priorita?: number
+          product_line_id?: string | null
+          tipo?: string
+          updated_at?: string
+          valore?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aedix_commission_rules_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aedix_commission_rules_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aedix_product_lines: {
+        Row: {
+          attivo: boolean
+          categoria: string
+          colore: string | null
+          created_at: string
+          descrizione: string | null
+          icona: string | null
+          id: string
+          ltv_target: number
+          nome: string
+          ordine: number
+          prezzo_indicativo: number
+          quota_mensile: number
+          ricorrenza: string
+          slug: string
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          categoria?: string
+          colore?: string | null
+          created_at?: string
+          descrizione?: string | null
+          icona?: string | null
+          id?: string
+          ltv_target?: number
+          nome: string
+          ordine?: number
+          prezzo_indicativo?: number
+          quota_mensile?: number
+          ricorrenza?: string
+          slug: string
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          categoria?: string
+          colore?: string | null
+          created_at?: string
+          descrizione?: string | null
+          icona?: string | null
+          id?: string
+          ltv_target?: number
+          nome?: string
+          ordine?: number
+          prezzo_indicativo?: number
+          quota_mensile?: number
+          ricorrenza?: string
+          slug?: string
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      aedix_product_packages: {
+        Row: {
+          attivo: boolean
+          created_at: string
+          descrizione: string | null
+          id: string
+          ltv_target: number
+          nome: string
+          ordine: number
+          prezzo: number
+          product_line_id: string
+          ricorrenza: string
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          ltv_target?: number
+          nome: string
+          ordine?: number
+          prezzo?: number
+          product_line_id: string
+          ricorrenza?: string
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          ltv_target?: number
+          nome?: string
+          ordine?: number
+          prezzo?: number
+          product_line_id?: string
+          ricorrenza?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aedix_product_packages_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aedix_service_billings: {
+        Row: {
+          created_at: string
+          data_incasso: string | null
+          id: string
+          importo_dovuto: number
+          importo_incassato: number
+          note: string | null
+          periodo: string
+          provvigione_commerciale: string | null
+          provvigione_importo: number
+          provvigione_pagata_at: string | null
+          provvigione_pct: number | null
+          provvigione_stato: string
+          righe_provvigione: Json
+          service_client_id: string
+          societa: string | null
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_incasso?: string | null
+          id?: string
+          importo_dovuto?: number
+          importo_incassato?: number
+          note?: string | null
+          periodo: string
+          provvigione_commerciale?: string | null
+          provvigione_importo?: number
+          provvigione_pagata_at?: string | null
+          provvigione_pct?: number | null
+          provvigione_stato?: string
+          righe_provvigione?: Json
+          service_client_id: string
+          societa?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_incasso?: string | null
+          id?: string
+          importo_dovuto?: number
+          importo_incassato?: number
+          note?: string | null
+          periodo?: string
+          provvigione_commerciale?: string | null
+          provvigione_importo?: number
+          provvigione_pagata_at?: string | null
+          provvigione_pct?: number | null
+          provvigione_stato?: string
+          righe_provvigione?: Json
+          service_client_id?: string
+          societa?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aedix_service_billings_service_client_id_fkey"
+            columns: ["service_client_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_service_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aedix_service_clients: {
+        Row: {
+          billing_model: string
+          cliente_nome: string
+          commerciale: string | null
+          commerciale_id: string | null
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          data_fine: string | null
+          data_inizio: string
+          id: string
+          importo: number
+          note: string | null
+          opportunity_id: string | null
+          package_id: string | null
+          product_line_id: string
+          provvigione_pct: number | null
+          ricorrenza: string
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          billing_model?: string
+          cliente_nome: string
+          commerciale?: string | null
+          commerciale_id?: string | null
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          data_fine?: string | null
+          data_inizio?: string
+          id?: string
+          importo?: number
+          note?: string | null
+          opportunity_id?: string | null
+          package_id?: string | null
+          product_line_id: string
+          provvigione_pct?: number | null
+          ricorrenza?: string
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          billing_model?: string
+          cliente_nome?: string
+          commerciale?: string | null
+          commerciale_id?: string | null
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          data_fine?: string | null
+          data_inizio?: string
+          id?: string
+          importo?: number
+          note?: string | null
+          opportunity_id?: string | null
+          package_id?: string | null
+          product_line_id?: string
+          provvigione_pct?: number | null
+          ricorrenza?: string
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aedix_service_clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aedix_service_clients_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aedix_service_commission_lines: {
+        Row: {
+          attivo: boolean
+          base: string
+          created_at: string
+          etichetta: string | null
+          id: string
+          ordine: number
+          percentuale: number
+          service_client_id: string
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          base?: string
+          created_at?: string
+          etichetta?: string | null
+          id?: string
+          ordine?: number
+          percentuale?: number
+          service_client_id: string
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          base?: string
+          created_at?: string
+          etichetta?: string | null
+          id?: string
+          ordine?: number
+          percentuale?: number
+          service_client_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aedix_service_commission_lines_service_client_id_fkey"
+            columns: ["service_client_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_service_clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_act_compliance_status: {
         Row: {
@@ -6645,6 +7087,7 @@ export type Database = {
         Row: {
           access_token_encrypted: string | null
           agent_id: string | null
+          cloud_api_pin: string | null
           company_id: string
           creato_il: string
           current_day_spend_eur: number | null
@@ -6672,6 +7115,7 @@ export type Database = {
         Insert: {
           access_token_encrypted?: string | null
           agent_id?: string | null
+          cloud_api_pin?: string | null
           company_id: string
           creato_il?: string
           current_day_spend_eur?: number | null
@@ -6699,6 +7143,7 @@ export type Database = {
         Update: {
           access_token_encrypted?: string | null
           agent_id?: string | null
+          cloud_api_pin?: string | null
           company_id?: string
           creato_il?: string
           current_day_spend_eur?: number | null
@@ -7469,7 +7914,7 @@ export type Database = {
       }
       api_keys: {
         Row: {
-          company_id: string
+          company_id: string | null
           created_at: string
           created_by: string
           expires_at: string | null
@@ -7486,7 +7931,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          company_id: string
+          company_id?: string | null
           created_at?: string
           created_by: string
           expires_at?: string | null
@@ -7503,7 +7948,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           created_by?: string
           expires_at?: string | null
@@ -7608,7 +8053,7 @@ export type Database = {
       api_usage_log: {
         Row: {
           api_key_id: string
-          company_id: string
+          company_id: string | null
           created_at: string
           endpoint: string
           id: string
@@ -7619,7 +8064,7 @@ export type Database = {
         }
         Insert: {
           api_key_id: string
-          company_id: string
+          company_id?: string | null
           created_at?: string
           endpoint: string
           id?: string
@@ -7630,7 +8075,7 @@ export type Database = {
         }
         Update: {
           api_key_id?: string
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           endpoint?: string
           id?: string
@@ -8292,6 +8737,7 @@ export type Database = {
         Row: {
           attivo: boolean | null
           categoria_id: string | null
+          codice: string | null
           company_id: string
           created_at: string
           custom_field_values: Json
@@ -8311,8 +8757,8 @@ export type Database = {
           manodopera_unita: string
           markup_tipo: string
           markup_valore: number
-          codice: string | null
           modalita_prezzo_base: string
+          mostra_preventivo: boolean
           nome: string
           pdf_scheda_url: string | null
           posa_linked: boolean
@@ -8334,6 +8780,7 @@ export type Database = {
         Insert: {
           attivo?: boolean | null
           categoria_id?: string | null
+          codice?: string | null
           company_id: string
           created_at?: string
           custom_field_values?: Json
@@ -8353,8 +8800,8 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
-          codice?: string | null
           modalita_prezzo_base?: string
+          mostra_preventivo?: boolean
           nome: string
           pdf_scheda_url?: string | null
           posa_linked?: boolean
@@ -8376,6 +8823,7 @@ export type Database = {
         Update: {
           attivo?: boolean | null
           categoria_id?: string | null
+          codice?: string | null
           company_id?: string
           created_at?: string
           custom_field_values?: Json
@@ -8395,8 +8843,8 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
-          codice?: string | null
           modalita_prezzo_base?: string
+          mostra_preventivo?: boolean
           nome?: string
           pdf_scheda_url?: string | null
           posa_linked?: boolean
@@ -8546,45 +8994,57 @@ export type Database = {
         Row: {
           attivo: boolean | null
           axis_id: string
+          codice: string | null
           company_id: string
           created_at: string
           descrizione: string | null
           id: string
+          immagine_url: string | null
           is_default: boolean | null
           label: string
           maggiorazione_acquisto: number | null
           maggiorazione_tipo: string
           maggiorazione_valore: number | null
+          prezzo_acquisto: number | null
+          prezzo_vendita: number | null
           sort_order: number | null
           valore: string
         }
         Insert: {
           attivo?: boolean | null
           axis_id: string
+          codice?: string | null
           company_id: string
           created_at?: string
           descrizione?: string | null
           id?: string
+          immagine_url?: string | null
           is_default?: boolean | null
           label: string
           maggiorazione_acquisto?: number | null
           maggiorazione_tipo?: string
           maggiorazione_valore?: number | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number | null
           sort_order?: number | null
           valore: string
         }
         Update: {
           attivo?: boolean | null
           axis_id?: string
+          codice?: string | null
           company_id?: string
           created_at?: string
           descrizione?: string | null
           id?: string
+          immagine_url?: string | null
           is_default?: boolean | null
           label?: string
           maggiorazione_acquisto?: number | null
           maggiorazione_tipo?: string
           maggiorazione_valore?: number | null
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number | null
           sort_order?: number | null
           valore?: string
         }
@@ -8616,6 +9076,81 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      article_family_documents: {
+        Row: {
+          axis_value_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          family_id: string
+          file_size: number | null
+          id: string
+          nome: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          axis_value_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          family_id: string
+          file_size?: number | null
+          id?: string
+          nome: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          axis_value_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          family_id?: string
+          file_size?: number | null
+          id?: string
+          nome?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_family_documents_axis_value_id_fkey"
+            columns: ["axis_value_id"]
+            isOneToOne: false
+            referencedRelation: "article_family_axis_values"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_family_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "article_family_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_family_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "article_family_documents_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -8941,7 +9476,9 @@ export type Database = {
           fornitore_fv: string | null
           garanzia_anni: number | null
           id: string
+          immagine_url: string | null
           is_premium: boolean | null
+          listino_family_id: string | null
           marca_fv: string | null
           modello_fv: string | null
           natura_iva: string | null
@@ -8969,7 +9506,9 @@ export type Database = {
           fornitore_fv?: string | null
           garanzia_anni?: number | null
           id?: string
+          immagine_url?: string | null
           is_premium?: boolean | null
+          listino_family_id?: string | null
           marca_fv?: string | null
           modello_fv?: string | null
           natura_iva?: string | null
@@ -8997,7 +9536,9 @@ export type Database = {
           fornitore_fv?: string | null
           garanzia_anni?: number | null
           id?: string
+          immagine_url?: string | null
           is_premium?: boolean | null
+          listino_family_id?: string | null
           marca_fv?: string | null
           modello_fv?: string | null
           natura_iva?: string | null
@@ -9030,6 +9571,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "articoli_native_listino_family_id_fkey"
+            columns: ["listino_family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -9167,6 +9715,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      automation_assign_state: {
+        Row: {
+          flow_id: string
+          last_index: number
+          node_id: string
+          updated_at: string
+        }
+        Insert: {
+          flow_id: string
+          last_index?: number
+          node_id: string
+          updated_at?: string
+        }
+        Update: {
+          flow_id?: string
+          last_index?: number
+          node_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       automation_connections: {
         Row: {
@@ -10410,6 +10979,7 @@ export type Database = {
       bank_connections: {
         Row: {
           accounts_count: number | null
+          auth_state: string | null
           company_id: string
           created_at: string
           created_by: string | null
@@ -10421,6 +10991,7 @@ export type Database = {
           institution_logo: string | null
           institution_name: string
           last_sync_at: string | null
+          provider_session_id: string | null
           provider_slug: string
           requisition_id: string | null
           requisition_link: string | null
@@ -10429,6 +11000,7 @@ export type Database = {
         }
         Insert: {
           accounts_count?: number | null
+          auth_state?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -10440,6 +11012,7 @@ export type Database = {
           institution_logo?: string | null
           institution_name: string
           last_sync_at?: string | null
+          provider_session_id?: string | null
           provider_slug?: string
           requisition_id?: string | null
           requisition_link?: string | null
@@ -10448,6 +11021,7 @@ export type Database = {
         }
         Update: {
           accounts_count?: number | null
+          auth_state?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
@@ -10459,6 +11033,7 @@ export type Database = {
           institution_logo?: string | null
           institution_name?: string
           last_sync_at?: string | null
+          provider_session_id?: string | null
           provider_slug?: string
           requisition_id?: string | null
           requisition_link?: string | null
@@ -10486,6 +11061,111 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      bank_payments: {
+        Row: {
+          amount: number
+          application_fee: number
+          checkout_url: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string | null
+          direction: string
+          id: string
+          invoice_id: string | null
+          metadata: Json
+          paid_at: string | null
+          payer_email: string | null
+          payer_name: string | null
+          provider: string
+          provider_payment_id: string | null
+          scadenza_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          application_fee?: number
+          checkout_url?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          direction?: string
+          id?: string
+          invoice_id?: string | null
+          metadata?: Json
+          paid_at?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          provider: string
+          provider_payment_id?: string | null
+          scadenza_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          application_fee?: number
+          checkout_url?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          direction?: string
+          id?: string
+          invoice_id?: string | null
+          metadata?: Json
+          paid_at?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          provider?: string
+          provider_payment_id?: string | null
+          scadenza_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bank_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bank_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_payments_scadenza_id_fkey"
+            columns: ["scadenza_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -10537,6 +11217,7 @@ export type Database = {
           matched_at: string
           matched_by: string | null
           notes: string | null
+          scadenza_id: string | null
           transaction_id: string
           unmatch_reason: string | null
           unmatched_at: string | null
@@ -10552,6 +11233,7 @@ export type Database = {
           matched_at?: string
           matched_by?: string | null
           notes?: string | null
+          scadenza_id?: string | null
           transaction_id: string
           unmatch_reason?: string | null
           unmatched_at?: string | null
@@ -10567,6 +11249,7 @@ export type Database = {
           matched_at?: string
           matched_by?: string | null
           notes?: string | null
+          scadenza_id?: string | null
           transaction_id?: string
           unmatch_reason?: string | null
           unmatched_at?: string | null
@@ -10598,6 +11281,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_scadenza_id_fkey"
+            columns: ["scadenza_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
             referencedColumns: ["id"]
           },
           {
@@ -10702,6 +11392,7 @@ export type Database = {
           id: string
           linked_cost_id: string | null
           linked_invoice_id: string | null
+          linked_scadenza_id: string | null
           merchant_name: string | null
           metadata: Json
           note: string | null
@@ -10736,6 +11427,7 @@ export type Database = {
           id?: string
           linked_cost_id?: string | null
           linked_invoice_id?: string | null
+          linked_scadenza_id?: string | null
           merchant_name?: string | null
           metadata?: Json
           note?: string | null
@@ -10770,6 +11462,7 @@ export type Database = {
           id?: string
           linked_cost_id?: string | null
           linked_invoice_id?: string | null
+          linked_scadenza_id?: string | null
           merchant_name?: string | null
           metadata?: Json
           note?: string | null
@@ -10813,11 +11506,678 @@ export type Database = {
             referencedColumns: ["company_id"]
           },
           {
+            foreignKeyName: "bank_transactions_linked_scadenza_id_fkey"
+            columns: ["linked_scadenza_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bank_transactions_reconciled_invoice_id_fkey"
             columns: ["reconciled_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      bgn_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "bgn_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bgn_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      bgn_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "bgn_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      bgn_progetti: {
+        Row: {
+          accessibile: boolean
+          altezza_rivestimento_m: number | null
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_bagni: number | null
+          opportunita_id: string | null
+          perimetro_ml: number | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_intervento: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          accessibile?: boolean
+          altezza_rivestimento_m?: number | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_bagni?: number | null
+          opportunita_id?: string | null
+          perimetro_ml?: number | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          accessibile?: boolean
+          altezza_rivestimento_m?: number | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_bagni?: number | null
+          opportunita_id?: string | null
+          perimetro_ml?: number | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      bgn_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "bgn_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bgn_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bgn_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bgn_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bgn_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -11116,11 +12476,15 @@ export type Database = {
         Row: {
           attivo: boolean | null
           company_id: string
+          cover_image_url: string | null
           created_at: string | null
           descrizione: string | null
+          fv_accumulo_kwh: number | null
+          fv_kwp: number | null
           id: string
           is_template: boolean
           nome: string
+          prezzo_offerta: number | null
           sconto_bundle_pct: number | null
           tipo_lavoro: string | null
           vertical: string | null
@@ -11128,11 +12492,15 @@ export type Database = {
         Insert: {
           attivo?: boolean | null
           company_id: string
+          cover_image_url?: string | null
           created_at?: string | null
           descrizione?: string | null
+          fv_accumulo_kwh?: number | null
+          fv_kwp?: number | null
           id?: string
           is_template?: boolean
           nome: string
+          prezzo_offerta?: number | null
           sconto_bundle_pct?: number | null
           tipo_lavoro?: string | null
           vertical?: string | null
@@ -11140,11 +12508,15 @@ export type Database = {
         Update: {
           attivo?: boolean | null
           company_id?: string
+          cover_image_url?: string | null
           created_at?: string | null
           descrizione?: string | null
+          fv_accumulo_kwh?: number | null
+          fv_kwp?: number | null
           id?: string
           is_template?: boolean
           nome?: string
+          prezzo_offerta?: number | null
           sconto_bundle_pct?: number | null
           tipo_lavoro?: string | null
           vertical?: string | null
@@ -11180,6 +12552,7 @@ export type Database = {
           bundle_id: string
           family_id: string | null
           id: string
+          immagine_url: string | null
           larghezza_mm_default: number | null
           prodotto_id: string | null
           quantita: number
@@ -11193,6 +12566,7 @@ export type Database = {
           bundle_id: string
           family_id?: string | null
           id?: string
+          immagine_url?: string | null
           larghezza_mm_default?: number | null
           prodotto_id?: string | null
           quantita?: number
@@ -11206,6 +12580,7 @@ export type Database = {
           bundle_id?: string
           family_id?: string | null
           id?: string
+          immagine_url?: string | null
           larghezza_mm_default?: number | null
           prodotto_id?: string | null
           quantita?: number
@@ -11381,6 +12756,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -11609,6 +12991,7 @@ export type Database = {
           created_at: string | null
           data_lavoro: string
           descrizione_lavori: string | null
+          fasi_lavorate: Json
           firma_cliente_at: string | null
           firma_cliente_nome: string | null
           firma_cliente_url: string | null
@@ -11643,6 +13026,7 @@ export type Database = {
           created_at?: string | null
           data_lavoro?: string
           descrizione_lavori?: string | null
+          fasi_lavorate?: Json
           firma_cliente_at?: string | null
           firma_cliente_nome?: string | null
           firma_cliente_url?: string | null
@@ -11677,6 +13061,7 @@ export type Database = {
           created_at?: string | null
           data_lavoro?: string
           descrizione_lavori?: string | null
+          fasi_lavorate?: Json
           firma_cliente_at?: string | null
           firma_cliente_nome?: string | null
           firma_cliente_url?: string | null
@@ -13924,6 +15309,657 @@ export type Database = {
           },
         ]
       }
+      clm_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "clm_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clm_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      clm_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "clm_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      clm_progetti: {
+        Row: {
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_unita_interne: number | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_intervento: string | null
+          tipologia_impianto: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_unita_interne?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          tipologia_impianto?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_unita_interne?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          tipologia_impianto?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      clm_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "clm_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clm_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clm_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "clm_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clm_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       commercial_proposals: {
         Row: {
           about_us_section: string | null
@@ -14339,6 +16375,7 @@ export type Database = {
           bank_account_holder: string | null
           bank_iban: string | null
           bank_name: string | null
+          billing_comped: boolean
           billing_mode: string
           billing_mode_set_at: string | null
           billing_mode_set_by: string | null
@@ -14413,6 +16450,7 @@ export type Database = {
           operational_lng: number | null
           operational_postal_code: string | null
           operational_province: string | null
+          parent_company_id: string | null
           password_expiry_days: number
           password_min_length: number
           password_require_numbers: boolean
@@ -14423,9 +16461,13 @@ export type Database = {
           payment_notes: string | null
           pec: string | null
           phone: string | null
+          playbook_auto_apply: boolean
           referred_by: string | null
           region: string | null
           render_monthly_override: number | null
+          reseller_billing_mode: string | null
+          reseller_limit: number
+          reseller_wholesale_pct: number
           sal_auto_enabled: boolean
           sal_auto_frequency_days: number
           sal_auto_threshold_pct: number
@@ -14443,6 +16485,8 @@ export type Database = {
           sr_varianti_enabled: boolean | null
           status: string
           storage_override_mb: number | null
+          stripe_connect_account_id: string | null
+          stripe_connect_enabled: boolean
           stripe_customer_id: string | null
           stripe_subscription_status: string | null
           subscription_plan_id: string | null
@@ -14486,6 +16530,7 @@ export type Database = {
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          billing_comped?: boolean
           billing_mode?: string
           billing_mode_set_at?: string | null
           billing_mode_set_by?: string | null
@@ -14560,6 +16605,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          parent_company_id?: string | null
           password_expiry_days?: number
           password_min_length?: number
           password_require_numbers?: boolean
@@ -14570,9 +16616,13 @@ export type Database = {
           payment_notes?: string | null
           pec?: string | null
           phone?: string | null
+          playbook_auto_apply?: boolean
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null
+          reseller_billing_mode?: string | null
+          reseller_limit?: number
+          reseller_wholesale_pct?: number
           sal_auto_enabled?: boolean
           sal_auto_frequency_days?: number
           sal_auto_threshold_pct?: number
@@ -14590,6 +16640,8 @@ export type Database = {
           sr_varianti_enabled?: boolean | null
           status?: string
           storage_override_mb?: number | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_enabled?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
@@ -14633,6 +16685,7 @@ export type Database = {
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
+          billing_comped?: boolean
           billing_mode?: string
           billing_mode_set_at?: string | null
           billing_mode_set_by?: string | null
@@ -14707,6 +16760,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          parent_company_id?: string | null
           password_expiry_days?: number
           password_min_length?: number
           password_require_numbers?: boolean
@@ -14717,9 +16771,13 @@ export type Database = {
           payment_notes?: string | null
           pec?: string | null
           phone?: string | null
+          playbook_auto_apply?: boolean
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null
+          reseller_billing_mode?: string | null
+          reseller_limit?: number
+          reseller_wholesale_pct?: number
           sal_auto_enabled?: boolean
           sal_auto_frequency_days?: number
           sal_auto_threshold_pct?: number
@@ -14737,6 +16795,8 @@ export type Database = {
           sr_varianti_enabled?: boolean | null
           status?: string
           storage_override_mb?: number | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_enabled?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
@@ -14762,6 +16822,27 @@ export type Database = {
           winback_require_hitl?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "companies_parent_company_id_fkey"
+            columns: ["parent_company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "companies_parent_company_id_fkey"
+            columns: ["parent_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "companies_parent_company_id_fkey"
+            columns: ["parent_company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
           {
             foreignKeyName: "companies_referred_by_fkey"
             columns: ["referred_by"]
@@ -16259,6 +18340,52 @@ export type Database = {
           },
         ]
       }
+      company_modulo_preferenze: {
+        Row: {
+          company_id: string
+          modulo_slug: string
+          updated_at: string
+          updated_by: string | null
+          visibile: boolean
+        }
+        Insert: {
+          company_id: string
+          modulo_slug: string
+          updated_at?: string
+          updated_by?: string | null
+          visibile?: boolean
+        }
+        Update: {
+          company_id?: string
+          modulo_slug?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibile?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_modulo_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_modulo_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_modulo_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       company_notes: {
         Row: {
           author_id: string
@@ -16751,6 +18878,73 @@ export type Database = {
           },
         ]
       }
+      company_sales_profile: {
+        Row: {
+          attivita: string | null
+          cliente_tipo: string | null
+          company_id: string
+          created_at: string
+          obiezioni: string | null
+          offerta: string | null
+          problema: string | null
+          prove: string | null
+          updated_at: string
+          usp: string | null
+          vietati: string | null
+          voce: string | null
+        }
+        Insert: {
+          attivita?: string | null
+          cliente_tipo?: string | null
+          company_id: string
+          created_at?: string
+          obiezioni?: string | null
+          offerta?: string | null
+          problema?: string | null
+          prove?: string | null
+          updated_at?: string
+          usp?: string | null
+          vietati?: string | null
+          voce?: string | null
+        }
+        Update: {
+          attivita?: string | null
+          cliente_tipo?: string | null
+          company_id?: string
+          created_at?: string
+          obiezioni?: string | null
+          offerta?: string | null
+          problema?: string | null
+          prove?: string | null
+          updated_at?: string
+          usp?: string | null
+          vietati?: string | null
+          voce?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_sales_profile_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_sales_profile_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_sales_profile_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       company_subscriptions: {
         Row: {
           billing_period: string
@@ -16878,6 +19072,106 @@ export type Database = {
             foreignKeyName: "company_tags_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      company_telephony_compliance: {
+        Row: {
+          cap: string | null
+          citta: string | null
+          civico: string | null
+          codice_fiscale: string | null
+          company_id: string
+          created_at: string
+          doc_identita_path: string | null
+          doc_indirizzo_path: string | null
+          doc_visura_path: string | null
+          email_contatto: string | null
+          id: string
+          indirizzo: string | null
+          inviato_il: string | null
+          note_revisione: string | null
+          paese: string
+          partita_iva: string | null
+          provincia: string | null
+          ragione_sociale: string | null
+          stato: string
+          telefono_contatto: string | null
+          telnyx_requirement_group_id: string | null
+          tipo_soggetto: string
+          updated_at: string
+        }
+        Insert: {
+          cap?: string | null
+          citta?: string | null
+          civico?: string | null
+          codice_fiscale?: string | null
+          company_id: string
+          created_at?: string
+          doc_identita_path?: string | null
+          doc_indirizzo_path?: string | null
+          doc_visura_path?: string | null
+          email_contatto?: string | null
+          id?: string
+          indirizzo?: string | null
+          inviato_il?: string | null
+          note_revisione?: string | null
+          paese?: string
+          partita_iva?: string | null
+          provincia?: string | null
+          ragione_sociale?: string | null
+          stato?: string
+          telefono_contatto?: string | null
+          telnyx_requirement_group_id?: string | null
+          tipo_soggetto?: string
+          updated_at?: string
+        }
+        Update: {
+          cap?: string | null
+          citta?: string | null
+          civico?: string | null
+          codice_fiscale?: string | null
+          company_id?: string
+          created_at?: string
+          doc_identita_path?: string | null
+          doc_indirizzo_path?: string | null
+          doc_visura_path?: string | null
+          email_contatto?: string | null
+          id?: string
+          indirizzo?: string | null
+          inviato_il?: string | null
+          note_revisione?: string | null
+          paese?: string
+          partita_iva?: string | null
+          provincia?: string | null
+          ragione_sociale?: string | null
+          stato?: string
+          telefono_contatto?: string | null
+          telnyx_requirement_group_id?: string | null
+          tipo_soggetto?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_telephony_compliance_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_telephony_compliance_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_telephony_compliance_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
           },
@@ -18001,6 +20295,51 @@ export type Database = {
           },
         ]
       }
+      conversazioni: {
+        Row: {
+          anteprima: string | null
+          assegnato_a: string | null
+          canale_ultimo: string | null
+          company_id: string
+          created_at: string
+          entita_id: string
+          entita_tipo: string
+          id: string
+          last_read_at: string | null
+          stato: string
+          ultimo_msg_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          anteprima?: string | null
+          assegnato_a?: string | null
+          canale_ultimo?: string | null
+          company_id: string
+          created_at?: string
+          entita_id: string
+          entita_tipo: string
+          id?: string
+          last_read_at?: string | null
+          stato?: string
+          ultimo_msg_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anteprima?: string | null
+          assegnato_a?: string | null
+          canale_ultimo?: string | null
+          company_id?: string
+          created_at?: string
+          entita_id?: string
+          entita_tipo?: string
+          id?: string
+          last_read_at?: string | null
+          stato?: string
+          ultimo_msg_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cost_budgets: {
         Row: {
           budget_amount: number
@@ -18096,6 +20435,52 @@ export type Database = {
           },
         ]
       }
+      credit_low_balance_alerts: {
+        Row: {
+          alerted_at: string
+          balance_at_alert: number | null
+          company_id: string
+          threshold_at_alert: number | null
+          wallet_type: string
+        }
+        Insert: {
+          alerted_at?: string
+          balance_at_alert?: number | null
+          company_id: string
+          threshold_at_alert?: number | null
+          wallet_type: string
+        }
+        Update: {
+          alerted_at?: string
+          balance_at_alert?: number | null
+          company_id?: string
+          threshold_at_alert?: number | null
+          wallet_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_low_balance_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "credit_low_balance_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_low_balance_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       crm_campaigns: {
         Row: {
           contact_filter: Json
@@ -18149,6 +20534,145 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      crm_cap_centroids: {
+        Row: {
+          cap: string
+          lat: number
+          lng: number
+          sigla: string | null
+        }
+        Insert: {
+          cap: string
+          lat: number
+          lng: number
+          sigla?: string | null
+        }
+        Update: {
+          cap?: string
+          lat?: number
+          lng?: number
+          sigla?: string | null
+        }
+        Relationships: []
+      }
+      crm_email_domain_mx: {
+        Row: {
+          checked_at: string
+          domain: string
+          has_mx: boolean
+        }
+        Insert: {
+          checked_at?: string
+          domain: string
+          has_mx?: boolean
+        }
+        Update: {
+          checked_at?: string
+          domain?: string
+          has_mx?: boolean
+        }
+        Relationships: []
+      }
+      crm_province_centroids: {
+        Row: {
+          lat: number
+          lng: number
+          regione: string | null
+          sigla: string
+        }
+        Insert: {
+          lat: number
+          lng: number
+          regione?: string | null
+          sigla: string
+        }
+        Update: {
+          lat?: number
+          lng?: number
+          regione?: string | null
+          sigla?: string
+        }
+        Relationships: []
+      }
+      crm_roi_simulations: {
+        Row: {
+          client_name: string
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          inputs: Json
+          opportunity_id: string | null
+          results: Json
+        }
+        Insert: {
+          client_name?: string
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inputs?: Json
+          opportunity_id?: string | null
+          results?: Json
+        }
+        Update: {
+          client_name?: string
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inputs?: Json
+          opportunity_id?: string | null
+          results?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_roi_simulations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "crm_roi_simulations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_roi_simulations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "crm_roi_simulations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "crm_roi_simulations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_roi_simulations_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cs_tasks: {
         Row: {
@@ -21933,6 +24457,660 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "eic_tabelle_finanziamento"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      ele_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "ele_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ele_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ele_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "ele_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ele_progetti: {
+        Row: {
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          livello_impianto: string | null
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_punti: number | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_intervento: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          livello_impianto?: string | null
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_punti?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          livello_impianto?: string | null
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_punti?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ele_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "ele_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ele_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ele_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ele_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ele_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -27423,6 +30601,7 @@ export type Database = {
           inflazione_energia_pct: number | null
           irr_pct: number | null
           npv_25_anni: number | null
+          npv_25_anni_eur: number | null
           payback_anni: number | null
           performance_ratio: number | null
           prestito_durata_anni: number | null
@@ -27432,9 +30611,12 @@ export type Database = {
           progetto_id: string
           reddito_annuo: number | null
           ricavi_rid_eur: number | null
+          risparmio_25_anni_eur: number | null
+          risparmio_anno1_eur: number | null
           risparmio_bolletta_eur: number | null
           risparmio_totale_25_anni: number | null
           scenario_auto_elettrica: Json | null
+          scenario_completo: Json | null
           scenario_finanziamento: string | null
           scenario_pompa_calore: Json | null
           sensitivity_minus15: Json | null
@@ -27462,6 +30644,7 @@ export type Database = {
           inflazione_energia_pct?: number | null
           irr_pct?: number | null
           npv_25_anni?: number | null
+          npv_25_anni_eur?: number | null
           payback_anni?: number | null
           performance_ratio?: number | null
           prestito_durata_anni?: number | null
@@ -27471,9 +30654,12 @@ export type Database = {
           progetto_id: string
           reddito_annuo?: number | null
           ricavi_rid_eur?: number | null
+          risparmio_25_anni_eur?: number | null
+          risparmio_anno1_eur?: number | null
           risparmio_bolletta_eur?: number | null
           risparmio_totale_25_anni?: number | null
           scenario_auto_elettrica?: Json | null
+          scenario_completo?: Json | null
           scenario_finanziamento?: string | null
           scenario_pompa_calore?: Json | null
           sensitivity_minus15?: Json | null
@@ -27501,6 +30687,7 @@ export type Database = {
           inflazione_energia_pct?: number | null
           irr_pct?: number | null
           npv_25_anni?: number | null
+          npv_25_anni_eur?: number | null
           payback_anni?: number | null
           performance_ratio?: number | null
           prestito_durata_anni?: number | null
@@ -27510,9 +30697,12 @@ export type Database = {
           progetto_id?: string
           reddito_annuo?: number | null
           ricavi_rid_eur?: number | null
+          risparmio_25_anni_eur?: number | null
+          risparmio_anno1_eur?: number | null
           risparmio_bolletta_eur?: number | null
           risparmio_totale_25_anni?: number | null
           scenario_auto_elettrica?: Json | null
+          scenario_completo?: Json | null
           scenario_finanziamento?: string | null
           scenario_pompa_calore?: Json | null
           sensitivity_minus15?: Json | null
@@ -28071,6 +31261,7 @@ export type Database = {
           annullato_motivo: string | null
           archetipo: string
           autoconsumo_pct: number | null
+          azimut_tetto: number | null
           bolletta_caricata_url: string | null
           cap: string | null
           capacita_accumulo_kwh: number | null
@@ -28101,14 +31292,21 @@ export type Database = {
           id: string
           imagery_date: string | null
           incentivi_applicati: Json | null
+          inclinazione_tetto: number | null
           indirizzo: string
           irr_pct: number | null
           isee: number | null
           iva_aliquota: number | null
+          kit_bundle_id: string | null
+          kit_nome: string | null
+          kit_prezzo: number | null
           latitudine: number | null
+          layout_overlay: Json | null
+          layout_tetto: Json | null
           longitudine: number | null
           margine_eur: number | null
           margine_pct: number | null
+          modalita_pagamento: Json | null
           npv_25_anni: number | null
           numero: string
           numero_figli: number | null
@@ -28121,6 +31319,7 @@ export type Database = {
           pdf_mobile_url: string | null
           pdf_tecnico_url: string | null
           pdf_vendita_url: string | null
+          perdita_ombreggiamento_pct: number
           popolazione_comune: number | null
           potenza_kwp: number | null
           potenza_max_kwp: number | null
@@ -28134,6 +31333,9 @@ export type Database = {
           regione: string | null
           risparmio_anno1: number | null
           scenario_finanziamento: string | null
+          sconto_eur_applicato: number | null
+          sconto_tipo: string | null
+          sconto_valore: number | null
           stato: string
           superficie_immobile_mq: number | null
           superficie_tetto_disponibile_mq: number | null
@@ -28152,6 +31354,7 @@ export type Database = {
           annullato_motivo?: string | null
           archetipo: string
           autoconsumo_pct?: number | null
+          azimut_tetto?: number | null
           bolletta_caricata_url?: string | null
           cap?: string | null
           capacita_accumulo_kwh?: number | null
@@ -28182,14 +31385,21 @@ export type Database = {
           id?: string
           imagery_date?: string | null
           incentivi_applicati?: Json | null
+          inclinazione_tetto?: number | null
           indirizzo: string
           irr_pct?: number | null
           isee?: number | null
           iva_aliquota?: number | null
+          kit_bundle_id?: string | null
+          kit_nome?: string | null
+          kit_prezzo?: number | null
           latitudine?: number | null
+          layout_overlay?: Json | null
+          layout_tetto?: Json | null
           longitudine?: number | null
           margine_eur?: number | null
           margine_pct?: number | null
+          modalita_pagamento?: Json | null
           npv_25_anni?: number | null
           numero: string
           numero_figli?: number | null
@@ -28202,6 +31412,7 @@ export type Database = {
           pdf_mobile_url?: string | null
           pdf_tecnico_url?: string | null
           pdf_vendita_url?: string | null
+          perdita_ombreggiamento_pct?: number
           popolazione_comune?: number | null
           potenza_kwp?: number | null
           potenza_max_kwp?: number | null
@@ -28215,6 +31426,9 @@ export type Database = {
           regione?: string | null
           risparmio_anno1?: number | null
           scenario_finanziamento?: string | null
+          sconto_eur_applicato?: number | null
+          sconto_tipo?: string | null
+          sconto_valore?: number | null
           stato?: string
           superficie_immobile_mq?: number | null
           superficie_tetto_disponibile_mq?: number | null
@@ -28233,6 +31447,7 @@ export type Database = {
           annullato_motivo?: string | null
           archetipo?: string
           autoconsumo_pct?: number | null
+          azimut_tetto?: number | null
           bolletta_caricata_url?: string | null
           cap?: string | null
           capacita_accumulo_kwh?: number | null
@@ -28263,14 +31478,21 @@ export type Database = {
           id?: string
           imagery_date?: string | null
           incentivi_applicati?: Json | null
+          inclinazione_tetto?: number | null
           indirizzo?: string
           irr_pct?: number | null
           isee?: number | null
           iva_aliquota?: number | null
+          kit_bundle_id?: string | null
+          kit_nome?: string | null
+          kit_prezzo?: number | null
           latitudine?: number | null
+          layout_overlay?: Json | null
+          layout_tetto?: Json | null
           longitudine?: number | null
           margine_eur?: number | null
           margine_pct?: number | null
+          modalita_pagamento?: Json | null
           npv_25_anni?: number | null
           numero?: string
           numero_figli?: number | null
@@ -28283,6 +31505,7 @@ export type Database = {
           pdf_mobile_url?: string | null
           pdf_tecnico_url?: string | null
           pdf_vendita_url?: string | null
+          perdita_ombreggiamento_pct?: number
           popolazione_comune?: number | null
           potenza_kwp?: number | null
           potenza_max_kwp?: number | null
@@ -28296,6 +31519,9 @@ export type Database = {
           regione?: string | null
           risparmio_anno1?: number | null
           scenario_finanziamento?: string | null
+          sconto_eur_applicato?: number | null
+          sconto_tipo?: string | null
+          sconto_valore?: number | null
           stato?: string
           superficie_immobile_mq?: number | null
           superficie_tetto_disponibile_mq?: number | null
@@ -28688,6 +31914,7 @@ export type Database = {
           font_corpo: string | null
           font_titoli: string | null
           foto_team_url: string | null
+          gallery_lavori: Json | null
           garanzie_conversione: Json | null
           id: string
           logo_url: string | null
@@ -28699,16 +31926,24 @@ export type Database = {
           noleggio_note_legali: string | null
           noleggio_operativo_attivo: boolean | null
           pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
           pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
           pdf_cover_hero: string | null
           pdf_cover_image_url: string | null
           pdf_cover_logo_position: string | null
+          pdf_cover_logo_url: string | null
           pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
           pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
           pdf_cover_subhero: string | null
           pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
           pdf_cover_text_align: string | null
           pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
           pdf_cta_finale_testo: string | null
           pdf_cta_finale_titolo: string | null
           pdf_pages_order: Json | null
@@ -28753,6 +31988,7 @@ export type Database = {
           font_corpo?: string | null
           font_titoli?: string | null
           foto_team_url?: string | null
+          gallery_lavori?: Json | null
           garanzie_conversione?: Json | null
           id?: string
           logo_url?: string | null
@@ -28764,16 +32000,24 @@ export type Database = {
           noleggio_note_legali?: string | null
           noleggio_operativo_attivo?: boolean | null
           pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
           pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
           pdf_cover_hero?: string | null
           pdf_cover_image_url?: string | null
           pdf_cover_logo_position?: string | null
+          pdf_cover_logo_url?: string | null
           pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
           pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
           pdf_cover_subhero?: string | null
           pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
           pdf_cover_text_align?: string | null
           pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
           pdf_cta_finale_testo?: string | null
           pdf_cta_finale_titolo?: string | null
           pdf_pages_order?: Json | null
@@ -28818,6 +32062,7 @@ export type Database = {
           font_corpo?: string | null
           font_titoli?: string | null
           foto_team_url?: string | null
+          gallery_lavori?: Json | null
           garanzie_conversione?: Json | null
           id?: string
           logo_url?: string | null
@@ -28829,16 +32074,24 @@ export type Database = {
           noleggio_note_legali?: string | null
           noleggio_operativo_attivo?: boolean | null
           pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
           pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
           pdf_cover_hero?: string | null
           pdf_cover_image_url?: string | null
           pdf_cover_logo_position?: string | null
+          pdf_cover_logo_url?: string | null
           pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
           pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
           pdf_cover_subhero?: string | null
           pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
           pdf_cover_text_align?: string | null
           pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
           pdf_cta_finale_testo?: string | null
           pdf_cta_finale_titolo?: string | null
           pdf_pages_order?: Json | null
@@ -29305,6 +32558,39 @@ export type Database = {
           },
         ]
       }
+      geo_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          hits: number
+          id: string
+          kind: string
+          last_hit_at: string | null
+          payload: Json
+          provider: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          hits?: number
+          id?: string
+          kind: string
+          last_hit_at?: string | null
+          payload: Json
+          provider?: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          hits?: number
+          id?: string
+          kind?: string
+          last_hit_at?: string | null
+          payload?: Json
+          provider?: string
+        }
+        Relationships: []
+      }
       geocoded_locations: {
         Row: {
           company_id: string
@@ -29668,6 +32954,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "goods_receipts_supplier_id_fkey"
@@ -31141,6 +34434,86 @@ export type Database = {
           },
         ]
       }
+      hr_assenze_eventi: {
+        Row: {
+          certificato_name: string | null
+          certificato_path: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_fine: string | null
+          data_inizio: string
+          giorni: number | null
+          hr_profilo_id: string
+          id: string
+          note: string | null
+          protocollo: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          certificato_name?: string | null
+          certificato_path?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fine?: string | null
+          data_inizio: string
+          giorni?: number | null
+          hr_profilo_id: string
+          id?: string
+          note?: string | null
+          protocollo?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          certificato_name?: string | null
+          certificato_path?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fine?: string | null
+          data_inizio?: string
+          giorni?: number | null
+          hr_profilo_id?: string
+          id?: string
+          note?: string | null
+          protocollo?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_assenze_eventi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_eventi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_eventi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_eventi_hr_profilo_id_fkey"
+            columns: ["hr_profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_cedolini: {
         Row: {
           ai_confidence: number | null
@@ -31291,6 +34664,89 @@ export type Database = {
           },
         ]
       }
+      hr_documenti: {
+        Row: {
+          alert_giorni_prima: number
+          categoria: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_rilascio: string | null
+          data_scadenza: string | null
+          ente: string | null
+          file_name: string | null
+          file_path: string | null
+          hr_profilo_id: string
+          id: string
+          note: string | null
+          titolo: string | null
+          updated_at: string
+        }
+        Insert: {
+          alert_giorni_prima?: number
+          categoria?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_rilascio?: string | null
+          data_scadenza?: string | null
+          ente?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          hr_profilo_id: string
+          id?: string
+          note?: string | null
+          titolo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alert_giorni_prima?: number
+          categoria?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_rilascio?: string | null
+          data_scadenza?: string | null
+          ente?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          hr_profilo_id?: string
+          id?: string
+          note?: string | null
+          titolo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_documenti_hr_profilo_id_fkey"
+            columns: ["hr_profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_festivita: {
         Row: {
           company_id: string
@@ -31435,6 +34891,189 @@ export type Database = {
           },
         ]
       }
+      hr_kpi: {
+        Row: {
+          attivo: boolean
+          auto_metric: string | null
+          company_id: string
+          created_at: string
+          direzione: string
+          id: string
+          nome: string
+          origine_mansione_id: string | null
+          periodo: string
+          profilo_id: string
+          target: number | null
+          tipo: string
+          unita: string
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          auto_metric?: string | null
+          company_id: string
+          created_at?: string
+          direzione?: string
+          id?: string
+          nome: string
+          origine_mansione_id?: string | null
+          periodo?: string
+          profilo_id: string
+          target?: number | null
+          tipo?: string
+          unita?: string
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          auto_metric?: string | null
+          company_id?: string
+          created_at?: string
+          direzione?: string
+          id?: string
+          nome?: string
+          origine_mansione_id?: string | null
+          periodo?: string
+          profilo_id?: string
+          target?: number | null
+          tipo?: string
+          unita?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_kpi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_kpi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_kpi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_kpi_origine_mansione_id_fkey"
+            columns: ["origine_mansione_id"]
+            isOneToOne: false
+            referencedRelation: "hr_mansioni"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_kpi_profilo_id_fkey"
+            columns: ["profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_kpi_valori: {
+        Row: {
+          created_at: string
+          id: string
+          kpi_id: string
+          note: string | null
+          periodo_label: string
+          valore: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kpi_id: string
+          note?: string | null
+          periodo_label: string
+          valore: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kpi_id?: string
+          note?: string | null
+          periodo_label?: string
+          valore?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_kpi_valori_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "hr_kpi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_mansioni: {
+        Row: {
+          area: string | null
+          attivo: boolean
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          id: string
+          kpi_suggeriti: Json
+          nome: string
+          responsabilita: Json
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          attivo?: boolean
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          kpi_suggeriti?: Json
+          nome: string
+          responsabilita?: Json
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          attivo?: boolean
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          kpi_suggeriti?: Json
+          nome?: string
+          responsabilita?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_mansioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_mansioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_mansioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       hr_onboarding_steps: {
         Row: {
           ai_generated_content: string | null
@@ -31528,6 +35167,7 @@ export type Database = {
           livello_ccnl: string | null
           luogo_nascita: string | null
           mansione: string | null
+          mansione_id: string | null
           matricola: string | null
           nazionalita: string | null
           nome: string
@@ -31545,6 +35185,7 @@ export type Database = {
           posizione_organigramma: number | null
           reparto: string | null
           responsabile_id: string | null
+          responsabilita: Json
           rol_anno_ore: number | null
           rol_residuo_ore: number | null
           sede_id: string | null
@@ -31585,6 +35226,7 @@ export type Database = {
           livello_ccnl?: string | null
           luogo_nascita?: string | null
           mansione?: string | null
+          mansione_id?: string | null
           matricola?: string | null
           nazionalita?: string | null
           nome: string
@@ -31602,6 +35244,7 @@ export type Database = {
           posizione_organigramma?: number | null
           reparto?: string | null
           responsabile_id?: string | null
+          responsabilita?: Json
           rol_anno_ore?: number | null
           rol_residuo_ore?: number | null
           sede_id?: string | null
@@ -31642,6 +35285,7 @@ export type Database = {
           livello_ccnl?: string | null
           luogo_nascita?: string | null
           mansione?: string | null
+          mansione_id?: string | null
           matricola?: string | null
           nazionalita?: string | null
           nome?: string
@@ -31659,6 +35303,7 @@ export type Database = {
           posizione_organigramma?: number | null
           reparto?: string | null
           responsabile_id?: string | null
+          responsabilita?: Json
           rol_anno_ore?: number | null
           rol_residuo_ore?: number | null
           sede_id?: string | null
@@ -31704,6 +35349,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_profili_mansione_id_fkey"
+            columns: ["mansione_id"]
+            isOneToOne: false
+            referencedRelation: "hr_mansioni"
             referencedColumns: ["id"]
           },
           {
@@ -32232,6 +35884,97 @@ export type Database = {
           },
         ]
       }
+      hr_task: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          id: string
+          order_id: string | null
+          priorita: string
+          profilo_id: string
+          scadenza: string | null
+          stato: string
+          titolo: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          order_id?: string | null
+          priorita?: string
+          profilo_id: string
+          scadenza?: string | null
+          stato?: string
+          titolo: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          order_id?: string | null
+          priorita?: string
+          profilo_id?: string
+          scadenza?: string | null
+          stato?: string
+          titolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_task_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_task_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_task_profilo_id_fkey"
+            columns: ["profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_timbrature: {
         Row: {
           company_id: string
@@ -32322,6 +36065,714 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "hr_sedi"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      human_call_logs: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          contact_name: string | null
+          direction: string
+          duration_seconds: number
+          ended_at: string | null
+          from_number: string | null
+          id: string
+          recording_url: string | null
+          started_at: string
+          status: string
+          telnyx_session_id: string | null
+          to_number: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          contact_name?: string | null
+          direction?: string
+          duration_seconds?: number
+          ended_at?: string | null
+          from_number?: string | null
+          id?: string
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          telnyx_session_id?: string | null
+          to_number?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          contact_name?: string | null
+          direction?: string
+          duration_seconds?: number
+          ended_at?: string | null
+          from_number?: string | null
+          id?: string
+          recording_url?: string | null
+          started_at?: string
+          status?: string
+          telnyx_session_id?: string | null
+          to_number?: string | null
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: []
+      }
+      idr_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "idr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      idr_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      idr_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "idr_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      idr_progetti: {
+        Row: {
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_terminali: number | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_generatore: string | null
+          tipo_intervento: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_terminali?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_generatore?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_terminali?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_generatore?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      idr_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "idr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      idr_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "idr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -32496,6 +36947,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installations_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "installations_site_delivery_id_fkey"
@@ -33795,6 +38253,9 @@ export type Database = {
           is_private: boolean | null
           is_system: boolean | null
           name: string
+          order_id: string | null
+          silvio_folder_id: string | null
+          silvio_pinned: boolean
           type: string
           updated_at: string
         }
@@ -33810,6 +38271,9 @@ export type Database = {
           is_private?: boolean | null
           is_system?: boolean | null
           name?: string
+          order_id?: string | null
+          silvio_folder_id?: string | null
+          silvio_pinned?: boolean
           type?: string
           updated_at?: string
         }
@@ -33825,6 +38289,9 @@ export type Database = {
           is_private?: boolean | null
           is_system?: boolean | null
           name?: string
+          order_id?: string | null
+          silvio_folder_id?: string | null
+          silvio_pinned?: boolean
           type?: string
           updated_at?: string
         }
@@ -33849,6 +38316,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "internal_chat_channels_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_channels_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_channels_silvio_folder_id_fkey"
+            columns: ["silvio_folder_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_folders"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -34573,6 +39061,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      it_comuni: {
+        Row: {
+          cap: string | null
+          comune: string
+          provincia: string | null
+          regione: string | null
+          sigla: string
+        }
+        Insert: {
+          cap?: string | null
+          comune: string
+          provincia?: string | null
+          regione?: string | null
+          sigla: string
+        }
+        Update: {
+          cap?: string | null
+          comune?: string
+          provincia?: string | null
+          regione?: string | null
+          sigla?: string
+        }
+        Relationships: []
+      }
+      it_province: {
+        Row: {
+          nome: string
+          regione: string
+          sigla: string
+        }
+        Insert: {
+          nome: string
+          regione: string
+          sigla: string
+        }
+        Update: {
+          nome?: string
+          regione?: string
+          sigla?: string
+        }
+        Relationships: []
       }
       kb_aggregated_benchmarks: {
         Row: {
@@ -35639,7 +40169,7 @@ export type Database = {
           is_read: boolean
           message: string
           metadata: Json | null
-          notification_date: string
+          notification_date: string | null
           notification_type: string
           title: string
         }
@@ -35651,7 +40181,7 @@ export type Database = {
           is_read?: boolean
           message: string
           metadata?: Json | null
-          notification_date?: string
+          notification_date?: string | null
           notification_type: string
           title: string
         }
@@ -35663,7 +40193,7 @@ export type Database = {
           is_read?: boolean
           message?: string
           metadata?: Json | null
-          notification_date?: string
+          notification_date?: string | null
           notification_type?: string
           title?: string
         }
@@ -36006,12 +40536,14 @@ export type Database = {
           created_at: string
           descrizione: string | null
           descrizione_estesa: string | null
+          fv_categoria: string | null
           icona: string | null
           id: string
           immagine_url: string | null
           mostra_pagina_dedicata_pdf: boolean
           nome: string
           sort_order: number
+          tipologia: string | null
           updated_at: string
           verticali_abilitati: string[]
         }
@@ -36023,12 +40555,14 @@ export type Database = {
           created_at?: string
           descrizione?: string | null
           descrizione_estesa?: string | null
+          fv_categoria?: string | null
           icona?: string | null
           id?: string
           immagine_url?: string | null
           mostra_pagina_dedicata_pdf?: boolean
           nome: string
           sort_order?: number
+          tipologia?: string | null
           updated_at?: string
           verticali_abilitati?: string[]
         }
@@ -36040,12 +40574,14 @@ export type Database = {
           created_at?: string
           descrizione?: string | null
           descrizione_estesa?: string | null
+          fv_categoria?: string | null
           icona?: string | null
           id?: string
           immagine_url?: string | null
           mostra_pagina_dedicata_pdf?: boolean
           nome?: string
           sort_order?: number
+          tipologia?: string | null
           updated_at?: string
           verticali_abilitati?: string[]
         }
@@ -36305,6 +40841,39 @@ export type Database = {
           },
         ]
       }
+      manodopera_tariffa: {
+        Row: {
+          anno: number | null
+          costo_orario: number | null
+          created_at: string
+          fonte: string | null
+          id: string
+          provincia: string | null
+          qualifica: string | null
+          regione: string | null
+        }
+        Insert: {
+          anno?: number | null
+          costo_orario?: number | null
+          created_at?: string
+          fonte?: string | null
+          id?: string
+          provincia?: string | null
+          qualifica?: string | null
+          regione?: string | null
+        }
+        Update: {
+          anno?: number | null
+          costo_orario?: number | null
+          created_at?: string
+          fonte?: string | null
+          id?: string
+          provincia?: string | null
+          qualifica?: string | null
+          regione?: string | null
+        }
+        Relationships: []
+      }
       marketing_calendar_availability: {
         Row: {
           calendar_id: string
@@ -36453,6 +41022,7 @@ export type Database = {
           base_place_id: string | null
           booking_slug: string | null
           calendar_type: string
+          color: string | null
           company_id: string
           created_at: string
           created_by: string
@@ -36480,6 +41050,7 @@ export type Database = {
           base_place_id?: string | null
           booking_slug?: string | null
           calendar_type?: string
+          color?: string | null
           company_id: string
           created_at?: string
           created_by: string
@@ -36507,6 +41078,7 @@ export type Database = {
           base_place_id?: string | null
           booking_slug?: string | null
           calendar_type?: string
+          color?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
@@ -36852,6 +41424,7 @@ export type Database = {
           ai_score_tier: string | null
           ai_scored_at: string | null
           assigned_to: string | null
+          ateco_code: string | null
           attr_campaign: string | null
           attr_content: string | null
           attr_medium: string | null
@@ -36864,11 +41437,14 @@ export type Database = {
           contact_type: string
           country: string | null
           created_at: string
+          created_by: string | null
           customer_profile_id: string | null
           date_of_birth: string | null
           deleted_at: string | null
           deleted_by: string | null
+          dipendenti: string | null
           email: string | null
+          fatturato: number | null
           fbc: string | null
           fbclid: string | null
           fbp: string | null
@@ -36877,6 +41453,7 @@ export type Database = {
           follower_id: string | null
           gbraid: string | null
           gclid: string | null
+          geocoded_at: string | null
           google_ad_group_id: string | null
           google_ad_id: string | null
           google_campaign_id: string | null
@@ -36890,7 +41467,9 @@ export type Database = {
           last_google_conversion_event_at: string | null
           last_name: string | null
           last_score_update: string | null
+          lat: number | null
           lead_score: number | null
+          lng: number | null
           meta_ad_id: string | null
           meta_adset_id: string | null
           meta_campaign_id: string | null
@@ -36898,8 +41477,10 @@ export type Database = {
           notes: string | null
           opt_out: boolean | null
           opt_out_at: string | null
+          optout_at: string | null
           optout_call: boolean | null
           optout_email: boolean | null
+          optout_reason: string | null
           optout_sms: boolean | null
           optout_whatsapp: boolean | null
           phone: string | null
@@ -36908,10 +41489,12 @@ export type Database = {
           preferred_language: string | null
           province: string | null
           qualificazione_json: Json | null
+          region: string | null
           score: number
           sede_id: string | null
           source: string | null
           source_campaign_id: string | null
+          source_channel: string | null
           stato: string | null
           tags: string[]
           telefono_normalized: string | null
@@ -36934,6 +41517,7 @@ export type Database = {
           ai_score_tier?: string | null
           ai_scored_at?: string | null
           assigned_to?: string | null
+          ateco_code?: string | null
           attr_campaign?: string | null
           attr_content?: string | null
           attr_medium?: string | null
@@ -36946,11 +41530,14 @@ export type Database = {
           contact_type?: string
           country?: string | null
           created_at?: string
+          created_by?: string | null
           customer_profile_id?: string | null
           date_of_birth?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          dipendenti?: string | null
           email?: string | null
+          fatturato?: number | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -36959,6 +41546,7 @@ export type Database = {
           follower_id?: string | null
           gbraid?: string | null
           gclid?: string | null
+          geocoded_at?: string | null
           google_ad_group_id?: string | null
           google_ad_id?: string | null
           google_campaign_id?: string | null
@@ -36972,7 +41560,9 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
+          lat?: number | null
           lead_score?: number | null
+          lng?: number | null
           meta_ad_id?: string | null
           meta_adset_id?: string | null
           meta_campaign_id?: string | null
@@ -36980,8 +41570,10 @@ export type Database = {
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
+          optout_at?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
+          optout_reason?: string | null
           optout_sms?: boolean | null
           optout_whatsapp?: boolean | null
           phone?: string | null
@@ -36990,10 +41582,12 @@ export type Database = {
           preferred_language?: string | null
           province?: string | null
           qualificazione_json?: Json | null
+          region?: string | null
           score?: number
           sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
+          source_channel?: string | null
           stato?: string | null
           tags?: string[]
           telefono_normalized?: string | null
@@ -37016,6 +41610,7 @@ export type Database = {
           ai_score_tier?: string | null
           ai_scored_at?: string | null
           assigned_to?: string | null
+          ateco_code?: string | null
           attr_campaign?: string | null
           attr_content?: string | null
           attr_medium?: string | null
@@ -37028,11 +41623,14 @@ export type Database = {
           contact_type?: string
           country?: string | null
           created_at?: string
+          created_by?: string | null
           customer_profile_id?: string | null
           date_of_birth?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          dipendenti?: string | null
           email?: string | null
+          fatturato?: number | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -37041,6 +41639,7 @@ export type Database = {
           follower_id?: string | null
           gbraid?: string | null
           gclid?: string | null
+          geocoded_at?: string | null
           google_ad_group_id?: string | null
           google_ad_id?: string | null
           google_campaign_id?: string | null
@@ -37054,7 +41653,9 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
+          lat?: number | null
           lead_score?: number | null
+          lng?: number | null
           meta_ad_id?: string | null
           meta_adset_id?: string | null
           meta_campaign_id?: string | null
@@ -37062,8 +41663,10 @@ export type Database = {
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
+          optout_at?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
+          optout_reason?: string | null
           optout_sms?: boolean | null
           optout_whatsapp?: boolean | null
           phone?: string | null
@@ -37072,10 +41675,12 @@ export type Database = {
           preferred_language?: string | null
           province?: string | null
           qualificazione_json?: Json | null
+          region?: string | null
           score?: number
           sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
+          source_channel?: string | null
           stato?: string | null
           tags?: string[]
           telefono_normalized?: string | null
@@ -37354,6 +41959,7 @@ export type Database = {
           last_google_conversion_event_at: string | null
           loss_notes: string | null
           loss_reason: string | null
+          lost_at: string | null
           lost_reason: string | null
           lost_reason_category: string | null
           meta_ad_id: string | null
@@ -37364,8 +41970,10 @@ export type Database = {
           next_action: string | null
           next_action_date: string | null
           notes: string | null
+          package_id: string | null
           pipeline_id: string
           probability: number | null
+          product_line_id: string | null
           sales_velocity_snapshot: Json | null
           source: string | null
           stage_changed_at: string | null
@@ -37375,10 +41983,9 @@ export type Database = {
           tags: string[]
           tipo_opportunita: string | null
           updated_at: string
-          won_at: string | null
-          lost_at: string | null
           value: number
           wbraid: string | null
+          won_at: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -37409,6 +42016,7 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_at?: string | null
           lost_reason?: string | null
           lost_reason_category?: string | null
           meta_ad_id?: string | null
@@ -37419,8 +42027,10 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          package_id?: string | null
           pipeline_id: string
           probability?: number | null
+          product_line_id?: string | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
           stage_changed_at?: string | null
@@ -37430,10 +42040,9 @@ export type Database = {
           tags?: string[]
           tipo_opportunita?: string | null
           updated_at?: string
-          won_at?: string | null
-          lost_at?: string | null
           value?: number
           wbraid?: string | null
+          won_at?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -37464,6 +42073,7 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
+          lost_at?: string | null
           lost_reason?: string | null
           lost_reason_category?: string | null
           meta_ad_id?: string | null
@@ -37474,8 +42084,10 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          package_id?: string | null
           pipeline_id?: string
           probability?: number | null
+          product_line_id?: string | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
           stage_changed_at?: string | null
@@ -37485,10 +42097,9 @@ export type Database = {
           tags?: string[]
           tipo_opportunita?: string | null
           updated_at?: string
-          won_at?: string | null
-          lost_at?: string | null
           value?: number
           wbraid?: string | null
+          won_at?: string | null
         }
         Relationships: [
           {
@@ -37527,10 +42138,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marketing_opportunities_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_packages"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "marketing_opportunities_pipeline_id_fkey"
             columns: ["pipeline_id"]
             isOneToOne: false
             referencedRelation: "marketing_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "aedix_product_lines"
             referencedColumns: ["id"]
           },
           {
@@ -39575,36 +44200,81 @@ export type Database = {
       meta_insights_cache: {
         Row: {
           ad_account_id: string
+          ad_id: string
+          adset_id: string
+          campaign_id: string | null
+          clicks: number | null
           company_id: string
+          cost_per_lead_cents: number | null
+          cpc_cents: number | null
+          cpm_cents: number | null
+          ctr: number | null
           date_end: string
           date_start: string
+          date_stop: string | null
           expires_at: string | null
           fetched_at: string | null
+          frequency: number | null
           id: string
+          impressions: number | null
+          leads: number | null
           level: string
           payload_json: Json
+          raw: Json | null
+          reach: number | null
+          spend_cents: number | null
         }
         Insert: {
           ad_account_id: string
+          ad_id?: string
+          adset_id?: string
+          campaign_id?: string | null
+          clicks?: number | null
           company_id: string
+          cost_per_lead_cents?: number | null
+          cpc_cents?: number | null
+          cpm_cents?: number | null
+          ctr?: number | null
           date_end: string
           date_start: string
+          date_stop?: string | null
           expires_at?: string | null
           fetched_at?: string | null
+          frequency?: number | null
           id?: string
+          impressions?: number | null
+          leads?: number | null
           level?: string
           payload_json?: Json
+          raw?: Json | null
+          reach?: number | null
+          spend_cents?: number | null
         }
         Update: {
           ad_account_id?: string
+          ad_id?: string
+          adset_id?: string
+          campaign_id?: string | null
+          clicks?: number | null
           company_id?: string
+          cost_per_lead_cents?: number | null
+          cpc_cents?: number | null
+          cpm_cents?: number | null
+          ctr?: number | null
           date_end?: string
           date_start?: string
+          date_stop?: string | null
           expires_at?: string | null
           fetched_at?: string | null
+          frequency?: number | null
           id?: string
+          impressions?: number | null
+          leads?: number | null
           level?: string
           payload_json?: Json
+          raw?: Json | null
+          reach?: number | null
+          spend_cents?: number | null
         }
         Relationships: [
           {
@@ -39988,24 +44658,36 @@ export type Database = {
           access_role: string
           company_id: string
           created_at: string | null
+          expires_at: string | null
           granted_by: string | null
           id: string
+          invited_email: string | null
+          status: string
+          updated_at: string
           user_id: string
         }
         Insert: {
           access_role?: string
           company_id: string
           created_at?: string | null
+          expires_at?: string | null
           granted_by?: string | null
           id?: string
+          invited_email?: string | null
+          status?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
           access_role?: string
           company_id?: string
           created_at?: string | null
+          expires_at?: string | null
           granted_by?: string | null
           id?: string
+          invited_email?: string | null
+          status?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -40750,6 +45432,7 @@ export type Database = {
       }
       order_employees: {
         Row: {
+          cost_preventivo: number | null
           created_at: string
           employee_id: string
           hourly_rate: number
@@ -40759,9 +45442,11 @@ export type Database = {
           notes: string | null
           order_id: string
           paid_date: string | null
+          phase_id: string | null
           total_cost: number
         }
         Insert: {
+          cost_preventivo?: number | null
           created_at?: string
           employee_id: string
           hourly_rate?: number
@@ -40771,9 +45456,11 @@ export type Database = {
           notes?: string | null
           order_id: string
           paid_date?: string | null
+          phase_id?: string | null
           total_cost?: number
         }
         Update: {
+          cost_preventivo?: number | null
           created_at?: string
           employee_id?: string
           hourly_rate?: number
@@ -40783,6 +45470,7 @@ export type Database = {
           notes?: string | null
           order_id?: string
           paid_date?: string | null
+          phase_id?: string | null
           total_cost?: number
         }
         Relationships: [
@@ -40812,6 +45500,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_employees_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -40983,6 +45678,7 @@ export type Database = {
       }
       order_external_teams: {
         Row: {
+          cost_preventivo: number | null
           created_at: string
           external_team_id: string
           id: string
@@ -40991,10 +45687,12 @@ export type Database = {
           order_id: string
           paid_date: string | null
           payment_date: string | null
+          phase_id: string | null
           total_cost: number
           vat_rate: number | null
         }
         Insert: {
+          cost_preventivo?: number | null
           created_at?: string
           external_team_id: string
           id?: string
@@ -41003,10 +45701,12 @@ export type Database = {
           order_id: string
           paid_date?: string | null
           payment_date?: string | null
+          phase_id?: string | null
           total_cost?: number
           vat_rate?: number | null
         }
         Update: {
+          cost_preventivo?: number | null
           created_at?: string
           external_team_id?: string
           id?: string
@@ -41015,6 +45715,7 @@ export type Database = {
           order_id?: string
           paid_date?: string | null
           payment_date?: string | null
+          phase_id?: string | null
           total_cost?: number
           vat_rate?: number | null
         }
@@ -41038,6 +45739,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_external_teams_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -41135,6 +45843,13 @@ export type Database = {
             referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_item_attachments_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
+          },
         ]
       }
       order_item_timeline: {
@@ -41206,15 +45921,24 @@ export type Database = {
             referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_item_timeline_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
+          },
         ]
       }
       order_items: {
         Row: {
+          article_template_id: string | null
           auto_deducted: boolean | null
           balance_amount: number | null
           balance_expected_date: string | null
           balance_paid: boolean | null
           balance_paid_date: string | null
+          categoria: string | null
           created_at: string | null
           delivery_date: string | null
           deposit_amount: number | null
@@ -41236,6 +45960,7 @@ export type Database = {
           order_id: string
           paid_date: string | null
           payment_method: string | null
+          phase_id: string | null
           position: number | null
           product_code: string | null
           purchase_price: number | null
@@ -41254,11 +45979,13 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          article_template_id?: string | null
           auto_deducted?: boolean | null
           balance_amount?: number | null
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          categoria?: string | null
           created_at?: string | null
           delivery_date?: string | null
           deposit_amount?: number | null
@@ -41280,6 +46007,7 @@ export type Database = {
           order_id: string
           paid_date?: string | null
           payment_method?: string | null
+          phase_id?: string | null
           position?: number | null
           product_code?: string | null
           purchase_price?: number | null
@@ -41298,11 +46026,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          article_template_id?: string | null
           auto_deducted?: boolean | null
           balance_amount?: number | null
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          categoria?: string | null
           created_at?: string | null
           delivery_date?: string | null
           deposit_amount?: number | null
@@ -41324,6 +46054,7 @@ export type Database = {
           order_id?: string
           paid_date?: string | null
           payment_method?: string | null
+          phase_id?: string | null
           position?: number | null
           product_code?: string | null
           purchase_price?: number | null
@@ -41342,6 +46073,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_items_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_items_destination_warehouse_id_fkey"
             columns: ["destination_warehouse_id"]
@@ -41368,6 +46106,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
             referencedColumns: ["id"]
           },
           {
@@ -41703,6 +46448,73 @@ export type Database = {
           },
         ]
       }
+      order_task_template: {
+        Row: {
+          assegna_a_ruolo: string | null
+          attivo: boolean
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          giorni_offset: number
+          id: string
+          priorita: string
+          sort_order: number
+          titolo: string
+          updated_at: string
+          vertical: string | null
+        }
+        Insert: {
+          assegna_a_ruolo?: string | null
+          attivo?: boolean
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          giorni_offset?: number
+          id?: string
+          priorita?: string
+          sort_order?: number
+          titolo: string
+          updated_at?: string
+          vertical?: string | null
+        }
+        Update: {
+          assegna_a_ruolo?: string | null
+          attivo?: boolean
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          giorni_offset?: number
+          id?: string
+          priorita?: string
+          sort_order?: number
+          titolo?: string
+          updated_at?: string
+          vertical?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_task_template_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_task_template_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_task_template_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       order_variable_compensations: {
         Row: {
           approved_at: string | null
@@ -41831,6 +46643,87 @@ export type Database = {
           },
         ]
       }
+      order_work_phases: {
+        Row: {
+          company_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          order_id: string
+          percentuale: number
+          position: number
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          order_id: string
+          percentuale?: number
+          position?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          order_id?: string
+          percentuale?: number
+          position?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_work_phases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_work_phases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_work_phases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_work_phases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_work_phases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           assigned_to: string | null
@@ -41876,6 +46769,9 @@ export type Database = {
           indirizzo_lavori: string | null
           internal_notes: string | null
           materials_location: string | null
+          next_action: string | null
+          next_action_date: string | null
+          operational_checklist: Json
           order_code: string | null
           order_type: string
           payment_type: string | null
@@ -41893,6 +46789,8 @@ export type Database = {
           work_address: string | null
           work_description: string | null
           work_end_date: string | null
+          work_lat: number | null
+          work_lng: number | null
           work_start_date: string | null
         }
         Insert: {
@@ -41939,6 +46837,9 @@ export type Database = {
           indirizzo_lavori?: string | null
           internal_notes?: string | null
           materials_location?: string | null
+          next_action?: string | null
+          next_action_date?: string | null
+          operational_checklist?: Json
           order_code?: string | null
           order_type?: string
           payment_type?: string | null
@@ -41956,6 +46857,8 @@ export type Database = {
           work_address?: string | null
           work_description?: string | null
           work_end_date?: string | null
+          work_lat?: number | null
+          work_lng?: number | null
           work_start_date?: string | null
         }
         Update: {
@@ -42002,6 +46905,9 @@ export type Database = {
           indirizzo_lavori?: string | null
           internal_notes?: string | null
           materials_location?: string | null
+          next_action?: string | null
+          next_action_date?: string | null
+          operational_checklist?: Json
           order_code?: string | null
           order_type?: string
           payment_type?: string | null
@@ -42019,6 +46925,8 @@ export type Database = {
           work_address?: string | null
           work_description?: string | null
           work_end_date?: string | null
+          work_lat?: number | null
+          work_lng?: number | null
           work_start_date?: string | null
         }
         Relationships: [
@@ -42440,6 +47348,895 @@ export type Database = {
           },
         ]
       }
+      outreach_brands: {
+        Row: {
+          company_id: string
+          created_at: string
+          default_daily_cap: number
+          footer_address: string | null
+          from_name: string | null
+          id: string
+          name: string
+          notes: string | null
+          reply_to: string | null
+          signature: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          default_daily_cap?: number
+          footer_address?: string | null
+          from_name?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          reply_to?: string | null
+          signature?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          default_daily_cap?: number
+          footer_address?: string | null
+          from_name?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          reply_to?: string | null
+          signature?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_brands_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_brands_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_brands_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      outreach_call_tasks: {
+        Row: {
+          assigned_to: string | null
+          company_id: string
+          company_name: string | null
+          contact_id: string | null
+          contact_name: string | null
+          created_at: string
+          done_at: string | null
+          done_by: string | null
+          due_at: string
+          enrollment_id: string | null
+          id: string
+          node_id: string | null
+          note: string | null
+          phone: string | null
+          sequence_id: string | null
+          status: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_id: string
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          done_at?: string | null
+          done_by?: string | null
+          due_at?: string
+          enrollment_id?: string | null
+          id?: string
+          node_id?: string | null
+          note?: string | null
+          phone?: string | null
+          sequence_id?: string | null
+          status?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company_id?: string
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          done_at?: string | null
+          done_by?: string | null
+          due_at?: string
+          enrollment_id?: string | null
+          id?: string
+          node_id?: string | null
+          note?: string | null
+          phone?: string | null
+          sequence_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      outreach_conversation_state: {
+        Row: {
+          company_id: string
+          contact_id: string
+          id: string
+          snoozed_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          id?: string
+          snoozed_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          id?: string
+          snoozed_until?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_conversation_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_conversation_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_conversation_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_conversation_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "outreach_conversation_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_enrollments: {
+        Row: {
+          company_id: string
+          contact_id: string
+          current_node_id: string | null
+          current_step: number
+          enrolled_at: string
+          id: string
+          next_action_at: string | null
+          sequence_id: string
+          status: string
+          stop_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          current_node_id?: string | null
+          current_step?: number
+          enrolled_at?: string
+          id?: string
+          next_action_at?: string | null
+          sequence_id: string
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          current_node_id?: string | null
+          current_step?: number
+          enrolled_at?: string
+          id?: string
+          next_action_at?: string | null
+          sequence_id?: string
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_current_node_fk"
+            columns: ["current_node_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_replies: {
+        Row: {
+          channel: string
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          enrollment_id: string | null
+          from_email: string | null
+          from_phone: string | null
+          id: string
+          intent: string | null
+          intent_confidence: number | null
+          raw: Json
+          received_at: string
+          snippet: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          channel?: string
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          from_email?: string | null
+          from_phone?: string | null
+          id?: string
+          intent?: string | null
+          intent_confidence?: number | null
+          raw?: Json
+          received_at?: string
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          from_email?: string | null
+          from_phone?: string | null
+          id?: string
+          intent?: string | null
+          intent_confidence?: number | null
+          raw?: Json
+          received_at?: string
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_replies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_replies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_replies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_replies_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "outreach_replies_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_replies_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_send_queue: {
+        Row: {
+          attempts: number
+          body: string
+          brand_id: string | null
+          channel: string
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          enrollment_id: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          max_attempts: number
+          node_id: string | null
+          open_count: number
+          opened_at: string | null
+          scheduled_for: string
+          sender_account_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          to_email: string | null
+          to_phone: string | null
+          updated_at: string
+          variant_index: number | null
+        }
+        Insert: {
+          attempts?: number
+          body?: string
+          brand_id?: string | null
+          channel?: string
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          max_attempts?: number
+          node_id?: string | null
+          open_count?: number
+          opened_at?: string | null
+          scheduled_for?: string
+          sender_account_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          to_email?: string | null
+          to_phone?: string | null
+          updated_at?: string
+          variant_index?: number | null
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          brand_id?: string | null
+          channel?: string
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          max_attempts?: number
+          node_id?: string | null
+          open_count?: number
+          opened_at?: string | null
+          scheduled_for?: string
+          sender_account_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          to_email?: string | null
+          to_phone?: string | null
+          updated_at?: string
+          variant_index?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_queue_node_fk"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_send_queue_sender_account_id_fkey"
+            columns: ["sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sender_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sender_accounts: {
+        Row: {
+          bounce_count: number
+          brand_id: string | null
+          company_id: string
+          complaint_count: number
+          connection_checked_at: string | null
+          connection_error: string | null
+          connection_status: string
+          created_at: string
+          daily_cap_target: number
+          daily_sent: number
+          daily_sent_date: string | null
+          display_name: string | null
+          email: string
+          id: string
+          imap_host: string | null
+          imap_port: number | null
+          imap_secure: boolean
+          last_imap_check_at: string | null
+          last_imap_uid: string | null
+          last_sent_at: string | null
+          provider: string
+          secret_ref: string | null
+          sending_domain_id: string | null
+          smtp_host: string | null
+          smtp_port: number | null
+          smtp_secure: boolean | null
+          smtp_username: string | null
+          status: string
+          updated_at: string
+          warmup_base: number
+          warmup_day: number
+          warmup_started_on: string | null
+          warmup_step: number
+        }
+        Insert: {
+          bounce_count?: number
+          brand_id?: string | null
+          company_id: string
+          complaint_count?: number
+          connection_checked_at?: string | null
+          connection_error?: string | null
+          connection_status?: string
+          created_at?: string
+          daily_cap_target?: number
+          daily_sent?: number
+          daily_sent_date?: string | null
+          display_name?: string | null
+          email: string
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean
+          last_imap_check_at?: string | null
+          last_imap_uid?: string | null
+          last_sent_at?: string | null
+          provider?: string
+          secret_ref?: string | null
+          sending_domain_id?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          smtp_username?: string | null
+          status?: string
+          updated_at?: string
+          warmup_base?: number
+          warmup_day?: number
+          warmup_started_on?: string | null
+          warmup_step?: number
+        }
+        Update: {
+          bounce_count?: number
+          brand_id?: string | null
+          company_id?: string
+          complaint_count?: number
+          connection_checked_at?: string | null
+          connection_error?: string | null
+          connection_status?: string
+          created_at?: string
+          daily_cap_target?: number
+          daily_sent?: number
+          daily_sent_date?: string | null
+          display_name?: string | null
+          email?: string
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean
+          last_imap_check_at?: string | null
+          last_imap_uid?: string | null
+          last_sent_at?: string | null
+          provider?: string
+          secret_ref?: string | null
+          sending_domain_id?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          smtp_username?: string | null
+          status?: string
+          updated_at?: string
+          warmup_base?: number
+          warmup_day?: number
+          warmup_started_on?: string | null
+          warmup_step?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sender_accounts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_sending_domain_id_fkey"
+            columns: ["sending_domain_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sending_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sending_domains: {
+        Row: {
+          brand_id: string | null
+          company_id: string
+          created_at: string
+          daily_cap: number
+          dkim_verified: boolean
+          dmarc_verified: boolean
+          domain: string
+          id: string
+          notes: string | null
+          spf_verified: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id?: string | null
+          company_id: string
+          created_at?: string
+          daily_cap?: number
+          dkim_verified?: boolean
+          dmarc_verified?: boolean
+          domain: string
+          id?: string
+          notes?: string | null
+          spf_verified?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string | null
+          company_id?: string
+          created_at?: string
+          daily_cap?: number
+          dkim_verified?: boolean
+          dmarc_verified?: boolean
+          domain?: string
+          id?: string
+          notes?: string | null
+          spf_verified?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sending_domains_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sending_domains_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_sending_domains_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sending_domains_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      outreach_sequence_steps: {
+        Row: {
+          body: string
+          channel: string
+          condition_type: string | null
+          created_at: string
+          delay_days: number
+          delay_hours: number
+          id: string
+          next_alt: string | null
+          next_default: string | null
+          node_type: string
+          pos_x: number | null
+          pos_y: number | null
+          sequence_id: string
+          step_order: number
+          subject: string | null
+          template_language: string | null
+          template_name: string | null
+          template_params: Json | null
+        }
+        Insert: {
+          body?: string
+          channel?: string
+          condition_type?: string | null
+          created_at?: string
+          delay_days?: number
+          delay_hours?: number
+          id?: string
+          next_alt?: string | null
+          next_default?: string | null
+          node_type?: string
+          pos_x?: number | null
+          pos_y?: number | null
+          sequence_id: string
+          step_order: number
+          subject?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+        }
+        Update: {
+          body?: string
+          channel?: string
+          condition_type?: string | null
+          created_at?: string
+          delay_days?: number
+          delay_hours?: number
+          id?: string
+          next_alt?: string | null
+          next_default?: string | null
+          node_type?: string
+          pos_x?: number | null
+          pos_y?: number | null
+          sequence_id?: string
+          step_order?: number
+          subject?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_params?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_steps_next_alt_fk"
+            columns: ["next_alt"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_steps_next_default_fk"
+            columns: ["next_default"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequence_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sequences: {
+        Row: {
+          brand_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          status: string
+          track_opens: boolean
+          updated_at: string
+        }
+        Insert: {
+          brand_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          track_opens?: boolean
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          track_opens?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sequences_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sequences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_sequences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sequences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       partner_applications: {
         Row: {
           created_at: string | null
@@ -42625,6 +48422,660 @@ export type Database = {
             foreignKeyName: "patrimonio_netto_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pav_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "pav_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pav_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pav_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "pav_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pav_progetti: {
+        Row: {
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_ambienti: number | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_intervento: string | null
+          tipo_materiale: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_ambienti?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          tipo_materiale?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_ambienti?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          tipo_materiale?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pav_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "pav_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pav_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pav_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pav_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pav_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
           },
@@ -42987,6 +49438,627 @@ export type Database = {
             foreignKeyName: "pipeline_forecasts_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pis_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "pis_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pis_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pis_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "pis_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pis_progetti: {
+        Row: {
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_costruzione: string | null
+          tipo_intervento: string | null
+          tipo_piscina: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_costruzione?: string | null
+          tipo_intervento?: string | null
+          tipo_piscina?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_costruzione?: string | null
+          tipo_intervento?: string | null
+          tipo_piscina?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      pis_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "pis_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pis_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_vertical: string
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_vertical?: string
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_vertical?: string
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pis_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pis_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pis_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
           },
@@ -43645,13 +50717,6 @@ export type Database = {
           metadata?: Json
         }
         Relationships: [
-          {
-            foreignKeyName: "portal_course_activity_company_id_course_id_fkey"
-            columns: ["company_id", "course_id"]
-            isOneToOne: false
-            referencedRelation: "portal_courses"
-            referencedColumns: ["company_id", "id"]
-          },
           {
             foreignKeyName: "portal_course_activity_company_id_fkey"
             columns: ["company_id"]
@@ -45010,6 +52075,156 @@ export type Database = {
           },
         ]
       }
+      prezzario_capitolo: {
+        Row: {
+          codice: string | null
+          fonte_id: string
+          id: string
+          livello: number
+          ordine: number
+          parent_id: string | null
+          titolo: string
+        }
+        Insert: {
+          codice?: string | null
+          fonte_id: string
+          id?: string
+          livello?: number
+          ordine?: number
+          parent_id?: string | null
+          titolo: string
+        }
+        Update: {
+          codice?: string | null
+          fonte_id?: string
+          id?: string
+          livello?: number
+          ordine?: number
+          parent_id?: string | null
+          titolo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prezzario_capitolo_fonte_id_fkey"
+            columns: ["fonte_id"]
+            isOneToOne: false
+            referencedRelation: "prezzario_fonte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prezzario_capitolo_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "prezzario_capitolo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prezzario_fonte: {
+        Row: {
+          anno: number
+          created_at: string
+          created_by: string | null
+          id: string
+          licenza: string | null
+          nome: string
+          note: string | null
+          regione: string
+          stato: string
+          updated_at: string
+          url_fonte: string | null
+          versione: string | null
+        }
+        Insert: {
+          anno: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          licenza?: string | null
+          nome: string
+          note?: string | null
+          regione: string
+          stato?: string
+          updated_at?: string
+          url_fonte?: string | null
+          versione?: string | null
+        }
+        Update: {
+          anno?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          licenza?: string | null
+          nome?: string
+          note?: string | null
+          regione?: string
+          stato?: string
+          updated_at?: string
+          url_fonte?: string | null
+          versione?: string | null
+        }
+        Relationships: []
+      }
+      prezzario_voce: {
+        Row: {
+          capitolo_id: string | null
+          codice: string | null
+          descrizione: string
+          fonte_id: string
+          id: string
+          incidenza_manodopera_pct: number | null
+          incidenza_sicurezza_pct: number | null
+          note: string | null
+          ordine: number
+          prezzo: number
+          search: unknown
+          unita_misura: string | null
+        }
+        Insert: {
+          capitolo_id?: string | null
+          codice?: string | null
+          descrizione: string
+          fonte_id: string
+          id?: string
+          incidenza_manodopera_pct?: number | null
+          incidenza_sicurezza_pct?: number | null
+          note?: string | null
+          ordine?: number
+          prezzo?: number
+          search?: unknown
+          unita_misura?: string | null
+        }
+        Update: {
+          capitolo_id?: string | null
+          codice?: string | null
+          descrizione?: string
+          fonte_id?: string
+          id?: string
+          incidenza_manodopera_pct?: number | null
+          incidenza_sicurezza_pct?: number | null
+          note?: string | null
+          ordine?: number
+          prezzo?: number
+          search?: unknown
+          unita_misura?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prezzario_voce_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "prezzario_capitolo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prezzario_voce_fonte_id_fkey"
+            columns: ["fonte_id"]
+            isOneToOne: false
+            referencedRelation: "prezzario_fonte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prezzario_voci: {
         Row: {
           categoria: string | null
@@ -45199,10 +52414,12 @@ export type Database = {
           created_by: string | null
           description: string
           direction: string
+          documento_fiscale_id: string | null
           entry_date: string
           id: string
           invoice_id: string | null
           is_auto: boolean
+          movimento_id: string | null
           notes: string | null
           order_id: string | null
           order_item_id: string | null
@@ -45231,10 +52448,12 @@ export type Database = {
           created_by?: string | null
           description: string
           direction: string
+          documento_fiscale_id?: string | null
           entry_date?: string
           id?: string
           invoice_id?: string | null
           is_auto?: boolean
+          movimento_id?: string | null
           notes?: string | null
           order_id?: string | null
           order_item_id?: string | null
@@ -45263,10 +52482,12 @@ export type Database = {
           created_by?: string | null
           description?: string
           direction?: string
+          documento_fiscale_id?: string | null
           entry_date?: string
           id?: string
           invoice_id?: string | null
           is_auto?: boolean
+          movimento_id?: string | null
           notes?: string | null
           order_id?: string | null
           order_item_id?: string | null
@@ -45315,10 +52536,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "prima_nota_entries_documento_fiscale_id_fkey"
+            columns: ["documento_fiscale_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_documento_fiscale_id_fkey"
+            columns: ["documento_fiscale_id"]
+            isOneToOne: false
+            referencedRelation: "fattura_pagamento_stato"
+            referencedColumns: ["fattura_id"]
+          },
+          {
             foreignKeyName: "prima_nota_entries_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_movimento_id_fkey"
+            columns: ["movimento_id"]
+            isOneToOne: false
+            referencedRelation: "movimenti_cassa_native"
             referencedColumns: ["id"]
           },
           {
@@ -45341,6 +52583,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "prima_nota_entries_scadenza_id_fkey"
@@ -45520,6 +52769,8 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          address_lat: number | null
+          address_lng: number | null
           area: string | null
           avatar_url: string | null
           block_reason: string | null
@@ -45555,6 +52806,8 @@ export type Database = {
           salesperson_id: string | null
           site_address: string | null
           site_city: string | null
+          site_lat: number | null
+          site_lng: number | null
           site_postal_code: string | null
           site_province: string | null
           updated_at: string
@@ -45562,6 +52815,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          address_lat?: number | null
+          address_lng?: number | null
           area?: string | null
           avatar_url?: string | null
           block_reason?: string | null
@@ -45597,6 +52852,8 @@ export type Database = {
           salesperson_id?: string | null
           site_address?: string | null
           site_city?: string | null
+          site_lat?: number | null
+          site_lng?: number | null
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
@@ -45604,6 +52861,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          address_lat?: number | null
+          address_lng?: number | null
           area?: string | null
           avatar_url?: string | null
           block_reason?: string | null
@@ -45639,6 +52898,8 @@ export type Database = {
           salesperson_id?: string | null
           site_address?: string | null
           site_city?: string | null
+          site_lat?: number | null
+          site_lng?: number | null
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
@@ -46199,6 +53460,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
@@ -47586,6 +54854,8 @@ export type Database = {
           margine_totale_percentuale: number | null
           notes: string | null
           opportunity_id: string | null
+          payment_method: string | null
+          payment_phases: Json | null
           pdf_copia_destinatario: string | null
           pdf_generated_at: string | null
           pdf_includi_schede_tecniche: boolean | null
@@ -47674,6 +54944,8 @@ export type Database = {
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_method?: string | null
+          payment_phases?: Json | null
           pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
           pdf_includi_schede_tecniche?: boolean | null
@@ -47762,6 +55034,8 @@ export type Database = {
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          payment_method?: string | null
+          payment_phases?: Json | null
           pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
           pdf_includi_schede_tecniche?: boolean | null
@@ -51518,6 +58792,663 @@ export type Database = {
           },
         ]
       }
+      rst_computo_voci: {
+        Row: {
+          ambiente: string | null
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          ambiente?: string | null
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          ambiente?: string | null
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "rst_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rst_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      rst_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "rst_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      rst_progetti: {
+        Row: {
+          altezza_media_m: number | null
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          massimale_detrazione: number | null
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_vani: number | null
+          opportunita_id: string | null
+          sconto_pct: number
+          stato: string
+          template_id: string | null
+          tipo_intervento: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          altezza_media_m?: number | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_vani?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          altezza_media_m?: number | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          massimale_detrazione?: number | null
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_vani?: number | null
+          opportunita_id?: string | null
+          sconto_pct?: number
+          stato?: string
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      rst_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "rst_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rst_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_subtitle: string | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_subtitle?: string | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rst_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       sa_company_intel: {
         Row: {
           aggiornato_al: string
@@ -52716,6 +60647,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "scadenze_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
+          },
+          {
             foreignKeyName: "scadenze_prima_nota_entry_id_fkey"
             columns: ["prima_nota_entry_id"]
             isOneToOne: false
@@ -53635,6 +61573,7 @@ export type Database = {
           otp_scadenza: string | null
           otp_tentativi: number
           quote_id: string | null
+          refused_at: string | null
           rifiuto_motivo: string | null
           sessione_id: string | null
           signature_data: string | null
@@ -53672,6 +61611,7 @@ export type Database = {
           otp_scadenza?: string | null
           otp_tentativi?: number
           quote_id?: string | null
+          refused_at?: string | null
           rifiuto_motivo?: string | null
           sessione_id?: string | null
           signature_data?: string | null
@@ -53709,6 +61649,7 @@ export type Database = {
           otp_scadenza?: string | null
           otp_tentativi?: number
           quote_id?: string | null
+          refused_at?: string | null
           rifiuto_motivo?: string | null
           sessione_id?: string | null
           signature_data?: string | null
@@ -54165,6 +62106,57 @@ export type Database = {
           refusal_reason?: string
           suggestion?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      silvio_ads_campaigns: {
+        Row: {
+          area_geografica: string | null
+          budget_giornaliero_eur: number | null
+          company_id: string
+          copy_varianti: Json | null
+          created_at: string
+          created_by: string | null
+          creativita_concept: string | null
+          durata_giorni: number | null
+          id: string
+          note: string | null
+          obiettivo: string | null
+          platform: string
+          stato: string
+          target: Json | null
+        }
+        Insert: {
+          area_geografica?: string | null
+          budget_giornaliero_eur?: number | null
+          company_id: string
+          copy_varianti?: Json | null
+          created_at?: string
+          created_by?: string | null
+          creativita_concept?: string | null
+          durata_giorni?: number | null
+          id?: string
+          note?: string | null
+          obiettivo?: string | null
+          platform?: string
+          stato?: string
+          target?: Json | null
+        }
+        Update: {
+          area_geografica?: string | null
+          budget_giornaliero_eur?: number | null
+          company_id?: string
+          copy_varianti?: Json | null
+          created_at?: string
+          created_by?: string | null
+          creativita_concept?: string | null
+          durata_giorni?: number | null
+          id?: string
+          note?: string | null
+          obiettivo?: string | null
+          platform?: string
+          stato?: string
+          target?: Json | null
         }
         Relationships: []
       }
@@ -55824,6 +63816,36 @@ export type Database = {
           },
         ]
       }
+      silvio_folders: {
+        Row: {
+          color: string
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          user_id?: string
+        }
+        Update: {
+          color?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       silvio_generation_jobs: {
         Row: {
           brief: string | null
@@ -56609,6 +64631,69 @@ export type Database = {
         }
         Relationships: []
       }
+      silvio_reminders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          cta_action: string | null
+          cta_label: string | null
+          cta_payload: Json | null
+          id: string
+          note: string | null
+          promoted_at: string | null
+          recurrence: string
+          remind_at: string | null
+          remind_on: string
+          severity: string
+          source_id: string | null
+          source_type: string | null
+          status: string
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          cta_action?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          id?: string
+          note?: string | null
+          promoted_at?: string | null
+          recurrence?: string
+          remind_at?: string | null
+          remind_on: string
+          severity?: string
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          cta_action?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          id?: string
+          note?: string | null
+          promoted_at?: string | null
+          recurrence?: string
+          remind_at?: string | null
+          remind_on?: string
+          severity?: string
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       silvio_self_improvement_log: {
         Row: {
           avoid_added: number | null
@@ -56844,6 +64929,30 @@ export type Database = {
           },
         ]
       }
+      silvio_tool_steps: {
+        Row: {
+          channel_id: string
+          company_id: string | null
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          channel_id: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          label: string
+        }
+        Update: {
+          channel_id?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
       silvio_trigger_log: {
         Row: {
           chiave_evento: string
@@ -57054,6 +65163,111 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      simulazioni: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          costo_totale: number
+          created_at: string
+          created_by: string | null
+          fasi: Json
+          id: string
+          is_template: boolean
+          iva_totale: number
+          margine_pct: number
+          margine_valore: number
+          nome: string
+          note: string | null
+          prezzo_cliente: number
+          rata_mensile: number | null
+          ricavo_imponibile: number
+          scenari: Json
+          stato: string
+          updated_at: string
+          voci: Json
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          costo_totale?: number
+          created_at?: string
+          created_by?: string | null
+          fasi?: Json
+          id?: string
+          is_template?: boolean
+          iva_totale?: number
+          margine_pct?: number
+          margine_valore?: number
+          nome: string
+          note?: string | null
+          prezzo_cliente?: number
+          rata_mensile?: number | null
+          ricavo_imponibile?: number
+          scenari?: Json
+          stato?: string
+          updated_at?: string
+          voci?: Json
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          costo_totale?: number
+          created_at?: string
+          created_by?: string | null
+          fasi?: Json
+          id?: string
+          is_template?: boolean
+          iva_totale?: number
+          margine_pct?: number
+          margine_valore?: number
+          nome?: string
+          note?: string | null
+          prezzo_cliente?: number
+          rata_mensile?: number | null
+          ricavo_imponibile?: number
+          scenari?: Json
+          stato?: string
+          updated_at?: string
+          voci?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "simulazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "simulazioni_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "simulazioni_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_deliveries: {
         Row: {
@@ -59839,6 +68053,7 @@ export type Database = {
           email: string | null
           esigenze_default: Json | null
           faq_items: Json | null
+          gallery_lavori: Json | null
           garanzie: Json | null
           id: string
           incluso_default: string[] | null
@@ -59849,24 +68064,30 @@ export type Database = {
           pdf_cover_bg_color: string | null
           pdf_cover_decoration_style: string
           pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_color: string | null
           pdf_cover_eyebrow_size: number | null
           pdf_cover_hero: string | null
           pdf_cover_image_url: string | null
           pdf_cover_logo_position: string
+          pdf_cover_logo_size: number | null
+          pdf_cover_logo_url: string | null
           pdf_cover_overlay_opacity: number | null
           pdf_cover_overlay_style: string
           pdf_cover_show_client_card: boolean | null
           pdf_cover_show_decoration: boolean | null
           pdf_cover_subhero: string | null
           pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_color: string | null
           pdf_cover_subtitle_size: number | null
           pdf_cover_text_align: string | null
           pdf_cover_text_color: string | null
           pdf_cover_text_vertical: string
+          pdf_cover_title_color: string | null
           pdf_cover_title_size: number | null
           pdf_cta_finale_passi: string[] | null
           pdf_cta_finale_titolo: string | null
           pdf_font_family: string
+          pdf_mostra_firma_online: boolean
           pdf_mostra_rata_mensile: boolean
           pdf_mostra_recupero_fiscale: boolean
           pdf_mostra_tabella_ecobonus: boolean
@@ -59918,6 +68139,7 @@ export type Database = {
           email?: string | null
           esigenze_default?: Json | null
           faq_items?: Json | null
+          gallery_lavori?: Json | null
           garanzie?: Json | null
           id?: string
           incluso_default?: string[] | null
@@ -59928,24 +68150,30 @@ export type Database = {
           pdf_cover_bg_color?: string | null
           pdf_cover_decoration_style?: string
           pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_color?: string | null
           pdf_cover_eyebrow_size?: number | null
           pdf_cover_hero?: string | null
           pdf_cover_image_url?: string | null
           pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_logo_url?: string | null
           pdf_cover_overlay_opacity?: number | null
           pdf_cover_overlay_style?: string
           pdf_cover_show_client_card?: boolean | null
           pdf_cover_show_decoration?: boolean | null
           pdf_cover_subhero?: string | null
           pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_color?: string | null
           pdf_cover_subtitle_size?: number | null
           pdf_cover_text_align?: string | null
           pdf_cover_text_color?: string | null
           pdf_cover_text_vertical?: string
+          pdf_cover_title_color?: string | null
           pdf_cover_title_size?: number | null
           pdf_cta_finale_passi?: string[] | null
           pdf_cta_finale_titolo?: string | null
           pdf_font_family?: string
+          pdf_mostra_firma_online?: boolean
           pdf_mostra_rata_mensile?: boolean
           pdf_mostra_recupero_fiscale?: boolean
           pdf_mostra_tabella_ecobonus?: boolean
@@ -59997,6 +68225,7 @@ export type Database = {
           email?: string | null
           esigenze_default?: Json | null
           faq_items?: Json | null
+          gallery_lavori?: Json | null
           garanzie?: Json | null
           id?: string
           incluso_default?: string[] | null
@@ -60007,24 +68236,30 @@ export type Database = {
           pdf_cover_bg_color?: string | null
           pdf_cover_decoration_style?: string
           pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_color?: string | null
           pdf_cover_eyebrow_size?: number | null
           pdf_cover_hero?: string | null
           pdf_cover_image_url?: string | null
           pdf_cover_logo_position?: string
+          pdf_cover_logo_size?: number | null
+          pdf_cover_logo_url?: string | null
           pdf_cover_overlay_opacity?: number | null
           pdf_cover_overlay_style?: string
           pdf_cover_show_client_card?: boolean | null
           pdf_cover_show_decoration?: boolean | null
           pdf_cover_subhero?: string | null
           pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_color?: string | null
           pdf_cover_subtitle_size?: number | null
           pdf_cover_text_align?: string | null
           pdf_cover_text_color?: string | null
           pdf_cover_text_vertical?: string
+          pdf_cover_title_color?: string | null
           pdf_cover_title_size?: number | null
           pdf_cta_finale_passi?: string[] | null
           pdf_cta_finale_titolo?: string | null
           pdf_font_family?: string
+          pdf_mostra_firma_online?: boolean
           pdf_mostra_rata_mensile?: boolean
           pdf_mostra_recupero_fiscale?: boolean
           pdf_mostra_tabella_ecobonus?: boolean
@@ -60074,18 +68309,24 @@ export type Database = {
       }
       staff_permissions: {
         Row: {
+          can_approve_discounts: boolean
           can_approve_orders: boolean
           can_delete_orders: boolean
           can_edit_customers: boolean | null
+          can_edit_giornale_lavori: boolean
           can_edit_marketing: boolean
           can_edit_marketing_contacts: boolean | null
           can_edit_marketing_opportunities: boolean | null
           can_edit_orders: boolean | null
+          can_edit_preventivi: boolean
           can_edit_settings: boolean | null
           can_edit_settings_customization: boolean
+          can_edit_settings_integrations: boolean
           can_edit_settings_orders: boolean
           can_edit_settings_people: boolean
+          can_edit_settings_pricing: boolean
           can_edit_settings_profile: boolean
+          can_edit_settings_suppliers: boolean
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
           can_export_clients: boolean
@@ -60105,13 +68346,9 @@ export type Database = {
           can_view_employees: boolean | null
           can_view_financial_reports: boolean
           can_view_firma_elettronica: boolean
-          can_view_formazione: boolean
           can_view_forecast: boolean | null
+          can_view_formazione: boolean
           can_view_giornale_lavori: boolean | null
-          can_edit_giornale_lavori: boolean
-          can_view_sopralluoghi: boolean
-          can_view_preventivi: boolean
-          can_edit_preventivi: boolean
           can_view_interventi: boolean | null
           can_view_manutenzione: boolean | null
           can_view_margins: boolean
@@ -60130,6 +68367,7 @@ export type Database = {
           can_view_order_amounts: boolean
           can_view_orders: boolean | null
           can_view_persone: boolean
+          can_view_preventivi: boolean
           can_view_prima_nota: boolean
           can_view_render_ai: boolean | null
           can_view_reputazione: boolean
@@ -60137,19 +68375,18 @@ export type Database = {
           can_view_scadenzario: boolean
           can_view_settings: boolean | null
           can_view_settings_customization: boolean
+          can_view_settings_integrations: boolean
           can_view_settings_orders: boolean
           can_view_settings_people: boolean
+          can_view_settings_pricing: boolean
           can_view_settings_profile: boolean
           can_view_settings_security: boolean
-          can_view_settings_pricing: boolean
-          can_edit_settings_pricing: boolean
           can_view_settings_suppliers: boolean
-          can_edit_settings_suppliers: boolean
-          can_view_settings_integrations: boolean
-          can_edit_settings_integrations: boolean
           can_view_sicurezza_cantiere: boolean | null
           can_view_sms_marketing: boolean | null
+          can_view_sopralluoghi: boolean
           can_view_subappaltatori: boolean | null
+          can_view_team_tasks: boolean
           can_view_tesoreria: boolean
           can_view_tickets: boolean | null
           can_view_users: boolean
@@ -60164,18 +68401,24 @@ export type Database = {
           visible_areas: string[]
         }
         Insert: {
+          can_approve_discounts?: boolean
           can_approve_orders?: boolean
           can_delete_orders?: boolean
           can_edit_customers?: boolean | null
+          can_edit_giornale_lavori?: boolean
           can_edit_marketing?: boolean
           can_edit_marketing_contacts?: boolean | null
           can_edit_marketing_opportunities?: boolean | null
           can_edit_orders?: boolean | null
+          can_edit_preventivi?: boolean
           can_edit_settings?: boolean | null
           can_edit_settings_customization?: boolean
+          can_edit_settings_integrations?: boolean
           can_edit_settings_orders?: boolean
           can_edit_settings_people?: boolean
+          can_edit_settings_pricing?: boolean
           can_edit_settings_profile?: boolean
+          can_edit_settings_suppliers?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
@@ -60195,13 +68438,9 @@ export type Database = {
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
           can_view_firma_elettronica?: boolean
-          can_view_formazione?: boolean
           can_view_forecast?: boolean | null
+          can_view_formazione?: boolean
           can_view_giornale_lavori?: boolean | null
-          can_edit_giornale_lavori?: boolean
-          can_view_sopralluoghi?: boolean
-          can_view_preventivi?: boolean
-          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean
@@ -60220,6 +68459,7 @@ export type Database = {
           can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
+          can_view_preventivi?: boolean
           can_view_prima_nota?: boolean
           can_view_render_ai?: boolean | null
           can_view_reputazione?: boolean
@@ -60227,19 +68467,18 @@ export type Database = {
           can_view_scadenzario?: boolean
           can_view_settings?: boolean | null
           can_view_settings_customization?: boolean
+          can_view_settings_integrations?: boolean
           can_view_settings_orders?: boolean
           can_view_settings_people?: boolean
+          can_view_settings_pricing?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
-          can_view_settings_pricing?: boolean
-          can_edit_settings_pricing?: boolean
           can_view_settings_suppliers?: boolean
-          can_edit_settings_suppliers?: boolean
-          can_view_settings_integrations?: boolean
-          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
+          can_view_sopralluoghi?: boolean
           can_view_subappaltatori?: boolean | null
+          can_view_team_tasks?: boolean
           can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
@@ -60254,18 +68493,24 @@ export type Database = {
           visible_areas?: string[]
         }
         Update: {
+          can_approve_discounts?: boolean
           can_approve_orders?: boolean
           can_delete_orders?: boolean
           can_edit_customers?: boolean | null
+          can_edit_giornale_lavori?: boolean
           can_edit_marketing?: boolean
           can_edit_marketing_contacts?: boolean | null
           can_edit_marketing_opportunities?: boolean | null
           can_edit_orders?: boolean | null
+          can_edit_preventivi?: boolean
           can_edit_settings?: boolean | null
           can_edit_settings_customization?: boolean
+          can_edit_settings_integrations?: boolean
           can_edit_settings_orders?: boolean
           can_edit_settings_people?: boolean
+          can_edit_settings_pricing?: boolean
           can_edit_settings_profile?: boolean
+          can_edit_settings_suppliers?: boolean
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
@@ -60285,13 +68530,9 @@ export type Database = {
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
           can_view_firma_elettronica?: boolean
-          can_view_formazione?: boolean
           can_view_forecast?: boolean | null
+          can_view_formazione?: boolean
           can_view_giornale_lavori?: boolean | null
-          can_edit_giornale_lavori?: boolean
-          can_view_sopralluoghi?: boolean
-          can_view_preventivi?: boolean
-          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean
@@ -60310,6 +68551,7 @@ export type Database = {
           can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
+          can_view_preventivi?: boolean
           can_view_prima_nota?: boolean
           can_view_render_ai?: boolean | null
           can_view_reputazione?: boolean
@@ -60317,19 +68559,18 @@ export type Database = {
           can_view_scadenzario?: boolean
           can_view_settings?: boolean | null
           can_view_settings_customization?: boolean
+          can_view_settings_integrations?: boolean
           can_view_settings_orders?: boolean
           can_view_settings_people?: boolean
+          can_view_settings_pricing?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
-          can_view_settings_pricing?: boolean
-          can_edit_settings_pricing?: boolean
           can_view_settings_suppliers?: boolean
-          can_edit_settings_suppliers?: boolean
-          can_view_settings_integrations?: boolean
-          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
+          can_view_sopralluoghi?: boolean
           can_view_subappaltatori?: boolean | null
+          can_view_team_tasks?: boolean
           can_view_tesoreria?: boolean
           can_view_tickets?: boolean | null
           can_view_users?: boolean
@@ -60377,6 +68618,7 @@ export type Database = {
           data_scadenza: string | null
           descrizione: string
           fornitore: string | null
+          foto_url: string | null
           id: string
           note: string | null
           posizione: string | null
@@ -60395,6 +68637,7 @@ export type Database = {
           data_scadenza?: string | null
           descrizione: string
           fornitore?: string | null
+          foto_url?: string | null
           id?: string
           note?: string | null
           posizione?: string | null
@@ -60413,6 +68656,7 @@ export type Database = {
           data_scadenza?: string | null
           descrizione?: string
           fornitore?: string | null
+          foto_url?: string | null
           id?: string
           note?: string | null
           posizione?: string | null
@@ -60598,6 +68842,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "stock_units_delivered_order_item_id_fkey"
+            columns: ["delivered_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
+          },
+          {
             foreignKeyName: "stock_units_delivered_to_order_id_fkey"
             columns: ["delivered_to_order_id"]
             isOneToOne: false
@@ -60638,6 +68889,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_units_reserved_order_item_id_fkey"
+            columns: ["reserved_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "stock_units_section_id_fkey"
@@ -60934,6 +69192,7 @@ export type Database = {
       subappaltatori_sicurezza: {
         Row: {
           campo_subappaltatore_id: string | null
+          codice_fiscale: string | null
           company_id: string
           created_at: string
           data_fine: string | null
@@ -60953,6 +69212,7 @@ export type Database = {
         }
         Insert: {
           campo_subappaltatore_id?: string | null
+          codice_fiscale?: string | null
           company_id: string
           created_at?: string
           data_fine?: string | null
@@ -60972,6 +69232,7 @@ export type Database = {
         }
         Update: {
           campo_subappaltatore_id?: string | null
+          codice_fiscale?: string | null
           company_id?: string
           created_at?: string
           data_fine?: string | null
@@ -61211,6 +69472,7 @@ export type Database = {
           price_monthly: number
           price_per_extra_render_eur: number | null
           price_yearly: number
+          produttore_id: string | null
           sla_resolution_hours: number | null
           sla_response_hours: number | null
           slug: string
@@ -61237,6 +69499,7 @@ export type Database = {
           price_monthly?: number
           price_per_extra_render_eur?: number | null
           price_yearly?: number
+          produttore_id?: string | null
           sla_resolution_hours?: number | null
           sla_response_hours?: number | null
           slug: string
@@ -61263,6 +69526,7 @@ export type Database = {
           price_monthly?: number
           price_per_extra_render_eur?: number | null
           price_yearly?: number
+          produttore_id?: string | null
           sla_resolution_hours?: number | null
           sla_response_hours?: number | null
           slug?: string
@@ -61271,7 +69535,29 @@ export type Database = {
           stripe_product_id?: string | null
           trial_days?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subscription_plans_produttore_id_fkey"
+            columns: ["produttore_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "subscription_plans_produttore_id_fkey"
+            columns: ["produttore_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_plans_produttore_id_fkey"
+            columns: ["produttore_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       super_admin_permissions: {
         Row: {
@@ -62571,6 +70857,33 @@ export type Database = {
           },
         ]
       }
+      system_email_sends: {
+        Row: {
+          company_id: string | null
+          email_key: string
+          id: string
+          recipient: string | null
+          ref_id: string
+          sent_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          email_key: string
+          id?: string
+          recipient?: string | null
+          ref_id: string
+          sent_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          email_key?: string
+          id?: string
+          recipient?: string | null
+          ref_id?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
       system_health_metrics: {
         Row: {
           error_message: string | null
@@ -62695,6 +71008,7 @@ export type Database = {
           attiva: boolean | null
           attivo: boolean | null
           categoria_prodotto: string | null
+          codice: string | null
           company_id: string
           costo_default: number | null
           costo_interno: number | null
@@ -62703,7 +71017,9 @@ export type Database = {
           descrizione: string | null
           embedding: string | null
           embedding_updated_at: string | null
+          fonte: string | null
           id: string
+          incidenza_manodopera_pct: number | null
           nome: string
           piano_base: number | null
           prezzo_costo: number | null
@@ -62719,6 +71035,7 @@ export type Database = {
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null
+          codice?: string | null
           company_id: string
           costo_default?: number | null
           costo_interno?: number | null
@@ -62727,7 +71044,9 @@ export type Database = {
           descrizione?: string | null
           embedding?: string | null
           embedding_updated_at?: string | null
+          fonte?: string | null
           id?: string
+          incidenza_manodopera_pct?: number | null
           nome: string
           piano_base?: number | null
           prezzo_costo?: number | null
@@ -62743,6 +71062,7 @@ export type Database = {
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null
+          codice?: string | null
           company_id?: string
           costo_default?: number | null
           costo_interno?: number | null
@@ -62751,7 +71071,9 @@ export type Database = {
           descrizione?: string | null
           embedding?: string | null
           embedding_updated_at?: string | null
+          fonte?: string | null
           id?: string
+          incidenza_manodopera_pct?: number | null
           nome?: string
           piano_base?: number | null
           prezzo_costo?: number | null
@@ -63847,6 +72169,666 @@ export type Database = {
           webhook_signing_secret_encrypted?: string | null
         }
         Relationships: []
+      }
+      telnyx_webrtc_credentials: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          sip_username: string | null
+          telnyx_credential_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          sip_username?: string | null
+          telnyx_credential_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          sip_username?: string | null
+          telnyx_credential_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tet_computo_voci: {
+        Row: {
+          capitolo_nome: string
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          importo: number
+          listino_voce_id: string | null
+          margine_eur: number
+          margine_pct: number
+          ordine: number
+          prezzo_unitario: number
+          progetto_id: string
+          quantita: number
+          sconto_pct: number
+          unita_misura: string
+        }
+        Insert: {
+          capitolo_nome?: string
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Update: {
+          capitolo_nome?: string
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          importo?: number
+          listino_voce_id?: string | null
+          margine_eur?: number
+          margine_pct?: number
+          ordine?: number
+          prezzo_unitario?: number
+          progetto_id?: string
+          quantita?: number
+          sconto_pct?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_computo_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_computo_voci_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "tet_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tet_listino_capitoli: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          ordine: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordine?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordine?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_listino_capitoli_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      tet_listino_voci: {
+        Row: {
+          articolo_id: string | null
+          capitolo_id: string | null
+          codice: string | null
+          company_id: string
+          costo_manodopera: number
+          costo_materiali: number
+          created_at: string
+          descrizione: string
+          fonte: string | null
+          id: string
+          note: string | null
+          ordine: number
+          prezzo_unitario: number
+          ricarico_pct: number
+          tariffa_id: string | null
+          unita_misura: string
+        }
+        Insert: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Update: {
+          articolo_id?: string | null
+          capitolo_id?: string | null
+          codice?: string | null
+          company_id?: string
+          costo_manodopera?: number
+          costo_materiali?: number
+          created_at?: string
+          descrizione?: string
+          fonte?: string | null
+          id?: string
+          note?: string | null
+          ordine?: number
+          prezzo_unitario?: number
+          ricarico_pct?: number
+          tariffa_id?: string | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_listino_voci_capitolo_id_fkey"
+            columns: ["capitolo_id"]
+            isOneToOne: false
+            referencedRelation: "tet_listino_capitoli"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_listino_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      tet_progetti: {
+        Row: {
+          amianto: boolean
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_indirizzo: string | null
+          cantiere_provincia: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefono: string | null
+          code: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          detrazione_pct: number
+          id: string
+          immobile_anno: number | null
+          immobile_piani: number | null
+          immobile_superficie_mq: number | null
+          immobile_tipo: string | null
+          iva_pct: number
+          mostra_finanziamento: boolean | null
+          note: string | null
+          numero_falde: number | null
+          opportunita_id: string | null
+          pendenza_pct: number | null
+          perimetro_ml: number | null
+          sconto_pct: number
+          stato: string
+          superficie_pianta_mq: number | null
+          template_id: string | null
+          tipo_intervento: string | null
+          totale: number
+          totale_imponibile: number
+          updated_at: string
+        }
+        Insert: {
+          amianto?: boolean
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_falde?: number | null
+          opportunita_id?: string | null
+          pendenza_pct?: number | null
+          perimetro_ml?: number | null
+          sconto_pct?: number
+          stato?: string
+          superficie_pianta_mq?: number | null
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Update: {
+          amianto?: boolean
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_indirizzo?: string | null
+          cantiere_provincia?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefono?: string | null
+          code?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          detrazione_pct?: number
+          id?: string
+          immobile_anno?: number | null
+          immobile_piani?: number | null
+          immobile_superficie_mq?: number | null
+          immobile_tipo?: string | null
+          iva_pct?: number
+          mostra_finanziamento?: boolean | null
+          note?: string | null
+          numero_falde?: number | null
+          opportunita_id?: string | null
+          pendenza_pct?: number | null
+          perimetro_ml?: number | null
+          sconto_pct?: number
+          stato?: string
+          superficie_pianta_mq?: number | null
+          template_id?: string | null
+          tipo_intervento?: string | null
+          totale?: number
+          totale_imponibile?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      tet_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          ordine: number
+          progetto_id: string
+          tipo: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id: string
+          tipo?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          ordine?: number
+          progetto_id?: string
+          tipo?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "tet_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tet_template_pdf: {
+        Row: {
+          chi_siamo: string | null
+          chi_siamo_foto_url: string | null
+          color_accent: string | null
+          color_primary: string | null
+          color_secondary: string | null
+          color_text: string | null
+          company_id: string
+          consulente_default: Json | null
+          cover_bg_color: string | null
+          cover_decoration_style: string | null
+          cover_eyebrow: string | null
+          cover_eyebrow_size: number | null
+          cover_image_url: string | null
+          cover_logo_position: string | null
+          cover_logo_size: number | null
+          cover_logo_url: string | null
+          cover_overlay_opacity: number | null
+          cover_overlay_style: string | null
+          cover_show_client_card: boolean | null
+          cover_show_decoration: boolean | null
+          cover_subtitle: string | null
+          cover_subtitle_size: number | null
+          cover_text_align: string | null
+          cover_text_color: string | null
+          cover_text_vertical: string | null
+          cover_title: string | null
+          cover_title_size: number | null
+          created_at: string
+          cronoprogramma: Json | null
+          default_detrazione_pct: number | null
+          default_iva_pct: number | null
+          default_validita_giorni: number | null
+          email: string | null
+          esigenze: Json | null
+          faq: Json | null
+          finanziamento_promo: Json | null
+          font_family: string | null
+          footer_text: string | null
+          gallery_lavori: Json | null
+          garanzie: Json | null
+          id: string
+          indirizzo_completo: string | null
+          logo_url: string | null
+          partita_iva: string | null
+          payment_terms_text: string | null
+          percorso: Json | null
+          ragione_sociale: string | null
+          show_chi_siamo: boolean | null
+          show_cronoprogramma: boolean | null
+          show_footer_legal: boolean | null
+          show_footer_version: boolean | null
+          show_garanzie: boolean | null
+          show_margine: boolean | null
+          show_percorso: boolean | null
+          soluzione: Json | null
+          telefono: string | null
+          testimonianze: Json | null
+          updated_at: string
+          usp: Json | null
+          validity_text: string | null
+        }
+        Insert: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id: string
+          consulente_default?: Json | null
+          cover_bg_color?: string | null
+          cover_decoration_style?: string | null
+          cover_eyebrow?: string | null
+          cover_eyebrow_size?: number | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_size?: number | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_overlay_style?: string | null
+          cover_show_client_card?: boolean | null
+          cover_show_decoration?: boolean | null
+          cover_subtitle?: string | null
+          cover_subtitle_size?: number | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_text_vertical?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Update: {
+          chi_siamo?: string | null
+          chi_siamo_foto_url?: string | null
+          color_accent?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
+          color_text?: string | null
+          company_id?: string
+          consulente_default?: Json | null
+          cover_bg_color?: string | null
+          cover_decoration_style?: string | null
+          cover_eyebrow?: string | null
+          cover_eyebrow_size?: number | null
+          cover_image_url?: string | null
+          cover_logo_position?: string | null
+          cover_logo_size?: number | null
+          cover_logo_url?: string | null
+          cover_overlay_opacity?: number | null
+          cover_overlay_style?: string | null
+          cover_show_client_card?: boolean | null
+          cover_show_decoration?: boolean | null
+          cover_subtitle?: string | null
+          cover_subtitle_size?: number | null
+          cover_text_align?: string | null
+          cover_text_color?: string | null
+          cover_text_vertical?: string | null
+          cover_title?: string | null
+          cover_title_size?: number | null
+          created_at?: string
+          cronoprogramma?: Json | null
+          default_detrazione_pct?: number | null
+          default_iva_pct?: number | null
+          default_validita_giorni?: number | null
+          email?: string | null
+          esigenze?: Json | null
+          faq?: Json | null
+          finanziamento_promo?: Json | null
+          font_family?: string | null
+          footer_text?: string | null
+          gallery_lavori?: Json | null
+          garanzie?: Json | null
+          id?: string
+          indirizzo_completo?: string | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          payment_terms_text?: string | null
+          percorso?: Json | null
+          ragione_sociale?: string | null
+          show_chi_siamo?: boolean | null
+          show_cronoprogramma?: boolean | null
+          show_footer_legal?: boolean | null
+          show_footer_version?: boolean | null
+          show_garanzie?: boolean | null
+          show_margine?: boolean | null
+          show_percorso?: boolean | null
+          soluzione?: Json | null
+          telefono?: string | null
+          testimonianze?: Json | null
+          updated_at?: string
+          usp?: Json | null
+          validity_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tet_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tet_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tet_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       ticket_messages: {
         Row: {
@@ -65741,6 +74723,54 @@ export type Database = {
           },
         ]
       }
+      voice_pricing_config: {
+        Row: {
+          attivo: boolean
+          costo_min_inbound: number
+          costo_min_intl: number
+          costo_min_it_fisso: number
+          costo_min_it_mobile: number
+          costo_numero_wholesale: number
+          id: string
+          prezzo_min_inbound: number
+          prezzo_min_intl: number
+          prezzo_min_it_fisso: number
+          prezzo_min_it_mobile: number
+          prezzo_numero_mensile: number
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          costo_min_inbound?: number
+          costo_min_intl?: number
+          costo_min_it_fisso?: number
+          costo_min_it_mobile?: number
+          costo_numero_wholesale?: number
+          id?: string
+          prezzo_min_inbound?: number
+          prezzo_min_intl?: number
+          prezzo_min_it_fisso?: number
+          prezzo_min_it_mobile?: number
+          prezzo_numero_mensile?: number
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          costo_min_inbound?: number
+          costo_min_intl?: number
+          costo_min_it_fisso?: number
+          costo_min_it_mobile?: number
+          costo_numero_wholesale?: number
+          id?: string
+          prezzo_min_inbound?: number
+          prezzo_min_intl?: number
+          prezzo_min_it_fisso?: number
+          prezzo_min_it_mobile?: number
+          prezzo_numero_mensile?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wa_ai_daily_budget: {
         Row: {
           company_id: string
@@ -65806,6 +74836,7 @@ export type Database = {
           synced_at: string | null
           template_language: string
           template_name: string
+          variable_mapping: Json | null
           variables_count: number | null
           wa_number_id: string | null
         }
@@ -65818,6 +74849,7 @@ export type Database = {
           synced_at?: string | null
           template_language?: string
           template_name: string
+          variable_mapping?: Json | null
           variables_count?: number | null
           wa_number_id?: string | null
         }
@@ -65830,6 +74862,7 @@ export type Database = {
           synced_at?: string | null
           template_language?: string
           template_name?: string
+          variable_mapping?: Json | null
           variables_count?: number | null
           wa_number_id?: string | null
         }
@@ -66582,6 +75615,7 @@ export type Database = {
           quantity: number
           stock_item_id: string
           unit_cost: number | null
+          uscita_id: string | null
           warehouse_id: string | null
         }
         Insert: {
@@ -66597,6 +75631,7 @@ export type Database = {
           quantity: number
           stock_item_id: string
           unit_cost?: number | null
+          uscita_id?: string | null
           warehouse_id?: string | null
         }
         Update: {
@@ -66612,6 +75647,7 @@ export type Database = {
           quantity?: number
           stock_item_id?: string
           unit_cost?: number | null
+          uscita_id?: string | null
           warehouse_id?: string | null
         }
         Relationships: [
@@ -66656,6 +75692,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_movements_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_articoli_costi"
+            referencedColumns: ["order_item_id"]
           },
           {
             foreignKeyName: "warehouse_movements_stock_item_id_fkey"
@@ -66983,6 +76026,7 @@ export type Database = {
       }
       warehouse_stock: {
         Row: {
+          article_family_id: string | null
           barcode: string | null
           company_id: string
           created_at: string
@@ -67009,6 +76053,7 @@ export type Database = {
           warehouse_id: string | null
         }
         Insert: {
+          article_family_id?: string | null
           barcode?: string | null
           company_id: string
           created_at?: string
@@ -67035,6 +76080,7 @@ export type Database = {
           warehouse_id?: string | null
         }
         Update: {
+          article_family_id?: string | null
           barcode?: string | null
           company_id?: string
           created_at?: string
@@ -67061,6 +76107,13 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "warehouse_stock_article_family_id_fkey"
+            columns: ["article_family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "warehouse_stock_company_id_fkey"
             columns: ["company_id"]
@@ -67229,6 +76282,83 @@ export type Database = {
           {
             foreignKeyName: "warehouse_transfers_to_warehouse_id_fkey"
             columns: ["to_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_uscite: {
+        Row: {
+          anno: number
+          cliente_snapshot: Json | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          data: string
+          destinatario_libero: Json | null
+          destinatario_tipo: string
+          documento_id: string | null
+          id: string
+          note: string | null
+          numero: string
+          numero_seq: number
+          order_id: string | null
+          righe: Json
+          stato: string
+          updated_at: string
+          vettore: Json | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          anno: number
+          cliente_snapshot?: Json | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          data?: string
+          destinatario_libero?: Json | null
+          destinatario_tipo: string
+          documento_id?: string | null
+          id?: string
+          note?: string | null
+          numero: string
+          numero_seq: number
+          order_id?: string | null
+          righe?: Json
+          stato?: string
+          updated_at?: string
+          vettore?: Json | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          anno?: number
+          cliente_snapshot?: Json | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          data?: string
+          destinatario_libero?: Json | null
+          destinatario_tipo?: string
+          documento_id?: string | null
+          id?: string
+          note?: string | null
+          numero?: string
+          numero_seq?: number
+          order_id?: string | null
+          righe?: Json
+          stato?: string
+          updated_at?: string
+          vettore?: Json | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_uscite_warehouse_id_fkey"
+            columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
             referencedColumns: ["id"]
@@ -69752,6 +78882,23 @@ export type Database = {
           },
         ]
       }
+      v_conversazioni_messaggi: {
+        Row: {
+          canale: string | null
+          company_id: string | null
+          controparte: string | null
+          direzione: string | null
+          entita_id: string | null
+          entita_tipo: string | null
+          media_url: string | null
+          oggetto: string | null
+          ref_id: string | null
+          ref_tabella: string | null
+          testo: string | null
+          ts: string | null
+        }
+        Relationships: []
+      }
       v_council_daily_cost: {
         Row: {
           avg_duration_ms: number | null
@@ -70866,6 +80013,67 @@ export type Database = {
           },
         ]
       }
+      v_ordine_articoli_costi: {
+        Row: {
+          article_template_id: string | null
+          categoria: string | null
+          company_id: string | null
+          costo_reale: number | null
+          costo_standard: number | null
+          created_at: string | null
+          fonte_costo: string | null
+          ha_baseline_listino: boolean | null
+          name: string | null
+          order_code: string | null
+          order_id: string | null
+          order_item_id: string | null
+          quantity: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       v_ordine_marginalita: {
         Row: {
           cliente_nome: string | null
@@ -70873,6 +80081,8 @@ export type Database = {
           consuntivo: number | null
           costo_acquisti: number | null
           costo_errori: number | null
+          costo_manodopera: number | null
+          costo_provvigioni: number | null
           created_at: string | null
           description: string | null
           id: string | null
@@ -70908,6 +80118,25 @@ export type Database = {
             referencedColumns: ["company_id"]
           },
         ]
+      }
+      v_preventivi_unificati: {
+        Row: {
+          cliente: string | null
+          commerciale_id: string | null
+          company_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          data: string | null
+          id: string | null
+          numero: string | null
+          opportunity_id: string | null
+          stato_raw: string | null
+          stato_unificato: string | null
+          tipo: string | null
+          totale: number | null
+          updated_at: string | null
+        }
+        Relationships: []
       }
       v_preventivo_analisi: {
         Row: {
@@ -70951,6 +80180,20 @@ export type Database = {
             referencedColumns: ["company_id"]
           },
         ]
+      }
+      v_rate_commesse_unificate: {
+        Row: {
+          amount: number | null
+          client_name: string | null
+          company_id: string | null
+          expected_date: string | null
+          fonte: string | null
+          is_paid: boolean | null
+          label: string | null
+          order_id: string | null
+          paid_date: string | null
+        }
+        Relationships: []
       }
       v_silvio_agent_mission_health: {
         Row: {
@@ -71043,6 +80286,7 @@ export type Database = {
           campo_subappaltatore_id: string | null
           campo_user_email: string | null
           campo_user_id: string | null
+          codice_fiscale: string | null
           company_id: string | null
           contratto_id: string | null
           durc_scadenza: string | null
@@ -71254,6 +80498,18 @@ export type Database = {
         }
         Returns: Json
       }
+      agency_companies_overview: {
+        Args: never
+        Returns: {
+          access_role: string
+          company_id: string
+          company_name: string
+          is_primary: boolean
+          month_revenue: number
+          open_orders_count: number
+          relation: string
+        }[]
+      }
       aggiorna_stati_documenti_operai: { Args: never; Returns: number }
       aggrega_metriche_email_giorno: {
         Args: { p_giorno?: string }
@@ -71341,6 +80597,10 @@ export type Database = {
           total_rejections: number
         }[]
       }
+      apply_bank_categorization_rules: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
       apply_inventory_audit_adjustment: {
         Args: { p_audit_id: string; p_company_id: string }
         Returns: undefined
@@ -71365,6 +80625,10 @@ export type Database = {
         Returns: undefined
       }
       area_macro_from_region: { Args: { p_region: string }; Returns: string }
+      assert_company_access: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       assign_round_robin: { Args: { p_team_id: string }; Returns: string }
       attach_attribution_to_contact: {
         Args: {
@@ -71375,6 +80639,10 @@ export type Database = {
         Returns: undefined
       }
       auto_expire_trials: { Args: never; Returns: number }
+      automation_assign_next: {
+        Args: { p_flow_id: string; p_n: number; p_node_id: string }
+        Returns: number
+      }
       batch_carico_from_scans: {
         Args: {
           p_ddt_ricezione_id?: string
@@ -71390,6 +80658,7 @@ export type Database = {
           updated_items: number
         }[]
       }
+      billing_auto_sync_all: { Args: never; Returns: undefined }
       bonifica_annulla: { Args: { p_azione_id: string }; Returns: Json }
       bonifica_archivia_categoria: {
         Args: { p_categoria: string }
@@ -71896,6 +81165,51 @@ export type Database = {
         Args: { p_code: string; p_email: string }
         Returns: Json
       }
+      conversazione_timeline: {
+        Args: { p_entita_id: string; p_entita_tipo: string }
+        Returns: {
+          canale: string
+          controparte: string
+          direzione: string
+          media_url: string
+          oggetto: string
+          ref_id: string
+          ref_tabella: string
+          testo: string
+          ts: string
+        }[]
+      }
+      conversazioni_cerca: {
+        Args: { p_company_id: string; p_query: string }
+        Returns: {
+          entita_id: string
+          entita_tipo: string
+          match_ts: string
+          snippet: string
+        }[]
+      }
+      conversazioni_lista: {
+        Args: { p_company_id: string }
+        Returns: {
+          anteprima: string
+          assegnato_a: string
+          email: string
+          entita_id: string
+          entita_tipo: string
+          nome: string
+          non_letti: number
+          stato: string
+          telefono: string
+          totale_messaggi: number
+          ultimo_canale: string
+          ultimo_direzione: string
+          ultimo_ts: string
+        }[]
+      }
+      conversazioni_puo_accedere: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
       count_listino_usages_for_tipo_impianto: {
         Args: { p_tipo_impianto_id: string }
         Returns: number
@@ -71903,6 +81217,13 @@ export type Database = {
       count_listino_usages_for_tipo_intervento: {
         Args: { p_tipo_intervento_id: string }
         Returns: number
+      }
+      create_ddt_from_uscita: {
+        Args: { p_ddt_extra?: Json; p_uscita_id: string }
+        Returns: {
+          documento_id: string
+          numero_ddt: string
+        }[]
       }
       create_default_chat_channels: {
         Args: { p_company_id: string }
@@ -71991,6 +81312,85 @@ export type Database = {
           p_transfer_date?: string
         }
         Returns: string
+      }
+      crm_cold_db_health: { Args: { p_company?: string }; Returns: Json }
+      crm_flag_undeliverable_emails: {
+        Args: { p_company?: string }
+        Returns: number
+      }
+      crm_map_cells: {
+        Args: {
+          p_company: string
+          p_max_lat: number
+          p_max_lng: number
+          p_min_lat: number
+          p_min_lng: number
+          p_prec: number
+        }
+        Returns: {
+          clat: number
+          clng: number
+          gx: number
+          gy: number
+          n: number
+          n_clienti: number
+          n_prospect: number
+        }[]
+      }
+      crm_map_points_bbox: {
+        Args: {
+          p_company: string
+          p_limit?: number
+          p_max_lat: number
+          p_max_lng: number
+          p_min_lat: number
+          p_min_lng: number
+        }
+        Returns: {
+          attivita: Json
+          categoria: string
+          citta: string
+          email: string
+          fatturato: number
+          id: string
+          indirizzo: string
+          lat: number
+          lng: number
+          nome: string
+          precise: boolean
+          provincia: string
+          regione: string
+          stato: string
+          telefono: string
+          temperatura: string
+          tipo: string
+        }[]
+      }
+      crm_map_region_stats: {
+        Args: { p_company: string }
+        Returns: {
+          n: number
+          n_clienti: number
+          n_prospect: number
+          regione: string
+        }[]
+      }
+      crm_next_unverified_domains: {
+        Args: { p_company?: string; p_limit?: number }
+        Returns: {
+          domain: string
+        }[]
+      }
+      crm_recompute_cold_icp: { Args: { p_company?: string }; Returns: number }
+      crm_refresh_cold_lists: { Args: { p_company?: string }; Returns: number }
+      cruscotto_trend_12m: {
+        Args: { p_company_id: string }
+        Returns: {
+          cassa: number
+          incassato: number
+          mese_key: string
+          venduto: number
+        }[]
       }
       data_network_etl_run: { Args: never; Returns: Json }
       data_network_set_consent: {
@@ -72409,6 +81809,7 @@ export type Database = {
       }
       expire_old_action_proposals: { Args: never; Returns: number }
       fe_operations_stats: { Args: never; Returns: Json }
+      fea_expire_stale_requests: { Args: never; Returns: number }
       fn_suggest_markup: {
         Args: {
           p_min_calls?: number
@@ -72433,6 +81834,8 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: string
       }
+      fv_sync_listino_macro: { Args: { p_company_id: string }; Returns: number }
+      fv_sync_one_family: { Args: { p_family_id: string }; Returns: undefined }
       genera_numero_documento_native: {
         Args: { p_anno?: number; p_company_id: string; p_tipo: string }
         Returns: string
@@ -72451,6 +81854,13 @@ export type Database = {
       generate_oda_number: { Args: { p_company_id: string }; Returns: string }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
       generate_referral_code_secure: { Args: never; Returns: string }
+      geo_norm: { Args: { t: string }; Returns: string }
+      get_active_companies: {
+        Args: { p_since: string }
+        Returns: {
+          company_id: string
+        }[]
+      }
       get_agent_chat_stats: {
         Args: { p_agent_id: string }
         Returns: {
@@ -72589,6 +81999,30 @@ export type Database = {
           tentativi_totali: number
         }[]
       }
+      get_callcenter_lead_handling: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+          p_operatore_id?: string
+        }
+        Returns: {
+          chiamate_eta_0_7: number
+          chiamate_eta_31_60: number
+          chiamate_eta_8_30: number
+          chiamate_eta_oltre_60: number
+          chiamate_nuovi: number
+          chiamate_totali: number
+          chiamate_vecchi: number
+          lead_nuovi_chiamati: number
+          lead_vecchi_chiamati: number
+          risposte_totali: number
+          tasso_risposta_nuovi: number
+          tasso_risposta_totale: number
+          tasso_risposta_vecchi: number
+          tempo_medio_primo_contatto_ore: number
+        }[]
+      }
       get_callcenter_speed_to_lead_distribuzione: {
         Args: {
           p_company_id: string
@@ -72724,6 +82158,10 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_credits_usage_breakdown: {
+        Args: { p_company_id: string; p_from: string; p_to: string }
+        Returns: Json
+      }
       get_cruscotto_invoice_stats: {
         Args: { p_company_id: string }
         Returns: Json
@@ -72770,17 +82208,30 @@ export type Database = {
         Returns: Json
       }
       get_effective_company_id: { Args: never; Returns: string }
-      set_active_company: { Args: { p_company_id: string | null }; Returns: undefined }
-      agency_companies_overview: {
-        Args: never
+      get_email_campaign_recipients: {
+        Args: {
+          p_campaign_id: string
+          p_company_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+        }
         Returns: {
-          company_id: string
-          company_name: string
-          is_primary: boolean
-          access_role: string
-          relation: string
-          open_orders_count: number
-          month_revenue: number
+          ab_variant: string
+          bounce_type: string
+          bounced_at: string
+          clicked_at: string
+          delivered_at: string
+          email: string
+          error_message: string
+          event_timestamp: string
+          full_name: string
+          log_id: string
+          opened_at: string
+          status: string
+          total_rows: number
+          unsubscribed_at: string
         }[]
       }
       get_email_stats_by_campaign: {
@@ -72832,6 +82283,17 @@ export type Database = {
           total: number
           unsubscribed: number
         }[]
+      }
+      get_expenses_by_category: {
+        Args: { p_company_id: string; p_months?: number }
+        Returns: {
+          category: string
+          total: number
+        }[]
+      }
+      get_extra_services_economics: {
+        Args: { _from: string; _to: string }
+        Returns: Json
       }
       get_feature_usage_stats: { Args: never; Returns: Json }
       get_full_rls_audit: {
@@ -73071,7 +82533,10 @@ export type Database = {
           urgency: string
         }[]
       }
-      get_scadenzario_summary: { Args: { p_company_id: string; p_date_from?: string | null; p_date_to?: string | null }; Returns: Json }
+      get_scadenzario_summary: {
+        Args: { p_company_id: string; p_date_from?: string; p_date_to?: string }
+        Returns: Json
+      }
       get_stalled_opportunities: {
         Args: { p_company_id: string }
         Returns: {
@@ -73191,6 +82656,16 @@ export type Database = {
         Args: { p_company_id: string; p_persona_key: string }
         Returns: Json
       }
+      get_voice_consuntivo: {
+        Args: { p_company_id: string }
+        Returns: {
+          chiamate: number
+          costo_cliente: number
+          costo_wholesale: number
+          margine: number
+          minuti: number
+        }[]
+      }
       get_weighted_pipeline: {
         Args: { p_company_id: string }
         Returns: {
@@ -73245,6 +82720,14 @@ export type Database = {
         Returns: boolean
       }
       hash_otp_code: { Args: { p_code: string }; Returns: string }
+      hr_documento_stato: {
+        Args: { p_alert: number; p_scadenza: string }
+        Returns: string
+      }
+      hr_persona_kpi_auto: {
+        Args: { p_periodo: string; p_profilo_id: string }
+        Returns: Json
+      }
       hr_talent_company_allowed: {
         Args: { p_company_id: string }
         Returns: boolean
@@ -73328,6 +82811,10 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: boolean
       }
+      internal_chat_is_order_channel: {
+        Args: { p_channel_id: string }
+        Returns: boolean
+      }
       internal_chat_membership_allowed: {
         Args: { p_channel_id: string; p_company_id: string; p_user_id?: string }
         Returns: boolean
@@ -73354,6 +82841,7 @@ export type Database = {
         Args: { p_contact_id: string }
         Returns: boolean
       }
+      is_mio_rivenditore: { Args: { p_company_id: string }; Returns: boolean }
       is_referrer_payout_compliant: {
         Args: {
           p_has_accepted_terms: boolean
@@ -73369,6 +82857,7 @@ export type Database = {
         Args: { p_company_id?: string; p_email: string }
         Returns: boolean
       }
+      is_survey_assignee: { Args: { p_survey_id: string }; Returns: boolean }
       is_warehouse_referente: {
         Args: { p_user_id: string; p_warehouse_id: string }
         Returns: boolean
@@ -73503,6 +82992,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      lead_scraper_track_bump: {
+        Args: { p_id: string; p_kind: string }
+        Returns: undefined
       }
       list_company_accountant_invites: {
         Args: { p_company_id: string }
@@ -73722,6 +83215,15 @@ export type Database = {
         }
         Returns: Json
       }
+      marketing_trend_12m: {
+        Args: { p_company_id: string }
+        Returns: {
+          appuntamenti: number
+          contratti: number
+          lead: number
+          mese_key: string
+        }[]
+      }
       mask_pii_email: { Args: { input: string }; Returns: string }
       mask_pii_phone: { Args: { input: string }; Returns: string }
       match_articles: {
@@ -73916,6 +83418,68 @@ export type Database = {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
+      order_schedule_health: { Args: { p_order_id: string }; Returns: Json }
+      outreach_mailbox_secret: { Args: { p_ref: string }; Returns: string }
+      outreach_mailbox_set_secret: {
+        Args: { p_name: string; p_secret: string }
+        Returns: undefined
+      }
+      outreach_register_open: {
+        Args: { p_queue_id: string }
+        Returns: undefined
+      }
+      outreach_stats_by_sender: {
+        Args: { p_company: string }
+        Returns: {
+          bounce: number
+          complaint: number
+          email: string
+          id: string
+          sent: number
+          status: string
+        }[]
+      }
+      outreach_stats_by_sequence: {
+        Args: { p_company: string }
+        Returns: {
+          enrolled: number
+          id: string
+          name: string
+          replied: number
+          sent: number
+          status: string
+        }[]
+      }
+      outreach_stats_daily: {
+        Args: { p_company: string; p_days?: number; p_tz?: string }
+        Returns: {
+          date_label: string
+          day_key: string
+          opened: number
+          replied: number
+          sent: number
+        }[]
+      }
+      outreach_stats_funnel: {
+        Args: { p_company: string }
+        Returns: {
+          active_senders: number
+          contactable: number
+          delivered: number
+          interested: number
+          opened: number
+          replied: number
+          sent: number
+        }[]
+      }
+      outreach_stats_queue_status: {
+        Args: { p_company: string }
+        Returns: {
+          status: string
+          total: number
+        }[]
+      }
+      outreach_tag_counts: { Args: { p_company_id: string }; Returns: Json }
       partner_sign_referral_contract: {
         Args: {
           p_contract_version?: string
@@ -74019,6 +83583,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      recompute_opportunity_value: {
+        Args: { p_opp: string }
+        Returns: undefined
+      }
+      recompute_order_progress: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       record_persona_memory: {
         Args: {
           p_company_id: string
@@ -74075,6 +83647,22 @@ export type Database = {
           _user_id?: string
         }
         Returns: Json
+      }
+      register_warehouse_uscita: {
+        Args: {
+          p_destinatario: Json
+          p_note?: string
+          p_scans: Json
+          p_vettore?: Json
+          p_warehouse_id: string
+        }
+        Returns: {
+          created_movements: number
+          errors: Json
+          numero: string
+          updated_units: number
+          uscita_id: string
+        }[]
       }
       registra_correzione_email: {
         Args: {
@@ -74506,6 +84094,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_active_company: { Args: { p_company_id: string }; Returns: undefined }
       set_ai_action_permission: {
         Args: {
           p_action_type: string
@@ -74701,6 +84290,29 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: Json
       }
+      silvio_crea_bozza_campagna_ads: {
+        Args: {
+          p_area: string
+          p_budget_giornaliero: number
+          p_company_id: string
+          p_concept: string
+          p_copy: Json
+          p_durata_giorni: number
+          p_note: string
+          p_obiettivo: string
+          p_platform: string
+          p_target: Json
+        }
+        Returns: string
+      }
+      silvio_crea_cartella: {
+        Args: { p_colore?: string; p_nome: string }
+        Returns: string
+      }
+      silvio_crea_conversazione: {
+        Args: { p_titolo?: string }
+        Returns: string
+      }
       silvio_create_alert: {
         Args: {
           p_alert_type: string
@@ -74858,6 +84470,11 @@ export type Database = {
         Args: { p_ticket_id: string; p_tone?: string }
         Returns: Json
       }
+      silvio_elimina_cartella: { Args: { p_id: string }; Returns: undefined }
+      silvio_elimina_conversazione: {
+        Args: { p_channel_id: string }
+        Returns: undefined
+      }
       silvio_email_dispatch_fatture: {
         Args: { p_cron_secret: string; p_limit?: number }
         Returns: Json
@@ -74961,6 +84578,31 @@ export type Database = {
         Args: { p_limit?: number; p_priority?: string; p_status?: string }
         Returns: Json
       }
+      silvio_lista_bozze_campagne_ads: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_lista_cartelle: {
+        Args: never
+        Returns: {
+          colore: string
+          id: string
+          n_conversazioni: number
+          nome: string
+          posizione: number
+        }[]
+      }
+      silvio_lista_conversazioni: {
+        Args: never
+        Returns: {
+          folder_id: string
+          id: string
+          n_messaggi: number
+          pinned: boolean
+          titolo: string
+          ultimo_messaggio_at: string
+        }[]
+      }
       silvio_mark_memory_extracted: {
         Args: {
           p_company_id: string
@@ -74996,6 +84638,10 @@ export type Database = {
       silvio_payment_delay_pattern: {
         Args: { p_company_id: string }
         Returns: Json
+      }
+      silvio_pin_conversazione: {
+        Args: { p_channel_id: string; p_pinned: boolean }
+        Returns: undefined
       }
       silvio_playbook_list_active: {
         Args: never
@@ -75050,6 +84696,7 @@ export type Database = {
         Args: { p_alert_id: string }
         Returns: string
       }
+      silvio_promote_due_reminders: { Args: never; Returns: number }
       silvio_puo_eseguire: { Args: { p_chiave: string }; Returns: string }
       silvio_rate_response: {
         Args: { p_message_id: string; p_rating: number }
@@ -75071,11 +84718,23 @@ export type Database = {
         }
         Returns: string
       }
+      silvio_rinomina_cartella: {
+        Args: { p_id: string; p_nome: string }
+        Returns: undefined
+      }
+      silvio_rinomina_conversazione: {
+        Args: { p_channel_id: string; p_titolo: string }
+        Returns: undefined
+      }
       silvio_self_improvement_aggregate: {
         Args: { p_days?: number }
         Returns: Json
       }
       silvio_self_improvement_promote: { Args: never; Returns: number }
+      silvio_sposta_conversazione: {
+        Args: { p_channel_id: string; p_folder_id: string }
+        Returns: undefined
+      }
       silvio_team_availability: {
         Args: {
           p_company_id: string
@@ -75426,6 +85085,21 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_crea_promemoria: {
+        Args: {
+          p_company_id: string
+          p_cta_action?: string
+          p_cta_label?: string
+          p_cta_payload?: Json
+          p_note?: string
+          p_remind_on?: string
+          p_source_id?: string
+          p_source_type?: string
+          p_title: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_crea_proposta_ordine_fornitore: {
         Args: {
           p_company_id: string
@@ -75551,6 +85225,10 @@ export type Database = {
           formation_type: string
           giorni_residui: number
         }[]
+      }
+      silvio_tool_fotovoltaico_overview: {
+        Args: { p_company_id: string }
+        Returns: Json
       }
       silvio_tool_genera_cedolino_dipendente: {
         Args: {
@@ -76049,6 +85727,10 @@ export type Database = {
           phone: string
         }[]
       }
+      silvio_tool_manutenzione_overview: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
       silvio_tool_match_product_alias: {
         Args: { p_alias_text: string; p_company_id: string }
         Returns: Json
@@ -76189,6 +85871,10 @@ export type Database = {
           p_summary: string
           p_user_id: string
         }
+        Returns: Json
+      }
+      silvio_tool_quadro_incassi: {
+        Args: { p_company_id: string; p_mesi?: number }
         Returns: Json
       }
       silvio_tool_qualify_public_lead: {
@@ -76343,6 +86029,10 @@ export type Database = {
           p_total_distance_km: number
           p_total_duration_min: number
         }
+        Returns: Json
+      }
+      silvio_tool_sdi_overview: {
+        Args: { p_company_id: string }
         Returns: Json
       }
       silvio_tool_search_orders: {
@@ -76628,6 +86318,7 @@ export type Database = {
         }
         Returns: string
       }
+      sms_admin_overview: { Args: never; Returns: Json }
       soft_delete_record: {
         Args: { p_id: string; p_table: string }
         Returns: Json
@@ -76714,6 +86405,36 @@ export type Database = {
           template_name: string
         }[]
       }
+      system_emails_invite_reminder_candidates: {
+        Args: { p_max_hours?: number; p_min_hours?: number }
+        Returns: {
+          invite_id: string
+          inviter_name: string
+          recipient_email: string
+          token: string
+        }[]
+      }
+      system_emails_purchase_confirmed_candidates: {
+        Args: { p_hours?: number }
+        Returns: {
+          admin_email: string
+          admin_name: string
+          company_id: string
+          company_name: string
+          plan_name: string
+          price_monthly: number
+          price_yearly: number
+        }[]
+      }
+      system_emails_setup_incomplete_candidates: {
+        Args: { p_max_hours?: number; p_min_hours?: number }
+        Returns: {
+          admin_email: string
+          admin_name: string
+          company_id: string
+          company_name: string
+        }[]
+      }
       take_pre_migration_snapshot: {
         Args: {
           p_migration_label: string
@@ -76793,6 +86514,10 @@ export type Database = {
         Args: { p_company_id: string; p_course: Json }
         Returns: undefined
       }
+      user_can_access_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
       user_can_read_accountant_company: {
         Args: { p_company_id: string }
         Returns: boolean
@@ -76860,6 +86585,7 @@ export type Database = {
         | "subcontractor"
         | "worker"
         | "accountant"
+        | "produttore_admin"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -77092,6 +86818,7 @@ export const Constants = {
         "subcontractor",
         "worker",
         "accountant",
+        "produttore_admin",
       ],
       company_sector: [
         "serramenti",
