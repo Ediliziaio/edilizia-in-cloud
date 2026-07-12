@@ -187,7 +187,10 @@ export const macroAreas: MacroArea[] = [
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       { title: "Simulatore", url: "/azienda/marketing/simulatore", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "simulatore" },
-      { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
+      // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
+      // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
+      // dal dettaglio preventivo (SendSignatureDialog in QuoteDetail/FotovoltaicoDettaglio),
+      // flusso indipendente da questa voce e dal permesso canViewFirmaElettronica.
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },

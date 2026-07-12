@@ -46,15 +46,8 @@ export function useBreadcrumb(): BreadcrumbResult {
       };
     }
 
-    if (pathname === "/azienda/marketing/firma-elettronica" || pathname.startsWith("/azienda/marketing/firma-elettronica/")) {
-      return {
-        area: "Marketing & Vendita",
-        areaIcon: macroAreas.find((macroArea) => macroArea.id === "area_marketing")?.icon ?? null,
-        page: "Firma Elettronica",
-        pageUrl: "/azienda/marketing/firma-elettronica",
-      };
-    }
-
+    // /azienda/marketing/firma-elettronica è solo un redirect legacy (Navigate replace
+    // in companyRoutes): la firma vive unicamente in Cantieri & Lavori.
     if (pathname === "/azienda/firma-elettronica" || pathname.startsWith("/azienda/firma-elettronica/")) {
       return {
         area: "Cantieri & Lavori",
