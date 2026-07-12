@@ -318,7 +318,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     <>
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}>
       <DialogContent
-        className="sm:max-w-[600px] max-h-[85vh] !flex !flex-col overflow-hidden"
+        className={`${step === 3 && showPermissions ? "sm:max-w-[820px]" : "sm:max-w-[600px]"} max-h-[85vh] !flex !flex-col overflow-hidden transition-[max-width] duration-200`}
         onPointerDownOutside={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
         onEscapeKeyDown={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
       >
