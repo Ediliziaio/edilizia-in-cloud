@@ -18,6 +18,9 @@ export const queryKeys = {
     list: (companyId: string | undefined) => ["orders", "list", companyId] as const,
     detail: (orderId: string | undefined) => ["orders", "detail", orderId] as const,
     statuses: (companyId: string | undefined) => ["orders", "statuses", companyId] as const,
+    // Solo l'ultima fase (posizione max) — chiave separata da `statuses`:
+    // condividere la chiave con payload diversi corrompe lo stepper commessa.
+    lastStatus: (companyId: string | undefined) => ["orders", "statuses-last", companyId] as const,
     installments: (orderId: string | undefined) => ["orders", "installments", orderId] as const,
     commissionLedger: (orderId: string | undefined) => ["orders", "commission-ledger", orderId] as const,
     recent: (companyId: string | undefined) => ["orders", "recent", companyId] as const,
