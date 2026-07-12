@@ -88,14 +88,10 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
   { nome: "Indaco moderno",    color_primary: "#3730A3", color_secondary: "#EC4899", color_accent: "#10B981", color_text: "#1E1B4B" },
 ];
 
-// Stili copertina: combinano colore testo + opacità velo + posizione logo
-// (campi già esistenti della copertina). Pura UI, nessun nuovo campo.
-const COVER_PRESETS: Array<{ nome: string; cover_text_color: string; cover_overlay_opacity: number; cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" }> = [
-  { nome: "Scuro elegante",  cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.55, cover_logo_position: "top_left" },
-  { nome: "Minimale chiaro", cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.30, cover_logo_position: "top_center" },
-  { nome: "Brand forte",     cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.70, cover_logo_position: "top_left" },
-  { nome: "Senza velo",      cover_text_color: "#0F172A", cover_overlay_opacity: 0.00, cover_logo_position: "top_right" },
-];
+// NB: COVER_PRESETS arriva da coverPresets.ts (import in alto). La copia
+// locale legacy (solo nome/colore/velo/logo, senza id/emoji/category/patch)
+// oscurava l'import: a runtime vinceva la locale e i preset ricchi non
+// funzionavano (find su .id → undefined). Rimossa.
 
 // Campi personalizzati inseribili nei testi cover (eyebrow/hero/sottotitolo).
 // Token testuali `{nome}` derivati dalla shape `EleProgetto` (cliente/cantiere/
@@ -534,6 +530,7 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
       cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
       cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
       immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
+      numero_punti: 42, livello_impianto: "Livello 2", massimale_detrazione: null,
       opportunita_id: null, cliente_id: null, template_id: null,
       sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
       totale_imponibile: 0, totale: 0, note: null,
