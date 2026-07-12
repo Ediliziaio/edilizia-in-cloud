@@ -14,6 +14,27 @@ import {
   AlertTriangle, Building2, Calendar, Package,
 } from "lucide-react";
 
+// Shape minimale dei dati pubblici restituiti dall'edge (solo i campi usati
+// in pagina): prima quote/company erano Record<string, unknown> e ogni render
+// era un errore di tipo.
+interface PublicQuote {
+  quote_number?: string | null;
+  title?: string | null;
+  client_name?: string | null;
+  client_company?: string | null;
+  expires_at?: string | null;
+  subtotal?: number | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  vat_amount?: number | null;
+  total?: number | null;
+  notes?: string | null;
+}
+
+interface PublicCompany {
+  name?: string | null;
+}
+
 interface QuoteItem {
   name: string;
   description?: string | null;
@@ -35,9 +56,9 @@ export default function AccettaPreventivo() {
     "loading" | "idle" | "signing" | "refusing" | "accepted" | "rejected" | "error" | "invalid"
   >("loading");
   const [errorMsg, setErrorMsg] = useState("");
-  const [quote, setQuote] = useState<Record<string, unknown> | null>(null);
+  const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
-  const [company, setCompany] = useState<Record<string, unknown> | null>(null);
+  const [company, setCompany] = useState<PublicCompany | null>(null);
 
   // Firma
   const [signedByName, setSignedByName] = useState("");
@@ -56,9 +77,9 @@ export default function AccettaPreventivo() {
           setStatus("invalid");
           setErrorMsg("Dati del preventivo non disponibili. Contatta il fornitore.");
         } else {
-          setQuote(data.quote);
+          setQuote(data.quote as PublicQuote);
           setItems((data.items as QuoteItem[]) ?? []);
-          setCompany(data.company ?? null);
+          setCompany((data.company as PublicCompany | null) ?? null);
           setStatus("idle");
         }
       });
@@ -285,8 +306,10 @@ export default function AccettaPreventivo() {
           </Card>
         )}
 
-        {/* Azioni firma */}
-        {status === "idle" && (
+        {/* Azioni firma — resta montato anche durante signing/refusing, così
+            gli stati "Firma in corso…"/"Rifiuto in corso…" sono visibili
+            (prima il blocco spariva appena partiva l'azione: spinner mai visti) */}
+        {(status === "idle" || status === "signing" || status === "refusing") && (
           <>
             {/* Sezione firma */}
             <Card className="border-emerald-200 bg-emerald-50">
@@ -323,7 +346,7 @@ export default function AccettaPreventivo() {
                 <Button
                   className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700"
                   onClick={handleSign}
-                  disabled={status === "signing"}
+                  disabled={status !== "idle"}
                 >
                   {status === "signing"
                     ? <Loader2 className="h-5 w-5 mr-2 animate-spin" />
@@ -337,8 +360,8 @@ export default function AccettaPreventivo() {
               </CardContent>
             </Card>
 
-            {/* Sezione rifiuto */}
-            {status === "idle" && (
+            {/* Sezione rifiuto — visibile anche durante refusing (spinner) */}
+            {(status === "idle" || status === "refusing") && (
               <Card className="border-red-200 bg-red-50">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base text-red-800">
@@ -363,7 +386,7 @@ export default function AccettaPreventivo() {
                     variant="outline"
                     className="w-full h-11 text-base border-red-300 text-red-700 hover:bg-red-100"
                     onClick={handleRefuse}
-                    disabled={status === "refusing"}
+                    disabled={status !== "idle"}
                   >
                     {status === "refusing"
                       ? <Loader2 className="h-5 w-5 mr-2 animate-spin" />
