@@ -268,7 +268,11 @@ function MeteoWidget() {
 // ─────────────────────────────────────────────────────────────────────────────
 function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string) => void; onDateSelect?: (date: string | null) => void }) {
   const { user, effectiveCompany } = useAuth();
-  const { canViewOrders, canViewScadenzario, canViewMarketingAppointments, canViewPersone } = usePermissions();
+  const { canViewOrders, canViewScadenzario, canViewMarketingAppointments, canViewPersone, canViewAllTeamCalendar, isAdmin } = usePermissions();
+  // Calendario per ruolo: senza "Calendario del team" ognuno vede i PROPRI
+  // appuntamenti (il commerciale i suoi); i layer commesse/scadenze restano
+  // aziendali perché servono a coordinarsi (magazzino → prossimi lavori).
+  const seesTeamCalendar = isAdmin || canViewAllTeamCalendar;
   const companyId = effectiveCompany?.id;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -377,17 +381,19 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   // ── 5. Appuntamenti mkt (canViewMarketingAppointments + layer on) ──────
   const layerAppuntamentoOn = enabledLayers.has("appuntamento") && canViewMarketingAppointments;
   const { data: monthAppuntamenti = [] } = useQuery({
-    queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr],
+    queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr, seesTeamCalendar],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("appointments")
         .select("id, title, appointment_date, appointment_time, status")
         .eq("company_id", companyId!)
         .gte("appointment_date", monthStartStr)
         .lte("appointment_date", monthEndStr);
+      if (!seesTeamCalendar) q = q.eq("assigned_to", user!.id);
+      const { data } = await q;
       return (data ?? []) as any[];
     },
-    enabled: !!companyId && layerAppuntamentoOn,
+    enabled: !!user?.id && !!companyId && layerAppuntamentoOn,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1027,6 +1033,11 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
+  const { canViewTeamTasks } = usePermissions();
+  // "Attività del team": l'admin vede tutto; gli altri solo con il permesso
+  // esplicito can_view_team_tasks. La scrittura resta comunque limitata alle
+  // proprie task per i non-admin (guard nelle mutation).
+  const seesTeamTasks = isAdmin || canViewTeamTasks;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<TaskFilter>("tutte");
@@ -1056,11 +1067,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     if (initialDueDate?.date) { setFormDueDate(initialDueDate.date); setDialogOpen(true); }
   }, [initialDueDate?.requestId, initialDueDate?.date]);
 
-  const { data: teamMembers = [] } = useCompanyStaffUsers(isAdmin ? companyId : null);
+  const { data: teamMembers = [] } = useCompanyStaffUsers(seesTeamTasks ? companyId : null);
 
-  // ── Fetch tasks — admin vede tutto, staff solo le sue ──
+  // ── Fetch tasks — team con permesso "Attività del team" (o admin), altrimenti solo le proprie ──
   const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["my-tasks-all", user?.id, companyId, isAdmin],
+    queryKey: ["my-tasks-all", user?.id, companyId, seesTeamTasks],
     queryFn: async () => {
       let q = supabase
         .from("tasks")
@@ -1071,7 +1082,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(300);
-      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      if (!seesTeamTasks) q = q.eq("assigned_to", user!.id);
       const { data, error } = await q;
       if (error) { logger.error("MieAttivita — errore:", error); throw error; }
       return data ?? [];
@@ -1094,8 +1105,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     }
 
     let filtered = allTasks;
-    // Assignee filter (admin only)
-    if (isAdmin && filterAssignee !== "all") {
+    // Assignee filter (solo con visione team)
+    if (seesTeamTasks && filterAssignee !== "all") {
       if (filterAssignee === "me") filtered = filtered.filter((t: any) => t.assigned_to === user?.id);
       else filtered = filtered.filter((t: any) => t.assigned_to === filterAssignee);
     }
@@ -1125,7 +1136,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       );
     }
     return filtered;
-  }, [allTasks, filter, today, weekEnd, searchQuery, isAdmin, filterAssignee, user?.id, calendarDate]);
+  }, [allTasks, filter, today, weekEnd, searchQuery, seesTeamTasks, filterAssignee, user?.id, calendarDate]);
 
   // Stats
   const stats = useMemo(() => {
@@ -1343,6 +1354,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     const catLabel = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label;
     const PriorityIcon = cfg.icon;
     const isSelected = selectedIds.has(t.id);
+    // Chi ha solo la visione team (non admin) vede le task altrui in sola
+    // lettura: le mutation lato client filtrano già assigned_to = me.
+    const canManage = isAdmin || t.assigned_to === user?.id;
 
     const assigneeName = getAssigneeName(t);
 
@@ -1351,23 +1365,25 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       return (
         <div key={t.id} className={`group flex items-center gap-1.5 sm:gap-2 rounded border px-2 sm:px-3 py-1.5 transition-all text-sm ${isDone ? "opacity-50 bg-muted/30" : ""} ${scaduta ? "border-red-200 bg-red-50/20" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}>
           {/* Checkbox select */}
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => toggleSelect(t.id)}
-            className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary shrink-0"
-          />
+          {canManage && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelect(t.id)}
+              className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary shrink-0"
+            />
+          )}
           {/* Complete button */}
           <button
-            onClick={() => !isDone && markDone(t)}
-            disabled={isDone}
-            className={`shrink-0 transition-colors ${isDone ? "text-green-500" : "text-muted-foreground/30 hover:text-green-500"}`}
-            title={isDone ? "Completata" : "Segna come fatta"}
+            onClick={() => !isDone && canManage && markDone(t)}
+            disabled={isDone || !canManage}
+            className={`shrink-0 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
+            title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
           >
             {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
           </button>
           {/* Title */}
-          <span className={`flex-1 truncate cursor-pointer ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>
+          <span className={`flex-1 truncate ${canManage ? "cursor-pointer" : ""} ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => canManage && openEdit(t)}>
             {t.title}
           </span>
           {/* Assignee avatar */}
@@ -1383,7 +1399,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             </span>
           )}
           {/* Posticipa +7gg — visibile subito sulle scadute */}
-          {scaduta && (
+          {scaduta && canManage && (
             <button
               onClick={(e) => { e.stopPropagation(); postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") }); }}
               className="p-1 -m-0.5 text-amber-500 hover:text-amber-600 shrink-0 transition-colors"
@@ -1394,14 +1410,16 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             </button>
           )}
           {/* Quick actions: visibili sempre su mobile (no hover), opacity transition solo su md+ */}
-          <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
-            <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title="Modifica" aria-label="Modifica attività">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={() => setTaskToDelete(t.id)} className="p-1 -m-0.5 text-muted-foreground hover:text-red-500" title="Elimina" aria-label="Elimina attività">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {canManage && (
+            <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
+              <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title="Modifica" aria-label="Modifica attività">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => setTaskToDelete(t.id)} className="p-1 -m-0.5 text-muted-foreground hover:text-red-500" title="Elimina" aria-label="Elimina attività">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       );
     }
@@ -1411,24 +1429,26 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       <div key={t.id} className={`group flex items-start gap-3 rounded-lg border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
         {/* Checkbox + Complete */}
         <div className="flex flex-col items-center gap-1 mt-0.5 shrink-0">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => toggleSelect(t.id)}
-            className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
-          />
+          {canManage && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelect(t.id)}
+              className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
+            />
+          )}
           <button
-            onClick={() => !isDone && markDone(t)}
-            disabled={isDone}
-            className={`transition-colors ${isDone ? "text-green-500" : "text-muted-foreground/30 hover:text-green-500"}`}
-            title={isDone ? "Completata" : "Segna come fatta"}
+            onClick={() => !isDone && canManage && markDone(t)}
+            disabled={isDone || !canManage}
+            className={`transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
+            title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
           >
             {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(t)}>
+        <div className={`flex-1 min-w-0 ${canManage ? "cursor-pointer" : ""}`} onClick={() => canManage && openEdit(t)}>
           <div className="flex items-start justify-between gap-2">
             <p className={`font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
             <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${cfg.badgeClass}`}>
@@ -1450,7 +1470,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         </div>
 
         {/* Actions */}
-        <DropdownMenu>
+        {canManage && <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity" aria-label="Azioni attività"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
@@ -1462,7 +1482,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => setTaskToDelete(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu>}
       </div>
     );
   };
@@ -1484,7 +1504,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
   // Helper: get assignee name
   const getAssigneeName = (t: any) => {
-    if (!isAdmin || t.assigned_to === user?.id) return null;
+    if (!seesTeamTasks || t.assigned_to === user?.id) return null;
     const a = t.assignee as any;
     return a ? `${a.first_name || ""} ${a.last_name || ""}`.trim() : null;
   };
@@ -1496,7 +1516,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <CardTitle className="flex items-center gap-2 text-base shrink-0">
-                <ClipboardCheck className="h-4 w-4" />{isAdmin ? "Attività" : "Le mie Attività"}
+                <ClipboardCheck className="h-4 w-4" />{seesTeamTasks ? "Attività" : "Le mie Attività"}
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </CardTitle>
               {calendarDate && (
@@ -1536,9 +1556,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             </div>
           )}
 
-          {/* Assignee filter (admin only) — "chi". tap-compact: opt-out dal min
+          {/* Assignee filter (visione team) — "chi". tap-compact: opt-out dal min
               44×44 mobile che gonfiava i chip in ovali (vedi index.css). */}
-          {isAdmin && teamMembers.length > 0 && (
+          {seesTeamTasks && teamMembers.length > 0 && (
             <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[
                 { key: "me", label: "Le mie" },

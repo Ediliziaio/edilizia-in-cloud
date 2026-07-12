@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePermissions } from "@/hooks/usePermissions";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
 import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
@@ -74,8 +75,14 @@ type UnifiedTasksProps = {
   initialTab?: "myday" | "all";
 };
 
+const PLATFORM_ROLES = ["super_admin", "platform_admin", "platform_support", "platform_viewer"];
+
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
+  const { isAdmin, canViewTeamTasks } = usePermissions();
+  // Visione team: admin, permesso esplicito, o ruolo piattaforma in
+  // impersonificazione (che gestisce per conto dell'azienda).
+  const seesTeamTasks = isAdmin || canViewTeamTasks || (isImpersonating && PLATFORM_ROLES.includes(role));
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -128,10 +135,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   };
 
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: [...queryKeys.tasks.all, "unified", companyId],
+    queryKey: [...queryKeys.tasks.all, "unified", companyId, seesTeamTasks, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("tasks")
         .select(`
           *,
@@ -146,6 +153,9 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         .order("sort_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(5000);
+      // Senza "Attività del team": scoping alle proprie (personal-first)
+      if (!seesTeamTasks && user?.id) q = q.eq("assigned_to", user.id);
+      const { data, error } = await q;
       if (error) throw error;
       const rawTasks = data || [];
       const creatorIds = [...new Set(rawTasks.map((task: any) => task.created_by).filter(Boolean))];
@@ -179,7 +189,6 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
 
   // Extract unique assignees for filter
   // Exclude the current user if they are impersonating (superadmin doesn't belong to this company)
-  const PLATFORM_ROLES = ["super_admin", "platform_admin", "platform_support", "platform_viewer"];
   const assignees = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
     tasks.forEach((t) => {
@@ -468,28 +477,32 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                <SelectTrigger className="w-full sm:w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  {assignees.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {/* Filtro rapido "Le mie" */}
-              <button
-                onClick={() => setFilterAssignee(filterAssignee === user?.id ? "all" : (user?.id || "all"))}
-                className={cn(
-                  "h-9 px-3 rounded-md border text-sm transition-colors flex items-center gap-1.5 whitespace-nowrap",
-                  filterAssignee === user?.id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <User className="h-3.5 w-3.5" />
-                Le mie
-              </button>
+              {seesTeamTasks && (
+                <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+                  <SelectTrigger className="w-full sm:w-[160px] h-9"><SelectValue placeholder="Assegnatario" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    {assignees.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* Filtro rapido "Le mie" — inutile quando vedi già solo le tue */}
+              {seesTeamTasks && (
+                <button
+                  onClick={() => setFilterAssignee(filterAssignee === user?.id ? "all" : (user?.id || "all"))}
+                  className={cn(
+                    "h-9 px-3 rounded-md border text-sm transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                    filterAssignee === user?.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <User className="h-3.5 w-3.5" />
+                  Le mie
+                </button>
+              )}
               {/* Toggle view */}
               <div className="flex rounded-md border overflow-hidden sm:ml-auto">
                 <button

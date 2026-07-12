@@ -34,6 +34,7 @@ export interface StaffPermissions {
   can_manage_warehouse_items: boolean;
   can_view_calendar: boolean;
   can_view_all_team_calendar: boolean;
+  can_view_team_tasks: boolean;
   can_view_customers: boolean;
   can_edit_customers: boolean;
   can_export_clients: boolean;

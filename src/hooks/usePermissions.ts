@@ -19,6 +19,10 @@ export interface Permissions {
   canViewCustomers: boolean;
   canEditCustomers: boolean;
   canViewEmployees: boolean;
+  /** Attività (pagina /azienda/attivita): vede le task di tutto il team; false = solo le proprie. */
+  canViewTeamTasks: boolean;
+  /** Calendario: vede appuntamenti/eventi di tutto il team; false = solo i propri. */
+  canViewAllTeamCalendar: boolean;
   canViewTickets: boolean;
   canEditTickets: boolean;
   canViewForecast: boolean;
@@ -177,6 +181,8 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_sms_marketing",
   "can_view_firma_elettronica",
   "can_view_reputazione",
+  "can_view_team_tasks",
+  "can_view_all_team_calendar",
   "only_assigned",
   "visible_areas",
 ].join(",");
@@ -220,6 +226,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewFirmaElettronica: true, canViewReputazione: true,
   canViewControlloGestione: true,
+  canViewTeamTasks: true, canViewAllTeamCalendar: true,
   isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -262,6 +269,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewFirmaElettronica: false, canViewReputazione: false,
   canViewControlloGestione: false,
+  canViewTeamTasks: false, canViewAllTeamCalendar: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -324,6 +332,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Firma elettronica / reputazione: non pertinenti al commercialista esterno
   canViewFirmaElettronica: false,
   canViewReputazione: false,
+  // Supervisione in sola lettura: vede il calendario del team ma non gestisce attività
+  canViewTeamTasks: false,
+  canViewAllTeamCalendar: true,
   canViewAutomazioni: false,
   canViewRenderAi: false,
   // Settings amministrativi → no
@@ -430,6 +441,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSmsMarketing:      g("can_view_sms_marketing"),
     canViewFirmaElettronica:  g("can_view_firma_elettronica"),
     canViewReputazione:       g("can_view_reputazione"),
+    canViewTeamTasks:         g("can_view_team_tasks"),
+    canViewAllTeamCalendar:   g("can_view_all_team_calendar"),
     // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
     // più feature flag controllo_gestione_v1 lato UI (utility separata).
     canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs") || g("can_view_controllo_gestione"),

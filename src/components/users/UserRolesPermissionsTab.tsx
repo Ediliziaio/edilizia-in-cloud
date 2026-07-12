@@ -88,6 +88,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "warehouse-items",  label: "Gestione Articoli",      description: "Gestisci articoli e listino magazzino",    viewKey: "can_manage_warehouse_items" },
       { id: "calendar",         label: "Calendario",             description: "Visualizza e gestisci il calendario",      viewKey: "can_view_calendar" },
       { id: "team-calendar",    label: "Calendario del team",    description: "Visualizza il calendario di tutto il team", viewKey: "can_view_all_team_calendar" },
+      { id: "team-tasks",       label: "Attività del team",      description: "Vede le attività (task) di tutto il team; spento vede solo le proprie", viewKey: "can_view_team_tasks" },
       { id: "customers",        label: "Clienti",                description: "Gestisci anagrafica clienti",              viewKey: "can_view_customers",            editKey: "can_edit_customers" },
       { id: "export-clients",   label: "Esporta Clienti",        description: "Esporta l'anagrafica clienti in CSV",      viewKey: "can_export_clients" },
       { id: "tickets",          label: "Ticket Assistenza",      description: "Gestisci ticket di supporto",              viewKey: "can_view_tickets",              editKey: "can_edit_tickets" },

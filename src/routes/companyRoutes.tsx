@@ -229,13 +229,15 @@ const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
 
 /**
  * AttivitaRouter — mostra la pagina corretta in base al ruolo.
- * company_admin + company_staff + employee + subcontractor → AttivitaStaff
- *   (dashboard personale con meteo, calendario, task)
- * altri ruoli → UnifiedTasks (task manager completo)
+ * Ruoli operativi d'azienda (admin, ufficio, venditore, call center, operaio,
+ * subappaltatore) → AttivitaStaff: dashboard PERSONALE (meteo, calendario a
+ * layer per ruolo, le proprie task; team solo con can_view_team_tasks/admin).
+ * Altri ruoli (accountant, piattaforma in impersonificazione, …) → UnifiedTasks
+ * (task manager completo).
  */
 function AttivitaRouter() {
   const { role } = useAuth();
-  const STAFF_ROLES = ["company_admin", "company_staff", "employee", "subcontractor"] as const;
+  const STAFF_ROLES = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"] as const;
   if (STAFF_ROLES.includes(role as typeof STAFF_ROLES[number])) return <AttivitaStaff />;
   return <UnifiedTasks />;
 }
