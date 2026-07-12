@@ -25,7 +25,7 @@ import {
   DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
-  type PermissionSectionDef, type StaffRoleType,
+  type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 
 export type { StaffRoleType };
@@ -69,7 +69,7 @@ const ROLE_LABELS: Record<StaffRoleType, string> = {
 function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: {
   label: string; icon: React.ElementType; iconColor: string;
   sections: PermissionSectionDef[]; permissions: StaffPermissions;
-  onToggle: (key: keyof StaffPermissions, value: boolean) => void;
+  onToggle: (key: BooleanPermissionKey, value: boolean) => void;
 }) {
   const [open, setOpen] = useState(true);
   const activeCount = sections.reduce((c, s) => {
@@ -189,7 +189,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     }
   };
 
-  const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
+  const handleToggle = (key: BooleanPermissionKey, value: boolean) => {
     setPermissions(prev => {
       const updated = { ...prev, [key]: value };
       const section = ALL_PERMISSION_SECTIONS.find(s => s.viewKey === key);

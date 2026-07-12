@@ -59,7 +59,7 @@ const VERIFICATION_BADGES: Record<string, { label: string; className: string }> 
   mismatch: { label: "Non conforme", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" },
 };
 
-function VerificationBadge({ result }: { result: string | null | undefined }): JSX.Element | null {
+function VerificationBadge({ result }: { result: string | null | undefined }) {
   if (!result) return null;
   const cfg = VERIFICATION_BADGES[result];
   if (!cfg) return null;

@@ -62,9 +62,16 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
 /** Centralized permission section definitions used by PermissionsDialog, UserRolesPermissionsTab and CreateUserWizard */
 export interface PermissionSectionDef {
   label: string;
-  viewKey: keyof StaffPermissions;
-  editKey: keyof StaffPermissions | null;
+  viewKey: BooleanPermissionKey;
+  editKey: BooleanPermissionKey | null;
 }
+
+/** Chiavi permesso a valore boolean (esclude visible_areas: string[]).
+ *  Usarla per viewKey/editKey/toggle evita gli errori `boolean & string[]`
+ *  quando si scrive permissions[key] = true/false. */
+export type BooleanPermissionKey = {
+  [K in keyof StaffPermissions]: StaffPermissions[K] extends boolean ? K : never;
+}[keyof StaffPermissions];
 
 // ─── 7 macro-aree allineate alla sidebar ───────────────────────────────────
 
@@ -317,9 +324,9 @@ export function syncLegacyMarketingFlags(perms: StaffPermissions): StaffPermissi
  */
 export function buildStaffPermissionsUpdate(permissions: StaffPermissions): StaffPermissions {
   const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
-  const base: Record<string, unknown> = {};
+  const base = {} as StaffPermissions;
   for (const key of allowedKeys) {
-    base[key] = permissions[key] ?? DEFAULT_PERMISSIONS[key];
+    (base as Record<string, unknown>)[key] = permissions[key] ?? DEFAULT_PERMISSIONS[key];
   }
-  return syncLegacySettingsFlags(syncLegacyMarketingFlags(base as StaffPermissions));
+  return syncLegacySettingsFlags(syncLegacyMarketingFlags(base));
 }

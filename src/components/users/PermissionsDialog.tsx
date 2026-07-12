@@ -15,7 +15,7 @@ import {
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
   DEFAULT_PERMISSIONS,
-  type PermissionSectionDef, type StaffRoleType,
+  type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 
 export interface StaffPermissions {
@@ -135,7 +135,7 @@ interface PermGroupProps {
   iconColor: string;
   sections: PermissionSectionDef[];
   permissions: StaffPermissions;
-  onToggle: (key: keyof StaffPermissions, value: boolean) => void;
+  onToggle: (key: BooleanPermissionKey, value: boolean) => void;
 }
 
 function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: PermGroupProps) {
@@ -210,7 +210,7 @@ export function PermissionsDialog({
     setPermissions(currentPermissions);
   }, [currentPermissions]);
 
-  const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
+  const handleToggle = (key: BooleanPermissionKey, value: boolean) => {
     setPermissions((prev) => {
       const updated = { ...prev, [key]: value };
       const section = ALL_PERMISSION_SECTIONS.find((s) => s.viewKey === key);

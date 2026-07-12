@@ -31,7 +31,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ROLE_PRESETS, type BooleanPermissionKey } from "@/components/users/permissionsDefaults";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -41,8 +41,8 @@ interface PermissionModule {
   id: string;
   label: string;
   description: string;
-  viewKey: keyof StaffPermissions;
-  editKey?: keyof StaffPermissions;
+  viewKey: BooleanPermissionKey;
+  editKey?: BooleanPermissionKey;
   includes?: string[];
 }
 
@@ -336,7 +336,7 @@ export function UserRolesPermissionsTab({
     setExpandedCategories((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
-  const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
+  const handleToggle = (key: BooleanPermissionKey, value: boolean) => {
     setPermissions((prev) => {
       const updated = { ...prev, [key]: value };
       if (!value) {
