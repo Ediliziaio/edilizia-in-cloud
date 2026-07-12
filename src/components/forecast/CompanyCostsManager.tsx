@@ -28,6 +28,7 @@ import {
   TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { CostiBankReconcileDialog } from "@/components/costi/CostiBankReconcileDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,6 +251,7 @@ export default function CompanyCostsManager({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payingCostId, setPayingCostId] = useState<string | null>(null);
+  const [bankReconcileOpen, setBankReconcileOpen] = useState(false);
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [paymentMethod, setPaymentMethod] = useState<string>("bonifico");
   const [importOpen, setImportOpen] = useState(false);
@@ -520,6 +522,26 @@ export default function CompanyCostsManager({
     }
   };
 
+  // Riconciliazione bancaria: segna pagato un costo alla data del movimento,
+  // instradando sulla mutation giusta per origine (stesso dispatch del dialog
+  // di pagamento manuale). async per permettere la conferma sequenziale.
+  const paySingleCostFromBank = async (cost: UnifiedCost, date: string) => {
+    const origin = resolveCostOrigin(cost.id, cost.realOrderItemId);
+    switch (origin.type) {
+      case "order-item":
+        await mutations.markOrderItemPaidMutation.mutateAsync({ id: origin.realId, date, paymentType: origin.paymentType! });
+        break;
+      case "ext-team":
+        await mutations.markExtTeamPaidMutation.mutateAsync({ id: origin.realId, date });
+        break;
+      case "commission":
+        await mutations.markCommissionPaidMutation.mutateAsync({ id: origin.realId, date });
+        break;
+      default:
+        await mutations.markPaidMutation.mutateAsync({ id: cost.id, date, paymentMethod: "bonifico" });
+    }
+  };
+
   const handleMarkOrderItemUnpaid = (cost: UnifiedCost) => {
     const origin = resolveCostOrigin(cost.id, cost.realOrderItemId);
 
@@ -715,14 +737,23 @@ export default function CompanyCostsManager({
                 <span className="text-orange-800 dark:text-orange-300">
                   Hai <strong>{data.stats.overdueCount}</strong> pagament{data.stats.overdueCount === 1 ? "o scaduto" : "i scaduti"} per un totale di <strong>{formatCurrency(data.stats.totalOverdue)}</strong>
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-orange-400 text-orange-700 hover:bg-orange-100 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
-                  onClick={showOverdueCosts}
-                >
-                  Visualizza
-                </Button>
+                <span className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-orange-400 text-orange-700 hover:bg-orange-100 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                    onClick={showOverdueCosts}
+                  >
+                    Visualizza
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-orange-500 text-white hover:bg-orange-600"
+                    onClick={() => setBankReconcileOpen(true)}
+                  >
+                    Riconcilia con banca
+                  </Button>
+                </span>
               </AlertDescription>
             </Alert>
           )}
@@ -989,6 +1020,14 @@ export default function CompanyCostsManager({
       />
 
       <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title="Importa Costi" fields={COST_IMPORT_FIELDS} onImport={mutations.handleCostsImport} />
+
+      <CostiBankReconcileDialog
+        open={bankReconcileOpen}
+        onOpenChange={setBankReconcileOpen}
+        companyId={companyId}
+        unpaidCosts={((data.allCostsUnfiltered || []) as UnifiedCost[]).filter((c) => !c.is_paid)}
+        onPayCost={paySingleCostFromBank}
+      />
     </>
   );
 }
