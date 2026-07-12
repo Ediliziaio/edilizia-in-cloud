@@ -87,8 +87,6 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "warehouse",        label: "Magazzino",              description: "Gestisci inventario e movimenti",          viewKey: "can_view_warehouse",            editKey: "can_edit_warehouse" },
       { id: "warehouse-items",  label: "Gestione Articoli",      description: "Gestisci articoli e listino magazzino",    viewKey: "can_manage_warehouse_items" },
       { id: "calendar",         label: "Calendario",             description: "Visualizza e gestisci il calendario",      viewKey: "can_view_calendar" },
-      { id: "team-calendar",    label: "Calendario del team",    description: "Visualizza il calendario di tutto il team", viewKey: "can_view_all_team_calendar" },
-      { id: "team-tasks",       label: "Attività del team",      description: "Vede le attività (task) di tutto il team; spento vede solo le proprie", viewKey: "can_view_team_tasks" },
       { id: "customers",        label: "Clienti",                description: "Gestisci anagrafica clienti",              viewKey: "can_view_customers",            editKey: "can_edit_customers" },
       { id: "export-clients",   label: "Esporta Clienti",        description: "Esporta l'anagrafica clienti in CSV",      viewKey: "can_export_clients" },
       { id: "tickets",          label: "Ticket Assistenza",      description: "Gestisci ticket di supporto",              viewKey: "can_view_tickets",              editKey: "can_edit_tickets" },
@@ -777,6 +775,39 @@ export function UserRolesPermissionsTab({
                     setPermissions((prev) => ({ ...prev, only_assigned: checked }))
                   }
                 />
+              </div>
+
+              {/* Visibilità sul team — trasversale (attività e calendario riguardano
+                  tutta l'azienda, non un modulo): vive qui accanto a only_assigned. */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label className="font-medium text-sm">Attività del team</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie
+                    </p>
+                  </div>
+                  <Switch
+                    checked={permissions.can_view_team_tasks || false}
+                    onCheckedChange={(checked) =>
+                      setPermissions((prev) => ({ ...prev, can_view_team_tasks: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label className="font-medium text-sm">Calendario del team</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri
+                    </p>
+                  </div>
+                  <Switch
+                    checked={permissions.can_view_all_team_calendar || false}
+                    onCheckedChange={(checked) =>
+                      setPermissions((prev) => ({ ...prev, can_view_all_team_calendar: checked }))
+                    }
+                  />
+                </div>
               </div>
 
               <Separator />

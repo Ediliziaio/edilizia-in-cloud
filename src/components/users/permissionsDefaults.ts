@@ -79,8 +79,6 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: "can_edit_warehouse" },
   { label: "Gestione Articoli",      viewKey: "can_manage_warehouse_items",  editKey: null },
   { label: "Calendario",             viewKey: "can_view_calendar",           editKey: null },
-  { label: "Calendario del team",    viewKey: "can_view_all_team_calendar",  editKey: null },
-  { label: "Attività del team",      viewKey: "can_view_team_tasks",         editKey: null },
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: "can_edit_customers" },
   { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: "can_edit_tickets" },
@@ -146,9 +144,19 @@ export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null },
 ];
 
+// ─── Visibilità sul team (trasversale, NON un modulo) ──────────────────────
+// Attività e calendario riguardano tutta l'azienda (ufficio, vendite,
+// magazzino, HR): questi toggle vivono nell'area "visibilità" delle dialog
+// permessi accanto a only_assigned e ai livelli economici, non sotto Cantieri.
+export const TEAM_VISIBILITY_SECTIONS: PermissionSectionDef[] = [
+  { label: "Attività del team",   viewKey: "can_view_team_tasks",        editKey: null },
+  { label: "Calendario del team", viewKey: "can_view_all_team_calendar", editKey: null },
+];
+
 export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
   ...CRUSCOTTO_SECTIONS,
   ...CANTIERI_SECTIONS,
+  ...TEAM_VISIBILITY_SECTIONS,
   ...FINANZA_SECTIONS,
   ...PERSONE_SECTIONS,
   ...MARKETING_SECTIONS,

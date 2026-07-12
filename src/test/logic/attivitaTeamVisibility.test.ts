@@ -3,6 +3,8 @@ import {
   DEFAULT_PERMISSIONS,
   ROLE_PRESETS,
   CANTIERI_SECTIONS,
+  TEAM_VISIBILITY_SECTIONS,
+  ALL_PERMISSION_SECTIONS,
 } from "@/components/users/permissionsDefaults";
 
 /**
@@ -26,14 +28,22 @@ describe("attività: visibilità team", () => {
     }
   });
 
-  it("il toggle è esposto nella dialog permessi (sezione Cantieri)", () => {
-    const entry = CANTIERI_SECTIONS.find(s => s.viewKey === "can_view_team_tasks");
-    expect(entry).toBeDefined();
-    expect(entry?.label).toBe("Attività del team");
+  it("i toggle vivono nell'area trasversale, NON sotto Cantieri", () => {
+    // Le attività riguardano tutta l'azienda (ufficio, vendite, magazzino, HR):
+    // i toggle stanno nel blocco visibilità accanto a only_assigned.
+    for (const key of ["can_view_team_tasks", "can_view_all_team_calendar"] as const) {
+      expect(CANTIERI_SECTIONS.find(s => s.viewKey === key),
+        `${key} non deve stare nella sezione Cantieri`).toBeUndefined();
+      expect(TEAM_VISIBILITY_SECTIONS.find(s => s.viewKey === key),
+        `${key} deve stare in TEAM_VISIBILITY_SECTIONS`).toBeDefined();
+      // …ma deve restare nel registro completo (search/bulk della dialog)
+      expect(ALL_PERMISSION_SECTIONS.find(s => s.viewKey === key)).toBeDefined();
+    }
+    expect(TEAM_VISIBILITY_SECTIONS.find(s => s.viewKey === "can_view_team_tasks")?.label).toBe("Attività del team");
   });
 
   it("il calendario team resta un permesso separato (can_view_all_team_calendar)", () => {
-    const entry = CANTIERI_SECTIONS.find(s => s.viewKey === "can_view_all_team_calendar");
+    const entry = TEAM_VISIBILITY_SECTIONS.find(s => s.viewKey === "can_view_all_team_calendar");
     expect(entry).toBeDefined();
     // Il commerciale di default NON vede il calendario del team → suoi appuntamenti
     expect((ROLE_PRESETS.salesperson as Record<string, unknown>).can_view_all_team_calendar ?? false).toBe(false);

@@ -500,6 +500,34 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 />
               </div>
 
+              {/* Visibilità sul team — trasversale come only_assigned */}
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label htmlFor="wiz-team_tasks" className="font-medium cursor-pointer">Attività del team</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie.
+                  </p>
+                </div>
+                <Switch
+                  id="wiz-team_tasks"
+                  checked={permissions.can_view_team_tasks}
+                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
+                />
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label htmlFor="wiz-team_calendar" className="font-medium cursor-pointer">Calendario del team</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri.
+                  </p>
+                </div>
+                <Switch
+                  id="wiz-team_calendar"
+                  checked={permissions.can_view_all_team_calendar}
+                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
+                />
+              </div>
+
               <Separator />
 
               <div className="space-y-3 py-2">

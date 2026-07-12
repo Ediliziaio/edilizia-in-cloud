@@ -312,6 +312,42 @@ export function PermissionsDialog({
 
           <Separator />
 
+          {/* Visibilità sul team — trasversale a tutti i moduli, come only_assigned */}
+          <div className="space-y-1 py-2">
+            <div className="flex items-center gap-2">
+              <Users2 className="h-4 w-4 text-violet-600" />
+              <Label className="font-medium">Visibilità sul team</Label>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <div>
+                <Label htmlFor="can_view_team_tasks" className="text-sm cursor-pointer">Attività del team</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie
+                </p>
+              </div>
+              <Switch
+                id="can_view_team_tasks"
+                checked={permissions.can_view_team_tasks || false}
+                onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
+              />
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <div>
+                <Label htmlFor="can_view_all_team_calendar" className="text-sm cursor-pointer">Calendario del team</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri
+                </p>
+              </div>
+              <Switch
+                id="can_view_all_team_calendar"
+                checked={permissions.can_view_all_team_calendar || false}
+                onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="flex items-center justify-between py-2">
             <div>
               <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo elementi assegnati</Label>
