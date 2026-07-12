@@ -694,6 +694,11 @@ export function UsersConfig() {
           first_name: data.first_name, last_name: data.last_name,
           email: normalizedEmail, company_id: effectiveCompanyId,
           role_type: data.role_type, password: data.password,
+          // I permessi viaggiano nell'insert della edge (record completo):
+          // l'update client più sotto resta solo come rete di sicurezza.
+          permissions: data.permissions
+            ? syncLegacySettingsFlags(syncLegacyMarketingFlags(data.permissions))
+            : undefined,
         },
       });
 

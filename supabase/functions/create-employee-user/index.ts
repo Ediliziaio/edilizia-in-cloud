@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 
 interface CreateEmployeeUserRequest {
   employee_id: string;
@@ -101,22 +102,9 @@ Deno.serve(async (req) => {
       throw new Error("Errore nell'assegnazione ruolo staff");
     }
 
-    const permissionsRecord: Record<string, any> = {
-      user_id: newUser.user.id,
-      company_id: employee.company_id,
-      can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-      can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
-      can_view_customers: false, can_edit_customers: false, can_view_employees: false,
-      can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
-      can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-      only_assigned: false,
-    };
-
-    if (permissions) {
-      for (const [key, value] of Object.entries(permissions)) {
-        if (key in permissionsRecord) permissionsRecord[key] = value;
-      }
-    }
+    // Record COMPLETO (tutte le colonne-permesso): l'insert non dipende più dal
+    // follow-up update del client per il granulare (giornale lavori, formazione, ecc.).
+    const permissionsRecord = buildStaffPermissionsRecord(newUser.user.id, employee.company_id, permissions);
 
     const { error: permError } = await supabaseAdmin.from("staff_permissions").insert(permissionsRecord);
     if (permError) {

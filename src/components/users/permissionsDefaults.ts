@@ -26,6 +26,9 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_giornale_lavori: false, can_view_messaggi_esterni: false,
   can_edit_giornale_lavori: false,
   can_view_sopralluoghi: false, can_view_preventivi: false, can_edit_preventivi: false,
+  // 2026-07-12: mancava qui pur essendo colonna DB + toggle nella tab utente →
+  // buildStaffPermissionsUpdate lo filtrava e "Approva Sconti" non salvava MAI.
+  can_approve_discounts: false,
   can_view_formazione: false, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
@@ -116,6 +119,7 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities" },
   { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: "can_edit_preventivi" },
+  { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null },
   { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null },
   { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null },

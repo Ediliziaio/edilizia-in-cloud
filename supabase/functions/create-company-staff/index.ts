@@ -3,6 +3,7 @@ import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 
 // Esegue un task in background DOPO la risposta, senza bloccarla. Evita che un
 // invio email lento/bloccato faccia terminare la funzione per wall-clock PRIMA
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
       .eq("id", callerId)
       .single();
 
-    const { first_name, last_name, email, company_id, role_type, password, phone } = await req.json();
+    const { first_name, last_name, email, company_id, role_type, password, phone, permissions } = await req.json();
 
     const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
@@ -219,10 +220,12 @@ Deno.serve(async (req) => {
     }
 
     if (rolesToAssign.includes("company_staff")) {
-      const { error: permError } = await supabaseAdmin.from("staff_permissions").insert({
-        user_id: userId,
-        company_id: targetCompanyId,
-      });
+      // Record COMPLETO: se il wizard passa `permissions`, l'insert è già
+      // definitivo e non dipende dal follow-up update client (che resta come
+      // rete di sicurezza); senza payload i valori coincidono coi default DB.
+      const { error: permError } = await supabaseAdmin
+        .from("staff_permissions")
+        .insert(buildStaffPermissionsRecord(userId, targetCompanyId, permissions));
 
       if (permError) {
         console.error("Error creating permissions:", permError);
