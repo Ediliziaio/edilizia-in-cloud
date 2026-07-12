@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone,
   ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, AlertTriangle, Settings,
-  Eye, EyeOff, Lock, HardHat, MapPin,
+  Eye, EyeOff, Lock, HardHat, MapPin, Euro, Search, Users2, X, Info,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import {
   DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
+  ECONOMIC_LEVELS, detectEconomicLevel,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 
@@ -102,19 +103,25 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
           </div>
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="px-3 pt-2 pb-1 space-y-2">
+      <CollapsibleContent className="px-3 pt-2 pb-1 space-y-1">
         {sections.map(section => (
-          <div key={section.viewKey} className="flex items-center justify-between py-1">
-            <div className="flex items-center gap-2">
+          <div key={section.viewKey} className="flex items-start justify-between gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted/40">
+            <div className="flex items-start gap-2.5 min-w-0">
               <Switch
                 id={`wiz-${section.viewKey}`}
+                className="mt-0.5"
                 checked={permissions[section.viewKey]}
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
-              <Label htmlFor={`wiz-${section.viewKey}`} className="text-sm cursor-pointer">{section.label}</Label>
+              <div className="min-w-0">
+                <Label htmlFor={`wiz-${section.viewKey}`} className="text-sm cursor-pointer leading-tight">{section.label}</Label>
+                {section.description && (
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
+                )}
+              </div>
             </div>
             {section.editKey && permissions[section.viewKey] && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
                 <Switch
                   id={`wiz-${section.editKey}`}
                   checked={permissions[section.editKey]}
@@ -130,6 +137,19 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   );
 }
 
+// Gruppi dello step permessi (stesse macro-aree della sidebar). Le 3 chiavi
+// economiche sono escluse dai gruppi: le governa il selettore a livelli.
+const WIZARD_GROUPS = [
+  { label: "Cruscotto",           icon: Building2,       iconColor: "text-indigo-600",  sections: CRUSCOTTO_SECTIONS },
+  { label: "Cantieri & Lavori",   icon: LayoutDashboard, iconColor: "text-blue-600",    sections: CANTIERI_SECTIONS },
+  { label: "Finanza",             icon: Euro,            iconColor: "text-emerald-600", sections: FINANZA_SECTIONS },
+  { label: "Persone",             icon: Users2,          iconColor: "text-amber-600",   sections: PERSONE_SECTIONS },
+  { label: "Marketing & Vendita", icon: Megaphone,       iconColor: "text-purple-600",  sections: MARKETING_SECTIONS },
+  { label: "Automazioni & AI",    icon: Building2,       iconColor: "text-orange-600",  sections: AUTOMAZIONI_SECTIONS },
+  { label: "Impostazioni",        icon: Settings,        iconColor: "text-slate-600",   sections: IMPOSTAZIONI_SECTIONS },
+];
+const WIZARD_ECON_KEYS = new Set<string>(["can_view_order_amounts", "can_view_costs", "can_view_margins"]);
+
 export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: CreateUserWizardProps) {
   const { toast } = useToast();
   // Steps: 1=role, 2=info, 3=perms(or confirm for admin), 4=confirm(non-admin only), success=5
@@ -139,6 +159,14 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [email, setEmail] = useState("");
   const [roleType, setRoleType] = useState<StaffRoleType>("company_staff");
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
+  const [permSearch, setPermSearch] = useState("");
+  const economicLevel = detectEconomicLevel(permissions);
+  const filterWizardSections = (sections: PermissionSectionDef[]) => {
+    const q = permSearch.trim().toLowerCase();
+    return sections
+      .filter((s) => !WIZARD_ECON_KEYS.has(s.viewKey))
+      .filter((s) => !q || s.label.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q));
+  };
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [password, setPassword] = useState("");
@@ -455,78 +483,139 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
             </div>
           )}
 
-          {/* STEP 3: Permissions (non-admin) or Confirm (admin) */}
+          {/* STEP 3: Permissions (non-admin) or Confirm (admin) — stesso
+              linguaggio della scheda utente (UserRolesPermissionsTab):
+              livelli economici, blocchi visibilità, ricerca, descrizioni. */}
           {step === 3 && showPermissions && (
             <div className="space-y-3 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="outline" size="sm" onClick={handleSelectAll}>Seleziona tutto</Button>
-                  <Button variant="outline" size="sm" onClick={handleDeselectAll}>Deseleziona tutto</Button>
-                  <Button variant="outline" size="sm" onClick={handleResetPreset}>
-                    Ripristina preset {ROLE_LABELS[roleType]}
-                  </Button>
+              {/* Visibilità dati economici — modello a 3 livelli condiviso */}
+              <div className="rounded-lg border bg-gradient-to-br from-emerald-50/60 to-transparent dark:from-emerald-950/20 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Euro className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-tight">Visibilità dati economici</p>
+                    <p className="text-xs text-muted-foreground">Cosa vede su commesse, lista, preventivi e PDF.</p>
+                  </div>
                 </div>
-                <Badge variant="outline">{totalActive} attivi</Badge>
-              </div>
-
-              <PermGroup label="Cruscotto" icon={Building2} iconColor="text-indigo-600"
-                sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Cantieri & Lavori" icon={LayoutDashboard} iconColor="text-blue-600"
-                sections={CANTIERI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Finanza" icon={Building2} iconColor="text-emerald-600"
-                sections={FINANZA_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Persone" icon={Building2} iconColor="text-amber-600"
-                sections={PERSONE_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Marketing & Vendita" icon={Megaphone} iconColor="text-purple-600"
-                sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Automazioni & AI" icon={Building2} iconColor="text-orange-600"
-                sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-              <PermGroup label="Impostazioni" icon={Settings} iconColor="text-slate-600"
-                sections={IMPOSTAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-
-              <Separator />
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label htmlFor="wiz-only_assigned" className="font-medium cursor-pointer">Solo elementi assegnati</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Se attivo, l'utente vedrà SOLO ordini, attività e appuntamenti assegnati a lui.
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {ECONOMIC_LEVELS.map((lvl) => {
+                    const active = economicLevel === lvl.id;
+                    return (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        onClick={() => setPermissions((prev) => ({ ...prev, ...lvl.values }))}
+                        className={`text-left rounded-lg border p-2.5 transition-all ${
+                          active
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/40"
+                            : "hover:bg-muted/50 border-border"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {active && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                          <span className="text-sm font-medium">{lvl.label}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{lvl.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {economicLevel === "custom" && (
+                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                    <Info className="h-3 w-3 shrink-0" /> Combinazione personalizzata — regola i singoli interruttori qui sotto.
                   </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {([
+                    { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
+                    { key: "can_view_costs" as const, label: "Costi" },
+                    { key: "can_view_margins" as const, label: "Margini" },
+                  ]).map((t) => (
+                    <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
+                      <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
+                      <span className="text-xs font-medium">{t.label}</span>
+                    </label>
+                  ))}
                 </div>
-                <Switch
-                  id="wiz-only_assigned"
-                  checked={permissions.only_assigned}
-                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
-                />
               </div>
 
-              {/* Visibilità sul team — trasversale come only_assigned */}
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label htmlFor="wiz-team_tasks" className="font-medium cursor-pointer">Attività del team</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie.
-                  </p>
+              {/* Limita visibilità + visibilità sul team */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="wiz-only_assigned" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
+                      <EyeOff className="h-4 w-4" /> Limita visibilità ai dati assegnati
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Se attivo, vedrà solo ordini, attività e appuntamenti assegnati a lui.</p>
+                  </div>
+                  <Switch
+                    id="wiz-only_assigned"
+                    checked={permissions.only_assigned}
+                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
+                  />
                 </div>
-                <Switch
-                  id="wiz-team_tasks"
-                  checked={permissions.can_view_team_tasks}
-                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
-                />
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label htmlFor="wiz-team_calendar" className="font-medium cursor-pointer">Calendario del team</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri.
-                  </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="wiz-team_tasks" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
+                      <Users2 className="h-4 w-4" /> Attività del team
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Vede le attività (task) di tutto il team; spento vede solo le proprie.</p>
+                  </div>
+                  <Switch
+                    id="wiz-team_tasks"
+                    checked={permissions.can_view_team_tasks}
+                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
+                  />
                 </div>
-                <Switch
-                  id="wiz-team_calendar"
-                  checked={permissions.can_view_all_team_calendar}
-                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
-                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="wiz-team_calendar" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
+                      <Users2 className="h-4 w-4" /> Calendario del team
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri.</p>
+                  </div>
+                  <Switch
+                    id="wiz-team_calendar"
+                    checked={permissions.can_view_all_team_calendar}
+                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
+                  />
+                </div>
               </div>
+
+              {/* Toolbar: ricerca + azioni rapide + contatore */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca modulo…"
+                    value={permSearch}
+                    onChange={(e) => setPermSearch(e.target.value)}
+                    className="pl-8 h-9"
+                  />
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleSelectAll}>
+                  <Check className="h-3.5 w-3.5 mr-1" /> Tutti
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleDeselectAll}>
+                  <X className="h-3.5 w-3.5 mr-1" /> Nessuno
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleResetPreset}>
+                  Preset {ROLE_LABELS[roleType]}
+                </Button>
+                <Badge variant="outline" className="ml-auto tabular-nums">{totalActive} attivi</Badge>
+              </div>
+
+              {WIZARD_GROUPS.map((g) => {
+                const sections = filterWizardSections(g.sections);
+                if (sections.length === 0) return null;
+                return (
+                  <PermGroup key={g.label} label={g.label} icon={g.icon} iconColor={g.iconColor}
+                    sections={sections} permissions={permissions} onToggle={handleToggle} />
+                );
+              })}
+              {permSearch.trim() !== "" && WIZARD_GROUPS.every((g) => filterWizardSections(g.sections).length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-6">Nessun modulo corrisponde a "{permSearch}".</p>
+              )}
 
               <Separator />
 

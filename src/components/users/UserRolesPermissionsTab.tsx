@@ -31,7 +31,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS, ROLE_PRESETS, type BooleanPermissionKey } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ROLE_PRESETS, ECONOMIC_LEVELS, detectEconomicLevel, type BooleanPermissionKey } from "@/components/users/permissionsDefaults";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -182,24 +182,9 @@ const ECONOMIC_KEYS: (keyof StaffPermissions)[] = [
 ];
 const ECONOMIC_KEY_SET = new Set<keyof StaffPermissions>(ECONOMIC_KEYS);
 
-type EconomicLevelId = "operativo" | "commerciale" | "pieno";
-const ECONOMIC_LEVELS: {
-  id: EconomicLevelId;
-  label: string;
-  desc: string;
-  values: Record<"can_view_order_amounts" | "can_view_costs" | "can_view_margins", boolean>;
-}[] = [
-  { id: "operativo",   label: "Operativo",   desc: "Conteggi, date, articoli e stati. Nessun importo, costo o margine.", values: { can_view_order_amounts: false, can_view_costs: false, can_view_margins: false } },
-  { id: "commerciale", label: "Commerciale", desc: "Vede importi di vendita e incassi, ma NON costi né margini.",        values: { can_view_order_amounts: true,  can_view_costs: false, can_view_margins: false } },
-  { id: "pieno",       label: "Pieno",       desc: "Vede importi, costi e margini su commesse, lista e PDF.",             values: { can_view_order_amounts: true,  can_view_costs: true,  can_view_margins: true } },
-];
-function detectEconomicLevel(p: StaffPermissions): EconomicLevelId | "custom" {
-  for (const lvl of ECONOMIC_LEVELS) {
-    const keys = Object.keys(lvl.values) as (keyof typeof lvl.values)[];
-    if (keys.every((k) => !!p[k] === lvl.values[k])) return lvl.id;
-  }
-  return "custom";
-}
+// ECONOMIC_LEVELS/detectEconomicLevel vivono in permissionsDefaults,
+// condivisi col CreateUserWizard (stesso selettore in creazione e gestione).
+
 // Le 3 chiavi economiche hanno un blocco dedicato → escludile dalle categorie
 // generiche per non avere doppi controlli (né doppio conteggio).
 const VISIBLE_CATEGORIES: PermissionCategory[] = PERMISSION_CATEGORIES.map((c) => ({

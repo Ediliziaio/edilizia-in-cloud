@@ -64,6 +64,32 @@ export interface PermissionSectionDef {
   label: string;
   viewKey: BooleanPermissionKey;
   editKey: BooleanPermissionKey | null;
+  /** Una riga di spiegazione mostrata sotto la label nelle dialog permessi. */
+  description?: string;
+}
+
+// ─── Visibilità dati economici (modello a 3 livelli) ───────────────────────
+// Condiviso tra UserRolesPermissionsTab e CreateUserWizard: un solo posto
+// dove vive la semantica Operativo/Commerciale/Pieno.
+export type EconomicLevelId = "operativo" | "commerciale" | "pieno";
+
+export const ECONOMIC_LEVELS: {
+  id: EconomicLevelId;
+  label: string;
+  desc: string;
+  values: Record<"can_view_order_amounts" | "can_view_costs" | "can_view_margins", boolean>;
+}[] = [
+  { id: "operativo",   label: "Operativo",   desc: "Conteggi, date, articoli e stati. Nessun importo, costo o margine.", values: { can_view_order_amounts: false, can_view_costs: false, can_view_margins: false } },
+  { id: "commerciale", label: "Commerciale", desc: "Vede importi di vendita e incassi, ma NON costi né margini.",        values: { can_view_order_amounts: true,  can_view_costs: false, can_view_margins: false } },
+  { id: "pieno",       label: "Pieno",       desc: "Vede importi, costi e margini su commesse, lista e PDF.",             values: { can_view_order_amounts: true,  can_view_costs: true,  can_view_margins: true } },
+];
+
+export function detectEconomicLevel(p: StaffPermissions): EconomicLevelId | "custom" {
+  for (const lvl of ECONOMIC_LEVELS) {
+    const keys = Object.keys(lvl.values) as (keyof typeof lvl.values)[];
+    if (keys.every((k) => !!p[k] === lvl.values[k])) return lvl.id;
+  }
+  return "custom";
 }
 
 /** Chiavi permesso a valore boolean (esclude visible_areas: string[]).
@@ -76,83 +102,83 @@ export type BooleanPermissionKey = {
 // ─── 7 macro-aree allineate alla sidebar ───────────────────────────────────
 
 export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
-  { label: "Cruscotto Aziendale",    viewKey: "can_view_cruscotto",            editKey: null },
-  { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null },
+  { label: "Cruscotto Aziendale",    viewKey: "can_view_cruscotto",            editKey: null, description: "Centro di controllo executive unificato" },
+  { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null, description: "Direzione & bilancio: conto economico, KPI, tesoreria (CFO)" },
 ];
 
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null },
-  { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders" },
-  { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null },
-  { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null },
-  { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null },
-  { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: "can_edit_warehouse" },
-  { label: "Gestione Articoli",      viewKey: "can_manage_warehouse_items",  editKey: null },
-  { label: "Calendario",             viewKey: "can_view_calendar",           editKey: null },
-  { label: "Clienti",                viewKey: "can_view_customers",          editKey: "can_edit_customers" },
-  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null },
-  { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: "can_edit_tickets" },
-  { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null },
-  { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null },
-  { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null },
-  { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null },
-  { label: "Firma Elettronica (FEA)", viewKey: "can_view_firma_elettronica",  editKey: null },
+  { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null, description: "Visualizza la dashboard principale" },
+  { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders", description: "Gestisci ordini e commesse" },
+  { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null, description: "Vede importi e prezzi di vendita in commesse e preventivi" },
+  { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null, description: "Può approvare ordini e commesse" },
+  { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null, description: "Può eliminare ordini e commesse" },
+  { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: "can_edit_warehouse", description: "Gestisci inventario e movimenti" },
+  { label: "Gestione Articoli",      viewKey: "can_manage_warehouse_items",  editKey: null, description: "Gestisci articoli e listino magazzino" },
+  { label: "Calendario",             viewKey: "can_view_calendar",           editKey: null, description: "Visualizza e gestisci il calendario" },
+  { label: "Clienti",                viewKey: "can_view_customers",          editKey: "can_edit_customers", description: "Gestisci anagrafica clienti" },
+  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Esporta l'anagrafica clienti in CSV" },
+  { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: "can_edit_tickets", description: "Gestisci ticket di supporto" },
+  { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null, description: "Gestisci interventi tecnici pianificati" },
+  { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null, description: "Gestisci piani di manutenzione programmata" },
+  { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null, description: "Accesso al modulo sicurezza e PSC" },
+  { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
+  { label: "Firma Elettronica (FEA)", viewKey: "can_view_firma_elettronica",  editKey: null, description: "Modulo firma elettronica avanzata (cantieri e CRM)" },
 ];
 
 export const FINANZA_SECTIONS: PermissionSectionDef[] = [
-  { label: "Fatturazione",               viewKey: "can_view_billing",           editKey: null },
-  { label: "Scadenzario",                viewKey: "can_view_scadenzario",       editKey: null },
-  { label: "Tesoreria",                  viewKey: "can_view_tesoreria",         editKey: null },
-  { label: "Prima Nota e Contabilità",   viewKey: "can_view_prima_nota",        editKey: null },
-  { label: "Costi",                      viewKey: "can_view_costs",             editKey: null },
-  { label: "Previsionale",               viewKey: "can_view_forecast",          editKey: null },
-  { label: "Report Finanziari",          viewKey: "can_view_financial_reports", editKey: null },
-  { label: "Visualizza Margini",         viewKey: "can_view_margins",           editKey: null },
-  { label: "Gestione Pagamenti",         viewKey: "can_manage_payments",        editKey: null },
-  { label: "Gestione Fornitori",         viewKey: "can_manage_suppliers",       editKey: null },
+  { label: "Fatturazione",               viewKey: "can_view_billing",           editKey: null, description: "Fatture, note di credito e documenti fiscali" },
+  { label: "Scadenzario",                viewKey: "can_view_scadenzario",       editKey: null, description: "Scadenze attive e passive" },
+  { label: "Tesoreria",                  viewKey: "can_view_tesoreria",         editKey: null, description: "Conti bancari, saldi e riconciliazione" },
+  { label: "Prima Nota e Contabilità",   viewKey: "can_view_prima_nota",        editKey: null, description: "Registrazioni di prima nota" },
+  { label: "Costi",                      viewKey: "can_view_costs",             editKey: null, description: "Costi aziendali e per commessa" },
+  { label: "Previsionale",               viewKey: "can_view_forecast",          editKey: null, description: "Proiezioni di cassa e previsionale" },
+  { label: "Report Finanziari",          viewKey: "can_view_financial_reports", editKey: null, description: "Report e analisi finanziarie" },
+  { label: "Visualizza Margini",         viewKey: "can_view_margins",           editKey: null, description: "Margini per commessa, lista e PDF" },
+  { label: "Gestione Pagamenti",         viewKey: "can_manage_payments",        editKey: null, description: "Registra incassi e pagamenti" },
+  { label: "Gestione Fornitori",         viewKey: "can_manage_suppliers",       editKey: null, description: "Anagrafica e rapporti fornitori" },
 ];
 
 export const PERSONE_SECTIONS: PermissionSectionDef[] = [
-  { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone",          editKey: null },
-  { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null },
-  { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null },
-  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: "can_edit_giornale_lavori" },
-  { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null },
-  { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null },
+  { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone",          editKey: null, description: "HR, chat team e messaggi interni" },
+  { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null, description: "Schede dipendenti e presenze" },
+  { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null, description: "Elenco utenti e ruoli del team" },
+  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: "can_edit_giornale_lavori", description: "Rapportini e giornale lavori di cantiere" },
+  { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null, description: "Accede ai corsi assegnati" },
+  { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null, description: "Crea e gestisce corsi e portali formativi" },
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
-  { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null },
-  { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts" },
-  { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities" },
-  { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: "can_edit_preventivi" },
-  { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null },
-  { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null },
-  { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null },
-  { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null },
-  { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null },
-  { label: "SMS Marketing",           viewKey: "can_view_sms_marketing",            editKey: null },
-  { label: "WhatsApp",                viewKey: "can_view_marketing_whatsapp",       editKey: null },
-  { label: "Sales OS",                viewKey: "can_view_sales_os",                 editKey: null },
-  { label: "Reportistica Marketing",  viewKey: "can_view_marketing_reports",        editKey: null },
-  { label: "Reputazione",             viewKey: "can_view_reputazione",              editKey: null },
+  { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null, description: "KPI e panoramica marketing" },
+  { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts", description: "Anagrafica contatti e lead" },
+  { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities", description: "Pipeline e trattative di vendita" },
+  { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: "can_edit_preventivi", description: "Preventivi CRM e invio in firma" },
+  { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null, description: "Può approvare/impostare sconti oltre soglia" },
+  { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null, description: "Sopralluoghi tecnici pre-vendita" },
+  { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null, description: "Attività e task commerciali" },
+  { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null, description: "Appuntamenti e calendario CRM" },
+  { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null, description: "Campagne e caselle email" },
+  { label: "SMS Marketing",           viewKey: "can_view_sms_marketing",            editKey: null, description: "Campagne SMS" },
+  { label: "WhatsApp",                viewKey: "can_view_marketing_whatsapp",       editKey: null, description: "Hub WhatsApp e conversazioni" },
+  { label: "Sales OS",                viewKey: "can_view_sales_os",                 editKey: null, description: "Cruscotto vendite e obiettivi" },
+  { label: "Reportistica Marketing",  viewKey: "can_view_marketing_reports",        editKey: null, description: "Report vendite e marketing" },
+  { label: "Reputazione",             viewKey: "can_view_reputazione",              editKey: null, description: "Recensioni e reputazione online" },
 ];
 
 export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Automazioni",  viewKey: "can_view_automazioni",          editKey: null },
-  { label: "Agenti AI",    viewKey: "can_view_marketing_ai_agent",   editKey: null },
-  { label: "Render AI",    viewKey: "can_view_render_ai",            editKey: null },
+  { label: "Automazioni",  viewKey: "can_view_automazioni",          editKey: null, description: "Flussi automatici e trigger" },
+  { label: "Agenti AI",    viewKey: "can_view_marketing_ai_agent",   editKey: null, description: "Agenti AI (Silvio e assistenti)" },
+  { label: "Render AI",    viewKey: "can_view_render_ai",            editKey: null, description: "Render fotorealistici AI" },
 ];
 
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile" },
-  { label: "Listino & Prezzi",       viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
-  { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
-  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
-  { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers" },
-  { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
-  { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations" },
-  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null },
+  { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Dati aziendali e anagrafica" },
+  { label: "Listino & Prezzi",       viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing", description: "Listini, famiglie e prezzi" },
+  { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Logo, colori e template documenti" },
+  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati, numerazioni e campi commesse" },
+  { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers", description: "Configurazione fornitori" },
+  { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people", description: "Gestione utenti e permessi" },
+  { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations", description: "Banche, email, WhatsApp e integrazioni" },
+  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null, description: "Sessioni, log e sicurezza" },
 ];
 
 // ─── Visibilità sul team (trasversale, NON un modulo) ──────────────────────
@@ -324,9 +350,10 @@ export function syncLegacyMarketingFlags(perms: StaffPermissions): StaffPermissi
  */
 export function buildStaffPermissionsUpdate(permissions: StaffPermissions): StaffPermissions {
   const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
-  const base = {} as StaffPermissions;
+  const base: Partial<StaffPermissions> = {};
   for (const key of allowedKeys) {
-    (base as Record<string, unknown>)[key] = permissions[key] ?? DEFAULT_PERMISSIONS[key];
+    (base as Record<keyof StaffPermissions, StaffPermissions[keyof StaffPermissions]>)[key] =
+      permissions[key] ?? DEFAULT_PERMISSIONS[key];
   }
-  return syncLegacySettingsFlags(syncLegacyMarketingFlags(base));
+  return syncLegacySettingsFlags(syncLegacyMarketingFlags(base as StaffPermissions));
 }

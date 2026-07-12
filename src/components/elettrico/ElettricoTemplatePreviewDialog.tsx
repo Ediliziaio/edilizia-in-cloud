@@ -43,6 +43,7 @@ function buildMockProgetto(companyId: string): EleProgetto {
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
+    numero_punti: 42, livello_impianto: "Livello 2", massimale_detrazione: null,
     opportunita_id: null, cliente_id: null, template_id: null,
     sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
     totale_imponibile: 0, totale: 0, note: null,
