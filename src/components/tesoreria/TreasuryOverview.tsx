@@ -133,10 +133,15 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         console.error("[TreasuryOverview] Errore cash flow:", cashFlowRes.error.message);
       } else {
         setCashFlow(
-          (cashFlowRes.data || []).map((row: any) => ({
-            ...row,
-            label: monthLabels[row.month?.split("-")[1]] || row.month,
-          }))
+          (cashFlowRes.data || [])
+            // Ordine ascendente garantito localmente: i delta "vs mese prec."
+            // e le sparkline assumono ultimo elemento = mese corrente.
+            .slice()
+            .sort((a: any, b: any) => String(a.month).localeCompare(String(b.month)))
+            .map((row: any) => ({
+              ...row,
+              label: monthLabels[row.month?.split("-")[1]] || row.month,
+            }))
         );
       }
 
@@ -152,8 +157,10 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         setRecentTxs(txRes.data || []);
       }
 
-      if (trendRes.error) {
-        console.error("[TreasuryOverview] Errore trend saldo:", trendRes.error.message);
+      if (trendRes.error || summaryRes.error) {
+        // Senza il saldo attuale (summary) la serie sarebbe ancorata a 0 →
+        // grafico fuorviante: meglio nasconderlo.
+        if (trendRes.error) console.error("[TreasuryOverview] Errore trend saldo:", trendRes.error.message);
         setSaldoTrend([]);
       } else {
         // Somma per giorno, poi cumulata a ritroso: l'ultimo punto è il saldo di oggi.
@@ -278,7 +285,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       {/* KPI — stesso linguaggio dell'header di pagina: tile gradiente, card
           rounded-2xl con velo tinto, delta vs mese precedente e sparkline. */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4">
-        {kpis.map((kpi) => (
+        {kpis.map((kpi, kpiIdx) => (
           <div key={kpi.title} className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card ${kpi.tint} p-4 shadow-sm`}>
             <div className="flex items-center gap-2.5">
               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${kpi.tile} text-white`}>
@@ -297,12 +304,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={kpi.spark} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
                     <defs>
-                      <linearGradient id={`spark-${kpi.title}`} x1="0" y1="0" x2="0" y2="1">
+                      {/* id senza spazi: url(#…) con spazi non risolve in SVG */}
+                      <linearGradient id={`tsy-spark-${kpiIdx}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={kpi.sparkColor} stopOpacity={0.35} />
                         <stop offset="100%" stopColor={kpi.sparkColor} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <Area type="monotone" dataKey="v" stroke={kpi.sparkColor} strokeWidth={1.5} fill={`url(#spark-${kpi.title})`} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="v" stroke={kpi.sparkColor} strokeWidth={1.5} fill={`url(#tsy-spark-${kpiIdx})`} isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

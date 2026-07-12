@@ -1326,8 +1326,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   };
 
   const selectAll = () => {
-    if (selectedIds.size === filteredTasks.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(filteredTasks.map((t: any) => t.id)));
+    // Solo le task gestibili: chi ha la visione team (non admin) vede anche
+    // task altrui in sola lettura — selezionarle gonfierebbe i conteggi bulk
+    // mentre le mutation (assigned_to = me) le salterebbero in silenzio.
+    const selectable = filteredTasks.filter((t: any) => isAdmin || t.assigned_to === user?.id);
+    if (selectedIds.size === selectable.length && selectable.length > 0) setSelectedIds(new Set());
+    else setSelectedIds(new Set(selectable.map((t: any) => t.id)));
   };
 
   const toggleGroup = (key: string) => {
