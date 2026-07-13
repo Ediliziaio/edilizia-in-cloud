@@ -64,7 +64,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 
-const PERMISSION_CATEGORIES: PermissionCategory[] = [
+export const PERMISSION_CATEGORIES: PermissionCategory[] = [
   {
     id: "cruscotto",
     label: "Cruscotto",
@@ -102,7 +102,9 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     label: "Finanza",
     icon: Euro,
     modules: [
-      { id: "billing",          label: "Fatturazione e Scadenzario", description: "Fatture, scadenzario e tesoreria",        viewKey: "can_view_billing",           includes: ["Scadenzario", "Tesoreria"] },
+      { id: "billing",          label: "Fatturazione",               description: "Fatture e documenti fiscali",             viewKey: "can_view_billing" },
+      { id: "scadenzario",      label: "Scadenzario",                description: "Scadenze attive e passive",               viewKey: "can_view_scadenzario" },
+      { id: "tesoreria",        label: "Tesoreria",                  description: "Conti correnti e movimenti bancari",      viewKey: "can_view_tesoreria" },
       { id: "prima-nota",       label: "Prima Nota e Contabilità",   description: "Registrazioni contabili",                 viewKey: "can_view_prima_nota" },
       { id: "costs",            label: "Costi",                      description: "Gestione e analisi costi",                viewKey: "can_view_costs" },
       { id: "forecast",         label: "Previsionale",               description: "Previsioni finanziarie e ordini acquisto", viewKey: "can_view_forecast",          includes: ["Ordini Acquisto"] },
@@ -162,7 +164,10 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: SettingsIcon,
     modules: [
       { id: "settings-profile",   label: "Profilo Aziendale",     description: "Anagrafica, logo, dati fiscali e portale clienti",                                            viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile" },
-      { id: "settings-pricing",   label: "Listino & Prezzi",      description: "Listino prodotti, tariffe, bundle, scontistica, finanziamenti e materiali/template preventivi", viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
+      { id: "settings-pricing",   label: "Listino & Prezzi (tutto)", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto",                   viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
+      { id: "settings-scontistica",   label: "Regole scontistica",  description: "Solo fasce sconto e limiti venditori, senza toccare il listino",                             viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica" },
+      { id: "settings-finanziamenti", label: "Finanziamenti",       description: "Solo finanziarie, tassi e rate",                                                              viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti" },
+      { id: "settings-bundle",        label: "Bundle & Pacchetti",  description: "Solo pacchetti chiavi-in-mano",                                                               viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle" },
       { id: "settings-custom",    label: "Branding & Template",   description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI",                 viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
       { id: "settings-orders",    label: "Configurazione Ordini", description: "Stati ordine e codici QR",                                                                    viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
       { id: "settings-suppliers", label: "Fornitori",             description: "Anagrafica fornitori",                                                                        viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers" },
