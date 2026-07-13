@@ -145,30 +145,27 @@ Deno.serve(async (req) => {
       return errorResponse("La password deve avere almeno 8 caratteri");
     }
 
-    // Resolve trial_days from selected plan (default 14 if no plan or field missing)
+    // Resolve trial_days from selected plan (default 14 if no plan or field missing).
+    // Piani a prezzo zero (Scopri, Marketing): l'azienda parte "free" senza scadenza
+    // prova. Il Piano Marketing in più è regalato per definizione (lo dà il gestore
+    // ai suoi clienti marketing) → payment_method "comped", così il gate di
+    // attivazione fatturazione non blocca il cliente al primo accesso.
     let trialDays = 14;
+    let isFreePlan = false;
+    let isCompedPlan = false;
     if (planId) {
       const { data: planData } = await supabaseAdmin
         .from("subscription_plans")
-        .select("trial_days")
+        .select("slug, trial_days, price_monthly")
         .eq("id", planId)
         .maybeSingle();
       if (planData?.trial_days != null) {
         trialDays = planData.trial_days;
       }
+      isFreePlan = planData?.slug === "scopri" || Number(planData?.price_monthly ?? -1) === 0;
+      isCompedPlan = planData?.slug === "marketing";
     }
     const trialEndsAt = new Date(Date.now() + trialDays * 86400 * 1000).toISOString();
-
-    // Check if the selected plan is the free Scopri plan
-    let isScopriPlan = false;
-    if (planId) {
-      const { data: scopriCheck } = await supabaseAdmin
-        .from("subscription_plans")
-        .select("slug")
-        .eq("id", planId)
-        .maybeSingle();
-      isScopriPlan = scopriCheck?.slug === "scopri";
-    }
 
     // Create company
     const { data: companyData, error: companyError } = await supabaseAdmin
@@ -193,9 +190,10 @@ Deno.serve(async (req) => {
         operational_city: operationalCity || null,
         operational_province: operationalProvince || null,
         operational_postal_code: operationalPostalCode || null,
-        status: isScopriPlan ? "free" : "trial",
-        trial_ends_at: isScopriPlan ? null : trialEndsAt,
+        status: isFreePlan ? "free" : "trial",
+        trial_ends_at: isFreePlan ? null : trialEndsAt,
         subscription_plan_id: planId || null,
+        ...(isCompedPlan ? { payment_method: "comped" } : {}),
       })
       .select()
       .single();
