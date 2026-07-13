@@ -48,6 +48,7 @@ import {
   Building2,
   Plus,
   Wallet,
+  Zap, Wrench, CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
@@ -3001,6 +3002,29 @@ function Step5Configurazione({
 }) {
   // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
   const [extraSearch, setExtraSearch] = useState("");
+
+  // ── Composizione offerta: Kit pronto vs configurazione manuale ──
+  const kitDisponibili = kitFv.filter((k) => k.attivo && k.fv_kwp != null);
+  const [modalitaOfferta, setModalitaOfferta] = useState<"kit" | "manuale">(
+    data.kit_bundle_id ? "kit" : "manuale",
+  );
+  const applicaKit = (k: Bundle) => {
+    update("kit_bundle_id", k.id);
+    update("kit_nome", k.nome);
+    update("kit_prezzo", k.prezzo_offerta ?? null);
+    if (k.fv_kwp != null) {
+      update("potenza_kwp", Number(k.fv_kwp));
+      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / 540)));
+    }
+    const acc = Number(k.fv_accumulo_kwh ?? 0);
+    update("con_accumulo", acc > 0);
+    update("capacita_accumulo_kwh", acc);
+  };
+  const rimuoviKit = () => {
+    update("kit_bundle_id", null);
+    update("kit_nome", null);
+    update("kit_prezzo", null);
+  };
   const { data: listinoExtra = [] } = useListinoPerFv(extraSearch);
 
   const aggiungiExtra = (l: { id: string; nome: string | null; descrizione: string | null; prezzo: number | null; prezzo_acquisto: number | null }) => {
@@ -3136,81 +3160,97 @@ function Step5Configurazione({
         </div>
       )}
 
-      {/* Kit/offerta dal listino (Bundle FV): prefill potenza + accumulo + prezzo */}
-      {kitFv.some((k) => k.attivo && k.fv_kwp != null) && (
+      {/* ── Composizione offerta: scelta esplicita Kit pronto vs manuale ── */}
+      {kitDisponibili.length > 0 && (
         <div className="mb-4">
-          <FvCard title="Parti da un kit / offerta del listino">
-            {data.kit_bundle_id ? (
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-sm">
-                  <span className="font-semibold text-emerald-700">{data.kit_nome}</span>
-                  <span className="text-slate-600">
-                    {" "}· {data.potenza_kwp} kWp
-                    {data.con_accumulo && data.capacita_accumulo_kwh > 0
-                      ? ` · ${data.capacita_accumulo_kwh} kWh`
-                      : ""}
-                    {data.kit_prezzo != null
-                      ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(data.kit_prezzo)}`
-                      : ""}
+          <FvCard title="Composizione offerta">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={readOnlyMode}
+                onClick={() => setModalitaOfferta("kit")}
+                className={`text-left rounded-xl border-2 p-4 transition-all ${
+                  modalitaOfferta === "kit"
+                    ? "border-orange-400 bg-orange-50 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-semibold text-slate-900">
+                  <Zap className={`h-4 w-4 ${modalitaOfferta === "kit" ? "text-orange-500" : "text-slate-400"}`} />
+                  Kit pronti dal listino
+                  <span className="ml-auto text-[11px] font-bold text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">
+                    {kitDisponibili.length}
                   </span>
                 </div>
-                {!readOnlyMode && (
-                  <button
-                    type="button"
-                    className="text-xs text-slate-500 underline hover:text-slate-700"
-                    onClick={() => {
-                      update("kit_bundle_id", null);
-                      update("kit_nome", null);
-                      update("kit_prezzo", null);
-                    }}
-                  >
-                    Rimuovi kit / configura manualmente
-                  </button>
-                )}
+                <p className="text-xs text-slate-500 mt-1">Potenza, accumulo e prezzo già impostati: un click e l'offerta è pronta.</p>
+              </button>
+              <button
+                type="button"
+                disabled={readOnlyMode}
+                onClick={() => {
+                  setModalitaOfferta("manuale");
+                  if (data.kit_bundle_id) rimuoviKit();
+                }}
+                className={`text-left rounded-xl border-2 p-4 transition-all ${
+                  modalitaOfferta === "manuale"
+                    ? "border-orange-400 bg-orange-50 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-semibold text-slate-900">
+                  <Wrench className={`h-4 w-4 ${modalitaOfferta === "manuale" ? "text-orange-500" : "text-slate-400"}`} />
+                  Configurazione manuale
+                </div>
+                <p className="text-xs text-slate-500 mt-1">Scegli pannello, inverter e accumulo dal catalogo: la potenza si calcola dai moduli.</p>
+              </button>
+            </div>
+
+            {modalitaOfferta === "kit" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {kitDisponibili.map((k) => {
+                  const selected = data.kit_bundle_id === k.id;
+                  return (
+                    <button
+                      key={k.id}
+                      type="button"
+                      disabled={readOnlyMode}
+                      onClick={() => (selected ? rimuoviKit() : applicaKit(k))}
+                      className={`relative text-left rounded-xl border-2 p-4 transition-all ${
+                        selected
+                          ? "border-emerald-400 bg-emerald-50 shadow-md"
+                          : "border-slate-200 bg-white hover:border-orange-300 hover:shadow-sm"
+                      }`}
+                    >
+                      {selected && (
+                        <CheckCircle2 className="absolute top-3 right-3 h-5 w-5 text-emerald-600" />
+                      )}
+                      <p className="font-semibold text-sm text-slate-900 pr-6">{k.nome}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 rounded px-1.5 py-0.5">
+                          {Number(k.fv_kwp).toLocaleString("it-IT")} kWp
+                        </span>
+                        {Number(k.fv_accumulo_kwh ?? 0) > 0 && (
+                          <span className="text-[11px] font-semibold bg-sky-100 text-sky-700 rounded px-1.5 py-0.5">
+                            {Number(k.fv_accumulo_kwh).toLocaleString("it-IT")} kWh
+                          </span>
+                        )}
+                      </div>
+                      {k.prezzo_offerta != null && (
+                        <p className="mt-2 text-lg font-extrabold text-slate-900">
+                          {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(k.prezzo_offerta))}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-slate-400 mt-1">{selected ? "Selezionato — click per rimuovere" : "Click per applicare"}</p>
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              <div className="flex items-center gap-3 flex-wrap">
-                <p className="text-sm text-slate-600 flex-1 min-w-[200px]">
-                  Scegli un kit pronto: imposta automaticamente potenza, accumulo e prezzo. Le fasi successive usano il prezzo del kit.
-                </p>
-                <Select
-                  value=""
-                  disabled={readOnlyMode}
-                  onValueChange={(id) => {
-                    const k = kitFv.find((b) => b.id === id);
-                    if (!k) return;
-                    update("kit_bundle_id", k.id);
-                    update("kit_nome", k.nome);
-                    update("kit_prezzo", k.prezzo_offerta ?? null);
-                    if (k.fv_kwp != null) {
-                      update("potenza_kwp", Number(k.fv_kwp));
-                      // Deriva il n° moduli dal kWp del kit (pannello rif. 540 W) così
-                      // l'array/layout e i KPI sono coerenti con il kit scelto.
-                      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / 540)));
-                    }
-                    const acc = Number(k.fv_accumulo_kwh ?? 0);
-                    update("con_accumulo", acc > 0);
-                    update("capacita_accumulo_kwh", acc);
-                  }}
-                >
-                  <SelectTrigger className="w-[280px]">
-                    <SelectValue placeholder="Scegli un kit…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kitFv
-                      .filter((k) => k.attivo && k.fv_kwp != null)
-                      .map((k) => (
-                        <SelectItem key={k.id} value={k.id}>
-                          {k.nome} — {k.fv_kwp} kWp
-                          {k.fv_accumulo_kwh ? ` + ${k.fv_accumulo_kwh} kWh` : ""}
-                          {k.prezzo_offerta != null
-                            ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(k.prezzo_offerta))}`
-                            : ""}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            )}
+
+            {modalitaOfferta === "manuale" && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Componi l'impianto con le sezioni qui sotto: pannello, inverter, accumulo e servizi. La potenza si aggiorna dal numero di moduli scelti.
+              </p>
             )}
           </FvCard>
         </div>
