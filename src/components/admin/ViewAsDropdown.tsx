@@ -220,7 +220,7 @@ export function ViewAsDropdown() {
       const ROUTE_MAP: Partial<Record<AppRole, { subdomain: string; basePath: string }>> = {
         employee:      { subdomain: "lavori", basePath: "/campo" },
         subcontractor: { subdomain: "lavori", basePath: "/campo" },
-        salesperson:   { subdomain: "app",    basePath: "/venditore" },
+        salesperson:   { subdomain: "app",    basePath: "/azienda" },
       };
       const route = ROUTE_MAP[u.role];
       if (!route) {

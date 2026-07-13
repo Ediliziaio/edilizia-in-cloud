@@ -103,7 +103,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   customer: "/cliente",
   employee: "/campo",
   subcontractor: "/campo",
-  salesperson: "/venditore",
+  salesperson: "/azienda",
   referrer: "/partner",
   accountant: "/commercialista",
   platform_manager: "/admin",

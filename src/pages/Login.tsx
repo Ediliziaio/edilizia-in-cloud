@@ -123,7 +123,8 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
       case "subcontractor":
         return <Navigate to="/campo" replace />;
       case "salesperson":
-        return <Navigate to="/venditore" replace />;
+        // Portale /venditore eliminato: app azienda normale, permessi alla mano
+        return <Navigate to="/azienda/attivita" replace />;
       case "referrer":
         return <Navigate to="/partner" replace />;
       case "accountant":

@@ -8,6 +8,10 @@ describe("company app home redirects", () => {
     expect(getRoleHomePath("company_staff")).toBe("/azienda/attivita");
     expect(getRoleHomePath("call_center")).toBe("/azienda/attivita");
     expect(getRoleHomePath("multi_company_user")).toBe("/azienda/attivita");
+    // 13/7/2026: portale /venditore ELIMINATO — il venditore entra nell'app
+    // azienda normale coi soli moduli dei suoi permessi. Guardia di
+    // regressione: non deve MAI tornare "/venditore".
+    expect(getRoleHomePath("salesperson")).toBe("/azienda/attivita");
   });
 
   it("mantiene separate le altre aree operative", () => {
@@ -16,7 +20,6 @@ describe("company app home redirects", () => {
     expect(getRoleHomePath("customer")).toBe("/cliente");
     expect(getRoleHomePath("employee")).toBe("/campo");
     expect(getRoleHomePath("subcontractor")).toBe("/campo");
-    expect(getRoleHomePath("salesperson")).toBe("/venditore");
     expect(getRoleHomePath("referrer")).toBe("/partner");
     expect(getRoleHomePath("accountant")).toBe("/commercialista");
   });

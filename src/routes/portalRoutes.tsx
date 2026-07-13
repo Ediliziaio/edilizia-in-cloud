@@ -3,7 +3,6 @@ import { Navigate, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CustomerLayout } from "@/components/layouts/CustomerLayout";
-import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 import { PartnerLayout } from "@/components/layouts/PartnerLayout";
 import { ProduttoreLayout } from "@/components/layouts/ProduttoreLayout";
 import { EMPLOYEE_LEGACY_REDIRECTS } from "@/routes/employeeLegacyRedirects";
@@ -20,12 +19,6 @@ const CustomerInstallments = lazy(() => import("@/pages/cliente/CustomerInstallm
 const CustomerAppointments = lazy(() => import("@/pages/cliente/CustomerAppointments"));
 const CustomerFirma = lazy(() => import("@/pages/cliente/CustomerFirma"));
 const CustomerMenu = lazy(() => import("@/pages/cliente/CustomerMenu"));
-
-// Salesperson pages
-const SalespersonDashboard = lazy(() => import("@/pages/venditore/SalespersonDashboard"));
-const MyOrders = lazy(() => import("@/pages/venditore/MyOrders"));
-const MyEarnings = lazy(() => import("@/pages/venditore/MyEarnings"));
-const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfile"));
 
 // Partner pages
 const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
@@ -81,24 +74,13 @@ export function employeeRoutes() {
   );
 }
 
+// ── Area Venditore ELIMINATA (13/7/2026) ──────────────────────────────
+// Il portale dedicato /venditore (dashboard ordini/guadagni) creava una UX
+// divergente e sbagliata: il ruolo salesperson entra nell'app azienda normale
+// (/azienda) e vede SOLO i moduli attivati nei suoi permessi, come ogni staff.
+// Resta il redirect per vecchi link/segnalibri.
 export function salespersonRoutes() {
-  return (
-    <Route
-      path="/venditore"
-      element={
-        <ProtectedRoute allowedRoles={["salesperson"]}>
-          <ErrorBoundary title="Errore nell'area venditore">
-            <SalespersonLayout />
-          </ErrorBoundary>
-        </ProtectedRoute>
-      }
-    >
-      <Route index element={<SalespersonDashboard />} />
-      <Route path="ordini" element={<MyOrders />} />
-      <Route path="guadagni" element={<MyEarnings />} />
-      <Route path="profilo" element={<SalespersonProfile />} />
-    </Route>
-  );
+  return <Route path="/venditore/*" element={<Navigate to="/azienda/attivita" replace />} />;
 }
 
 export function partnerRoutes() {

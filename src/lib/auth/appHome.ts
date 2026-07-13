@@ -14,7 +14,9 @@ const ROLE_HOME_PATHS: Record<AppRole, string> = {
   customer: "/cliente",
   employee: "/campo",
   subcontractor: "/campo",
-  salesperson: "/venditore",
+  // 13/7/2026: portale /venditore eliminato — il venditore usa l'app azienda
+  // normale con la sidebar filtrata dai suoi permessi (come ogni staff).
+  salesperson: COMPANY_APP_HOME,
   referrer: "/partner",
   accountant: "/commercialista",
   platform_manager: PLATFORM_HOME,
