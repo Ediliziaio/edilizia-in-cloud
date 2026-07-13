@@ -3000,6 +3000,29 @@ export async function onRequest({ request, next, env }) {
 
   const pathname = url.pathname.replace(/\/$/, "") || "/";
 
+  // Skip asset requests — MA con guard anti cache-poisoning.
+  // Se la SPA-fallback di Cloudflare Pages serve index.html (HTML, 200) per un
+  // URL di asset (es. /assets-cbN/Foo-hash.js) perché il file manca durante una
+  // race di deploy, l'edge lo cacha come quell'asset → ogni richiesta successiva
+  // di quel chunk torna HTML → ChunkLoadError in loop, NON risolvibile lato
+  // browser (l'avvelenamento è all'edge). Convertiamo l'HTML-per-asset in un 404
+  // no-store: l'edge non lo memorizza e, appena il deploy completa, il file vero
+  // (200 con il giusto content-type) viene servito e cachato correttamente.
+  if (ASSET_EXT_RE.test(pathname)) {
+    const assetRes = await next();
+    const ct = assetRes.headers.get("content-type") || "";
+    if (assetRes.status === 200 && ct.includes("text/html")) {
+      return new Response("Asset not found", {
+        status: 404,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    return assetRes;
+  }
+
   // ── Private subdomains: block all bots, serve noindex ──────────────────
   if (isPrivateSubdomain(url.hostname)) {
     // Serve robots.txt that blocks everything on private subdomains
@@ -3032,29 +3055,6 @@ export async function onRequest({ request, next, env }) {
     const newResponse = new Response(response.body, response);
     newResponse.headers.set("X-Robots-Tag", "noindex, nofollow");
     return newResponse;
-  }
-
-  // Skip asset requests — MA con guard anti cache-poisoning.
-  // Se la SPA-fallback di Cloudflare Pages serve index.html (HTML, 200) per un
-  // URL di asset (es. /assets-cbN/Foo-hash.js) perché il file manca durante una
-  // race di deploy, l'edge lo cacha come quell'asset → ogni richiesta successiva
-  // di quel chunk torna HTML → ChunkLoadError in loop, NON risolvibile lato
-  // browser (l'avvelenamento è all'edge). Convertiamo l'HTML-per-asset in un 404
-  // no-store: l'edge non lo memorizza e, appena il deploy completa, il file vero
-  // (200 con il giusto content-type) viene servito e cachato correttamente.
-  if (ASSET_EXT_RE.test(pathname)) {
-    const assetRes = await next();
-    const ct = assetRes.headers.get("content-type") || "";
-    if (assetRes.status === 200 && ct.includes("text/html")) {
-      return new Response("Asset not found", {
-        status: 404,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-store",
-        },
-      });
-    }
-    return assetRes;
   }
 
   // Public host but private/auth/transactional path: always noindex.
