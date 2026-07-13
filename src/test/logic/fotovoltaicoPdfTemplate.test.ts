@@ -372,3 +372,76 @@ describe("fotovoltaico PDF template", () => {
     expect(html).not.toContain("Pagina 6");
   });
 });
+
+// ── 13/7/2026 — Verifica esplicita richiesta: nel PDF gli ELENCHI componenti
+// e le FOTO prodotto devono comparire. Copre la catena edge→template:
+// image_url (foto articolo, base64 o URL) → <img>; senza foto → icona SVG
+// fallback; marca/modello/quantità/chip specs sempre presenti.
+describe("fotovoltaico PDF — elenco componenti e foto prodotti", () => {
+  it("mostra la foto del prodotto quando image_url è presente", () => {
+    const d = basePdfData();
+    d.componenti = [
+      {
+        categoria: "pannello",
+        descrizione: "Modulo monocristallino",
+        marca: "SunPower",
+        modello: "MAX-540",
+        quantita: 16,
+        potenza_w: 540,
+        garanzia_anni: 25,
+        image_url: "data:image/jpeg;base64,QUJD",
+      },
+      {
+        categoria: "inverter",
+        descrizione: "Inverter ibrido",
+        marca: "Huawei",
+        modello: "SUN2000",
+        quantita: 1,
+        garanzia_anni: 10,
+      },
+    ];
+    const html = renderFvPdfHtml(d);
+    // Foto reale del pannello embedded
+    expect(html).toContain('src="data:image/jpeg;base64,QUJD"');
+    // Marca e modello in card
+    expect(html).toContain("SunPower");
+    expect(html).toContain("MAX-540");
+    expect(html).toContain("Huawei");
+    // Quantità e chip specs
+    expect(html).toContain("16 pezzi");
+    expect(html).toContain("540 Wp");
+    expect(html).toContain("25 anni");
+  });
+
+  it("senza foto usa l'icona SVG di categoria (mai card vuota)", () => {
+    const d = basePdfData();
+    const html = renderFvPdfHtml(d);
+    // La pagina componenti c'è con le card dei 2 componenti fixture
+    expect(html).toContain("I componenti");
+    expect(html).toContain("PV500");
+    expect(html).toContain("INV6");
+    // Nessuna immagine articolo → fallback vettoriale nella card prodotto
+    expect(html).toContain('class="product-img"');
+    expect(html.match(/product-card/g)!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("le voci del kit/bundle mostrano descrizione, quantità e foto", () => {
+    const d = basePdfData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (d as any).bundle = {
+      nome: "Kit Casa 6 kW",
+      descrizione: "Tutto incluso",
+      fv_kwp: 6,
+      fv_accumulo_kwh: 10,
+      voci: [
+        { descrizione: "Pannello 500W", quantita: 12, foto: "data:image/png;base64,WFla" },
+        { descrizione: "Inverter ibrido", quantita: 1, foto: null },
+      ],
+    };
+    const html = renderFvPdfHtml(d);
+    expect(html).toContain("Kit Casa 6 kW");
+    expect(html).toContain("Pannello 500W");
+    expect(html).toContain('src="data:image/png;base64,WFla"');
+    expect(html).toContain("× 12");
+  });
+});

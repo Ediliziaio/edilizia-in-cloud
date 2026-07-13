@@ -563,6 +563,9 @@ function emailHref(value: string | null | undefined): string | null {
 function imageHref(value: string | null | undefined): string | null {
   const raw = plainText(value);
   if (!raw) return null;
+  // Le foto articolo arrivano dall'edge come data URI base64 (così il PDF è
+  // self-contained anche nel download browser): vanno accettate, non scartate.
+  if (raw.startsWith("data:image/")) return raw;
   try {
     const url = new URL(raw);
     if (!["http:", "https:"].includes(url.protocol)) return null;
@@ -1737,7 +1740,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   let pageN = 1;
   const pages = [pageCover(d)];
   // Bundle kit page: inserita subito dopo la cover quando il bundle ha una copertina
-  if (d.bundle?.cover_b64) {
+  if (d.bundle && (d.bundle.nome || (d.bundle.voci ?? []).length > 0)) {
     pages.push(pageBundleKit(d, ++pageN, TOTAL));
   }
   for (const page of orderedPages) {
