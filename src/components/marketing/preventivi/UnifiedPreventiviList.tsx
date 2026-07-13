@@ -39,6 +39,7 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -60,6 +61,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTableSelection } from "@/hooks/useTableSelection";
 import { UnifiedBulkToolbar } from "./UnifiedBulkToolbar";
+import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
@@ -135,6 +137,7 @@ export function UnifiedPreventiviList() {
     sort: (searchParams.get("sort") as UnifiedFilters["sort"]) ?? "recent",
   }));
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cestinoOpen, setCestinoOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -200,6 +203,7 @@ export function UnifiedPreventiviList() {
         .from("quotes")
         .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -220,6 +224,7 @@ export function UnifiedPreventiviList() {
         .from("sr_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale_min, totale_max, consulente_id, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -247,6 +252,7 @@ export function UnifiedPreventiviList() {
           cliente:marketing_contacts(first_name, last_name)
         `)
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .eq("annullato", false)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
@@ -286,6 +292,7 @@ export function UnifiedPreventiviList() {
         .from("rst_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -308,6 +315,7 @@ export function UnifiedPreventiviList() {
         .from("bgn_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -329,6 +337,7 @@ export function UnifiedPreventiviList() {
         .from("tet_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -350,6 +359,7 @@ export function UnifiedPreventiviList() {
         .from("clm_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -371,6 +381,7 @@ export function UnifiedPreventiviList() {
         .from("ele_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -392,6 +403,7 @@ export function UnifiedPreventiviList() {
         .from("idr_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -413,6 +425,7 @@ export function UnifiedPreventiviList() {
         .from("pav_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -434,6 +447,7 @@ export function UnifiedPreventiviList() {
         .from("pis_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
@@ -1012,6 +1026,10 @@ export function UnifiedPreventiviList() {
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             Excel
           </Button>
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setCestinoOpen(true)}>
+            <Trash2 className="h-3.5 w-3.5" />
+            Cestino
+          </Button>
           {hasAnyFilter && (
             <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1">
               <X className="h-3.5 w-3.5" /> Azzera
@@ -1094,6 +1112,7 @@ export function UnifiedPreventiviList() {
                 onClear={sel.clear}
                 onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
               />
+      <PreventiviCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={companyId} />
               <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>

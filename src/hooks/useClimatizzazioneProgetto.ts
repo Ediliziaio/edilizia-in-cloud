@@ -63,6 +63,7 @@ export function useClimatizzazioneProgetti() {
         .from("clm_progetti")
         .select("*")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as ClmProgetto[];
@@ -181,9 +182,10 @@ export function useDeleteProgetto() {
     mutationFn: async (id: string): Promise<void> => {
       if (!companyId) throw new Error("Company non disponibile");
       // clm_computo_voci / clm_progetti_media hanno FK ON DELETE CASCADE.
+      // Soft delete → Cestino: recuperabile 30 giorni, poi purge notturno definitivo
       const { error } = await sb()
         .from("clm_progetti")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id)
         .eq("company_id", companyId);
       if (error) throw new Error(error.message);

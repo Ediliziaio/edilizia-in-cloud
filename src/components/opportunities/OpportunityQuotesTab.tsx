@@ -141,6 +141,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         .from("quotes")
         .select("id, quote_number, title, status, total, created_at")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .eq("contact_id", contactId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -160,6 +161,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         .from("sr_progetti")
         .select("id, code, stato, cliente_nome, cliente_cognome, totale_min, totale_max, created_at, opportunita_id, cliente_id")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (opportunityId) {
         q = q.eq("opportunita_id", opportunityId);
@@ -189,6 +191,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         .from("fv_progetti")
         .select("id, numero, stato, prezzo_vendita_iva_inclusa, created_at, opportunita_crm_id, cliente_id")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .eq("annullato", false)
         .order("created_at", { ascending: false });
       if (opportunityId) {

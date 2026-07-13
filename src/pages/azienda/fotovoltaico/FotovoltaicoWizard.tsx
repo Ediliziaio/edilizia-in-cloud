@@ -5029,10 +5029,26 @@ function Step6Finanziario({
             }}
           />
           <div className="relative text-base sm:text-lg font-bold leading-relaxed">
-            In 25 anni pagherai{" "}
-            <strong className="text-orange-400">~250.000 €</strong> di bollette
-            <br />
-            oppure investirai <strong className="text-orange-400">{formatEur(investimento)}</strong> oggi e{" "}
+            {(() => {
+              // Proiezione bollette 25 anni dai dati REALI del cliente: spesa annua
+              // attuale con rincaro composto prudente del 3%/anno (fattore ≈ 36,5).
+              // Prima era un "~250.000 €" FISSO — cioè 833 €/mese per chiunque:
+              // numero indifendibile davanti al cliente.
+              const spesaAnnuaAttuale =
+                (data.consumo_annuo_kwh ?? 0) * (data.costo_kwh_attuale ?? 0);
+              const bollette25Anni = Math.round(
+                spesaAnnuaAttuale * ((Math.pow(1.03, 25) - 1) / 0.03),
+              );
+              return bollette25Anni > 0 ? (
+                <>
+                  In 25 anni pagherai{" "}
+                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> di
+                  bollette (rincaro prudente del 3%/anno)
+                  <br />
+                </>
+              ) : null;
+            })()}
+            {"Investi "}<strong className="text-orange-400">{formatEur(investimento)}</strong> oggi e{" "}
             <strong className="text-emerald-400">guadagnerai {formatEur(risparmio25Anni)}</strong>.
           </div>
           <div className="relative text-sm opacity-85 mt-3">

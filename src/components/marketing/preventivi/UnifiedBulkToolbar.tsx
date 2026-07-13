@@ -65,11 +65,15 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
       let deleted = 0;
       const errors: string[] = [];
       for (const [tbl, ids] of byTable) {
+        // Soft delete → Cestino: recuperabile 30 giorni, poi il purge notturno
+        // (purge_cestino_preventivi) elimina DAVVERO da Supabase. Il DELETE
+        // fisico qui falliva anche per le FK NO ACTION (es. fv_eventi).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
           .from(tbl)
-          .delete()
+          .update({ deleted_at: new Date().toISOString() })
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .in("id", ids)
           .select("id");
         if (error) errors.push(`${tbl}: ${error.message}`);
@@ -80,7 +84,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
       } else if (deleted === 0) {
         toast.warning("Nessun preventivo eliminato (permessi insufficienti o già rimossi)");
       } else {
-        toast.success(`${deleted} ${deleted === 1 ? "preventivo eliminato" : "preventivi eliminati"}`);
+        toast.success(`${deleted} ${deleted === 1 ? "preventivo spostato" : "preventivi spostati"} nel cestino — recuperabili per 30 giorni`);
       }
       onDone();
     } catch (e) {

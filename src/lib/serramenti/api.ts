@@ -146,6 +146,7 @@ export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: num
       "created_at, updated_at",
       "pdf_url, pdf_generated_at",
     ].join(", "))
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (opts?.stato) q = q.eq("stato", opts.stato);
   if (opts?.limit) q = q.limit(opts.limit);
@@ -353,7 +354,8 @@ export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>):
 
 export async function deleteProgetto(id: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("sr_progetti").delete().eq("id", id);
+  // Soft delete → Cestino (30 giorni, poi purge notturno definitivo)
+  const { error } = await (supabase as any).from("sr_progetti").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error("Eliminazione progetto fallita");
 }
 
