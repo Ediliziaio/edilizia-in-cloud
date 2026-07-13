@@ -262,8 +262,10 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           return false;
         }
         if (item.moduleKey && !isModuleEnabled(item.moduleKey)) return false;
-        if (item.featureKey === "billing_external" && billingMode !== "external") return false;
-        if (item.featureKey === "billing_native" && billingMode !== "native") return false;
+        // billing_* = billingMode + flag di piano (fatturazione/documenti),
+        // come la sidebar desktop e le FeatureRoute.
+        if (item.featureKey === "billing_external" && (billingMode !== "external" || !isFeatureEnabled("fatturazione"))) return false;
+        if (item.featureKey === "billing_native" && (billingMode !== "native" || !isFeatureEnabled("documenti"))) return false;
         if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) return false;
         return true;
       });

@@ -185,7 +185,8 @@ export const macroAreas: MacroArea[] = [
       // ─── CRM & Vendita ───
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
-      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
+      // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.
+      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "preventivi_crm" },
       { title: "Simulatore", url: "/azienda/marketing/simulatore", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "simulatore" },
       // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
@@ -273,7 +274,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_crm" },
   { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketingContacts", category: "marketing", subcategory: "mkt_crm" },
   { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_crm" },
-  { title: "Preventivi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_crm" },
+  { title: "Preventivi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "preventivi_crm", category: "marketing", subcategory: "mkt_crm" },
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
 
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },

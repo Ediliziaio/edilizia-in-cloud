@@ -1069,18 +1069,18 @@ export default function CompanyRoutesContainer() {
             <ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary>,
           )
         } />
-        <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
+        <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/simulatore" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreIndex /></FeatureRoute>)} />
         <Route path="marketing/simulatore/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreEditor /></FeatureRoute>)} />
         {/* Route legacy consolidata: la pagina reale vive su /azienda/firma-elettronica.
             Redirect per non rompere vecchi link/segnalibri. */}
         <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
-        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
+        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <FeatureRoute featureKey="preventivi_crm"><QuoteMargini /></FeatureRoute>)} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
           {/* v8.6.70 — Mobile: hub griglia icone; Desktop: redirect a mio-profilo */}

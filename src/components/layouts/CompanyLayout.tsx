@@ -1146,8 +1146,17 @@ const CompanySidebar = memo(function CompanySidebar() {
     //   - le voci senza gate restano visibili come prima
 
     const passesFeatureGate = (key: string): "enabled" | "preview" | "hidden" => {
-      if (key === "billing_external") return billingMode === "external" ? "enabled" : "hidden";
-      if (key === "billing_native") return billingMode === "native" ? "enabled" : "hidden";
+      // billing_* seguono il billingMode MA rispettano anche il flag di piano
+      // (fatturazione/documenti): il Piano Marketing li spegne e la voce deve
+      // sparire come la route (FeatureRoute usa gli stessi flag).
+      if (key === "billing_external") {
+        if (billingMode !== "external") return "hidden";
+        return getFeatureAccessLevel("fatturazione") === "disabled" ? "hidden" : "enabled";
+      }
+      if (key === "billing_native") {
+        if (billingMode !== "native") return "hidden";
+        return getFeatureAccessLevel("documenti") === "disabled" ? "hidden" : "enabled";
+      }
       const lvl = getFeatureAccessLevel(key);
       if (lvl === "enabled") return "enabled";
       if (lvl === "preview") return "preview";
