@@ -52,6 +52,9 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_people: false, can_edit_settings_people: false,
   can_view_settings_security: false,
   can_view_settings_pricing: false, can_edit_settings_pricing: false,
+  can_view_settings_scontistica: false, can_edit_settings_scontistica: false,
+  can_view_settings_finanziamenti: false, can_edit_settings_finanziamenti: false,
+  can_view_settings_bundle: false, can_edit_settings_bundle: false,
   can_view_settings_suppliers: false, can_edit_settings_suppliers: false,
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
@@ -172,7 +175,10 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Dati aziendali e anagrafica" },
-  { label: "Listino & Prezzi",       viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing", description: "Listini, famiglie e prezzi" },
+  { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto" },
+  { label: "Regole scontistica",     viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
+  { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
+  { label: "Bundle & Pacchetti",     viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo pacchetti chiavi-in-mano" },
   { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Logo, colori e template documenti" },
   { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati, numerazioni e campi commesse" },
   { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers", description: "Configurazione fornitori" },
@@ -308,12 +314,15 @@ export function syncLegacySettingsFlags(perms: StaffPermissions): StaffPermissio
     perms.can_view_settings_profile || perms.can_view_settings_orders ||
     perms.can_view_settings_customization || perms.can_view_settings_people ||
     perms.can_view_settings_security || perms.can_view_settings_pricing ||
-    perms.can_view_settings_suppliers || perms.can_view_settings_integrations;
+    perms.can_view_settings_suppliers || perms.can_view_settings_integrations ||
+    perms.can_view_settings_scontistica || perms.can_view_settings_finanziamenti ||
+    perms.can_view_settings_bundle;
   const hasAnyEdit =
     perms.can_edit_settings_profile || perms.can_edit_settings_orders ||
     perms.can_edit_settings_customization || perms.can_edit_settings_people ||
     perms.can_edit_settings_pricing || perms.can_edit_settings_suppliers ||
-    perms.can_edit_settings_integrations;
+    perms.can_edit_settings_integrations || perms.can_edit_settings_scontistica ||
+    perms.can_edit_settings_finanziamenti || perms.can_edit_settings_bundle;
   return {
     ...perms,
     can_view_settings: hasAnyView,

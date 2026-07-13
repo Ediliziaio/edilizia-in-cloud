@@ -59,6 +59,9 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_settings_people: false, can_edit_settings_people: false,
   can_view_settings_security: false,
   can_view_settings_pricing: false, can_edit_settings_pricing: false,
+  can_view_settings_scontistica: false, can_edit_settings_scontistica: false,
+  can_view_settings_finanziamenti: false, can_edit_settings_finanziamenti: false,
+  can_view_settings_bundle: false, can_edit_settings_bundle: false,
   can_view_settings_suppliers: false, can_edit_settings_suppliers: false,
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali

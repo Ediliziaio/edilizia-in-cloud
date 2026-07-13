@@ -55,6 +55,13 @@ export interface Permissions {
   // Granular settings: Listino & Prezzi / Fornitori / Integrazioni & Canali
   canViewSettingsPricing: boolean;
   canEditSettingsPricing: boolean;
+  // Granularità Listino & Prezzi: toggle dedicati; pricing pieno = master.
+  canViewSettingsScontistica: boolean;
+  canEditSettingsScontistica: boolean;
+  canViewSettingsFinanziamenti: boolean;
+  canEditSettingsFinanziamenti: boolean;
+  canViewSettingsBundle: boolean;
+  canEditSettingsBundle: boolean;
   canViewSettingsSuppliers: boolean;
   canEditSettingsSuppliers: boolean;
   canViewSettingsIntegrations: boolean;
@@ -153,6 +160,12 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_settings_security",
   "can_view_settings_pricing",
   "can_edit_settings_pricing",
+  "can_view_settings_scontistica",
+  "can_edit_settings_scontistica",
+  "can_view_settings_finanziamenti",
+  "can_edit_settings_finanziamenti",
+  "can_view_settings_bundle",
+  "can_edit_settings_bundle",
   "can_view_settings_suppliers",
   "can_edit_settings_suppliers",
   "can_view_settings_integrations",
@@ -227,6 +240,9 @@ const ALL_PERMISSIONS: Permissions = {
   canViewSettingsPeople: true, canEditSettingsPeople: true,
   canViewSettingsSecurity: true,
   canViewSettingsPricing: true, canEditSettingsPricing: true,
+  canViewSettingsScontistica: true, canEditSettingsScontistica: true,
+  canViewSettingsFinanziamenti: true, canEditSettingsFinanziamenti: true,
+  canViewSettingsBundle: true, canEditSettingsBundle: true,
   canViewSettingsSuppliers: true, canEditSettingsSuppliers: true,
   canViewSettingsIntegrations: true, canEditSettingsIntegrations: true,
   canViewMarketing: true, canEditMarketing: true,
@@ -273,6 +289,9 @@ const NO_PERMISSIONS: Permissions = {
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
   canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsScontistica: false, canEditSettingsScontistica: false,
+  canViewSettingsFinanziamenti: false, canEditSettingsFinanziamenti: false,
+  canViewSettingsBundle: false, canEditSettingsBundle: false,
   canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
   canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   canViewMarketing: false, canEditMarketing: false,
@@ -383,6 +402,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsSecurity: false,
   // Commercialista esterno: nessun accesso alla configurazione azienda
   canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsScontistica: false, canEditSettingsScontistica: false,
+  canViewSettingsFinanziamenti: false, canEditSettingsFinanziamenti: false,
+  canViewSettingsBundle: false, canEditSettingsBundle: false,
   canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
   canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
@@ -424,13 +446,23 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSettingsSecurity:      g("can_view_settings_security"),
     canViewSettingsPricing:       g("can_view_settings_pricing"),
     canEditSettingsPricing:       g("can_edit_settings_pricing"),
+    // Granularità Listino & Prezzi (13/7/2026): il toggle dedicato apre la
+    // singola pagina; "Listino & Prezzi" pieno resta il master che apre tutto.
+    canViewSettingsScontistica:   g("can_view_settings_scontistica") || g("can_view_settings_pricing"),
+    canEditSettingsScontistica:   g("can_edit_settings_scontistica") || g("can_edit_settings_pricing"),
+    canViewSettingsFinanziamenti: g("can_view_settings_finanziamenti") || g("can_view_settings_pricing"),
+    canEditSettingsFinanziamenti: g("can_edit_settings_finanziamenti") || g("can_edit_settings_pricing"),
+    canViewSettingsBundle:        g("can_view_settings_bundle") || g("can_view_settings_pricing"),
+    canEditSettingsBundle:        g("can_edit_settings_bundle") || g("can_edit_settings_pricing"),
     canViewSettingsSuppliers:     g("can_view_settings_suppliers"),
     canEditSettingsSuppliers:     g("can_edit_settings_suppliers"),
     canViewSettingsIntegrations:  g("can_view_settings_integrations"),
     canEditSettingsIntegrations:  g("can_edit_settings_integrations"),
     canViewSettings:
       g("can_view_settings") || g("can_view_settings_profile") || g("can_view_settings_orders") ||
-      g("can_view_settings_customization") || g("can_view_settings_people") || g("can_view_settings_security"),
+      g("can_view_settings_customization") || g("can_view_settings_people") || g("can_view_settings_security") ||
+      g("can_view_settings_pricing") || g("can_view_settings_suppliers") || g("can_view_settings_integrations") ||
+      g("can_view_settings_scontistica") || g("can_view_settings_finanziamenti") || g("can_view_settings_bundle"),
     canViewMarketing:
       g("can_view_marketing") || g("can_view_marketing_dashboard") || g("can_view_marketing_contacts") ||
       g("can_view_marketing_opportunities") || g("can_view_marketing_activities") || g("can_view_marketing_appointments") ||

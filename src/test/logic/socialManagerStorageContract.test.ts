@@ -29,7 +29,9 @@ describe("social manager storage contract", () => {
     expect(source).not.toContain("Caricalo nella sezione Media del post.");
   });
 
-  it("adds a minimal social backend schema with tenant RLS", () => {
+  // Legge TUTTE le migration da disco (centinaia di file): sotto carico i 5s
+  // di default non bastano — timeout dedicato, il test è I/O-bound non logico.
+  it("adds a minimal social backend schema with tenant RLS", { timeout: 60_000 }, () => {
     const migrationDir = resolve(process.cwd(), "supabase/migrations");
     const socialMigration = readdirSync(migrationDir)
       .filter((name) => name.endsWith(".sql"))

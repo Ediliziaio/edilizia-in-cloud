@@ -1104,13 +1104,13 @@ export default function CompanyRoutesContainer() {
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
           <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFamilyEditor />)} />
           <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFamilyEditor />)} />
-          <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsPricing", <SettingsBundle />)} />
-          <Route path="bundle" element={withCompanyPermission("canViewSettingsPricing", <SettingsBundle />)} />
+          <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsBundle", <SettingsBundle />)} />
+          <Route path="bundle" element={withCompanyPermission("canViewSettingsBundle", <SettingsBundle />)} />
           <Route path="tariffe" element={withCompanyPermission("canViewSettingsPricing", <SettingsTariffe />)} />
           {/* Listino Manutenzione accorpato nella pagina Tariffe (tab Manutenzione) */}
           <Route path="listino-manutenzione" element={<Navigate to="../tariffe?tab=manutenzione" replace />} />
           {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
-          <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamenti />)} />
+          <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsFinanziamenti", <SettingsFinanziamenti />)} />
           <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFinanziamentiNuova />)} />
           <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiCalcolatore />)} />
           <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiDetail />)} />
@@ -1136,7 +1136,7 @@ export default function CompanyRoutesContainer() {
             }
           />
           <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
-          <Route path="scontistica" element={withCompanyPermission("canViewSettingsPricing", <SettingsScontistica />)} />
+          <Route path="scontistica" element={withCompanyPermission("canViewSettingsScontistica", <SettingsScontistica />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
           <Route path="fornitori" element={withCompanyPermission("canViewSettingsSuppliers", <SettingsSuppliers />)} />
           <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />
