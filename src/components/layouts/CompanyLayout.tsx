@@ -745,7 +745,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "La mia azienda",
       items: [
         { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
-        { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsPeople },
         { to: "/azienda/impostazioni/branding",      label: "White-Label",       icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
         // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
         // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
@@ -767,24 +767,27 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Cantieri & Costi",
       items: [
         { to: "/azienda/impostazioni/stati-ordine",        label: "Stati ordine",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
+        { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
         { to: "/azienda/impostazioni/qr-codici",           label: "QR & Codici",         icon: <QrCode className="h-4 w-4" />,      visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/automazioni-finanza", label: "Automazioni finanza", icon: <RefreshCw className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/automazioni-finanza", label: "Automazioni finanza", icon: <RefreshCw className="h-4 w-4" />,  visible: isAdmin || permissions.canViewCosts },
       ],
     },
     {
+      // 13/7/2026: gate voci allineati 1:1 ai permessi delle route
+      // (companyRoutes.tsx): prima molte voci usavano canViewSettingsOrders e chi
+      // aveva SOLO can_view_settings_pricing non vedeva Listino & Prezzi in menu.
       label: "Preventivi & Listino",
       items: [
-        { to: "/azienda/impostazioni/listino",              label: "Listino prodotti",    icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/tariffe",              label: "Manodopera e Servizi", icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/scontistica",          label: "Regole scontistica",  icon: <Percent className="h-4 w-4" />,    visible: isAdmin },
-        { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canEditSettingsCustomization },
+        { to: "/azienda/impostazioni/listino",              label: "Listino prodotti",    icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsPricing },
+        { to: "/azienda/impostazioni/tariffe",              label: "Manodopera e Servizi", icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsPricing },
+        { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsPricing },
+        { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
+        { to: "/azienda/impostazioni/scontistica",          label: "Regole scontistica",  icon: <Percent className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsPricing },
+        { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
         { to: "/azienda/impostazioni/sopralluoghi",        label: "Impostazioni Sopralluoghi", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/firma-elettronica",   label: "Firma Elettronica",   icon: <FileSignature className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/bundle",              label: "Bundle & Pacchetti",   icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/firma-elettronica",   label: "Firma Elettronica",   icon: <FileSignature className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/bundle",              label: "Bundle & Pacchetti",   icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsPricing },
       ],
     },
     {
