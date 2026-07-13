@@ -15,6 +15,12 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -149,6 +155,37 @@ export default function FotovoltaicoWizard() {
   // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
   const effectiveCompanyId = useEffectiveCompanyId();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // ── Riprendi bozza (solo su /nuovo): ultima bozza DB dell'utente, con i
+  // dati principali. Risolve il flusso "esco → torno → devo reinserire tutto":
+  // la bozza vera sta in DB, non nel draft locale.
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const { data: ultimaBozza } = useQuery({
+    queryKey: ["fv-ultima-bozza", effectiveCompanyId, user?.id],
+    enabled: !id && !!effectiveCompanyId && !!user?.id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: row, error } = await (supabase as any)
+        .from("fv_progetti")
+        .select("id, numero, indirizzo, comune, updated_at, cliente:marketing_contacts(first_name, last_name)")
+        .eq("company_id", effectiveCompanyId!)
+        .eq("created_by", user!.id)
+        .eq("stato", "bozza")
+        .is("deleted_at", null)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return row as {
+        id: string; numero: string | null; indirizzo: string | null; comune: string | null;
+        updated_at: string | null;
+        cliente: { first_name: string | null; last_name: string | null } | null;
+      } | null;
+    },
+  });
   const [searchParams] = useSearchParams();
   // Pre-link da CRM/Opportunità: ?contact_id=… (eventualmente con &opportunity_id=…).
   // Permette il flow "Crea preventivo Fotovoltaico" dal dialog opportunità/contatto,
@@ -639,6 +676,11 @@ export default function FotovoltaicoWizard() {
         if (!newId) throw new Error("Risposta del server priva di progetto_id");
         if (!mountedRef.current) return;
         setProgettoId(newId);
+        // La bozza ora vive in DB: il draft locale "nuovo" (pre-creazione) va
+        // rimosso, altrimenti al prossimo /nuovo verrebbe ripristinato quello
+        // stale/quasi vuoto invece della vera bozza (bug "ripristina non
+        // riprende la bozza").
+        clearPersistedDraft(null);
         toast.success("Progetto creato — continua con i consumi");
       } else {
         await aggiornaProgetto.mutateAsync({
@@ -1550,7 +1592,19 @@ export default function FotovoltaicoWizard() {
           <>
             <button
               type="button"
-              onClick={() => navigate("/azienda/marketing/fotovoltaico")}
+              onClick={() => {
+                if (readOnlyMode) { navigate("/azienda/marketing/fotovoltaico"); return; }
+                if (progettoId) {
+                  // La bozza è già in DB (autosave): conferma e esci
+                  toast.success(`Bozza ${numero ?? ""} salvata — la ritrovi tra i preventivi`.trim());
+                  navigate("/azienda/marketing/fotovoltaico");
+                  return;
+                }
+                const dirty = Boolean(data.cliente_nome || data.cliente_cognome || data.indirizzo);
+                if (!dirty) { navigate("/azienda/marketing/fotovoltaico"); return; }
+                // Dati inseriti ma nessuna bozza DB ancora: chiedi cosa fare
+                setExitDialogOpen(true);
+              }}
               className="px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5"
             >
               <X className="h-4 w-4" /> {readOnlyMode ? "Chiudi" : "Salva e chiudi"}
@@ -1575,6 +1629,80 @@ export default function FotovoltaicoWizard() {
           </>
         }
       />
+
+      {/* ── Riprendi bozza: su /nuovo, se esiste una bozza DB dell'utente ── */}
+      <AlertDialog open={Boolean(!id && !progettoId && ultimaBozza && !resumeDismissed && !readOnlyMode)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-2">Vuoi riprendere da dove eri rimasto?</p>
+                <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700 space-y-0.5">
+                  <p className="font-semibold text-slate-900">{ultimaBozza?.numero ?? "Bozza"}</p>
+                  {(ultimaBozza?.cliente?.first_name || ultimaBozza?.cliente?.last_name) && (
+                    <p>{[ultimaBozza?.cliente?.first_name, ultimaBozza?.cliente?.last_name].filter(Boolean).join(" ")}</p>
+                  )}
+                  {(ultimaBozza?.indirizzo || ultimaBozza?.comune) && (
+                    <p>{[ultimaBozza?.indirizzo, ultimaBozza?.comune].filter(Boolean).join(", ")}</p>
+                  )}
+                  {ultimaBozza?.updated_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Ultima modifica {new Date(ultimaBozza.updated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>
+              Nuovo da zero
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate(`/azienda/marketing/fotovoltaico/${ultimaBozza!.id}`)}>
+              Riprendi bozza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Uscita con dati non ancora in DB: salva bozza? ── */}
+      <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {data.indirizzo && data.latitudine != null && data.longitudine != null
+                ? "I dati inseriti verranno salvati come bozza: la ritroverai nella lista preventivi e al prossimo \"Nuovo preventivo\"."
+                : "Per salvare la bozza sul server serve almeno l'indirizzo dell'impianto. I dati inseriti restano comunque memorizzati su questo dispositivo e verranno ripresi al prossimo accesso."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-slate-500 hover:bg-slate-600"
+              onClick={() => {
+                clearPersistedDraft(null);
+                navigate("/azienda/marketing/fotovoltaico");
+              }}
+            >
+              Esci senza salvare
+            </AlertDialogAction>
+            {data.indirizzo && data.latitudine != null && data.longitudine != null && (
+              <AlertDialogAction
+                onClick={async () => {
+                  await handleSalvaStep2();
+                  clearPersistedDraft(null);
+                  toast.success("Bozza salvata — la ritrovi tra i preventivi");
+                  navigate("/azienda/marketing/fotovoltaico");
+                }}
+              >
+                Salva bozza ed esci
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Banner read-only (B5/F4 + Sprint3 #21: CTA azioni disponibili) */}
       {readOnlyMode && readOnlyReason && (
