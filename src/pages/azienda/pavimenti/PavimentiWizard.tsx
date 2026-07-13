@@ -16,6 +16,13 @@
  */
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +64,32 @@ export default function PavimentiWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
+  const { user } = useAuth();
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  // Riprendi bozza su "nuovo": ultima bozza propria (l'azienda la scopa la RLS)
+  const { data: ultimaBozza } = useQuery({
+    queryKey: ["pav-ultima-bozza", user?.id],
+    enabled: isNew && !!user?.id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: row, error } = await (supabase as any)
+        .from("pav_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, updated_at")
+        .eq("created_by", user!.id)
+        .eq("stato", "bozza")
+        .is("deleted_at", null)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return row as {
+        id: string; code: string | null; cliente_nome: string | null;
+        cliente_cognome: string | null; updated_at: string | null;
+      } | null;
+    },
+  });
 
   // Pre-link da CRM: ?contact_id=… & opportunity_id=…
   const urlContactId = searchParams.get("contact_id");
@@ -277,9 +310,75 @@ export default function PavimentiWizard() {
   return (
     <div className="pb-28 md:pb-20">
       {/* Sticky header */}
+      {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
+      <AlertDialog open={Boolean(isNew && ultimaBozza && !resumeDismissed)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-2">Vuoi riprendere da dove eri rimasto?</p>
+                <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700 space-y-0.5">
+                  <p className="font-semibold text-slate-900">{ultimaBozza?.code ?? "Bozza"}</p>
+                  {(ultimaBozza?.cliente_nome || ultimaBozza?.cliente_cognome) && (
+                    <p>{[ultimaBozza?.cliente_nome, ultimaBozza?.cliente_cognome].filter(Boolean).join(" ")}</p>
+                  )}
+                  {ultimaBozza?.updated_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Ultima modifica {new Date(ultimaBozza.updated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setResumeDismissed(true)}>Nuovo da zero</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate(`/azienda/pavimenti/${ultimaBozza!.id}/modifica`)}>
+              Riprendi bozza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Uscita con dati non salvati: salva bozza? ── */}
+      <AlertDialog open={exitDialogOpen} onOpenChange={setExitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              I dati inseriti verranno salvati come bozza: la ritroverai nella lista e al prossimo "Nuovo preventivo".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-slate-500 hover:bg-slate-600"
+              onClick={() => navigate("/azienda/pavimenti")}
+            >
+              Esci senza salvare
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await upsertMut.mutateAsync({ ...form });
+                  toast.success("Bozza salvata — la ritrovi nella lista");
+                } catch (e) {
+                  toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
+                  return;
+                }
+                navigate("/azienda/pavimenti");
+              }}
+            >
+              Salva bozza ed esci
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur">
         <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/pavimenti")} className="h-10 w-10 shrink-0">
+          <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/pavimenti"); }} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
