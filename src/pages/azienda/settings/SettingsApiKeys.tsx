@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, useRotateApiKey } from "@/hooks/useApiKeys";
 import { API_SCOPE_GROUPS, ALL_SCOPE_IDS } from "@/types/apiKeys";
 import type { ApiKey } from "@/types/apiKeys";
@@ -332,7 +333,9 @@ export default function SettingsApiKeys() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "unused" | "expired">("all");
   const [rotatedKey, setRotatedKey] = useState<{ rawKey: string; name: string } | null>(null);
   const [rotatedCopied, setRotatedCopied] = useState(false);
-  const canManageApiKeys = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
+  const canManageApiKeys = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
 
   const activeKeys = apiKeys.filter((k) => k.is_active && !k.revoked_at);
   const revokedKeys = apiKeys.filter((k) => !k.is_active || !!k.revoked_at);

@@ -11,6 +11,7 @@
  */
 import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -82,7 +83,9 @@ export default function SettingsIntegrations() {
   const { effectiveCompany, user, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const userId = user?.id;
-  const canManageIntegrations = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
+  const canManageIntegrations = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 

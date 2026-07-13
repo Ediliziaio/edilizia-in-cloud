@@ -803,7 +803,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Marketing",
       items: [
         { to: "/azienda/impostazioni/calendari",  label: "Calendari marketing", icon: <CalendarDays className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin },
+        { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },
     {
@@ -824,11 +824,11 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Integrazioni & API",
       items: [
         // v8.6.57 — "Crediti & Saldo" spostato in "La mia azienda" sopra
-        { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin },
-        { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin },
-        { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin },
-        { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin },
-        { to: "/azienda/impostazioni/numeri-telefono",label: "Telefonia",icon: <Phone className="h-4 w-4" />,  visible: isAdmin },
+        { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin || permissions.canViewMarketingEmail },
+        { to: "/azienda/impostazioni/numeri-telefono",label: "Telefonia",icon: <Phone className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },
     {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
@@ -257,11 +258,15 @@ export default function SettingsSuppliers() {
   const { role, effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsSuppliers;
+  const canView = isAdmin || permissions.canViewSettingsSuppliers;
   const [tab, setTab] = useState("anagrafica");
 
   useEffect(() => {
-    if (!isAdmin) navigate("/azienda", { replace: true });
+    if (!canView) navigate("/azienda", { replace: true });
   }, [isAdmin, navigate]);
 
   // Supplier list per l'export + KPI header (separata dal componente figlio
@@ -282,7 +287,7 @@ export default function SettingsSuppliers() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: isAdmin && !!effectiveCompany?.id,
+    enabled: canView && !!effectiveCompany?.id,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -406,7 +411,7 @@ export default function SettingsSuppliers() {
     }
   }, [buildExportRows, effectiveCompany?.name, toast]);
 
-  if (!isAdmin) return null;
+  if (!canView) return null;
 
   return (
     <div className="space-y-6">

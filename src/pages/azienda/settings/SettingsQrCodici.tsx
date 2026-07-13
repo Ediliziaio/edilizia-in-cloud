@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useBarcodeLookup } from "@/hooks/warehouse/useBarcodeLookup";
@@ -1237,11 +1238,15 @@ function ActionDescription({ action }: { action: ReturnType<typeof useBarcodeLoo
 export default function SettingsQrCodici() {
   const { role } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsOrders;
+  const canView = isAdmin || permissions.canViewSettingsOrders;
   const [tab, setTab] = useState("dinamici");
 
   useEffect(() => {
-    if (!isAdmin) navigate("/azienda", { replace: true });
+    if (!canView) navigate("/azienda", { replace: true });
   }, [isAdmin, navigate]);
 
   if (!isAdmin) return null;

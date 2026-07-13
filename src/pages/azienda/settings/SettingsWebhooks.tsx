@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
 import {
   useWebhooks,
@@ -646,7 +647,9 @@ export default function SettingsWebhooks() {
   const { effectiveCompany, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id as string | undefined;
   const { toast } = useToast();
-  const canManageWebhooks = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
+  const canManageWebhooks = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);

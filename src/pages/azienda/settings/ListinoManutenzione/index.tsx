@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { Sparkles, ShieldAlert, ClipboardList } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useVertical } from "@/hooks/useVertical";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,11 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
   // Solo admin azienda (e super admin) possono editare prezzi/tariffe. Un
   // commerciale non ha mai titolo per modificare il listino: vedrebbe UI ma
   // tutti i write fallirebbero via RLS generando solo toast di errore.
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
+  const canView = isAdmin || permissions.canViewSettingsPricing;
 
   const [activeTab, setActiveTab] = useState("impianti");
 
@@ -74,7 +79,7 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
 
   if (!companyId) return null;
 
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <Card className="max-w-xl mx-auto mt-8">
         <CardContent

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -1387,7 +1388,11 @@ type MargineFilter = "all" | "sotto-soglia" | "perdita";
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
   const { vertical: currentVertical } = useVertical();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
+  const canView = isAdmin || permissions.canViewSettingsPricing;
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 

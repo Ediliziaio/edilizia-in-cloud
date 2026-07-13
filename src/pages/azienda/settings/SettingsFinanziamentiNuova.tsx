@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useFinanziarie,
@@ -175,7 +176,11 @@ function validaPdfFile(file: File): void {
 
 export default function SettingsFinanziamentiNuova() {
   const { role, effectiveCompany } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsFinanziamenti;
+  const canView = isAdmin || permissions.canViewSettingsFinanziamenti;
   const navigate = useNavigate();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -215,7 +220,7 @@ export default function SettingsFinanziamentiNuova() {
     return summarizeRows(form.parse_result.righe_valide);
   }, [form.parse_result]);
 
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <Card className="max-w-xl mx-auto mt-8">
         <CardContent className="py-10 flex flex-col items-center gap-4 text-center">

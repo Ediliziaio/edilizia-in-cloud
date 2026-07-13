@@ -59,12 +59,17 @@ import {
   Power,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useTabelle, useDeleteTabella, useToggleTabellaAttiva } from "@/lib/finanziamenti/queries";
 import { toast } from "sonner";
 
 export default function SettingsFinanziamenti() {
   const { role } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsFinanziamenti;
+  const canView = isAdmin || permissions.canViewSettingsFinanziamenti;
   const navigate = useNavigate();
   const { data: tabelle = [], isLoading, isError, error, refetch } = useTabelle();
   const deleteTabella = useDeleteTabella();
@@ -122,7 +127,7 @@ export default function SettingsFinanziamenti() {
     });
   }, [tabelle, search, statusFilter, finanziariaFilter, durataFilter]);
 
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <Card className="max-w-xl mx-auto mt-8">
         <CardContent

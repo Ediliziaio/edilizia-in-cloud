@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Zap, Save, TrendingUp, Info, Percent, Target, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -722,7 +723,11 @@ export default function SettingsMargini() {
   // Ora usiamo il tipo corretto — se Company cambia, TypeScript ci avvisa.
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
+  const canView = isAdmin || permissions.canViewSettingsPricing;
 
   const { data: categorie = [], isError } = useQuery({
     queryKey: ["listino-categorie", companyId],

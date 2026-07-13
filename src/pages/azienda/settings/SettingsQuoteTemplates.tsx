@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import {
@@ -472,7 +473,11 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
 
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
+  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
+  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
+  const canView = isAdmin || permissions.canViewSettingsPricing;
   const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
 
   // Deeplink: ?tab=moduli-vendita | documenti, ?modulo=serramenti
