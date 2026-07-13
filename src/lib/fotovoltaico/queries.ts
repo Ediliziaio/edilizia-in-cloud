@@ -123,11 +123,15 @@ export function useAggiornaProgetto() {
   return useMutation({
     mutationFn: async (input: { id: string; patch: Partial<FvProgetto> }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
+      // 13/7: rimosso .eq("company_id", companyId) — l'isolamento azienda lo
+      // garantisce già la RLS (company_id = get_effective_company_id()). Il
+      // filtro client usava useEffectiveCompanyId che durante boot/switch può
+      // divergere per un istante dal server → update su 0 righe → toast
+      // intermittente "Progetto non trovato o non modificabile".
       const { data, error } = await supabase
         .from("fv_progetti" as never)
         .update(input.patch as never)
         .eq("id", input.id)
-        .eq("company_id", companyId)
         .select("id")
         .maybeSingle();
       if (error) throw error;

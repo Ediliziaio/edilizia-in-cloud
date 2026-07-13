@@ -1068,7 +1068,7 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · Anteprima dell'impianto</div>
       <h1 class="page-title">La tua casa,<br/>con i pannelli.</h1>
-      <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Ecco esattamente come saranno disposti i ${np} pannelli.</p>
+      <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Disposizione indicativa dei ${np} pannelli sulla falda rilevata.</p>
       <div class="sat-grid">
         ${(() => {
           const mi = d.map_images;
@@ -1084,8 +1084,8 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
       </div>
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
-        <div><strong>Layout ottimizzato per la tua casa specifica.</strong>
-        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Il numero, la posizione e l'inclinazione dei moduli sono calcolati per massimizzare la produzione annuale nel tuo specifico sito.</div>
+        <div><strong>Dimensionato sulla tua falda specifica.</strong>
+        Numero moduli e potenza sono calcolati sull'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""} e sulla superficie del tuo tetto per massimizzare la produzione annuale. Il posizionamento definitivo dei pannelli viene definito nello studio di fattibilità tecnico successivo alla sottoscrizione.</div>
       </div>
       ${renderDisclaimer ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>

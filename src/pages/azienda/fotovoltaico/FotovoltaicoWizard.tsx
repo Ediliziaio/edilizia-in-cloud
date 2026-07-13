@@ -2802,9 +2802,14 @@ function Step4Tetto({
               <Input
                 type="number"
                 value={data.numero_pannelli_max ?? ""}
-                onChange={(e) =>
-                  update("numero_pannelli_max", e.target.value ? Number(e.target.value) : null)
-                }
+                onChange={(e) => {
+                  // Campi COLLEGATI (pannello rif. 540 W): prima si poteva
+                  // scrivere "8 kWp e 100 pannelli" — incoerenza che finiva
+                  // in offerta. Modificando uno, l'altro si allinea.
+                  const n = e.target.value ? Number(e.target.value) : null;
+                  update("numero_pannelli_max", n);
+                  update("potenza_max_kwp", n ? Math.round(n * 540) / 1000 : null);
+                }}
               />
             </div>
             <div>
@@ -2813,10 +2818,15 @@ function Step4Tetto({
                 type="number"
                 step="0.01"
                 value={data.potenza_max_kwp ?? ""}
-                onChange={(e) =>
-                  update("potenza_max_kwp", e.target.value ? Number(e.target.value) : null)
-                }
+                onChange={(e) => {
+                  const kwp = e.target.value ? Number(e.target.value) : null;
+                  update("potenza_max_kwp", kwp);
+                  update("numero_pannelli_max", kwp ? Math.max(1, Math.round((kwp * 1000) / 540)) : null);
+                }}
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Collegata al n° pannelli (modulo di riferimento 540 W)
+              </p>
             </div>
           </div>
         </FvCard>
@@ -3230,25 +3240,9 @@ function Step5Configurazione({
         />
       </div>
 
-      {/* Vista satellitare con layout LIVE: trascinando lo slider "Numero pannelli"
-          l'overlay dei moduli e i kWp si aggiornano in tempo reale (stile Reonic). */}
-      {data.latitudine != null && data.longitudine != null && (
-        <div className="mb-4">
-          <RoofSatelliteView
-            lat={data.latitudine}
-            lng={data.longitudine}
-            numeroPannelli={data.numero_pannelli_scelti}
-            kwp={data.potenza_kwp}
-            azimut={data.azimut_tetto}
-            tilt={data.inclinazione_tetto}
-            fonte={data.fonte_dati_tetto}
-            title="Layout impianto sul tetto"
-            layout={data.layout_overlay}
-            onLayoutChange={(l) => update("layout_overlay", l)}
-            editable={!readOnlyMode}
-          />
-        </div>
-      )}
+      {/* 13/7: mappa di posizionamento pannelli RIMOSSA dalla configurazione —
+          il posizionamento si definisce nello studio di fattibilità post-firma.
+          La falda della Fase 4 (vista indicativa) resta e finisce nel PDF. */}
 
       {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
       <FvDimensionamentoStringhe
@@ -4756,16 +4750,8 @@ function Step6Finanziario({
         </FvCard>
       )}
 
-      {/* Capienza IRPEF */}
-      {scenario.capienza_irpef_warning ? (
-        <FvCallout variant="warn" title="Attenzione capienza IRPEF" icon={<AlertTriangle className="h-4 w-4" />}>
-          {scenario.capienza_irpef_warning as string}
-        </FvCallout>
-      ) : scenario.capienza_irpef_ok ? (
-        <FvCallout variant="success" title="Capienza IRPEF OK">
-          Detrazione interamente recuperabile in 10 anni.
-        </FvCallout>
-      ) : null}
+      {/* 13/7: callout capienza IRPEF rimosso su richiesta — la verifica di
+          capienza è tema da commercialista del cliente, non entriamo nel merito. */}
 
       {/* Sensitivity */}
       <FvCard title="Cosa succede se cambia il prezzo dell'energia" className="mt-4">
