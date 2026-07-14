@@ -14,21 +14,24 @@ export function useMetaIntegration(integration: Integration | null) {
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
 
-  // Fetch assets (pages)
+  // Fetch assets (pages).
+  // Interroghiamo per company_id (sempre disponibile) e NON dipendiamo da
+  // integration.id: al primo collegamento la prop `integration` può essere
+  // ancora null anche dopo che il callback ha creato la riga + le pagine →
+  // il picker restava vuoto. Un'azienda ha una sola integrazione Meta, quindi
+  // gli asset pagina sono comunque i suoi; se l'id è noto lo usiamo come
+  // filtro extra.
   const { data: assets = [], refetch: refetchAssets, isLoading: isLoadingAssets, isFetching: isFetchingAssets } = useQuery({
     queryKey: queryKeys.metaAds.assets(companyId, integration?.id),
     queryFn: async () => {
-      if (!companyId || !integration?.id) return [];
-      const { data, error } = await supabase
-        .from("meta_assets")
-        .select("*")
-        .eq("company_id", companyId)
-        .eq("integration_id", integration.id)
-        .order("asset_name");
+      if (!companyId) return [];
+      let q = supabase.from("meta_assets").select("*").eq("company_id", companyId);
+      if (integration?.id) q = q.eq("integration_id", integration.id);
+      const { data, error } = await q.order("asset_name");
       if (error) throw error;
       return (data || []) as MetaAsset[];
     },
-    enabled: !!companyId && !!integration?.id,
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });

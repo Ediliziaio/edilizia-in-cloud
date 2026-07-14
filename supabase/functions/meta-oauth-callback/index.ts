@@ -175,12 +175,10 @@ Deno.serve(async (req) => {
         return redirectToApp("error", "credentials_storage_failed");
       }
 
-      // STEP 3: Ora che le credenziali sono salvate, promuovi a "connected"
-      await adminClient
-        .from("integrations")
-        .update({ status: "connected" })
-        .eq("id", integration.id);
-
+      // NB: la promozione a "connected" avviene DOPO l'inserimento delle
+      // pagine (più sotto), così il frontend che rileva "connected" tramite
+      // polling trova SEMPRE gli asset già pronti — niente picker vuoto per
+      // race tra flip di stato e insert pagine.
       const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
       // Fetch pages and save as assets (WITHOUT page access token in metadata)
@@ -272,6 +270,14 @@ Deno.serve(async (req) => {
           })
           .eq("integration_id", integration.id);
       }
+
+      // Ora che le pagine sono inserite, promuovi a "connected": così il
+      // frontend (che rileva la connessione via polling) trova gli asset già
+      // pronti e non mostra il picker vuoto.
+      await adminClient
+        .from("integrations")
+        .update({ status: "connected" })
+        .eq("id", integration.id);
 
       // Audit log
       await adminClient.from("integration_audit_log").insert({
