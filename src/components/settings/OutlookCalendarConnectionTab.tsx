@@ -114,6 +114,9 @@ export default function OutlookCalendarConnectionTab() {
 
   useEffect(() => {
     const handler = (ev: MessageEvent) => {
+      // Il popup atterra su /oauth-done della NOSTRA origin (302 dal callback
+      // edge): accettiamo solo messaggi same-origin, mai da terzi.
+      if (ev.origin !== window.location.origin) return;
       const data = ev.data;
       if (!data || data.source !== "outlook-calendar-oauth") return;
       if (data.status === "ok") {

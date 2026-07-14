@@ -41,17 +41,26 @@ async function getCredentials() {
   };
 }
 
+// La piattaforma Supabase RISCRIVE le risposte HTML delle edge function sul
+// dominio condiviso *.supabase.co (text/plain + CSP sandbox): il popup
+// mostrerebbe il SORGENTE della pagina, con dentro origini e dettagli
+// interni. Quindi niente HTML: 302 verso /oauth-done sull'app (stessa
+// origin dell'opener), che fa il postMessage e chiude il popup.
 function buildCallbackHtml(status: "ok" | "error", message?: string, appOrigin?: string): Response {
-  const origin = appOrigin && /^https?:\/\//.test(appOrigin) ? appOrigin : "*";
-  const payload = JSON.stringify({ source: "outlook-calendar-oauth", status, message: message ?? null });
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Outlook OAuth</title></head>
-<body style="font-family:system-ui;padding:24px;text-align:center;">
-<p>${status === "ok" ? "✅ Collegamento completato. Puoi chiudere questa finestra." : `❌ Errore: ${message ?? "sconosciuto"}`}</p>
-<script>
-try { window.opener && window.opener.postMessage(${payload}, ${JSON.stringify(origin)}); } catch (e) {}
-setTimeout(() => window.close(), 1500);
-</script></body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+  const origin = appOrigin && /^https?:\/\//.test(appOrigin) ? appOrigin : siteUrl;
+  const hash = new URLSearchParams({
+    kind: "outlook",
+    status,
+    message: (message ?? "").replace(/[<>"']/g, "").slice(0, 200),
+  }).toString();
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${origin.replace(/\/$/, "")}/oauth-done#${hash}`,
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 async function handleStart(req: Request, userId: string, companyId: string): Promise<Response> {

@@ -652,9 +652,10 @@ const App = () => (
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               {/* /data-deletion: obbligatoria Meta App Review + GDPR diritto oblio */}
               <Route path="/data-deletion" element={<DataDeletion />} />
-              {/* /meta-oauth-done: atterraggio popup OAuth Meta (302 dall'edge:
-                  supabase.co non può servire HTML eseguibile) — postMessage + close */}
+              {/* /meta-oauth-done + /oauth-done: atterraggio popup OAuth (302 dagli
+                  edge: supabase.co non può servire HTML eseguibile) — postMessage + close */}
               <Route path="/meta-oauth-done" element={<MetaOAuthDone />} />
+              <Route path="/oauth-done" element={<MetaOAuthDone />} />
               <Route path="/cancellazione-dati" element={<DataDeletion />} />
               <Route path="/avviso-legale" element={<AvvisoLegale />} />
               <Route path="/condizioni-utilizzo" element={<CondizioniUtilizzoSito />} />

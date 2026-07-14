@@ -284,7 +284,9 @@ Deno.serve(async (req) => {
       return redirectToApp("success", integration.id);
     } catch (error) {
       console.error("meta-oauth-callback error:", error);
-      return redirectToApp("error", error.message);
+      // MAI il messaggio interno nell'URL visto dall'utente: codice generico,
+      // il dettaglio vero resta nei log della funzione.
+      return redirectToApp("error", "internal_error");
     }
   }
 
