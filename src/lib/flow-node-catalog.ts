@@ -23,6 +23,11 @@ export type ConfigFieldType =
   | 'user_select'
   | 'user_multi_select'
   | 'entity_select'
+  // Picker con dati reali (stile GHL) renderizzati da FlowBuilderConfigPanel:
+  | 'meta_page_select'       // pagina Facebook collegata (meta_assets selected)
+  | 'meta_form_multi_select' // moduli lead Meta (meta_lead_forms, filtrati per pagina)
+  | 'pipeline_select'        // pipeline CRM (marketing_pipelines)
+  | 'pipeline_stage_select'  // fase della pipeline scelta (marketing_pipeline_stages)
   | 'tag_input'
   | 'json_editor'
   | 'richhtml' // editor email visuale (WYSIWYG) → HTML
@@ -891,7 +896,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'contatto.phone', label: 'Telefono', type: 'string' },
       { id: 'campagna.nome', label: 'Nome campagna', type: 'string' },
     ],
-    configSchema: [],
+    // Stile GHL: il trigger può essere ristretto a una pagina e/o ad alcuni
+    // moduli lead. Vuoto = scatta per qualsiasi lead Meta dell'azienda.
+    configSchema: [
+      { id: 'page_id', label: 'Pagina Facebook', type: 'meta_page_select', required: false, helpText: 'Scatta solo per i lead di questa pagina. Vuoto = tutte le pagine collegate.' },
+      { id: 'form_ids', label: 'Moduli lead', type: 'meta_form_multi_select', required: false, helpText: 'Scatta solo per i lead di questi moduli. Vuoto = tutti i moduli.' },
+    ],
   },
 
   // ═══ HR & PERSONALE ═══
@@ -1454,13 +1464,14 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
-      { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Deal {{contatto.company_name}}' },
+      { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: {{contatto.full_name}} - Facebook' },
       { id: 'valore', label: 'Valore (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'stage', label: 'Stage iniziale', type: 'select', required: true, defaultValue: 'nuovo_lead', options: [
-        { value: 'nuovo_lead', label: 'Nuovo Lead' }, { value: 'contattato', label: 'Contattato' },
-        { value: 'appuntamento', label: 'Appuntamento' },
-      ]},
+      // Pipeline/fase REALI dell'azienda (prima c'era uno stage hardcoded che
+      // non corrispondeva a nessuna pipeline): l'executor legge pipeline_id +
+      // stage_id (con fallback legacy su `stage` per i flussi vecchi).
+      { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
+      { id: 'stage_id', label: 'Fase pipeline', type: 'pipeline_stage_select', required: true },
       { id: 'assegnato_a', label: 'Responsabile', type: 'user_select', required: false },
     ],
   },

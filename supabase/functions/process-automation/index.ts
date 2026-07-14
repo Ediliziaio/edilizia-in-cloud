@@ -310,6 +310,14 @@ async function handleTrigger(supabase: any, body: any) {
     // Stage da/a (opportunita_stage_cambiato)
     if (tcfg.stage_a && String((enrichedPayload as Record<string, unknown>)?.stage_id ?? "") !== String(tcfg.stage_a)) continue;
     if (tcfg.stage_da && String((enrichedPayload as Record<string, unknown>)?.old_stage_id ?? "") !== String(tcfg.stage_da)) continue;
+    // Pagina/moduli Facebook (campagna_facebook_lead → page_id / form_ids,
+    // stile GHL): il payload dell'evento porta page_id e form_id dal
+    // processore lead (meta-process-leads).
+    if (tcfg.page_id && String((enrichedPayload as Record<string, unknown>)?.page_id ?? "") !== String(tcfg.page_id)) continue;
+    if (Array.isArray(tcfg.form_ids) && tcfg.form_ids.length > 0) {
+      const evFormId = String((enrichedPayload as Record<string, unknown>)?.form_id ?? "");
+      if (!tcfg.form_ids.map(String).includes(evFormId)) continue;
+    }
 
     // Check re-enrollment settings (from flow config or trigger config)
     const flowSettings = flow.config_json?.settings || {};
@@ -1121,8 +1129,9 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "create_opportunity": {
-      const name = ncfg.opportunity_name || "Nuova Opportunità";
-      const value = ncfg.opportunity_value || 0;
+      // rv(): {{contatto.full_name}} ecc. nel nome/valore — prima uscivano letterali
+      const name = rv(ncfg.opportunity_name) || "Nuova Opportunità";
+      const value = Number(rv(ncfg.opportunity_value)) || 0;
       const pipelineId = ncfg.pipeline_id;
       const stageId = ncfg.stage_id || ncfg.stage;
 
@@ -1135,6 +1144,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       };
       if (pipelineId) insertData.pipeline_id = pipelineId;
       if (stageId) insertData.stage_id = stageId;
+      if (ncfg.assegnato_a) insertData.assigned_to = ncfg.assegnato_a;
 
       const { error } = await supabase
         .from("marketing_opportunities")

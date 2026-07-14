@@ -293,6 +293,7 @@ Deno.serve(async (req) => {
 
         const pageTokens = (creds as any).meta_page_tokens || {};
         let bfToken = accessToken;
+        let bfPageId: string | null = null;
         if (formRecord?.page_asset_id) {
           const { data: pageAsset } = await adminClient
             .from("meta_assets")
@@ -301,8 +302,12 @@ Deno.serve(async (req) => {
             .eq("company_id", company_id)
             .eq("integration_id", integration_id)
             .single();
-          if (pageAsset && pageTokens[pageAsset.asset_id]) {
-            bfToken = await decrypt(pageTokens[pageAsset.asset_id], encKey);
+          if (pageAsset) {
+            // page_id nel payload: serve al filtro pagina dei trigger automazione
+            bfPageId = pageAsset.asset_id;
+            if (pageTokens[pageAsset.asset_id]) {
+              bfToken = await decrypt(pageTokens[pageAsset.asset_id], encKey);
+            }
           }
         }
 
@@ -331,7 +336,7 @@ Deno.serve(async (req) => {
                 event_id: lead.id,
                 // leadgen_id/form_id espliciti: il processore li usa senza
                 // dover rifetchare il lead da Graph (formato canonico).
-                payload: { ...lead, leadgen_id: lead.id, form_id: bfFormId },
+                payload: { ...lead, leadgen_id: lead.id, form_id: bfFormId, page_id: bfPageId },
                 received_at: new Date().toISOString(),
                 status: "pending",
                 fail_count: 0,
@@ -373,6 +378,9 @@ Deno.serve(async (req) => {
 
         const pageTokens = (creds as any).meta_page_tokens || {};
         const tokenCache = new Map<string, string>();
+        // page_asset_id (uuid) → asset_id Meta della pagina: finisce nel payload
+        // come page_id e alimenta il filtro pagina dei trigger automazione.
+        const pageIdCache = new Map<string, string | null>();
         let importedTotal = 0;
         const perForm: Array<{ form_id: string; form_name: string | null; imported: number }> = [];
 
@@ -393,6 +401,7 @@ Deno.serve(async (req) => {
                   ? await decrypt(pageTokens[pageAsset.asset_id], encKey)
                   : accessToken,
               );
+              pageIdCache.set(form.page_asset_id, pageAsset?.asset_id ?? null);
             }
             bfToken = tokenCache.get(form.page_asset_id)!;
           }
@@ -422,7 +431,12 @@ Deno.serve(async (req) => {
                   event_id: lead.id,
                   // leadgen_id/form_id espliciti: formato canonico per il
                   // processore (niente refetch da Graph).
-                  payload: { ...lead, leadgen_id: lead.id, form_id: form.form_id },
+                  payload: {
+                    ...lead,
+                    leadgen_id: lead.id,
+                    form_id: form.form_id,
+                    page_id: form.page_asset_id ? (pageIdCache.get(form.page_asset_id) ?? null) : null,
+                  },
                   received_at: new Date().toISOString(),
                   status: "pending",
                   fail_count: 0,

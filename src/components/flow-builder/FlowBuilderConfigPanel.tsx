@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -183,6 +185,13 @@ export function FlowBuilderConfigPanel({
     onUpdateData(selectedNode.id, { ...nodeData, [fieldId]: value });
   };
 
+  // Patch multi-campo in un colpo solo (es. cambio pipeline → azzera la fase):
+  // due handleChange consecutivi si perderebbero il primo aggiornamento.
+  const handlePatch = (patch: Record<string, any>) => {
+    setIsDirty(true);
+    onUpdateData(selectedNode.id, { ...nodeData, ...patch });
+  };
+
   const handleCloseAttempt = () => {
     if (isDirty) {
       setShowUnsavedDialog(true);
@@ -298,6 +307,8 @@ export function FlowBuilderConfigPanel({
               field={field}
               value={nodeData[field.id]}
               onChange={(v) => handleChange(field.id, v)}
+              onPatch={handlePatch}
+              nodeConfig={nodeData}
               triggerProvidesContact={triggerProvidesContact}
               companyId={companyId}
               triggerItemId={triggerItemId}
@@ -499,6 +510,8 @@ function ConfigField({
   field,
   value,
   onChange,
+  onPatch,
+  nodeConfig,
   triggerProvidesContact,
   companyId,
   triggerItemId,
@@ -506,6 +519,8 @@ function ConfigField({
   field: ConfigFieldSchema;
   value: any;
   onChange: (v: any) => void;
+  onPatch?: (patch: Record<string, any>) => void;
+  nodeConfig?: Record<string, any>;
   triggerProvidesContact?: boolean;
   companyId?: string;
   triggerItemId?: string;
@@ -527,6 +542,72 @@ function ConfigField({
   const { data: companyUsers = [] } = useCompanyStaffUsers(
     field.type === "user_select" || field.type === "user_multi_select" ? companyId : undefined,
   );
+
+  // ── Dati reali per i picker stile GHL ──
+  // Pagine Meta collegate (servono anche al multi-select moduli per filtrare
+  // i moduli della pagina scelta: meta_lead_forms.page_asset_id → meta_assets.id).
+  const wantsMetaData = field.type === "meta_page_select" || field.type === "meta_form_multi_select";
+  const { data: metaPages = [] } = useQuery({
+    queryKey: ["flow-meta-pages", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("meta_assets")
+        .select("id, asset_id, name")
+        .eq("company_id", companyId!)
+        .eq("asset_type", "page")
+        .eq("selected", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId && wantsMetaData,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: metaForms = [] } = useQuery({
+    queryKey: ["flow-meta-forms", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("meta_lead_forms")
+        .select("id, form_id, form_name, status, page_asset_id")
+        .eq("company_id", companyId!)
+        .order("form_name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId && field.type === "meta_form_multi_select",
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Pipeline e fasi CRM reali (azione "Crea opportunità")
+  const { data: crmPipelines = [] } = useQuery({
+    queryKey: ["flow-pipelines", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_pipelines")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId && field.type === "pipeline_select",
+    staleTime: 5 * 60 * 1000,
+  });
+  const stagesPipelineId = field.type === "pipeline_stage_select" ? nodeConfig?.pipeline_id : undefined;
+  const { data: crmStages = [] } = useQuery({
+    queryKey: ["flow-pipeline-stages", stagesPipelineId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_pipeline_stages")
+        .select("id, name")
+        .eq("pipeline_id", stagesPipelineId!)
+        .order("position");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!stagesPipelineId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Helper: insert variable into text/textarea
   const insertVariable = (variable: string) => {
@@ -717,6 +798,114 @@ function ConfigField({
           placeholder={field.placeholder ?? "ID entità o {{variabile}}"}
           className="h-9 text-sm"
         />
+      )}
+
+      {field.type === "meta_page_select" && (
+        metaPages.length > 0 ? (
+          <Select
+            value={value || "__all__"}
+            onValueChange={(v) => onChange(v === "__all__" ? null : v)}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Tutte le pagine" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tutte le pagine collegate</SelectItem>
+              {metaPages.map((p: any) => (
+                <SelectItem key={p.asset_id} value={p.asset_id}>{p.name || p.asset_id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            Nessuna pagina Facebook collegata. Collega Meta da Impostazioni → Integrazioni.
+          </p>
+        )
+      )}
+
+      {field.type === "meta_form_multi_select" && (() => {
+        // Se è stata scelta una pagina, mostra solo i suoi moduli
+        const pageUuid = nodeConfig?.page_id
+          ? metaPages.find((p: any) => p.asset_id === nodeConfig.page_id)?.id
+          : null;
+        const visibleForms = pageUuid
+          ? metaForms.filter((f: any) => f.page_asset_id === pageUuid)
+          : metaForms;
+        if (visibleForms.length === 0) {
+          return (
+            <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+              {metaForms.length === 0
+                ? "Nessun modulo lead trovato. Verifica il collegamento Meta in Impostazioni → Integrazioni."
+                : "Nessun modulo per la pagina selezionata."}
+            </p>
+          );
+        }
+        const ids: string[] = Array.isArray(value) ? value : [];
+        return (
+          <div className="flex flex-wrap gap-1.5">
+            {visibleForms.map((f: any) => {
+              const checked = ids.includes(f.form_id);
+              return (
+                <Button
+                  key={f.form_id}
+                  type="button"
+                  variant={checked ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onChange(checked ? ids.filter((x) => x !== f.form_id) : [...ids, f.form_id])}
+                >
+                  {checked && <CheckCircle className="mr-1 h-3 w-3" />}
+                  {f.form_name || f.form_id}
+                </Button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {field.type === "pipeline_select" && (
+        crmPipelines.length > 0 ? (
+          <Select
+            value={value || ""}
+            onValueChange={(v) => {
+              // Cambiare pipeline invalida la fase scelta prima
+              if (onPatch) onPatch({ [field.id]: v, stage_id: null });
+              else onChange(v);
+            }}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Seleziona pipeline..." />
+            </SelectTrigger>
+            <SelectContent>
+              {crmPipelines.map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            Nessuna pipeline trovata. Creane una in CRM → Opportunità.
+          </p>
+        )
+      )}
+
+      {field.type === "pipeline_stage_select" && (
+        !nodeConfig?.pipeline_id ? (
+          <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+            Seleziona prima la pipeline.
+          </p>
+        ) : (
+          <Select value={value || ""} onValueChange={onChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Seleziona fase..." />
+            </SelectTrigger>
+            <SelectContent>
+              {crmStages.map((s: any) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
       )}
 
       {field.type === "boolean" && (
