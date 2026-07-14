@@ -15,7 +15,7 @@ export function useMetaIntegration(integration: Integration | null) {
   const queryClient = useQueryClient();
 
   // Fetch assets (pages)
-  const { data: assets = [], refetch: refetchAssets } = useQuery({
+  const { data: assets = [], refetch: refetchAssets, isLoading: isLoadingAssets, isFetching: isFetchingAssets } = useQuery({
     queryKey: queryKeys.metaAds.assets(companyId, integration?.id),
     queryFn: async () => {
       if (!companyId || !integration?.id) return [];
@@ -257,6 +257,7 @@ export function useMetaIntegration(integration: Integration | null) {
     mappings,
     pages: assets.filter((a) => a.asset_type === "page"),
     selectedPages: assets.filter((a) => a.asset_type === "page" && a.selected),
+    isLoadingPages: isLoadingAssets || isFetchingAssets,
     startOAuth,
     callProxy,
     togglePageSelection,

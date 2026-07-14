@@ -199,21 +199,30 @@ Deno.serve(async (req) => {
         );
         const bizData = await bizRes.json();
 
-        for (const biz of bizData.data || []) {
-          try {
-            const bpRes = await fetch(
-              `https://graph.facebook.com/${apiVersion}/${biz.id}/owned_pages` +
-              `?fields=id,name,access_token,instagram_business_account{id,name,username}&access_token=${accessToken}`
-            );
-            const bpData = await bpRes.json();
-            for (const page of bpData.data || []) {
-              if (!seenPageIds.has(page.id)) {
-                allPages.push({ ...page, _biz_name: biz.name });
-                seenPageIds.add(page.id);
-              }
+        // Fetch owned_pages di TUTTI i Business Manager in parallelo: con
+        // account "agenzia" (molti BM) il fetch sequenziale teneva il popup
+        // sul grigio anche un minuto.
+        const bizResults = await Promise.all(
+          (bizData.data || []).map(async (biz: any) => {
+            try {
+              const bpRes = await fetch(
+                `https://graph.facebook.com/${apiVersion}/${biz.id}/owned_pages` +
+                `?fields=id,name,access_token,instagram_business_account{id,name,username}&access_token=${accessToken}`
+              );
+              const bpData = await bpRes.json();
+              return { biz, pages: (bpData.data || []) as any[] };
+            } catch (bizPageErr: any) {
+              console.warn(`BM pages fetch failed for biz ${biz.id}:`, bizPageErr.message);
+              return { biz, pages: [] as any[] };
             }
-          } catch (bizPageErr: any) {
-            console.warn(`BM pages fetch failed for biz ${biz.id}:`, bizPageErr.message);
+          })
+        );
+        for (const { biz, pages } of bizResults) {
+          for (const page of pages) {
+            if (!seenPageIds.has(page.id)) {
+              allPages.push({ ...page, _biz_name: biz.name });
+              seenPageIds.add(page.id);
+            }
           }
         }
       } catch (bizErr: any) {

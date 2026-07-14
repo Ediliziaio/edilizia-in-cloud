@@ -43,10 +43,18 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
     setLoading(true);
     const oauthUrl = await hook.startOAuth();
     if (oauthUrl) {
-      const w = 600, h = 700;
-      const left = (screen.width - w) / 2;
-      const top = (screen.height - h) / 2;
-      const popup = window.open(oauthUrl, "meta_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      // La dialog di Facebook "Login for Business" è larga: con 600px usciva
+      // grigia e con lo scroll orizzontale. Diamo più spazio (cap allo schermo)
+      // e la rendiamo ridimensionabile/scrollabile.
+      const w = Math.min(820, Math.floor(screen.width * 0.9));
+      const h = Math.min(860, Math.floor(screen.height * 0.9));
+      const left = Math.max(0, (screen.width - w) / 2);
+      const top = Math.max(0, (screen.height - h) / 2);
+      const popup = window.open(
+        oauthUrl,
+        "meta_oauth",
+        `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`,
+      );
       popupRef.current = popup;
 
       // Poll for popup closed without completing OAuth
