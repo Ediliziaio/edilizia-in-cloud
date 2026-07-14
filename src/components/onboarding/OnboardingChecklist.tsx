@@ -19,6 +19,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Circle, ListChecks, ArrowRight, Sparkles, X } from "lucide-react";
 import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 interface OnboardingStep {
   id: string;
@@ -39,6 +41,9 @@ export function OnboardingChecklist() {
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const { isModuleEnabled, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
+  const { getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
+  const gatingLoading = limitsLoading || flagsLoading;
 
   // Dismiss persistito per-azienda (localStorage): se l'utente chiude la card
   // resta nascosta su questo browser. Riappare se cambia azienda/onboarding.
@@ -107,8 +112,30 @@ export function OnboardingChecklist() {
     },
   });
 
+  // Gli step del template puntano a route del gestionale: per i piani che
+  // non le hanno (es. piano Marketing: niente commesse/preventivi/fatturazione)
+  // lo step va NASCOSTO, non proposto come prossima azione.
+  const stepVisible = (step: OnboardingStep): boolean => {
+    const url = step.action_url ?? "";
+    if (!url) return true;
+    if (gatingLoading) return true; // fail-open finché piano/flag non risolti
+    const featureOff = (key: string) => getFeatureAccessLevel(key) === "disabled";
+    if (url.includes("/ordini")) return isModuleEnabled("orders");
+    if (url.includes("/magazzino")) return isModuleEnabled("warehouse");
+    if (url.includes("/clienti")) return isModuleEnabled("customers");
+    if (url.includes("preventiv")) return !featureOff("preventivi_crm");
+    if (url.includes("fatturazione") || url.includes("/documenti")) {
+      return !(featureOff("fatturazione") && featureOff("documenti"));
+    }
+    if (url.includes("/personale") || url.includes("/formazione")) return !featureOff("hr_personale");
+    return true;
+  };
+  const visibleSteps = steps.filter(stepVisible);
+
   const completedIds = new Set(completions.map((c) => c.step_id));
-  const pct = steps.length > 0 ? Math.round((completedIds.size / steps.length) * 100) : 0;
+  const pct = visibleSteps.length > 0
+    ? Math.round((visibleSteps.filter((s) => completedIds.has(s.id)).length / visibleSteps.length) * 100)
+    : 0;
 
   // Auto-completion engine (scrive su DB le milestone raggiunte)
   useOnboardingAutoComplete(steps, completedIds);
@@ -146,7 +173,7 @@ export function OnboardingChecklist() {
     },
   });
 
-  if (!onboarding || steps.length === 0) return null;
+  if (!onboarding || visibleSteps.length === 0) return null;
   if (dismissed) return null;
 
   // Quando tutti gli step sono completati, mostriamo banner di successo
@@ -154,7 +181,7 @@ export function OnboardingChecklist() {
   // (status='completed' viene scritto da super-admin o mutation manuale).
   if (pct === 100 && onboarding.status === "completed") return null;
 
-  const nextStep = steps.find(s => !completedIds.has(s.id));
+  const nextStep = visibleSteps.find(s => !completedIds.has(s.id));
   const isAllDone = pct === 100;
 
   return (
@@ -195,7 +222,7 @@ export function OnboardingChecklist() {
       <CardContent className="space-y-3">
         <Progress value={pct} className="h-2" />
         <div className="space-y-1.5">
-          {steps.map((step) => {
+          {visibleSteps.map((step) => {
             const done = completedIds.has(step.id);
             return (
               <div

@@ -115,6 +115,7 @@ export function useFeatureAccess(
     isImpersonationReady,
     impersonatedCompanyId,
     impersonationToken,
+    viewAsRole,
     selectedMultiCompanyId,
     profile,
     isLoading: authLoading,
@@ -149,7 +150,8 @@ export function useFeatureAccess(
   const isDemoBaseline = companyId === DEMO_COMPANY_ID;
   // "Vista cliente": in impersonation il super admin può rinunciare al bypass
   // per vedere le feature esattamente come il piano le dà al cliente.
-  const clientView = useImpersonationClientView();
+  // Con viewAsRole ("loggato come <utente>") la vista cliente è FORZATA.
+  const clientView = useImpersonationClientView() || !!viewAsRole;
   const bypass =
     isDemoBaseline ||
     directSuperAdminBypass ||

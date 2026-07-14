@@ -976,7 +976,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 
 const CompanySidebar = memo(function CompanySidebar() {
   const isMobile = useIsMobile();
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, multiCompanyAccesses } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, multiCompanyAccesses, viewAsRole } = useAuth();
   const hasMultipleCompanies = (multiCompanyAccesses?.length ?? 0) > 1;
   // usePermissions è già "viewAs-aware": quando `viewAsRole` è attivo
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
@@ -995,7 +995,9 @@ const CompanySidebar = memo(function CompanySidebar() {
   // ECCEZIONE "Vista cliente" (toggle nel banner impersonation, default ON):
   // il super admin vuole verificare COSA VEDE il piano del cliente → in quel
   // caso la sidebar deve rendere badge/moduli esattamente come per il cliente.
-  const impersonationClientView = useImpersonationClientView();
+  // Con "Visualizza come utente" (viewAsRole) la vista cliente è FORZATA:
+  // "loggato come Daniela" = pixel-perfect ciò che vede Daniela.
+  const impersonationClientView = useImpersonationClientView() || !!viewAsRole;
   const isSuperAdminViewer = role === "super_admin" && !(isImpersonating && impersonationClientView);
 
   // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così

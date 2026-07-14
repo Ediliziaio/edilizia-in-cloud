@@ -76,6 +76,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
     isImpersonationReady,
     impersonatedCompanyId,
     impersonationToken,
+    viewAsRole,
   } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
 
@@ -88,7 +89,8 @@ export function useFeatureFlags(companyIdOverride?: string) {
   const isDemoBaseline = companyId === DEMO_COMPANY_ID;
   // "Vista cliente" (default in impersonation): niente bypass, il super admin
   // vede i flag risolti come il cliente. Il toggle sta nel banner giallo.
-  const clientView = useImpersonationClientView();
+  // Con viewAsRole ("loggato come <utente>") la vista cliente è FORZATA.
+  const clientView = useImpersonationClientView() || !!viewAsRole;
   const bypass =
     isDemoBaseline ||
     (

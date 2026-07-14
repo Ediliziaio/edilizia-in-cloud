@@ -43,6 +43,7 @@ export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}
     role,
     impersonatedCompanyId,
     impersonationToken,
+    viewAsRole,
   } = useAuth();
 
   const companyId = effectiveCompany?.id;
@@ -147,8 +148,10 @@ export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}
   const isSuperAdmin = role === "super_admin";
   // "Vista cliente" (default in impersonation): il super admin rinuncia al
   // bypass per vedere il piano come lo vede il cliente. Il flag può solo
-  // RESTRINGERE, mai allargare.
-  const clientView = useImpersonationClientView();
+  // RESTRINGERE, mai allargare. Con "Visualizza come utente" (viewAsRole)
+  // la vista cliente è FORZATA: se sei "loggato come Daniela" devi vedere
+  // esattamente ciò che vede Daniela, sempre.
+  const clientView = useImpersonationClientView() || !!viewAsRole;
   const bypass =
     isSuperAdmin &&
     isImpersonationReady &&

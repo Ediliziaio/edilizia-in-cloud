@@ -171,7 +171,7 @@ export const macroAreas: MacroArea[] = [
       //  • "Formazione" = fruizione — gated canViewFormazione (default ON per gli staff): il
       //    dipendente vede i corsi assegnati e accede ai materiali. Nessun ponte verso la gestione.
       { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
-      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione" },
+      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", featureKey: "hr_personale" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },
