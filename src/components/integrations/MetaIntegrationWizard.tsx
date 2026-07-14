@@ -122,8 +122,11 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
 
   const handleOAuthSuccess = useCallback(() => {
     onComplete();
+    // Il callback ha appena inserito le pagine: ricarichiamo gli asset così
+    // il passo "Seleziona pagine" le mostra subito (la query ha staleTime).
+    hook.refetchAssets?.();
     setStep("pages");
-  }, [onComplete]);
+  }, [onComplete, hook]);
 
   const handleFormMapping = useCallback((formId: string) => {
     setSelectedFormId(formId);

@@ -9,65 +9,129 @@ interface OAuthStepProps {
   hook: any;
 }
 
+const STORAGE_KEY = "meta_oauth_result";
+
 export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
   const [loading, setLoading] = useState(false);
   const popupRef = useRef<Window | null>(null);
-  const pollRef = useRef<number | null>(null);
+  const closedPollRef = useRef<number | null>(null);
+  const dbPollRef = useRef<number | null>(null);
+  const doneRef = useRef(false);
+  // updated_at dell'integrazione PRIMA di questo tentativo: il polling DB
+  // avanza solo quando cambia (= callback nuovo), mai su una connessione
+  // preesistente.
+  const baselineRef = useRef<string | null>(null);
+  // onSuccess/hook via ref: gli handler vivono per tutta la vita del componente
+  // ma devono usare i valori aggiornati senza riarmare i listener.
+  const onSuccessRef = useRef(onSuccess);
+  const hookRef = useRef(hook);
+  onSuccessRef.current = onSuccess;
+  hookRef.current = hook;
+
+  const clearTimers = () => {
+    if (closedPollRef.current) { clearInterval(closedPollRef.current); closedPollRef.current = null; }
+    if (dbPollRef.current) { clearInterval(dbPollRef.current); dbPollRef.current = null; }
+  };
+
+  const finish = (status: "success" | "error") => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    clearTimers();
+    setLoading(false);
+    try { popupRef.current?.close(); } catch { /* opener spezzato dal COOP */ }
+    popupRef.current = null;
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+    if (status === "success") onSuccessRef.current();
+  };
 
   useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      // SECURITY: il callback Meta è servito dal dominio Supabase
-      // (functions/v1/meta-oauth-callback), non dalla nostra stessa origine.
-      // Accettiamo solo messaggi provenienti da quel dominio oppure dalla
-      // nostra stessa origine (dev locale). Qualsiasi altro origine viene
-      // ignorato per prevenire fake-success injection da siti terzi.
+    // 1) postMessage classico (funziona solo se il COOP di Facebook non ha
+    //    spezzato window.opener — su Chrome recenti NON funziona).
+    const onMessage = (event: MessageEvent) => {
       const allowed = event.origin === SUPABASE_ORIGIN || event.origin === window.location.origin;
       if (!allowed) return;
       if (event.data?.type === "META_OAUTH_RESULT") {
-        if (event.data.status === "success") {
-          onSuccess();
-        }
-        setLoading(false);
-        popupRef.current = null;
-        if (pollRef.current) clearInterval(pollRef.current);
+        finish(event.data.status === "success" ? "success" : "error");
       }
     };
-    window.addEventListener("message", handler);
-    return () => {
-      window.removeEventListener("message", handler);
-      if (pollRef.current) clearInterval(pollRef.current);
+    // 2) BroadcastChannel same-origin: immune al COOP, è il canale principale.
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("meta-oauth");
+      bc.onmessage = (ev) => {
+        const s = ev.data?.status;
+        finish(s === "success" || s === "ok" ? "success" : "error");
+      };
+    } catch { /* non supportato → restano storage + polling DB */ }
+    // 3) storage event: il popup scrive meta_oauth_result → altra fallback.
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key !== STORAGE_KEY || !ev.newValue) return;
+      try {
+        const v = JSON.parse(ev.newValue);
+        finish(v.status === "success" || v.status === "ok" ? "success" : "error");
+      } catch { /* valore non valido */ }
     };
-  }, [onSuccess]);
+    window.addEventListener("message", onMessage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("storage", onStorage);
+      bc?.close();
+      clearTimers();
+    };
+  }, []);
+
+  const isNewlyConnected = async (): Promise<boolean> => {
+    try {
+      const s = await hookRef.current.getMetaStatus?.();
+      return !!s?.connected && s.updatedAt !== baselineRef.current;
+    } catch {
+      return false;
+    }
+  };
 
   const handleConnect = async () => {
+    doneRef.current = false;
     setLoading(true);
-    const oauthUrl = await hook.startOAuth();
-    if (oauthUrl) {
-      // La dialog di Facebook "Login for Business" è larga: con 600px usciva
-      // grigia e con lo scroll orizzontale. Diamo più spazio (cap allo schermo)
-      // e la rendiamo ridimensionabile/scrollabile.
-      const w = Math.min(820, Math.floor(screen.width * 0.9));
-      const h = Math.min(860, Math.floor(screen.height * 0.9));
-      const left = Math.max(0, (screen.width - w) / 2);
-      const top = Math.max(0, (screen.height - h) / 2);
-      const popup = window.open(
-        oauthUrl,
-        "meta_oauth",
-        `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`,
-      );
-      popupRef.current = popup;
-
-      // Poll for popup closed without completing OAuth
-      pollRef.current = window.setInterval(() => {
-        if (popupRef.current && popupRef.current.closed) {
-          setLoading(false);
-          popupRef.current = null;
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      }, 1000);
-    } else {
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+    // Baseline PRIMA di aprire il popup: distingue una connessione nuova da
+    // una già esistente (evita l'avanzamento prematuro nel polling DB).
+    try { baselineRef.current = (await hookRef.current.getMetaStatus?.())?.updatedAt ?? null; } catch { baselineRef.current = null; }
+    const oauthUrl = await hookRef.current.startOAuth();
+    if (!oauthUrl) {
       setLoading(false);
+      return;
     }
+    // La dialog di Facebook "Login for Business" è larga: con 600px usciva
+    // grigia con scroll orizzontale. Più spazio + ridimensionabile.
+    const w = Math.min(820, Math.floor(screen.width * 0.9));
+    const h = Math.min(860, Math.floor(screen.height * 0.9));
+    const left = Math.max(0, (screen.width - w) / 2);
+    const top = Math.max(0, (screen.height - h) / 2);
+    popupRef.current = window.open(
+      oauthUrl,
+      "meta_oauth",
+      `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`,
+    );
+
+    // Se l'utente chiude il popup senza completare, sblocca il bottone.
+    closedPollRef.current = window.setInterval(() => {
+      if (popupRef.current && popupRef.current.closed) {
+        // Il popup potrebbe essersi chiuso DOPO un successo non ancora
+        // ricevuto via canale: diamo un ultimo controllo al DB, poi sblocca.
+        isNewlyConnected().then((ok) => {
+          if (ok) finish("success");
+          else if (!doneRef.current) { setLoading(false); clearTimers(); }
+        });
+      }
+    }, 1000);
+
+    // RETE DI SICUREZZA: se tutti i canali di messaggistica falliscono
+    // (COOP + BroadcastChannel + storage), interroghiamo direttamente il DB:
+    // quando l'integrazione risulta NUOVAMENTE "connected" avanziamo lo stesso.
+    dbPollRef.current = window.setInterval(() => {
+      isNewlyConnected().then((ok) => { if (ok) finish("success"); });
+    }, 2500);
   };
 
   return (

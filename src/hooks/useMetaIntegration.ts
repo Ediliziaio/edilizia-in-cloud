@@ -251,6 +251,20 @@ export function useMetaIntegration(integration: Integration | null) {
     },
   });
 
+  const getMetaStatus = useCallback(async (): Promise<{ connected: boolean; updatedAt: string | null }> => {
+    if (!companyId) return { connected: false, updatedAt: null };
+    const { data } = await supabase
+      .from("integrations")
+      .select("status, updated_at")
+      .eq("company_id", companyId)
+      .eq("provider", "meta")
+      .maybeSingle();
+    return {
+      connected: data?.status === "connected",
+      updatedAt: (data as { updated_at?: string } | null)?.updated_at ?? null,
+    };
+  }, [companyId]);
+
   return {
     assets,
     forms,
@@ -258,6 +272,13 @@ export function useMetaIntegration(integration: Integration | null) {
     pages: assets.filter((a) => a.asset_type === "page"),
     selectedPages: assets.filter((a) => a.asset_type === "page" && a.selected),
     isLoadingPages: isLoadingAssets || isFetchingAssets,
+    companyId,
+    // Stato in DB dell'integrazione Meta (status + updated_at). È la rete di
+    // sicurezza per quando il popup OAuth non riesce ad avvisare il wizard
+    // (Facebook mette header COOP che spezzano window.opener → il
+    // postMessage non arriva mai). `updated_at` distingue una connessione
+    // NUOVA da una già esistente, per non avanzare prematuramente.
+    getMetaStatus,
     startOAuth,
     callProxy,
     togglePageSelection,

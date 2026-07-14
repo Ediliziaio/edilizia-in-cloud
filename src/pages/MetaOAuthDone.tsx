@@ -62,13 +62,44 @@ export default function MetaOAuthDone() {
   const result = useMemo(parseHash, []);
 
   useEffect(() => {
-    if (window.opener) {
-      try {
-        window.opener.postMessage(buildOpenerMessage(result), window.location.origin);
-      } catch {
-        // opener non raggiungibile: resta visibile il messaggio sotto
-      }
+    const payload = buildOpenerMessage(result);
+
+    // Facebook mette header COOP (Cross-Origin-Opener-Policy) che SPEZZANO
+    // window.opener quando il popup naviga sui suoi domini: al ritorno qui
+    // window.opener è null → postMessage non arriva mai e window.close()
+    // non funziona (il wizard resta fermo). Notifichiamo quindi via canali
+    // same-origin che sopravvivono al COOP: BroadcastChannel + localStorage.
+    try {
+      const bc = new BroadcastChannel("meta-oauth");
+      bc.postMessage(payload);
+      bc.close();
+    } catch {
+      // BroadcastChannel non supportato: resta il fallback localStorage
+    }
+    try {
+      // Scriviamo con timestamp così lo storage-event scatta anche a parità
+      // di valore, e il wizard può leggerlo al mount se ha perso l'evento.
+      localStorage.setItem(
+        "meta_oauth_result",
+        JSON.stringify({ ...payload, ts: Date.now() }),
+      );
+    } catch {
+      // storage non disponibile
+    }
+
+    // Fallback classico: se per qualche browser l'opener è sopravvissuto.
+    try {
+      if (window.opener) window.opener.postMessage(payload, "*");
+    } catch {
+      // opener non raggiungibile
+    }
+
+    // Prova a chiudere il popup (può fallire se il COOP ha spezzato l'opener:
+    // in quel caso resta a schermo il messaggio "Account collegato").
+    try {
       window.close();
+    } catch {
+      // niente
     }
   }, [result]);
 
