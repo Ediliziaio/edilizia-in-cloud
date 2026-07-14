@@ -353,6 +353,47 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "purge-unselected": {
+        // ISOLAMENTO MULTI-TENANT: l'OAuth salva TUTTE le pagine visibili
+        // all'utente Meta (anche quelle di ALTRI clienti dell'agenzia).
+        // Confermata la selezione nel wizard, le pagine non scelte spariscono
+        // da questa azienda e i loro token vengono rimossi dalla credenziale:
+        // nessun utente dell'azienda può vedere o usare pagine altrui.
+        const { data: unselected } = await adminClient
+          .from("meta_assets")
+          .select("asset_id")
+          .eq("integration_id", integration_id)
+          .eq("company_id", company_id)
+          .eq("asset_type", "page")
+          .eq("selected", false);
+        const removedIds = (unselected ?? []).map((a: { asset_id: string }) => a.asset_id);
+        if (removedIds.length > 0) {
+          await adminClient
+            .from("meta_assets")
+            .delete()
+            .eq("integration_id", integration_id)
+            .eq("company_id", company_id)
+            .eq("asset_type", "page")
+            .eq("selected", false);
+          const remainingTokens: Record<string, string> = { ...((creds as any).meta_page_tokens || {}) };
+          for (const id of removedIds) delete remainingTokens[id];
+          await adminClient
+            .from("integration_credentials")
+            .update({ meta_page_tokens: remainingTokens, updated_at: new Date().toISOString() })
+            .eq("integration_id", integration_id);
+          await adminClient.from("integration_audit_log").insert({
+            company_id,
+            actor_user_id: authUser.id,
+            action: "assets_purged_unselected",
+            entity_type: "integration",
+            entity_id: integration_id,
+            metadata: { provider: "meta", removed_pages: removedIds.length },
+          });
+        }
+        result = { success: true, removed: removedIds.length };
+        break;
+      }
+
       case "disconnect": {
         try {
           await fetch(`https://graph.facebook.com/${apiVersion}/me/permissions?access_token=${accessToken}`, {
@@ -742,6 +783,27 @@ Deno.serve(async (req) => {
             status: 400,
             headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
           });
+        }
+        // ISOLAMENTO MULTI-TENANT: un page_id grezzo va accettato SOLO se è
+        // una pagina collegata (selected) a QUESTA azienda. Senza questo check
+        // il token utente (che può vedere tutte le pagine gestite dall'utente
+        // Meta, anche di altri clienti) leggerebbe post di pagine altrui.
+        if (!page_asset_id) {
+          const { data: ownedPage } = await adminClient
+            .from("meta_assets")
+            .select("id")
+            .eq("company_id", company_id)
+            .eq("integration_id", integration_id)
+            .eq("asset_type", "page")
+            .eq("asset_id", pageId)
+            .eq("selected", true)
+            .maybeSingle();
+          if (!ownedPage) {
+            return new Response(JSON.stringify({ error: "Pagina non collegata a questa azienda" }), {
+              status: 403,
+              headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+            });
+          }
         }
 
         // Page token FRESCO: i token salvati (meta_page_tokens) possono essere

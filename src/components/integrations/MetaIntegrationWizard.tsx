@@ -71,10 +71,19 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const currentIndex = STEP_ORDER.indexOf(step);
 
   const goNext = useCallback(() => {
+    // Confermata la selezione pagine: le pagine NON scelte (che possono
+    // appartenere ad altri clienti dell'utente Meta che ha fatto l'OAuth)
+    // vengono eliminate da questa azienda insieme ai loro token. Per
+    // aggiungerne altre in futuro basta ripetere "Collega con Facebook".
+    if (step === "pages") {
+      hook.callProxy("purge-unselected").catch(() => {
+        // best-effort: se fallisce, la RLS mostra comunque solo le selezionate
+      });
+    }
     if (currentIndex < STEP_ORDER.length - 1) {
       setStep(STEP_ORDER[currentIndex + 1]);
     }
-  }, [currentIndex]);
+  }, [currentIndex, step, hook]);
 
   const goBack = useCallback(() => {
     if (step === "mapping") {
