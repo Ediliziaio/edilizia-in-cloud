@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

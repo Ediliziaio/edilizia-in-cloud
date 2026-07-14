@@ -329,7 +329,9 @@ Deno.serve(async (req) => {
                 provider: "meta",
                 event_type: "leadgen",
                 event_id: lead.id,
-                payload: lead,
+                // leadgen_id/form_id espliciti: il processore li usa senza
+                // dover rifetchare il lead da Graph (formato canonico).
+                payload: { ...lead, leadgen_id: lead.id, form_id: bfFormId },
                 received_at: new Date().toISOString(),
                 status: "pending",
                 fail_count: 0,
@@ -418,7 +420,9 @@ Deno.serve(async (req) => {
                   provider: "meta",
                   event_type: "leadgen",
                   event_id: lead.id,
-                  payload: lead,
+                  // leadgen_id/form_id espliciti: formato canonico per il
+                  // processore (niente refetch da Graph).
+                  payload: { ...lead, leadgen_id: lead.id, form_id: form.form_id },
                   received_at: new Date().toISOString(),
                   status: "pending",
                   fail_count: 0,

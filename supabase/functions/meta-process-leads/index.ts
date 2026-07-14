@@ -178,7 +178,12 @@ Deno.serve(async (req) => {
 
 async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string } | null> {
   const { company_id, integration_id, payload } = event;
-  const leadgenId = payload.leadgen_id;
+  // Due formati di payload convivono in coda:
+  //  - WEBHOOK: { leadgen_id, form_id, page_id } → il lead va fetchato da Graph
+  //  - BACKFILL: il lead GREZZO del Graph API ({ id, field_data, ... }) —
+  //    è già completo, nessun refetch necessario.
+  const isBackfillPayload = !payload.leadgen_id && !!payload.id && Array.isArray(payload.field_data);
+  const leadgenId = payload.leadgen_id ?? (isBackfillPayload ? payload.id : undefined);
   const formId = payload.form_id;
   const processedAt = new Date();
 
@@ -211,6 +216,11 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       campaign_name: "TEST",
       ad_name: "TEST",
     };
+  } else if (isBackfillPayload) {
+    // Evento da backfill: il payload È il lead completo del Graph API.
+    // Rifetcharlo fallirebbe pure (i backfill possono includere lead più
+    // vecchi di 90 giorni non più leggibili singolarmente).
+    lead = payload;
   } else {
     // Usa il Page Access Token della pagina specifica (più permessi, richiesto per BM pages)
     // Fallback al User Access Token se il page token non è disponibile
@@ -287,6 +297,54 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     if (addr) mappedData.address = addr;
     if (zip) mappedData.postal_code = zip;
     if (prov) mappedData.province = prov;
+
+    // Secondo passaggio: le domande custom dei form italiani arrivano sluggate
+    // da Meta ("nome_e_cognome", "numero_di_telefono", "e-mail", "città") e
+    // sfuggono alle chiavi standard qui sopra → match per pattern sulla chiave
+    // normalizzata (minuscole, senza accenti né simboli).
+    const norm = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_");
+    const pickLike = (test: (k: string) => boolean): string | undefined => {
+      for (const [k, v] of Object.entries(fieldData)) {
+        if (v !== undefined && v !== "" && test(norm(k))) return v;
+      }
+      return undefined;
+    };
+    if (!mappedData.email) {
+      const v = pickLike((k) => k.includes("mail"));
+      if (v) mappedData.email = v;
+    }
+    if (!mappedData.phone) {
+      const v = pickLike((k) => k.includes("telefono") || k.includes("phone") || k.includes("cellulare") || k.includes("whatsapp"));
+      if (v) mappedData.phone = v;
+    }
+    if (!mappedData.full_name && !mappedData.first_name) {
+      const v = pickLike((k) => k.includes("nome_e_cognome") || k.includes("nome_completo") || k.includes("nominativo") || k.includes("full_name"));
+      if (v) {
+        mappedData.full_name = v;
+      } else {
+        const cognome = pickLike((k) => k.includes("cognome"));
+        const nome = pickLike((k) => k.includes("nome") && !k.includes("cognome"));
+        if (nome) mappedData.first_name = nome;
+        if (cognome) mappedData.last_name = cognome;
+      }
+    }
+    if (!mappedData.city) {
+      const v = pickLike((k) => k === "citta" || k.includes("city") || k === "comune");
+      if (v) mappedData.city = v;
+    }
+    if (!mappedData.address) {
+      const v = pickLike((k) => k.includes("indirizzo") || k.includes("address"));
+      if (v) mappedData.address = v;
+    }
+    if (!mappedData.postal_code) {
+      const v = pickLike((k) => k === "cap" || k.includes("codice_postale") || k.includes("postal") || k.includes("zip"));
+      if (v) mappedData.postal_code = v;
+    }
+    if (!mappedData.province) {
+      const v = pickLike((k) => k.includes("provincia") || k.includes("province"));
+      if (v) mappedData.province = v;
+    }
   }
 
   let firstName = mappedData.first_name || defaultValues.first_name || "";
