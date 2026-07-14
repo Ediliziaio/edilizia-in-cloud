@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
       .slice(0, 3);
 
     type BundleRow = { nome: string; descrizione: string | null; fv_kwp: number | null; fv_accumulo_kwh: number | null; cover_image_url: string | null };
-    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string } | null; tariffe_aziendali?: { nome?: string } | null };
+    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string } | null; tariffe_aziendali?: { nome?: string } | null; article_families?: { nome?: string } | null };
 
     let bundleData: BundleRow | null = null;
     let bundleVoci: BundleVoceRow[] = [];
@@ -264,7 +264,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle(),
         supabaseAdmin
           .from("bundle_voci")
-          .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name), tariffe_aziendali(nome)")
+          .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name), tariffe_aziendali(nome), article_families(nome)")
           .eq("bundle_id", prog.kit_bundle_id)
           .order("sort_order"),
       ]);
@@ -565,6 +565,7 @@ Deno.serve(async (req: Request) => {
           const u = typeof v.immagine_url === "string" ? v.immagine_url : "";
           return {
             descrizione: (v.article_templates as Record<string,string> | null)?.name
+              ?? (v.article_families as Record<string,string> | null)?.nome
               ?? (v.tariffe_aziendali as Record<string,string> | null)?.nome
               ?? "Componente",
             quantita: Number(v.quantita) || 1,
