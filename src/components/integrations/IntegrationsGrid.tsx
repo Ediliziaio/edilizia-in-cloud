@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Search, CheckCircle2, MoreVertical, ExternalLink, AlertTriangle, Plug, Wrench } from "lucide-react";
+import { Search, CheckCircle2, MoreVertical, ExternalLink, AlertTriangle, Plug, Wrench, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,8 @@ export type IntegrationsGridProps = {
   onDisconnect?: (item: IntegrationItem) => void;
   /** "Risolvi problemi" nel kebab per gli item con troubleshoot=true. */
   onTroubleshoot?: (item: IntegrationItem) => void;
+  /** "Moduli lead" nel kebab per gli item con leadFormsMenu=true (se connessi). */
+  onManageForms?: (item: IntegrationItem) => void;
 };
 
 function StatusBadge({ status }: { status: IntegrationConnectionStatus }) {
@@ -105,6 +107,7 @@ export default function IntegrationsGrid({
   externalWizardRegistry = {},
   onDisconnect,
   onTroubleshoot,
+  onManageForms,
 }: IntegrationsGridProps) {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<IntegrationCategory | "tutte">("tutte");
@@ -266,6 +269,12 @@ export default function IntegrationsGrid({
                         <ExternalLink className="mr-2 h-4 w-4" />
                         Vai alla pagina
                       </DropdownMenuItem>
+                      {connected && item.leadFormsMenu && onManageForms && (
+                        <DropdownMenuItem onClick={() => onManageForms(item)}>
+                          <ListChecks className="mr-2 h-4 w-4" />
+                          Moduli lead
+                        </DropdownMenuItem>
+                      )}
                       {item.troubleshoot && onTroubleshoot && (
                         <DropdownMenuItem onClick={() => onTroubleshoot(item)}>
                           <Wrench className="mr-2 h-4 w-4" />

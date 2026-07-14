@@ -27,6 +27,10 @@ interface MetaIntegrationWizardProps {
   onOpenChange: (open: boolean) => void;
   integration: Integration | null;
   onComplete: () => void;
+  /** Passo iniziale quando già connessi: "forms" dal menu "Moduli lead",
+   *  "oauth" dal Risolvi problemi (ri-consenso permessi). Se non connessi
+   *  si parte sempre dall'OAuth. */
+  initialStep?: MetaWizardStep;
 }
 
 const STEP_TITLES: Record<MetaWizardStep, string> = {
@@ -40,9 +44,12 @@ const STEP_TITLES: Record<MetaWizardStep, string> = {
 
 const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "confirm", "forms", "mapping", "activation"];
 
-export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete }: MetaIntegrationWizardProps) {
+export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete, initialStep }: MetaIntegrationWizardProps) {
   const isConnected = integration?.status === "connected";
-  const [step, setStep] = useState<MetaWizardStep>(isConnected ? "pages" : "oauth");
+  // Passo di partenza: OAuth se non connessi; da connessi initialStep
+  // esplicito (anche "oauth" per il ri-consenso) o il default "pages".
+  const baseStep: MetaWizardStep = isConnected ? (initialStep ?? "pages") : "oauth";
+  const [step, setStep] = useState<MetaWizardStep>(baseStep);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"config" | "logs">("config");
   const [dirty, setDirty] = useState(false);
@@ -54,19 +61,19 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
 
   useEffect(() => {
     if (open) {
-      setStep(isConnected ? "pages" : "oauth");
+      setStep(baseStep);
       setSelectedFormId(null);
       setActiveTab("config");
       setDirty(false);
     }
-  }, [open, isConnected]);
+  }, [open, baseStep]);
 
   // Track dirty state on step changes beyond initial
   useEffect(() => {
-    if (open && step !== "oauth" && step !== (isConnected ? "pages" : "oauth")) {
+    if (open && step !== "oauth" && step !== baseStep) {
       setDirty(true);
     }
-  }, [step, open, isConnected]);
+  }, [step, open, baseStep]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
 
@@ -106,7 +113,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   };
 
   const doClose = () => {
-    setStep(isConnected ? "pages" : "oauth");
+    setStep(baseStep);
     setSelectedFormId(null);
     setDirty(false);
     onOpenChange(false);

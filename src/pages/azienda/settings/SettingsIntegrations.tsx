@@ -39,7 +39,7 @@ import IntegrationsGrid, {
   type IntegrationConnectionStatus,
   type IntegrationStatusMap,
 } from "@/components/integrations/IntegrationsGrid";
-import type { Integration } from "@/types/integrations";
+import type { Integration, MetaWizardStep } from "@/types/integrations";
 
 const TOKEN_STALE_DAYS = 60;
 
@@ -300,11 +300,16 @@ export default function SettingsIntegrations() {
     [],
   );
 
-  // ── "Risolvi problemi" Meta (stile GHL) + wizard di ri-collegamento ───────
+  // ── "Risolvi problemi" Meta (stile GHL) + wizard con passo iniziale ───────
+  // metaWizardStep = null → chiuso; "oauth" → ri-consenso permessi (Ricollega);
+  // "forms" → gestione moduli lead diretta dal kebab.
   const [metaTroubleshootOpen, setMetaTroubleshootOpen] = useState(false);
-  const [metaReconnectOpen, setMetaReconnectOpen] = useState(false);
+  const [metaWizardStep, setMetaWizardStep] = useState<MetaWizardStep | null>(null);
   const handleTroubleshoot = (item: IntegrationItem) => {
     if (item.id === "meta") setMetaTroubleshootOpen(true);
+  };
+  const handleManageForms = (item: IntegrationItem) => {
+    if (item.id === "meta") setMetaWizardStep("forms");
   };
 
   // ── Disconnect handler ────────────────────────────────────────────────────
@@ -403,6 +408,7 @@ export default function SettingsIntegrations() {
         externalWizardRegistry={externalWizardRegistry}
         onDisconnect={handleDisconnect}
         onTroubleshoot={handleTroubleshoot}
+        onManageForms={handleManageForms}
       />
 
       {/* "Risolvi problemi" Meta: autorizzazioni, pagine mancanti, backfill lead */}
@@ -410,13 +416,14 @@ export default function SettingsIntegrations() {
         open={metaTroubleshootOpen}
         onOpenChange={setMetaTroubleshootOpen}
         integration={metaIntegration}
-        onReconnect={() => setMetaReconnectOpen(true)}
+        onReconnect={() => setMetaWizardStep("oauth")}
       />
-      {/* Wizard Meta dedicato al percorso "Ricollega" del Risolvi problemi */}
+      {/* Wizard Meta con passo iniziale: "oauth" (Ricollega) o "forms" (Moduli lead) */}
       <MetaIntegrationWizard
-        open={metaReconnectOpen}
-        onOpenChange={setMetaReconnectOpen}
+        open={metaWizardStep !== null}
+        onOpenChange={(v) => { if (!v) setMetaWizardStep(null); }}
         integration={metaIntegration}
+        initialStep={metaWizardStep ?? undefined}
         onComplete={() => {
           refetchIntegrations();
           queryClient.invalidateQueries({ queryKey: ["integrations", companyId] });

@@ -85,6 +85,8 @@ export type IntegrationItem = {
   manageCtaLabel?: string;
   /** Mostra "Risolvi problemi" nel kebab (richiede onTroubleshoot sulla grid) */
   troubleshoot?: boolean;
+  /** Mostra "Moduli lead" nel kebab quando connesso (richiede onManageForms) */
+  leadFormsMenu?: boolean;
 };
 
 /**
@@ -133,6 +135,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     gestisciMode: "external-wizard",
     pageHref: "/azienda/marketing/social",
     troubleshoot: true,
+    leadFormsMenu: true,
   },
   {
     id: "google-business",
