@@ -83,6 +83,8 @@ export type IntegrationItem = {
   connectCtaLabel?: string;
   /** Override label CTA quando connesso (default: "Gestisci") */
   manageCtaLabel?: string;
+  /** Mostra "Risolvi problemi" nel kebab (richiede onTroubleshoot sulla grid) */
+  troubleshoot?: boolean;
 };
 
 /**
@@ -130,6 +132,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     Logo: MetaAssetLogo,
     gestisciMode: "external-wizard",
     pageHref: "/azienda/marketing/social",
+    troubleshoot: true,
   },
   {
     id: "google-business",

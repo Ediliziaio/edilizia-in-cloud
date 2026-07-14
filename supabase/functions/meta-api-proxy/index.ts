@@ -353,6 +353,98 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "backfill-recent": {
+        // "Risolvi → I lead non vengono sincronizzati automaticamente":
+        // recupera i lead degli ultimi N giorni (15 o 30) per TUTTI i moduli
+        // attivi dell'integrazione e li rimette in coda di processamento.
+        // L'upsert su (company,provider,event_id) rende l'operazione
+        // idempotente: i lead già importati non vengono duplicati.
+        const days = Number(body.days) === 30 ? 30 : 15;
+        const sinceTs = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
+
+        const { data: activeForms } = await adminClient
+          .from("meta_lead_forms")
+          .select("form_id, form_name, page_asset_id")
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id)
+          .eq("status", "active");
+
+        const pageTokens = (creds as any).meta_page_tokens || {};
+        const tokenCache = new Map<string, string>();
+        let importedTotal = 0;
+        const perForm: Array<{ form_id: string; form_name: string | null; imported: number }> = [];
+
+        for (const form of activeForms ?? []) {
+          let bfToken = accessToken;
+          if (form.page_asset_id) {
+            if (!tokenCache.has(form.page_asset_id)) {
+              const { data: pageAsset } = await adminClient
+                .from("meta_assets")
+                .select("asset_id")
+                .eq("id", form.page_asset_id)
+                .eq("company_id", company_id)
+                .eq("integration_id", integration_id)
+                .maybeSingle();
+              tokenCache.set(
+                form.page_asset_id,
+                pageAsset && pageTokens[pageAsset.asset_id]
+                  ? await decrypt(pageTokens[pageAsset.asset_id], encKey)
+                  : accessToken,
+              );
+            }
+            bfToken = tokenCache.get(form.page_asset_id)!;
+          }
+
+          let imported = 0;
+          let nextUrl: string | null =
+            `https://graph.facebook.com/${apiVersion}/${form.form_id}/leads` +
+            `?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name` +
+            `&limit=50&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]` +
+            `&access_token=${bfToken}`;
+
+          while (nextUrl) {
+            const res = await fetchWithRetry(nextUrl);
+            const data = await res.json();
+            if (data.error) {
+              console.warn(`backfill-recent: form ${form.form_id} errore Graph:`, data.error?.message);
+              break;
+            }
+            for (const lead of data.data || []) {
+              await adminClient
+                .from("integration_webhook_events")
+                .upsert({
+                  company_id,
+                  integration_id,
+                  provider: "meta",
+                  event_type: "leadgen",
+                  event_id: lead.id,
+                  payload: lead,
+                  received_at: new Date().toISOString(),
+                  status: "pending",
+                  fail_count: 0,
+                }, { onConflict: "company_id,provider,event_id" });
+              imported++;
+            }
+            nextUrl = data.paging?.next || null;
+          }
+
+          importedTotal += imported;
+          perForm.push({ form_id: form.form_id, form_name: form.form_name ?? null, imported });
+        }
+
+        await adminClient.from("integration_audit_log").insert({
+          company_id,
+          actor_user_id: authUser.id,
+          action: "backfill_recent",
+          entity_type: "integration",
+          entity_id: integration_id,
+          metadata: { days, forms: perForm.length, imported: importedTotal },
+        });
+
+        result = { days, forms: perForm.length, imported: importedTotal, per_form: perForm };
+        break;
+      }
+
       case "purge-unselected": {
         // ISOLAMENTO MULTI-TENANT: l'OAuth salva TUTTE le pagine visibili
         // all'utente Meta (anche quelle di ALTRI clienti dell'agenzia).

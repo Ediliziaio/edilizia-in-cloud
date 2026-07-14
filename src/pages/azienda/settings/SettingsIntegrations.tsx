@@ -9,7 +9,7 @@
  *
  * Vecchio file ~1335 righe ridotto a shell.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,7 @@ import StripePaymentsCard from "@/components/integrations/StripePaymentsCard";
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+import { MetaTroubleshootDialog } from "@/components/integrations/MetaTroubleshootDialog";
 // Nuovo catalogo + grid
 import {
   INTEGRATIONS_CATALOG,
@@ -299,6 +300,13 @@ export default function SettingsIntegrations() {
     [],
   );
 
+  // ── "Risolvi problemi" Meta (stile GHL) + wizard di ri-collegamento ───────
+  const [metaTroubleshootOpen, setMetaTroubleshootOpen] = useState(false);
+  const [metaReconnectOpen, setMetaReconnectOpen] = useState(false);
+  const handleTroubleshoot = (item: IntegrationItem) => {
+    if (item.id === "meta") setMetaTroubleshootOpen(true);
+  };
+
   // ── Disconnect handler ────────────────────────────────────────────────────
   const handleDisconnect = (item: IntegrationItem) => {
     // Per ora il disconnect è gestito dentro il popup di ogni integrazione
@@ -394,6 +402,25 @@ export default function SettingsIntegrations() {
         popupRegistry={popupRegistry}
         externalWizardRegistry={externalWizardRegistry}
         onDisconnect={handleDisconnect}
+        onTroubleshoot={handleTroubleshoot}
+      />
+
+      {/* "Risolvi problemi" Meta: autorizzazioni, pagine mancanti, backfill lead */}
+      <MetaTroubleshootDialog
+        open={metaTroubleshootOpen}
+        onOpenChange={setMetaTroubleshootOpen}
+        integration={metaIntegration}
+        onReconnect={() => setMetaReconnectOpen(true)}
+      />
+      {/* Wizard Meta dedicato al percorso "Ricollega" del Risolvi problemi */}
+      <MetaIntegrationWizard
+        open={metaReconnectOpen}
+        onOpenChange={setMetaReconnectOpen}
+        integration={metaIntegration}
+        onComplete={() => {
+          refetchIntegrations();
+          queryClient.invalidateQueries({ queryKey: ["integrations", companyId] });
+        }}
       />
     </div>
   );
