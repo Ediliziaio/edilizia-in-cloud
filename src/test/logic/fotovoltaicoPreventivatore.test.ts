@@ -208,15 +208,30 @@ describe("fotovoltaico preventivatore", () => {
     ]);
   });
 
-  it("uses the FV template default cost for fallback practices when catalog is empty", () => {
+  it("returns no rows when the catalog is empty (no invented fallback practices)", () => {
+    // Scelta di design: buildFvServiceRows costruisce le righe SOLO dal
+    // catalogo servizi FV dell'azienda. Con catalogo vuoto NON inventa più
+    // pratiche di ripiego — costoPraticheDefault resta nella firma per
+    // retro-compatibilità ma viene ignorato. Se non ci sono servizi
+    // configurati in anagrafica, non compaiono voci pratiche nel preventivo.
     const rows = buildFvServiceRows({
       catalogo: [],
       costoPraticheDefault: 900,
     });
 
-    expect(rows).toHaveLength(3);
-    expect(rows.reduce((sum, row) => sum + row.prezzo_netto, 0)).toBe(900);
-    expect(rows.every((row) => row.prezzo_vendita > row.prezzo_netto)).toBe(true);
+    expect(rows).toEqual([]);
+  });
+
+  it("ignores catalog items with non-positive default price", () => {
+    const rows = buildFvServiceRows({
+      catalogo: [
+        { codice: "pratica_gse", descrizione: "Gratuita", prezzo_netto_default: 0, ordinamento: 1 },
+        { codice: "allaccio_e_distribuzione", descrizione: "Allaccio", prezzo_netto_default: 150, margine_pct_default: 0.2, ordinamento: 2 },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tipo: "allaccio_e_distribuzione", prezzo_netto: 150 });
   });
 
   it("models operational rental for companies with no upfront and tax-adjusted monthly cost", () => {
