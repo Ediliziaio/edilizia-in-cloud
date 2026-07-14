@@ -197,6 +197,11 @@ Deno.serve(async (req: Request) => {
         opportunita_crm_id: payload.opportunita_crm_id ?? null,
         numero,
         titolo: payload.titolo,
+        // Snapshot recapiti cliente (per ripristino bozza, anche senza CRM).
+        cliente_nome: payload.cliente_nome ?? null,
+        cliente_cognome: payload.cliente_cognome ?? null,
+        cliente_telefono: payload.cliente_telefono ?? null,
+        cliente_email: payload.cliente_email ?? null,
         archetipo: payload.archetipo,
         stato: "bozza",
         indirizzo: payload.indirizzo,

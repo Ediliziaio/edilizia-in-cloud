@@ -32,6 +32,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   getFvPdfRenderedPagesCount,
   renderFvPdfHtml,
@@ -224,7 +225,9 @@ Deno.serve(async (req: Request) => {
     // ── Immagini satellitari (Google Static Maps) per pagina anteprima ──────
     let mapImages: { close?: string; medium?: string; overview?: string; wide?: string } | null = null;
     const satLat = Number(prog.latitudine), satLng = Number(prog.longitudine);
-    const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
+    // La chiave Google Maps sta in platform_settings (come per maps-proxy), non
+    // solo nell'env: leggerla da lì fa apparire la mappa satellitare anche nel PDF.
+    const googleMapsKey = (await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")) || "";
     if (satLat && satLng && googleMapsKey) {
       const fetchSatImg = (zoom: number) =>
         urlToB64(

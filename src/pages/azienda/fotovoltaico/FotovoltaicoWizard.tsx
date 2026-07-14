@@ -64,6 +64,7 @@ import {
   useUpsertServizi,
   useTariffeFv,
   useManodoperaProgetto,
+  useServiziProgetto,
   useTabelleFinanziamentoFv,
   useTopFinanziamentiFv,
   useTemplatePdf,
@@ -94,7 +95,6 @@ import {
   FvTabPane,
 } from "@/lib/fotovoltaico/wizardUI";
 import {
-  buildFvServiceRows,
   calcolaFvNoleggioOperativo,
   calcolaFvEconomicsGuard,
   calcolaFvCommercialReadiness,
@@ -327,6 +327,7 @@ export default function FotovoltaicoWizard() {
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
+  const { data: serviziEsistente } = useServiziProgetto(progettoId ?? undefined);
   // Componenti già salvati: servono per ri-idratare i "Prodotti extra"
   // (categoria='altro', esclusa la voce-kit) in modifica, così sopravvivono
   // al flusso delete+insert dello Step 5.
@@ -385,9 +386,21 @@ export default function FotovoltaicoWizard() {
     // Già idratato questo progetto: non sovrascrivere le modifiche live.
     if (hydratedProjectIdRef.current === progettoEsistente.id) return;
     hydratedProjectIdRef.current = progettoEsistente.id;
+    const cli = progettoEsistente as {
+      cliente_id?: string | null;
+      cliente_nome?: string | null; cliente_cognome?: string | null;
+      cliente_telefono?: string | null; cliente_email?: string | null;
+      cliente?: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null } | null;
+    };
     setData((d) => ({
       ...d,
       archetipo: progettoEsistente.archetipo,
+      // Ripristino Fase 1: snapshot sul progetto, con fallback al contatto CRM collegato.
+      cliente_id: cli.cliente_id ?? null,
+      cliente_nome: cli.cliente_nome || cli.cliente?.first_name || "",
+      cliente_cognome: cli.cliente_cognome || cli.cliente?.last_name || "",
+      cliente_telefono: cli.cliente_telefono || cli.cliente?.phone || "",
+      cliente_email: cli.cliente_email || cli.cliente?.email || "",
       indirizzo: progettoEsistente.indirizzo,
       comune: progettoEsistente.comune ?? "",
       provincia: progettoEsistente.provincia ?? "",
@@ -499,6 +512,51 @@ export default function FotovoltaicoWizard() {
           },
     );
   }, [componentiEsistenti, progettoId]);
+
+  // Ri-idrata manodopera + servizi dalle tabelle (bozza), una volta per progetto,
+  // così l'editor Fase 5 mostra le righe salvate. Guard ref anti-clobber del refetch.
+  const manodoperaHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!progettoId || !manodoperaEsistente) return;
+    if (manodoperaHydratedRef.current === progettoId) return;
+    manodoperaHydratedRef.current = progettoId;
+    setData((d) =>
+      d.manodopera_righe.length > 0
+        ? d
+        : {
+            ...d,
+            manodopera_righe: manodoperaEsistente.map((m) => ({
+              tariffa_id: (m as { tariffa_id?: string | null }).tariffa_id ?? null,
+              descrizione: m.descrizione,
+              ore: Number(m.ore) || 0,
+              tariffa_oraria_netta: Number(m.tariffa_oraria_netta) || 0,
+              tariffa_oraria_vendita: Number(m.tariffa_oraria_vendita) || 0,
+            })),
+          },
+    );
+  }, [manodoperaEsistente, progettoId]);
+
+  const serviziHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!progettoId || !serviziEsistente) return;
+    if (serviziHydratedRef.current === progettoId) return;
+    serviziHydratedRef.current = progettoId;
+    setData((d) =>
+      d.servizi_righe.length > 0
+        ? d
+        : {
+            ...d,
+            servizi_righe: serviziEsistente.map((s) => ({
+              tipo: (s as { tipo?: string }).tipo ?? "altro",
+              descrizione: s.descrizione,
+              quantita: Number((s as { quantita?: number }).quantita) || 1,
+              prezzo_netto: Number((s as { prezzo_netto?: number }).prezzo_netto) || 0,
+              prezzo_vendita: Number((s as { prezzo_vendita?: number }).prezzo_vendita) || 0,
+              note_operative: (s as { note_operative?: string | null }).note_operative ?? null,
+            })),
+          },
+    );
+  }, [serviziEsistente, progettoId]);
 
   // Persistenza locale: salva draft ad ogni cambio di state, ma non quando
   // siamo in read-only (il DB è già la verità).
@@ -643,6 +701,13 @@ export default function FotovoltaicoWizard() {
               // (filtrato per la company effettiva) non lo troverebbe.
               company_id: effectiveCompanyId ?? undefined,
               titolo,
+              // Snapshot recapiti cliente: così la bozza ripristina la Fase 1
+              // anche senza contatto CRM collegato (inserimento manuale) o su un
+              // altro dispositivo (dove il draft localStorage non esiste).
+              cliente_nome: data.cliente_nome || null,
+              cliente_cognome: data.cliente_cognome || null,
+              cliente_telefono: data.cliente_telefono || null,
+              cliente_email: data.cliente_email || null,
               // Link CRM: aggancia il contatto e l'opportunità di provenienza
               // alla creazione del progetto (parità con SerramentiWizard). Senza
               // questi due campi il preventivo FV non risultava collegato.
@@ -687,6 +752,13 @@ export default function FotovoltaicoWizard() {
         await aggiornaProgetto.mutateAsync({
           id: progettoId,
           patch: {
+            // Snapshot recapiti cliente (aggiornati se l'utente li modifica).
+            cliente_id: data.cliente_id ?? null,
+            cliente_nome: data.cliente_nome || null,
+            cliente_cognome: data.cliente_cognome || null,
+            cliente_telefono: data.cliente_telefono || null,
+            cliente_email: data.cliente_email || null,
+            titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
             archetipo: data.archetipo,
             indirizzo: data.indirizzo,
             comune: data.comune,
@@ -1100,53 +1172,39 @@ export default function FotovoltaicoWizard() {
         replace: true,
       });
 
-      // Manodopera: usa la tariffa scelta dall'utente (se presente in
-      // tariffe_aziendali) altrimenti fallback su 30€/40€ standard.
-      // Bug I1 fix: prima era SEMPRE hardcoded → margine reale falsato.
-      const ore_installazione = Math.ceil(data.numero_pannelli_scelti * 0.5 + 8);
-      const tariffaScelta = data.tariffa_installazione_id
-        ? tariffeFv.find((t) => t.id === data.tariffa_installazione_id)
-        : null;
-      const tariffaCosto = tariffaScelta ? Number(tariffaScelta.prezzo_costo) : 30;
-      const tariffaVendita = tariffaScelta ? Number(tariffaScelta.prezzo_vendita) : 40;
-      const margineCalcolato =
-        tariffaVendita > 0 ? (tariffaVendita - tariffaCosto) / tariffaVendita : 0.25;
+      // ── Manodopera e servizi: righe scelte/editate dal commerciale ──────
+      // Fonte unica = lo stato del wizard (data.manodopera_righe / servizi_righe),
+      // pre-popolato dai default d'anagrafica ma sempre modificabile. Per un kit
+      // chiavi-in-mano sono vuote a meno che il commerciale non aggiunga extra.
       await upsertManodopera.mutateAsync({
         progetto_id: progettoId,
         replace: true,
-        righe: [
-          {
-            tariffa_id: data.tariffa_installazione_id,
-            descrizione: tariffaScelta
-              ? `${tariffaScelta.nome} — impianto ${data.potenza_kwp} kWp`
-              : `Installazione impianto ${data.potenza_kwp} kWp (tariffa standard)`,
-            ore: ore_installazione,
-            tariffa_oraria_netta: tariffaCosto,
-            tariffa_oraria_vendita: tariffaVendita,
-            margine_pct: margineCalcolato,
-            ordinamento: 1,
-          },
-        ],
+        righe: data.manodopera_righe.map((r, i) => {
+          const vendita = Number(r.tariffa_oraria_vendita) || 0;
+          const netto = Number(r.tariffa_oraria_netta) || 0;
+          return {
+            tariffa_id: r.tariffa_id,
+            descrizione: r.descrizione || "Manodopera",
+            ore: Number(r.ore) || 0,
+            tariffa_oraria_netta: netto,
+            tariffa_oraria_vendita: vendita,
+            margine_pct: vendita > 0 ? (vendita - netto) / vendita : 0,
+            ordinamento: i + 1,
+          };
+        }),
       });
-      const costoPraticheDefault = Number(fvTemplate?.costo_pratiche_default ?? 600);
-      const serviziRows = buildFvServiceRows({
-        catalogo: serviziCatalogo.map((servizio) => ({
-          codice: String(servizio.codice ?? "altro"),
-          descrizione: String(servizio.descrizione ?? "Servizio fotovoltaico"),
-          prezzo_netto_default: Number(servizio.prezzo_netto_default ?? 0),
-          margine_pct_default:
-            servizio.margine_pct_default == null ? null : Number(servizio.margine_pct_default),
-          note_operative: servizio.note_operative ? String(servizio.note_operative) : null,
-          ordinamento:
-            servizio.ordinamento == null ? null : Number(servizio.ordinamento),
-        })),
-        costoPraticheDefault: Number.isFinite(costoPraticheDefault) ? costoPraticheDefault : 600,
-      });
-
       await upsertServizi.mutateAsync({
         progetto_id: progettoId,
         replace: true,
-        righe: serviziRows,
+        righe: data.servizi_righe.map((r, i) => ({
+          tipo: r.tipo || "altro",
+          descrizione: r.descrizione || "Servizio",
+          quantita: Number(r.quantita) || 1,
+          prezzo_netto: Number(r.prezzo_netto) || 0,
+          prezzo_vendita: Number(r.prezzo_vendita) || 0,
+          ordinamento: i + 1,
+          note_operative: r.note_operative ?? null,
+        })),
       });
 
       if (!mountedRef.current) return;
@@ -1510,38 +1568,8 @@ export default function FotovoltaicoWizard() {
         } as never,
       });
 
-      // Fix #3 Sprint 3: sincronizza ANCHE la tariffa di manodopera scelta
-      // (era persistita solo in localStorage, persa al refresh dopo "Salva bozza")
-      const manodoperaCorrente = (manodoperaEsistente?.[0] as { tariffa_id?: string | null } | undefined);
-      if (
-        data.tariffa_installazione_id &&
-        manodoperaCorrente?.tariffa_id !== data.tariffa_installazione_id
-      ) {
-        const tariffaScelta = tariffeFv.find((t) => t.id === data.tariffa_installazione_id);
-        if (tariffaScelta) {
-          const ore = Math.ceil(data.numero_pannelli_scelti * 0.5 + 8);
-          const margine =
-            tariffaScelta.prezzo_vendita > 0
-              ? (tariffaScelta.prezzo_vendita - tariffaScelta.prezzo_costo) /
-                tariffaScelta.prezzo_vendita
-              : 0.25;
-          await upsertManodopera.mutateAsync({
-            progetto_id: progettoId,
-            replace: true,
-            righe: [
-              {
-                tariffa_id: data.tariffa_installazione_id,
-                descrizione: `${tariffaScelta.nome} — impianto ${data.potenza_kwp} kWp`,
-                ore,
-                tariffa_oraria_netta: Number(tariffaScelta.prezzo_costo),
-                tariffa_oraria_vendita: Number(tariffaScelta.prezzo_vendita),
-                margine_pct: margine,
-                ordinamento: 1,
-              },
-            ],
-          });
-        }
-      }
+      // Manodopera e servizi sono salvati dallo Step 5 (righe editate dal
+      // commerciale nello stato): qui non ri-generiamo/sovrascriviamo nulla.
 
       if (!mountedRef.current) return;
       markSaved();
@@ -1800,6 +1828,7 @@ export default function FotovoltaicoWizard() {
               tariffeFv={tariffeFv}
               kitFv={kitFvBundles}
               serviziCatalogoCount={serviziCatalogo.length}
+              serviziCatalogo={serviziCatalogo}
               catalogoFvVuoto={catalogoFvVuoto}
             />
           )}
@@ -2987,6 +3016,7 @@ function Step5Configurazione({
   tariffeFv,
   kitFv,
   serviziCatalogoCount,
+  serviziCatalogo,
   catalogoFvVuoto,
 }: {
   data: WizardData;
@@ -2998,13 +3028,39 @@ function Step5Configurazione({
   tariffeFv: FvTariffaAziendale[];
   kitFv: Bundle[];
   serviziCatalogoCount: number;
+  serviziCatalogo: Array<Record<string, unknown>>;
   catalogoFvVuoto: boolean;
 }) {
   // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
   const [extraSearch, setExtraSearch] = useState("");
 
   // ── Composizione offerta: Kit pronto vs configurazione manuale ──
-  const kitDisponibili = kitFv.filter((k) => k.attivo && k.fv_kwp != null);
+  const kitDisponibili = useMemo(() => kitFv.filter((k) => k.attivo && k.fv_kwp != null), [kitFv]);
+  // Filtri catalogo kit (con ~100 kit servono ricerca + filtri).
+  const [kitSearch, setKitSearch] = useState("");
+  const [kitPotenza, setKitPotenza] = useState<"all" | "s3" | "3_6" | "6_10" | "g10">("all");
+  const [kitAccumulo, setKitAccumulo] = useState<"all" | "con" | "senza">("all");
+  const [kitSort, setKitSort] = useState<"nome" | "prezzo" | "potenza">("nome");
+  const kitFiltrati = useMemo(() => {
+    const q = kitSearch.trim().toLowerCase();
+    const arr = kitDisponibili.filter((k) => {
+      if (q && !(`${k.nome ?? ""} ${k.descrizione ?? ""}`.toLowerCase().includes(q))) return false;
+      const kwp = Number(k.fv_kwp ?? 0);
+      if (kitPotenza === "s3" && !(kwp <= 3)) return false;
+      if (kitPotenza === "3_6" && !(kwp > 3 && kwp <= 6)) return false;
+      if (kitPotenza === "6_10" && !(kwp > 6 && kwp <= 10)) return false;
+      if (kitPotenza === "g10" && !(kwp > 10)) return false;
+      const acc = Number(k.fv_accumulo_kwh ?? 0);
+      if (kitAccumulo === "con" && !(acc > 0)) return false;
+      if (kitAccumulo === "senza" && acc > 0) return false;
+      return true;
+    });
+    return [...arr].sort((a, b) => {
+      if (kitSort === "prezzo") return Number(a.prezzo_offerta ?? 0) - Number(b.prezzo_offerta ?? 0);
+      if (kitSort === "potenza") return Number(a.fv_kwp ?? 0) - Number(b.fv_kwp ?? 0);
+      return (a.nome ?? "").localeCompare(b.nome ?? "");
+    });
+  }, [kitDisponibili, kitSearch, kitPotenza, kitAccumulo, kitSort]);
   const [modalitaOfferta, setModalitaOfferta] = useState<"kit" | "manuale">(
     data.kit_bundle_id ? "kit" : "manuale",
   );
@@ -3019,6 +3075,40 @@ function Step5Configurazione({
     const acc = Number(k.fv_accumulo_kwh ?? 0);
     update("con_accumulo", acc > 0);
     update("capacita_accumulo_kwh", acc);
+    // Kit chiavi in mano: il prezzo comprende tutto → azzera manodopera/servizi.
+    update("manodopera_righe", []);
+    update("servizi_righe", []);
+  };
+
+  // Precompila manodopera + servizi dai default d'anagrafica (prima tariffa FV +
+  // catalogo servizi). Il commerciale parte da qui e poi personalizza.
+  const precompilaCostiDefault = () => {
+    const t = data.tariffa_installazione_id
+      ? tariffeFv.find((x) => x.id === data.tariffa_installazione_id)
+      : tariffeFv[0];
+    update("manodopera_righe", t
+      ? [{
+          tariffa_id: t.id,
+          descrizione: `${t.nome} — impianto ${data.potenza_kwp} kWp`,
+          ore: Math.max(1, Math.ceil(data.numero_pannelli_scelti * 0.5 + 8)),
+          tariffa_oraria_netta: Number(t.prezzo_costo),
+          tariffa_oraria_vendita: Number(t.prezzo_vendita),
+        }]
+      : []);
+    update("servizi_righe", serviziCatalogo
+      .filter((s) => Number(s.prezzo_netto_default ?? 0) > 0)
+      .map((s) => {
+        const netto = Number(s.prezzo_netto_default);
+        const margine = Math.min(0.8, Math.max(0, Number(s.margine_pct_default ?? 0.35)));
+        return {
+          tipo: String(s.codice ?? "altro"),
+          descrizione: String(s.descrizione ?? "Servizio"),
+          quantita: 1,
+          prezzo_netto: netto,
+          prezzo_vendita: margine < 1 ? Math.round((netto / (1 - margine)) * 100) / 100 : netto,
+          note_operative: s.note_operative ? String(s.note_operative) : null,
+        };
+      }));
   };
   const rimuoviKit = () => {
     update("kit_bundle_id", null);
@@ -3067,6 +3157,61 @@ function Step5Configurazione({
 
   const rimuoviExtra = (idx: number) => {
     update("prodotti_extra", data.prodotti_extra.filter((_, i) => i !== idx));
+  };
+
+  // ── Manodopera & Servizi editabili dal commerciale ──────────────────────────
+  const oreDefaultManodopera = () => Math.max(1, Math.ceil(data.numero_pannelli_scelti * 0.5 + 8));
+  const aggiungiManodoperaDaTariffa = (t: FvTariffaAziendale) => {
+    update("manodopera_righe", [
+      ...data.manodopera_righe,
+      {
+        tariffa_id: t.id,
+        descrizione: `${t.nome} — impianto ${data.potenza_kwp} kWp`,
+        ore: oreDefaultManodopera(),
+        tariffa_oraria_netta: Number(t.prezzo_costo),
+        tariffa_oraria_vendita: Number(t.prezzo_vendita),
+      },
+    ]);
+  };
+  const aggiungiManodoperaLibera = () => {
+    update("manodopera_righe", [
+      ...data.manodopera_righe,
+      { tariffa_id: null, descrizione: "", ore: 1, tariffa_oraria_netta: 0, tariffa_oraria_vendita: 0 },
+    ]);
+  };
+  const aggiornaManodopera = (idx: number, patch: Partial<WizardData["manodopera_righe"][number]>) => {
+    update("manodopera_righe", data.manodopera_righe.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+  const rimuoviManodopera = (idx: number) => {
+    update("manodopera_righe", data.manodopera_righe.filter((_, i) => i !== idx));
+  };
+
+  const aggiungiServizioDaCatalogo = (s: Record<string, unknown>) => {
+    const netto = Number(s.prezzo_netto_default ?? 0);
+    const margine = Math.min(0.8, Math.max(0, Number(s.margine_pct_default ?? 0.35)));
+    update("servizi_righe", [
+      ...data.servizi_righe,
+      {
+        tipo: String(s.codice ?? "altro"),
+        descrizione: String(s.descrizione ?? "Servizio"),
+        quantita: 1,
+        prezzo_netto: netto,
+        prezzo_vendita: margine < 1 ? Math.round((netto / (1 - margine)) * 100) / 100 : netto,
+        note_operative: s.note_operative ? String(s.note_operative) : null,
+      },
+    ]);
+  };
+  const aggiungiServizioLibero = () => {
+    update("servizi_righe", [
+      ...data.servizi_righe,
+      { tipo: "altro", descrizione: "", quantita: 1, prezzo_netto: 0, prezzo_vendita: 0, note_operative: null },
+    ]);
+  };
+  const aggiornaServizio = (idx: number, patch: Partial<WizardData["servizi_righe"][number]>) => {
+    update("servizi_righe", data.servizi_righe.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+  const rimuoviServizio = (idx: number) => {
+    update("servizi_righe", data.servizi_righe.filter((_, i) => i !== idx));
   };
   // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
   // update() in read-only mostra un toast d'errore, che da un useEffect
@@ -3206,8 +3351,39 @@ function Step5Configurazione({
             </div>
 
             {modalitaOfferta === "kit" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {kitDisponibili.map((k) => {
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={kitSearch}
+                    onChange={(e) => setKitSearch(e.target.value)}
+                    placeholder="Cerca kit o marca…"
+                    className="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  <select value={kitPotenza} onChange={(e) => setKitPotenza(e.target.value as typeof kitPotenza)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                    <option value="all">Tutte le potenze</option>
+                    <option value="s3">≤ 3 kWp</option>
+                    <option value="3_6">3–6 kWp</option>
+                    <option value="6_10">6–10 kWp</option>
+                    <option value="g10">&gt; 10 kWp</option>
+                  </select>
+                  <select value={kitAccumulo} onChange={(e) => setKitAccumulo(e.target.value as typeof kitAccumulo)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                    <option value="all">Con o senza accumulo</option>
+                    <option value="con">Con accumulo</option>
+                    <option value="senza">Senza accumulo</option>
+                  </select>
+                  <select value={kitSort} onChange={(e) => setKitSort(e.target.value as typeof kitSort)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                    <option value="nome">Ordina: nome</option>
+                    <option value="prezzo">Ordina: prezzo</option>
+                    <option value="potenza">Ordina: potenza</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-400">{kitFiltrati.length} di {kitDisponibili.length} kit</p>
+                {kitFiltrati.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-6 text-center">Nessun kit corrisponde ai filtri.</p>
+                ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {kitFiltrati.map((k) => {
                   const selected = data.kit_bundle_id === k.id;
                   return (
                     <button
@@ -3244,6 +3420,8 @@ function Step5Configurazione({
                     </button>
                   );
                 })}
+                </div>
+                )}
               </div>
             )}
 
@@ -3477,62 +3655,88 @@ function Step5Configurazione({
               </Select>
             </div>
 
+            {/* ── Manodopera & Servizi: righe scelte dal commerciale ── */}
+            {data.kit_bundle_id && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                <strong>Kit chiavi in mano:</strong> il prezzo del kit comprende tutto. Manodopera e pratiche non vengono aggiunte. Puoi comunque inserire voci extra qui sotto se un caso lo richiede.
+              </div>
+            )}
+            {!data.kit_bundle_id && !readOnlyMode && data.manodopera_righe.length === 0 && data.servizi_righe.length === 0 && (
+              <button type="button" onClick={precompilaCostiDefault} className="text-xs font-semibold text-orange-600 underline self-start">
+                Precompila manodopera e servizi dai default d'anagrafica
+              </button>
+            )}
+
+            {/* MANODOPERA */}
             <div>
-              <Label>
-                Tariffa manodopera installazione
-                {!data.tariffa_installazione_id && (
-                  <span className="ml-2 text-xs text-amber-600 font-normal">
-                    ⚠ Standard 30€/40€ — configura tariffe in Impostazioni per dato reale
-                  </span>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Manodopera</Label>
+                {!readOnlyMode && (
+                  <div className="flex items-center gap-2">
+                    <Select value="" onValueChange={(v) => { const t = tariffeFv.find((x) => x.id === v); if (t) aggiungiManodoperaDaTariffa(t); }}>
+                      <SelectTrigger className="h-8 w-auto gap-1 text-xs"><SelectValue placeholder="+ Da tariffa" /></SelectTrigger>
+                      <SelectContent>
+                        {tariffeFv.length === 0 && <SelectItem value="__none__" disabled>Nessuna tariffa in anagrafica</SelectItem>}
+                        {tariffeFv.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.nome} — {Number(t.prezzo_vendita).toFixed(0)}€/{t.unita}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button type="button" onClick={aggiungiManodoperaLibera} className="text-xs font-semibold text-orange-600">+ Voce libera</button>
+                  </div>
                 )}
-              </Label>
-              <Select
-                value={data.tariffa_installazione_id ?? "__default__"}
-                onValueChange={(v) =>
-                  update("tariffa_installazione_id", v === "__default__" ? null : v)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__default__">
-                    Tariffa standard (30€ costo / 40€ vendita)
-                  </SelectItem>
-                  {tariffeFv.length === 0 && (
-                    <SelectItem value="__empty__" disabled>
-                      Nessuna tariffa configurata in Impostazioni Azienda
-                    </SelectItem>
-                  )}
-                  {tariffeFv.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.nome} — costo {Number(t.prezzo_costo).toFixed(0)}€ / vendita{" "}
-                      {Number(t.prezzo_vendita).toFixed(0)}€/{t.unita}
-                    </SelectItem>
+              </div>
+              {data.manodopera_righe.length === 0 ? (
+                <p className="text-xs text-slate-400">Nessuna manodopera. Aggiungi una voce (da tariffa o libera) se serve.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.manodopera_righe.map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder="Descrizione" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title="Ore" disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <span className="text-xs text-slate-400">h ×</span>
+                      <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta || v }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <span className="text-xs text-slate-400">€/h</span>
+                      {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-              {data.tariffa_installazione_id &&
-                (() => {
-                  const t = tariffeFv.find((x) => x.id === data.tariffa_installazione_id);
-                  if (!t) return null;
-                  const margine =
-                    t.prezzo_vendita > 0
-                      ? ((t.prezzo_vendita - t.prezzo_costo) / t.prezzo_vendita) * 100
-                      : 0;
-                  return (
-                    <p className="text-[11px] text-emerald-700 mt-1.5 font-semibold">
-                      ✓ Margine reale {margine.toFixed(0)}% — collegato a tariffe_aziendali
-                    </p>
-                  );
-                })()}
+                </div>
+              )}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <strong>Pratiche e servizi:</strong>{" "}
-              {serviziCatalogoCount > 0
-                ? `${serviziCatalogoCount} voci dal catalogo FV aziendale saranno usate nel margine.`
-                : "nessun catalogo FV configurato, uso fallback dal template Fotovoltaico."}
+            {/* SERVIZI E PRATICHE */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Servizi e pratiche</Label>
+                {!readOnlyMode && (
+                  <div className="flex items-center gap-2">
+                    <Select value="" onValueChange={(v) => { const s = serviziCatalogo.find((x) => String(x.id) === v); if (s) aggiungiServizioDaCatalogo(s); }}>
+                      <SelectTrigger className="h-8 w-auto gap-1 text-xs"><SelectValue placeholder="+ Dal catalogo" /></SelectTrigger>
+                      <SelectContent>
+                        {serviziCatalogo.length === 0 && <SelectItem value="__none__" disabled>Catalogo servizi vuoto</SelectItem>}
+                        {serviziCatalogo.map((s) => (
+                          <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? "Servizio")} — {Number(s.prezzo_netto_default ?? 0).toFixed(0)}€</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button type="button" onClick={aggiungiServizioLibero} className="text-xs font-semibold text-orange-600">+ Voce libera</button>
+                  </div>
+                )}
+              </div>
+              {data.servizi_righe.length === 0 ? (
+                <p className="text-xs text-slate-400">Nessun servizio/pratica. Aggiungi dal tuo catalogo o come voce libera.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.servizi_righe.map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder="Descrizione servizio" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto || v }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
+                      <span className="text-xs text-slate-400">€</span>
+                      {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-4">

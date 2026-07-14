@@ -511,73 +511,28 @@ function venditaFromNetto(netto: number, marginePct: number): number {
   return roundMoney(netto / (1 - marginePct));
 }
 
+/**
+ * Costruisce le righe servizi/pratiche SOLO dal catalogo servizi FV dell'azienda.
+ * Nessun valore di ripiego inventato: se il catalogo è vuoto ritorna [] (il
+ * commerciale/azienda configura i servizi in anagrafica). `costoPraticheDefault`
+ * è mantenuto per compatibilità di firma ma non viene più usato.
+ */
 export function buildFvServiceRows(input: {
   catalogo?: FvServiceCatalogItem[] | null;
   costoPraticheDefault?: number | null;
 }): FvServiceRow[] {
   const catalogo = input.catalogo?.filter((item) => item.prezzo_netto_default > 0) ?? [];
-
-  if (catalogo.length > 0) {
-    return catalogo.map((item, index) => {
-      const netto = roundMoney(item.prezzo_netto_default);
-      const margine = clampMargin(item.margine_pct_default ?? null);
-      return {
-        tipo: toFvServiceTipo(item.codice),
-        descrizione: item.descrizione,
-        quantita: 1,
-        prezzo_netto: netto,
-        prezzo_vendita: venditaFromNetto(netto, margine),
-        ordinamento: item.ordinamento ?? index + 1,
-        note_operative: item.note_operative ?? null,
-      };
-    });
-  }
-
-  const defaultCost = input.costoPraticheDefault && input.costoPraticheDefault > 0
-    ? input.costoPraticheDefault
-    : 600;
-  const fallback: Array<{
-    tipo: FvServiceRowTipo;
-    descrizione: string;
-    quota: number;
-    ordinamento: number;
-    note_operative: string | null;
-  }> = [
-    {
-      tipo: "pratica_gse",
-      descrizione: "Pratica GSE RID",
-      quota: 0.34,
-      ordinamento: 1,
-      note_operative: "Entro 90 gg da fine lavori",
-    },
-    {
-      tipo: "allaccio_e_distribuzione",
-      descrizione: "Pratica E-Distribuzione (TICA)",
-      quota: 0.25,
-      ordinamento: 2,
-      note_operative: null,
-    },
-    {
-      tipo: "asseverazione",
-      descrizione: "Asseverazione tecnica",
-      quota: 0.41,
-      ordinamento: 3,
-      note_operative: null,
-    },
-  ];
-
-  return fallback.map((item, index) => {
-    const netto = index === fallback.length - 1
-      ? roundMoney(defaultCost - fallback.slice(0, -1).reduce((sum, row) => sum + roundMoney(defaultCost * row.quota), 0))
-      : roundMoney(defaultCost * item.quota);
+  return catalogo.map((item, index) => {
+    const netto = roundMoney(item.prezzo_netto_default);
+    const margine = clampMargin(item.margine_pct_default ?? null);
     return {
-      tipo: item.tipo,
+      tipo: toFvServiceTipo(item.codice),
       descrizione: item.descrizione,
       quantita: 1,
       prezzo_netto: netto,
-      prezzo_vendita: venditaFromNetto(netto, 0.35),
-      ordinamento: item.ordinamento,
-      note_operative: item.note_operative,
+      prezzo_vendita: venditaFromNetto(netto, margine),
+      ordinamento: item.ordinamento ?? index + 1,
+      note_operative: item.note_operative ?? null,
     };
   });
 }

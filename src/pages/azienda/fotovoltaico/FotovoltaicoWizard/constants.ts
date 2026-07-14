@@ -85,6 +85,8 @@ export const INITIAL: WizardData = {
   layout_overlay: null,
   tariffa_installazione_id: null,
   prodotti_extra: [],
+  manodopera_righe: [],
+  servizi_righe: [],
   finanziamento_modalita: "rate",
   sconto_tipo: "pct",
   sconto_valore: null,

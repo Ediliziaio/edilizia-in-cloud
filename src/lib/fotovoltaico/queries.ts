@@ -65,7 +65,9 @@ export function useProgetto(id: string | undefined) {
       if (!id) return null;
       const { data, error } = await supabase
         .from("fv_progetti" as never)
-        .select("*")
+        // Join al contatto CRM: fallback per ripristinare i recapiti dei progetti
+        // creati prima dello snapshot cliente (colonne cliente_* sul progetto).
+        .select("*, cliente:marketing_contacts(first_name,last_name,email,phone)" as never)
         .eq("id", id)
         .eq("company_id", companyId as string)
         .maybeSingle();

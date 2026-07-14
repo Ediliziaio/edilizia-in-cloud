@@ -96,6 +96,25 @@ export interface WizardData {
     prezzo_vendita: number;
     prezzo_acquisto: number | null;
   }>;
+  /** Righe MANODOPERA editabili dal commerciale (Fase 5). Salvate in
+   *  fv_manodopera_progetto. Vuote per un kit chiavi-in-mano. */
+  manodopera_righe: Array<{
+    tariffa_id: string | null;
+    descrizione: string;
+    ore: number;
+    tariffa_oraria_netta: number;
+    tariffa_oraria_vendita: number;
+  }>;
+  /** Righe SERVIZI/PRATICHE editabili dal commerciale (Fase 5). Salvate in
+   *  fv_servizi_progetto. Vuote per un kit chiavi-in-mano. */
+  servizi_righe: Array<{
+    tipo: string;
+    descrizione: string;
+    quantita: number;
+    prezzo_netto: number;
+    prezzo_vendita: number;
+    note_operative: string | null;
+  }>;
   // Step 6: Finanziamento
   finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio";
   /** Sconto commerciale (fv_progetti.sconto_tipo/sconto_valore): 'pct' = %

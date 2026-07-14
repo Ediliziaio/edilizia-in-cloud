@@ -295,7 +295,7 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
   position: absolute; top: 0; left: 0; right: 0;
   padding: 9mm 16mm 4mm;
   display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid #E2E8F0;
+  border-bottom: 1.2px solid #CBD5E1;
 }
 .page-header .brand { display: flex; align-items: center; gap: 7px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11pt; color: #1E3A5F; }
 .page-header .brand-icon { width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; }
@@ -307,10 +307,11 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
   padding: 4mm 16mm 5mm;
   display: flex; justify-content: space-between; align-items: center;
   font-size: 7.5pt; color: #94A3B8;
-  border-top: 1px solid #E2E8F0;
+  border-top: 1.2px solid #CBD5E1;
 }
 .page-footer .pnum { font-weight: 700; color: #1E3A5F; }
-.content { padding: 18mm 16mm 14mm; height: 100%; }
+/* padding-top staccato dall'header (~18mm alto) così la linea non taglia l'eyebrow */
+.content { padding: 23mm 16mm 16mm; height: 100%; }
 
 .eyebrow { font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #F97316; margin-bottom: 4px; }
 .page-title { font-size: 22pt; font-weight: 800; color: #1E3A5F; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 3mm; }
@@ -1107,9 +1108,11 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
   const chips = [kwp, kwh].filter(Boolean).map((v) => `<span class="spec-chip">${escHtml(v!)}</span>`).join("");
   const voceRows = (b.voci ?? [])
     .slice(0, 8)
-    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:1.5mm 0;border-bottom:1px solid #F1F5F9;font-size:8.5pt;">
-      ${v.foto ? `<img src="${escHtml(v.foto)}" alt="" style="width:12mm;height:12mm;border-radius:4px;object-fit:cover;border:1px solid #E2E8F0;flex-shrink:0;"/>` : ""}
-      <span style="flex:1;">${escHtml(v.descrizione)}</span>
+    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:2mm 2.5mm;margin-bottom:1.5mm;border:1px solid #EEF2F7;border-radius:8px;font-size:8.5pt;background:#FCFDFE;">
+      ${v.foto
+        ? `<img src="${escHtml(v.foto)}" alt="" style="width:12mm;height:12mm;border-radius:6px;object-fit:contain;background:#F8FAFC;border:1px solid #E2E8F0;flex-shrink:0;padding:1mm;"/>`
+        : `<div style="width:12mm;height:12mm;border-radius:6px;background:#F1F5F9;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#94A3B8;font-size:14px;">☀</div>`}
+      <span style="flex:1;font-weight:600;color:#1E3A5F;">${escHtml(v.descrizione)}</span>
       <span style="color:#64748B;">× ${v.quantita}</span>
     </div>`)
     .join("");
@@ -1119,11 +1122,11 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
       <div class="eyebrow">Pagina ${pageN} · Il tuo kit</div>
       <h1 class="page-title">${escHtml(b.nome)}</h1>
       ${b.descrizione ? `<p class="page-subtitle">${escHtml(b.descrizione)}</p>` : ""}
-      ${b.cover_b64 ? `<div style="width:100%;height:72mm;border-radius:10px;overflow:hidden;margin:4mm 0;">
-        <img src="${escHtml(b.cover_b64)}" alt="Kit ${escHtml(b.nome)}" style="width:100%;height:100%;object-fit:cover;"/>
+      ${b.cover_b64 ? `<div style="width:100%;height:60mm;border-radius:10px;overflow:hidden;margin:4mm 0;background:linear-gradient(135deg,#F8FAFC 0%,#E2E8F0 100%);display:flex;align-items:center;justify-content:center;padding:4mm;">
+        <img src="${escHtml(b.cover_b64)}" alt="Kit ${escHtml(b.nome)}" style="max-width:100%;max-height:100%;object-fit:contain;"/>
       </div>` : ""}
       ${chips ? `<div class="product-specs" style="margin:3mm 0;">${chips}</div>` : ""}
-      ${voceRows ? `<div style="margin-top:3mm;">${voceRows}</div>` : ""}
+      ${voceRows ? `<div style="margin-top:4mm;"><p style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#F97316;margin-bottom:2mm;">Componenti inclusi</p>${voceRows}</div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
