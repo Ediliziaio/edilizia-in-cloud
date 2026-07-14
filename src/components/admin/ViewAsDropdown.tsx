@@ -16,6 +16,8 @@
  *                                  salesperson           -> app.venditore
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,6 +128,7 @@ export function ViewAsDropdown() {
   } = useAuth();
   const [open, setOpen] = useState(false);
   const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // NB: TUTTI gli hooks (useQuery, useMemo, ...) devono essere chiamati PRIMA
   // di qualsiasi early return per rispettare le Rules of Hooks. Il guard per
@@ -198,6 +201,8 @@ export function ViewAsDropdown() {
   const handleInAppSwitch = (u: UserWithRole) => {
     setViewAsRole(u.role, u.id);
     setOpen(false);
+    // Regola fissa: ogni "accesso" (anche come utente simulato) parte da Attività.
+    navigate(COMPANY_APP_HOME);
   };
 
   // ── Apri portale separato con token monouso ───────────

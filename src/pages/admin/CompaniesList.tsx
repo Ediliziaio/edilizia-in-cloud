@@ -1115,12 +1115,13 @@ export default function CompaniesList() {
           _ic: companyId,
           ...(pr ? { _pr: pr } : {}),
         });
-        const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
+        // Regola fissa: OGNI accesso all'app azienda atterra su Attività.
+        const url = getSubdomainUrl(`/azienda/attivita#${params.toString()}`, "app");
         safeRedirect(url);
         return;
       }
     }
-    navigateToSubdomain("/azienda", "app", navigate);
+    navigateToSubdomain("/azienda/attivita", "app", navigate);
   };
 
   const queryClient = useQueryClient();

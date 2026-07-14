@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { TrendTooltip } from "@/components/charts/TrendTooltip";
@@ -1178,16 +1179,15 @@ function OperationalBoard({
 /**
  * Gate d'ingresso: la "Dashboard Gestione" ha senso solo se il piano include
  * il gestionale operativo. Un'azienda "solo marketing" (piano Marketing:
- * included_modules=[]) atterra sulla dashboard CRM/Marketing, la sua vera
- * sala operativa. Il redirect scatta SOLO a piano risolto (niente flicker)
- * e solo se l'utente può vedere la dashboard marketing.
+ * included_modules=[]) viene rimandata ad Attività — regola fissa della
+ * piattaforma: l'accesso parte SEMPRE da /azienda/attivita. Il redirect
+ * scatta SOLO a piano risolto (niente flicker).
  */
 export default function CompanyDashboard() {
   const { isModuleEnabled, currentPlan, isLoading: planLoading } = useSubscriptionLimits({ includeUsageCounts: false });
-  const gatePermissions = usePermissions();
   const soloMarketing = !planLoading && !!currentPlan && !isModuleEnabled("orders");
-  if (soloMarketing && gatePermissions.canViewMarketingDashboard) {
-    return <Navigate to="/azienda/marketing" replace />;
+  if (soloMarketing) {
+    return <Navigate to={COMPANY_APP_HOME} replace />;
   }
   return <CompanyDashboardInner />;
 }
