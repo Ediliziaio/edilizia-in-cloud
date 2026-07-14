@@ -68,6 +68,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/impostazioni/sicurezza": "Sicurezza",
   "/admin/impostazioni/integrazioni": "Integrazioni",
   "/admin/impostazioni/api-mcp": "API & MCP",
+  "/admin/impostazioni/whatsapp-locale": "WhatsApp Locale",
   "/admin/impostazioni/banking": "Banking",
 };
 

@@ -1389,6 +1389,19 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
   {
+    // categoria 'piattaforma' → visibile SOLO nel builder admin (le aziende non
+    // vedono questa categoria). Coerente col gate engine platform-only.
+    id: 'invia_whatsapp_locale',
+    label: 'Invia WhatsApp Locale',
+    description: 'Invia da un numero WhatsApp non-ufficiale del pool piattaforma (solo marketing/outreach della piattaforma)',
+    icon: 'MessageSquare',
+    categoria: 'piattaforma',
+    configSchema: [
+      { id: 'numero', label: 'Numero di telefono', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.phone}}' },
+      { id: 'messaggio', label: 'Testo messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: "Ciao {{contatto.first_name}}, ..." },
+    ],
+  },
+  {
     id: 'invia_sms',
     label: 'Invia SMS',
     description: 'Invia un SMS al numero specificato',

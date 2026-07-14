@@ -33,8 +33,9 @@ import {
 import { Smartphone, MessageSquare, Mail, Send, Loader2, Sparkles, PenLine, Paperclip, X } from "lucide-react";
 import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
 import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
-export type QuickSendChannel = "sms" | "whatsapp" | "email";
+export type QuickSendChannel = "sms" | "whatsapp" | "email" | "whatsapp_locale";
 
 interface QuickContactSendDialogProps {
   open: boolean;
@@ -71,6 +72,18 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+/** Estrae il messaggio d'errore dal body di una edge function (FunctionsHttpError). */
+async function extractInvokeError(error: unknown): Promise<string> {
+  try {
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === "function") {
+      const body = await ctx.json();
+      if (body?.error) return body.error;
+    }
+  } catch { /* ignore */ }
+  return (error as Error)?.message ?? "Errore imprevisto";
+}
+
 /** CSV/space-separated → lista email valide, lowercased, dedup. */
 function parseEmails(raw: string): string[] {
   if (!raw.trim()) return [];
@@ -98,6 +111,10 @@ export function QuickContactSendDialog({
 
   const [channel, setChannel] = useState<QuickSendChannel>(initialChannel);
   const [smsText, setSmsText] = useState("");
+  // WhatsApp Locale (canale non-ufficiale, solo contesto piattaforma/super_admin).
+  const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
+  const [waLocaleText, setWaLocaleText] = useState("");
+  const [waLocaleSending, setWaLocaleSending] = useState(false);
   const [waSending, setWaSending] = useState(false);
   const [waSeedText, setWaSeedText] = useState("");
   const [waSeedAt, setWaSeedAt] = useState(0);
@@ -309,10 +326,13 @@ export function QuickContactSendDialog({
         </DialogHeader>
 
         <Tabs value={channel} onValueChange={(v) => setChannel(v as QuickSendChannel)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${isPlatformContext ? "grid-cols-4" : "grid-cols-3"}`}>
             <TabsTrigger value="sms" disabled={!hasPhone} className="gap-1.5"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
             <TabsTrigger value="whatsapp" disabled={!hasPhone} className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
             <TabsTrigger value="email" disabled={!hasEmail} className="gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</TabsTrigger>
+            {isPlatformContext && (
+              <TabsTrigger value="whatsapp_locale" disabled={!hasPhone} className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> WA Locale</TabsTrigger>
+            )}
           </TabsList>
 
           {/* SMS */}
@@ -370,6 +390,53 @@ export function QuickContactSendDialog({
               </>
             ) : <p className="text-xs text-muted-foreground italic py-4 text-center">Il contatto non ha un numero di telefono.</p>}
           </TabsContent>
+
+          {/* WhatsApp Locale (canale non-ufficiale, solo piattaforma) */}
+          {isPlatformContext && (
+            <TabsContent value="whatsapp_locale" className="space-y-2 pt-2">
+              {hasPhone ? (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    Invio dal pool di numeri non-ufficiali. Il mittente è scelto per tag e capacità giornaliera.
+                  </p>
+                  <Textarea
+                    placeholder="Scrivi il messaggio WhatsApp…"
+                    value={waLocaleText}
+                    onChange={(e) => setWaLocaleText(e.target.value)}
+                    rows={4}
+                    className="text-sm resize-y"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={!waLocaleText.trim() || waLocaleSending}
+                      onClick={async () => {
+                        if (waLocaleSending) return;
+                        setWaLocaleSending(true);
+                        try {
+                          const { error } = await supabase.functions.invoke("openwa-gateway", {
+                            body: { action: "send_text", contact_id: contactId ?? null, to: cleanPhone, text: waLocaleText.trim() },
+                          });
+                          if (error) throw new Error(await extractInvokeError(error));
+                          toast.success("Messaggio WhatsApp Locale inviato");
+                          setWaLocaleText("");
+                          onSent?.();
+                          onOpenChange(false);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Errore invio");
+                        } finally {
+                          setWaLocaleSending(false);
+                        }
+                      }}
+                    >
+                      {waLocaleSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia
+                    </Button>
+                  </div>
+                </>
+              ) : <p className="text-xs text-muted-foreground italic py-4 text-center">Il contatto non ha un numero di telefono.</p>}
+            </TabsContent>
+          )}
 
           {/* Email */}
           <TabsContent value="email" className="space-y-2 pt-2">

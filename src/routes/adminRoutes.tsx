@@ -66,6 +66,7 @@ const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
 const AdminSettingsApiMcp = lazy(() => import("@/pages/admin/settings/AdminSettingsApiMcp"));
+const AdminSettingsWhatsappLocale = lazy(() => import("@/pages/admin/settings/AdminSettingsWhatsappLocale"));
 const AdminSettingsMarketingCalendars = lazy(() => import("@/pages/admin/settings/AdminSettingsMarketingCalendars"));
 const AdminSettingsBanking = lazy(() => import("@/pages/admin/settings/AdminSettingsBanking"));
 const AdminSettingsWebhooks = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhooks"));
@@ -81,6 +82,7 @@ const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminM
 const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
 const AdminSmsMarketing = lazy(() => import("@/pages/admin/marketing/AdminSmsMarketing"));
 const AdminWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminWhatsApp"));
+const AdminWhatsappLocaleInbox = lazy(() => import("@/pages/admin/marketing/AdminWhatsappLocaleInbox"));
 const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomations"));
 const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/AdminMarketingContactDetail"));
 // MP-CLEANUP: AdminMarketingWhatsApp rimosso (dominio messaging legacy).
@@ -267,6 +269,7 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="impostazioni/integrazioni" element={<RequireSuperAdmin><AdminSettingsIntegrations /></RequireSuperAdmin>} />
         <Route path="impostazioni/api-mcp" element={<RequireSuperAdmin><AdminSettingsApiMcp /></RequireSuperAdmin>} />
+        <Route path="impostazioni/whatsapp-locale" element={<RequireSuperAdmin><AdminSettingsWhatsappLocale /></RequireSuperAdmin>} />
         <Route path="impostazioni/calendari" element={<RequireSuperAdmin><AdminSettingsMarketingCalendars /></RequireSuperAdmin>} />
         <Route path="impostazioni/banking" element={<RequireSuperAdmin><AdminSettingsBanking /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
@@ -332,6 +335,7 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/sms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSmsMarketing /></RequireAdminPermission>} />
         {/* wildcard: AdminWhatsApp gestisce internamente broadcast/nuovo, broadcast/:id, numeri/:id */}
         <Route path="marketing/whatsapp/*" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsApp /></RequireAdminPermission>} />
+        <Route path="marketing/whatsapp-locale" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleInbox /></RequireAdminPermission>} />
         <Route path="marketing/automazioni" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAutomations /></RequireAdminPermission>} />
         {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
         <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />

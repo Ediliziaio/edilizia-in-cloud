@@ -2,6 +2,7 @@ import {
   User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
   Webhook, Activity, CalendarDays, Wrench, Variable, Package,
+  MessageCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -128,6 +129,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Alert e notifiche per gli admin",
         icon: Bell,
         url: "/admin/impostazioni/notifiche",
+      },
+      {
+        id: "whatsapp-locale",
+        label: "WhatsApp Locale",
+        description: "Numeri WhatsApp non-ufficiali (gateway self-hosted) per marketing e outreach",
+        icon: MessageCircle,
+        url: "/admin/impostazioni/whatsapp-locale",
+        permission: "can_manage_admins",
       },
     ],
   },

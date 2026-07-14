@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
+import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
@@ -490,7 +491,25 @@ async function processQueue(supabase: any) {
         error_message: result.error || null,
       });
 
-      if (!result.success) {
+      if (!result.success && result.defer) {
+        // Back-pressure: esito transiente (pool WhatsApp Locale saturo / fuori
+        // finestra oraria / throttle). Rinvia SENZA consumare i tentativi, così
+        // il messaggio attende la capacità invece di fallire in pochi minuti.
+        // Cap a 48 rinvii (~2 giorni a 1h) per evitare loop infiniti.
+        const ctx = item.context_json || {};
+        const deferCount = (ctx._defer_count || 0) + 1;
+        if (deferCount > 48) {
+          await markQueueItem(supabase, item.id, "failed", result.error || "Rinviato troppe volte (pool saturo)");
+          await supabase.from("automation_enrollments").update({ status: "failed", updated_at: now }).eq("id", item.enrollment_id);
+          await completeExecutionRun(supabase, item.enrollment_id, "error", result.error || "Pool saturo");
+        } else {
+          const deferMs = Math.max(1, result.deferMinutes ?? 60) * 60000;
+          await supabase
+            .from("automation_queue")
+            .update({ status: "pending", execute_at: new Date(Date.now() + deferMs).toISOString(), last_error: result.error, context_json: { ...ctx, _defer_count: deferCount }, updated_at: now })
+            .eq("id", item.id);
+        }
+      } else if (!result.success) {
         // Retry logic
         const attempts = item.attempts + 1;
         if (attempts < item.max_attempts) {
@@ -855,6 +874,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     aggiorna_task: "update_task",
     invia_email: "send_email",
     invia_whatsapp: "send_whatsapp",
+    invia_whatsapp_locale: "send_whatsapp_locale",
     invia_sms: "send_sms",
     invia_notifica_inapp: "send_notification",
     aggiungi_tag: "add_tag",
@@ -918,7 +938,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   const testMode = queueItem?.context_json?.payload?.test_mode === true
     || queueItem?.context_json?.payload?.dry_run === true;
   const EXTERNAL_ACTIONS = new Set([
-    "send_email", "send_whatsapp", "send_sms", "send_ai_message",
+    "send_email", "send_whatsapp", "send_whatsapp_locale", "send_sms", "send_ai_message",
     "webhook_out", "call_with_ai_agent",
     "invia_email_admin_azienda", "crea_account_azienda", "invia_fattura",
   ]);
@@ -1283,6 +1303,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
     case "send_whatsapp": {
       return await executeSendWhatsApp(supabase, ncfg, entityId, companyId);
+    }
+
+    case "send_whatsapp_locale": {
+      return await executeSendWhatsAppLocale(supabase, ncfg, entityId, companyId);
     }
 
     case "send_email": {
@@ -2567,6 +2591,42 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 // ────────────────────────────────────────────────────
 // SEND WHATSAPP (real Meta API integration)
 // ────────────────────────────────────────────────────
+// WhatsApp Locale (canale non-ufficiale OpenWA): SOLO automazioni della piattaforma.
+// Guardia di sicurezza multi-tenant: i numeri del pool NON vanno mai esposti alle
+// automazioni delle aziende clienti.
+async function executeSendWhatsAppLocale(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  if (companyId !== OPENWA_PLATFORM_COMPANY_ID) {
+    return { success: false, error: "WhatsApp Locale è disponibile solo per le automazioni della piattaforma." };
+  }
+  const { data: contact } = await supabase
+    .from("marketing_contacts")
+    .select("id, phone, first_name, last_name, tags, optout_whatsapp")
+    .eq("id", entityId)
+    .single();
+  if (!contact?.phone) return { success: false, error: "Contatto senza numero di telefono" };
+  if (contact.optout_whatsapp) return { success: false, error: "Contatto in opt-out WhatsApp" };
+
+  const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text || "", contact, companyId);
+  if (!resolvedText) return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp Locale" };
+
+  const res = await sendOpenWaMessage(supabase, {
+    contactId: contact.id,
+    to: contact.phone,
+    text: resolvedText,
+    contactTags: contact.tags ?? [],
+  });
+  if (!res.ok) {
+    // 409 = esito TRANSIENTE (nessun numero disponibile: cap/warm-up/throttle
+    // esauriti o fuori finestra oraria). Non è un errore vero: chiedi al motore
+    // di rinviare senza consumare i tentativi (back-pressure sul pool).
+    if (res.status === 409) {
+      return { success: false, defer: true, deferMinutes: 60, error: res.error };
+    }
+    return { success: false, error: res.error ?? "Invio WhatsApp Locale fallito" };
+  }
+  return { success: true };
+}
+
 async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
   // 1. Get WhatsApp config for the company (nuovo multi-numero, fallback legacy)
   const sender = await resolveWhatsAppSender(supabase, companyId);

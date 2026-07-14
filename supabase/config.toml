@@ -697,3 +697,12 @@ verify_jwt = false
 # Lead Scraper · autopilot cron notturno. Auth custom: x-cron-secret OPPURE super_admin JWT.
 [functions.lead-scraper-autopilot]
 verify_jwt = false
+
+# WhatsApp Locale (OpenWA) · proxy super_admin verso il gateway self-hosted.
+# Auth interna via requireAuth+requireRole (bearer super_admin), quindi verify_jwt=false.
+[functions.openwa-gateway]
+verify_jwt = false
+
+# WhatsApp Locale (OpenWA) · webhook inbound dal gateway esterno. Auth via HMAC del body.
+[functions.openwa-webhook]
+verify_jwt = false
