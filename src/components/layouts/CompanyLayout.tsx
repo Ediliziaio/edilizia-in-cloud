@@ -18,12 +18,15 @@ import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { useImpersonationClientView, setImpersonationClientView } from "@/hooks/useImpersonationView";
 import { 
   HeadphonesIcon,
   Settings,
   FolderOpen,
   LogOut,
   AlertTriangle,
+  Eye,
+  EyeOff,
   Lock,
   ArrowLeft,
   Building2,
@@ -214,6 +217,7 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <ImpersonationViewToggle />
         <SuperAdminCompanySwitcher />
         <Button
           variant="secondary"
@@ -225,6 +229,28 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
         </Button>
       </div>
     </div>
+  );
+});
+
+// Toggle "Vista cliente / Vista completa" nel banner impersonation.
+// Vista cliente (default) = piano+feature applicati come per il cliente vero;
+// Vista completa = bypass super admin (supporto dentro piani parziali).
+const ImpersonationViewToggle = memo(function ImpersonationViewToggle() {
+  const clientView = useImpersonationClientView();
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={() => setImpersonationClientView(!clientView)}
+      title={
+        clientView
+          ? "Stai vedendo ciò che vede il cliente (piano e funzioni applicati). Clicca per la vista completa super admin."
+          : "Vista completa super admin: tutti i moduli aperti. Clicca per vedere ciò che vede il cliente."
+      }
+    >
+      {clientView ? <Eye className="h-4 w-4 sm:mr-2" /> : <EyeOff className="h-4 w-4 sm:mr-2" />}
+      <span className="hidden sm:inline">{clientView ? "Vista cliente" : "Vista completa"}</span>
+    </Button>
   );
 });
 
@@ -966,7 +992,11 @@ const CompanySidebar = memo(function CompanySidebar() {
   // — non opera mai realmente come "limited user" sulla UI
   // — bypass effettivo a livello DB resta gestito da useFeatureFlags.bypass
   //   che richiede isImpersonationReady, quindi nessun leak privilege
-  const isSuperAdminViewer = role === "super_admin";
+  // ECCEZIONE "Vista cliente" (toggle nel banner impersonation, default ON):
+  // il super admin vuole verificare COSA VEDE il piano del cliente → in quel
+  // caso la sidebar deve rendere badge/moduli esattamente come per il cliente.
+  const impersonationClientView = useImpersonationClientView();
+  const isSuperAdminViewer = role === "super_admin" && !(isImpersonating && impersonationClientView);
 
   // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così
   // la sidebar appare full-feature anche se il piano DB è parziale (è il caso

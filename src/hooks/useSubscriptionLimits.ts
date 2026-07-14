@@ -5,6 +5,7 @@ import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
 import { queryKeys } from "@/lib/queryKeys";
 import { createTimeoutSignal } from "@/lib/query-timeout";
+import { useImpersonationClientView } from "@/hooks/useImpersonationView";
 
 const PLAN_QUERY_TIMEOUT_MS = 12_000;
 const USAGE_COUNT_QUERY_TIMEOUT_MS = 8_000;
@@ -144,12 +145,17 @@ export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}
   // via fetchUserData in AuthContext:567-572) oltre a tutti gli altri gate — così un
   // attaccante con scrittura in sessionStorage non ottiene l'unlock anticipato.
   const isSuperAdmin = role === "super_admin";
+  // "Vista cliente" (default in impersonation): il super admin rinuncia al
+  // bypass per vedere il piano come lo vede il cliente. Il flag può solo
+  // RESTRINGERE, mai allargare.
+  const clientView = useImpersonationClientView();
   const bypass =
     isSuperAdmin &&
     isImpersonationReady &&
     isImpersonating &&
     !!impersonatedCompanyId &&
-    !!impersonationToken;
+    !!impersonationToken &&
+    !clientView;
 
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;

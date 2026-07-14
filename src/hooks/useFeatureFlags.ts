@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { createTimeoutSignal } from "@/lib/query-timeout";
+import { useImpersonationClientView } from "@/hooks/useImpersonationView";
 
 const FEATURE_FLAGS_TIMEOUT_MS = 10_000;
 
@@ -85,6 +86,9 @@ export function useFeatureFlags(companyIdOverride?: string) {
   // role sbagliata potrebbe aprire tutte le feature prima della verifica async.
   const isSuperAdmin = role === "super_admin";
   const isDemoBaseline = companyId === DEMO_COMPANY_ID;
+  // "Vista cliente" (default in impersonation): niente bypass, il super admin
+  // vede i flag risolti come il cliente. Il toggle sta nel banner giallo.
+  const clientView = useImpersonationClientView();
   const bypass =
     isDemoBaseline ||
     (
@@ -92,7 +96,8 @@ export function useFeatureFlags(companyIdOverride?: string) {
       isImpersonationReady &&
       isImpersonating &&
       !!impersonatedCompanyId &&
-      !!impersonationToken
+      !!impersonationToken &&
+      !clientView
     );
 
   // Catalog: needed for display metadata (icon, category, name, description)

@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createTimeoutSignal } from "@/lib/query-timeout";
 import { queryKeys } from "@/lib/queryKeys";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { useImpersonationClientView } from "@/hooks/useImpersonationView";
 
 const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
 const FEATURE_ACCESS_QUERY_META = { silent: true } as const;
@@ -146,7 +147,13 @@ export function useFeatureAccess(
     !!impersonatedCompanyId &&
     !!impersonationToken;
   const isDemoBaseline = companyId === DEMO_COMPANY_ID;
-  const bypass = isDemoBaseline || directSuperAdminBypass || impersonationSuperAdminBypass;
+  // "Vista cliente": in impersonation il super admin può rinunciare al bypass
+  // per vedere le feature esattamente come il piano le dà al cliente.
+  const clientView = useImpersonationClientView();
+  const bypass =
+    isDemoBaseline ||
+    directSuperAdminBypass ||
+    (impersonationSuperAdminBypass && !clientView);
 
   // La sidebar usa già `resolve_company_features`; sottoscriverci alla stessa
   // query evita una seconda verifica fragile al primo mount della route. Se il

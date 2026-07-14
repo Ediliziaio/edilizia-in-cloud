@@ -386,18 +386,33 @@ export default function PlanDetail() {
           <CardTitle className="text-base">Moduli inclusi</CardTitle>
           <CardDescription>Aree funzionali abilitate di default</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {ALL_MODULES.map((mod) => {
-              const included = includedModules.includes(mod.key);
-              return (
-                <Badge key={mod.key} variant={included ? "default" : "outline"} className="gap-1">
+        <CardContent className="space-y-2">
+          {includedModules.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">
+              Nessun modulo core incluso: il gestionale operativo è nascosto al cliente.
+              Il piano vive di CRM/Marketing e delle funzioni tri-state qui sotto.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {ALL_MODULES.filter((mod) => includedModules.includes(mod.key)).map((mod) => (
+                <Badge key={mod.key} variant="default" className="gap-1">
                   <mod.icon className="h-3 w-3" />
                   {mod.label}
                 </Badge>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
+          {includedModules.length > 0 && includedModules.length < ALL_MODULES.length && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-muted-foreground">Esclusi:</span>
+              {ALL_MODULES.filter((mod) => !includedModules.includes(mod.key)).map((mod) => (
+                <Badge key={mod.key} variant="outline" className="gap-1 opacity-60">
+                  <mod.icon className="h-3 w-3" />
+                  {mod.label}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

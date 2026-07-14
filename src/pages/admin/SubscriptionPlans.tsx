@@ -114,7 +114,8 @@ function validatePlanForm(plan: PlanForm, cleanSlug: string): string[] {
   if (!Number.isInteger(plan.max_storage_mb) || plan.max_storage_mb < 0) errors.push("Lo storage non può essere negativo.");
   if (!Number.isInteger(plan.trial_days) || plan.trial_days < 0 || plan.trial_days > 365) errors.push("Il trial deve essere compreso tra 0 e 365 giorni.");
   if (!Number.isInteger(plan.position) || plan.position < 0) errors.push("La posizione deve essere un numero positivo.");
-  if (plan.included_modules.length === 0) errors.push("Seleziona almeno un modulo incluso.");
+  // NB: zero moduli inclusi è una configurazione legittima (es. piano
+  // "Marketing": solo CRM/feature, tutto il gestionale core nascosto).
   return errors;
 }
 
@@ -716,18 +717,27 @@ export default function SubscriptionPlans() {
                   </div>
                 </div>
 
-                {/* Included Modules */}
+                {/* Included Modules — mostriamo SOLO gli inclusi: la lista
+                    completa con outline faceva sembrare inclusi anche i moduli
+                    esclusi (es. piano Marketing con zero moduli core). */}
                 <div className="flex flex-wrap gap-1.5 pt-2 border-t">
-                {ALL_MODULES.map((mod) => {
+                {(() => {
                     const modules = plan.included_modules as string[] | null;
-                    const included = Array.isArray(modules) && modules.includes(mod.key);
-                    return (
-                      <Badge key={mod.key} variant={included ? "default" : "outline"} className="text-xs gap-1">
+                    const inclusi = ALL_MODULES.filter((mod) => Array.isArray(modules) && modules.includes(mod.key));
+                    if (inclusi.length === 0) {
+                      return (
+                        <span className="text-xs text-muted-foreground italic">
+                          Nessun modulo core — piano solo CRM/Marketing/feature
+                        </span>
+                      );
+                    }
+                    return inclusi.map((mod) => (
+                      <Badge key={mod.key} variant="default" className="text-xs gap-1">
                         <mod.icon className="h-3 w-3" />
                         {mod.label}
                       </Badge>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
 
                 {/* Features */}
