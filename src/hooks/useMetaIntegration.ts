@@ -236,6 +236,12 @@ export function useMetaIntegration(integration: Integration | null) {
       refetchMappings();
       toast.success("Mappatura salvata");
     },
+    onError: (err: Error) => {
+      // Senza questo toast un salvataggio fallito (RLS, contesto mancante…)
+      // era invisibile: l'utente credeva di aver mappato i campi e i lead
+      // arrivavano senza nome/email.
+      toast.error(`Mappatura NON salvata: ${err.message}`);
+    },
   });
 
   // Disconnect

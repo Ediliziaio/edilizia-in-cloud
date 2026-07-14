@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface FieldMappingStepProps {
   hook: any;
   formId: string;
+  /** Chiamata DOPO il salvataggio riuscito (il wizard avanza da qui). */
+  onSaved?: () => void;
 }
 
 interface MetaQuestion {
@@ -48,7 +50,7 @@ const EXAMPLE_VALUES: Record<string, string> = {
   company_name: "Rossi Srl",
 };
 
-export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
+export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProps) {
   const { callProxy, mappings, saveMapping } = hook;
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
@@ -192,7 +194,14 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
     saveMapping.mutate({
       formId,
-      rules: {
+      rules: buildRules(),
+    }, {
+      onSuccess: () => onSaved?.(),
+    });
+  };
+
+  const buildRules = () => {
+    return {
         field_map: fieldMap,
         required_fields_policy: "lenient",
         default_values: {},
@@ -207,8 +216,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
         },
         dedupe_policy: dedupePolicy,
         update_policy: updatePolicy,
-      },
-    });
+    };
   };
 
   // Build preview data

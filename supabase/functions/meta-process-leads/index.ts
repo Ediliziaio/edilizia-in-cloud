@@ -263,16 +263,24 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const defaultValues: Record<string, string> = rules.default_values || {};
 
   const mappedData: Record<string, string> = {};
+  // Valori destinati ai campi personalizzati del CRM: la mappatura del wizard
+  // usa chiavi "custom_<field_id>" (marketing_custom_fields) → finiscono in
+  // marketing_contact_field_values, non su colonne del contatto.
+  const customValues: Record<string, string> = {};
   for (const [metaKey, crmKey] of Object.entries(fieldMap)) {
-    if (fieldData[metaKey] !== undefined) {
-      mappedData[crmKey] = fieldData[metaKey];
+    const v = fieldData[metaKey];
+    if (v === undefined) continue;
+    if (crmKey.startsWith("custom_")) {
+      customValues[crmKey.slice(7)] = v;
+    } else {
+      mappedData[crmKey] = v;
     }
   }
 
-  if (Object.keys(fieldMap).length === 0) {
-    // Fallback senza mapping esplicito: copre i nomi-campo standard di Meta
-    // Lead Ads e le varianti più comuni, così non perdiamo telefono/indirizzo/
-    // CAP/provincia per i form privi di un integration_field_mappings salvato.
+  {
+    // Fallback SEMPRE attivo per i campi standard ancora vuoti: la mappatura
+    // esplicita può coprire solo alcuni campi (o puntare a campi custom) —
+    // nome/email/telefono non devono andare persi in nessun caso.
     const pick = (...keys: string[]): string | undefined => {
       for (const k of keys) {
         if (fieldData[k] !== undefined && fieldData[k] !== "") return fieldData[k];
@@ -288,15 +296,17 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     const addr = pick("street_address", "address");
     const zip = pick("zip_code", "post_code", "postal_code", "zip");
     const prov = pick("province", "state", "region");
-    if (fullName) mappedData.full_name = fullName;
-    if (fName) mappedData.first_name = fName;
-    if (lName) mappedData.last_name = lName;
-    if (mail) mappedData.email = mail;
-    if (tel) mappedData.phone = tel;
-    if (cityV) mappedData.city = cityV;
-    if (addr) mappedData.address = addr;
-    if (zip) mappedData.postal_code = zip;
-    if (prov) mappedData.province = prov;
+    const comp = pick("company_name", "company");
+    if (fullName && !mappedData.full_name) mappedData.full_name = fullName;
+    if (fName && !mappedData.first_name) mappedData.first_name = fName;
+    if (lName && !mappedData.last_name) mappedData.last_name = lName;
+    if (mail && !mappedData.email) mappedData.email = mail;
+    if (tel && !mappedData.phone) mappedData.phone = tel;
+    if (cityV && !mappedData.city) mappedData.city = cityV;
+    if (addr && !mappedData.address) mappedData.address = addr;
+    if (zip && !mappedData.postal_code) mappedData.postal_code = zip;
+    if (prov && !mappedData.province) mappedData.province = prov;
+    if (comp && !mappedData.company_name) mappedData.company_name = comp;
 
     // Secondo passaggio: le domande custom dei form italiani arrivano sluggate
     // da Meta ("nome_e_cognome", "numero_di_telefono", "e-mail", "città") e
@@ -362,6 +372,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const address = mappedData.address || defaultValues.address || null;
   const postalCode = mappedData.postal_code || defaultValues.postal_code || null;
   const province = mappedData.province || defaultValues.province || null;
+  const companyName = mappedData.company_name || defaultValues.company_name || null;
 
   // Default email_or_phone: i Lead Ads italiani spesso non hanno email (solo
   // telefono) → con "email" puro quei lead non venivano mai deduplicati.
@@ -409,7 +420,11 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const source = `Meta Lead Ads`;
   const tags = rules.tags_to_apply || [];
   const pipelineSettings = rules.pipeline_settings || {};
-  const notes = buildNotesFromFieldData(fieldData, lead);
+  // Se la mappatura punta una domanda al campo Note, il testo mappato precede
+  // il riepilogo automatico delle risposte del modulo.
+  const notes = [mappedData.notes, buildNotesFromFieldData(fieldData, lead)]
+    .filter(Boolean)
+    .join("\n\n");
 
   let contactId: string;
 
@@ -423,6 +438,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (address) updateData.address = address;
       if (postalCode) updateData.postal_code = postalCode;
       if (province) updateData.province = province;
+      if (companyName) updateData.company_name = companyName;
       // Always update attribution fields from Meta (most recent lead wins)
       updateData.attr_source = "facebook";
       updateData.attr_medium = "paid_social";
@@ -455,6 +471,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         address: address,
         postal_code: postalCode,
         province: province,
+        company_name: companyName,
         source,
         notes,
         tags,
@@ -477,6 +494,28 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     contactId = newContact.id;
   } else {
     contactId = existingContact.id;
+  }
+
+  // Campi personalizzati mappati (chiavi "custom_<field_id>" nel wizard):
+  // vanno in marketing_contact_field_values, la tabella letta dal CRM.
+  const customEntries = Object.entries(customValues).filter(([fieldId]) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fieldId),
+  );
+  if (customEntries.length > 0) {
+    const { error: cfvErr } = await adminClient
+      .from("marketing_contact_field_values")
+      .upsert(
+        customEntries.map(([fieldId, value]) => ({
+          contact_id: contactId,
+          field_id: fieldId,
+          value,
+        })),
+        { onConflict: "contact_id,field_id" },
+      );
+    if (cfvErr) {
+      // Non bloccare il lead per un campo custom: contatto già creato.
+      console.warn(`meta-process-leads: campi personalizzati non salvati per ${contactId}:`, cfvErr.message);
+    }
   }
 
   if (pipelineSettings.pipeline_id && pipelineSettings.stage_id) {

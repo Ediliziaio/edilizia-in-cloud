@@ -202,7 +202,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                   {step === "confirm" && <ConnectionConfirmStep hook={hook} />}
                   {step === "forms" && <FormListStep hook={hook} onMapFields={handleFormMapping} />}
                   {step === "mapping" && selectedFormId && (
-                    <FieldMappingStep hook={hook} formId={selectedFormId} />
+                    <FieldMappingStep hook={hook} formId={selectedFormId} onSaved={goNext} />
                   )}
                   {step === "activation" && <ActivationStep hook={hook} integration={integration} />}
                 </div>
@@ -216,7 +216,15 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                       <Button variant="outline" onClick={goBack}>Indietro</Button>
                     )}
                     {step !== "oauth" && currentIndex < STEP_ORDER.length - 1 && (
-                      <Button onClick={goNext}>Avanti</Button>
+                      step === "mapping" ? (
+                        // Sul passo mappatura si avanza SALVANDO ("Salva
+                        // mappatura" dentro lo step): un "Avanti" primario qui
+                        // faceva perdere silenziosamente la mappatura appena
+                        // configurata.
+                        <Button variant="outline" onClick={goNext}>Salta senza salvare</Button>
+                      ) : (
+                        <Button onClick={goNext}>Avanti</Button>
+                      )
                     )}
                     {currentIndex === STEP_ORDER.length - 1 && (
                       <Button onClick={handleComplete}>Salva e chiudi</Button>
