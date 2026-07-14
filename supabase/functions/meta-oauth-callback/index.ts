@@ -5,6 +5,7 @@ import { timingSafeEqual } from "../_shared/webhookSecurity.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
@@ -15,17 +16,11 @@ Deno.serve(async (req) => {
     const errorParam = url.searchParams.get("error");
 
     if (errorParam) {
-      return new Response(buildRedirectHtml("error", errorParam), {
-        status: 200,
-        headers: { "Content-Type": "text/html" },
-      });
+      return redirectToApp("error", errorParam);
     }
 
     if (!code || !signedState) {
-      return new Response(buildRedirectHtml("error", "missing_params"), {
-        status: 200,
-        headers: { "Content-Type": "text/html" },
-      });
+      return redirectToApp("error", "missing_params");
     }
 
     try {
@@ -34,10 +29,7 @@ Deno.serve(async (req) => {
       // Validate HMAC-signed state
       const dotIndex = signedState.lastIndexOf(".");
       if (dotIndex === -1) {
-        return new Response(buildRedirectHtml("error", "invalid_state"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "invalid_state");
       }
 
       const stateB64 = signedState.slice(0, dotIndex);
@@ -54,10 +46,7 @@ Deno.serve(async (req) => {
       // Timing-safe comparison: previene timing attack sul state OAuth
       if (!timingSafeEqual(receivedHmac, expectedHmac)) {
         console.error("State HMAC validation failed");
-        return new Response(buildRedirectHtml("error", "invalid_state_signature"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "invalid_state_signature");
       }
 
       // Decode state
@@ -65,18 +54,12 @@ Deno.serve(async (req) => {
       const { company_id, user_id, ts } = statePayload;
 
       if (!company_id || !user_id || !ts) {
-        return new Response(buildRedirectHtml("error", "invalid_state"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "invalid_state");
       }
 
       // Check timestamp (10 min max)
       if (Date.now() - ts > STATE_MAX_AGE_MS) {
-        return new Response(buildRedirectHtml("error", "state_expired"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "state_expired");
       }
 
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -98,10 +81,7 @@ Deno.serve(async (req) => {
       const isSuperAdmin = (rolesRes.data ?? []).some((r) => r.role === "super_admin");
       if (!isSuperAdmin && userCompanyId !== company_id) {
         console.error("OAuth state user/company validation failed");
-        return new Response(buildRedirectHtml("error", "invalid_state_company"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "invalid_state_company");
       }
 
       // Exchange code for short-lived token
@@ -113,10 +93,7 @@ Deno.serve(async (req) => {
 
       if (tokenData.error) {
         console.error("Meta token exchange error:", tokenData.error);
-        return new Response(buildRedirectHtml("error", "token_exchange_failed"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "token_exchange_failed");
       }
 
       const shortLivedToken = tokenData.access_token;
@@ -156,10 +133,7 @@ Deno.serve(async (req) => {
 
       if (integErr) {
         console.error("Integration upsert error:", integErr);
-        return new Response(buildRedirectHtml("error", "db_error"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "db_error");
       }
 
       // STEP 2: Store token with AES-GCM encryption
@@ -198,10 +172,7 @@ Deno.serve(async (req) => {
             last_error_message: credErr.message,
           })
           .eq("id", integration.id);
-        return new Response(buildRedirectHtml("error", "credentials_storage_failed"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
+        return redirectToApp("error", "credentials_storage_failed");
       }
 
       // STEP 3: Ora che le credenziali sono salvate, promuovi a "connected"
@@ -310,56 +281,32 @@ Deno.serve(async (req) => {
         },
       });
 
-      return new Response(buildRedirectHtml("success", integration.id), {
-        status: 200,
-        headers: { "Content-Type": "text/html" },
-      });
+      return redirectToApp("success", integration.id);
     } catch (error) {
       console.error("meta-oauth-callback error:", error);
-      return new Response(buildRedirectHtml("error", error.message), {
-        status: 200,
-        headers: { "Content-Type": "text/html" },
-      });
+      return redirectToApp("error", error.message);
     }
   }
 
   return new Response("Method not allowed", { status: 405 });
 });
 
-function buildRedirectHtml(status: string, detail: string): string {
+// La piattaforma Supabase RISCRIVE le risposte HTML delle edge function sul
+// dominio condiviso *.supabase.co (Content-Type forzato a text/plain + CSP
+// "default-src 'none'; sandbox", anti-phishing): il popup mostrava il
+// SORGENTE della pagina e lo script postMessage non girava mai. Quindi qui
+// niente HTML: 302 verso /meta-oauth-done sull'app (stessa origin
+// dell'opener), che consegna il risultato via postMessage e si chiude.
+function redirectToApp(status: string, detail: string): Response {
   const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
-  const allowedOriginsJson = JSON.stringify([
-    siteUrl,
-    "http://127.0.0.1:8080",
-    "http://localhost:8080",
-    `https://${projectRef}.supabase.co`,
-  ].filter(Boolean));
   const safeStatus = status === "success" ? "success" : "error";
-  const safeStatusJson = JSON.stringify(safeStatus);
-  const safeDetailJson = JSON.stringify(detail ? detail.replace(/[<>"']/g, "") : "");
-  const bodyMessage = safeStatus === "success"
-    ? "Autenticazione completata. Puoi chiudere questa finestra."
-    : "Autenticazione fallita. Puoi chiudere questa finestra.";
-  const bodyMessageJson = JSON.stringify(bodyMessage);
-  return `<!DOCTYPE html>
-<html>
-<head><title>Meta OAuth</title></head>
-<body>
-<script>
-  var allowedOrigins = ${allowedOriginsJson};
-  if (window.opener) {
-    var msg = { type: "META_OAUTH_RESULT", status: ${safeStatusJson}, detail: ${safeDetailJson} };
-    allowedOrigins.forEach(function(origin) {
-      try { window.opener.postMessage(msg, origin); } catch(e) {}
-    });
-    window.close();
-  } else {
-    document.body.innerHTML = '<p>' + ${bodyMessageJson} + '</p>';
-  }
-</script>
-<p>Elaborazione in corso...</p>
-</body>
-</html>`;
+  const safeDetail = (detail || "").replace(/[<>"']/g, "").slice(0, 200);
+  const hash = new URLSearchParams({ status: safeStatus, detail: safeDetail }).toString();
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${siteUrl}/meta-oauth-done#${hash}`,
+      "Cache-Control": "no-store",
+    },
+  });
 }

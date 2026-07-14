@@ -175,6 +175,7 @@ const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
 const DataDeletion = lazy(() => import("@/pages/DataDeletion"));
+const MetaOAuthDone = lazy(() => import("@/pages/MetaOAuthDone"));
 const AvvisoLegale = lazy(() => import("@/pages/AvvisoLegale"));
 const CondizioniUtilizzoSito = lazy(() => import("@/pages/CondizioniUtilizzoSito"));
 const DPA = lazy(() => import("@/pages/DPA"));
@@ -651,6 +652,9 @@ const App = () => (
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               {/* /data-deletion: obbligatoria Meta App Review + GDPR diritto oblio */}
               <Route path="/data-deletion" element={<DataDeletion />} />
+              {/* /meta-oauth-done: atterraggio popup OAuth Meta (302 dall'edge:
+                  supabase.co non può servire HTML eseguibile) — postMessage + close */}
+              <Route path="/meta-oauth-done" element={<MetaOAuthDone />} />
               <Route path="/cancellazione-dati" element={<DataDeletion />} />
               <Route path="/avviso-legale" element={<AvvisoLegale />} />
               <Route path="/condizioni-utilizzo" element={<CondizioniUtilizzoSito />} />
