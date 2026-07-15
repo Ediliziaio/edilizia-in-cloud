@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
-// meta-health-check does not use META_APP_ID/SECRET directly (only checks DB state)
-// No getMetaCredentials import needed here
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+
+const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -105,9 +106,172 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ checked: (integrations || []).length, updated: results });
+    // ── Self-healing webhook lead ──
+    // Ogni pagina selezionata DEVE essere iscritta al webhook leadgen su Meta
+    // (POST /{page}/subscribed_apps): senza iscrizione i lead NON arrivano in
+    // tempo reale ma solo col backfill manuale. Se l'iscrizione manca la crea
+    // ora e recupera i lead degli ultimi 3 giorni (persi mentre mancava).
+    const healed: Array<{ integration_id: string; page_id: string; backfilled: number }> = [];
+    for (const integ of integrations || []) {
+      if (integ.status === "token_expired") continue;
+      try {
+        const results2 = await ensureLeadgenSubscriptions(admin, integ);
+        healed.push(...results2);
+      } catch (e) {
+        console.warn(`meta-health-check: self-healing iscrizioni ${integ.id} fallito:`, e);
+      }
+    }
+
+    return jsonResponse({ checked: (integrations || []).length, updated: results, subscriptions_healed: healed });
   } catch (error: any) {
     console.error("meta-health-check error:", error);
     return errorResponse(error.message, 500);
   }
 });
+
+/**
+ * Iscrive al webhook leadgen le pagine selezionate che non risultano già
+ * iscritte (integration_webhook_subscriptions status=active). Al momento
+ * dell'iscrizione recupera anche i lead recenti persi.
+ */
+async function ensureLeadgenSubscriptions(
+  admin: any,
+  integ: { id: string; company_id: string },
+): Promise<Array<{ integration_id: string; page_id: string; backfilled: number }>> {
+  const out: Array<{ integration_id: string; page_id: string; backfilled: number }> = [];
+
+  const { data: pages } = await admin
+    .from("meta_assets")
+    .select("id, asset_id, asset_name")
+    .eq("integration_id", integ.id)
+    .eq("company_id", integ.company_id)
+    .eq("asset_type", "page")
+    .eq("selected", true);
+  if (!pages?.length) return out;
+
+  const { data: creds } = await admin
+    .from("integration_credentials")
+    .select("meta_page_tokens")
+    .eq("integration_id", integ.id)
+    .maybeSingle();
+  const pageTokens = (creds?.meta_page_tokens ?? {}) as Record<string, string>;
+  if (Object.keys(pageTokens).length === 0) return out;
+
+  const { data: subs } = await admin
+    .from("integration_webhook_subscriptions")
+    .select("page_id, status")
+    .eq("integration_id", integ.id);
+  const activeSubs = new Set(
+    (subs ?? []).filter((s: any) => s.status === "active" && s.page_id).map((s: any) => s.page_id),
+  );
+
+  const encKey = getEncryptionKey();
+
+  for (const page of pages) {
+    if (activeSubs.has(page.asset_id)) continue;
+    const encTok = pageTokens[page.asset_id];
+    if (!encTok) continue;
+
+    let pageToken: string;
+    try {
+      pageToken = await decrypt(encTok, encKey);
+    } catch {
+      console.warn(`meta-health-check: token pagina ${page.asset_id} non decifrabile`);
+      continue;
+    }
+
+    const subRes = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${page.asset_id}/subscribed_apps`,
+      {
+        method: "POST",
+        body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
+      },
+    );
+    const subData = await subRes.json();
+    if (subData.error) {
+      console.warn(`meta-health-check: subscribe ${page.asset_id} fallita:`, subData.error.message);
+      continue;
+    }
+
+    await admin.from("integration_webhook_subscriptions").upsert(
+      {
+        company_id: integ.company_id,
+        integration_id: integ.id,
+        provider: "meta",
+        page_id: page.asset_id,
+        subscribed_fields: ["leadgen"],
+        status: "active",
+        subscribed_at: new Date().toISOString(),
+      },
+      { onConflict: "integration_id,page_id" },
+    );
+    await admin.from("integration_audit_log").insert({
+      company_id: integ.company_id,
+      action: "webhook_subscribed",
+      entity_type: "integration",
+      entity_id: integ.id,
+      metadata: { page_id: page.asset_id, page_name: page.asset_name, source: "health_check_self_healing" },
+    });
+
+    // Lead persi mentre mancava l'iscrizione: rimettili in coda (upsert
+    // idempotente su event_id, formato canonico con form/page espliciti).
+    const backfilled = await backfillPageLeads(admin, integ, page, pageToken, 3);
+    out.push({ integration_id: integ.id, page_id: page.asset_id, backfilled });
+  }
+  return out;
+}
+
+async function backfillPageLeads(
+  admin: any,
+  integ: { id: string; company_id: string },
+  page: { id: string; asset_id: string },
+  pageToken: string,
+  days: number,
+): Promise<number> {
+  const sinceTs = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
+  const { data: forms } = await admin
+    .from("meta_lead_forms")
+    .select("form_id")
+    .eq("integration_id", integ.id)
+    .eq("company_id", integ.company_id)
+    .eq("page_asset_id", page.id)
+    .eq("status", "active");
+
+  let imported = 0;
+  for (const form of forms ?? []) {
+    let nextUrl: string | null =
+      `https://graph.facebook.com/${apiVersion}/${form.form_id}/leads` +
+      `?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name` +
+      `&limit=50&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]` +
+      `&access_token=${pageToken}`;
+    while (nextUrl) {
+      const res = await fetch(nextUrl);
+      const data = await res.json();
+      if (data.error) {
+        console.warn(`meta-health-check: backfill form ${form.form_id} errore:`, data.error.message);
+        break;
+      }
+      for (const lead of data.data ?? []) {
+        // ignoreDuplicates: i lead già importati/processati NON vengono
+        // rimessi in coda — entra solo ciò che era andato perso.
+        await admin.from("integration_webhook_events").upsert(
+          {
+            company_id: integ.company_id,
+            integration_id: integ.id,
+            provider: "meta",
+            event_type: "leadgen",
+            event_id: lead.id,
+            payload: { ...lead, leadgen_id: lead.id, form_id: form.form_id, page_id: page.asset_id },
+            received_at: new Date().toISOString(),
+            status: "pending",
+            fail_count: 0,
+          },
+          { onConflict: "company_id,provider,event_id", ignoreDuplicates: true },
+        );
+        imported++;
+      }
+      nextUrl = data.paging?.next || null;
+    }
+  }
+  return imported;
+}

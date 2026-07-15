@@ -20,6 +20,7 @@ import { cleanPhone } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
+import { BulkTagsDialog, BulkCreateOpportunitiesDialog } from "@/components/contacts/BulkContactActions";
 import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollAutomationDropdown";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
@@ -1968,6 +1969,8 @@ export default function MarketingContacts() {
                       {selectedQualitySummary.optout} no marketing
                     </Badge>
                   )}
+                  <BulkTagsDialog selectedIds={selectedIds} />
+                  <BulkCreateOpportunitiesDialog selectedIds={selectedIds} />
                   <AddToListDropdown selectedIds={selectedIds} />
                   <BulkEnrollAutomationDropdown selectedIds={selectedIds} />
                 </div>

@@ -500,7 +500,66 @@ Deno.serve(async (req) => {
             metadata: { provider: "meta", removed_pages: removedIds.length },
           });
         }
-        result = { success: true, removed: removedIds.length };
+        // Le pagine RIMASTE (selezionate) vengono iscritte al webhook leadgen:
+        // senza questa iscrizione i lead NON arrivano in tempo reale ma solo
+        // col backfill manuale. Best-effort: il self-healing giornaliero di
+        // meta-health-check ripara eventuali fallimenti.
+        const { data: selectedPages } = await adminClient
+          .from("meta_assets")
+          .select("asset_id, asset_name")
+          .eq("integration_id", integration_id)
+          .eq("company_id", company_id)
+          .eq("asset_type", "page")
+          .eq("selected", true);
+        const remainingTokensMap: Record<string, string> = { ...((creds as any).meta_page_tokens || {}) };
+        for (const id of removedIds) delete remainingTokensMap[id];
+        let subscribed = 0;
+        for (const p of selectedPages ?? []) {
+          const encTok = remainingTokensMap[p.asset_id];
+          if (!encTok) continue;
+          try {
+            const pageToken = await decrypt(encTok, encKey);
+            const subRes = await fetch(
+              `https://graph.facebook.com/${apiVersion}/${p.asset_id}/subscribed_apps`,
+              {
+                method: "POST",
+                body: new URLSearchParams({ subscribed_fields: "leadgen", access_token: pageToken }),
+              },
+            );
+            const subData = await subRes.json();
+            if (subData.error) {
+              console.warn(`purge-unselected: subscribe ${p.asset_id} fallita:`, subData.error.message);
+              continue;
+            }
+            await adminClient.from("integration_webhook_subscriptions").upsert(
+              {
+                company_id,
+                integration_id,
+                provider: "meta",
+                page_id: p.asset_id,
+                subscribed_fields: ["leadgen"],
+                status: "active",
+                subscribed_at: new Date().toISOString(),
+              },
+              { onConflict: "integration_id,page_id" },
+            );
+            subscribed++;
+          } catch (e) {
+            console.warn(`purge-unselected: subscribe ${p.asset_id} errore:`, e);
+          }
+        }
+        if (subscribed > 0) {
+          await adminClient.from("integration_audit_log").insert({
+            company_id,
+            actor_user_id: authUser.id,
+            action: "webhook_subscribed",
+            entity_type: "integration",
+            entity_id: integration_id,
+            metadata: { pages_subscribed: subscribed, source: "wizard_confirm" },
+          });
+        }
+
+        result = { success: true, removed: removedIds.length, subscribed };
         break;
       }
 
