@@ -49,14 +49,16 @@ export function getDateLabel(dateStr: string) {
   return format(d, "d MMMM yyyy", { locale: it });
 }
 
-export type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "sms_log" | "settings";
+export type RightTab = "tracking" | "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "sms_log" | "settings";
 
 import {
   FileText as FileTextIcon, Activity as ActivityIcon, StickyNote as StickyNoteIcon,
   CalendarDays, Target as TargetIcon, FileSignature, Bot, Smartphone, Settings as SettingsIcon,
+  Radar as RadarIcon,
 } from "lucide-react";
 
 export const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
+  { key: "tracking", icon: RadarIcon, label: "Tracking" },
   { key: "documents", icon: FileTextIcon, label: "Documenti" },
   { key: "activities", icon: ActivityIcon, label: "Attività" },
   { key: "notes", icon: StickyNoteIcon, label: "Note" },
