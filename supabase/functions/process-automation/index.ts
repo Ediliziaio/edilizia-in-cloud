@@ -1899,7 +1899,7 @@ Istruzione: ${aiPrompt}`;
         priority: ticketPriority,
         customer_id: ncfg.cliente_id && UUID_RE.test(String(ncfg.cliente_id)) ? ncfg.cliente_id : null,
         status: "aperto",
-        fonte: "automazione",
+        fonte: "api",
       }).select("id").single();
       if (error) return { success: false, error: error.message };
       return { success: true, output: { action: "crea_ticket", ticket_id: data?.id } };
