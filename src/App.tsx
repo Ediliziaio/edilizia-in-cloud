@@ -143,6 +143,8 @@ const Demo = lazy(() => import("@/pages/Demo"));
 const Funzionalita = lazy(() => import("@/pages/Funzionalita"));
 const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));
 const Prezzi = lazy(() => import("@/pages/Prezzi"));
+const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
+const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
 const SelezionaAzienda = lazy(() => import("@/pages/SelezionaAzienda"));
@@ -650,6 +652,9 @@ const App = () => (
               <Route path="/termini-e-condizioni" element={<TerminiServizio />} />
               <Route path="/cookie" element={<CookiePolicy />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
+              {/* Checkout pubblico offerte (trattativa): grazie PRIMA di :slug */}
+              <Route path="/offerta/grazie" element={<OffertaGrazie />} />
+              <Route path="/offerta/:slug" element={<OffertaCheckout />} />
               {/* /data-deletion: obbligatoria Meta App Review + GDPR diritto oblio */}
               <Route path="/data-deletion" element={<DataDeletion />} />
               {/* /meta-oauth-done + /oauth-done: atterraggio popup OAuth (302 dagli

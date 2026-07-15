@@ -116,6 +116,11 @@ verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
 
+# Checkout pubblico offerte (trattativa): endpoint pubblico, fa validazione propria
+# + allowlist piani + prezzo server-side. Nessun login richiesto.
+[functions.public-checkout]
+verify_jwt = false
+
 [functions.generate-landing-image]
 verify_jwt = false
 
