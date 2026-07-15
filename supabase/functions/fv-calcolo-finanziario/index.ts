@@ -119,6 +119,14 @@ Deno.serve(async (req: Request) => {
     const costo_totale_netto = costo_componenti_netto + costo_manodopera_netto + costo_servizi_netto;
     const prezzo_pieno_netto = costo_componenti_vendita + costo_manodopera_vendita + costo_servizi_vendita;
 
+    // ── 2a. Prezzo di vendita LIBERO a corpo (config manuale, stile Reonic) ──
+    // Se il commerciale ha fissato un prezzo di vendita manuale (imponibile),
+    // QUELLO è il prezzo finale: sostituisce la somma delle righe e bypassa lo
+    // sconto commerciale (il prezzo È già quello deciso). Le righe componenti/
+    // manodopera/servizi restano per il dettaglio tecnico e il COSTO (→ margine).
+    const prezzoManuale = Number((prog as { prezzo_vendita_manuale?: number | null }).prezzo_vendita_manuale ?? 0);
+    const usaPrezzoManuale = Number.isFinite(prezzoManuale) && prezzoManuale > 0;
+
     // ── 2b. Sconto commerciale (fv_progetti.sconto_tipo/sconto_valore) ─────
     // Clamp server-side sulle discount_rules — mirror semplificato di
     // evaluateDiscountRules client (src/lib/serramenti/discountRules.ts):
@@ -156,12 +164,15 @@ Deno.serve(async (req: Request) => {
       ? Math.max(0, prezzo_pieno_netto - costo_totale_netto / (1 - margineMinPct / 100))
       : 0;
     const scontoCapEur = Math.max(0, Math.min(capRegoleEur, capMargineEur));
-    const sconto_eur_applicato = round2(Math.min(sconto_eur_richiesto, scontoCapEur));
-    const sconto_limitato = sconto_eur_richiesto > sconto_eur_applicato + 0.005;
+    // Con prezzo manuale a corpo lo sconto è ignorato (il prezzo È già il finale).
+    const sconto_eur_applicato = usaPrezzoManuale ? 0 : round2(Math.min(sconto_eur_richiesto, scontoCapEur));
+    const sconto_limitato = usaPrezzoManuale ? false : sconto_eur_richiesto > sconto_eur_applicato + 0.005;
 
     // TUTTE le metriche a valle (IVA inclusa, margine, incentivi, NPV/IRR/
-    // payback/rata) usano il prezzo SCONTATO.
-    const prezzo_vendita_netto = round2(prezzo_pieno_netto - sconto_eur_applicato);
+    // payback/rata) usano il prezzo SCONTATO — oppure il prezzo manuale se fissato.
+    const prezzo_vendita_netto = usaPrezzoManuale
+      ? round2(prezzoManuale)
+      : round2(prezzo_pieno_netto - sconto_eur_applicato);
     const iva_aliquota = prog.iva_aliquota ?? 0.10;
     const prezzo_vendita_iva_inclusa = prezzo_vendita_netto * (1 + iva_aliquota);
     const margine_eur = prezzo_vendita_netto - costo_totale_netto;

@@ -81,6 +81,12 @@ export interface WizardData {
   kit_bundle_id: string | null;
   kit_nome: string | null;
   kit_prezzo: number | null;
+  /** Prezzo di vendita LIBERO a corpo (imponibile, IVA esclusa) impostato dal
+   *  commerciale in configurazione manuale (stile Reonic). Se > 0 diventa il
+   *  prezzo di vendita finale: sostituisce la somma delle righe e bypassa lo
+   *  sconto commerciale; le righe restano per scheda tecnica e costo/margine.
+   *  null = calcolo automatico dal listino. Persistito su fv_progetti. */
+  prezzo_vendita_manuale: number | null;
   /** Editor layout manuale dei moduli sulla foto satellitare (stile Reonic):
    *  offset x/y in %, rotazione in gradi, numero colonne. null = overlay centrato. */
   layout_overlay: { x: number; y: number; rot: number; cols: number } | null;
