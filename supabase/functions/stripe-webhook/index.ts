@@ -219,6 +219,23 @@ async function handleCheckoutCompleted(
     return;
   }
 
+  // ── Plan Signup (checkout pubblico offerta in trattativa → attiva l'azienda) ──
+  // La sessione è mode=subscription: al completamento l'abbonamento è attivo e la
+  // carta è agganciata al customer. Sblocchiamo il gate di attivazione dell'azienda.
+  if (metadataType === "plan_signup") {
+    const planId = session.metadata?.plan_id || null;
+    const update: Record<string, unknown> = {
+      status: "active",
+      payment_method: "stripe",
+      trial_ends_at: null,
+    };
+    if (planId) update.subscription_plan_id = planId;
+    await supabase.from("companies").update(update).eq("id", companyId);
+    // Salva la carta come default del customer (pmId null → la funzione la recupera).
+    await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, null);
+    return;
+  }
+
   // ── Email Credits Purchase ──
   if (metadataType === "email_credits") {
     const amountEur = parseFloat(session.metadata?.amount_eur || "0");
