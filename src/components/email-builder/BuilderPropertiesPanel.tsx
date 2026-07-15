@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, Link, Plus, Sparkles, Variable, Palette } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, Link, Plus, Sparkles, Variable, Palette, ExternalLink } from "lucide-react";
 
 interface BuilderPlaceholder {
   key: string;
@@ -25,6 +25,8 @@ interface BuilderPropertiesPanelProps {
   onApplyButtonColor?: (color: string) => void;
   /** Applica un colore a TUTTI i blocchi di testo del template. */
   onApplyTextColor?: (color: string) => void;
+  /** Override outer wrapper className (e.g. to remove fixed width when embedded). */
+  className?: string;
 }
 
 const FONT_FAMILIES = ["Arial", "Georgia", "Helvetica", "Times New Roman", "Verdana", "Courier New", "Trebuchet MS"];
@@ -186,6 +188,7 @@ export function BuilderPropertiesPanel({
   onAddQuickSection,
   onApplyButtonColor,
   onApplyTextColor,
+  className,
 }: BuilderPropertiesPanelProps) {
   const [librarySearch, setLibrarySearch] = useState("");
   const [themeBtnColor, setThemeBtnColor] = useState("#F97316");
@@ -204,7 +207,7 @@ export function BuilderPropertiesPanel({
 
   if (!block) {
     return (
-      <div className="w-[340px] shrink-0 overflow-y-auto border-l bg-background p-5">
+      <div className={className ?? "w-[340px] shrink-0 overflow-y-auto border-l bg-background p-5"}>
         <div className="space-y-5">
           <div className="space-y-1">
             <p className="flex items-center gap-2 text-sm font-semibold">
@@ -304,7 +307,7 @@ export function BuilderPropertiesPanel({
   const update = (partial: Partial<BuilderBlock["props"]>) => onUpdate(block.id, partial);
 
   return (
-    <div className="w-[340px] border-l bg-background p-5 shrink-0 overflow-y-auto">
+    <div className={className ?? "w-[340px] border-l bg-background p-5 shrink-0 overflow-y-auto"}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
         Proprietà: {block.type === "columns" ? "Layout" : block.type}
       </p>
@@ -444,15 +447,33 @@ function ButtonProperties({
 }) {
   return (
     <>
+      {/* URL prima di tutto — è il campo più importante per un bottone */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Testo</Label>
-        <Input className="h-8 text-xs" value={props.text} onChange={(e) => update({ text: e.target.value })} />
-        <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ text: props.text + " " + tag })} />
+        <Label className="text-xs font-semibold text-foreground">Link (URL)</Label>
+        <div className="flex gap-1">
+          <Input
+            className={`h-8 text-xs flex-1 ${!props.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            value={props.url}
+            placeholder="https://... oppure {{variabile}}"
+            onChange={(e) => update({ url: e.target.value })}
+          />
+          {props.url && !props.url.startsWith("{{") && (
+            <a href={props.url} target="_blank" rel="noopener noreferrer" title="Apri link in nuova scheda">
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0">
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </a>
+          )}
+        </div>
+        {!props.url && (
+          <p className="text-[11px] text-destructive">URL obbligatorio: il bottone non funzionerà senza link.</p>
+        )}
+        <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ url: props.url + tag })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">URL</Label>
-        <Input className="h-8 text-xs" value={props.url} onChange={(e) => update({ url: e.target.value })} />
-        <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ url: props.url + tag })} />
+        <Label className="text-xs">Testo del pulsante</Label>
+        <Input className="h-8 text-xs" value={props.text} onChange={(e) => update({ text: e.target.value })} />
+        <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ text: props.text + " " + tag })} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Colore sfondo</Label>

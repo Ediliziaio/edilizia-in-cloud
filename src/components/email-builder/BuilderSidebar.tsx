@@ -86,9 +86,9 @@ const LAYOUTS: { layout: ColumnLayout; label: string; visual: React.ReactNode }[
   },
 ];
 
-export function BuilderSidebar() {
+export function BuilderSidebar({ className }: { className?: string }) {
   return (
-    <div className="w-[248px] border-r bg-background p-4 overflow-y-auto shrink-0">
+    <div className={className ?? "w-[248px] border-r bg-background p-4 overflow-y-auto shrink-0"}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Elementi</p>
       <div className="grid grid-cols-3 gap-2 mb-6">
         {ELEMENTS.map((el) => (

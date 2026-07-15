@@ -93,6 +93,7 @@ import {
   Variable,
   Redo2,
   AlertTriangle,
+  Plus,
 } from "lucide-react";
 
 import {
@@ -115,7 +116,6 @@ import {
   type EmailTemplateDesignJson,
   type EmailTemplateUpsert,
 } from "@/hooks/useEmailTemplates";
-import { BuilderSidebar } from "@/components/email-builder/BuilderSidebar";
 import { BuilderCanvas } from "@/components/email-builder/BuilderCanvas";
 import { BuilderPropertiesPanel } from "@/components/email-builder/BuilderPropertiesPanel";
 import {
@@ -1776,17 +1776,13 @@ export function EmailTemplatesPanel() {
           <CardContent>
             <Tabs value={activeEditorTab} onValueChange={(value) => setActiveEditorTab(value as EditorTab)} className="space-y-4">
               <TabsList>
-                <TabsTrigger value="visual" className="gap-2" title="Editor visuale a blocchi (drag &amp; drop)">
+                <TabsTrigger value="visual" className="gap-2" title="Editor visuale a blocchi — trascina, clicca e modifica">
                   <Sparkles className="h-4 w-4" />
                   Visuale
                 </TabsTrigger>
-                <TabsTrigger value="split" className="gap-2" title="Editor HTML con anteprima live affiancata">
+                <TabsTrigger value="split" className="gap-2" title="Modifica HTML a sinistra con anteprima live a destra">
                   <Code2 className="h-4 w-4" />
-                  HTML
-                </TabsTrigger>
-                <TabsTrigger value="content" className="gap-2" title="Editor HTML a tutta larghezza, senza anteprima">
-                  <Code2 className="h-4 w-4" />
-                  Codice
+                  HTML + Anteprima
                 </TabsTrigger>
                 <TabsTrigger value="preview" className="gap-2" title="Solo anteprima a tutta larghezza">
                   <Eye className="h-4 w-4" />
@@ -1851,13 +1847,17 @@ export function EmailTemplatesPanel() {
                     salvataggio scrive design_json=null: il layout visuale
                     diventa un singolo blocco HTML. Avvisare PRIMA, non dopo. */}
                 {lastEditedMode === "html" && selectedRow?.design_json != null && dirty && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      Questo template ha un layout a blocchi (editor Visuale):
-                      salvando le modifiche fatte qui in HTML, la struttura a
-                      blocchi verrà sostituita da un unico blocco HTML.
-                      Recuperabile solo dalla cronologia.
+                  <Alert className="border-amber-300 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-xs text-amber-800">
+                      <span className="font-semibold">Attenzione:</span> questo template ha un layout a blocchi. Se salvi le modifiche fatte qui in HTML, la struttura visuale verrà persa (recuperabile solo dalla cronologia).{" "}
+                      <button
+                        type="button"
+                        className="underline font-medium hover:no-underline"
+                        onClick={() => setActiveEditorTab("visual")}
+                      >
+                        Torna al Visuale →
+                      </button>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -1899,60 +1899,6 @@ export function EmailTemplatesPanel() {
                     isLocal={previewIsLocal}
                   />
                 </div>
-                <ActionBar
-                  canSave={canManualSave}
-                  saving={savePending}
-                  saveStatus={saveStatus}
-                  lastSavedAt={lastSavedAt}
-                  hasSavedRow={!!selectedRow}
-                  deleting={del.isPending}
-                  onSave={handleSave}
-                  onReset={handleResetToDefault}
-                />
-              </TabsContent>
-
-              {/* ── TAB CONTENT: solo editor a piena larghezza ── */}
-              <TabsContent value="content" className="space-y-4">
-                {lastEditedMode === "html" && selectedRow?.design_json != null && dirty && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      Questo template ha un layout a blocchi (editor Visuale):
-                      salvando le modifiche fatte qui in HTML, la struttura a
-                      blocchi verrà sostituita da un unico blocco HTML.
-                      Recuperabile solo dalla cronologia.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <EditorForm
-                  subject={subject}
-                  setSubject={(v) => {
-                    setSubject(v);
-                    markDirty();
-                  }}
-                  htmlBody={htmlBody}
-                  setHtmlBody={(v) => {
-                    setHtmlBody(v);
-                    setLastEditedMode("html");
-                    markDirty();
-                  }}
-                  textBody={textBody}
-                  setTextBody={(v) => {
-                    setTextBody(v);
-                    markDirty();
-                  }}
-                  notes={notes}
-                  setNotes={(v) => {
-                    setNotes(v);
-                    markDirty();
-                  }}
-                  placeholders={availablePlaceholders}
-                  onInsertPlaceholder={handleInsertPlaceholder}
-                  onFormatBold={handleFormatBold}
-                  onFormatLink={handleFormatLink}
-                  onFormatList={handleFormatList}
-                  htmlRef={htmlBodyRef}
-                />
                 <ActionBar
                   canSave={canManualSave}
                   saving={savePending}
@@ -2202,6 +2148,21 @@ function VisualTemplateBuilder({
     }
   };
 
+  const handleAddBlockClick = (type: BlockType, layout?: ColumnLayout) => {
+    const newBlock = createBlock(type);
+    if (type === "columns" && layout) {
+      (newBlock.props as { layout: ColumnLayout }).layout = layout;
+      const colCount = layout === "1" ? 1 : String(layout).split("-").length;
+      newBlock.children = Array.from({ length: colCount }, (): BuilderBlockType[] => []);
+    }
+    const afterIndex = selectedBlockId ? blocks.findIndex((b) => b.id === selectedBlockId) : -1;
+    const next = [...blocks];
+    if (afterIndex >= 0) next.splice(afterIndex + 1, 0, newBlock);
+    else next.push(newBlock);
+    updateBlocks(next);
+    handleSelectBlock(newBlock.id);
+  };
+
   const handleDuplicateBlock = (blockId: string) => {
     const index = blocks.findIndex((block) => block.id === blockId);
     if (index < 0) return;
@@ -2391,7 +2352,25 @@ function VisualTemplateBuilder({
             lastSavedAt={lastSavedAt}
             hasSavedRow={hasSavedRow}
           />
-          <Button variant="outline" size="sm" className="h-8 ml-auto" onClick={handleApplySuggestedLayout} title="Applica layout consigliato (sostituisce blocchi correnti)">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 ml-auto gap-1">
+                <Plus className="h-3.5 w-3.5" />
+                Aggiungi
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuItem onClick={() => handleAddBlockClick("text")}>Testo</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("image")}>Immagine</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("button")}>Pulsante</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("divider")}>Divisore</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("spacer")}>Spaziatore</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("html")}>HTML personalizzato</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("columns", "1/2-1/2")}>2 colonne</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlockClick("columns", "1/3-1/3-1/3")}>3 colonne</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" className="h-8" onClick={handleApplySuggestedLayout} title="Applica layout consigliato (sostituisce blocchi correnti)">
             <Sparkles className="mr-1.5 h-3.5 w-3.5" />
             <span className="hidden sm:inline">Layout consigliato</span>
             <span className="sm:hidden">Layout</span>
@@ -2436,9 +2415,9 @@ function VisualTemplateBuilder({
         </div>
       </div>
 
-      <div className="flex h-[780px] overflow-hidden">
+      <div className="flex h-[780px] overflow-hidden border-t">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <BuilderSidebar />
+          {/* Canvas — flex-1 so it claims all space not taken by the right panel */}
           <BuilderCanvas
             blocks={blocks}
             selectedBlockId={selectedBlockId}
@@ -2461,6 +2440,8 @@ function VisualTemplateBuilder({
             ) : null}
           </DragOverlay>
         </DndContext>
+        {/* Right panel: block properties (selected) or variables/quicksections (idle).
+            Fixed 264px — canvas width is stable regardless of selection state. */}
         <BuilderPropertiesPanel
           block={resolvedSelectedBlock}
           onUpdate={selectedChildBlock ? handleUpdateChildBlockProps : handleUpdateBlockProps}
@@ -2469,6 +2450,7 @@ function VisualTemplateBuilder({
           onAddQuickSection={handleAddQuickSection}
           onApplyButtonColor={handleApplyButtonColor}
           onApplyTextColor={handleApplyTextColor}
+          className="w-[264px] shrink-0 overflow-y-auto border-l bg-background p-4"
         />
       </div>
 

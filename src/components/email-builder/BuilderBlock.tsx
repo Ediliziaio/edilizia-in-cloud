@@ -1,4 +1,4 @@
-import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code } from "lucide-react";
+import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code, ExternalLink } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import DOMPurify from "dompurify";
 import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType } from "./builderTypes";
@@ -62,6 +62,9 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
       }
       case "button": {
         const p = block.props as ButtonProps;
+        const urlDisplay = p.url
+          ? p.url.length > 55 ? p.url.slice(0, 55) + "…" : p.url
+          : null;
         return (
           <div style={{ textAlign: p.align, padding: "8px 0" }}>
             <span
@@ -69,14 +72,37 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
               suppressContentEditableWarning
               style={{
                 display: "inline-block", backgroundColor: p.backgroundColor, color: p.textColor,
-                padding: "12px 24px", borderRadius: p.borderRadius, fontWeight: "bold", fontSize: "16px",
+                padding: `${p.paddingY ?? "12px"} ${p.paddingX ?? "24px"}`, borderRadius: p.borderRadius,
+                fontWeight: "bold", fontSize: p.fontSize ?? "16px",
                 outline: "none", cursor: isSelected ? "text" : "pointer",
+                width: p.fullWidth ? "100%" : undefined, textAlign: p.fullWidth ? "center" : undefined,
               }}
               onBlur={(e) => onInlineEdit?.(block.id, { text: e.currentTarget.textContent || "" })}
               onClick={(e) => { if (isSelected) e.stopPropagation(); }}
             >
               {p.text}
             </span>
+            {/* URL badge — sempre visibile sul canvas per chiarezza */}
+            <div style={{ textAlign: p.align, marginTop: "4px" }}>
+              {urlDisplay ? (
+                <span
+                  title={p.url}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "3px",
+                    fontSize: "11px", color: "#6B7280", fontFamily: "monospace",
+                    background: "#F3F4F6", borderRadius: "4px", padding: "2px 6px",
+                    border: "1px solid #E5E7EB",
+                  }}
+                >
+                  <ExternalLink style={{ width: "10px", height: "10px", flexShrink: 0 }} />
+                  {urlDisplay}
+                </span>
+              ) : (
+                <span style={{ fontSize: "11px", color: "#EF4444", fontFamily: "sans-serif" }}>
+                  ⚠ URL non impostato — clicca il blocco per aggiungere il link
+                </span>
+              )}
+            </div>
           </div>
         );
       }
