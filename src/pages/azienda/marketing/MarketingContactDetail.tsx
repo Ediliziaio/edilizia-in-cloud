@@ -1180,7 +1180,48 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
 
         {/* Message input bar */}
-        <div className="border-t shrink-0">
+        <div className="border-t shrink-0 bg-muted/20">
+          {/* Selettore canale a pillole: chiaro quale canale è attivo
+              (prima era un dropdown a sola icona, poco evidente). Mostra solo
+              i canali disponibili in base ai recapiti del contatto. */}
+          <div className="flex items-center gap-1 px-3 pt-2">
+            {contact.email && (
+              <button
+                type="button"
+                onClick={() => setMessageChannel("email")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  messageChannel === "email" ? "bg-violet-100 text-violet-700" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Mail className="h-3.5 w-3.5" /> Email
+              </button>
+            )}
+            {contact.phone && (
+              <button
+                type="button"
+                onClick={() => setMessageChannel("whatsapp")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  messageChannel === "whatsapp" ? "bg-emerald-100 text-emerald-700" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+              </button>
+            )}
+            {contact.phone && (
+              <button
+                type="button"
+                onClick={() => setMessageChannel("sms")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  messageChannel === "sms" ? "bg-sky-100 text-sky-700" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Smartphone className="h-3.5 w-3.5" /> SMS
+              </button>
+            )}
+          </div>
           {messageChannel === "email" && (
             <div className="px-3 pt-2 space-y-1.5">
               {/* Riga oggetto + toggle Cc/Ccn (stile Gmail) */}
@@ -1252,33 +1293,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
           )}
-          <div className={messageChannel === "whatsapp" ? "flex items-start px-3 gap-2 py-2" : "h-12 flex items-center px-3 gap-2"}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 shrink-0">
-                  {messageChannel === "whatsapp" ? <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> :
-                   messageChannel === "email" ? <Mail className="h-3.5 w-3.5 text-violet-600" /> :
-                   <Smartphone className="h-3.5 w-3.5 text-sky-600" />}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {contact.phone && (
-                  <DropdownMenuItem onClick={() => setMessageChannel("whatsapp")}>
-                    <MessageSquare className="h-3.5 w-3.5 mr-2 text-emerald-600" /> WhatsApp
-                  </DropdownMenuItem>
-                )}
-                {contact.email && (
-                  <DropdownMenuItem onClick={() => setMessageChannel("email")}>
-                    <Mail className="h-3.5 w-3.5 mr-2 text-violet-600" /> Email
-                  </DropdownMenuItem>
-                )}
-                {contact.phone && (
-                  <DropdownMenuItem onClick={() => setMessageChannel("sms")}>
-                    <Smartphone className="h-3.5 w-3.5 mr-2 text-sky-600" /> SMS
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className={messageChannel === "whatsapp" ? "flex items-start px-3 pb-2 pt-1.5 gap-2" : "flex items-center px-3 pb-2.5 pt-1.5 gap-2"}>
             {/* Template picker — applica già le variabili; per email imposta
                 oggetto+testo, per sms imposta il testo, per whatsapp fa il
                 seed del composer. */}
@@ -1433,18 +1448,18 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <ContactSmsLog contactId={id} companyId={companyId} />
               )}
 
-              {/* Activities panel - LinkedTasks */}
+              {/* Activities panel - LinkedTasks (compatto: il pannello ha già
+                  la sua intestazione, niente Card+titolo doppio) */}
               {rightTab === "activities" && id && companyId && (
-                <LinkedTasks
-                  contactId={id}
-                  category="contatti"
-                  companyId={companyId}
-                />
-              )}
-
-              {/* Render AI panel */}
-              {rightTab === "activities" && id && (
-                <LinkedRendersList contactId={id} />
+                <div className="space-y-3">
+                  <LinkedTasks
+                    contactId={id}
+                    category="contatti"
+                    companyId={companyId}
+                    embedded
+                  />
+                  <LinkedRendersList contactId={id} />
+                </div>
               )}
 
               {/* Notes panel */}

@@ -20,6 +20,9 @@ interface LinkedTasksProps {
   ticketId?: string;
   category: string;
   companyId?: string;
+  /** Dentro un pannello che ha già la sua intestazione (es. sidebar contatto):
+   *  niente Card/header propri, layout compatto senza doppio titolo. */
+  embedded?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -29,7 +32,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId }: LinkedTasksProps) {
+export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded }: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -192,77 +195,95 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     category,
   });
 
+  const taskList = (
+    tasks.length === 0 ? (
+      <p className={`text-muted-foreground text-center ${embedded ? "text-[11px] py-2" : "text-sm py-3"}`}>
+        Nessuna attività collegata
+      </p>
+    ) : (
+      <div className={embedded ? "space-y-1" : "space-y-2"}>
+        {tasks.map((task: any) => {
+          const isCompleted = task.status === "completata";
+          const isOverdue = task.due_date && !isCompleted && isPast(parseISO(task.due_date));
+
+          return (
+            <div
+              key={task.id}
+              className={`flex items-start gap-2 rounded-md hover:bg-muted/50 cursor-pointer group ${embedded ? "p-1.5" : "p-2"}`}
+              onClick={() => handleEditTask(task)}
+            >
+              <div
+                className="mt-0.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMutation.mutate({ id: task.id, completed: !isCompleted });
+                }}
+              >
+                <Checkbox checked={isCompleted} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`font-medium truncate ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                  {task.title}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}>
+                    {task.priority}
+                  </Badge>
+                  {task.assigned?.first_name && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {task.assigned.first_name} {task.assigned.last_name?.[0]}.
+                    </span>
+                  )}
+                  {task.due_date && (
+                    <span className={`text-[11px] flex items-center gap-0.5 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      {isOverdue && <AlertTriangle className="h-3 w-3" />}
+                      <CalendarDays className="h-3 w-3" />
+                      {format(parseISO(task.due_date), "dd/MM")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-          <CardTitle className="text-base flex items-center gap-2 min-w-0">
-            <CheckSquare className="h-4 w-4 shrink-0" />
-            <span className="truncate">Attività</span>
-            {activeTasks.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs shrink-0">{activeTasks.length}</Badge>
-            )}
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={handleAddTask} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Aggiungi</span>
-          </Button>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-3">
-              Nessuna attività collegata
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {tasks.map((task: any) => {
-                const isCompleted = task.status === "completata";
-                const isOverdue = task.due_date && !isCompleted && isPast(parseISO(task.due_date));
-
-                return (
-                  <div
-                    key={task.id}
-                    className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer group"
-                    onClick={() => handleEditTask(task)}
-                  >
-                    <div
-                      className="mt-0.5"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleMutation.mutate({ id: task.id, completed: !isCompleted });
-                      }}
-                    >
-                      <Checkbox checked={isCompleted} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
-                        {task.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}>
-                          {task.priority}
-                        </Badge>
-                        {task.assigned?.first_name && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {task.assigned.first_name} {task.assigned.last_name?.[0]}.
-                          </span>
-                        )}
-                        {task.due_date && (
-                          <span className={`text-[11px] flex items-center gap-0.5 ${isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                            {isOverdue && <AlertTriangle className="h-3 w-3" />}
-                            <CalendarDays className="h-3 w-3" />
-                            {format(parseISO(task.due_date), "dd/MM")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {embedded ? (
+        // Nessuna Card/header propri: il pannello contenitore ha già il titolo.
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+              <CheckSquare className="h-3.5 w-3.5" /> Attività
+              {activeTasks.length > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{activeTasks.length}</Badge>}
+            </span>
+            <Button variant="ghost" size="sm" onClick={handleAddTask} className="h-6 text-[10px] text-primary px-1.5">
+              <Plus className="h-3 w-3 mr-0.5" /> Nuova
+            </Button>
+          </div>
+          {taskList}
+        </div>
+      ) : (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-base flex items-center gap-2 min-w-0">
+              <CheckSquare className="h-4 w-4 shrink-0" />
+              <span className="truncate">Attività</span>
+              {activeTasks.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs shrink-0">{activeTasks.length}</Badge>
+              )}
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleAddTask} className="shrink-0">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Aggiungi</span>
+            </Button>
+          </CardHeader>
+          <CardContent className="pt-0">{taskList}</CardContent>
+        </Card>
+      )}
 
       <TaskDialog
         open={dialogOpen}
