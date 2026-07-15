@@ -468,7 +468,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
               <NavLink
                 to={toHref(item.url)}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-sm transition-colors",
+                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-[13px] transition-colors",
                   active
                     ? "bg-sidebar-primary/10 text-sidebar-primary font-semibold"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
@@ -538,7 +538,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           key={item.url}
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isDemo && "opacity-70"
                           )}
@@ -626,7 +626,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         <NavLink
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isLocked && "opacity-50",
                             isDemo && !active && "opacity-75"
@@ -717,7 +717,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   <NavLink
                     to={itemUrl}
                     end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
-                    className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
+                    className="flex items-center gap-3 rounded-md px-3 py-2 text-[13px] text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
                     <item.icon className="h-4 w-4" />
