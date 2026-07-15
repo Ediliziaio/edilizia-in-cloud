@@ -9,7 +9,7 @@
  *  - AI       → "✨ Genera con AI" su SMS ed Email (edge ai-compose-message): da
  *               un'istruzione libera + tono produce il messaggio, poi modificabile.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -313,62 +313,89 @@ export function QuickContactSendDialog({
     onError: (e) => toast.error("Errore invio email", { description: e instanceof Error ? e.message : String(e) }),
   });
 
+  // ⌘/Ctrl+Invio: invio rapido da tastiera su SMS ed Email
+  const handleComposerKeyDown = (e: KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key !== "Enter") return;
+    e.preventDefault();
+    if (channel === "sms" && smsText.trim() && !smsSending) void handleSendSms();
+    if (channel === "email" && emailFrom && emailSubject.trim() && emailBody.trim() && !sendEmail.isPending && !attachments.some((a) => a.uploading)) {
+      sendEmail.mutate();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[96vw] sm:max-w-[880px] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base">Invia messaggio</DialogTitle>
-          <DialogDescription className="text-xs">
-            {fullName || "Contatto"}
-            {hasPhone && <span> · {phone}</span>}
-            {hasEmail && <span> · {email}</span>}
+          <DialogDescription asChild>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span className="font-medium text-foreground">{fullName || "Contatto"}</span>
+              {hasPhone && (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Smartphone className="h-3 w-3" /> {phone}
+                </span>
+              )}
+              {hasEmail && (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Mail className="h-3 w-3" /> {email}
+                </span>
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={channel} onValueChange={(v) => setChannel(v as QuickSendChannel)}>
-          <TabsList className={`grid w-full ${isPlatformContext ? "grid-cols-4" : "grid-cols-3"}`}>
-            <TabsTrigger value="sms" disabled={!hasPhone} className="gap-1.5"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
-            <TabsTrigger value="whatsapp" disabled={!hasPhone} className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
-            <TabsTrigger value="email" disabled={!hasEmail} className="gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</TabsTrigger>
+          <TabsList className={`grid w-full h-11 ${isPlatformContext ? "grid-cols-4" : "grid-cols-3"}`}>
+            <TabsTrigger value="sms" disabled={!hasPhone} className="gap-2 text-sm"><Smartphone className="h-4 w-4" /> SMS</TabsTrigger>
+            <TabsTrigger value="whatsapp" disabled={!hasPhone} className="gap-2 text-sm"><MessageSquare className="h-4 w-4" /> WhatsApp</TabsTrigger>
+            <TabsTrigger value="email" disabled={!hasEmail} className="gap-2 text-sm"><Mail className="h-4 w-4" /> Email</TabsTrigger>
             {isPlatformContext && (
-              <TabsTrigger value="whatsapp_locale" disabled={!hasPhone} className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> WA Locale</TabsTrigger>
+              <TabsTrigger value="whatsapp_locale" disabled={!hasPhone} className="gap-2 text-sm"><MessageSquare className="h-4 w-4" /> WA Locale</TabsTrigger>
             )}
           </TabsList>
 
-          {/* SMS */}
-          <TabsContent value="sms" className="space-y-2 pt-2">
+          {/* SMS — composer a sinistra, AI/template a destra (stack su mobile) */}
+          <TabsContent value="sms" className="pt-3">
             {hasPhone ? (
-              <>
-                <AiAssistRow
-                  instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
-                  pending={composeAi.isPending} currentText={smsText}
-                  onGenerate={() => composeAi.mutate({ ch: "sms" })}
-                  onRefine={(act) => composeAi.mutate({ ch: "sms", mode: "refine", currentText: smsText, instructionOverride: act })}
-                />
-                <div className="flex justify-end">
-                  <MessageTemplatePicker channel="sms" vars={templateVars} align="end" onInsert={({ body }) => setSmsText(body.slice(0, SMS_MAX))} />
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="space-y-2">
+                  <Textarea
+                    placeholder="Scrivi l'SMS…"
+                    value={smsText}
+                    onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))}
+                    onKeyDown={handleComposerKeyDown}
+                    rows={9}
+                    className="text-sm resize-y min-h-[160px]"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i</span>
+                    <Button className="gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending}>
+                      {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia SMS
+                    </Button>
+                  </div>
+                  <p className="text-right text-[10px] text-muted-foreground">⌘+Invio per inviare</p>
                 </div>
-                <Textarea placeholder="Scrivi l'SMS…" value={smsText} onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))} rows={4} className="text-sm resize-y" />
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i</span>
-                  <Button size="sm" className="gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending}>
-                    {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia SMS
-                  </Button>
-                </div>
-              </>
+                <aside className="space-y-3">
+                  <AiAssistRow
+                    instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                    pending={composeAi.isPending} currentText={smsText}
+                    onGenerate={() => composeAi.mutate({ ch: "sms" })}
+                    onRefine={(act) => composeAi.mutate({ ch: "sms", mode: "refine", currentText: smsText, instructionOverride: act })}
+                  />
+                  <div className="rounded-lg border p-2.5">
+                    <MessageTemplatePicker channel="sms" vars={templateVars} align="end" onInsert={({ body }) => setSmsText(body.slice(0, SMS_MAX))} />
+                  </div>
+                </aside>
+              </div>
             ) : <p className="text-xs text-muted-foreground italic py-4 text-center">Il contatto non ha un numero di telefono.</p>}
           </TabsContent>
 
-          {/* WhatsApp */}
-          <TabsContent value="whatsapp" className="space-y-2 pt-2">
+          {/* WhatsApp — composer a sinistra, AI a destra */}
+          <TabsContent value="whatsapp" className="pt-3">
             {hasPhone ? (
-              <>
-              <AiAssistRow
-                instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
-                pending={composeAi.isPending} currentText=""
-                onGenerate={() => composeAi.mutate({ ch: "whatsapp" })}
-                onRefine={() => composeAi.mutate({ ch: "whatsapp" })}
-              />
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+                <div>
               <WhatsAppComposer
                 phone={cleanPhone} isSending={waSending} contactFields={waContactFields}
                 seedText={waSeedText} seedAt={waSeedAt}
@@ -387,7 +414,16 @@ export function QuickContactSendDialog({
                   finally { setWaSending(false); }
                 }}
               />
-              </>
+                </div>
+                <aside className="space-y-3">
+                  <AiAssistRow
+                    instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                    pending={composeAi.isPending} currentText=""
+                    onGenerate={() => composeAi.mutate({ ch: "whatsapp" })}
+                    onRefine={() => composeAi.mutate({ ch: "whatsapp" })}
+                  />
+                </aside>
+              </div>
             ) : <p className="text-xs text-muted-foreground italic py-4 text-center">Il contatto non ha un numero di telefono.</p>}
           </TabsContent>
 
@@ -403,8 +439,8 @@ export function QuickContactSendDialog({
                     placeholder="Scrivi il messaggio WhatsApp…"
                     value={waLocaleText}
                     onChange={(e) => setWaLocaleText(e.target.value)}
-                    rows={4}
-                    className="text-sm resize-y"
+                    rows={8}
+                    className="text-sm resize-y min-h-[160px]"
                   />
                   <div className="flex justify-end">
                     <Button
@@ -448,125 +484,146 @@ export function QuickContactSendDialog({
                 <a href="/azienda/impostazioni/mio-profilo?tab=email" className="underline font-medium">Collega Gmail/Outlook/IMAP</a> per inviare email da qui.
               </div>
             ) : (
-              <>
-                <div className="space-y-0.5">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
-                  <Select value={emailFrom} onValueChange={setEmailFrom}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Scegli mittente" /></SelectTrigger>
-                    <SelectContent>
-                      {emailAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id} className="text-xs">
-                          {a.email_address ?? a.id}{a.provider && <span className="ml-2 text-[10px] text-muted-foreground capitalize">({a.provider})</span>}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex justify-end">
-                  <MessageTemplatePicker
-                    channel="email"
-                    vars={templateVars}
-                    align="end"
-                    onInsert={({ subject, body }) => { if (subject) setEmailSubject(subject.slice(0, 200)); setEmailBody(body.slice(0, 50_000)); }}
-                  />
-                </div>
-
-                <AiAssistRow
-                  instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
-                  pending={composeAi.isPending} currentText={emailBody}
-                  onGenerate={() => composeAi.mutate({ ch: "email" })}
-                  onRefine={(act) => composeAi.mutate({ ch: "email", mode: "refine", currentText: emailBody, instructionOverride: act })}
-                />
-
-                <div className="flex items-center gap-2">
-                  <Input placeholder="Oggetto" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))} className="h-8 text-sm flex-1" />
-                  {!ccBccVisible && (
-                    <button type="button" className="text-[10px] text-blue-600 hover:underline font-medium shrink-0" onClick={() => setCcBccVisible(true)}>+ Cc/Ccn</button>
-                  )}
-                </div>
-                <EmailTemplatePicker
-                  onApply={(t) => { setEmailSubject(t.subject); setEmailBody(t.body_text); }}
-                />
-                {ccBccVisible && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder="Cc (virgola)" value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-8 text-xs" />
-                    <Input placeholder="Ccn / Bcc (virgola)" value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} className="h-8 text-xs" />
-                  </div>
-                )}
-                <Textarea placeholder="Scrivi l'email…" value={emailBody} onChange={(e) => setEmailBody(e.target.value.slice(0, 50_000))} rows={5} className="text-sm resize-y" />
-
-                {/* Firma editabile */}
-                <div className="rounded-lg border p-2 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-medium flex items-center gap-1.5"><PenLine className="h-3.5 w-3.5 text-violet-600" /> Firma</Label>
-                    <div className="flex items-center gap-2">
-                      <button type="button" className="text-[10px] text-blue-600 hover:underline" onClick={() => setSigEdit((v) => !v)}>
-                        {sigEdit ? "Nascondi" : "Modifica"}
-                      </button>
-                      <Switch checked={sigEnabled} onCheckedChange={setSigEnabled} aria-label="Includi firma" />
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+                {/* Colonna composer: Da / Oggetto / corpo / allegati / invio */}
+                <div className="space-y-2.5">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
+                      <Select value={emailFrom} onValueChange={setEmailFrom}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Scegli mittente" /></SelectTrigger>
+                        <SelectContent>
+                          {emailAccounts.map((a) => (
+                            <SelectItem key={a.id} value={a.id} className="text-xs">
+                              {a.email_address ?? a.id}{a.provider && <span className="ml-2 text-[10px] text-muted-foreground capitalize">({a.provider})</span>}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">A</Label>
+                      <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs text-muted-foreground truncate">{email}</div>
                     </div>
                   </div>
-                  {sigEnabled && sigEdit && (
-                    <Textarea placeholder="La tua firma (es. Nome Cognome · Azienda · tel)…" value={sigText} onChange={(e) => setSigText(e.target.value.slice(0, 1000))} rows={3} className="text-xs resize-y" />
-                  )}
-                  {sigEnabled && !sigEdit && (
-                    <p className="text-[10px] text-muted-foreground whitespace-pre-wrap line-clamp-2">{sigText || "Nessuna firma impostata sull'account — clicca «Modifica» per scriverla."}</p>
-                  )}
-                  {!sigEnabled && <p className="text-[10px] text-muted-foreground">Firma disattivata per questa email.</p>}
-                </div>
 
-                {/* Documenti commessa */}
-                {orderId && (
-                  <OrderDocumentAttacher
-                    orderId={orderId}
-                    alreadyAttached={attachments.map((a) => a.storage_path)}
-                    onAttach={(doc) =>
-                      setAttachments((prev) => [
-                        ...prev,
-                        {
-                          name: doc.name,
-                          size: doc.size ?? 0,
-                          mime: doc.mime ?? "application/octet-stream",
-                          storage_path: doc.file_url,
-                          bucket: doc.bucket,
-                          uploading: false,
-                        },
-                      ])
-                    }
-                    onDetach={(url) =>
-                      setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
-                    }
+                  <div className="flex items-center gap-2">
+                    <Input placeholder="Oggetto" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))} className="h-9 text-sm flex-1" />
+                    {!ccBccVisible && (
+                      <button type="button" className="text-[11px] text-blue-600 hover:underline font-medium shrink-0" onClick={() => setCcBccVisible(true)}>+ Cc/Ccn</button>
+                    )}
+                  </div>
+                  {ccBccVisible && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Cc (virgola)" value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-8 text-xs" />
+                      <Input placeholder="Ccn / Bcc (virgola)" value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} className="h-8 text-xs" />
+                    </div>
+                  )}
+
+                  <Textarea
+                    placeholder="Scrivi l'email…"
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value.slice(0, 50_000))}
+                    onKeyDown={handleComposerKeyDown}
+                    rows={12}
+                    className="text-sm resize-y min-h-[220px]"
                   />
-                )}
 
-                {/* Allegati */}
-                <div className="space-y-1">
-                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-                  {attachments.length > 0 && (
-                    <ul className="space-y-1">
-                      {attachments.map((a) => (
-                        <li key={a.storage_path} className="flex items-center gap-2 rounded border px-2 py-1 text-[11px]">
-                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="truncate flex-1">{a.name}</span>
-                          <span className="text-muted-foreground shrink-0">{(a.size / 1024).toFixed(0)} KB</span>
-                          {a.uploading ? <Loader2 className="h-3 w-3 animate-spin shrink-0" /> : (
-                            <button type="button" onClick={() => removeAttachment(a.storage_path)} className="text-rose-500 hover:text-rose-700 shrink-0" aria-label="Rimuovi allegato"><X className="h-3 w-3" /></button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Allegati */}
+                  <div className="space-y-1">
+                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+                    {attachments.length > 0 && (
+                      <ul className="space-y-1">
+                        {attachments.map((a) => (
+                          <li key={a.storage_path} className="flex items-center gap-2 rounded border px-2 py-1 text-[11px]">
+                            <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{a.name}</span>
+                            <span className="text-muted-foreground shrink-0">{(a.size / 1024).toFixed(0)} KB</span>
+                            {a.uploading ? <Loader2 className="h-3 w-3 animate-spin shrink-0" /> : (
+                              <button type="button" onClick={() => removeAttachment(a.storage_path)} className="text-rose-500 hover:text-rose-700 shrink-0" aria-label="Rimuovi allegato"><X className="h-3 w-3" /></button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 text-xs text-muted-foreground" onClick={() => fileInputRef.current?.click()}>
+                      <Paperclip className="h-3.5 w-3.5" /> Allega file
+                    </Button>
+                    <Button className="gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => sendEmail.mutate()} disabled={!emailFrom || !emailSubject.trim() || !emailBody.trim() || sendEmail.isPending || attachments.some((a) => a.uploading)}>
+                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia Email
+                    </Button>
+                  </div>
+                  <p className="text-right text-[10px] text-muted-foreground">⌘+Invio per inviare</p>
+                </div>
+
+                {/* Colonna strumenti: AI, template, firma, documenti commessa */}
+                <aside className="space-y-3">
+                  <AiAssistRow
+                    instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                    pending={composeAi.isPending} currentText={emailBody}
+                    onGenerate={() => composeAi.mutate({ ch: "email" })}
+                    onRefine={(act) => composeAi.mutate({ ch: "email", mode: "refine", currentText: emailBody, instructionOverride: act })}
+                  />
+
+                  <div className="rounded-lg border p-2.5 space-y-2">
+                    <MessageTemplatePicker
+                      channel="email"
+                      vars={templateVars}
+                      align="end"
+                      onInsert={({ subject, body }) => { if (subject) setEmailSubject(subject.slice(0, 200)); setEmailBody(body.slice(0, 50_000)); }}
+                    />
+                    <EmailTemplatePicker
+                      onApply={(t) => { setEmailSubject(t.subject); setEmailBody(t.body_text); }}
+                    />
+                  </div>
+
+                  {/* Firma editabile */}
+                  <div className="rounded-lg border p-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-medium flex items-center gap-1.5"><PenLine className="h-3.5 w-3.5 text-violet-600" /> Firma</Label>
+                      <div className="flex items-center gap-2">
+                        <button type="button" className="text-[10px] text-blue-600 hover:underline" onClick={() => setSigEdit((v) => !v)}>
+                          {sigEdit ? "Nascondi" : "Modifica"}
+                        </button>
+                        <Switch checked={sigEnabled} onCheckedChange={setSigEnabled} aria-label="Includi firma" />
+                      </div>
+                    </div>
+                    {sigEnabled && sigEdit && (
+                      <Textarea placeholder="La tua firma (es. Nome Cognome · Azienda · tel)…" value={sigText} onChange={(e) => setSigText(e.target.value.slice(0, 1000))} rows={3} className="text-xs resize-y" />
+                    )}
+                    {sigEnabled && !sigEdit && (
+                      <p className="text-[10px] text-muted-foreground whitespace-pre-wrap line-clamp-2">{sigText || "Nessuna firma impostata sull'account — clicca «Modifica» per scriverla."}</p>
+                    )}
+                    {!sigEnabled && <p className="text-[10px] text-muted-foreground">Firma disattivata per questa email.</p>}
+                  </div>
+
+                  {/* Documenti commessa */}
+                  {orderId && (
+                    <OrderDocumentAttacher
+                      orderId={orderId}
+                      alreadyAttached={attachments.map((a) => a.storage_path)}
+                      onAttach={(doc) =>
+                        setAttachments((prev) => [
+                          ...prev,
+                          {
+                            name: doc.name,
+                            size: doc.size ?? 0,
+                            mime: doc.mime ?? "application/octet-stream",
+                            storage_path: doc.file_url,
+                            bucket: doc.bucket,
+                            uploading: false,
+                          },
+                        ])
+                      }
+                      onDetach={(url) =>
+                        setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
+                      }
+                    />
                   )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={() => fileInputRef.current?.click()}>
-                    <Paperclip className="h-3.5 w-3.5" /> Allega file
-                  </Button>
-                  <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => sendEmail.mutate()} disabled={!emailFrom || !emailSubject.trim() || !emailBody.trim() || sendEmail.isPending || attachments.some((a) => a.uploading)}>
-                    {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia Email
-                  </Button>
-                </div>
-              </>
+                </aside>
+              </div>
             )}
           </TabsContent>
         </Tabs>
