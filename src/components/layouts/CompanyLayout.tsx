@@ -468,7 +468,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
               <NavLink
                 to={toHref(item.url)}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-[13px] transition-colors",
+                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-xs transition-colors",
                   active
                     ? "bg-sidebar-primary/10 text-sidebar-primary font-semibold"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
@@ -512,7 +512,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 sideOffset={8}
                 className="z-50 w-52 p-1.5 bg-sidebar border border-sidebar-border shadow-lg rounded-lg"
               >
-                <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/50 truncate">
                   {area.title}
                 </p>
                 <div className="flex flex-col gap-0.5">
@@ -538,7 +538,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           key={item.url}
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isDemo && "opacity-70"
                           )}
@@ -588,14 +588,14 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
         open ? "bg-sidebar-accent/50" : "hover:bg-sidebar-accent/40"
       )}>
         <CollapsibleTrigger className={cn(
-          "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150 group",
+          "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-normal transition-all duration-150 group",
           (open || hasActiveChild)
             ? "text-sidebar-primary/80"
             : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
         )}>
-          <span className="flex items-center gap-2">
-            <AreaIcon className={cn("h-4 w-4 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
-            {area.title}
+          <span className="flex items-center gap-1.5 min-w-0">
+            <AreaIcon className={cn("h-4 w-4 shrink-0 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
+            <span className="truncate">{area.title}</span>
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
         </CollapsibleTrigger>
@@ -626,7 +626,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         <NavLink
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-xs text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isLocked && "opacity-50",
                             isDemo && !active && "opacity-75"
@@ -717,7 +717,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   <NavLink
                     to={itemUrl}
                     end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
-                    className="flex items-center gap-3 rounded-md px-3 py-2 text-[13px] text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
+                    className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
                     <item.icon className="h-4 w-4" />
