@@ -233,7 +233,10 @@ export async function renderEmailTemplate(params: {
       companyName: branding.companyName,
     };
 
-    const innerBodyHtml = applyPlaceholders(source.html_body, placeholderData, true);
+    // escape=false: html_body è HTML trusted generato dal builder.
+    // Le URL nei {{placeholder}} NON devono essere HTML-escaped (& → &amp; rompe
+    // i link con query string in molti client email).
+    const innerBodyHtml = applyPlaceholders(source.html_body, placeholderData, false);
     const subject = applyPlaceholders(source.subject, placeholderData, false);
     const rawText = source.text_body
       ? applyPlaceholders(source.text_body, placeholderData, false)
