@@ -243,6 +243,7 @@ async function handleTrigger(supabase: any, body: any) {
     // HR
     dipendente_creato: "employee_created",
     contratto_in_scadenza: "contract_expiring",     // SCHEDULED
+    documento_hr_in_scadenza: "hr_document_expiring", // SCHEDULED (emesso da hr-check-scadenze)
     ferie_richiesta: "leave_requested",
     // Task
     task_creato: "task_created",
@@ -318,6 +319,9 @@ async function handleTrigger(supabase: any, body: any) {
       const evFormId = String((enrichedPayload as Record<string, unknown>)?.form_id ?? "");
       if (!tcfg.form_ids.map(String).includes(evFormId)) continue;
     }
+    // Tipo documento HR (documento_hr_in_scadenza → categoria_documento)
+    if (tcfg.categoria_documento && tcfg.categoria_documento !== "tutte"
+        && String((enrichedPayload as Record<string, unknown>)?.categoria ?? "") !== String(tcfg.categoria_documento)) continue;
 
     // Check re-enrollment settings (from flow config or trigger config)
     const flowSettings = flow.config_json?.settings || {};

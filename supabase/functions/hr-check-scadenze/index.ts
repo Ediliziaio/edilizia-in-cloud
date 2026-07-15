@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
 
     const notifRows: any[] = [];
     const perAdminNew = new Map<string, Doc[]>(); // admin.id → docs nuovi (per email)
+    const newDocIds = new Set<string>(); // docs alla PRIMA segnalazione → evento automazione
 
     for (const d of companyDocs) {
       const prof = Array.isArray(d.hr_profili) ? d.hr_profili[0] : d.hr_profili;
@@ -97,6 +98,7 @@ Deno.serve(async (req) => {
           action_url: "/azienda/personale?tab=profili",
         });
         (perAdminNew.get(a.id) ?? perAdminNew.set(a.id, []).get(a.id)!).push(d);
+        newDocIds.add(d.id);
       }
     }
 
@@ -104,6 +106,38 @@ Deno.serve(async (req) => {
       const { error } = await admin.from("notifications").insert(notifRows);
       if (!error) notified += notifRows.length;
       else console.error("[hr-check-scadenze] insert notifications:", error.message);
+    }
+
+    // Evento per le AUTOMAZIONI (trigger "Documento del personale in scadenza"):
+    // un evento per documento alla prima segnalazione (stesso anti-doppione
+    // delle notifiche), così i flussi possono es. mandare email al team per il
+    // DURC in scadenza. Payload con chiavi piatte per il filtro categoria e
+    // chiavi puntate per le variabili {{documento.X}}/{{dipendente.nome}}.
+    if (newDocIds.size > 0) {
+      const eventRows = companyDocs
+        .filter((d) => newDocIds.has(d.id))
+        .map((d) => {
+          const prof = Array.isArray(d.hr_profili) ? d.hr_profili[0] : d.hr_profili;
+          const nomeDip = `${prof?.nome ?? ""} ${prof?.cognome ?? ""}`.trim();
+          const sc = new Date(d.data_scadenza + "T00:00:00Z").getTime();
+          const giorni = Math.ceil((sc - todayMs) / 864e5);
+          return {
+            company_id: companyId,
+            trigger_event: "hr_document_expiring",
+            entity_id: d.hr_profilo_id,
+            entity_type: "employee",
+            payload: {
+              categoria: d.categoria,
+              "documento.categoria": CAT_LABEL[d.categoria] ?? d.categoria,
+              "documento.titolo": d.titolo ?? "",
+              "documento.scadenza": fmtDate(d.data_scadenza),
+              "documento.giorni_rimanenti": giorni,
+              "dipendente.nome": nomeDip,
+            },
+          };
+        });
+      const { error: evErr } = await admin.from("automation_trigger_events").insert(eventRows);
+      if (evErr) console.error("[hr-check-scadenze] insert trigger events:", evErr.message);
     }
 
     // Email best-effort: un digest per admin con i documenti nuovi di oggi.
