@@ -108,7 +108,7 @@ export function FlowBuilderPage() {
     if (builder.dbNodes.length > 0 || builder.dbConnections.length > 0) {
       const rfNodesData = nodesToReactFlow(builder.dbNodes);
       // Inject onOpenCatalog on empty triggers
-      setRfNodes(rfNodesData.map(n => {
+      const mappedNodes = rfNodesData.map(n => {
         if (n.type === "trigger" && !n.data?.itemId) {
           return { ...n, data: { ...n.data, onOpenCatalog: () => openCatalog("trigger") } };
         }
@@ -116,13 +116,18 @@ export function FlowBuilderPage() {
           return { ...n, data: { ...n.data, onAddTrigger: () => openCatalog("trigger") } };
         }
         return n;
-      }));
+      });
       // Inject onAddStep callback into all edges loaded from DB
       const rfEdgesData = connectionsToEdges(builder.dbConnections);
-      setRfEdges(rfEdgesData.map(e => ({
+      const mappedEdges = rfEdgesData.map(e => ({
         ...e,
         data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
-      })));
+      }));
+      // Scaffold "Fine": senza, l'ultimo nodo del flusso non ha l'arco col
+      // "+" e non si può aggiungere nulla in coda (bug segnalato).
+      const scaffolded = withEndScaffold(mappedNodes, mappedEdges);
+      setRfNodes(scaffolded.nodes);
+      setRfEdges(scaffolded.edges);
       initializedRef.current = true;
     } else if (builder.remoteEmpty && (flowId || isNewFlowRoute)) {
       // Empty canvas placeholder: trigger + end node.
@@ -190,8 +195,9 @@ export function FlowBuilderPage() {
     const visualOnlyEdges = rfEdges.filter(
       (e) => !mirrorEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
     );
-    setRfNodes([...rebuilt, ...visualOnlyNodes]);
-    setRfEdges([...rebuiltEdges, ...visualOnlyEdges]);
+    const rebuiltScaffolded = withEndScaffold([...rebuilt, ...visualOnlyNodes], [...rebuiltEdges, ...visualOnlyEdges]);
+    setRfNodes(rebuiltScaffolded.nodes);
+    setRfEdges(rebuiltScaffolded.edges);
     setSelectedNodeId((prev) => (prev && !allIds.has(prev) ? null : prev));
     // Solo `revision` nelle deps: rfNodes/rfEdges cambiano ad ogni resync e
     // rimetterli qui creerebbe un loop; servono solo come snapshot corrente.
@@ -332,6 +338,63 @@ export function FlowBuilderPage() {
     openCatalog("action");
   }, [openCatalog]);
 
+  // Scaffold "Fine" (function declaration: hoisted, usata dagli effect sopra).
+  // Due garanzie:
+  //  1. Gli archi salvati in DB verso un nodo Fine mai materializzato (il nodo
+  //     end non viene persistito) vengono resi renderizzabili ricreando il
+  //     nodo end con lo STESSO id — senza, ReactFlow scartava l'arco e il "+"
+  //     spariva sotto l'ultimo passo.
+  //  2. Ogni nodo foglia (nessun arco uscente) riceve un arco visivo
+  //     tratteggiato verso un nodo Fine condiviso: il "+" c'è SEMPRE.
+  function withEndScaffold(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
+    const outNodes = [...nodes];
+    const outEdges = [...edges];
+    const nodeIds = new Set(outNodes.map((n) => n.id));
+
+    for (const e of outEdges) {
+      if (!nodeIds.has(e.target) && nodeIds.has(e.source)) {
+        const src = outNodes.find((n) => n.id === e.source);
+        outNodes.push({
+          id: e.target,
+          type: "end",
+          position: { x: (src?.position?.x ?? 300) + 60, y: (src?.position?.y ?? 200) + 180 },
+          data: { label: "Fine", nodeType: "end" },
+        });
+        nodeIds.add(e.target);
+      }
+    }
+
+    const leaves = outNodes.filter(
+      (n) => n.type !== "end" && n.type !== "note" && !n.data?.isEmpty && !outEdges.some((e) => e.source === n.id),
+    );
+    if (leaves.length > 0) {
+      let endNode = outNodes.find((n) => n.type === "end");
+      if (!endNode) {
+        const maxY = Math.max(...leaves.map((n) => n.position?.y ?? 0));
+        const anchor = leaves.find((n) => (n.position?.y ?? 0) === maxY) ?? leaves[0];
+        endNode = {
+          id: "visual-end",
+          type: "end",
+          position: { x: (anchor.position?.x ?? 300) + 60, y: maxY + 180 },
+          data: { label: "Fine", nodeType: "end" },
+        };
+        outNodes.push(endNode);
+      }
+      for (const leaf of leaves) {
+        outEdges.push({
+          id: `visual-fine-${leaf.id}`,
+          source: leaf.id,
+          target: endNode.id,
+          type: "addStep",
+          animated: false,
+          style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+          data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+        });
+      }
+    }
+    return { nodes: outNodes, edges: outEdges };
+  }
+
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
       if (!flowId || !effectiveCompany || !user) {
@@ -470,19 +533,23 @@ export function FlowBuilderPage() {
             from_node_id: e.source, to_node_id: e.target, label: null, created_at: new Date().toISOString(),
           });
         };
+        // I nodi "Fine" sono SOLO visivi (non nel mirror/DB): un arco verso di
+        // loro non va persistito — al reload lo scaffold lo rigenera da solo.
+        const isMirrorNode = (id: string) => builder.nodes.some((n) => n.id === id);
         if (edgeToEnd) {
           // sorgente → nuovo → Fine (sostituisce sorgente → Fine)
           const e1 = mkEdge(edgeToEnd.source, newNodeId);
           const e2 = mkEdge(newNodeId, edgeToEnd.target);
           setRfEdges((eds) => [...eds.filter((e) => e.id !== edgeToEnd.id), e1, e2]);
           removeConnection(edgeToEnd.id);
-          persist(e1); persist(e2);
+          persist(e1);
+          if (isMirrorNode(edgeToEnd.target)) persist(e2);
         } else {
           // nessun arco verso Fine: collega da un nodo "foglia" (senza archi uscenti) al nuovo, e nuovo → Fine
           const leaf = rfNodes.find((n) => n.type !== "end" && n.type !== "note" && !rfEdges.some((e) => e.source === n.id))
             ?? rfNodes.find((n) => n.type === "trigger");
           if (leaf) { const e1 = mkEdge(leaf.id, newNodeId); setRfEdges((eds) => [...eds, e1]); persist(e1); }
-          if (endNode) { const e2 = mkEdge(newNodeId, endNode.id); setRfEdges((eds) => [...eds, e2]); persist(e2); }
+          if (endNode) { const e2 = mkEdge(newNodeId, endNode.id); setRfEdges((eds) => [...eds, e2]); }
         }
       }
 
@@ -600,7 +667,7 @@ export function FlowBuilderPage() {
                 from_node_id: edge.source, to_node_id: newNodeId,
                 label: null, created_at: new Date().toISOString(),
               });
-              addConnection({
+              if (builder.nodes.some((n) => n.id === edge.target)) addConnection({
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: newNodeId, to_node_id: edge.target,
                 label: "Sì", created_at: new Date().toISOString(),
@@ -634,7 +701,7 @@ export function FlowBuilderPage() {
                 from_node_id: edge.source, to_node_id: newNodeId,
                 label: null, created_at: new Date().toISOString(),
               });
-              addConnection({
+              if (builder.nodes.some((n) => n.id === edge.target)) addConnection({
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: newNodeId, to_node_id: edge.target,
                 label: "A: 50%", created_at: new Date().toISOString(),
@@ -666,7 +733,9 @@ export function FlowBuilderPage() {
                   from_node_id: edge.source, to_node_id: newNodeId,
                   label: null, created_at: new Date().toISOString(),
                 });
-                addConnection({
+                // Arco verso il nodo Fine visivo: NON persistere (il nodo end
+                // non esiste in DB; lo scaffold rigenera l'arco al reload).
+                if (builder.nodes.some((n) => n.id === edge.target)) addConnection({
                   id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
                   from_node_id: newNodeId, to_node_id: edge.target,
                   label: null, created_at: new Date().toISOString(),

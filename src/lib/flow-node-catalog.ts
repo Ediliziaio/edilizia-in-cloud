@@ -1361,6 +1361,24 @@ export const ACTION_CATALOG: ActionDefinition[] = [
 
   // ═══ COMUNICAZIONI ═══
   {
+    id: 'notifica_interna',
+    label: 'Notifica interna',
+    description: 'Avvisa il team via email, notifica in-app o SMS quando scatta il flusso (es. "nuovo lead da chiamare")',
+    icon: 'BellRing',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'tipo', label: 'Tipo di notifica', type: 'select', required: true, defaultValue: 'email', options: [
+        { value: 'email', label: 'Email' },
+        { value: 'app', label: 'Notifica in-app (campanella)' },
+        { value: 'sms', label: 'SMS' },
+      ]},
+      { id: 'destinatari_utenti', label: 'Utenti del team', type: 'user_multi_select', required: false, helpText: 'Per email/SMS si usano i recapiti del profilo utente; per la notifica in-app la campanella.' },
+      { id: 'destinatari_extra', label: 'Destinatari extra (separati da virgola)', type: 'text', required: false, placeholder: 'notifiche@azienda.it, +39333…', helpText: 'Indirizzi email per tipo Email, numeri per SMS. Si sommano agli utenti del team.' },
+      { id: 'oggetto', label: 'Oggetto (email)', type: 'text', required: false, supportsVariables: true, placeholder: 'Nuovo lead: {{contatto.full_name}}' },
+      { id: 'messaggio', label: 'Messaggio', type: 'textarea', required: true, supportsVariables: true, placeholder: 'Nuovo lead da chiamare: {{contatto.full_name}} — {{contact.phone}} ({{contact.city}})' },
+    ],
+  },
+  {
     id: 'invia_notifica_inapp',
     label: 'Invia notifica in-app',
     description: "Invia una notifica push all'utente nella piattaforma",

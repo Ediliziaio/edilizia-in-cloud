@@ -885,6 +885,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     invia_whatsapp_locale: "send_whatsapp_locale",
     invia_sms: "send_sms",
     invia_notifica_inapp: "send_notification",
+    notifica_interna: "internal_notification",
     aggiungi_tag: "add_tag",
     rimuovi_tag: "remove_tag",
     crea_opportunita: "create_opportunity",
@@ -1252,6 +1253,114 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const { error } = await supabase.from("tasks").update(updateData).eq("id", taskId).eq("company_id", companyId);
       if (error) return { success: false, error: error.message };
       return { success: true, output: { action: "update_task", task_id: taskId, updated: Object.keys(updateData) } };
+    }
+
+    case "internal_notification": {
+      // "Notifica interna" (stile GHL): avvisa il TEAM (non il contatto) via
+      // email / notifica in-app / SMS, con messaggio personalizzabile con le
+      // variabili del contatto che ha attivato il flusso.
+      const tipo = String(ncfg.tipo || "email");
+      const { data: notifContact } = await supabase
+        .from("marketing_contacts")
+        .select("*")
+        .eq("id", entityId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const resolveNotifText = async (s: unknown): Promise<string> => {
+        if (typeof s !== "string" || s === "") return "";
+        const withContact = notifContact ? await resolveContactText(supabase, s, notifContact, companyId) : s;
+        return rv(withContact);
+      };
+      const messaggio = (await resolveNotifText(ncfg.messaggio || ncfg.testo)).trim();
+      if (!messaggio) return { success: false, error: "Nessun messaggio configurato" };
+      const oggetto = (await resolveNotifText(ncfg.oggetto)).trim() || "Notifica automazione";
+
+      const teamUserIds: string[] = (Array.isArray(ncfg.destinatari_utenti) ? ncfg.destinatari_utenti : [])
+        .filter((x: unknown): x is string => typeof x === "string" && x.trim() !== "");
+      const extras: string[] = String(ncfg.destinatari_extra ?? "")
+        .split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
+
+      if (tipo === "app") {
+        if (teamUserIds.length === 0) return { success: false, error: "Seleziona almeno un utente del team" };
+        const { error: inErr } = await supabase.from("lifecycle_notifications").insert({
+          company_id: companyId,
+          notification_type: "automation",
+          notification_date: null,
+          title: oggetto,
+          message: messaggio,
+          metadata: { entity_id: entityId, automation: true, recipient_type: "specific_users", user_ids: teamUserIds },
+        });
+        if (inErr) return { success: false, error: inErr.message };
+        return { success: true, output: { action: "internal_notification", tipo, recipients: teamUserIds.length } };
+      }
+
+      // Recapiti (email/telefono) degli utenti del team selezionati
+      let teamProfiles: Array<{ id: string; email: string | null; phone: string | null }> = [];
+      if (teamUserIds.length > 0) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, email, phone")
+          .in("id", teamUserIds)
+          .eq("company_id", companyId);
+        teamProfiles = data ?? [];
+      }
+
+      if (tipo === "email") {
+        const recipients = [...new Set([
+          ...extras.filter((e) => e.includes("@")),
+          ...teamProfiles.map((p) => p.email).filter((e): e is string => !!e),
+        ])];
+        if (recipients.length === 0) return { success: false, error: "Nessun destinatario email configurato" };
+        const escapeNotif = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const html =
+          `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">` +
+          messaggio.split("\n").map((l) => `<p style="margin:0 0 8px">${escapeNotif(l) || "&nbsp;"}</p>`).join("") +
+          `<p style="margin-top:16px;color:#6b7280;font-size:12px">Notifica automatica del flusso di lavoro.</p>` +
+          `</div>`;
+        try {
+          const provider = await loadProviderSettings("transactional");
+          const r = await sendViaProviderWithFailover("transactional", provider, {
+            from: provider.fromDefault,
+            to: recipients,
+            subject: oggetto,
+            html,
+          });
+          if (!r.ok) return { success: false, error: `Invio email fallito: ${(r as any).error ?? (r as any).status ?? "provider"}` };
+        } catch (e) {
+          return { success: false, error: e instanceof Error ? e.message : String(e) };
+        }
+        return { success: true, output: { action: "internal_notification", tipo, recipients: recipients.length } };
+      }
+
+      if (tipo === "sms") {
+        const numbers = [...new Set([
+          ...extras.filter((e) => !e.includes("@")),
+          ...teamProfiles.map((p) => p.phone).filter((t): t is string => !!t),
+        ])];
+        if (numbers.length === 0) return { success: false, error: "Nessun numero destinatario configurato" };
+        const supabaseUrl2 = Deno.env.get("SUPABASE_URL")!;
+        const cronKey2 = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        let sent = 0;
+        const errors: string[] = [];
+        for (const to of numbers) {
+          try {
+            const smsRes = await fetch(`${supabaseUrl2}/functions/v1/telnyx-proxy`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-cron-secret": cronKey2 },
+              body: JSON.stringify({ action: "send_sms", company_id: companyId, payload: { to, body: messaggio, contact_id: null } }),
+            });
+            const smsResult = await smsRes.json();
+            if (!smsRes.ok || smsResult?.error) errors.push(`${to}: ${smsResult?.error || smsRes.status}`);
+            else sent++;
+          } catch (e) {
+            errors.push(`${to}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        if (sent === 0) return { success: false, error: errors.join("; ").slice(0, 400) || "Invio SMS fallito" };
+        return { success: true, output: { action: "internal_notification", tipo, recipients: sent, errors: errors.length ? errors : undefined } };
+      }
+
+      return { success: false, error: `Tipo notifica non supportato: ${tipo}` };
     }
 
     case "send_notification": {
