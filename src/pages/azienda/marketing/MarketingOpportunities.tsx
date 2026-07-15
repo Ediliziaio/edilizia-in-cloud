@@ -860,7 +860,7 @@ function MarketingOpportunitiesContent() {
             </div>
           )}
           {viewMode === "list" ? (
-            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} />
+            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} onSelectMany={handleSelectMany} canEdit={canEditOpportunities} />
           ) : (
             <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} onSelectMany={handleSelectMany} canEdit={canEditOpportunities} onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }} /></div>
           )}

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ChevronRight, Loader2 } from "lucide-react";
-import { useBulkUpdateOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import { useBulkUpdateOpportunities, useBulkTagOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ interface BulkEditSheetProps {
   canEdit?: boolean;
 }
 
-type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source" | "expected_close_date" | "next_action";
+type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source" | "expected_close_date" | "next_action" | "add_tags" | "remove_tags";
 
 const FIELDS: { key: Field; label: string }[] = [
   { key: "stage_id", label: "Fase" },
@@ -29,7 +29,18 @@ const FIELDS: { key: Field; label: string }[] = [
   { key: "source", label: "Fonte" },
   { key: "expected_close_date", label: "Data chiusura prevista" },
   { key: "next_action", label: "Prossima azione" },
+  { key: "add_tags", label: "Aggiungi etichetta" },
+  { key: "remove_tags", label: "Rimuovi etichetta" },
 ];
+
+/** "urgente, da-richiamare" → ["urgente","da-richiamare"] (trim, no vuoti, distinti). */
+function parseTags(raw: string): string[] {
+  const seen = new Set<string>();
+  return raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t && !seen.has(t) && seen.add(t));
+}
 
 export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone, canEdit = true }: BulkEditSheetProps) {
   const [selectedField, setSelectedField] = useState<Field | null>(null);
@@ -37,6 +48,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
   const [search, setSearch] = useState("");
   const { data: staff = [] } = useCompanyStaff();
   const bulkUpdate = useBulkUpdateOpportunities();
+  const bulkTag = useBulkTagOpportunities();
 
   const filteredFields = search
     ? FIELDS.filter((f) => f.label.toLowerCase().includes(search.toLowerCase()))
@@ -48,6 +60,27 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
       return;
     }
     if (!selectedField || !fieldValue) return;
+
+    // Etichette: append/remove atomico via RPC dedicato (non sovrascrive).
+    if (selectedField === "add_tags" || selectedField === "remove_tags") {
+      const tags = parseTags(fieldValue);
+      if (tags.length === 0) {
+        toast.error("Inserisci almeno un'etichetta");
+        return;
+      }
+      bulkTag.mutate(
+        { ids: selectedIds, tags, mode: selectedField === "add_tags" ? "add" : "remove" },
+        {
+          onSuccess: () => {
+            onDone();
+            onOpenChange(false);
+            setSelectedField(null);
+            setFieldValue("");
+          },
+        },
+      );
+      return;
+    }
 
     const data: Record<string, any> = {};
 
@@ -212,12 +245,28 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                   />
                 )}
 
+                {(selectedField === "add_tags" || selectedField === "remove_tags") && (
+                  <div className="space-y-1.5">
+                    <Input
+                      placeholder="Es. urgente, da-richiamare"
+                      value={fieldValue}
+                      onChange={(e) => setFieldValue(e.target.value)}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Più etichette separate da virgola.{" "}
+                      {selectedField === "add_tags"
+                        ? "Vengono aggiunte a quelle esistenti."
+                        : "Vengono rimosse solo se presenti."}
+                    </p>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleApply}
-                  disabled={!fieldValue || bulkUpdate.isPending || !canEdit}
+                  disabled={!fieldValue || bulkUpdate.isPending || bulkTag.isPending || !canEdit}
                   className="w-full"
                 >
-                  {bulkUpdate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {(bulkUpdate.isPending || bulkTag.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Applica a {selectedIds.length} opportunità
                 </Button>
               </div>
