@@ -118,7 +118,9 @@ describe("C. Sconto — wizard step 6 + edge fv-calcolo-finanziario", () => {
     expect(src).toContain('update("sconto_tipo", "pct")');
     expect(src).toContain('update("sconto_tipo", "importo")');
     // messaggi verdetto
-    expect(src).toContain("richiede approvazione admin");
+    // "approvazione admin" può essere avvolto in <strong> nel markup del verdetto,
+    // quindi si verifica la sottostringa robusta al tag, non la frase contigua.
+    expect(src).toContain("approvazione admin");
     expect(src).toContain("oltre il massimo consentito");
     // riepilogo sempre visibile
     expect(src).toContain("Prezzo pieno (netto)");
