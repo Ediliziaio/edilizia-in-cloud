@@ -1472,7 +1472,9 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       // stage_id (con fallback legacy su `stage` per i flussi vecchi).
       { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
       { id: 'stage_id', label: 'Fase pipeline', type: 'pipeline_stage_select', required: true },
-      { id: 'assegnato_a', label: 'Responsabile', type: 'user_select', required: false },
+      { id: 'fonte', label: 'Fonte opportunità', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: facebook', helpText: 'Comparirà come Fonte sulla scheda opportunità.' },
+      { id: 'assegnato_a', label: 'Venditore', type: 'user_select', required: false },
+      { id: 'call_center_id', label: 'Call center (opzionale)', type: 'user_select', required: false },
     ],
   },
   {

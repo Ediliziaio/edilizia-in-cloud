@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2, Filter, Save, CheckCircle, RotateCcw } from "lucide-react";
+import { X, Trash2, Filter, Save, CheckCircle, RotateCcw, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { VariablePicker } from "./config-panels/VariablePicker";
 import {
@@ -552,11 +554,11 @@ function ConfigField({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("meta_assets")
-        .select("id, asset_id, name")
+        .select("id, asset_id, asset_name")
         .eq("company_id", companyId!)
         .eq("asset_type", "page")
         .eq("selected", true)
-        .order("name");
+        .order("asset_name");
       if (error) throw error;
       return data || [];
     },
@@ -812,7 +814,7 @@ function ConfigField({
             <SelectContent>
               <SelectItem value="__all__">Tutte le pagine collegate</SelectItem>
               {metaPages.map((p: any) => (
-                <SelectItem key={p.asset_id} value={p.asset_id}>{p.name || p.asset_id}</SelectItem>
+                <SelectItem key={p.asset_id} value={p.asset_id}>{p.asset_name || p.asset_id}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -841,24 +843,55 @@ function ConfigField({
           );
         }
         const ids: string[] = Array.isArray(value) ? value : [];
+        const toggleForm = (formId: string) =>
+          onChange(ids.includes(formId) ? ids.filter((x) => x !== formId) : [...ids, formId]);
+        // Dropdown ricercabile (non chips inline): con decine/centinaia di
+        // moduli le chips sarebbero ingestibili.
         return (
-          <div className="flex flex-wrap gap-1.5">
-            {visibleForms.map((f: any) => {
-              const checked = ids.includes(f.form_id);
-              return (
-                <Button
-                  key={f.form_id}
-                  type="button"
-                  variant={checked ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => onChange(checked ? ids.filter((x) => x !== f.form_id) : [...ids, f.form_id])}
-                >
-                  {checked && <CheckCircle className="mr-1 h-3 w-3" />}
-                  {f.form_name || f.form_id}
+          <div className="space-y-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" className="h-9 w-full justify-between text-sm font-normal">
+                  {ids.length > 0 ? `${ids.length} modul${ids.length === 1 ? "o" : "i"} selezionat${ids.length === 1 ? "o" : "i"}` : "Tutti i moduli"}
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </Button>
-              );
-            })}
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Cerca modulo…" />
+                  <CommandList className="max-h-[240px]">
+                    <CommandEmpty>Nessun modulo trovato.</CommandEmpty>
+                    <CommandGroup>
+                      {visibleForms.map((f: any) => (
+                        <CommandItem
+                          key={f.form_id}
+                          value={`${f.form_name || ""} ${f.form_id}`}
+                          onSelect={() => toggleForm(f.form_id)}
+                        >
+                          <CheckCircle className={`mr-2 h-3.5 w-3.5 shrink-0 ${ids.includes(f.form_id) ? "text-primary" : "opacity-0"}`} />
+                          <span className="truncate text-sm">{f.form_name || f.form_id}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {ids.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {ids.map((fid) => {
+                  const f = metaForms.find((x: any) => x.form_id === fid);
+                  return (
+                    <span key={fid} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[11px]">
+                      <span className="truncate">{f?.form_name || fid}</span>
+                      <button type="button" onClick={() => toggleForm(fid)} aria-label="Rimuovi modulo" className="shrink-0 text-muted-foreground hover:text-foreground">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })()}

@@ -1145,6 +1145,9 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       if (pipelineId) insertData.pipeline_id = pipelineId;
       if (stageId) insertData.stage_id = stageId;
       if (ncfg.assegnato_a) insertData.assigned_to = ncfg.assegnato_a;
+      if (ncfg.call_center_id) insertData.call_center_id = ncfg.call_center_id;
+      const fonte = rv(ncfg.fonte);
+      if (fonte) insertData.source = String(fonte).slice(0, 100);
 
       const { error } = await supabase
         .from("marketing_opportunities")
