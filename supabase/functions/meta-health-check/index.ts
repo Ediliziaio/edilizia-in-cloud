@@ -1,8 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
+// Alert operativo quando un'integrazione si rompe (email best-effort).
+const ALERT_EMAIL = Deno.env.get("INTEGRATIONS_ALERT_EMAIL") || "flo.andriciuc@gmail.com";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -103,6 +106,51 @@ Deno.serve(async (req) => {
         });
 
         results.push({ id: integ.id, newHealth, newStatus, reason });
+      }
+    }
+
+    // ── Alert email: integrazioni appena diventate critiche ──
+    // `results` contiene SOLO le transizioni di stato (newHealth ≠ health
+    // precedente): un'integrazione già critica ieri non genera un nuovo
+    // alert ogni giorno.
+    const criticals = results.filter((r) => r.newHealth === "critical");
+    if (criticals.length > 0) {
+      try {
+        const integById = new Map((integrations || []).map((i: any) => [i.id, i]));
+        const companyIds = [...new Set(criticals.map((c) => integById.get(c.id)?.company_id).filter(Boolean))];
+        const { data: companies } = await admin
+          .from("companies")
+          .select("id, name")
+          .in("id", companyIds);
+        const companyName = new Map((companies ?? []).map((c: any) => [c.id, c.name]));
+
+        const rows = criticals
+          .map((c) => {
+            const integ = integById.get(c.id);
+            const azienda = companyName.get(integ?.company_id) ?? integ?.company_id ?? "?";
+            return `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${azienda}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">Meta</td><td style="padding:6px 12px;border-bottom:1px solid #eee;color:#b91c1c">${c.reason ?? c.newStatus ?? "critico"}</td></tr>`;
+          })
+          .join("");
+        const html =
+          `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">` +
+          `<h2 style="font-size:16px">⚠️ Integrazioni in errore su EdiliziaInCloud</h2>` +
+          `<p>Il controllo di salute ha rilevato ${criticals.length} integrazion${criticals.length === 1 ? "e" : "i"} in stato critico:</p>` +
+          `<table style="border-collapse:collapse;font-size:13px"><tr><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ddd">Azienda</th><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ddd">Provider</th><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ddd">Problema</th></tr>${rows}</table>` +
+          `<p style="margin-top:16px">Controlla da super admin: Integrazioni dell'azienda → "Risolvi problemi" (spesso basta ricollegare Meta).</p>` +
+          `<p style="color:#6b7280;font-size:12px">Email automatica di meta-health-check — inviata solo quando lo stato peggiora.</p>` +
+          `</div>`;
+
+        const provider = await loadProviderSettings("transactional");
+        const r = await sendViaProviderWithFailover("transactional", provider, {
+          from: provider.fromDefault,
+          to: [ALERT_EMAIL],
+          subject: `⚠️ EiC: ${criticals.length} integrazion${criticals.length === 1 ? "e" : "i"} Meta in errore`,
+          html,
+        });
+        if (!r.ok) console.error("meta-health-check: alert email fallita:", r.error ?? r.status);
+      } catch (e) {
+        // best-effort: l'alert non deve mai far fallire il check
+        console.error("meta-health-check: invio alert email fallito:", e);
       }
     }
 
