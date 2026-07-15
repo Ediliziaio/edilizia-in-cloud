@@ -648,6 +648,33 @@ export function useBulkUpdateOpportunities() {
   });
 }
 
+/** Aggiunge o rimuove etichette in blocco senza sovrascrivere quelle esistenti
+ *  (append/remove atomico lato DB via RPC company-scoped). */
+export function useBulkTagOpportunities() {
+  const queryClient = useQueryClient();
+  const permissions = usePermissions();
+
+  return useMutation({
+    mutationFn: async ({ ids, tags, mode }: { ids: string[]; tags: string[]; mode: "add" | "remove" }) => {
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per modificare opportunità");
+      if (ids.length === 0 || tags.length === 0) return;
+      const { error } = await (supabase as any).rpc("bulk_tag_opportunities", {
+        p_ids: ids,
+        p_tags: tags,
+        p_mode: mode,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
+      toast.success(vars.mode === "add" ? "Etichette aggiunte" : "Etichette rimosse");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useBulkDeleteOpportunities() {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();

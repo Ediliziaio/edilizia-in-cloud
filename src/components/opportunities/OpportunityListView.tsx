@@ -2,10 +2,11 @@ import { useState, useMemo, useRef, useEffect, memo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 // Table components removed — desktop view uses flex grid for proper column alignment with virtualizer
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
@@ -21,6 +22,7 @@ interface ListProps {
   opportunities: any[];
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
+  onSelectMany?: (ids: string[], selected: boolean) => void;
   canEdit?: boolean;
 }
 
@@ -29,6 +31,7 @@ export const OpportunityListView = memo(function OpportunityListView({
   opportunities,
   selectedIds,
   onSelect,
+  onSelectMany,
   canEdit = true,
 }: ListProps) {
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -84,13 +87,21 @@ export const OpportunityListView = memo(function OpportunityListView({
     }
   }, [someSelected]);
 
-  const handleSelectAll = () => {
-    if (allSelected) {
-      opportunities.forEach((o: any) => onSelect(o.id, false));
-    } else {
-      opportunities.forEach((o: any) => onSelect(o.id, true));
-    }
+  const selectMany = (ids: string[], sel: boolean) => {
+    if (onSelectMany) onSelectMany(ids, sel);
+    else ids.forEach((id) => onSelect(id, sel));
   };
+
+  const handleSelectAll = () => {
+    selectMany(opportunities.map((o: any) => o.id), !allSelected);
+  };
+
+  // Conteggio opportunità per fase, per il menu "seleziona per fase".
+  const stageCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    opportunities.forEach((o: any) => { m[o.stage_id] = (m[o.stage_id] || 0) + 1; });
+    return m;
+  }, [opportunities]);
 
   const virtualizer = useVirtualizer({
     count: opportunities.length,
@@ -278,13 +289,44 @@ export const OpportunityListView = memo(function OpportunityListView({
         <div className="w-max min-w-full">
           {/* Header — fuori dal container verticale, resta fisso */}
           <div className="bg-muted/40 border-b flex items-center text-xs font-medium text-muted-foreground">
-            <div className="w-[44px] shrink-0 px-3 py-3">
+            <div className="w-[64px] shrink-0 px-3 py-3 flex items-center gap-0.5">
               <Checkbox
                 ref={selectAllRef}
                 checked={allSelected || (someSelected ? "indeterminate" : false)}
                 onCheckedChange={handleSelectAll}
                 className="h-4 w-4"
               />
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      title="Seleziona per fase"
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel className="text-xs">Seleziona per fase</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {stages.map((s) => {
+                      const count = stageCounts[s.id] || 0;
+                      return (
+                        <DropdownMenuItem
+                          key={s.id}
+                          disabled={count === 0}
+                          onSelect={() => selectMany(opportunities.filter((o: any) => o.stage_id === s.id).map((o: any) => o.id), true)}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="truncate">{s.name}</span>
+                          <span className="text-muted-foreground shrink-0">{count}</span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             <div className="w-[240px] shrink-0 px-3 py-3">Nome opportunità</div>
             <div className="w-[170px] shrink-0 px-3 py-3">Contatto</div>
@@ -346,7 +388,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                     onClick={() => setSelectedOpp(opp)}
                   >
                     {/* Checkbox */}
-                    <div className="w-[44px] shrink-0 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="w-[64px] shrink-0 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={(checked) => onSelect(opp.id, !!checked)}

@@ -8,6 +8,8 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { OpportunityCard } from "./OpportunityCard";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
@@ -23,9 +25,12 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   onDelete: (id: string) => void;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
+  onSelectMany?: (ids: string[], selected: boolean) => void;
   canEdit?: boolean;
   onQuickAdd?: (stageId: string) => void;
-}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, canEdit = true, onQuickAdd }, _ref) {
+  collapsed?: boolean;
+  onToggleCollapse?: (stageId: string) => void;
+}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, onSelectMany, canEdit = true, onQuickAdd, collapsed = false, onToggleCollapse }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
@@ -41,12 +46,60 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
     gap: 8,
   });
 
+  // Riepilogo selezione della fase (per checkbox select-all e header).
+  const stageOppIds = opportunities.map((o: any) => o.id);
+  const selectedInStage = stageOppIds.filter((id) => selectedIds.has(id)).length;
+  const allSelected = stageOppIds.length > 0 && selectedInStage === stageOppIds.length;
+  const someSelected = selectedInStage > 0 && !allSelected;
+
+  // Colonna collassata: barra verticale sottile stile GHL. Resta droppabile:
+  // trascinando una card sopra si sposta comunque in questa fase.
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        onClick={() => onToggleCollapse?.(stage.id)}
+        title={`Espandi "${stage.name}"`}
+        className={cn(
+          "flex flex-col items-center shrink-0 w-11 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)] rounded-lg border bg-muted/40 hover:bg-muted/70 transition-colors cursor-pointer",
+          isOver && "bg-primary/10 border-primary border-dashed"
+        )}
+        style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}
+      >
+        <button
+          type="button"
+          aria-label={`Espandi ${stage.name}`}
+          className="mt-1.5 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-primary"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+        <span className="mt-1 text-[10px] font-semibold bg-background rounded-full px-1.5 py-0.5 text-muted-foreground">
+          {opportunities.length}
+        </span>
+        <span className="mt-2 text-xs font-bold text-foreground" style={{ writingMode: "vertical-rl" }}>
+          {stage.name}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex flex-col shrink-0 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[200px] md:min-w-[220px] max-w-[240px] md:max-w-[260px]" : "min-w-[240px] md:min-w-[280px] max-w-[270px] md:max-w-[300px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {canEdit && onSelectMany && opportunities.length > 0 && (
+              // Select-all della fase (stile GHL): checkbox nell'intestazione colonna.
+              <Checkbox
+                checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                onCheckedChange={(v) => onSelectMany(stageOppIds, v === true)}
+                aria-label={`Seleziona tutte le opportunità in ${stage.name}`}
+                className="h-3.5 w-3.5 shrink-0"
+              />
+            )}
+            <h3 className="text-sm font-bold text-foreground leading-snug truncate">{stage.name}</h3>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
             <span className="text-[10px] font-semibold bg-muted rounded-full px-1.5 py-0.5 text-muted-foreground">{opportunities.length}</span>
             {canEdit && onQuickAdd && (
               // Quick-add con fase pre-selezionata (standard kanban CRM):
@@ -60,11 +113,28 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
                 +
               </button>
             )}
+            {onToggleCollapse && (
+              // Freccia per comprimere la colonna (stile GHL).
+              <button
+                type="button"
+                title={`Comprimi "${stage.name}"`}
+                onClick={() => onToggleCollapse(stage.id)}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {formatCurrency(totalValue)} tot · {formatCurrency(avgValue)} avg
-        </p>
+        {selectedInStage > 0 ? (
+          <p className="text-[11px] font-medium text-primary mt-0.5">
+            {selectedInStage} selezionat{selectedInStage === 1 ? "a" : "e"} · {formatCurrency(totalValue)}
+          </p>
+        ) : (
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {formatCurrency(totalValue)} tot · {formatCurrency(avgValue)} avg
+          </p>
+        )}
       </div>
       <div
         ref={(node) => {
@@ -124,16 +194,38 @@ interface KanbanProps {
   opportunities: any[];
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
+  onSelectMany?: (ids: string[], selected: boolean) => void;
   canEdit?: boolean;
   onQuickAdd?: (stageId: string) => void;
 }
 
-export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, canEdit = true, onQuickAdd }: KanbanProps) {
+const COLLAPSED_STAGES_KEY = "opp-kanban-collapsed-stages";
+
+export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, onSelectMany, canEdit = true, onQuickAdd }: KanbanProps) {
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const [initialTab, setInitialTab] = useState<string | undefined>();
   const [activeItem, setActiveItem] = useState<any>(null);
+
+  // Fasi collassate: persistite in localStorage così restano tali al reload.
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_STAGES_KEY);
+      return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const toggleCollapse = useCallback((stageId: string) => {
+    setCollapsedStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(stageId)) next.delete(stageId); else next.add(stageId);
+      try { localStorage.setItem(COLLAPSED_STAGES_KEY, JSON.stringify([...next])); } catch { /* storage non disponibile */ }
+      return next;
+    });
+  }, []);
 
   const sensors = useSensors(
     // Desktop: distance 5px è il minimo che evita click accidentali — sotto si
@@ -220,8 +312,11 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
                 onDelete={handleDelete}
                 selectedIds={selectedIds}
                 onSelect={onSelect}
+                onSelectMany={onSelectMany}
                 canEdit={canEdit}
                 onQuickAdd={onQuickAdd}
+                collapsed={collapsedStages.has(stage.id)}
+                onToggleCollapse={toggleCollapse}
               />
             ))}
           </div>
