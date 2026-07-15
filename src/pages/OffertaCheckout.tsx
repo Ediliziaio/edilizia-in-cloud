@@ -15,8 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Loader2, ShieldCheck, Lock, AlertCircle } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Lock, AlertCircle, Zap, BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
+import logoEic from "@/assets/edilizia-in-cloud-logo-small.webp";
 
 interface OfferConfig {
   planSlug: string;
@@ -157,38 +158,54 @@ export default function OffertaCheckout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/40 to-background">
       <div className="mx-auto max-w-5xl px-4 py-8 md:py-12">
-        {/* Header brand */}
-        <div className="flex items-center gap-2 mb-8">
-          <img src="/edilizia-in-cloud-logo.webp" alt="Edilizia in Cloud" className="h-8 w-auto" onError={(e) => { (e.currentTarget.style.display = "none"); }} />
-          <span className="text-lg font-bold tracking-tight">Edilizia<span className="text-primary">InCloud</span></span>
+        {/* Header brand — logo ufficiale */}
+        <div className="mb-8">
+          <img src={logoEic} alt="Edilizia in Cloud" width={160} height={40} className="h-9 w-auto" />
         </div>
 
         <div className="grid gap-6 md:grid-cols-[1.1fr_1fr] md:gap-8 items-start">
           {/* ── Colonna sinistra: dettagli piano ── */}
-          <div className="rounded-2xl border bg-card p-6 md:p-8 shadow-sm">
-            <span className="inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1">
-              Offerta riservata
+          <div className="relative overflow-hidden rounded-2xl border bg-card p-6 md:p-8 shadow-sm">
+            {/* Barra accento arancione brand */}
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-eic-orange to-eic-orange-soft" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-eic-orange/10 text-eic-orange text-xs font-semibold px-2.5 py-1">
+              <BadgeCheck className="h-3.5 w-3.5" /> Offerta riservata
             </span>
             <h1 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight">{config.name}</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">{config.tagline}</p>
 
             <div className="mt-5 flex items-end gap-2">
-              <span className="text-4xl font-extrabold">{fmtEur(config.priceMonthly)}</span>
+              <span className="text-5xl font-extrabold leading-none text-eic-orange">{fmtEur(config.priceMonthly)}</span>
               <span className="text-sm text-muted-foreground mb-1.5">/ mese</span>
               {config.compareAt && (
                 <span className="mb-1.5 ml-1 text-sm text-muted-foreground line-through">{fmtEur(config.compareAt)}</span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">IVA esclusa · disdici quando vuoi</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {config.compareAt && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5">
+                  Risparmi {fmtEur(config.compareAt - config.priceMonthly)}/mese
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">IVA esclusa · disdici quando vuoi</span>
+            </div>
 
-            <ul className="mt-6 space-y-2.5">
+            <div className="my-5 h-px bg-border" />
+
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">Tutto incluso</p>
+            <ul className="space-y-2.5">
               {config.features.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <Check className="h-4 w-4 mt-0.5 shrink-0 text-eic-orange" strokeWidth={3} />
                   <span>{f}</span>
                 </li>
               ))}
             </ul>
+
+            <div className="mt-6 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-eic-orange" /> Attivazione immediata</span>
+              <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-eic-orange" /> Nessun vincolo</span>
+            </div>
           </div>
 
           {/* ── Colonna destra: form ── */}
@@ -248,7 +265,7 @@ export default function OffertaCheckout() {
               </span>
             </label>
 
-            <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
+            <Button type="submit" className="w-full h-11 text-base bg-eic-orange hover:bg-eic-orange/90 text-white shadow-sm" disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
               Vai al pagamento · {fmtEur(config.priceMonthly)}/mese
             </Button>
