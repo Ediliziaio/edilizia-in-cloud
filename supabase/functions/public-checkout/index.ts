@@ -202,6 +202,20 @@ Deno.serve(async (req) => {
       })),
     ).then(({ error }) => { if (error) console.error("[public-checkout] order_statuses:", error.message); });
 
+    // Dati di fatturazione (letti dalla pagina Abbonamento → "Informazioni fiscali").
+    await admin.from("company_billing_details").upsert({
+      company_id: companyId,
+      legal_name: businessName,
+      vat_number: vatNumber,
+      tax_code: fiscalCode || null,
+      address_line1: legalAddress,
+      city: legalCity,
+      province: legalProvince || null,
+      postal_code: legalPostalCode,
+      country: "IT",
+      invoice_email: email,
+    }, { onConflict: "company_id" }).then(({ error }) => { if (error) console.error("[public-checkout] company_billing_details:", error.message); });
+
     // ── Stripe: customer + Checkout Session (abbonamento) ──
     const appUrl = (await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const base = appUrl.replace(/\/$/, "");

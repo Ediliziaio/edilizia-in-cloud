@@ -231,6 +231,22 @@ async function handleCheckoutCompleted(
     };
     if (planId) update.subscription_plan_id = planId;
     await supabase.from("companies").update(update).eq("id", companyId);
+
+    // Registro abbonamento canonico (pannello Abbonamento, MRR, cancellazione).
+    // Una riga attiva per azienda: pulisco le attive/in-prova e ne creo una.
+    if (planId) {
+      await supabase.from("company_subscriptions").delete()
+        .eq("company_id", companyId).in("status", ["active", "trialing"]);
+      await supabase.from("company_subscriptions").insert({
+        company_id: companyId,
+        plan_id: planId,
+        billing_period: session.metadata?.billing_period === "yearly" ? "yearly" : "monthly",
+        status: "active",
+        stripe_subscription_id: (session.subscription as string | null) ?? null,
+        current_period_start: new Date().toISOString(),
+      });
+    }
+
     // Salva la carta come default del customer (pmId null → la funzione la recupera).
     await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, null);
     return;
