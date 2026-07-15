@@ -313,7 +313,7 @@ function MarketingOpportunitiesContent() {
     for (;;) {
       let query = supabase
         .from("marketing_opportunities")
-        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags)")
         .eq("company_id", companyId)
         .eq("pipeline_id", selectedPipelineId)
         // Coerente con la lista: mai esportare righe soft-deleted.

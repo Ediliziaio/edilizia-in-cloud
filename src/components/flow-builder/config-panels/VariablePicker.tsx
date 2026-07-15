@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Variable, Zap } from "lucide-react";
+import { Variable, Zap, Sparkles } from "lucide-react";
 import { TRIGGER_MAP } from "@/lib/flow-node-catalog";
 
 interface VarEntry {
@@ -12,8 +14,14 @@ interface VarEntry {
 
 interface VarGroup {
   label: string;
-  icon?: "trigger";
+  icon?: "trigger" | "custom";
   vars: VarEntry[];
+}
+
+/** Replica esatta di toSnakeCase del backend (contactCustomFields.ts):
+ *  i campi personalizzati si risolvono come {{contact.<snake_case_del_nome>}}. */
+function toSnakeCase(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
 const CONTACT_VARIABLES: VarEntry[] = [
@@ -22,7 +30,11 @@ const CONTACT_VARIABLES: VarEntry[] = [
   { key: "contact.last_name", label: "Cognome contatto" },
   { key: "contact.email", label: "Email contatto" },
   { key: "contact.phone", label: "Telefono contatto" },
-  { key: "contact.city", label: "Città contatto" },
+  { key: "contact.city", label: "Città" },
+  { key: "contact.province", label: "Provincia" },
+  { key: "contact.region", label: "Regione" },
+  { key: "contact.address", label: "Indirizzo" },
+  { key: "contact.postal_code", label: "CAP" },
   { key: "contact.company_name", label: "Azienda contatto" },
   { key: "contact.source", label: "Fonte contatto" },
 ];
@@ -40,10 +52,31 @@ interface VariablePickerProps {
   onInsert: (variable: string) => void;
   /** Item id del trigger del flusso: le sue variabili di output compaiono in cima. */
   triggerItemId?: string;
+  /** Azienda corrente: abilita il gruppo "Campi personalizzati" del contatto. */
+  companyId?: string;
 }
 
-export function VariablePicker({ onInsert, triggerItemId }: VariablePickerProps) {
+export function VariablePicker({ onInsert, triggerItemId, companyId }: VariablePickerProps) {
+  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+
+  // Campi personalizzati contatto dell'azienda → {{contact.<snake_case>}}
+  const { data: customFields = [] } = useQuery({
+    queryKey: ["variable-picker-custom-fields", companyId],
+    enabled: open && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_custom_fields")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .eq("object_type", "contact")
+        .is("deleted_at", null)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const groups = useMemo<VarGroup[]>(() => {
     const out: VarGroup[] = [];
@@ -58,9 +91,19 @@ export function VariablePicker({ onInsert, triggerItemId }: VariablePickerProps)
       });
     }
     out.push({ label: "Contatto", vars: CONTACT_VARIABLES });
+    if (customFields.length > 0) {
+      out.push({
+        label: "Campi personalizzati",
+        icon: "custom",
+        vars: customFields.map((f: { id: string; name: string }) => ({
+          key: `contact.${toSnakeCase(f.name)}`,
+          label: f.name,
+        })),
+      });
+    }
     out.push({ label: "Altro", vars: OTHER_VARIABLES });
     return out;
-  }, [triggerItemId]);
+  }, [triggerItemId, customFields]);
 
   const q = search.trim().toLowerCase();
   const filtered = groups
@@ -73,7 +116,7 @@ export function VariablePicker({ onInsert, triggerItemId }: VariablePickerProps)
     .filter((g) => g.vars.length > 0);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="h-6 w-6" title="Inserisci variabile">
           <Variable className="h-3.5 w-3.5" />
@@ -83,7 +126,7 @@ export function VariablePicker({ onInsert, triggerItemId }: VariablePickerProps)
         <div className="border-b p-2">
           <Input
             autoFocus
-            placeholder="Cerca variabile… (es. nome, email, campagna)"
+            placeholder="Cerca variabile… (es. nome, città, campagna)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 text-xs"
@@ -94,12 +137,13 @@ export function VariablePicker({ onInsert, triggerItemId }: VariablePickerProps)
             <div key={g.label} className="mb-1.5">
               <p className="sticky top-0 z-10 flex items-center gap-1 bg-popover px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {g.icon === "trigger" && <Zap className="h-3 w-3 text-emerald-600" />}
+                {g.icon === "custom" && <Sparkles className="h-3 w-3 text-violet-600" />}
                 {g.label}
               </p>
               {g.vars.map((v) => (
                 <button
                   key={v.key}
-                  onClick={() => onInsert(`{{${v.key}}}`)}
+                  onClick={() => { onInsert(`{{${v.key}}}`); setOpen(false); }}
                   className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors"
                 >
                   <span className="truncate">{v.label}</span>

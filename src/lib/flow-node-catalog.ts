@@ -1464,9 +1464,10 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
+      // NB: niente campo "ID Contatto" — l'opportunità viene creata SEMPRE sul
+      // contatto iscritto al flusso (il motore usa l'entityId dell'enrollment).
       { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: {{contatto.full_name}} - Facebook' },
       { id: 'valore', label: 'Valore (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
-      { id: 'contact_id', label: 'ID Contatto', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
       // Pipeline/fase REALI dell'azienda (prima c'era uno stage hardcoded che
       // non corrispondeva a nessuna pipeline): l'executor legge pipeline_id +
       // stage_id (con fallback legacy su `stage` per i flussi vecchi).

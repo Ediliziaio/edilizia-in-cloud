@@ -624,7 +624,7 @@ function ConfigField({
             placeholder={field.placeholder}
             className="h-9 text-sm flex-1"
           />
-          {field.supportsVariables && <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} />}
+          {field.supportsVariables && <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} companyId={companyId} />}
         </div>
       )}
 
@@ -647,7 +647,7 @@ function ConfigField({
           />
           {field.supportsVariables && (
             <div className="flex justify-end">
-              <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} />
+              <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} companyId={companyId} />
             </div>
           )}
         </div>

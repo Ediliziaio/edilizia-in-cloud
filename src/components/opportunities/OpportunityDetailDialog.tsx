@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { REGION_OPTIONS } from "@/lib/italianRegions";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -113,6 +114,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // Popup invio rapido SMS/WhatsApp/Email al contatto (senza navigare via).
   const [quickSend, setQuickSend] = useState<{ open: boolean; channel: QuickSendChannel }>({ open: false, channel: "whatsapp" });
   const [contactCity, setContactCity] = useState("");
+  // Indirizzo/provincia/regione: STESSI campi del contatto (marketing_contacts),
+  // non duplicati. Cambiando città, il trigger DB enrich_marketing_contact_geo
+  // ricalcola provincia e regione in automatico dal dataset comuni.
+  const [contactAddress, setContactAddress] = useState("");
+  const [contactProvince, setContactProvince] = useState("");
+  const [contactRegion, setContactRegion] = useState("");
   const [contactCustomValues, setContactCustomValues] = useState<Record<string, string>>({});
 
   // Opportunity fields
@@ -157,7 +164,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     queryFn: async () => {
       let query = supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, city")
+        .select("id, first_name, last_name, email, phone, city, address, province, region")
         .eq("company_id", companyId!)
         .limit(20);
       const safeSearch = sanitizeSearchTerm(contactSearch);
@@ -177,6 +184,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setContactEmail(contact?.email || "");
       setContactPhone(contact?.phone || "");
       setContactCity(contact?.city || "");
+      setContactAddress(contact?.address || "");
+      setContactProvince(contact?.province || "");
+      setContactRegion(contact?.region || "");
       setName(opportunity.name || "");
       setStageId(opportunity.stage_id || "");
       setStatus(opportunity.status || "open");
@@ -301,12 +311,22 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     }
 
     // 2. Update contact base fields if changed (only if not changing contact)
-    if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || "") || contactCity !== (contact.city || ""))) {
+    if (!pendingContactId && !showNewContactForm && contact && (
+      contactEmail !== (contact.email || "") ||
+      contactPhone !== (contact.phone || "") ||
+      contactCity !== (contact.city || "") ||
+      contactAddress !== ((contact as any).address || "") ||
+      contactProvince !== ((contact as any).province || "") ||
+      contactRegion !== ((contact as any).region || "")
+    )) {
       updateContact.mutate({
         id: contact.id,
         email: contactEmail.trim().toLowerCase() || null,
         phone: contactPhone.trim() ? cleanPhone(contactPhone) : null,
         city: contactCity || null,
+        address: contactAddress.trim() || null,
+        province: contactProvince.trim() || null,
+        region: contactRegion || null,
       });
     }
 
@@ -401,6 +421,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     setContactEmail(c.email || "");
     setContactPhone(c.phone || "");
     setContactCity(c.city || "");
+    setContactAddress(c.address || "");
+    setContactProvince(c.province || "");
+    setContactRegion(c.region || "");
     setContactSearch(`${c.first_name} ${c.last_name || ""}`.trim());
     setShowContactDropdown(false);
     setShowNewContactForm(false);
@@ -742,10 +765,39 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       )}
 
+                      {(!hideEmpty || contactAddress) && !showNewContactForm && (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Indirizzo</Label>
+                          <Input value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="Via e numero civico" className="h-10 sm:h-8 text-sm" />
+                        </div>
+                      )}
+
                       {(!hideEmpty || contactCity) && !showNewContactForm && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Città</Label>
                           <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-10 sm:h-8 text-sm" />
+                          <p className="text-[10px] text-muted-foreground">Provincia e regione si compilano da sole dalla città.</p>
+                        </div>
+                      )}
+
+                      {(!hideEmpty || contactProvince || contactRegion) && !showNewContactForm && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Provincia</Label>
+                            <Input value={contactProvince} onChange={(e) => setContactProvince(e.target.value)} placeholder="Es: RM" className="h-10 sm:h-8 text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Regione</Label>
+                            <Select value={contactRegion || "__none__"} onValueChange={(v) => setContactRegion(v === "__none__" ? "" : v)}>
+                              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">—</SelectItem>
+                                {REGION_OPTIONS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       )}
                     </div>

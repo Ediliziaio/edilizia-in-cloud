@@ -188,7 +188,7 @@ export function useOpportunities(pipelineId: string | null) {
       const to = from + PAGE_SIZE - 1;
       let query = supabase
         .from("marketing_opportunities")
-        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags, last_activity_at, created_at)")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags, last_activity_at, created_at)")
         .eq("company_id", companyId!)
         .eq("pipeline_id", pipelineId!)
         // Soft-delete (migration 20260506200000): la colonna esiste con indice
