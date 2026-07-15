@@ -296,12 +296,43 @@ async function handleTrigger(supabase: any, body: any) {
     // Filtri RAPIDI del trigger (configSchema del catalogo): prima erano
     // IGNORATI → es. il template "Alert Costo > €500" scattava su OGNI costo.
     const tcfg = matchingTrigger.config_json ?? {};
-    // Soglia importo (costo_registrato / template Alert Costo)
-    const sogliaRaw = tcfg.importo_minimo ?? tcfg.importo_soglia;
+    const ep = enrichedPayload as Record<string, unknown>;
+    // Soglia importo: chiavi payload diverse per emettitore (costo=importo,
+    // ordine=total_amount, opportunità=value) — prima leggeva solo `importo`
+    // e su ordine_creato/opportunita_creata il filtro spegneva il trigger.
+    const sogliaRaw = tcfg.importo_minimo ?? tcfg.importo_soglia ?? tcfg.valore_minimo;
     if (sogliaRaw != null && sogliaRaw !== "") {
       const soglia = Number(sogliaRaw);
-      const importo = Number((enrichedPayload as Record<string, unknown>)?.importo);
+      const importo = Number(ep?.importo ?? ep?.total_amount ?? ep?.value);
       if (Number.isFinite(soglia) && !(Number.isFinite(importo) && importo >= soglia)) continue;
+    }
+    // Stato di arrivo (ordine_stato_cambiato / ticket_stato_cambiato): confronto
+    // normalizzato (minuscole, spazi→underscore) su status E status_name, perché
+    // le aziende hanno stati con nomi propri. Prima era IGNORATO: scattava su
+    // ogni cambio stato.
+    if (typeof tcfg.stato_a === "string" && tcfg.stato_a !== "") {
+      const normStato = (s: unknown) => String(s ?? "").toLowerCase().trim().replace(/\s+/g, "_");
+      const want = normStato(tcfg.stato_a);
+      const got = [ep?.status, ep?.status_name, ep?.new_status].map(normStato);
+      if (!got.includes(want)) continue;
+    }
+    // Priorità (ticket_creato / task_creato): prima ignorata.
+    if (typeof tcfg.priorita_filtro === "string" && tcfg.priorita_filtro !== "") {
+      if (String(ep?.priority ?? "").toLowerCase() !== tcfg.priorita_filtro.toLowerCase()) continue;
+    }
+    // Campagna (email_aperta): prima ignorata.
+    if (tcfg.campagna_id && String(ep?.campaign_id ?? "") !== String(tcfg.campagna_id)) continue;
+    // Form (form_compilato): prima ignorato.
+    if (tcfg.form_id && String(ep?.form_id ?? "") !== String(tcfg.form_id)) continue;
+    // Campo cambiato (contatto_aggiornato): richiede changed_fields nel payload
+    // (emesso da fire_marketing_automation). Se il payload non lo porta (eventi
+    // vecchi), il filtro non blocca.
+    if (typeof tcfg.campo_filtro === "string" && tcfg.campo_filtro !== "" && Array.isArray(ep?.changed_fields)) {
+      if (!(ep.changed_fields as unknown[]).map(String).includes(tcfg.campo_filtro)) continue;
+    }
+    // Tipo appuntamento (appuntamento_creato): richiede appointment_type nel payload.
+    if (typeof tcfg.tipo_filtro === "string" && tcfg.tipo_filtro !== "" && ep?.appointment_type != null) {
+      if (String(ep.appointment_type).toLowerCase() !== tcfg.tipo_filtro.toLowerCase()) continue;
     }
     // Fonte lead (contatto_creato → fonte_filtro)
     if (typeof tcfg.fonte_filtro === "string" && tcfg.fonte_filtro !== "") {
@@ -890,6 +921,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     invia_sms: "send_sms",
     invia_notifica_inapp: "send_notification",
     notifica_interna: "internal_notification",
+    aggiorna_punteggio: "update_contact_score",
     aggiungi_tag: "add_tag",
     rimuovi_tag: "remove_tag",
     crea_opportunita: "create_opportunity",
@@ -914,6 +946,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     // Notification fields
     if (c.titolo && !c.notification_title) c.notification_title = c.titolo;
     if (c.testo && !c.notification_message) c.notification_message = c.testo;
+    // invia_notifica_inapp: il catalogo salva user_id, l'executor legge
+    // notification_recipient — senza ponte il destinatario scelto era ignorato.
+    if (c.user_id && !c.notification_recipient) c.notification_recipient = c.user_id;
+    // aggiorna_task: il catalogo salva `stato`, l'executor legge task_status.
+    if (c.stato && !c.task_status) c.task_status = c.stato;
     // Email fields
     if (c.destinatario && !c.email_to) c.email_to = c.destinatario;
     if (c.oggetto && !c.email_subject) c.email_subject = c.oggetto;
@@ -1176,14 +1213,26 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "move_opportunity": {
-      const stageId = ncfg.target_stage_id || ncfg.stage;
+      const stageId = ncfg.target_stage_id || ncfg.stage_id || ncfg.stage;
       if (!stageId) return { success: false, error: "No target_stage_id configured" };
-      await supabase
+      // stage_id è un UUID FK su marketing_pipeline_stages: gli slug del
+      // vecchio catalogo ('vinto', 'contattato'…) facevano fallire l'update.
+      if (!UUID_RE.test(String(stageId))) {
+        return { success: false, error: `Fase non valida ("${stageId}"): riconfigura l'azione scegliendo pipeline e fase reali` };
+      }
+      let moveQ = supabase
         .from("marketing_opportunities")
-        .update({ stage_id: stageId })
-        .eq("contact_id", entityId)
-        .eq("company_id", companyId)
-        .eq("status", "open");
+        .update({ stage_id: stageId, stage_changed_at: new Date().toISOString() })
+        .eq("company_id", companyId);
+      // opportunita_id esplicito (uuid) → solo quella; altrimenti tutte le
+      // aperte del contatto (comportamento storico).
+      if (ncfg.opportunita_id && UUID_RE.test(String(ncfg.opportunita_id))) {
+        moveQ = moveQ.eq("id", ncfg.opportunita_id);
+      } else {
+        moveQ = moveQ.eq("contact_id", entityId).eq("status", "open");
+      }
+      const { error: moveErr } = await moveQ;
+      if (moveErr) return { success: false, error: moveErr.message };
       return { success: true, output: { action: "move_opportunity", stageId } };
     }
 
@@ -1203,7 +1252,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         notes: rv(ncfg.task_notes || null),
         priority: ncfg.task_priority || "normale",
         category: ncfg.task_category || "generale",
-        assigned_to: ncfg.task_assigned_to || null,
+        assigned_to: await resolveTaskAssignee(supabase, ncfg.task_assigned_to, entityId, companyId, queueItem?.flow_id),
         due_date: dueDate,
         status: "da_fare",
         // Collega il task al contatto del flusso: prima il task nasceva
@@ -1245,7 +1294,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       if (ncfg.task_title) updateData.title = rv(ncfg.task_title);
       if (ncfg.task_notes) updateData.notes = rv(ncfg.task_notes);
       if (ncfg.task_priority) updateData.priority = ncfg.task_priority;
-      if (ncfg.task_assigned_to) updateData.assigned_to = ncfg.task_assigned_to;
+      if (ncfg.task_assigned_to) {
+        const resolvedAssignee = await resolveTaskAssignee(supabase, ncfg.task_assigned_to, entityId, companyId, queueItem?.flow_id);
+        if (resolvedAssignee) updateData.assigned_to = resolvedAssignee;
+      }
       if (ncfg.task_status) updateData.status = ncfg.task_status;
       if (ncfg.task_due_days != null) {
         // Giorno ITALIANO, non UTC (convenzione anti UTC-drift, come create_task).
@@ -1462,11 +1514,16 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         .eq("company_id", companyId)
         .maybeSingle();
 
-      if (!smsContact?.phone) {
+      // Numero esplicito dal builder (campo "numero"): prima era IGNORATO e
+      // si inviava sempre al telefono del contatto.
+      const smsOverrideTo = typeof ncfg.sms_to === "string" && ncfg.sms_to.trim() !== "" && !ncfg.sms_to.includes("{{")
+        ? ncfg.sms_to.trim()
+        : null;
+      if (!smsOverrideTo && !smsContact?.phone) {
         return { success: false, error: "Contatto senza numero di telefono" };
       }
-      // Consenso: email e WhatsApp controllavano l'opt-out, l'SMS no.
-      if (smsContact.optout_sms || smsContact.opt_out) {
+      // Consenso: l'opt-out vale quando si scrive AL CONTATTO.
+      if (!smsOverrideTo && (smsContact.optout_sms || smsContact.opt_out)) {
         return { success: false, error: "Contact has opted out of SMS" };
       }
 
@@ -1491,9 +1548,9 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             action: "send_sms",
             company_id: companyId,
             payload: {
-              to: smsContact.phone,
+              to: smsOverrideTo ?? smsContact.phone,
               body: smsBody,
-              contact_id: entityId,
+              contact_id: smsOverrideTo ? null : entityId,
             },
           }),
         });
@@ -1691,29 +1748,57 @@ Istruzione: ${aiPrompt}`;
     // ── 6 New cross-domain handlers (FLOW-EXT-04) ──
 
     case "crea_bozza_ordine": {
-      const title = ncfg.titolo || ncfg.task_title || "Nuovo ordine automatico";
-      const clienteId = ncfg.cliente_id || entityId;
+      // Colonne REALI di orders (prima: title/contact_id/notes inesistenti →
+      // errore Postgres a ogni esecuzione). Dati cliente denormalizzati dal
+      // contatto del flusso, come fa crea_cantiere.
+      const title = rv(ncfg.titolo || ncfg.task_title || "Nuovo ordine automatico");
       const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const { data: ordContact } = await supabase
+        .from("marketing_contacts")
+        .select("first_name, last_name, email, phone, customer_profile_id")
+        .eq("id", entityId).eq("company_id", companyId).maybeSingle();
+      const ordClientName = ordContact
+        ? [ordContact.first_name, ordContact.last_name].filter(Boolean).join(" ").trim()
+        : "";
       const { data, error } = await supabase.from("orders").insert({
         company_id: companyId,
-        title,
-        contact_id: clienteId,
+        description: ncfg.note ? `${title} — ${rv(String(ncfg.note))}` : title,
         total_amount: importo,
-        status: "draft",
-        notes: ncfg.note || null,
+        status: "bozza",
+        customer_id: ordContact?.customer_profile_id || null,
+        client_name: ordClientName || null,
+        client_email: ordContact?.email || null,
+        client_phone: ordContact?.phone || null,
       }).select("id").single();
       if (error) return { success: false, error: error.message };
       return { success: true, output: { action: "crea_bozza_ordine", ordine_id: data?.id } };
     }
 
     case "crea_bozza_preventivo": {
-      const title = ncfg.titolo || "Nuovo preventivo automatico";
-      const clienteId = ncfg.cliente_id || entityId;
+      // quotes richiede quote_number (RPC generate_quote_number) e created_by
+      // NOT NULL (chi ha creato il flusso). Prima l'insert falliva SEMPRE.
+      const title = rv(ncfg.titolo || "Nuovo preventivo automatico");
+      const { data: qNum } = await supabase.rpc("generate_quote_number", { p_company_id: companyId });
+      const { data: qFlow } = await supabase
+        .from("automation_flows").select("created_by").eq("id", queueItem?.flow_id).maybeSingle();
+      if (!qFlow?.created_by) return { success: false, error: "Flusso senza creatore: impossibile intestare il preventivo" };
+      const { data: qContact } = await supabase
+        .from("marketing_contacts")
+        .select("first_name, last_name, email, phone, company_name")
+        .eq("id", entityId).eq("company_id", companyId).maybeSingle();
       const { data, error } = await supabase.from("quotes").insert({
         company_id: companyId,
+        quote_number: qNum || `AUTO-${crypto.randomUUID().slice(0, 8)}`,
         title,
-        contact_id: clienteId,
-        status: "draft",
+        status: "bozza",
+        contact_id: UUID_RE.test(String(entityId)) ? entityId : null,
+        client_name: qContact ? ([qContact.first_name, qContact.last_name].filter(Boolean).join(" ").trim() || null) : null,
+        client_email: qContact?.email || null,
+        client_phone: qContact?.phone || null,
+        client_company: qContact?.company_name || null,
+        validity_days: parseInt(String(ncfg.validita_giorni)) || 30,
+        created_by: qFlow.created_by,
+        assigned_to: ncfg.assegnato_a && UUID_RE.test(String(ncfg.assegnato_a)) ? ncfg.assegnato_a : null,
       }).select("id").single();
       if (error) return { success: false, error: error.message };
       return { success: true, output: { action: "crea_bozza_preventivo", preventivo_id: data?.id } };
@@ -1800,14 +1885,21 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_ticket": {
-      const oggetto = ncfg.oggetto || "Ticket automatico";
+      // Colonne/enum reali di tickets (prima: description/contact_id
+      // inesistenti + status "open" e priority "media" fuori enum → falliva
+      // sempre). customer_id solo se esplicito e uuid (FK, l'entity del
+      // flusso è un marketing_contact, non un customer).
+      const oggetto = rv(ncfg.oggetto || "Ticket automatico");
+      const TICKET_PRIORITY = new Set(["bassa", "normale", "alta", "urgente"]);
+      const ticketPriority = TICKET_PRIORITY.has(String(ncfg.priorita)) ? String(ncfg.priorita) : "normale";
       const { data, error } = await supabase.from("tickets").insert({
         company_id: companyId,
         subject: oggetto,
-        description: ncfg.descrizione || null,
-        priority: ncfg.priorita || "media",
-        contact_id: ncfg.cliente_id || entityId,
-        status: "open",
+        descrizione: ncfg.descrizione ? rv(String(ncfg.descrizione)) : null,
+        priority: ticketPriority,
+        customer_id: ncfg.cliente_id && UUID_RE.test(String(ncfg.cliente_id)) ? ncfg.cliente_id : null,
+        status: "aperto",
+        fonte: "automazione",
       }).select("id").single();
       if (error) return { success: false, error: error.message };
       return { success: true, output: { action: "crea_ticket", ticket_id: data?.id } };
@@ -1819,11 +1911,22 @@ Istruzione: ${aiPrompt}`;
       // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
       const scadenzaStr = new Date(Date.now() + scadenzaGiorni * 86_400_000)
         .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+      // Colonne reali di invoices (prima: contact_id/total_amount/description
+      // inesistenti e client_company_name NOT NULL mancante → falliva sempre).
+      const { data: invContact } = await supabase
+        .from("marketing_contacts")
+        .select("first_name, last_name, email, company_name")
+        .eq("id", entityId).eq("company_id", companyId).maybeSingle();
+      const invClientName = invContact
+        ? ([invContact.first_name, invContact.last_name].filter(Boolean).join(" ").trim())
+        : "";
       const { data, error } = await supabase.from("invoices").insert({
         company_id: companyId,
-        contact_id: ncfg.cliente_id || entityId,
-        total_amount: importo,
-        description: ncfg.descrizione || "Fattura automatica",
+        client_company_name: invContact?.company_name || invClientName || "Cliente",
+        client_email: invContact?.email || null,
+        subtotal: importo,
+        total: importo,
+        notes: rv(String(ncfg.descrizione ?? "Fattura automatica")),
         due_date: scadenzaStr,
         status: "draft",
       }).select("id").single();
@@ -2940,6 +3043,43 @@ async function resolveContactText(
 // ────────────────────────────────────────────────────
 // HELPERS
 // ────────────────────────────────────────────────────
+
+/**
+ * Il builder salva l'assegnatario dei task come SENTINELLA
+ * ("contatto_owner" / "utente_corrente" / "specifico") oppure come uuid.
+ * tasks.assigned_to è una FK uuid su profiles: senza risoluzione l'insert
+ * falliva appena l'utente toccava il select.
+ */
+async function resolveTaskAssignee(
+  supabase: any,
+  raw: unknown,
+  entityId: string,
+  companyId: string,
+  flowId?: string,
+): Promise<string | null> {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return null;
+  if (UUID_RE.test(v)) return v;
+  if (v === "contatto_owner") {
+    const { data } = await supabase
+      .from("marketing_contacts")
+      .select("assigned_to")
+      .eq("id", entityId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    return data?.assigned_to ?? null;
+  }
+  // "utente_corrente" / "specifico" (senza picker) → chi ha creato il flusso
+  if (flowId) {
+    const { data } = await supabase
+      .from("automation_flows")
+      .select("created_by")
+      .eq("id", flowId)
+      .maybeSingle();
+    return data?.created_by ?? null;
+  }
+  return null;
+}
 
 async function completeExecutionRun(supabase: any, enrollmentId: string, status: "completed" | "error", errorMessage?: string) {
   try {

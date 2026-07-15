@@ -5,7 +5,7 @@ import {
   ListTodo, ClipboardCheck, Mail, MessageSquare, Phone, Mic, Bell, Send,
   Tag, DollarSign, CheckSquare, Edit, UserMinus, Webhook, ArrowRight,
   StopCircle, RefreshCw, Zap, Star, StickyNote, GitBranch, Flag, Shuffle,
-  Hourglass, type LucideIcon,
+  Hourglass, BellRing, FileWarning, TrendingUp, type LucideIcon,
 } from "lucide-react";
 
 /** Map trigger catalog IDs → Lucide icons */
@@ -44,6 +44,7 @@ const TRIGGER_ICON_MAP: Record<string, LucideIcon> = {
   compleanno_cliente: Star,
   modulo_compilato: ListTodo,
   preventivo_in_scadenza: Hourglass,
+  documento_hr_in_scadenza: FileWarning,
   spesa_registrata: DollarSign,
   email_aperta: Mail,
   email_cliccata: Mail,
@@ -57,6 +58,8 @@ const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   invia_sms: MessageSquare,
   invia_whatsapp: MessageSquare,
   invia_notifica_push: Bell,
+  notifica_interna: BellRing,
+  aggiorna_punteggio: TrendingUp,
   chiama_ai: Phone,
   lascia_voicemail: Mic,
   aggiungi_tag: Tag,

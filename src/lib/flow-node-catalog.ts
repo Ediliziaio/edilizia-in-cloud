@@ -1100,8 +1100,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
   // ═══ SCHEDULATI / MANUALI ═══
   {
     id: 'cron_giornaliero',
-    label: 'Ogni giorno (a orario fisso)',
-    description: "Il flow si esegue automaticamente ogni giorno all'orario specificato",
+    label: 'Ogni giorno (di mattina)',
+    description: "Il flow si esegue automaticamente ogni mattina",
     icon: 'Clock',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
@@ -1109,14 +1109,14 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'cron.data', label: 'Data esecuzione', type: 'date' },
       { id: 'cron.ora', label: 'Ora esecuzione', type: 'string' },
     ],
-    configSchema: [
-      { id: 'orario', label: 'Orario di esecuzione', type: 'time', required: true, defaultValue: '08:00', helpText: "Ora locale dell'azienda" },
-    ],
+    // NB: nessun campo orario — il controllo schedulati gira una volta al
+    // giorno (di mattina). Un orario configurabile sarebbe stato decorativo.
+    configSchema: [],
   },
   {
     id: 'cron_settimanale',
     label: 'Ogni settimana (giorno fisso)',
-    description: 'Il flow si esegue una volta alla settimana nel giorno specificato',
+    description: 'Il flow si esegue una volta alla settimana, di mattina nel giorno scelto',
     icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
@@ -1130,13 +1130,12 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
         { value: 'mercoledi', label: 'Mercoledì' }, { value: 'giovedi', label: 'Giovedì' },
         { value: 'venerdi', label: 'Venerdì' }, { value: 'sabato', label: 'Sabato' }, { value: 'domenica', label: 'Domenica' },
       ]},
-      { id: 'orario', label: 'Orario', type: 'time', required: true, defaultValue: '08:00' },
     ],
   },
   {
     id: 'cron_mensile',
     label: 'Ogni mese (giorno fisso)',
-    description: 'Il flow si esegue una volta al mese',
+    description: 'Il flow si esegue una volta al mese, di mattina nel giorno scelto',
     icon: 'Calendar',
     categoria: 'generale',
     dbEvent: 'SCHEDULED',
@@ -1146,7 +1145,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'giorno_mese', label: 'Giorno del mese', type: 'number', required: true, defaultValue: 1, min: 1, max: 28, helpText: 'Max 28 per evitare problemi con febbraio' },
-      { id: 'orario', label: 'Orario', type: 'time', required: true, defaultValue: '08:00' },
     ],
   },
   {
@@ -1527,18 +1525,32 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     ],
   },
   {
+    id: 'aggiorna_punteggio',
+    label: 'Aggiorna punteggio contatto',
+    description: 'Aumenta, diminuisce o imposta il lead score del contatto (per prioritizzare i lead caldi)',
+    icon: 'TrendingUp',
+    categoria: 'crm',
+    configSchema: [
+      { id: 'score_mode', label: 'Operazione', type: 'select', required: true, defaultValue: 'add', options: [
+        { value: 'add', label: 'Aggiungi punti' },
+        { value: 'subtract', label: 'Togli punti' },
+        { value: 'set', label: 'Imposta a valore fisso' },
+      ]},
+      { id: 'score_value', label: 'Punti', type: 'number', required: true, defaultValue: 10, min: 0, max: 1000 },
+    ],
+  },
+  {
     id: 'sposta_opportunita',
-    label: 'Sposta opportunità a stage',
-    description: 'Cambia lo stage di una opportunità esistente nella pipeline',
+    label: 'Sposta opportunità a fase',
+    description: 'Cambia la fase di una opportunità esistente nella pipeline',
     icon: 'BarChart3',
     categoria: 'crm',
     configSchema: [
-      { id: 'opportunita_id', label: 'ID Opportunità', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.id}}' },
-      { id: 'stage', label: 'Nuovo stage', type: 'select', required: true, options: [
-        { value: 'contattato', label: 'Contattato' }, { value: 'appuntamento', label: 'Appuntamento fissato' },
-        { value: 'offerta_inviata', label: 'Offerta inviata' }, { value: 'negoziazione', label: 'In negoziazione' },
-        { value: 'vinto', label: 'Vinto ✅' }, { value: 'perso', label: 'Perso ❌' },
-      ]},
+      // Pipeline/fase REALI (stage_id è un UUID FK): gli slug del vecchio
+      // catalogo facevano fallire l'update con "invalid input syntax for uuid".
+      { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
+      { id: 'stage_id', label: 'Nuova fase', type: 'pipeline_stage_select', required: true },
+      { id: 'opportunita_id', label: 'ID Opportunità (opzionale)', type: 'text', required: false, supportsVariables: true, placeholder: '{{opportunita.id}} — vuoto = opportunità aperte del contatto' },
     ],
   },
   {
@@ -1571,7 +1583,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'tabella', label: 'Entità da aggiornare', type: 'select', required: true, options: [
         { value: 'contacts', label: 'Contatto' }, { value: 'opportunities', label: 'Opportunità' },
         { value: 'tickets', label: 'Ticket assistenza' }, { value: 'tasks', label: 'Task' },
-        { value: 'orders', label: 'Ordine' }, { value: 'invoices', label: 'Fattura' }, { value: 'estimates', label: 'Preventivo' },
+        { value: 'orders', label: 'Ordine' }, { value: 'invoices', label: 'Fattura' },
       ]},
       { id: 'entity_id', label: 'ID entità', type: 'text', required: true, supportsVariables: true, placeholder: '{{contatto.id}}' },
       { id: 'campo', label: 'Nome campo DB', type: 'text', required: true, placeholder: 'Es: status, assigned_to, notes' },
@@ -1653,12 +1665,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'oggetto', label: 'Oggetto ticket', type: 'text', required: true, supportsVariables: true },
       { id: 'descrizione', label: 'Descrizione problema', type: 'textarea', required: false, supportsVariables: true },
-      { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'media', options: [
+      { id: 'priorita', label: 'Priorità', type: 'select', required: true, defaultValue: 'normale', options: [
         { value: 'urgente', label: 'Urgente' }, { value: 'alta', label: 'Alta' },
-        { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' },
+        { value: 'normale', label: 'Normale' }, { value: 'bassa', label: 'Bassa' },
       ]},
-      { id: 'cliente_id', label: 'ID Cliente', type: 'text', required: false, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'assegnato_a', label: 'Assegna a', type: 'user_select', required: false },
+      { id: 'cliente_id', label: 'ID Cliente (opzionale)', type: 'text', required: false, supportsVariables: true, placeholder: 'ID cliente registrato' },
     ],
   },
   {
