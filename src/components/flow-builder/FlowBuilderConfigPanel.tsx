@@ -88,7 +88,11 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   email_aperta: "communication",
   email_cliccata: "communication",
   whatsapp_ricevuto: "communication",
-  campagna_facebook_lead: "social_media",
+  // Il lead Facebook iscrive un CONTATTO (meta-process-leads → entity_type
+  // 'contact'): categoria "contact" così i filtri offrono i campi contatto e
+  // le azioni sanno che il contatto arriva dal trigger (badge verde, niente
+  // campo "ID Contatto" da compilare a mano).
+  campagna_facebook_lead: "contact",
   // Ordini
   ordine_creato: "order",
   ordine_stato_cambiato: "order",
@@ -417,16 +421,6 @@ function TagActionPanel({
   triggerProvidesContact: boolean;
   actionType: "aggiungi" | "rimuovi";
 }) {
-  const [overrideContact, setOverrideContact] = useState(false);
-
-  // Auto-fill contact_id when the trigger provides a contact
-  useEffect(() => {
-    if (triggerProvidesContact && !config.contact_id) {
-      onChange("contact_id", AUTO_CONTACT_VAR);
-    }
-  }, [triggerProvidesContact]);
-
-  const showAutoContact = triggerProvidesContact && !overrideContact;
   const tags: string[] = Array.isArray(config.tags)
     ? config.tags
     : config.tags
@@ -435,54 +429,16 @@ function TagActionPanel({
 
   return (
     <div className="space-y-4">
-      {/* Contact ID */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">
-          ID Contatto <span className="text-destructive">*</span>
-        </Label>
-
-        {showAutoContact ? (
-          <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-500/10 px-3 py-2.5">
-            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-green-700 dark:text-green-400">Contatto dal trigger</p>
-              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{AUTO_CONTACT_VAR}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
-              onClick={() => setOverrideContact(true)}
-            >
-              Cambia
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <Input
-              value={config.contact_id ?? ""}
-              onChange={(e) => onChange("contact_id", e.target.value)}
-              placeholder={AUTO_CONTACT_VAR}
-              className="h-9 text-sm font-mono"
-            />
-            {triggerProvidesContact && (
-              <button
-                type="button"
-                className="flex items-center gap-1 text-[11px] text-primary hover:underline"
-                onClick={() => { onChange("contact_id", AUTO_CONTACT_VAR); setOverrideContact(false); }}
-              >
-                <RotateCcw className="h-3 w-3" />
-                Usa contatto dal trigger
-              </button>
-            )}
-            {!triggerProvidesContact && (
-              <p className="text-[10px] text-muted-foreground">
-                Inserisci l'ID del contatto o una variabile come <span className="font-mono">{AUTO_CONTACT_VAR}</span>.
-                Aggiungi un trigger al flusso per il riempimento automatico.
-              </p>
-            )}
-          </div>
-        )}
+      {/* Il motore applica SEMPRE i tag al contatto iscritto al flusso
+          (entityId dell'enrollment): un campo "ID Contatto" qui era solo
+          rumore che confondeva — l'executor lo ignorava comunque. */}
+      <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-900 bg-green-500/10 px-3 py-2.5">
+        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+        <p className="text-xs text-green-700 dark:text-green-400">
+          {triggerProvidesContact
+            ? "Agisce sul contatto che attiva il flusso."
+            : "Agisce sul contatto iscritto al flusso dal trigger."}
+        </p>
       </div>
 
       {/* Tags */}
@@ -668,7 +624,7 @@ function ConfigField({
             placeholder={field.placeholder}
             className="h-9 text-sm flex-1"
           />
-          {field.supportsVariables && <VariablePicker onInsert={insertVariable} />}
+          {field.supportsVariables && <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} />}
         </div>
       )}
 
@@ -691,7 +647,7 @@ function ConfigField({
           />
           {field.supportsVariables && (
             <div className="flex justify-end">
-              <VariablePicker onInsert={insertVariable} />
+              <VariablePicker onInsert={insertVariable} triggerItemId={triggerItemId} />
             </div>
           )}
         </div>

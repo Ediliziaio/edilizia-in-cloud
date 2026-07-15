@@ -1129,9 +1129,23 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "create_opportunity": {
-      // rv(): {{contatto.full_name}} ecc. nel nome/valore — prima uscivano letterali
-      const name = rv(ncfg.opportunity_name) || "Nuova Opportunità";
-      const value = Number(rv(ncfg.opportunity_value)) || 0;
+      // Variabili in nome/valore/fonte: PRIMA i campi contatto (resolveContactText
+      // gestisce {{contatto.X}}/{{contact.X}} + campi personalizzati), POI il
+      // payload del trigger (rv). L'ordine conta: rv() azzera i token che non
+      // conosce, quindi se girasse per primo cancellerebbe {{contatto.full_name}}.
+      const { data: oppContact } = await supabase
+        .from("marketing_contacts")
+        .select("*")
+        .eq("id", entityId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const resolveOppText = async (s: unknown): Promise<string> => {
+        if (typeof s !== "string" || s === "") return "";
+        const withContact = oppContact ? await resolveContactText(supabase, s, oppContact, companyId) : s;
+        return rv(withContact);
+      };
+      const name = (await resolveOppText(ncfg.opportunity_name)).trim() || "Nuova Opportunità";
+      const value = Number((await resolveOppText(ncfg.opportunity_value)).replace(",", ".")) || 0;
       const pipelineId = ncfg.pipeline_id;
       const stageId = ncfg.stage_id || ncfg.stage;
 
@@ -1146,8 +1160,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       if (stageId) insertData.stage_id = stageId;
       if (ncfg.assegnato_a) insertData.assigned_to = ncfg.assegnato_a;
       if (ncfg.call_center_id) insertData.call_center_id = ncfg.call_center_id;
-      const fonte = rv(ncfg.fonte);
-      if (fonte) insertData.source = String(fonte).slice(0, 100);
+      const fonte = await resolveOppText(ncfg.fonte);
+      if (fonte) insertData.source = fonte.slice(0, 100);
 
       const { error } = await supabase
         .from("marketing_opportunities")
