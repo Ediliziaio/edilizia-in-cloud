@@ -107,7 +107,29 @@ function TabAbbonamenti() {
     );
   }
 
-  if (!billing) return null;
+  // Mai blank: se per qualsiasi motivo le info piano non arrivano, mostriamo
+  // comunque un accesso al portale Stripe (metodo di pagamento + cancellazione)
+  // invece di una scheda vuota.
+  if (!billing) {
+    return (
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight">Il tuo abbonamento</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Non riusciamo a caricare i dettagli del piano in questo momento. Puoi comunque
+              gestire pagamento e cancellazione dal portale sicuro.
+            </p>
+          </div>
+          <Button onClick={() => openPortal()} disabled={isPending} className="gap-1.5">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+            Gestisci abbonamento
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const priceLabel = billing.planPriceMonthly === 0
     ? "Gratuito"
@@ -199,6 +221,18 @@ function TabAbbonamenti() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 Pagamento non riuscito. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per aggiornare il metodo di pagamento.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Cancellazione programmata — l'abbonamento resta attivo fino a fine periodo. */}
+          {billing.cancelAtPeriodEnd && (
+            <Alert className="mt-5 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                Abbonamento in <strong>cancellazione</strong>: resta attivo
+                {billing.currentPeriodEnd ? <> fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong></> : " fino a fine periodo"},
+                poi non verrà rinnovato. Puoi riattivarlo dal portale prima di quella data.
               </AlertDescription>
             </Alert>
           )}
