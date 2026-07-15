@@ -42,10 +42,15 @@ export interface BillingActivationState {
   needsBillingData: boolean;
   /** true se manca un metodo di pagamento valido. */
   needsPaymentMethod: boolean;
+  /** true se l'abbonamento è scaduto/cancellato → lockout duro (chi non paga più). */
+  subscriptionExpired: boolean;
   /** true se l'utente corrente può completare i passaggi (company_admin). */
   canManage: boolean;
   companyId: string | undefined;
 }
+
+/** Stati abbonamento "morto": la piattaforma va bloccata finché non si rinnova. */
+const DEAD_SUBSCRIPTION_STATUSES = new Set(["expired", "canceled"]);
 
 /** Ruoli che possono completare dati di fatturazione + carta. */
 const CAN_MANAGE_ROLES = new Set(["company_admin"]);
@@ -73,14 +78,19 @@ export function useBillingActivationGate(): BillingActivationState {
 
   const exempt = !effectiveCompany || isDemoCompany || isGifted || roleExempt || isActiveTrial;
 
+  // Lockout duro: abbonamento scaduto/cancellato (chi non paga più) → blocco totale
+  // finché non rinnova. Le esenzioni (demo/comped/super_admin) valgono anche qui.
+  const subscriptionExpired = !exempt && DEAD_SUBSCRIPTION_STATUSES.has(status);
+
   const needsBillingData = !exempt && !billingComplete;
   const needsPaymentMethod = !exempt && !hasPaymentMethod;
-  const isBlocked = needsBillingData || needsPaymentMethod;
+  const isBlocked = needsBillingData || needsPaymentMethod || subscriptionExpired;
 
   return {
     isBlocked,
     needsBillingData,
     needsPaymentMethod,
+    subscriptionExpired,
     canManage: !!role && CAN_MANAGE_ROLES.has(role),
     companyId: effectiveCompany?.id,
   };

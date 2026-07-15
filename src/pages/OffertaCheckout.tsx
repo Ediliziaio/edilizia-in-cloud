@@ -77,6 +77,14 @@ export default function OffertaCheckout() {
     phone: "",
     sector: "altro",
     password: "",
+    // Dati per la fattura (attivazione immediata + fattura Stripe corretta)
+    business_name: "",
+    vat_number: "",
+    fiscal_code: "",
+    legal_address: "",
+    legal_city: "",
+    legal_province: "",
+    legal_postal_code: "",
   });
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -102,6 +110,11 @@ export default function OffertaCheckout() {
     if (!form.first_name.trim()) return toast.error("Inserisci il tuo nome");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("Email non valida");
     if (form.password.length < 8) return toast.error("La password deve avere almeno 8 caratteri");
+    if (!form.business_name.trim()) return toast.error("Inserisci la ragione sociale");
+    if (form.vat_number.replace(/\D/g, "").length < 11) return toast.error("Inserisci una P.IVA valida (11 cifre)");
+    if (!form.legal_address.trim()) return toast.error("Inserisci l'indirizzo della sede legale");
+    if (!form.legal_city.trim()) return toast.error("Inserisci la città della sede legale");
+    if (!/^\d{5}$/.test(form.legal_postal_code.trim())) return toast.error("Inserisci un CAP valido (5 cifre)");
     if (!accepted) return toast.error("Accetta i termini per procedere");
 
     setLoading(true);
@@ -118,6 +131,13 @@ export default function OffertaCheckout() {
             phone: form.phone.trim(),
             sector: form.sector,
             password: form.password,
+            business_name: form.business_name.trim(),
+            vat_number: form.vat_number.trim(),
+            fiscal_code: form.fiscal_code.trim(),
+            legal_address: form.legal_address.trim(),
+            legal_city: form.legal_city.trim(),
+            legal_province: form.legal_province.trim(),
+            legal_postal_code: form.legal_postal_code.trim(),
           },
         },
       );
@@ -255,6 +275,47 @@ export default function OffertaCheckout() {
             <div className="space-y-1.5">
               <Label htmlFor="password">Password *</Label>
               <Input id="password" type="password" value={form.password} onChange={(e) => set("password")(e.target.value)} autoComplete="new-password" placeholder="Almeno 8 caratteri" required />
+            </div>
+
+            {/* ── Dati per la fattura (attivazione immediata + fattura corretta) ── */}
+            <div className="pt-2 border-t">
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Dati per la fattura</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="business_name">Ragione sociale *</Label>
+              <Input id="business_name" value={form.business_name} onChange={(e) => set("business_name")(e.target.value)} placeholder="Come da visura camerale" autoComplete="organization" required />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="vat_number">P.IVA *</Label>
+                <Input id="vat_number" value={form.vat_number} onChange={(e) => set("vat_number")(e.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" placeholder="11 cifre" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fiscal_code">Codice Fiscale</Label>
+                <Input id="fiscal_code" value={form.fiscal_code} onChange={(e) => set("fiscal_code")(e.target.value.toUpperCase())} placeholder="Se diverso" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="legal_address">Indirizzo sede legale *</Label>
+              <Input id="legal_address" value={form.legal_address} onChange={(e) => set("legal_address")(e.target.value)} placeholder="Via e numero civico" autoComplete="street-address" required />
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="legal_city">Città *</Label>
+                <Input id="legal_city" value={form.legal_city} onChange={(e) => set("legal_city")(e.target.value)} autoComplete="address-level2" required />
+              </div>
+              <div className="w-16 space-y-1.5">
+                <Label htmlFor="legal_province">Prov.</Label>
+                <Input id="legal_province" value={form.legal_province} onChange={(e) => set("legal_province")(e.target.value.toUpperCase().slice(0, 2))} maxLength={2} placeholder="MI" />
+              </div>
+              <div className="w-24 space-y-1.5">
+                <Label htmlFor="legal_postal_code">CAP *</Label>
+                <Input id="legal_postal_code" value={form.legal_postal_code} onChange={(e) => set("legal_postal_code")(e.target.value.replace(/\D/g, "").slice(0, 5))} inputMode="numeric" maxLength={5} required />
+              </div>
             </div>
 
             <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">

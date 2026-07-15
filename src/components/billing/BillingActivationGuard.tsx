@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBillingActivationGate } from "@/hooks/useBillingActivationGate";
-import { useStartCardSetup } from "@/hooks/useBilling";
+import { useStartCardSetup, useOpenBillingPortal } from "@/hooks/useBilling";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck,
+  Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 
 /**
@@ -188,7 +188,8 @@ function PaymentStep({ done }: { done: boolean; companyId?: string; method: stri
 
 export function BillingActivationGuard({ children }: { children: ReactNode }) {
   const { effectiveCompany, signOut } = useAuth();
-  const { isBlocked, needsBillingData, needsPaymentMethod, canManage } = useBillingActivationGate();
+  const { isBlocked, needsBillingData, needsPaymentMethod, subscriptionExpired, canManage } = useBillingActivationGate();
+  const openPortal = useOpenBillingPortal();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c = effectiveCompany as any;
@@ -205,6 +206,37 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
   }), [c]);
 
   if (!isBlocked) return <>{children}</>;
+
+  // ── Lockout duro: abbonamento scaduto/cancellato (chi non paga più) ──
+  if (subscriptionExpired) {
+    return (
+      <div className="min-h-[100dvh] w-full flex items-center justify-center bg-muted/30 px-4 py-8">
+        <Card className="w-full max-w-md border-destructive/30">
+          <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-7 w-7 text-destructive" />
+            </div>
+            <h1 className="text-xl font-semibold">Abbonamento scaduto</h1>
+            <p className="text-sm text-muted-foreground">
+              Il tuo abbonamento non è più attivo e il gestionale è bloccato.
+              {canManage
+                ? " Rinnova per riattivare subito la piattaforma e i tuoi dati."
+                : " Contatta l'amministratore della tua azienda per rinnovare."}
+            </p>
+            {canManage && (
+              <Button className="mt-2 w-full" onClick={() => openPortal.mutate()} disabled={openPortal.isPending}>
+                {openPortal.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                Rinnova abbonamento
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
+              <LogOut className="mr-2 h-4 w-4" /> Esci
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const billingDone = !needsBillingData;
   const paymentDone = !needsPaymentMethod;
