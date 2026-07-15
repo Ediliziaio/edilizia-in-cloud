@@ -238,6 +238,16 @@ function MarketingOpportunitiesContent() {
     });
   }, []);
 
+  // Select-all per fase (checkbox nell'header della colonna kanban): aggiunge o
+  // rimuove in blocco tutti gli id passati.
+  const handleSelectMany = useCallback((ids: string[], sel: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (sel) ids.forEach((id) => next.add(id)); else ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
@@ -852,7 +862,7 @@ function MarketingOpportunitiesContent() {
           {viewMode === "list" ? (
             <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} />
           ) : (
-            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }} /></div>
+            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} onSelectMany={handleSelectMany} canEdit={canEditOpportunities} onQuickAdd={(stageId) => { setQuickAddStageId(stageId); setDialogOpen(true); }} /></div>
           )}
         </>
       )}

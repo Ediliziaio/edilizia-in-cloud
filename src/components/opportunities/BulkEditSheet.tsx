@@ -18,7 +18,7 @@ interface BulkEditSheetProps {
   canEdit?: boolean;
 }
 
-type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source";
+type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source" | "expected_close_date" | "next_action";
 
 const FIELDS: { key: Field; label: string }[] = [
   { key: "stage_id", label: "Fase" },
@@ -27,6 +27,8 @@ const FIELDS: { key: Field; label: string }[] = [
   { key: "assigned_to", label: "Venditore" },
   { key: "follower_id", label: "Follower" },
   { key: "source", label: "Fonte" },
+  { key: "expected_close_date", label: "Data chiusura prevista" },
+  { key: "next_action", label: "Prossima azione" },
 ];
 
 export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone, canEdit = true }: BulkEditSheetProps) {
@@ -63,6 +65,10 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
     } else if (selectedField === "source") {
       data.source = fieldValue.trim();
+    } else if (selectedField === "expected_close_date") {
+      data.expected_close_date = fieldValue; // input date → YYYY-MM-DD
+    } else if (selectedField === "next_action") {
+      data.next_action = fieldValue.trim();
     } else if (selectedField === "stage_id") {
       // Coerenza col drag kanban e il quick-move lista: la fase può derivare
       // lo status (auto_status). PRIMA il bulk spostava in una colonna
@@ -185,6 +191,22 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
                 {selectedField === "source" && (
                   <Input
                     placeholder="Nuova fonte..."
+                    value={fieldValue}
+                    onChange={(e) => setFieldValue(e.target.value)}
+                  />
+                )}
+
+                {selectedField === "expected_close_date" && (
+                  <Input
+                    type="date"
+                    value={fieldValue}
+                    onChange={(e) => setFieldValue(e.target.value)}
+                  />
+                )}
+
+                {selectedField === "next_action" && (
+                  <Input
+                    placeholder="Es. Richiamare, inviare preventivo..."
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
                   />
