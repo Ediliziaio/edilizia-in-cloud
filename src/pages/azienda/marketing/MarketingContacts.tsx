@@ -1702,8 +1702,38 @@ export default function MarketingContacts() {
         <ContactListsView />
       ) : (
         <>
-          {/* Quality cockpit */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* Mini dashboard mobile: 4 KPI compatti al posto del cockpit qualità
+              (richiesta utente: su mobile solo numeri essenziali + elenco).
+              Il tap filtra la lista come le chip desktop; ri-tap = rimuove. */}
+          <div className="grid grid-cols-4 gap-1.5 sm:hidden">
+            {([
+              { key: "all", label: "Totale", value: reachStats?.total, activeCls: "border-slate-400 bg-slate-100 text-slate-900" },
+              { key: "contactable", label: "Contattabili", value: reachStats?.reachable, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+              { key: "has_email", label: "Email", value: reachStats?.withEmail, activeCls: "border-sky-300 bg-sky-50 text-sky-700" },
+              { key: "no_contact", label: "No contatto", value: reachStats?.unreachable, activeCls: "border-red-300 bg-red-50 text-red-700" },
+            ] as const).map(({ key, label, value, activeCls }) => {
+              const active = qualityFilter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setQualityFilter(active && key !== "all" ? "all" : key)}
+                  className={`rounded-xl border px-1 py-2 text-center transition-colors ${
+                    active ? activeCls : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  <p className="text-base font-bold leading-none tabular-nums">
+                    {value != null ? value.toLocaleString("it-IT") : "—"}
+                  </p>
+                  <p className="mt-1 truncate text-[10px] leading-none text-muted-foreground">{label}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quality cockpit — solo desktop: su mobile è sostituito dalla
+              mini dashboard qui sopra. */}
+          <div className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:block">
             {/* v8.7 — header ripulito su feedback utente: via il badge "pagina corrente"
                 (gergo interno) e l'hint sull'anteprima laterale, che su mobile non esiste
                 nemmeno → resta solo su desktop, dove è vero. */}
