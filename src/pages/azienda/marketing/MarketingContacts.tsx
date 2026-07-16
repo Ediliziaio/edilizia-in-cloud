@@ -1677,11 +1677,11 @@ export default function MarketingContacts() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Mobile: flex-1 — la CTA riempie la riga (niente vuoto a destra del bottone) */}
-            <Button className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+            {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
+            <Button className="h-9 px-3 text-sm sm:h-10 sm:px-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
               <Plus className="h-4 w-4 mr-1" />
               <span className="hidden sm:inline">Aggiungi Contatto</span>
-              <span className="sm:hidden">Aggiungi contatto</span>
+              <span className="sm:hidden">Aggiungi</span>
             </Button>
           </div>
         </div>
