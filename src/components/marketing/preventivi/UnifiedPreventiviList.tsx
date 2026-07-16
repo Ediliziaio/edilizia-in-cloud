@@ -1021,6 +1021,8 @@ export function UnifiedPreventiviList() {
               </Badge>
             )}
           </Button>
+          {/* Export Excel: nascosto su mobile (download poco pratico da telefono/app) */}
+          {!isMobile && (
           <Button
             variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
             onClick={handleExportExcel}
@@ -1030,6 +1032,7 @@ export function UnifiedPreventiviList() {
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Excel</span>
           </Button>
+          )}
           <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setCestinoOpen(true)} aria-label="Cestino">
             <Trash2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Cestino</span>
