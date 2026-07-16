@@ -3040,43 +3040,73 @@ export default function QuoteBuilder() {
                 <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
               </h4>
               {items.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Prodotto</TableHead>
-                      <TableHead className="text-right">Qtà</TableHead>
-                      <TableHead className="text-right">Prezzo</TableHead>
-                      <TableHead className="text-right">Totale</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  {/* Desktop: tabella a 4 colonne */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prodotto</TableHead>
+                          <TableHead className="text-right">Qtà</TableHead>
+                          <TableHead className="text-right">Prezzo</TableHead>
+                          <TableHead className="text-right">Totale</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((it) => (
+                          <TableRow key={it.id}>
+                            <TableCell>
+                              {it.name || "—"}
+                              {it.is_optional && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  Opzionale
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {it.quantity}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(it.unit_price)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(
+                                it.quantity *
+                                  it.unit_price *
+                                  (1 - it.discount_percent / 100)
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile: card per riga (niente tabella schiacciata) */}
+                  <div className="md:hidden space-y-2">
                     {items.map((it) => (
-                      <TableRow key={it.id}>
-                        <TableCell>
-                          {it.name || "—"}
-                          {it.is_optional && (
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              Opzionale
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {it.quantity}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(it.unit_price)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(
-                            it.quantity *
-                              it.unit_price *
-                              (1 - it.discount_percent / 100)
-                          )}
-                        </TableCell>
-                      </TableRow>
+                      <div key={it.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 font-medium text-sm leading-snug">
+                            {it.name || "—"}
+                            {it.is_optional && (
+                              <Badge variant="outline" className="ml-1.5 text-[10px]">
+                                Opzionale
+                              </Badge>
+                            )}
+                          </p>
+                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
+                            {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
+                          </p>
+                        </div>
+                        <div className="mt-1.5 text-xs text-muted-foreground tabular-nums">
+                          {it.quantity} × {formatCurrency(it.unit_price)}
+                          {it.discount_percent > 0 ? ` · −${it.discount_percent}%` : ""}
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">Nessun prodotto</p>
               )}
