@@ -22,8 +22,12 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // 20270704000000 non è applicata; diventerà default quando l'inbox sarà attivo.
   const [tab, setTab] = useState<"conversazioni" | "team">("team");
 
+  // h-full: riempie il content-box di <main> (già overflow-y-auto) → un solo
+  // scroll interno alla chat invece del doppio (main + lista). -mx-3 annulla il
+  // p-3 di <main> su mobile (chat edge-to-edge, niente doppio spazio laterale).
+  // -mb-24 mangia parte del pb-28 di <main> per stare vicino alla bottom-nav.
   return (
-    <div className="h-[calc(100vh-7.5rem)] supports-[height:100dvh]:h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-120px)] flex flex-col px-3 sm:px-0">
+    <div className="h-full min-h-0 flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as "conversazioni" | "team")}

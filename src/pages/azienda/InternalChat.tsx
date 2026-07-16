@@ -2576,7 +2576,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </div>
                 </div>
               ) : (
-                <div>
+                // min-h-full + justify-end: con pochi messaggi si ancorano in
+                // basso (stile WhatsApp) vicino alla barra di composizione invece
+                // di lasciare un vuoto in mezzo; con tanti messaggi lo scroll
+                // resta normale (min-height superata → flusso naturale).
+                <div className="flex min-h-full flex-col justify-end">
                   {hasOlder && !msgSearch.trim() && (
                     <div className="mb-3 flex justify-center">
                       <Button
