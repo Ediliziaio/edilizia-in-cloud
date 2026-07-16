@@ -37,6 +37,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
+import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
 
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
@@ -103,8 +104,12 @@ function TabAbbonamenti() {
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const { data: topPlanPrice = 0 } = useTopPlanPrice();
   const navigate = useNavigate();
-  // Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla
+  // Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla.
+  // Ogni voce apre un SECONDO popup dedicato (selezione piano o retention),
+  // poi si atterra sulla pagina Stripe di conferma — mai direttamente fuori.
   const [modifyOpen, setModifyOpen] = useState(false);
+  const [planDialog, setPlanDialog] = useState<"upgrade" | "downgrade" | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -339,14 +344,14 @@ function TabAbbonamenti() {
                 <p className="font-semibold text-sm">Aggiorna il tuo piano attuale</p>
                 <p className="text-xs text-muted-foreground">{priceLabel} / {isYearly ? "anno" : "mese"}</p>
               </div>
-              <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}>
+              <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); setPlanDialog("upgrade"); }}>
                 Passa a un piano superiore
               </Button>
             </div>
             {/* Downgrade */}
             <button
               type="button"
-              onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}
+              onClick={() => { setModifyOpen(false); setPlanDialog("downgrade"); }}
               className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
             >
               <div className="h-9 w-9 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
@@ -358,12 +363,11 @@ function TabAbbonamenti() {
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
-            {/* Annulla piano */}
+            {/* Annulla piano — apre il popup di retention, NON il portale diretto */}
             <button
               type="button"
-              onClick={() => { setModifyOpen(false); openPortal(); }}
-              disabled={isPending}
-              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors disabled:opacity-60"
+              onClick={() => { setModifyOpen(false); setCancelOpen(true); }}
+              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
             >
               <div className="h-9 w-9 rounded-full bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center shrink-0">
                 <XCircle className="h-5 w-5 text-rose-600" />
@@ -372,11 +376,19 @@ function TabAbbonamenti() {
                 <p className="font-semibold text-sm">Annulla piano</p>
                 <p className="text-xs text-muted-foreground">Voglio comunque annullare il mio abbonamento</p>
               </div>
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Secondo step: selezione piano (upgrade/downgrade) e retention annullamento ── */}
+      <PlanChangeDialog
+        open={planDialog !== null}
+        onOpenChange={(o) => { if (!o) setPlanDialog(null); }}
+        direction={planDialog ?? "upgrade"}
+      />
+      <CancelPlanDialog open={cancelOpen} onOpenChange={setCancelOpen} />
     </div>
   );
 }

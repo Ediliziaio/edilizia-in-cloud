@@ -24,6 +24,8 @@ export interface SubscriptionInvoice {
 }
 
 export interface BillingInfo {
+  /** id del piano corrente su subscription_plans (per upgrade/downgrade in-app). */
+  planId: string | null;
   planName: string;
   planPriceMonthly: number;
   planPriceYearly: number;
@@ -64,6 +66,7 @@ export function useBillingInfo() {
           dunning_started_at,
           payment_failure_count,
           subscription_plans!companies_subscription_plan_id_fkey (
+            id,
             name,
             price_monthly,
             price_yearly
@@ -99,7 +102,7 @@ export function useBillingInfo() {
         sub = null;
       }
 
-      const plan = company.subscription_plans as { name?: string; price_monthly?: number; price_yearly?: number } | null;
+      const plan = company.subscription_plans as { id?: string; name?: string; price_monthly?: number; price_yearly?: number } | null;
       const dunningStatus = company.dunning_status;
       const isInDunning = !!dunningStatus && dunningStatus !== "none";
 
@@ -114,6 +117,7 @@ export function useBillingInfo() {
       }
 
       return {
+        planId: plan?.id ?? null,
         planName: plan?.name ?? "Piano sconosciuto",
         planPriceMonthly: plan?.price_monthly ?? 0,
         planPriceYearly: plan?.price_yearly ?? 0,
@@ -249,10 +253,28 @@ export function useStripePaymentMethod() {
 
 // ─── HOOK: APRIRE IL CUSTOMER PORTAL STRIPE ───────────────────────────────────
 
+/**
+ * Opzioni per i deep-link del portale Stripe:
+ *  - change_plan → pagina di conferma cambio piano (subscription_update_confirm)
+ *  - cancel      → pagina di annullamento (subscription_cancel)
+ * Senza opzioni si apre il portale generico (comportamento storico).
+ */
+export interface BillingPortalFlow {
+  flow: "change_plan" | "cancel";
+  planId?: string;
+  billingPeriod?: "monthly" | "yearly";
+}
+
 export function useOpenBillingPortal() {
   return useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
+    // `| void` e non `?:` — con TVariables opzionale React Query richiederebbe
+    // comunque l'argomento in mutate(); void mantiene validi i mutate() esistenti.
+    mutationFn: async (opts: BillingPortalFlow | void) => {
+      const { data, error } = await supabase.functions.invoke("customer-portal", {
+        body: opts
+          ? { flow: opts.flow, plan_id: opts.planId, billing_period: opts.billingPeriod }
+          : {},
+      });
       if (error) throw error;
       return data as { url: string };
     },
