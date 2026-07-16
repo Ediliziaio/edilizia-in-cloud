@@ -63,7 +63,7 @@ export function useBillingInfo() {
           dunning_status,
           dunning_started_at,
           payment_failure_count,
-          subscription_plans (
+          subscription_plans!companies_subscription_plan_id_fkey (
             name,
             price_monthly,
             price_yearly

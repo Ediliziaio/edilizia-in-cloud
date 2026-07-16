@@ -16,6 +16,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ExternalLink, Download, AlertTriangle, CreditCard, Clock,
   Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
+  ArrowUpRight, ArrowDownRight, XCircle,
 } from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,8 @@ function TabAbbonamenti() {
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const { data: topPlanPrice = 0 } = useTopPlanPrice();
   const navigate = useNavigate();
+  // Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla
+  const [modifyOpen, setModifyOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -220,7 +223,17 @@ function TabAbbonamenti() {
             <Alert variant="destructive" className="mt-5">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Pagamento non riuscito. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per aggiornare il metodo di pagamento.
+                <p>
+                  Il tuo ultimo pagamento non è andato a buon fine. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per
+                  aggiornare il metodo di pagamento ed evitare la sospensione dell'account.
+                </p>
+                <Button
+                  size="sm" variant="destructive" className="mt-2 gap-1.5"
+                  onClick={() => openPortal()} disabled={isPending}
+                >
+                  {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                  Riprova il pagamento
+                </Button>
               </AlertDescription>
             </Alert>
           )}
@@ -267,11 +280,10 @@ function TabAbbonamenti() {
           <div className="mt-5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 pt-4 border-t">
             <Button
               variant="outline"
-              onClick={() => openPortal()}
-              disabled={isPending}
+              onClick={() => setModifyOpen(true)}
               className="gap-1.5 w-full sm:w-auto justify-center sm:justify-start"
             >
-              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+              <CreditCard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Vuoi modificare/annullare il tuo abbonamento?</span>
               <span className="sm:hidden">Gestisci abbonamento</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -304,6 +316,62 @@ function TabAbbonamenti() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla ── */}
+      <Dialog open={modifyOpen} onOpenChange={setModifyOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifica abbonamento</DialogTitle>
+            <DialogDescription>Aspetta! Conoscevi le opzioni qui sotto?</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Upgrade — evidenziato */}
+            <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Aggiorna il tuo piano attuale</p>
+                <p className="text-xs text-muted-foreground">{priceLabel} / {isYearly ? "anno" : "mese"}</p>
+              </div>
+              <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}>
+                Passa a un piano superiore
+              </Button>
+            </div>
+            {/* Downgrade */}
+            <button
+              type="button"
+              onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}
+              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
+            >
+              <div className="h-9 w-9 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                <ArrowDownRight className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Passa a un piano inferiore</p>
+                <p className="text-xs text-muted-foreground">Desidero passare a un piano più economico</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+            {/* Annulla piano */}
+            <button
+              type="button"
+              onClick={() => { setModifyOpen(false); openPortal(); }}
+              disabled={isPending}
+              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors disabled:opacity-60"
+            >
+              <div className="h-9 w-9 rounded-full bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center shrink-0">
+                <XCircle className="h-5 w-5 text-rose-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Annulla piano</p>
+                <p className="text-xs text-muted-foreground">Voglio comunque annullare il mio abbonamento</p>
+              </div>
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
