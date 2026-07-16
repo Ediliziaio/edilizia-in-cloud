@@ -69,7 +69,7 @@ export function AIAssistantInterface({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="mb-5"
+        className="mb-3 sm:mb-5"
       >
         <SilvioAvatar size={64} bg="white" className="shadow-lg" />
       </motion.div>
@@ -78,7 +78,7 @@ export function AIAssistantInterface({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.05 }}
-        className="mb-7 text-center"
+        className="mb-4 sm:mb-6 text-center"
       >
         <h1 className="text-2xl md:text-[28px] leading-tight font-bold text-slate-800 mb-1.5">
           A cosa stai pensando{userName ? `, ${userName}` : ""}?
