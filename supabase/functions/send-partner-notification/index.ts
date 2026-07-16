@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     }
 
     // Etichetta commissione formattata (percentuale o importo fisso)
-    const commissioneLabel = referrer.commission_type === "percentage"
+    const commissionLabel = referrer.commission_type === "percentage"
       ? `${referrer.commission_value}% del piano mensile`
       : `€${referrer.commission_value} fissi al mese`;
 
@@ -81,13 +81,14 @@ Deno.serve(async (req) => {
       commission_calculated: {
         fullName: referrer.name,
         month: data?.month_name,
-        totalAmount: `€${data?.total_amount}`,
-        companyCount: data?.company_count,
+        // Guardie: senza, un payload incompleto produce "€undefined" nell'email
+        totalAmount: data?.total_amount != null ? `€${data.total_amount}` : "—",
+        companyCount: data?.company_count ?? "—",
         ctaUrl: `${PARTNER_BASE}/commissions`,
       },
       payout_approved: {
         fullName: referrer.name,
-        amount: `€${data?.amount}`,
+        amount: data?.amount != null ? `€${data.amount}` : "—",
         reference: data?.reference ?? "In elaborazione",
       },
       tier_upgrade: {

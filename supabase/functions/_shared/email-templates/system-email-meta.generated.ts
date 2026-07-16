@@ -1106,9 +1106,16 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "contenuto"
       },
       {
-        "key": "subscription.renewal_date",
-        "label": "Data rinnovo",
-        "example": "01/07/2026",
+        "key": "plan.name",
+        "label": "Nome piano",
+        "example": "Professional",
+        "required": false,
+        "category": "contenuto"
+      },
+      {
+        "key": "subscription.periodicity",
+        "label": "Periodicità (mensile/annuale)",
+        "example": "mensile",
         "required": false,
         "category": "contenuto"
       },
@@ -1125,7 +1132,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "subscription.amount": "€89,00",
-      "subscription.renewal_date": "01/07/2026",
+      "plan.name": "Professional",
+      "subscription.periodicity": "mensile",
       "link_url_1": "https://app.ediliziaincloud.com/…"
     }
   },
@@ -1332,9 +1340,9 @@ export const SYSTEM_EMAIL_META: Record<string, {
     "iconName": "CreditCard",
     "placeholders": [
       {
-        "key": "partner.new_tier",
-        "label": "Nuovo tier",
-        "example": "Silver",
+        "key": "plan.name",
+        "label": "Nuovo piano",
+        "example": "Professional",
         "required": false,
         "category": "contenuto"
       },
@@ -1376,7 +1384,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
     ],
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
-      "partner.new_tier": "Silver",
+      "plan.name": "Professional",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "subscription.amount": "€89,00",
@@ -1822,8 +1830,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "azienda"
       },
       {
-        "key": "event.date",
-        "label": "Data",
+        "key": "task.due_date",
+        "label": "Scadenza attività",
         "example": "24/06/2026",
         "required": false,
         "category": "contenuto"
@@ -1842,7 +1850,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "sender.name": "Luca Bianchi",
       "company.name": "Rossi Costruzioni SRL",
-      "event.date": "24/06/2026",
+      "task.due_date": "24/06/2026",
       "link_url_1": "https://app.ediliziaincloud.com/…"
     }
   },
@@ -2477,6 +2485,13 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "contenuto"
       },
       {
+        "key": "terms.summary",
+        "label": "Riassunto modifiche (in chiaro)",
+        "example": "più trasparenza sui dati di fatturazione",
+        "required": true,
+        "category": "contenuto"
+      },
+      {
         "key": "link_url_1",
         "label": "Link / bottone #1",
         "example": "https://app.ediliziaincloud.com/…",
@@ -2488,6 +2503,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "event.date": "24/06/2026",
+      "terms.summary": "più trasparenza sui dati di fatturazione",
       "link_url_1": "https://app.ediliziaincloud.com/…"
     }
   },
@@ -2519,8 +2535,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "link"
       },
       {
-        "key": "trial.days_left",
-        "label": "Giorni rimasti",
+        "key": "export.days_left",
+        "label": "Giorni validità link",
         "example": "3",
         "required": false,
         "category": "contenuto"
@@ -2531,7 +2547,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "link_url_1": "https://app.ediliziaincloud.com/…",
-      "trial.days_left": "3"
+      "export.days_left": "3"
     }
   }
 };

@@ -105,6 +105,11 @@ function resolveAccessRecipientAlias(data: Record<string, unknown>, key: string)
     "stats.hours_saved": coalesce(data.hoursSaved),
     "subscription.amount": coalesce(data.subscriptionAmount, data.amountFormatted, data.amount),
     "subscription.renewal_date": coalesce(data.renewalDate, data.renewal_date),
+    "subscription.periodicity": coalesce(data.periodicity, data.billingPeriod),
+    "plan.name": coalesce(data.planName, data.newPlan, data.newTier),
+    "terms.summary": coalesce(data.termsSummary, data.changesSummary),
+    "export.days_left": coalesce(data.exportDaysLeft, data.expiresInDays, data.daysLeft),
+    "task.due_date": coalesce(data.taskDueDate, data.dueDate),
     "dunning.attempt": coalesce(data.attempt, data.failureCount),
     "card.last4": coalesce(data.last4, data.cardLast4),
     "device.name": coalesce(data.deviceName, data.device),
@@ -126,9 +131,14 @@ function resolveAccessRecipientAlias(data: Record<string, unknown>, key: string)
     "link_url_1": coalesce(
       data.loginUrl, data.resetUrl, data.setupUrl, data.inviteUrl, data.portalUrl,
       data.verifyUrl, data.acceptUrl, data.dashboardUrl, data.upgradeUrl, data.tutorialUrl,
-      data.ctaUrl, data.actionUrl, data.url,
+      data.ctaUrl, data.actionUrl, data.appUrl, data.tcUrl, data.url,
     ),
-    "link_url_2": coalesce(data.linkUrl2, data.secondaryUrl),
+    // link_url_2..5: slot multi-link (oggi usati solo da terms_accepted:
+    // 2=privacy, 3=DPA, 4=cookie, 5=CTA pagina documenti).
+    "link_url_2": coalesce(data.linkUrl2, data.secondaryUrl, data.privacyUrl),
+    "link_url_3": coalesce(data.linkUrl3, data.dpaUrl),
+    "link_url_4": coalesce(data.linkUrl4, data.cookieUrl),
+    "link_url_5": coalesce(data.linkUrl5, data.docsUrl, data.moduloOperaiUrl),
   };
 
   return aliases[key];
@@ -136,7 +146,9 @@ function resolveAccessRecipientAlias(data: Record<string, unknown>, key: string)
 
 function resolvePlaceholderValue(data: Record<string, unknown>, key: string): unknown {
   if (Object.prototype.hasOwnProperty.call(data, key)) return data[key];
-  if (!key.includes(".")) return data[key];
+  // Anche le chiavi senza punto (link_url_1, link_url_2, …) devono passare dagli
+  // alias: senza questo fallback {{link_url_N}} non si risolveva MAI (CTA morte).
+  if (!key.includes(".")) return data[key] ?? resolveAccessRecipientAlias(data, key);
 
   let cursor: unknown = data;
   for (const part of key.split(".")) {
@@ -195,6 +207,11 @@ export function htmlToPlainText(html: string): string {
     // converti <br> e </p> in newline
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
+    // i link diventano "testo (url)" — senza questo il plain text perde gli URL
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => {
+      const lbl = label.replace(/<[^>]+>/g, "").trim();
+      return href && href !== "#" ? `${lbl} (${href})` : lbl;
+    })
     // strippa tutti i tag
     .replace(/<[^>]+>/g, "")
     // decodifica entity comuni

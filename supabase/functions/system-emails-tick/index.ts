@@ -133,8 +133,9 @@ Deno.serve(async (req) => {
     for (const c of (cands ?? []) as Array<{ company_id: string; company_name: string; admin_email: string; admin_name: string; plan_name: string | null; price_monthly: number | null; price_yearly: number | null }>) {
       const monthly = Number(c.price_monthly ?? 0);
       const yearly = Number(c.price_yearly ?? 0);
-      const amountFormatted = monthly > 0 ? eur(monthly) : yearly > 0 ? eur(yearly) : undefined;
-      const periodicity = monthly > 0 ? "mensile" : yearly > 0 ? "annuale" : undefined;
+      // Fallback "—": un placeholder non risolto resterebbe {{...}} in chiaro nell'email
+      const amountFormatted = monthly > 0 ? eur(monthly) : yearly > 0 ? eur(yearly) : "—";
+      const periodicity = monthly > 0 ? "mensile" : yearly > 0 ? "annuale" : "—";
       const ok = await guardedSend("purchase_confirmed", c.company_id, c.company_id, c.admin_email, () =>
         renderEmailTemplate({
           templateName: "purchase_confirmed",

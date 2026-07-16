@@ -341,6 +341,8 @@ Deno.serve(async (req) => {
           dpaUrl: legalBase ? `${legalBase}/dpa.pdf` : "", dpaVersion: "1.0",
           cookieUrl: legalBase ? `${legalBase}/cookie.pdf` : "", cookieVersion: "1.0",
           moduloOperaiUrl: legalBase ? `${legalBase}/modulo-privacy-lavoratori.pdf` : "",
+          // CTA finale "Apri i tuoi documenti" → indice pagina legale (non il singolo PDF)
+          docsUrl: legalBase,
         },
       });
       await sendEmailUnified({
