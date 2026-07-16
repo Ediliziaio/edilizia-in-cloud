@@ -1215,6 +1215,13 @@ export default function CompanyRoutesContainer() {
         <Route path="firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditSettingsCustomization", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
+
+      {/* Catch-all: un URL /azienda/* sconosciuto (link vecchio, typo, es.
+          /azienda/dashboard) prima renderizzava NULL → pagina bianca senza
+          errori, che in locale innescava il watchdog "local-dev-blank-screen".
+          Redirect alla home app: l'index (AziendaIndex) decide poi la
+          destinazione giusta per ruolo/permessi. */}
+      <Route path="*" element={<Navigate to="/azienda" replace />} />
     </Routes>
   );
 }
