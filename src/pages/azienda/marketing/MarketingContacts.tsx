@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar } from "lucide-react";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -497,6 +498,38 @@ function ContactProfileDrawer({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Arricchimento massivo dei contatti selezionati (solo piattaforma).
+ *  Sito + VIES + auto-fill + segnale d'acquisto, a lotti di max 100. */
+function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; onDone: () => void }) {
+  const [running, setRunning] = useState(false);
+  const run = async () => {
+    if (running) return;
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (ids.length > 100) { toast.error("Massimo 100 contatti per volta. Restringi la selezione."); return; }
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "enrich_contacts_batch", contactIds: ids },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      toast.success(`Arricchiti ${data.enriched}/${data.attempted} · ${data.filled} con nuovi dati${data.failed ? ` · ${data.failed} falliti` : ""}`);
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore arricchimento massivo");
+    } finally {
+      setRunning(false);
+    }
+  };
+  return (
+    <Button variant="outline" size="sm" className="gap-1.5 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" disabled={running} onClick={run}
+      title="Sito + VIES + segnale d'acquisto sui contatti selezionati (max 100)">
+      {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci ({selectedIds.size})
+    </Button>
   );
 }
 
@@ -1968,6 +2001,9 @@ export default function MarketingContacts() {
                     <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                       {selectedQualitySummary.optout} no marketing
                     </Badge>
+                  )}
+                  {companyId === PLATFORM_ADMIN_COMPANY_ID && (
+                    <BulkEnrichButton selectedIds={selectedIds} onDone={() => queryClient.invalidateQueries({ queryKey: ["marketing_contacts"] })} />
                   )}
                   <BulkTagsDialog selectedIds={selectedIds} />
                   <BulkCreateOpportunitiesDialog selectedIds={selectedIds} />

@@ -1821,6 +1821,18 @@ Deno.serve(async (req) => {
       }
       result.partita_iva = piva;
 
+      // Segnale d'acquisto: punteggio "lead caldo" dai segnali del sito.
+      {
+        const reachable = !!((deep?.emails?.length) || (deep?.phones?.length));
+        result.intent_score = computeIntentScore(deep?.intent_signals || {}, reachable, !!website);
+        // salva su lead_score del contatto (best-effort)
+        if (contactId) {
+          await supabaseAdmin.from("marketing_contacts")
+            .update({ lead_score: result.intent_score, ai_intent_signals: deep?.intent_signals || {} })
+            .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+        }
+      }
+
       // 2) VIES (gratis): valida P.IVA → ragione sociale + indirizzo ufficiali
       if (doVies && piva) {
         const vies = await viesValidate(piva);
@@ -1923,6 +1935,100 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════ FIND EMAIL (pattern + MX, gratis) ════════════════════
+    // ═══════ CONTATTO CRM: trova email (scraping sito + guess + MX) ═══════
+    if (action === "find_contact_email") {
+      const contactId: string | null = typeof body.contactId === "string" ? body.contactId : null;
+      if (!contactId) return errorResponse("contactId richiesto.", 400, corsH);
+      const { data: c } = await supabaseAdmin.from("marketing_contacts")
+        .select("id, email, website, company_name, first_name, last_name")
+        .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+      if (!c) return errorResponse("Contatto non trovato.", 404, corsH);
+      if (c.email) return jsonResponse({ ok: true, already: true, email: c.email }, 200, corsH);
+
+      let domain: string | null = null;
+      const siteEmails: string[] = [];
+      if (c.website) {
+        try { domain = new URL(c.website.startsWith("http") ? c.website : `https://${c.website}`).hostname.replace(/^www\./, ""); } catch { /* skip */ }
+        const deep = c.website ? await scrapeWebsiteDeep(c.website) : null;
+        if (deep?.emails?.length) siteEmails.push(...deep.emails);
+      }
+      let chosen: string | null = siteEmails[0] || null;
+      let status = chosen ? "found" : "none";
+      let candidates: string[] = siteEmails;
+      if (!chosen && domain) {
+        const hasMx = await domainHasMx(domain);
+        if (hasMx) {
+          candidates = guessEmails([c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "", domain);
+          chosen = candidates[0] || null;
+          status = chosen ? "guessed" : "none";
+        }
+      }
+      if (chosen) {
+        await supabaseAdmin.from("marketing_contacts").update({ email: chosen }).eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+      }
+      return jsonResponse({ ok: true, email: chosen, status, candidates, domain }, 200, corsH);
+    }
+
+    // ═══════ CONTATTO CRM: verifica email (sintassi + MX, provider opz) ═══════
+    if (action === "verify_contact_email") {
+      const email: string | null = typeof body.email === "string" ? body.email.trim().toLowerCase() : null;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return jsonResponse({ ok: true, status: "invalid_syntax", email }, 200, corsH);
+      }
+      const domain = email.split("@")[1];
+      const hasMx = await domainHasMx(domain);
+      let status = hasMx ? "mx_ok" : "no_mx";
+      // Se configurato un provider di verifica (NeverBounce/ZeroBounce), affina.
+      const vkey = await getPlatformSetting("email_verify_api_key", "EMAIL_VERIFY_API_KEY");
+      if (hasMx && vkey) {
+        const provider = (await getPlatformSetting("email_verify_provider", "EMAIL_VERIFY_PROVIDER")) || "neverbounce";
+        const r = await verifyEmailProvider(email, provider, vkey);
+        if (r === "valid") status = "valid";
+        else if (r === "invalid") status = "invalid";
+      }
+      return jsonResponse({ ok: true, status, email, domain, provider_used: !!vkey }, 200, corsH);
+    }
+
+    // ═══════ CONTATTI CRM: arricchimento MASSIVO (sito+VIES+autofill) ═══════
+    if (action === "enrich_contacts_batch") {
+      const ids: string[] = Array.isArray(body.contactIds) ? body.contactIds.filter((x: unknown) => typeof x === "string") : [];
+      if (ids.length === 0) return errorResponse("contactIds vuoto.", 400, corsH);
+      if (ids.length > 100) return errorResponse("Massimo 100 contatti per lotto.", 400, corsH);
+      const { data: contacts, error } = await supabaseAdmin.from("marketing_contacts")
+        .select("id, email, phone, website, company_name, first_name, last_name, vat_number, city, province")
+        .in("id", ids).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let enriched = 0, filled = 0, failed = 0;
+      await poolMap(contacts || [], 4, async (c: any) => {
+        try {
+          const website = c.website || null;
+          let piva = c.vat_number ? String(c.vat_number).replace(/\D/g, "") : null;
+          const deep = website ? await scrapeWebsiteDeep(website) : null;
+          if (deep?.partita_iva && !piva) piva = deep.partita_iva;
+          let viesName: string | undefined;
+          if (piva) { const v = await viesValidate(piva); if (v?.valid) viesName = v.name; }
+          const patch: Record<string, unknown> = {};
+          if (!c.email && (deep?.emails?.[0])) patch.email = deep.emails[0];
+          if (!c.phone && (deep?.phones?.[0])) patch.phone = deep.phones[0];
+          if (!c.vat_number && piva) patch.vat_number = piva;
+          if (!c.company_name && viesName) patch.company_name = viesName;
+          // segnale d'acquisto → lead_score
+          if (deep) {
+            const reachable = !!(patch.email || c.email || patch.phone || c.phone);
+            patch.lead_score = computeIntentScore(deep.intent_signals || {}, reachable, !!website);
+            patch.ai_intent_signals = deep.intent_signals || {};
+          }
+          if (Object.keys(patch).length) {
+            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", c.id).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+            filled += (patch.email || patch.phone || patch.vat_number || patch.company_name) ? 1 : 0;
+          }
+          enriched++;
+        } catch { failed++; }
+      });
+      return jsonResponse({ ok: true, enriched, filled, failed, attempted: (contacts || []).length }, 200, corsH);
+    }
+
     if (action === "find_email") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);

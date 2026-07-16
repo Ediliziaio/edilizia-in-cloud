@@ -142,6 +142,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [visuraLoading, setVisuraLoading] = useState(false);
   const [visuraResult, setVisuraResult] = useState<{ ok: boolean; fields?: Record<string, unknown>; error?: string; contact_updated?: string[] } | null>(null);
   const [visuraOpen, setVisuraOpen] = useState(false);
+  // Trova/verifica email (solo piattaforma)
+  const [findingEmail, setFindingEmail] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -528,6 +532,56 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       toast.error(e instanceof Error ? e.message : "Errore visura");
     } finally {
       setVisuraLoading(false);
+    }
+  };
+
+  // Trova email: scraping sito + guess pattern + MX (gratis)
+  const runFindEmail = async () => {
+    if (findingEmail) return;
+    setFindingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "find_contact_email", contactId: id },
+      });
+      if (error) throw error;
+      if (data?.email) {
+        toast.success(data.status === "guessed" ? `Email probabile trovata: ${data.email} (ipotesi su dominio valido)` : `Email trovata: ${data.email}`);
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      } else {
+        toast.error("Nessuna email trovata: aggiungi il sito web e riprova.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore ricerca email");
+    } finally {
+      setFindingEmail(false);
+    }
+  };
+
+  // Verifica email: sintassi + MX (+ provider se configurato)
+  const runVerifyEmail = async () => {
+    if (verifyingEmail || !contact?.email) return;
+    setVerifyingEmail(true);
+    setEmailStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "verify_contact_email", email: contact.email },
+      });
+      if (error) throw error;
+      const s = String(data?.status || "");
+      setEmailStatus(s);
+      const msg: Record<string, string> = {
+        valid: "Email valida e consegnabile ✓",
+        mx_ok: "Dominio riceve email (MX ok) — probabilmente valida",
+        invalid: "Email non valida ✗",
+        no_mx: "Il dominio NON riceve email — probabilmente non valida",
+        invalid_syntax: "Formato email non valido",
+      };
+      if (s === "invalid" || s === "no_mx" || s === "invalid_syntax") toast.error(msg[s] || s);
+      else toast.success(msg[s] || s);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore verifica email");
+    } finally {
+      setVerifyingEmail(false);
     }
   };
 
@@ -923,6 +977,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   title="Scraping sito + VIES (visura light) + firmografici e PEC. Prima verifichi il sito, poi il motore compila i campi vuoti del contatto."
                 >
                   {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci
+                </Button>
+              )}
+              {isPlatformContext && !contact.email && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={findingEmail} onClick={runFindEmail} title="Cerca l'email dal sito o la deduce dal dominio (verifica MX)">
+                  {findingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Trova email
+                </Button>
+              )}
+              {isPlatformContext && contact.email && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={verifyingEmail} onClick={runVerifyEmail} title="Verifica che l'email sia valida e consegnabile (sintassi + MX)">
+                  {verifyingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Verifica email
+                  {emailStatus === "valid" && <span className="text-emerald-600">✓</span>}
+                  {emailStatus === "mx_ok" && <span className="text-emerald-600">✓</span>}
+                  {(emailStatus === "invalid" || emailStatus === "no_mx") && <span className="text-red-600">✗</span>}
                 </Button>
               )}
               <DropdownMenu>
@@ -2014,7 +2081,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               partita_iva?: string | null;
               site_partita_iva?: string | null;
               contact_updated?: string[];
-              intent_signals?: string[];
+              intent_signals?: Record<string, boolean> | string[];
+              intent_score?: number;
             };
             // Coerenza sito↔azienda: se sul sito c'è una P.IVA, confrontala con
             // quella nota → conferma (o smentisce) che il sito è quello giusto.
@@ -2028,8 +2096,30 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <span className="font-medium break-all">{value}</span>
               </div>
             );
+            const SIGNAL_LABELS: Record<string, string> = {
+              outdated_copyright: "sito con anno vecchio", not_mobile: "sito non mobile",
+              no_https: "sito senza HTTPS", has_form: "ha un form contatti", no_website: "nessun sito",
+            };
+            const activeSignals = r.intent_signals && !Array.isArray(r.intent_signals)
+              ? Object.entries(r.intent_signals).filter(([, v]) => v).map(([k]) => SIGNAL_LABELS[k] || k)
+              : [];
+            const score = typeof r.intent_score === "number" ? r.intent_score : null;
+            const scoreColor = score == null ? "" : score >= 75 ? "bg-red-100 text-red-700" : score >= 60 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600";
+            const scoreLabel = score == null ? "" : score >= 75 ? "Lead caldo" : score >= 60 ? "Lead tiepido" : "Lead freddo";
             return (
               <div className="space-y-3">
+                {score != null && (
+                  <div className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-2">
+                    <Radar className="h-4 w-4 text-orange-600 shrink-0" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold">Segnale d'acquisto</span>
+                        <Badge className={cn("h-4 px-1.5 text-[10px]", scoreColor)}>{scoreLabel} · {score}/100</Badge>
+                      </div>
+                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{activeSignals.join(" · ")}</p>}
+                    </div>
+                  </div>
+                )}
                 {sitePivaMatch === "match" && (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
                     ✓ <b>Sito confermato</b>: la P.IVA pubblicata sul sito coincide con quella dell'azienda.
