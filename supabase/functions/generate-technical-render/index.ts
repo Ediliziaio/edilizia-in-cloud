@@ -5,13 +5,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder.ts";
 import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder.ts";
 
@@ -577,8 +576,32 @@ Deno.serve(async (req) => {
         already_completed: true,
       });
     }
-    if (session.status === "processing") {
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_vertical_session",
+      {
+        _table: "render_technical_sessions",
+        _session_id: session_id,
+        _stale_seconds: 170,
+      },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
+    }
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
       return acceptedRenderResponse(session_id);
+    }
+    if (claim.stale_takeover) {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-technical-render" },
+      });
     }
 
     const deductResult = await deductRenderCreditSafe(supabase, {
@@ -593,21 +616,16 @@ Deno.serve(async (req) => {
     });
 
     if (deductResult.status === "insufficient") {
+      await supabase.rpc("release_render_vertical_session", {
+        _table: "render_technical_sessions",
+        _session_id: session_id,
+      });
       return jsonResponse({
         error: "insufficient_credits",
         message: "Crediti render insufficienti",
       }, 402);
     }
     creditDeducted = true;
-
-    await supabase
-      .from("render_technical_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-        error_message: null,
-      })
-      .eq("id", session_id);
 
     const renderJob = (async () => {
       const originalPath = session.original_photo_url as string;
@@ -647,20 +665,102 @@ Deno.serve(async (req) => {
         );
       }
       const imgBlob = await imgResp.blob();
-      const providerResult = await editImage({
-        prompt: finalPrompt,
-        sourceImageBlob: imgBlob,
-        effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
-        effectiveHeight: prepared.effective_height ?? target_height ??
-          undefined,
-        openaiQuality: "medium",
-        timeoutMs: 180_000,
-        metadata: {
-          task_kind: "render_image_edit",
-          company_id: session.company_id as string,
-          session_id,
-        },
-      });
+
+      // F1-parity (audit 16/07) — budget deadline-aware, 1 tentativo per tier.
+      const TECH_BUDGET_MS = 140_000;
+      const jobStartMs = Date.now();
+      const jobElapsed = () => Date.now() - jobStartMs;
+      const generateCandidate = (prompt: string) => {
+        const remaining = TECH_BUDGET_MS - jobElapsed() - 20_000;
+        const perAttemptTimeout = Math.max(
+          30_000,
+          Math.min(75_000, Math.floor(remaining / 2)),
+        );
+        return editImage({
+          prompt,
+          sourceImageBlob: imgBlob,
+          effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
+          effectiveHeight: prepared.effective_height ?? target_height ??
+            undefined,
+          openaiQuality: "medium",
+          timeoutMs: perAttemptTimeout,
+          maxRetries: 0,
+          metadata: {
+            task_kind: "render_image_edit",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        });
+      };
+
+      let providerResult = await generateCandidate(finalPrompt);
+
+      // ── QA VISION technical (audit 16/07) — generica multi-modulo ──────
+      // (ristrutturazioni, giardini, porte, pavimenti esterni): duplicazioni,
+      // aperture inventate/spostate, prospettiva cambiata, oggetti inventati.
+      try {
+        const qaPrompt = [
+          "You are a LENIENT quality inspector for a renovation visualization render.",
+          "Image 1 = SOURCE photo of the real space. Image 2 = CANDIDATE render (same space renovated per brief).",
+          'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+          "Fail ONLY on clear, unambiguous violations:",
+          "- duplicated_elements: TWO of an element that exists once (two identical doors on one opening, duplicated fixtures or furniture).",
+          "- invented_openings: windows or doors added, removed or relocated compared to the source.",
+          "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          "- invented_objects: structures, furniture or people in neither the source photo nor the brief.",
+          "When in doubt, PASS. The renovation CHANGES themselves are expected — only duplications, structural inventions and geometry breaks fail.",
+        ].join("\n");
+
+        const sourceDataUrl = `data:${
+          imgBlob.type || "image/jpeg"
+        };base64,${bytesToBase64(new Uint8Array(await imgBlob.arrayBuffer()))}`;
+
+        const qaResult = await callVisionQa({
+          sourceImageDataUrl: sourceDataUrl,
+          candidateImageDataUrl: providerResult.imageDataUrl,
+          qaPrompt,
+          metadata: {
+            task_kind: "render_image_qa",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        });
+
+        const qaIssues = (qaResult.issues ?? []).map((raw) => {
+          if (typeof raw === "string") return { category: "unspecified", detail: raw };
+          const r = raw as { category?: string; detail?: string };
+          return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+        });
+
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+          console.log(JSON.stringify({
+            fn: "generate-technical-render",
+            msg: "qa_failed_retry_corrective",
+            session_id,
+            module: moduleType,
+            issues: qaIssues.map((i) => i.category),
+          }));
+          providerResult = await generateCandidate(`${finalPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate elements, same openings in the same positions, same camera and crop, no invented objects. Fix every violation listed above.`);
+        } else if (qaResult.checked && !qaResult.pass) {
+          console.warn(JSON.stringify({
+            fn: "generate-technical-render",
+            msg: "qa_failed_retry_skipped_budget",
+            session_id,
+            issues: qaIssues.map((i) => i.category),
+            elapsed_ms: jobElapsed(),
+          }));
+        }
+      } catch (qaErr) {
+        console.warn(
+          "[generate-technical-render] QA vision error (ignored):",
+          qaErr instanceof Error ? qaErr.message : String(qaErr),
+        );
+      }
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
@@ -756,16 +856,14 @@ Deno.serve(async (req) => {
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-technical-render] background error:", msg);
-      await refundRenderCreditSafe(supabase, {
-        companyId: session.company_id as string,
-        sessionId: session_id,
-        userId,
-        reasonMeta: {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id as string,
+        _session_id: session_id,
+        _reason_meta: {
           vertical: moduleType,
           edge_fn: "generate-technical-render",
           error: msg.substring(0, 500),
         },
-        logTag: "generate-technical-render",
       });
       await supabase
         .from("render_technical_sessions")
@@ -785,17 +883,15 @@ Deno.serve(async (req) => {
     console.error("[generate-technical-render] error:", msg);
     if (currentSessionId) {
       if (creditDeducted && refundableCompanyId) {
-        await refundRenderCreditSafe(supabase, {
-          companyId: refundableCompanyId,
-          sessionId: currentSessionId,
-          userId: requestUserId,
-          reasonMeta: {
+        await supabase.rpc("refund_render_credit_all", {
+        _company_id: refundableCompanyId,
+        _session_id: currentSessionId,
+        _reason_meta: {
             vertical: refundableVertical,
             edge_fn: "generate-technical-render",
             error: msg.substring(0, 500),
           },
-          logTag: "generate-technical-render",
-        });
+      });
       }
       await supabase
         .from("render_technical_sessions")
