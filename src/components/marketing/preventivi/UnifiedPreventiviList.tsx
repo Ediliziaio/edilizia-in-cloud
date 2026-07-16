@@ -898,7 +898,7 @@ export function UnifiedPreventiviList() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* ─── KPI Hero 4 cards ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
         <KpiCard label="In corso" value={kpi.inCorsoCount} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in pipeline` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
         <KpiCard label="Vinte" value={kpi.vintaCount} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% conversion rate` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
@@ -1295,12 +1295,12 @@ function KpiCard({
 }: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone }) {
   const c = KPI_TONE[tone];
   return (
-    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4", c.border)}>
+    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4", c.border)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</p>
-        <span className={cn("h-7 w-7 rounded-md flex items-center justify-center shrink-0", c.iconBg, c.iconColor)}>{icon}</span>
+        <span className={cn("h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center shrink-0", c.iconBg, c.iconColor)}>{icon}</span>
       </div>
-      <p className={cn("text-xl sm:text-2xl font-bold mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      <p className={cn("text-xl sm:text-2xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>}
     </div>
   );
