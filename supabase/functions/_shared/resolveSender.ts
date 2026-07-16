@@ -97,10 +97,26 @@ export async function resolveSender(
 
   const senderPrefix = (prefs?.sender_prefix as string | undefined) ?? "no-reply";
   const senderName = (prefs?.sender_name as string | undefined) ?? fallbackFromName;
-  const replyTo =
-    (prefs?.reply_to_email as string | undefined) ||
-    (await getPlatformSetting("email_default_reply_to")) ||
-    `no-reply@${fallbackSubdomain}`;
+  let replyTo = (prefs?.reply_to_email as string | undefined) || "";
+  if (!replyTo) {
+    // Fallback: la casella collegata dell'azienda. Le risposte devono arrivare
+    // ALL'AZIENDA — prima cadevano sul default di piattaforma (direzione@),
+    // cioè al gestore EiC invece che al mittente reale.
+    const { data: conn } = await admin
+      .from("email_oauth_connections")
+      .select("email_address")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    replyTo = (conn?.email_address as string | undefined) || "";
+  }
+  if (!replyTo) {
+    replyTo =
+      (await getPlatformSetting("email_default_reply_to")) ||
+      `no-reply@${fallbackSubdomain}`;
+  }
 
   const domainIdKey =
     stream === "transactional" ? "transactional_domain_id" : "marketing_domain_id";

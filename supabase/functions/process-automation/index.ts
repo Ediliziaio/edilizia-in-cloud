@@ -6,6 +6,7 @@ import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } f
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { getReplyAddress } from "../_shared/replyRoutes.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
@@ -2796,6 +2797,10 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     const resolvedSender = cfg.from_email
       ? null
       : await resolveSender(companyId, stream, supabase).catch(() => null);
+    // Reply GHL-style: Reply-To = indirizzo unico del contatto (attivo solo se
+    // email_reply_domain è configurato) → la risposta rientra nel CRM in
+    // tempo reale via edge email-inbound-reply, senza caselle collegate.
+    const routeReplyTo = await getReplyAddress(supabase, companyId, contact.id);
     const safeFromName = sanitizeFromName(cfg.from_name);
     const fromAddress = cfg.from_email
       ? safeFromName ? `${safeFromName} <${cfg.from_email}>` : cfg.from_email
@@ -2829,6 +2834,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     const result = await sendViaProviderWithFailover(stream, settings, {
       from: fromAddress,
+      replyTo: routeReplyTo ?? resolvedSender?.replyTo,
       to: [toAddress],
       subject,
       html,
