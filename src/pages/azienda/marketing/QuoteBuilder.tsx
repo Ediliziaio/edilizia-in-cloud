@@ -3432,71 +3432,75 @@ export default function QuoteBuilder() {
           bar — incluso il CTA "Avanti/Salva" → non tappabile su telefono. Da md
           in su la nav non c'è e l'action bar torna a bottom-0. */}
       <div className="fixed bottom-[84px] md:bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
-        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
-            {saving ? (
-              <span className="flex items-center gap-1.5 text-blue-600 font-medium">
-                <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
-              </span>
-            ) : autosaveFailed ? (
-              <span className="flex items-center gap-1.5 text-red-600 font-medium">
-                <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
-              </span>
-            ) : isEdit ? (
-              <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Salvataggio automatico
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
-              </span>
-            )}
+        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Stato salvataggio: solo da sm (su mobile è rumore, sotto c'è il totale) */}
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+              {saving ? (
+                <span className="flex items-center gap-1.5 text-blue-600 font-medium">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+                </span>
+              ) : autosaveFailed ? (
+                <span className="flex items-center gap-1.5 text-red-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
+                </span>
+              ) : isEdit ? (
+                <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Salvataggio automatico
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
+                </span>
+              )}
+            </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
-              className="h-9"
+              className="h-9 shrink-0"
+              aria-label="Indietro"
             >
-              <ArrowLeft className="h-4 w-4 mr-1.5" />
-              Indietro
+              <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Indietro</span>
             </Button>
           </div>
 
-          {/* Totale live per mobile (desktop è nell'header) */}
+          {/* Totale live per mobile (desktop è nell'header): compatto, non spinge il wrap */}
           {total > 0 && (
-            <div className="md:hidden flex items-center gap-3 text-xs flex-1 justify-center">
-              <span className="text-slate-500">Totale:</span>
+            <div className="md:hidden flex items-center shrink-0 text-xs">
               <span className="font-bold text-orange-600 tabular-nums text-sm">
                 {formatCurrency(total)}
               </span>
             </div>
           )}
 
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center shrink-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => handleSave("bozza")}
               disabled={saving}
               className="h-9 text-slate-600"
+              aria-label="Salva bozza"
             >
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="h-4 w-4 sm:mr-2" />
               )}
-              Bozza
+              <span className="hidden sm:inline">Bozza</span>
             </Button>
             {step < STEPS.length - 1 ? (
               <button
                 type="button"
                 onClick={handleNext}
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
-                Avanti · {STEPS[step + 1]?.label}
+                Avanti<span className="hidden sm:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
@@ -3504,14 +3508,15 @@ export default function QuoteBuilder() {
                 type="button"
                 onClick={() => handleSave("bozza")}
                 disabled={saving || !clientName}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <FileCheck className="h-4 w-4" />
                 )}
-                Salva preventivo
+                <span className="hidden sm:inline">Salva preventivo</span>
+                <span className="sm:hidden">Salva</span>
               </button>
             )}
           </div>
