@@ -137,6 +137,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [enrichName, setEnrichName] = useState("");
   const [findingSite, setFindingSite] = useState(false);
   const [siteCandidates, setSiteCandidates] = useState<Array<{ url: string; domain: string; title: string }> | null>(null);
+  // Visura camerale on-demand (openapi.it IT-advanced): anagrafica completa,
+  // bilancio, soci, amministratori, PEC, ATECO. Consuma crediti openapi.
+  const [visuraLoading, setVisuraLoading] = useState(false);
+  const [visuraResult, setVisuraResult] = useState<{ ok: boolean; fields?: Record<string, unknown>; error?: string; contact_updated?: string[] } | null>(null);
+  const [visuraOpen, setVisuraOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -482,6 +487,47 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       toast.error(e instanceof Error ? e.message : "Errore arricchimento");
     } finally {
       setEnriching(false);
+    }
+  };
+
+  // Visura camerale on-demand: usa la P.IVA (dal campo o dal contatto) e
+  // chiama enrich_visura (openapi.it IT-advanced). Consuma crediti openapi.
+  const runVisura = async () => {
+    if (visuraLoading) return;
+    const piva = (enrichPiva.replace(/\D/g, "") || (contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "")) || "";
+    if (piva.length !== 11) {
+      toast.error("Serve una P.IVA valida (11 cifre) per la visura");
+      return;
+    }
+    setVisuraLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "enrich_visura", partita_iva: piva, contactId: id },
+      });
+      if (error) throw error;
+      setVisuraResult(data as { ok: boolean; fields?: Record<string, unknown>; error?: string; contact_updated?: string[] });
+      setEnrichSetupOpen(false);
+      setVisuraOpen(true);
+      if (data?.ok) {
+        const updated = Array.isArray(data?.contact_updated) ? data.contact_updated as string[] : [];
+        await supabase.from("marketing_contact_activities").insert({
+          contact_id: id!,
+          company_id: companyId!,
+          activity_type: "updated",
+          description: updated.length ? `Visura openapi: compilati ${updated.join(", ")}` : "Visura camerale openapi scaricata",
+          created_by: user?.id,
+          metadata: { source: "openapi-visura", fields: updated, piva },
+        });
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+        toast.success(updated.length ? `Visura ok: ${updated.length} campi compilati` : "Visura scaricata");
+      } else {
+        toast.error(data?.error || "Visura non disponibile");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore visura");
+    } finally {
+      setVisuraLoading(false);
     }
   };
 
@@ -1925,10 +1971,22 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</Label>
               <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
             </div>
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-[10px] text-muted-foreground">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
-              <Button size="sm" className="gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
+            <p className="text-[10px] text-muted-foreground pt-1">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+              <Button size="sm" className="flex-1 gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
                 {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
+              </Button>
+              {/* Visura/bilancio openapi (a parte perché consuma crediti openapi
+                  e richiede la P.IVA): anagrafica camerale completa + bilancio + soci */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 gap-1.5 border-slate-300"
+                disabled={visuraLoading || (enrichPiva.replace(/\D/g, "").length !== 11 && ((contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "").length !== 11))}
+                onClick={runVisura}
+                title="Scarica la visura camerale da openapi.it (bilancio, soci, PEC, ATECO…). Richiede P.IVA e consuma crediti openapi."
+              >
+                {visuraLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />} Visura / bilancio
               </Button>
             </div>
           </div>
@@ -2091,6 +2149,63 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Visura camerale openapi (bilancio, soci, PEC, ATECO…) */}
+      <Dialog open={visuraOpen} onOpenChange={setVisuraOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="h-4 w-4 text-slate-600" /> Visura camerale</DialogTitle>
+            <DialogDescription className="text-xs">Dati ufficiali dal registro imprese (openapi.it). I campi vuoti del contatto sono stati compilati.</DialogDescription>
+          </DialogHeader>
+          {visuraResult && (visuraResult.ok && visuraResult.fields ? (() => {
+            const f = visuraResult.fields as Record<string, unknown>;
+            const LABELS: Record<string, string> = {
+              ragione_sociale: "Ragione sociale", forma_giuridica: "Forma giuridica", stato_attivita: "Stato attività",
+              data_costituzione: "Costituita il", capitale_sociale: "Capitale sociale", rea: "REA", codice_fiscale: "Codice fiscale",
+              sdi: "Codice SDI", pec: "PEC", ateco: "ATECO", ateco_desc: "Attività (ATECO)", indirizzo: "Indirizzo",
+              comune: "Comune", provincia: "Provincia", cap: "CAP", dipendenti: "Dipendenti", fatturato: "Fatturato",
+              utile: "Utile", anno_bilancio: "Anno bilancio",
+            };
+            const money = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+            const rowV = (label: string, value: React.ReactNode) => (
+              <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
+                <span className="font-medium break-all">{value}</span>
+              </div>
+            );
+            const rows = Object.entries(LABELS).filter(([k]) => f[k] != null && String(f[k]).trim() !== "").map(([k]) => {
+              let val: React.ReactNode = String(f[k]);
+              if ((k === "capitale_sociale" || k === "fatturato" || k === "utile") && typeof f[k] === "number") val = money(f[k] as number);
+              if (k === "pec") val = <a href={`mailto:${f[k]}`} className="text-primary underline">{String(f[k])}</a>;
+              return <div key={k}>{rowV(LABELS[k], val)}</div>;
+            });
+            const soci = Array.isArray(f.soci) ? f.soci as Array<{ nome?: string; ruolo?: string }> : [];
+            const amm = Array.isArray(f.amministratori) ? f.amministratori as Array<{ nome?: string; ruolo?: string }> : [];
+            return (
+              <div className="space-y-1">
+                {visuraResult.contact_updated && visuraResult.contact_updated.length > 0 && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800 mb-2">
+                    ✓ Compilati sul contatto: <b>{visuraResult.contact_updated.join(", ")}</b>
+                  </div>
+                )}
+                {rows}
+                {amm.length > 0 && rowV("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                {soci.length > 0 && rowV("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                {rows.length === 0 && amm.length === 0 && soci.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">Nessun campo restituito da openapi per questa P.IVA.</p>
+                )}
+              </div>
+            );
+          })() : (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              ⚠️ Visura non disponibile — {visuraResult.error}
+              {/Wrong Token|non configurato|401/i.test(visuraResult.error || "") && (
+                <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, bilancio e PEC.</>
+              )}
+            </div>
+          ))}
         </DialogContent>
       </Dialog>
       </div>
