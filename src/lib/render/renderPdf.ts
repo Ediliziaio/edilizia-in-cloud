@@ -31,17 +31,49 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
     throw new Error(`Impossibile caricare immagine PDF (${response.status})`);
   }
   const blob = await response.blob();
-  return await new Promise<string>((resolve, reject) => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new Error("Conversione immagine PDF fallita"));
     reader.readAsDataURL(blob);
   });
+
+  // FIX (audit 16/07) — jsPDF supporta SOLO PNG/JPEG: i risultati render di
+  // alcuni verticali (bagno, stanza…) vengono salvati come .webp quando il
+  // provider risponde webp → addImage lanciava e il download PDF falliva.
+  // Ricodifichiamo via canvas qualunque formato non-PNG/JPEG.
+  if (
+    dataUrl.startsWith("data:image/png") ||
+    dataUrl.startsWith("data:image/jpeg") ||
+    dataUrl.startsWith("data:image/jpg")
+  ) {
+    return dataUrl;
+  }
+  return await reencodeToPng(dataUrl);
 }
 
-function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
+function reencodeToPng(dataUrl: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas non disponibile per la conversione PDF"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Formato immagine non convertibile per il PDF"));
+    img.src = dataUrl;
+  });
+}
+
+function imageFormat(dataUrl: string): "PNG" | "JPEG" {
   if (dataUrl.startsWith("data:image/jpeg") || dataUrl.startsWith("data:image/jpg")) return "JPEG";
-  if (dataUrl.startsWith("data:image/webp")) return "WEBP";
   return "PNG";
 }
 

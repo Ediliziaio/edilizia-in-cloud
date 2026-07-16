@@ -1271,6 +1271,10 @@ export default function RenderNewV2() {
             onCreateQuote={() => {
               const qs = new URLSearchParams();
               if (contactId) qs.set("contact_id", contactId);
+              // Ponte render→preventivo: il preventivo nasce già col render
+              // allegato (pagina "Anteprima render AI" nel PDF finale).
+              if (resultUrl) qs.set("render_url", resultUrl);
+              if (sessionId) qs.set("render_session_id", sessionId);
               navigate(`/azienda/marketing/preventivi/nuovo${qs.toString() ? `?${qs}` : ""}`);
             }}
           />
