@@ -108,9 +108,10 @@ function MarketingOpportunitiesContent() {
   const searchQuery = useDebounce(searchInput, 350);
   const safeSearchQuery = useMemo(() => sanitizeOpportunitySearchTerm(searchQuery), [searchQuery]);
   const isMobile = useIsMobile();
-  // Su mobile il kanban è uno scroll orizzontale scomodo (1 colonna a schermo):
-  // forziamo la vista LISTA, molto più adatta al telefono.
-  const viewMode = isMobile ? "list" : normalizedUrlState.viewMode;
+  // La pipeline (kanban) è la vista PRINCIPALE anche su mobile: una colonna per
+  // fase, scroll orizzontale tra le fasi (destra/sinistra). Il toggle "Vista lista"
+  // resta disponibile nel menu "…".
+  const viewMode = normalizedUrlState.viewMode;
   const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -667,8 +668,12 @@ function MarketingOpportunitiesContent() {
           </DropdownMenu>
         </div>
       </div>
-      {/* KPI pipeline anche su mobile (prima hidden md:block → zero numeri da telefono) */}
-      <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+      {/* KPI pipeline. Su mobile in vista Kanban li nascondiamo: le colonne mostrano
+          già i totali per fase e così la pipeline resta la vista principale (più
+          spazio verticale). In vista lista restano visibili. */}
+      {!(isMobile && viewMode === "kanban") && (
+        <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+      )}
       {isFetchingNextPage && (
         <div className="flex items-center gap-2 px-1 shrink-0">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
