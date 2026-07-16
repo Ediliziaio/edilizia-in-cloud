@@ -15,9 +15,15 @@
  *   • beforeSend: filtriamo ResizeObserver noise e altri known-no-ops
  */
 
-import * as Sentry from "@sentry/react";
+// @sentry/react è caricato DINAMICAMENTE dentro initSentry(): questo modulo
+// è importato staticamente da App/AuthContext/ProtectedRoute (helper capture*),
+// quindi un import statico della libreria trascinerebbe ~40KB gzip nel chunk
+// d'ingresso, vanificando il lazy-load post-mount di main.tsx. Gli helper
+// degradano a console finché la libreria non è pronta (sentryMod null).
+type SentryModule = typeof import("@sentry/react");
 
-let initialized = false;
+let sentryMod: SentryModule | null = null;
+let initStarted = false;
 
 const KNOWN_NOISE = [
   "ResizeObserver loop limit exceeded",
@@ -28,9 +34,9 @@ const KNOWN_NOISE = [
   "Importing a module script failed",
 ];
 
-export function initSentry(): void {
-  if (initialized) return;
-  initialized = true;
+export async function initSentry(): Promise<void> {
+  if (initStarted) return;
+  initStarted = true;
 
   const dsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
   if (!dsn) {
@@ -44,6 +50,7 @@ export function initSentry(): void {
     (import.meta.env.VITE_COMMIT_SHA as string | undefined);
 
   try {
+    const Sentry = await import("@sentry/react");
     Sentry.init({
       dsn,
       environment: env,
@@ -68,6 +75,7 @@ export function initSentry(): void {
         }),
       ],
     });
+    sentryMod = Sentry;
   } catch (e) {
     // Sentry init fallito: non blocchiamo l'app.
     if (import.meta.env.DEV) {
@@ -87,15 +95,15 @@ export function captureVelocityError(
   error: unknown,
   extra?: Record<string, unknown>,
 ): void {
-  if (!initialized) {
+  if (!sentryMod) {
     if (import.meta.env.DEV) {
-       
+
       console.warn(`[velocity:${where}]`, error, extra ?? {});
     }
     return;
   }
   try {
-    Sentry.captureException(error, {
+    sentryMod.captureException(error, {
       tags: { velocity_area: where },
       extra,
     });
@@ -122,15 +130,15 @@ export function captureVelocityEvent(
   name: string,
   data?: Record<string, unknown>,
 ): void {
-  if (!initialized) {
+  if (!sentryMod) {
     if (import.meta.env.DEV) {
-       
+
       console.info(`[velocity:event:${name}]`, data ?? {});
     }
     return;
   }
   try {
-    Sentry.addBreadcrumb({
+    sentryMod.addBreadcrumb({
       category: "velocity",
       message: name,
       level: "info",
@@ -155,20 +163,20 @@ export function captureVelocityEvent(
 export function setSentryUserContext(
   ctx: { id: string; role?: string | null; tenantId?: string | null; email?: string } | null,
 ): void {
-  if (!initialized) return;
+  if (!sentryMod) return;
   try {
     if (ctx === null) {
-      Sentry.setUser(null);
-      Sentry.setTag("role", undefined);
-      Sentry.setTag("tenant_id", undefined);
+      sentryMod.setUser(null);
+      sentryMod.setTag("role", undefined);
+      sentryMod.setTag("tenant_id", undefined);
       return;
     }
-    Sentry.setUser({
+    sentryMod.setUser({
       id: ctx.id,
       ...(ctx.email ? { email: ctx.email } : {}),
     });
-    if (ctx.role) Sentry.setTag("role", ctx.role);
-    if (ctx.tenantId) Sentry.setTag("tenant_id", ctx.tenantId);
+    if (ctx.role) sentryMod.setTag("role", ctx.role);
+    if (ctx.tenantId) sentryMod.setTag("tenant_id", ctx.tenantId);
   } catch {
     /* noop */
   }
