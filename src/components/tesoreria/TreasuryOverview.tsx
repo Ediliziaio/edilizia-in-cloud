@@ -12,6 +12,7 @@ import { formatCurrencyCompact, formatDateIt } from "@/lib/formatters";
 import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { prettyTxDesc } from "./txLabel";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -100,7 +101,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         supabase.rpc("get_expenses_by_category", { p_company_id: companyId, p_months: 3 }),
         supabase
           .from("bank_transactions")
-          .select("id, booking_date, description, amount, transaction_type, category")
+          .select("id, booking_date, description, amount, transaction_type, category, creditor_name, debtor_name")
           .eq("company_id", companyId)
           .order("booking_date", { ascending: false })
           .limit(5),
@@ -492,7 +493,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                         {isCredit ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{tx.description || "—"}</p>
+                        <p className="truncate text-sm font-medium">{prettyTxDesc(tx)}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDateIt(tx.booking_date)}
                           {tx.category ? <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{tx.category}</span> : null}
