@@ -5,13 +5,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
@@ -98,6 +96,15 @@ function dataUrlToBytes(
   return { bytes, mimeType, extension };
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -155,14 +162,38 @@ Deno.serve(async (req: Request) => {
         already_completed: true,
       });
     }
-    if (session.status === "processing") {
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
+    // Il guard read-then-act ("status === processing → accepted") lasciava
+    // passare due invocation simultanee → doppio addebito. Il claim generico
+    // (whitelist tabelle verticali) serializza con FOR UPDATE.
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_vertical_session",
+      {
+        _table: "render_stanza_sessions",
+        _session_id: session_id,
+        _stale_seconds: 170,
+      },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
+    }
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
       return acceptedRenderResponse(session_id);
     }
+    if (claim.stale_takeover) {
+      // Tentativo morto: rimborsa il consume orfano PRIMA del nuovo deduct.
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: companyId,
+        _session_id: session_id,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-room-render" },
+      });
+    }
 
-    // FIX P2.1 + P3.1: credito deduct atomico PRE-flight con audit ledger.
-    // Prima il codice faceva SELECT balance (non atomico) e poi
-    // decrement_render_credits a render completato → race condition +
-    // impossibile tracciare in ledger la sessione consumatrice.
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: companyId as string,
       sessionId: session_id,
@@ -171,18 +202,13 @@ Deno.serve(async (req: Request) => {
       logTag: "generate-room-render",
     });
     if (deductResult.status === "insufficient") {
+      await supabase.rpc("release_render_vertical_session", {
+        _table: "render_stanza_sessions",
+        _session_id: session_id,
+      });
       throw new Error("insufficient_credits");
     }
     creditDeducted = true;
-
-    // Update session status
-    await supabase
-      .from("render_stanza_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-      })
-      .eq("id", session_id);
 
     const renderJob = (async () => {
       const prepared = await prepareInputImage({
@@ -246,20 +272,111 @@ Deno.serve(async (req: Request) => {
         );
       }
       const imgBlob = await imgResp.blob();
-      const providerResult = await editImage({
-        prompt: fullPrompt,
-        sourceImageBlob: imgBlob,
-        effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
-        effectiveHeight: prepared.effective_height ?? target_height ??
-          undefined,
-        openaiQuality: "medium",
-        timeoutMs: 180_000,
-        metadata: {
-          task_kind: "render_image_edit",
-          company_id: companyId as string,
-          session_id,
-        },
-      });
+
+      // F1-parity (audit 16/07) — Budget deadline-aware: il timeout fisso
+      // 180s (con retry interni) superava il cap 150s dell'isolate →
+      // sessione zombie + credito perso. 1 tentativo per tier, timeout
+      // dal budget residuo.
+      const STANZA_BUDGET_MS = 140_000;
+      const jobStartMs = Date.now();
+      const jobElapsed = () => Date.now() - jobStartMs;
+      const generateCandidate = (prompt: string) => {
+        const remaining = STANZA_BUDGET_MS - jobElapsed() - 20_000;
+        const perAttemptTimeout = Math.max(
+          30_000,
+          Math.min(75_000, Math.floor(remaining / 2)),
+        );
+        return editImage({
+          prompt,
+          sourceImageBlob: imgBlob,
+          effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
+          effectiveHeight: prepared.effective_height ?? target_height ??
+            undefined,
+          openaiQuality: "medium",
+          timeoutMs: perAttemptTimeout,
+          maxRetries: 0,
+          metadata: {
+            task_kind: "render_image_edit",
+            company_id: companyId as string,
+            session_id,
+          },
+        });
+      };
+
+      let providerResult = await generateCandidate(fullPrompt);
+      let generationAttempts = 1;
+
+      // ── QA VISION stanza (audit 16/07) ──────────────────────────────────
+      // I difetti tipici del restyling stanza: mobili DUPLICATI (due divani,
+      // due letti nella stessa camera), porte/finestre inventate o sparite,
+      // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
+      // Graceful: se il vision provider fallisce, il render passa comunque.
+      try {
+        const qaPrompt = [
+          "You are a LENIENT quality inspector for an interior room restyling render.",
+          "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
+          'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+          "Fail ONLY on clear, unambiguous violations:",
+          "- duplicated_furniture: the candidate shows TWO of a fixture that exists once (two beds in one bedroom, two identical sofas, two dining tables).",
+          "- invented_openings: windows or doors added, removed or relocated compared to the source walls.",
+          "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          "- unrealistic_scale: furniture rendered at impossible size for the room.",
+          "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
+        ].join("\n");
+
+        const sourceBytes = new Uint8Array(await imgBlob.arrayBuffer());
+        const sourceDataUrl = `data:${
+          imgBlob.type || "image/jpeg"
+        };base64,${bytesToBase64(sourceBytes)}`;
+
+        const qaResult = await callVisionQa({
+          sourceImageDataUrl: sourceDataUrl,
+          candidateImageDataUrl: providerResult.imageDataUrl,
+          qaPrompt,
+          metadata: {
+            task_kind: "render_image_qa",
+            company_id: companyId as string,
+            session_id,
+          },
+        });
+
+        const qaIssues = (qaResult.issues ?? []).map((raw) => {
+          if (typeof raw === "string") return { category: "unspecified", detail: raw };
+          const r = raw as { category?: string; detail?: string };
+          return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+        });
+
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+          console.log(JSON.stringify({
+            fn: "generate-room-render",
+            msg: "qa_failed_retry_corrective",
+            session_id,
+            qa_model: qaResult.modelUsed,
+            issues: qaIssues.map((i) => i.category),
+          }));
+          const correctedPrompt = `${fullPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (one bed, one sofa, one table unless the source shows more), never add/remove/move windows or doors, keep the exact source camera and crop. Fix every violation listed above.`;
+          providerResult = await generateCandidate(correctedPrompt);
+          generationAttempts += 1;
+        } else if (qaResult.checked && !qaResult.pass) {
+          console.warn(JSON.stringify({
+            fn: "generate-room-render",
+            msg: "qa_failed_retry_skipped_budget",
+            session_id,
+            issues: qaIssues.map((i) => i.category),
+            elapsed_ms: jobElapsed(),
+          }));
+        }
+      } catch (qaErr) {
+        console.warn(
+          "[generate-room-render] QA vision error (ignored):",
+          qaErr instanceof Error ? qaErr.message : String(qaErr),
+        );
+      }
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
@@ -322,6 +439,7 @@ Deno.serve(async (req: Request) => {
             input_image_meta: prepared.meta,
             provider_model_used: modelUsed,
             provider_attempts: providerResult.attempts,
+            generation_attempts: generationAttempts,
           },
         })
         .eq("id", session_id);
@@ -355,16 +473,17 @@ Deno.serve(async (req: Request) => {
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("generate-room-render background error:", message);
-      await refundRenderCreditSafe(supabase, {
-        companyId: companyId as string,
-        sessionId: session_id,
-        userId: user.id,
-        reasonMeta: {
+      // F1-parity — refund_all: rimborsa TUTTI i consume scoperti (v1 si
+      // bloccava se esisteva già un refund di un ciclo precedente).
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: companyId,
+        _session_id: session_id,
+        _reason_meta: {
           vertical: "stanza",
           edge_fn: "generate-room-render",
           error: message.substring(0, 500),
+          background_failure: true,
         },
-        logTag: "generate-room-render",
       });
       await supabase
         .from("render_stanza_sessions")
@@ -391,16 +510,14 @@ Deno.serve(async (req: Request) => {
       const body = await req.clone().json().catch(() => ({}));
       if (body.session_id) {
         if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: refundableSessionId,
-            userId: refundableUserId,
-            reasonMeta: {
+          await supabase.rpc("refund_render_credit_all", {
+            _company_id: refundableCompanyId,
+            _session_id: refundableSessionId,
+            _reason_meta: {
               vertical: "stanza",
               edge_fn: "generate-room-render",
               error: message.substring(0, 500),
             },
-            logTag: "generate-room-render",
           });
         }
         await supabase
