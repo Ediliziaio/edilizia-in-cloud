@@ -561,6 +561,76 @@ async function companyDetail(idOrPiva: string, token: string, base = "company.op
   } catch { return null; }
 }
 
+/**
+ * Visura camerale (openapi.it IT-advanced): estrazione RICCA di tutti i campi
+ * utili del dettaglio impresa. A differenza di fetchFirmografici (solo 8 campi),
+ * qui restituiamo l'anagrafica completa + registro + bilancio + soci/amministratori.
+ * In caso di errore ritorna { error, status } così l'UI spiega il perché
+ * (crediti finiti, prodotto non attivo sul piano openapi, P.IVA non trovata…).
+ */
+async function fetchVisura(piva: string, token: string, base = "company.openapi.com"): Promise<
+  { ok: true; rec: any; fields: Record<string, unknown> } | { ok: false; status: number; error: string }
+> {
+  const num = piva.replace(/\D/g, "");
+  if (num.length !== 11) return { ok: false, status: 0, error: "P.IVA non valida (servono 11 cifre)." };
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`https://${base}/IT-advanced/${num}`, {
+      timeoutMs: 12000,
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch (e) {
+    return { ok: false, status: 0, error: `Rete openapi.it: ${(e as Error).message}` };
+  }
+  const bodyText = await res.text().catch(() => "");
+  let body: any = null;
+  try { body = JSON.parse(bodyText); } catch { /* non-JSON */ }
+  if (!res.ok) {
+    const msg = body?.message || body?.error || bodyText.slice(0, 200) || `HTTP ${res.status}`;
+    return { ok: false, status: res.status, error: String(msg) };
+  }
+  const rec = Array.isArray(body?.data) ? (body.data[0] || null) : (body?.data || body);
+  if (!rec) return { ok: false, status: res.status, error: "openapi.it non ha restituito dati per questa P.IVA." };
+
+  const num0 = (v: unknown): number | undefined => {
+    const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const addr = rec.address?.registeredOffice || rec.registeredOffice || rec.address || {};
+  const balance = rec.balanceSheets?.[0] || rec.lastBalanceSheet || {};
+  const atecoObj = rec.atecoClassification?.ateco || rec.ateco || {};
+  const people = (arr: any): Array<{ nome?: string; ruolo?: string }> =>
+    Array.isArray(arr) ? arr.slice(0, 12).map((x: any) => ({
+      nome: x?.name || [x?.firstName, x?.lastName].filter(Boolean).join(" ") || x?.companyName || undefined,
+      ruolo: x?.role || x?.charge || x?.position || undefined,
+    })).filter((p) => p.nome) : [];
+
+  const fields: Record<string, unknown> = {
+    ragione_sociale: rec.companyName || rec.denomination || undefined,
+    forma_giuridica: rec.detailedLegalForm?.description || rec.legalForm?.description || rec.legalForm || undefined,
+    stato_attivita: rec.activityStatus || rec.status || rec.companyStatus || undefined,
+    data_costituzione: rec.startDate || rec.registrationDate || rec.creationDate || undefined,
+    capitale_sociale: num0(rec.shareCapital?.amount ?? rec.shareCapital ?? rec.capital),
+    rea: rec.rea?.number || rec.reaNumber || rec.rea || undefined,
+    codice_fiscale: rec.taxCode || rec.fiscalCode || undefined,
+    sdi: rec.sdiCode || rec.recipientCode || undefined,
+    pec: (rec.pec || rec.pecEmail || rec.contacts?.pec) ? String(rec.pec || rec.pecEmail || rec.contacts?.pec).toLowerCase() : undefined,
+    ateco: atecoObj?.code || rec.atecoCode || undefined,
+    ateco_desc: atecoObj?.description || rec.atecoDescription || undefined,
+    indirizzo: [addr.streetName || addr.address, addr.streetNumber].filter(Boolean).join(" ") || undefined,
+    comune: addr.town || addr.city || addr.municipality || undefined,
+    provincia: addr.province || addr.provinceCode || undefined,
+    cap: addr.zipCode || addr.postalCode || addr.cap || undefined,
+    dipendenti: num0(rec.employees ?? balance.employees),
+    fatturato: num0(balance.turnover ?? balance.revenue ?? rec.turnover),
+    utile: num0(balance.netIncome ?? balance.profit),
+    anno_bilancio: num0(balance.year),
+    soci: people(rec.shareholders || rec.members),
+    amministratori: people(rec.administrators || rec.managers || rec.directors),
+  };
+  return { ok: true, rec, fields };
+}
+
 // ── LinkedIn full profile via Proxycurl — gated ───────────────────────────────
 async function proxycurlProfile(linkedinUrl: string, key: string): Promise<{ name?: string; role?: string; email?: string } | null> {
   try {
@@ -1757,10 +1827,24 @@ Deno.serve(async (req) => {
         if (vies) result.vies = vies;
       }
 
-      // 3) Firmografici + PEC (opzionale, openapi.it solo se token configurato)
+      // 3) Firmografici + visura (openapi.it, solo se token configurato).
+      // Usa fetchVisura (ricca) e, in caso di errore, SURFACE il motivo invece
+      // di sparire in silenzio (es. "Wrong Token" → token openapi non valido).
       if (openapiToken && piva) {
-        const firmo = await fetchFirmografici(piva, openapiToken, await openapiBase());
-        if (firmo) result.firmografici = firmo;
+        const v = await fetchVisura(piva, openapiToken, await openapiBase());
+        if (v.ok) {
+          result.visura = v.fields;
+          // retrocompat: mantieni anche il sotto-set "firmografici"
+          result.firmografici = {
+            ateco: v.fields.ateco, ateco_desc: v.fields.ateco_desc,
+            pec: v.fields.pec, dipendenti: v.fields.dipendenti,
+            fatturato: v.fields.fatturato, forma_giuridica: v.fields.forma_giuridica,
+          };
+        } else {
+          result.openapi_error = v.error;
+        }
+      } else if (!openapiToken) {
+        result.openapi_error = "openapi.it non configurato (nessun token).";
       }
 
       // 4) Opzionale: riempi i campi vuoti del contatto CRM
@@ -1769,16 +1853,19 @@ Deno.serve(async (req) => {
           .from("marketing_contacts").select("*")
           .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
         if (c) {
-          const firmo = (result.firmografici || {}) as Record<string, unknown>;
+          const vis = (result.visura || {}) as Record<string, unknown>;
           const viesName = (result.vies as { name?: string } | undefined)?.name;
-          const bestEmail = c.email || deep?.emails?.[0] || (firmo.pec as string | undefined) || null;
+          const bestEmail = c.email || deep?.emails?.[0] || (vis.pec as string | undefined) || null;
           const bestPhone = c.phone || deep?.phones?.[0] || null;
           const patch: Record<string, unknown> = {};
           if (!c.email && bestEmail) patch.email = bestEmail;
           if (!c.phone && bestPhone) patch.phone = bestPhone;
           if (!c.website && website) patch.website = website;
           if (!c.vat_number && piva) patch.vat_number = piva;
-          if (!c.company_name && (businessName || viesName)) patch.company_name = businessName || viesName;
+          if (!c.company_name && (businessName || viesName || vis.ragione_sociale)) patch.company_name = businessName || viesName || vis.ragione_sociale;
+          if (!c.city && vis.comune) patch.city = vis.comune;
+          if (!c.province && vis.provincia) patch.province = vis.provincia;
+          if (!c.address && vis.indirizzo) patch.address = vis.indirizzo;
           if (Object.keys(patch).length) {
             await supabaseAdmin.from("marketing_contacts").update(patch)
               .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
@@ -1788,6 +1875,51 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse(result, 200, corsH);
+    }
+
+    // ═══════ VISURA (openapi.it IT-advanced: anagrafica camerale ricca) ═══════
+    // Input { partita_iva? , contactId? }. Opzionale/on-demand (consuma crediti
+    // openapi). Se contactId, riempie i campi vuoti del contatto (PEC, indirizzo,
+    // forma giuridica). Diagnostica esplicita se openapi fallisce.
+    if (action === "enrich_visura") {
+      let piva: string | null = typeof body.partita_iva === "string" ? body.partita_iva.replace(/\D/g, "") : null;
+      const contactId: string | null = typeof body.contactId === "string" ? body.contactId : null;
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      if (!openapiToken) {
+        return jsonResponse({ ok: false, error: "openapi.it non configurato: imposta openapi_it_token nelle impostazioni piattaforma." }, 200, corsH);
+      }
+      // Se manca la P.IVA ma ho il contatto, provo a leggerla dal contatto
+      if (!piva && contactId) {
+        const { data: c } = await supabaseAdmin.from("marketing_contacts").select("vat_number").eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+        if (c?.vat_number) piva = String(c.vat_number).replace(/\D/g, "");
+      }
+      if (!piva || piva.length !== 11) {
+        return jsonResponse({ ok: false, error: "Serve una P.IVA valida (11 cifre) per la visura." }, 200, corsH);
+      }
+      const v = await fetchVisura(piva, openapiToken, await openapiBase());
+      if (!v.ok) {
+        return jsonResponse({ ok: false, status: v.status, error: `openapi.it: ${v.error}` }, 200, corsH);
+      }
+      const f = v.fields as Record<string, unknown>;
+      // Auto-fill campi vuoti del contatto (best-effort)
+      let contact_updated: string[] = [];
+      if (contactId) {
+        const { data: c } = await supabaseAdmin.from("marketing_contacts").select("*").eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+        if (c) {
+          const patch: Record<string, unknown> = {};
+          if (!c.email && f.pec) patch.email = f.pec;
+          if (!c.company_name && f.ragione_sociale) patch.company_name = f.ragione_sociale;
+          if (!c.vat_number) patch.vat_number = piva;
+          if (!c.city && f.comune) patch.city = f.comune;
+          if (!c.province && f.provincia) patch.province = f.provincia;
+          if (!c.address && f.indirizzo) patch.address = f.indirizzo;
+          if (Object.keys(patch).length) {
+            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+            contact_updated = Object.keys(patch);
+          }
+        }
+      }
+      return jsonResponse({ ok: true, partita_iva: piva, fields: f, contact_updated }, 200, corsH);
     }
 
     // ════════════════════ FIND EMAIL (pattern + MX, gratis) ════════════════════

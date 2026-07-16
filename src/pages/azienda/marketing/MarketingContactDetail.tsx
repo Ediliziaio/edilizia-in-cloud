@@ -1934,6 +1934,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             const r = enrichResult as {
               vies?: { valid?: boolean; name?: string; address?: string };
               firmografici?: Record<string, unknown>;
+              visura?: Record<string, unknown>;
+              openapi_error?: string;
               emails?: string[]; phones?: string[];
               phones_classified?: Array<{ e164: string; type: "mobile" | "landline"; whatsapp: boolean }>;
               facebook_url?: string; instagram_url?: string; linkedin_url?: string;
@@ -1985,11 +1987,43 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     {r.vies?.address && row("Sede legale", r.vies.address)}
                   </div>
                 )}
-                {r.firmografici && Object.keys(r.firmografici).length > 0 && (
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Firmografici (registro imprese)</p>
-                    {Object.entries(r.firmografici).filter(([, v]) => v != null && String(v).trim() !== "").slice(0, 12).map(([k, v]) =>
-                      <div key={k}>{row(k.replace(/_/g, " "), String(v))}</div>
+                {(() => {
+                  const vis = r.visura as Record<string, unknown> | undefined;
+                  if (!vis) return null;
+                  const LABELS: Record<string, string> = {
+                    ragione_sociale: "Ragione sociale", forma_giuridica: "Forma giuridica",
+                    stato_attivita: "Stato attività", data_costituzione: "Costituita il",
+                    capitale_sociale: "Capitale sociale", rea: "REA", codice_fiscale: "Codice fiscale",
+                    sdi: "Codice SDI", pec: "PEC", ateco: "ATECO", ateco_desc: "Attività (ATECO)",
+                    indirizzo: "Indirizzo", comune: "Comune", provincia: "Provincia", cap: "CAP",
+                    dipendenti: "Dipendenti", fatturato: "Fatturato", utile: "Utile", anno_bilancio: "Anno bilancio",
+                  };
+                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+                  const rows = Object.entries(LABELS)
+                    .filter(([k]) => vis[k] != null && String(vis[k]).trim() !== "")
+                    .map(([k]) => {
+                      let val: React.ReactNode = String(vis[k]);
+                      if ((k === "capitale_sociale" || k === "fatturato" || k === "utile") && typeof vis[k] === "number") val = fmtMoneyIt(vis[k] as number);
+                      if (k === "pec") val = <a href={`mailto:${vis[k]}`} className="text-primary underline">{String(vis[k])}</a>;
+                      return <div key={k}>{row(LABELS[k], val)}</div>;
+                    });
+                  const soci = Array.isArray(vis.soci) ? vis.soci as Array<{ nome?: string; ruolo?: string }> : [];
+                  const amm = Array.isArray(vis.amministratori) ? vis.amministratori as Array<{ nome?: string; ruolo?: string }> : [];
+                  if (rows.length === 0 && soci.length === 0 && amm.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
+                      {rows}
+                      {amm.length > 0 && row("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                      {soci.length > 0 && row("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                    </div>
+                  );
+                })()}
+                {r.openapi_error && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                    ⚠️ Dati camerali non disponibili — {r.openapi_error}
+                    {/Wrong Token|non configurato|401/i.test(r.openapi_error) && (
+                      <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, PEC e firmografici.</>
                     )}
                   </div>
                 )}
