@@ -1935,6 +1935,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               vies?: { valid?: boolean; name?: string; address?: string };
               firmografici?: Record<string, unknown>;
               emails?: string[]; phones?: string[];
+              phones_classified?: Array<{ e164: string; type: "mobile" | "landline"; whatsapp: boolean }>;
               facebook_url?: string; instagram_url?: string; linkedin_url?: string;
               partita_iva?: string | null;
               site_partita_iva?: string | null;
@@ -1992,13 +1993,36 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     )}
                   </div>
                 )}
-                {((r.emails?.length ?? 0) > 0 || (r.phones?.length ?? 0) > 0) && (
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
-                    {r.emails?.map((e) => <div key={e}>{row("Email", e)}</div>)}
-                    {r.phones?.map((p) => <div key={p}>{row("Telefono", p)}</div>)}
-                  </div>
-                )}
+                {((r.emails?.length ?? 0) > 0 || (r.phones_classified?.length ?? r.phones?.length ?? 0) > 0) && (() => {
+                  const classified = r.phones_classified ?? (r.phones ?? []).map((e164) => ({ e164, type: "landline" as const, whatsapp: false }));
+                  const mobiles = classified.filter((p) => p.type === "mobile");
+                  const landlines = classified.filter((p) => p.type === "landline");
+                  return (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 italic">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
+                      {r.emails?.map((e) => <div key={e}>{row("Email", <a href={`mailto:${e}`} className="text-primary underline">{e}</a>)}</div>)}
+                      {mobiles.map((p) => (
+                        <div key={p.e164}>{row(
+                          <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> Cellulare</span>,
+                          <span className="inline-flex items-center gap-1.5 flex-wrap">
+                            {p.e164}
+                            <Badge className="h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-0.5"><MessageSquare className="h-2.5 w-2.5" /> WhatsApp possibile</Badge>
+                          </span>,
+                        )}</div>
+                      ))}
+                      {landlines.map((p) => (
+                        <div key={p.e164}>{row(
+                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> Fisso</span>,
+                          p.e164,
+                        )}</div>
+                      ))}
+                      {mobiles.length === 0 && (
+                        <p className="text-[11px] text-amber-700 mt-1">Nessun cellulare trovato: sul sito solo numeri fissi. Il cellulare (per WhatsApp) va cercato altrove.</p>
+                      )}
+                    </div>
+                  );
+                })()}
                 {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Social</p>

@@ -147,9 +147,27 @@ function cleanPhone(raw: string): string {
   return raw.replace(/[^\d+]/g, "");
 }
 
+/**
+ * Normalizza un numero italiano in E.164 (+39…) e lo classifica.
+ * Ritorna null se non è un telefono plausibile (scarta P.IVA/CAP/anni, ecc.).
+ * mobile = +39 3xx (cellulare, possibile WhatsApp); landline = fisso.
+ */
+function classifyItPhone(raw: string): { e164: string; type: "mobile" | "landline"; whatsapp: boolean } | null {
+  let d = raw.replace(/[^\d]/g, "");
+  if (d.startsWith("0039")) d = d.slice(4);
+  else if (d.startsWith("39") && d.length >= 11) d = d.slice(2);
+  d = d.replace(/^0039/, "");
+  // Cellulare: 3xx + 6-7 cifre = 9-10 totali, prefisso 3
+  if (/^3\d{8,9}$/.test(d)) return { e164: `+39${d}`, type: "mobile", whatsapp: true };
+  // Fisso: 0 + distretto + numero, 6-10 cifre totali (mai 11 → sarebbe P.IVA)
+  if (/^0\d{5,9}$/.test(d)) return { e164: `+39${d}`, type: "landline", whatsapp: false };
+  return null; // scarta P.IVA (11 cifre), CAP, sequenze non plausibili
+}
+
 interface DeepEnrich {
   emails: string[];
   phones: string[];
+  phones_classified: Array<{ e164: string; type: "mobile" | "landline"; whatsapp: boolean }>;
   partita_iva: string | null;
   linkedin_url: string | null;
   facebook_url: string | null;
@@ -216,14 +234,8 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
     return score(b) - score(a);
   });
 
-  // telefoni
-  const phones = new Set<string>();
-  for (const m of combined.matchAll(PHONE_RE)) {
-    const p = cleanPhone(m[0]);
-    if (p.replace(/^\+39/, "").length >= 6) phones.add(p);
-  }
-
   // P.IVA — prima con label, poi fallback se ne esiste una sola sulla pagina
+  // (calcolata PRIMA dei telefoni così possiamo escluderla dai numeri).
   let piva: string | null = null;
   const labelled = combined.match(PIVA_LABEL_RE);
   if (labelled) piva = labelled[1];
@@ -232,6 +244,18 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
     for (const m of combined.matchAll(PIVA_ANY_RE)) all.add(m[1]);
     if (all.size === 1) piva = [...all][0];
   }
+
+  // telefoni: normalizza in E.164, classifica fisso/cellulare, scarta P.IVA e
+  // numeri non plausibili, dedup per numero normalizzato (mobile prima).
+  const phonesMap = new Map<string, { e164: string; type: "mobile" | "landline"; whatsapp: boolean }>();
+  for (const m of combined.matchAll(PHONE_RE)) {
+    const digits = cleanPhone(m[0]).replace(/^\+/, "");
+    if (piva && digits.replace(/^0039|^39/, "") === piva) continue; // è la P.IVA, non un telefono
+    const c = classifyItPhone(m[0]);
+    if (c && !phonesMap.has(c.e164)) phonesMap.set(c.e164, c);
+  }
+  const phonesClassified = [...phonesMap.values()].sort((a, b) => Number(b.whatsapp) - Number(a.whatsapp));
+  const phones = phonesClassified.map((p) => p.e164);
 
   // social
   const fb = combined.match(SOCIAL_RE.facebook)?.[0] || null;
@@ -261,7 +285,8 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
 
   return {
     emails: emailList,
-    phones: [...phones],
+    phones,
+    phones_classified: phonesClassified,
     partita_iva: piva,
     linkedin_url: li,
     facebook_url: fb,
@@ -1704,6 +1729,7 @@ Deno.serve(async (req) => {
       if (deep) {
         result.emails = deep.emails;
         result.phones = deep.phones;
+        result.phones_classified = deep.phones_classified;
         result.facebook_url = deep.facebook_url;
         result.instagram_url = deep.instagram_url;
         result.linkedin_url = deep.linkedin_url;
