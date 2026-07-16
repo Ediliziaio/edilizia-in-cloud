@@ -173,9 +173,9 @@ export function AddItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Aggiungi voce al preventivo</DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 max-sm:top-auto max-sm:bottom-0 max-sm:translate-y-0 max-sm:max-h-[85vh] max-sm:rounded-t-2xl max-sm:rounded-b-none">
+        <DialogHeader className="text-left">
+          <DialogTitle className="text-base sm:text-lg">Aggiungi voce al preventivo</DialogTitle>
           <DialogDescription>{stageLabel}</DialogDescription>
         </DialogHeader>
 
