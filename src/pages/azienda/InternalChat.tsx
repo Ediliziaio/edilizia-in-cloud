@@ -746,8 +746,23 @@ const ChatListItem = React.memo(function ChatListItem({
   const displayName = isDm ? profileName(dmProfile) : channel.name;
   const memberCount = members.filter((m) => m.channel_id === channel.id).length;
 
-  // Last message preview
+  // Last message preview — ripulito dalla sintassi markdown (es. i messaggi
+  // di Silvio usano ##/**/`… che nell'anteprima lista apparivano grezzi).
   const lastMsgSender = lastMsg ? profileMap.get(lastMsg.sender_id) : undefined;
+  const cleanLastContent = lastMsg
+    ? lastMsg.content
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/^\s*#{1,6}\s+/gm, "")
+        .replace(/^\s*[-*+]\s+/gm, "")
+        .replace(/^\s*>\s?/gm, "")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/__([^_]+)__/g, "$1")
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim()
+    : "";
   const lastMsgPreview = lastMsg
     ? (
         lastMsg.sender_id === userId ? "Tu: "
@@ -755,7 +770,7 @@ const ChatListItem = React.memo(function ChatListItem({
         : lastMsg.sender_id === SILVIO_ADMIN_SENDER_ID ? "Silvio: "
         : `${lastMsgSender?.first_name ?? ""}: `
       )
-      + lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? "…" : "")
+      + cleanLastContent.slice(0, 50) + (cleanLastContent.length > 50 ? "…" : "")
     : isDm ? "Inizia a chattare" : "Nessun messaggio";
 
   // v8.6.54 — Cambiato da <button> a <div role=button> per evitare HTML
