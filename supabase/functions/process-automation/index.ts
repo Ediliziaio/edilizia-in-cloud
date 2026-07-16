@@ -1373,15 +1373,81 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           messaggio.split("\n").map((l) => `<p style="margin:0 0 8px">${escapeNotif(l) || "&nbsp;"}</p>`).join("") +
           `<p style="margin-top:16px;color:#6b7280;font-size:12px">Notifica automatica del flusso di lavoro.</p>` +
           `</div>`;
+        // Flusso MARKETING (decisione 16/07): a scala le notifiche non possono
+        // pesare sul canale transazionale di piattaforma (costo Resend e
+        // reputazione del dominio EiC a carico nostro). Escono dal provider
+        // marketing (Elastic Email) con mittente risolto PER AZIENDA
+        // (dominio custom se verificato, altrimenti fallback mkt.*) e
+        // scalano i crediti email dell'azienda come ogni invio marketing.
+        // Niente pixel/unsubscribe: i destinatari sono il team, non i lead.
         try {
-          const provider = await loadProviderSettings("transactional");
-          const r = await sendViaProviderWithFailover("transactional", provider, {
-            from: provider.fromDefault,
+          const provider = await loadProviderSettings("marketing");
+          if (!provider.apiKey) {
+            return { success: false, error: "Provider email marketing non configurato" };
+          }
+          const notifSender = await resolveSender(companyId, "marketing", supabase).catch(() => null);
+
+          let deductedNotifCost = 0;
+          try {
+            const { data: priceSetting } = await supabase
+              .from("platform_settings")
+              .select("value")
+              .eq("key", "credits_email_price_per_email")
+              .maybeSingle();
+            const costPerEmail = parseFloat(priceSetting?.value || "0.003");
+            const totalCost = costPerEmail * recipients.length;
+            await deductEmailCredits(companyId, totalCost, {
+              description: `Notifica automazione: ${oggetto}`,
+              metadata: { entity_id: entityId, automation: true, internal_notification: true, recipients: recipients.length },
+            });
+            deductedNotifCost = totalCost;
+          } catch (creditErr) {
+            // Non blocca: la notifica al team è più importante del contatore.
+            console.warn(
+              `[internal_notification] deduzione crediti fallita per ${companyId}:`,
+              creditErr instanceof Error ? creditErr.message : creditErr,
+            );
+          }
+
+          const r = await sendViaProviderWithFailover("marketing", provider, {
+            from: notifSender?.from ?? provider.fromDefault,
+            replyTo: notifSender?.replyTo,
             to: recipients,
             subject: oggetto,
             html,
+          }, {
+            domain: notifSender?.domain ?? provider.domain ?? undefined,
+            stream: "marketing",
+            disableNativeTracking: true,
           });
-          if (!r.ok) return { success: false, error: `Invio email fallito: ${(r as any).error ?? (r as any).status ?? "provider"}` };
+
+          await logEmailDelivery(supabase, {
+            company_id: companyId,
+            recipient: recipients.join(", "),
+            subject: oggetto,
+            template_name: "automation_internal_notification",
+            status: r.ok ? "sent" : "failed",
+            provider: r.providerUsed ?? provider.provider,
+            stream: "marketing",
+            provider_id: r.providerMessageId ?? null,
+            error_message: r.ok ? undefined : JSON.stringify(r.body),
+            cost_eur: 0,
+            charged_eur: deductedNotifCost,
+            metadata: { entity_id: entityId, automation: true, internal_notification: true },
+          });
+
+          if (!r.ok) {
+            if (deductedNotifCost > 0) {
+              await addEmailCredits(companyId, deductedNotifCost, "refund", {
+                description: `Rimborso notifica automazione fallita: ${oggetto}`,
+                metadata: { entity_id: entityId, automation: true, internal_notification: true },
+                adminClient: supabase,
+              }).catch((refundErr) => {
+                console.error("[internal_notification] rimborso crediti fallito:", refundErr);
+              });
+            }
+            return { success: false, error: `Invio email fallito: ${(r as any).error ?? (r as any).status ?? "provider"}` };
+          }
         } catch (e) {
           return { success: false, error: e instanceof Error ? e.message : String(e) };
         }
