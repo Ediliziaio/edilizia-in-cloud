@@ -61,7 +61,8 @@ import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPane
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
-import { RefreshCw, CalendarDays, Sparkles } from "lucide-react";
+import { RefreshCw, CalendarDays, Sparkles, Radar, Building2, Globe, AtSign } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
 // ── Extracted sub-components ──
@@ -112,6 +113,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // e in più il canale WhatsApp Locale (pool numeri non-ufficiali, solo piattaforma).
   const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
   const [waLocaleSending, setWaLocaleSending] = useState(false);
+  // Arricchimento dati via motore lead-scraper (solo piattaforma):
+  // scraping sito + VIES (visura light) + firmografici/PEC openapi.it.
+  const [enriching, setEnriching] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<Record<string, unknown> | null>(null);
+  const [enrichOpen, setEnrichOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -379,6 +385,50 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp Locale");
     } finally {
       setWaLocaleSending(false);
+    }
+  };
+
+  // Arricchimento contatto via lead-scraper (enrich_company): usa sito/P.IVA/
+  // ragione sociale del contatto; il motore compila da solo i campi CRM vuoti.
+  const runEnrich = async () => {
+    if (enriching || !contact) return;
+    const website = contact.website?.trim() || null;
+    const piva = (contact as { vat_number?: string | null }).vat_number?.trim() || null;
+    const businessName = contact.company_name?.trim()
+      || [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim()
+      || null;
+    if (!website && !piva && !businessName) {
+      toast.error("Servono almeno sito web, P.IVA o ragione sociale sul contatto");
+      return;
+    }
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "enrich_company", website, partita_iva: piva, business_name: businessName, vies: true, contactId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      setEnrichResult(data as Record<string, unknown>);
+      setEnrichOpen(true);
+      // Traccia in timeline + ricarica il contatto (il motore può aver riempito campi)
+      const updated = Array.isArray(data?.contact_updated) ? data.contact_updated as string[] : [];
+      await supabase.from("marketing_contact_activities").insert({
+        contact_id: id!,
+        company_id: companyId!,
+        activity_type: "updated",
+        description: updated.length
+          ? `Arricchimento scraper: compilati ${updated.join(", ")}`
+          : "Arricchimento scraper eseguito",
+        created_by: user?.id,
+        metadata: { source: "lead-scraper", fields: updated },
+      });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      toast.success(updated.length ? `Contatto arricchito: ${updated.length} campi compilati` : "Arricchimento completato");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore arricchimento");
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -757,6 +807,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Crea preventivo dal contatto — SOLO area azienda: nel CRM di
                   piattaforma (superadmin) i preventivi non esistono. */}
               {!isPlatformContext && <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />}
+              {/* Arricchimento scraper — SOLO piattaforma: sito+VIES+firmografici */}
+              {isPlatformContext && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-9 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  disabled={enriching}
+                  onClick={runEnrich}
+                  title="Scraping sito + VIES (visura light) + firmografici e PEC. Compila da solo i campi vuoti del contatto."
+                >
+                  {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -1743,6 +1806,84 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Risultati arricchimento scraper (solo piattaforma) */}
+      <Dialog open={enrichOpen} onOpenChange={setEnrichOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Dati trovati dallo scraper</DialogTitle>
+            <DialogDescription className="text-xs">
+              Sito, VIES e registri pubblici. I campi vuoti del contatto sono stati compilati automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          {enrichResult && (() => {
+            const r = enrichResult as {
+              vies?: { valid?: boolean; name?: string; address?: string };
+              firmografici?: Record<string, unknown>;
+              emails?: string[]; phones?: string[];
+              facebook_url?: string; instagram_url?: string; linkedin_url?: string;
+              partita_iva?: string | null;
+              contact_updated?: string[];
+              intent_signals?: string[];
+            };
+            const row = (label: string, value: React.ReactNode) => (
+              <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
+                <span className="font-medium break-all">{value}</span>
+              </div>
+            );
+            return (
+              <div className="space-y-3">
+                {r.contact_updated && r.contact_updated.length > 0 && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
+                    ✓ Compilati sul contatto: <b>{r.contact_updated.join(", ")}</b>
+                  </div>
+                )}
+                {(r.vies || r.partita_iva) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
+                    {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">valida</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">non valida</Badge> : null}</>)}
+                    {r.vies?.name && row("Ragione sociale", r.vies.name)}
+                    {r.vies?.address && row("Sede legale", r.vies.address)}
+                  </div>
+                )}
+                {r.firmografici && Object.keys(r.firmografici).length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Firmografici (registro imprese)</p>
+                    {Object.entries(r.firmografici).filter(([, v]) => v != null && String(v).trim() !== "").slice(0, 12).map(([k, v]) =>
+                      <div key={k}>{row(k.replace(/_/g, " "), String(v))}</div>
+                    )}
+                  </div>
+                )}
+                {((r.emails?.length ?? 0) > 0 || (r.phones?.length ?? 0) > 0) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
+                    {r.emails?.map((e) => <div key={e}>{row("Email", e)}</div>)}
+                    {r.phones?.map((p) => <div key={p}>{row("Telefono", p)}</div>)}
+                  </div>
+                )}
+                {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Social</p>
+                    {r.linkedin_url && row("LinkedIn", <a href={r.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.linkedin_url}</a>)}
+                    {r.facebook_url && row("Facebook", <a href={r.facebook_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.facebook_url}</a>)}
+                    {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
+                  </div>
+                )}
+                {(r.intent_signals?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Segnali dal sito</p>
+                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                  </div>
+                )}
+                {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (
+                  <p className="text-xs text-muted-foreground py-2">Nessun dato aggiuntivo trovato. Prova ad aggiungere sito web o P.IVA al contatto e rilancia.</p>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
