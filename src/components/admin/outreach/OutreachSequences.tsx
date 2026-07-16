@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import {
 import { CH_ICON, CH_ACCENT, delayLabel, type TimelineStep } from "./sequenceShared";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { parseVariants } from "../../../../supabase/functions/_shared/outreach-abz";
+import { spamScore } from "../../../../supabase/functions/_shared/outreach-spam-score";
 
 const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: "Rossi Costruzioni", email: "mario@rossi.it" };
 
@@ -932,6 +933,9 @@ function StepEditor({
         </p>
       )}
 
+      {/* Linter deliverability live: mostra il rischio spam mentre scrivi */}
+      {channel === "email" && <QualityMeter subject={subject} body={body} />}
+
       {showPreview && body.trim() && (
         <div className="space-y-1.5">
           {bodyVariants.map((v, i) => (
@@ -957,6 +961,55 @@ function StepEditor({
         )}
         <Button type="button" size="sm" variant="ghost" className="ml-auto h-8" onClick={onCancel}>Annulla</Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Linter deliverability LIVE dello step: rischio spam (0-100) + segnali
+ * azionabili, calcolati mentre scrivi. Riusa la stessa logica del dispatcher
+ * (_shared/outreach-spam-score) così quello che vedi qui è quello che conta
+ * al momento dell'invio. Meno rischio = più email arrivano in inbox.
+ */
+function QualityMeter({ subject, body }: { subject: string; body: string }) {
+  const result = useMemo(() => {
+    // usa la prima variante (A/Z separati da ===) come rappresentativa
+    const firstVariant = body.split(/^\s*===\s*$/m)[0] || body;
+    return spamScore(subject, firstVariant, firstVariant);
+  }, [subject, body]);
+
+  if (!body.trim()) return null;
+
+  const theme = result.level === "rischio"
+    ? { bar: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", label: "Rischio spam alto", icon: AlertTriangle }
+    : result.level === "attenzione"
+      ? { bar: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Da migliorare", icon: Info }
+      : { bar: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Ottimo per il cold", icon: Check };
+  const Icon = theme.icon;
+  const sevDot: Record<string, string> = { high: "bg-rose-500", med: "bg-amber-500", low: "bg-muted-foreground/50" };
+
+  return (
+    <div className={`rounded-lg border ${theme.border} ${theme.bg} p-2.5 space-y-1.5`}>
+      <div className="flex items-center gap-2">
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${theme.text}`} />
+        <span className={`text-xs font-semibold ${theme.text}`}>{theme.label}</span>
+        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">rischio {result.score}/100</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+        <div className={`h-full rounded-full ${theme.bar} transition-all`} style={{ width: `${Math.max(4, result.score)}%` }} />
+      </div>
+      {result.signals.length > 0 ? (
+        <ul className="space-y-0.5 pt-0.5">
+          {result.signals.map((s, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
+              <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${sevDot[s.severity]}`} />
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-emerald-700">Personalizzato, breve, senza trigger anti-spam. Così arriva in inbox.</p>
+      )}
     </div>
   );
 }

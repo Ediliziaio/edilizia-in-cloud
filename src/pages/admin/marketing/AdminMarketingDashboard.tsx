@@ -10,6 +10,7 @@ import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPo
 import { OutreachWarmupDashboard } from "@/components/admin/outreach/OutreachWarmupDashboard";
 import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetupChecklist";
 import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
+import { OutreachDeliverabilityScore } from "@/components/admin/outreach/OutreachDeliverabilityScore";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
@@ -283,6 +284,9 @@ function OutreachCockpit() {
             "da chi parto?" (identità), "quanto posso spingere?" (warm-up e
             finestre), "chi non devo contattare?" (blocklist). */}
         <TabsContent value="deliverability" className="mt-4 space-y-6">
+          <Reveal>
+            <OutreachDeliverabilityScore companyId={companyId} />
+          </Reveal>
           <Reveal className="space-y-3">
             <SectionLabel>Identità di invio — brand, domini e caselle</SectionLabel>
             <OutreachBrands companyId={companyId} />
