@@ -1,4 +1,4 @@
-import { useState, useMemo, forwardRef } from "react";
+import { useState, useMemo, useEffect, useRef, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
@@ -113,6 +113,18 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // e in più il canale WhatsApp Locale (pool numeri non-ufficiali, solo piattaforma).
   const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
   const [waLocaleSending, setWaLocaleSending] = useState(false);
+  // Auto-grow della textarea composer: cresce col contenuto fino a max-height,
+  // poi scrolla. shadcn Textarea è statica, quindi lo facciamo a mano.
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  };
+  // Reset altezza quando il testo si svuota (dopo l'invio) o cambia canale.
+  useEffect(() => {
+    if (composerRef.current && !messageText) composerRef.current.style.height = "auto";
+  }, [messageText, messageChannel]);
   // Arricchimento dati via motore lead-scraper (solo piattaforma):
   // pre-flight (conferma/ricerca sito) → scraping sito + VIES (visura light)
   // + firmografici/PEC openapi.it → verifica di coerenza P.IVA sito↔contatto.
@@ -1315,60 +1327,48 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
         {/* Message input bar */}
         <div className="border-t shrink-0 bg-muted/20">
-          {/* Selettore canale a pillole: chiaro quale canale è attivo
-              (prima era un dropdown a sola icona, poco evidente). Mostra solo
-              i canali disponibili in base ai recapiti del contatto. */}
-          <div className="flex items-center gap-1 px-3 pt-2">
-            {contact.email && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("email")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "email" ? "bg-violet-100 text-violet-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <Mail className="h-3.5 w-3.5" /> Email
-              </button>
-            )}
-            {contact.phone && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("whatsapp")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "whatsapp" ? "bg-emerald-100 text-emerald-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
-              </button>
-            )}
-            {contact.phone && isPlatformContext && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("whatsapp_locale")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "whatsapp_locale" ? "bg-teal-100 text-teal-700" : "text-muted-foreground hover:bg-muted",
-                )}
-                title="Canale non-ufficiale dal pool numeri della piattaforma (rotazione per tag e capacità giornaliera)"
-              >
-                <MessageSquare className="h-3.5 w-3.5" /> WA Locale
-              </button>
-            )}
-            {contact.phone && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("sms")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "sms" ? "bg-sky-100 text-sky-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <Smartphone className="h-3.5 w-3.5" /> SMS
-              </button>
-            )}
+          {/* Selettore canale a pillole. Il canale attivo ha pillola piena +
+              anello colorato; gli altri sono muti. Solo i canali disponibili
+              per i recapiti del contatto (email/telefono). */}
+          <div className="flex items-center gap-1.5 px-3 pt-2.5 flex-wrap">
+            {([
+              contact.email && { key: "email" as const, icon: Mail, label: "Email", active: "bg-violet-100 text-violet-700 ring-1 ring-violet-300" },
+              contact.phone && { key: "whatsapp" as const, icon: MessageSquare, label: "WhatsApp", active: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" },
+              contact.phone && isPlatformContext && { key: "whatsapp_locale" as const, icon: MessageSquare, label: "WA Locale", active: "bg-teal-100 text-teal-700 ring-1 ring-teal-300", title: "Canale non-ufficiale dal pool numeri della piattaforma (rotazione per tag e capacità giornaliera)" },
+              contact.phone && { key: "sms" as const, icon: Smartphone, label: "SMS", active: "bg-sky-100 text-sky-700 ring-1 ring-sky-300" },
+            ].filter(Boolean) as Array<{ key: typeof messageChannel; icon: typeof Mail; label: string; active: string; title?: string }>).map((ch) => {
+              const Icon = ch.icon;
+              const isActive = messageChannel === ch.key;
+              return (
+                <button
+                  key={ch.key}
+                  type="button"
+                  onClick={() => setMessageChannel(ch.key)}
+                  title={ch.title}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all",
+                    isActive ? ch.active : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {ch.label}
+                </button>
+              );
+            })}
           </div>
+          {/* Riga contestuale: spiega il canale attivo (e per SMS/WA il limite). */}
+          {messageChannel === "whatsapp_locale" && (
+            <p className="px-3.5 pt-1.5 text-[11px] text-teal-700 flex items-center gap-1">
+              <MessageSquare className="h-3 w-3 shrink-0" /> Canale non ufficiale · pool numeri piattaforma · nessuna finestra 24h
+            </p>
+          )}
+          {messageChannel === "sms" && (
+            <p className="px-3.5 pt-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> Messaggio breve</span>
+              <span className={cn("tabular-nums", messageText.length > 160 && "text-amber-600 font-medium")}>
+                {messageText.length} caratteri · {Math.max(1, Math.ceil(messageText.length / 160))} SMS
+              </span>
+            </p>
+          )}
           {messageChannel === "email" && (
             <div className="px-3 pt-2 space-y-1.5">
               {/* Riga oggetto + toggle Cc/Ccn (stile Gmail) */}
@@ -1440,7 +1440,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
           )}
-          <div className={messageChannel === "whatsapp" ? "flex items-start px-3 pb-2 pt-1.5 gap-2" : "flex items-center px-3 pb-2.5 pt-1.5 gap-2"}>
+          <div className="flex items-start px-3 pb-2.5 pt-1.5 gap-2">
             {/* Template picker — applica già le variabili; per email imposta
                 oggetto+testo, per sms imposta il testo, per whatsapp fa il
                 seed del composer. */}
@@ -1487,30 +1487,37 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               />
             ) : messageChannel === "whatsapp_locale" ? (
               <>
-                <Input
-                  placeholder="Scrivi messaggio WhatsApp (canale locale, senza finestra 24h)..."
+                <Textarea
+                  ref={composerRef}
+                  placeholder="Scrivi il messaggio… (Invio per inviare, Shift+Invio per andare a capo)"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 4096))}
-                  onKeyDown={(e) => { if (e.key === "Enter") sendWaLocale(); }}
-                  className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+                  onInput={(e) => autoGrow(e.currentTarget)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWaLocale(); } }}
+                  rows={1}
+                  className="border-0 bg-muted/50 shadow-none text-xs min-h-[36px] max-h-32 resize-none py-2 flex-1"
                 />
                 <Button
                   size="icon"
-                  className="h-9 w-9 md:h-7 md:w-7 shrink-0 bg-teal-600 hover:bg-teal-700"
+                  className="h-9 w-9 shrink-0 self-end bg-teal-600 hover:bg-teal-700"
                   disabled={!messageText.trim() || waLocaleSending}
                   onClick={sendWaLocale}
                 >
-                  {waLocaleSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  {waLocaleSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </>
             ) : (
               <>
-                <Input
-                  placeholder={`Scrivi messaggio ${messageChannel === "email" ? "email" : "SMS"}...`}
+                <Textarea
+                  ref={composerRef}
+                  placeholder={messageChannel === "email" ? "Scrivi l'email… (Invio invia, Shift+Invio a capo)" : "Scrivi l'SMS…"}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
+                  onInput={(e) => autoGrow(e.currentTarget)}
+                  rows={1}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
+                    if (e.key === "Enter" && !e.shiftKey && messageText.trim() && !sendMessage.isPending) {
+                      e.preventDefault();
                       const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
                       const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
                       sendMessage.mutate({
@@ -1521,11 +1528,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       });
                     }
                   }}
-                  className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+                  className="border-0 bg-muted/50 shadow-none text-xs min-h-[36px] max-h-32 resize-none py-2 flex-1"
                 />
                 <Button
                   size="icon"
-                  className="h-9 w-9 md:h-7 md:w-7 shrink-0"
+                  className="h-9 w-9 shrink-0 self-end"
                   disabled={!messageText.trim() || sendMessage.isPending}
                   onClick={() => {
                     const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
