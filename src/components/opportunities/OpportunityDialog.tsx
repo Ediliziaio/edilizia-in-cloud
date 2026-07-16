@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, User, UserPlus, Settings2, DatabaseZap } from "lucide-react";
+import { Loader2, User, UserPlus, Settings2, DatabaseZap, Briefcase, Users, Headset } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { CustomFieldInput } from "@/components/shared/CustomFieldInput";
@@ -372,18 +372,18 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
-        <div className="px-6 py-4 border-b">
-          <DialogTitle className="text-lg font-bold">Aggiungi Nuovo opportunità</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">Crea Nuovo opportunità in dettagli e selezionando un contatto</DialogDescription>
+        <div className="border-b px-4 py-4 sm:px-6">
+          <DialogTitle className="text-lg font-bold">Nuova opportunità</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">Scegli il contatto e compila i dettagli dell'opportunità.</DialogDescription>
         </div>
 
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           <ScrollArea className="flex-1">
-            <div className="p-5 space-y-6">
+            <div className="space-y-6 p-4 sm:p-5">
               {/* Section 1: Contatto Dettagli */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground border-b pb-2">Contatto Dettagli</h3>
+                <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli contatto</h3>
 
                 {/* Contact combobox */}
                 <div className="space-y-1.5">
@@ -497,7 +497,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
               {/* Section 2: Opportunità Dettagli */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground border-b pb-2">Opportunità Dettagli</h3>
+                <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli opportunità</h3>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">
@@ -562,10 +562,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   </div>
                 </div>
 
-                {/* Owner + Follower + Call Center */}
-                <div className="grid grid-cols-3 gap-3">
+                {/* Owner + Follower + Call Center — su mobile impilati (grid-cols-3
+                    schiacciava i select troncando "Non assegnato" in "Non…"). */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">💼 Venditore</Label>
+                    <Label className="flex items-center gap-1 text-xs font-medium"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /> Venditore</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                       <SelectContent>
@@ -580,7 +581,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">👥 Follower</Label>
+                    <Label className="flex items-center gap-1 text-xs font-medium"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Follower</Label>
                     <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
@@ -592,7 +593,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">📞 Call Center</Label>
+                    <Label className="flex items-center gap-1 text-xs font-medium"><Headset className="h-3.5 w-3.5 text-muted-foreground" /> Call Center</Label>
                     <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
@@ -656,7 +657,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t flex items-center justify-between">
+        <div className="flex items-center justify-between border-t px-4 py-3 sm:px-6">
           <button
             className="text-xs text-primary hover:underline flex items-center gap-1"
             onClick={() => {
