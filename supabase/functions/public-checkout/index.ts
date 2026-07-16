@@ -62,6 +62,14 @@ Deno.serve(async (req) => {
     const password = String(body.password || "");
     const sector = ALLOWED_SECTORS.has(body.sector) ? body.sector : "altro";
     const billingPeriod = body.billing_period === "yearly" ? "yearly" : "monthly";
+    // Dati fiscali (per attivazione immediata + fattura Stripe corretta)
+    const businessName = String(body.business_name || "").trim().slice(0, 200);
+    const vatNumber = String(body.vat_number || "").replace(/\D/g, "").slice(0, 13);
+    const fiscalCode = String(body.fiscal_code || "").trim().toUpperCase().slice(0, 16);
+    const legalAddress = String(body.legal_address || "").trim().slice(0, 200);
+    const legalCity = String(body.legal_city || "").trim().slice(0, 100);
+    const legalProvince = String(body.legal_province || "").trim().toUpperCase().slice(0, 2);
+    const legalPostalCode = String(body.legal_postal_code || "").replace(/\D/g, "").slice(0, 5);
 
     // ── Validazione input ──
     if (!ALLOWED_OFFER_SLUGS.has(planSlug)) {
@@ -71,6 +79,11 @@ Deno.serve(async (req) => {
     if (!firstName) return json(req, { error: "Inserisci il nome del referente" }, 400);
     if (!EMAIL_REGEX.test(email)) return json(req, { error: "Email non valida" }, 400);
     if (password.length < 8) return json(req, { error: "La password deve avere almeno 8 caratteri" }, 400);
+    if (!businessName) return json(req, { error: "Inserisci la ragione sociale" }, 400);
+    if (vatNumber.length < 11) return json(req, { error: "P.IVA non valida (11 cifre)" }, 400);
+    if (!legalAddress || !legalCity || legalPostalCode.length !== 5) {
+      return json(req, { error: "Completa l'indirizzo della sede legale (via, città, CAP)" }, 400);
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -121,6 +134,14 @@ Deno.serve(async (req) => {
         trial_ends_at: new Date().toISOString(),
         subscription_plan_id: plan.id,
         payment_method: "none",
+        // Dati fiscali → il gate di attivazione passa subito dopo il pagamento.
+        business_name: businessName,
+        vat_number: vatNumber,
+        fiscal_code: fiscalCode || null,
+        legal_address: legalAddress,
+        legal_city: legalCity,
+        legal_province: legalProvince || null,
+        legal_postal_code: legalPostalCode,
       })
       .select("id, name, email, stripe_customer_id")
       .single();
@@ -181,6 +202,20 @@ Deno.serve(async (req) => {
       })),
     ).then(({ error }) => { if (error) console.error("[public-checkout] order_statuses:", error.message); });
 
+    // Dati di fatturazione (letti dalla pagina Abbonamento → "Informazioni fiscali").
+    await admin.from("company_billing_details").upsert({
+      company_id: companyId,
+      legal_name: businessName,
+      vat_number: vatNumber,
+      tax_code: fiscalCode || null,
+      address_line1: legalAddress,
+      city: legalCity,
+      province: legalProvince || null,
+      postal_code: legalPostalCode,
+      country: "IT",
+      invoice_email: email,
+    }, { onConflict: "company_id" }).then(({ error }) => { if (error) console.error("[public-checkout] company_billing_details:", error.message); });
+
     // ── Stripe: customer + Checkout Session (abbonamento) ──
     const appUrl = (await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const base = appUrl.replace(/\/$/, "");
@@ -190,6 +225,29 @@ Deno.serve(async (req) => {
       const stripeCustomerId = await createOrGetStripeCustomer(admin, stripeSecretKey, {
         id: companyId, name: companyName, email, stripe_customer_id: company.stripe_customer_id,
       });
+
+      // Arricchisce il customer Stripe con ragione sociale + indirizzo + P.IVA,
+      // così le fatture/ricevute Stripe risultano fiscalmente corrette. Best-effort.
+      const stripeHdr = { Authorization: `Bearer ${stripeSecretKey}`, "Content-Type": "application/x-www-form-urlencoded" };
+      try {
+        await fetch(`https://api.stripe.com/v1/customers/${stripeCustomerId}`, {
+          method: "POST", headers: stripeHdr,
+          body: new URLSearchParams({
+            name: businessName,
+            "address[line1]": legalAddress,
+            "address[city]": legalCity,
+            "address[postal_code]": legalPostalCode,
+            "address[state]": legalProvince,
+            "address[country]": "IT",
+          }),
+        });
+        await fetch(`https://api.stripe.com/v1/customers/${stripeCustomerId}/tax_ids`, {
+          method: "POST", headers: stripeHdr,
+          body: new URLSearchParams({ type: "eu_vat", value: `IT${vatNumber}` }),
+        });
+      } catch (e) {
+        console.warn("[public-checkout] Stripe fiscal enrich fallito:", (e as Error).message);
+      }
 
       const params = new URLSearchParams({
         customer: stripeCustomerId,

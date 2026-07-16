@@ -231,6 +231,31 @@ async function handleCheckoutCompleted(
     };
     if (planId) update.subscription_plan_id = planId;
     await supabase.from("companies").update(update).eq("id", companyId);
+
+    // Registro abbonamento canonico (pannello Abbonamento, MRR, cancellazione).
+    // Una riga attiva per azienda: pulisco le attive/in-prova e ne creo una.
+    if (planId) {
+      const isYearly = session.metadata?.billing_period === "yearly";
+      // Rinnovo provvisorio: +1 mese/anno da adesso. Il valore reale arriva subito
+      // dopo via customer.subscription.created/updated (extractPeriod da Stripe) e
+      // sovrascrive questo; nel frattempo la card Abbonamento mostra già la data.
+      const periodStart = new Date();
+      const periodEnd = new Date(periodStart);
+      if (isYearly) periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      else periodEnd.setMonth(periodEnd.getMonth() + 1);
+      await supabase.from("company_subscriptions").delete()
+        .eq("company_id", companyId).in("status", ["active", "trialing"]);
+      await supabase.from("company_subscriptions").insert({
+        company_id: companyId,
+        plan_id: planId,
+        billing_period: isYearly ? "yearly" : "monthly",
+        status: "active",
+        stripe_subscription_id: (session.subscription as string | null) ?? null,
+        current_period_start: periodStart.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+      });
+    }
+
     // Salva la carta come default del customer (pmId null → la funzione la recupera).
     await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, null);
     return;

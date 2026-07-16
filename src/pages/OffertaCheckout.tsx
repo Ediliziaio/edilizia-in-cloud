@@ -15,8 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Loader2, ShieldCheck, Lock, AlertCircle } from "lucide-react";
+import { Check, Loader2, ShieldCheck, Lock, AlertCircle, Zap, BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
+import logoEic from "@/assets/edilizia-in-cloud-logo-small.webp";
 
 interface OfferConfig {
   planSlug: string;
@@ -76,6 +77,14 @@ export default function OffertaCheckout() {
     phone: "",
     sector: "altro",
     password: "",
+    // Dati per la fattura (attivazione immediata + fattura Stripe corretta)
+    business_name: "",
+    vat_number: "",
+    fiscal_code: "",
+    legal_address: "",
+    legal_city: "",
+    legal_province: "",
+    legal_postal_code: "",
   });
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -101,6 +110,11 @@ export default function OffertaCheckout() {
     if (!form.first_name.trim()) return toast.error("Inserisci il tuo nome");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("Email non valida");
     if (form.password.length < 8) return toast.error("La password deve avere almeno 8 caratteri");
+    if (!form.business_name.trim()) return toast.error("Inserisci la ragione sociale");
+    if (form.vat_number.replace(/\D/g, "").length < 11) return toast.error("Inserisci una P.IVA valida (11 cifre)");
+    if (!form.legal_address.trim()) return toast.error("Inserisci l'indirizzo della sede legale");
+    if (!form.legal_city.trim()) return toast.error("Inserisci la città della sede legale");
+    if (!/^\d{5}$/.test(form.legal_postal_code.trim())) return toast.error("Inserisci un CAP valido (5 cifre)");
     if (!accepted) return toast.error("Accetta i termini per procedere");
 
     setLoading(true);
@@ -117,6 +131,13 @@ export default function OffertaCheckout() {
             phone: form.phone.trim(),
             sector: form.sector,
             password: form.password,
+            business_name: form.business_name.trim(),
+            vat_number: form.vat_number.trim(),
+            fiscal_code: form.fiscal_code.trim(),
+            legal_address: form.legal_address.trim(),
+            legal_city: form.legal_city.trim(),
+            legal_province: form.legal_province.trim(),
+            legal_postal_code: form.legal_postal_code.trim(),
           },
         },
       );
@@ -157,38 +178,54 @@ export default function OffertaCheckout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/40 to-background">
       <div className="mx-auto max-w-5xl px-4 py-8 md:py-12">
-        {/* Header brand */}
-        <div className="flex items-center gap-2 mb-8">
-          <img src="/edilizia-in-cloud-logo.webp" alt="Edilizia in Cloud" className="h-8 w-auto" onError={(e) => { (e.currentTarget.style.display = "none"); }} />
-          <span className="text-lg font-bold tracking-tight">Edilizia<span className="text-primary">InCloud</span></span>
+        {/* Header brand — logo ufficiale */}
+        <div className="mb-8">
+          <img src={logoEic} alt="Edilizia in Cloud" width={160} height={40} className="h-9 w-auto" />
         </div>
 
         <div className="grid gap-6 md:grid-cols-[1.1fr_1fr] md:gap-8 items-start">
           {/* ── Colonna sinistra: dettagli piano ── */}
-          <div className="rounded-2xl border bg-card p-6 md:p-8 shadow-sm">
-            <span className="inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1">
-              Offerta riservata
+          <div className="relative overflow-hidden rounded-2xl border bg-card p-6 md:p-8 shadow-sm">
+            {/* Barra accento arancione brand */}
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-eic-orange to-eic-orange-soft" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-eic-orange/10 text-eic-orange text-xs font-semibold px-2.5 py-1">
+              <BadgeCheck className="h-3.5 w-3.5" /> Offerta riservata
             </span>
             <h1 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight">{config.name}</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">{config.tagline}</p>
 
             <div className="mt-5 flex items-end gap-2">
-              <span className="text-4xl font-extrabold">{fmtEur(config.priceMonthly)}</span>
+              <span className="text-5xl font-extrabold leading-none text-eic-orange">{fmtEur(config.priceMonthly)}</span>
               <span className="text-sm text-muted-foreground mb-1.5">/ mese</span>
               {config.compareAt && (
                 <span className="mb-1.5 ml-1 text-sm text-muted-foreground line-through">{fmtEur(config.compareAt)}</span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">IVA esclusa · disdici quando vuoi</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {config.compareAt && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs font-semibold px-2 py-0.5">
+                  Risparmi {fmtEur(config.compareAt - config.priceMonthly)}/mese
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">IVA esclusa · disdici quando vuoi</span>
+            </div>
 
-            <ul className="mt-6 space-y-2.5">
+            <div className="my-5 h-px bg-border" />
+
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">Tutto incluso</p>
+            <ul className="space-y-2.5">
               {config.features.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                  <Check className="h-4 w-4 mt-0.5 shrink-0 text-eic-orange" strokeWidth={3} />
                   <span>{f}</span>
                 </li>
               ))}
             </ul>
+
+            <div className="mt-6 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-eic-orange" /> Attivazione immediata</span>
+              <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-eic-orange" /> Nessun vincolo</span>
+            </div>
           </div>
 
           {/* ── Colonna destra: form ── */}
@@ -240,6 +277,47 @@ export default function OffertaCheckout() {
               <Input id="password" type="password" value={form.password} onChange={(e) => set("password")(e.target.value)} autoComplete="new-password" placeholder="Almeno 8 caratteri" required />
             </div>
 
+            {/* ── Dati per la fattura (attivazione immediata + fattura corretta) ── */}
+            <div className="pt-2 border-t">
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Dati per la fattura</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="business_name">Ragione sociale *</Label>
+              <Input id="business_name" value={form.business_name} onChange={(e) => set("business_name")(e.target.value)} placeholder="Come da visura camerale" autoComplete="organization" required />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="vat_number">P.IVA *</Label>
+                <Input id="vat_number" value={form.vat_number} onChange={(e) => set("vat_number")(e.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" placeholder="11 cifre" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fiscal_code">Codice Fiscale</Label>
+                <Input id="fiscal_code" value={form.fiscal_code} onChange={(e) => set("fiscal_code")(e.target.value.toUpperCase())} placeholder="Se diverso" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="legal_address">Indirizzo sede legale *</Label>
+              <Input id="legal_address" value={form.legal_address} onChange={(e) => set("legal_address")(e.target.value)} placeholder="Via e numero civico" autoComplete="street-address" required />
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="legal_city">Città *</Label>
+                <Input id="legal_city" value={form.legal_city} onChange={(e) => set("legal_city")(e.target.value)} autoComplete="address-level2" required />
+              </div>
+              <div className="w-16 space-y-1.5">
+                <Label htmlFor="legal_province">Prov.</Label>
+                <Input id="legal_province" value={form.legal_province} onChange={(e) => set("legal_province")(e.target.value.toUpperCase().slice(0, 2))} maxLength={2} placeholder="MI" />
+              </div>
+              <div className="w-24 space-y-1.5">
+                <Label htmlFor="legal_postal_code">CAP *</Label>
+                <Input id="legal_postal_code" value={form.legal_postal_code} onChange={(e) => set("legal_postal_code")(e.target.value.replace(/\D/g, "").slice(0, 5))} inputMode="numeric" maxLength={5} required />
+              </div>
+            </div>
+
             <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
               <Checkbox checked={accepted} onCheckedChange={(v) => setAccepted(v === true)} className="mt-0.5" />
               <span>
@@ -248,7 +326,7 @@ export default function OffertaCheckout() {
               </span>
             </label>
 
-            <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
+            <Button type="submit" className="w-full h-11 text-base bg-eic-orange hover:bg-eic-orange/90 text-white shadow-sm" disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
               Vai al pagamento · {fmtEur(config.priceMonthly)}/mese
             </Button>

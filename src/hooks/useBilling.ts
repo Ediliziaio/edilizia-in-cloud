@@ -63,7 +63,7 @@ export function useBillingInfo() {
           dunning_status,
           dunning_started_at,
           payment_failure_count,
-          subscription_plans (
+          subscription_plans!companies_subscription_plan_id_fkey (
             name,
             price_monthly,
             price_yearly
@@ -73,11 +73,31 @@ export function useBillingInfo() {
         .single();
 
       if (error) throw error;
-      // v8.6.58 — Lettura best-effort delle colonne ciclo abbonamento
-      // (current_period_*, cancel_at_period_end, billing_cycle). Se non
-      // esistono nello schema (pre-migration), restano undefined.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cExtra = company as unknown as Record<string, any>;
+
+      // v8.6.90 — Le date di ciclo/cancellazione vivono in `company_subscriptions`
+      // (scritte dal webhook Stripe: checkout, invoice.paid, subscription.updated).
+      // Le leggiamo dalla riga attiva più recente. Best-effort: se manca o va in
+      // errore, la card mostra comunque il piano senza date (mai blank).
+      let sub: {
+        current_period_start?: string | null;
+        current_period_end?: string | null;
+        billing_period?: string | null;
+        canceled_at?: string | null;
+        status?: string | null;
+      } | null = null;
+      try {
+        const { data: subRow } = await supabase
+          .from("company_subscriptions")
+          .select("current_period_start, current_period_end, billing_period, canceled_at, status")
+          .eq("company_id", companyId!)
+          .in("status", ["active", "trialing", "past_due"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        sub = (subRow as typeof sub) ?? null;
+      } catch {
+        sub = null;
+      }
 
       const plan = company.subscription_plans as { name?: string; price_monthly?: number; price_yearly?: number } | null;
       const dunningStatus = company.dunning_status;
@@ -105,12 +125,12 @@ export function useBillingInfo() {
         stripeSubscriptionStatus: company.stripe_subscription_status ?? null,
         isInDunning,
         dunningDaysLeft,
-        currentPeriodStart: cExtra.current_period_start ?? null,
-        currentPeriodEnd: cExtra.current_period_end ?? null,
-        cancelAtPeriodEnd: Boolean(cExtra.cancel_at_period_end),
+        currentPeriodStart: sub?.current_period_start ?? null,
+        currentPeriodEnd: sub?.current_period_end ?? null,
+        cancelAtPeriodEnd: !!sub?.canceled_at,
         billingCycle:
-          cExtra.billing_cycle === "yearly" || cExtra.billing_cycle === "monthly"
-            ? cExtra.billing_cycle
+          sub?.billing_period === "yearly" || sub?.billing_period === "monthly"
+            ? sub.billing_period
             : null,
       };
     },

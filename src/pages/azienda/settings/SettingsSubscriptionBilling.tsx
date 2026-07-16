@@ -16,6 +16,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ExternalLink, Download, AlertTriangle, CreditCard, Clock,
   Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
+  ArrowUpRight, ArrowDownRight, XCircle,
 } from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,12 @@ function formatEurCents(centesimi: number, currency = "eur"): string {
 
 function formatPeriod(start: string | null, end: string | null): string {
   if (!start || !end) return "—";
-  return `${format(new Date(start), "d MMM yyyy", { locale: it })} → ${format(new Date(end), "d MMM yyyy", { locale: it })}`;
+  const s = new Date(start);
+  const e = new Date(end);
+  // Stripe sulla prima fattura mette period_start = period_end (stesso giorno):
+  // "15 lug 2026 → 15 lug 2026" è rumore, mostriamo la sola data.
+  if (s.toDateString() === e.toDateString()) return format(s, "d MMM yyyy", { locale: it });
+  return `${format(s, "d MMM yyyy", { locale: it })} → ${format(e, "d MMM yyyy", { locale: it })}`;
 }
 
 /** Restituisce label + colore brand pulito (visa, mastercard, amex…). */
@@ -97,6 +103,8 @@ function TabAbbonamenti() {
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const { data: topPlanPrice = 0 } = useTopPlanPrice();
   const navigate = useNavigate();
+  // Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla
+  const [modifyOpen, setModifyOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -107,7 +115,29 @@ function TabAbbonamenti() {
     );
   }
 
-  if (!billing) return null;
+  // Mai blank: se per qualsiasi motivo le info piano non arrivano, mostriamo
+  // comunque un accesso al portale Stripe (metodo di pagamento + cancellazione)
+  // invece di una scheda vuota.
+  if (!billing) {
+    return (
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight">Il tuo abbonamento</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Non riusciamo a caricare i dettagli del piano in questo momento. Puoi comunque
+              gestire pagamento e cancellazione dal portale sicuro.
+            </p>
+          </div>
+          <Button onClick={() => openPortal()} disabled={isPending} className="gap-1.5">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+            Gestisci abbonamento
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const priceLabel = billing.planPriceMonthly === 0
     ? "Gratuito"
@@ -198,7 +228,29 @@ function TabAbbonamenti() {
             <Alert variant="destructive" className="mt-5">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Pagamento non riuscito. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per aggiornare il metodo di pagamento.
+                <p>
+                  Il tuo ultimo pagamento non è andato a buon fine. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per
+                  aggiornare il metodo di pagamento ed evitare la sospensione dell'account.
+                </p>
+                <Button
+                  size="sm" variant="destructive" className="mt-2 gap-1.5"
+                  onClick={() => openPortal()} disabled={isPending}
+                >
+                  {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                  Riprova il pagamento
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Cancellazione programmata — l'abbonamento resta attivo fino a fine periodo. */}
+          {billing.cancelAtPeriodEnd && (
+            <Alert className="mt-5 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                Abbonamento in <strong>cancellazione</strong>: resta attivo
+                {billing.currentPeriodEnd ? <> fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong></> : " fino a fine periodo"},
+                poi non verrà rinnovato. Puoi riattivarlo dal portale prima di quella data.
               </AlertDescription>
             </Alert>
           )}
@@ -233,11 +285,10 @@ function TabAbbonamenti() {
           <div className="mt-5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 pt-4 border-t">
             <Button
               variant="outline"
-              onClick={() => openPortal()}
-              disabled={isPending}
+              onClick={() => setModifyOpen(true)}
               className="gap-1.5 w-full sm:w-auto justify-center sm:justify-start"
             >
-              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+              <CreditCard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Vuoi modificare/annullare il tuo abbonamento?</span>
               <span className="sm:hidden">Gestisci abbonamento</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -270,6 +321,62 @@ function TabAbbonamenti() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Dialog "Modifica abbonamento" (stile GHL): upgrade / downgrade / annulla ── */}
+      <Dialog open={modifyOpen} onOpenChange={setModifyOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifica abbonamento</DialogTitle>
+            <DialogDescription>Aspetta! Conoscevi le opzioni qui sotto?</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Upgrade — evidenziato */}
+            <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Aggiorna il tuo piano attuale</p>
+                <p className="text-xs text-muted-foreground">{priceLabel} / {isYearly ? "anno" : "mese"}</p>
+              </div>
+              <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}>
+                Passa a un piano superiore
+              </Button>
+            </div>
+            {/* Downgrade */}
+            <button
+              type="button"
+              onClick={() => { setModifyOpen(false); navigate("/prezzi"); }}
+              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
+            >
+              <div className="h-9 w-9 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                <ArrowDownRight className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Passa a un piano inferiore</p>
+                <p className="text-xs text-muted-foreground">Desidero passare a un piano più economico</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+            {/* Annulla piano */}
+            <button
+              type="button"
+              onClick={() => { setModifyOpen(false); openPortal(); }}
+              disabled={isPending}
+              className="w-full rounded-xl border p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors disabled:opacity-60"
+            >
+              <div className="h-9 w-9 rounded-full bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center shrink-0">
+                <XCircle className="h-5 w-5 text-rose-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Annulla piano</p>
+                <p className="text-xs text-muted-foreground">Voglio comunque annullare il mio abbonamento</p>
+              </div>
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -293,6 +400,24 @@ function TabPagamenti() {
 
   return (
     <div className="space-y-5">
+      {/* Prossimo addebito — a colpo d'occhio, stile GHL */}
+      {billing?.currentPeriodEnd && billing.planPriceMonthly > 0 && (
+        <div className="rounded-xl border bg-muted/30 px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+          {billing.cancelAtPeriodEnd ? (
+            <span>
+              Piano attivo fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong> — nessun rinnovo previsto.
+            </span>
+          ) : (
+            <span>
+              Prossimo addebito: <strong>{formatCurrency(billing.billingCycle === "yearly" ? billing.planPriceYearly : billing.planPriceMonthly)}</strong> il{" "}
+              <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong>
+              {pm?.hasMethod && pm.last4 ? <> su {brandLabel(pm.brand).label} •••• {pm.last4}</> : null}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Card Metodo di pagamento */}
         <Card>
@@ -302,11 +427,12 @@ function TabPagamenti() {
               Metodo di pagamento
             </CardTitle>
             <Button
-              variant="outline" size="sm" className="h-7 px-2"
+              variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
               onClick={() => openPortal()} disabled={isPending}
               aria-label="Modifica metodo di pagamento"
             >
               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+              Gestisci
             </Button>
           </CardHeader>
           <CardContent>
@@ -324,8 +450,9 @@ function TabPagamenti() {
                   {brandLabel(pm.brand).label}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium flex items-center gap-2">
                     {brandLabel(pm.brand).label} •••• {pm.last4}
+                    <Badge variant="secondary" className="text-[10px] font-normal">Predefinita</Badge>
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {pm.expMonth && pm.expYear ? (
@@ -394,6 +521,21 @@ function TabPagamenti() {
                             <ShieldCheck className="h-3 w-3 mr-1" />
                             Verificato
                           </Badge>
+                        </div>
+                      )}
+                      {(billingDetails.address_line1 || billingDetails.city) && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sede legale</p>
+                          <p className="text-sm font-medium truncate">
+                            {[billingDetails.address_line1, [billingDetails.postal_code, billingDetails.city].filter(Boolean).join(" ")]
+                              .filter(Boolean).join(", ")}
+                          </p>
+                        </div>
+                      )}
+                      {billingDetails.invoice_email && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Email fatturazione</p>
+                          <p className="text-sm font-medium truncate">{billingDetails.invoice_email}</p>
                         </div>
                       )}
                     </div>
@@ -524,7 +666,6 @@ function TabPagamenti() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Descrizione</TableHead>
                       <TableHead className="text-right">Importo</TableHead>
@@ -535,14 +676,14 @@ function TabPagamenti() {
                   <TableBody>
                     {invoices.map((inv) => (
                       <TableRow key={inv.id}>
-                        <TableCell>
-                          <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{inv.id.slice(0, 10)}…</code>
-                        </TableCell>
                         <TableCell className="text-sm whitespace-nowrap">
-                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                          {inv.paidAt
+                            ? format(new Date(inv.paidAt), "d MMM yyyy", { locale: it })
+                            : inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {formatPeriod(inv.periodStart, inv.periodEnd)}
+                        <TableCell>
+                          <p className="text-sm font-medium">Abbonamento {billing?.planName ?? ""}</p>
+                          <p className="text-xs text-muted-foreground">{formatPeriod(inv.periodStart, inv.periodEnd)}</p>
                         </TableCell>
                         <TableCell className="font-semibold text-right tabular-nums">
                           {inv.status === "paid"
