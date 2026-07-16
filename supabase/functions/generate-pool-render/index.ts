@@ -1100,16 +1100,16 @@ Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pool with a perf
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-pool-render] background error:", msg);
-      await refundRenderCreditSafe(supabase, {
-        companyId: session.company_id as string,
-        sessionId: session_id,
-        userId,
-        reasonMeta: {
+      // F1-parity — refund_all: rimborsa TUTTI i consume scoperti.
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: {
           vertical: "piscine",
           edge_fn: "generate-pool-render",
           error: msg.substring(0, 500),
+          background_failure: true,
         },
-        logTag: "generate-pool-render",
       });
       await supabase
         .from("render_piscine_sessions")
