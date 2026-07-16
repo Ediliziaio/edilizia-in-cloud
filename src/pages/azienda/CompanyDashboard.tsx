@@ -144,7 +144,7 @@ function ManagementOverview({
             </Badge>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-3 2xl:grid-cols-4">
             {([
               { label: "Commesse", value: stats.totalOrders, detail: "nel periodo selezionato", icon: ClipboardList, tone: "blue", isFinance: false },
               { label: "Venduto periodo", value: formatCurrencyCompact(soldPeriod), detail: "valore commesse nel periodo", icon: Euro, tone: "blue", isFinance: true },
@@ -159,7 +159,7 @@ function ManagementOverview({
               >
                 <div className="flex items-start gap-3">
                   <div className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border",
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border sm:h-10 sm:w-10",
                     item.tone === "orange" && "border-orange-200/30 bg-orange-400/15 text-orange-100",
                     item.tone === "red" && "border-red-200/30 bg-red-400/15 text-red-100",
                     item.tone === "green" && "border-emerald-200/30 bg-emerald-400/15 text-emerald-100",
@@ -169,7 +169,7 @@ function ManagementOverview({
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</p>
-                    <p className="mt-1 truncate text-2xl font-bold text-white">{item.value}</p>
+                    <p className="mt-1 truncate text-xl font-bold text-white sm:text-2xl">{item.value}</p>
                     <p className="mt-0.5 truncate text-xs text-blue-50/70">{item.detail}</p>
                   </div>
                 </div>
