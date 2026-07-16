@@ -90,7 +90,7 @@ export function QuotePageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex gap-1.5 sm:gap-2 items-center flex-wrap w-full sm:w-auto">{actions}</div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">{actions}</div>
         )}
       </div>
     </div>
