@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PhoneCall, Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -213,9 +214,18 @@ export default function Centralino() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
+              <ul className="divide-y">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <li key={i} className="flex items-center gap-3 px-4 py-2.5">
+                    <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-2/5" />
+                      <Skeleton className="h-3 w-3/5" />
+                    </div>
+                    <Skeleton className="h-5 w-16 shrink-0" />
+                  </li>
+                ))}
+              </ul>
             ) : filtered.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-muted-foreground">
                 {logs.length === 0
