@@ -138,7 +138,6 @@ import {
 import {
   QuotePageHeader,
   QuoteCard,
-  QuoteChip,
   QuoteStepper,
   type QuoteStep,
 } from "@/components/marketing/preventivi/ui/builderUI";
@@ -1754,15 +1753,12 @@ export default function QuoteBuilder() {
       <QuotePageHeader
         title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
         subtitle={
-          <span className="flex items-center gap-2 flex-wrap">
-            <span>Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}</span>
-            {autosaveFailed && (
-              <span className="text-red-600 flex items-center gap-1 font-medium">
-                <AlertTriangle className="h-3 w-3" />
-                salvataggio auto fallito
-              </span>
-            )}
-          </span>
+          autosaveFailed ? (
+            <span className="flex items-center gap-1 font-medium text-red-600">
+              <AlertTriangle className="h-3 w-3" />
+              salvataggio auto fallito
+            </span>
+          ) : undefined
         }
         icon={<FileCheck className="h-5 w-5" />}
         actions={
@@ -1826,7 +1822,6 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Dati cliente"
           icon={<User className="h-4 w-4" />}
-          action={<QuoteChip variant="orange">Step 1 di 4</QuoteChip>}
         >
           <div className="space-y-5">
             {/* Blocco 1: Selezione rapida da contatto */}
@@ -3000,7 +2995,6 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Riepilogo Preventivo"
           icon={<FileCheck className="h-4 w-4" />}
-          action={<QuoteChip variant="orange">Step 4 di 4</QuoteChip>}
         >
           <div className="space-y-6">
             {/* Client summary */}
