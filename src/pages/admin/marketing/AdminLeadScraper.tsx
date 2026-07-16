@@ -91,9 +91,10 @@ interface LeadSearch {
 }
 
 const SOURCES = [
+  { id: "osm", label: "OpenStreetMap", icon: Globe, active: true, hint: "Imprese locali da OpenStreetMap: nome, telefono, sito, indirizzo. GRATIS e senza chiave — funziona subito. Copertura variabile (meglio in città medio-grandi)." },
   { id: "internal", label: "Interno", icon: Database, active: true, hint: "Scraper self-host + DB proprietario: scrapa 1 volta, riusa per sempre (~€0). Richiede scraper-worker." },
   { id: "company_search", label: "Registro Imprese", icon: Building2, active: true, hint: "Liste imprese italiane dal Registro (openapi.it): filtra per ATECO + provincia (sigla). Ritorna P.IVA, ATECO, PEC, codice SdI. ~€0,03/azienda (ricerca + dettaglio). Sandbox = dati finti gratis (openapi_it_token + openapi_env)." },
-  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
+  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email. Richiede google_maps_api_key (Google Places, a consumo)." },
   { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
   { id: "apollo", label: "Apollo", icon: Rocket, active: true, hint: "Decisori + email (apollo.io). Free tier + crediti economici (apollo_api_key)" },
@@ -163,7 +164,8 @@ function stimaCostoRicerca(source: string, n: number): { testo: string } {
     }
     case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
     case "apify_maps": return { testo: "usa il piano Apify ($5 free/mese, poi a consumo)" };
-    case "google_maps": return { testo: "gratis (entro il cap giornaliero Google Places)" };
+    case "osm": return { testo: "gratis (OpenStreetMap, nessuna chiave)" };
+    case "google_maps": return { testo: "a consumo (Google Places — richiede google_maps_api_key)" };
     case "linkedin": return { testo: "~gratis (ricerca web)" };
     case "internal": return { testo: "gratis (DB proprietario / scraper self-host)" };
     default: return { testo: "" };
@@ -726,7 +728,7 @@ export default function AdminLeadScraper() {
   const navigate = useNavigate();
   const confirm = useConfirm();
 
-  const [source, setSource] = useState<string>("google_maps");
+  const [source, setSource] = useState<string>("osm");
   const [keyword, setKeyword] = useState("impresa edile");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
