@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -80,6 +80,7 @@ import {
 } from "@/modules/render/lib/windowSceneAnalysis";
 import type { WindowPhotoMeta, WindowRenderConfig, WindowSceneAnalysis } from "@/modules/render/lib/types";
 import { preloadImage } from "@/lib/render/preloadImage";
+import { compressRenderPhoto } from "@/lib/render/compressRenderPhoto";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 
 // v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
@@ -133,6 +134,24 @@ function readImageDimensions(file: File): Promise<WindowPhotoMeta> {
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
+// F3 (audit 16/07) — Snapshot minimale per riprendere il wizard dopo F5.
+// La foto NON è serializzabile ma è già sul bucket (photoPath) e l'analisi
+// è già in render_sessions.foto_analisi: al resume ricostruiamo da lì.
+const RESUME_KEY = "render-wizard-v2-resume";
+const RESUME_TTL_MS = 2 * 60 * 60 * 1000; // 2 ore
+interface ResumeSnapshot {
+  ts: number;
+  sessionId: string;
+  photoPath: string;
+  step: Step;
+  state: WizardState;
+  notes: string;
+  selectedOpeningIds: string[];
+  photoMeta: WindowPhotoMeta | null;
+  contactId: string | null;
+  opportunityId: string | null;
+}
+
 export default function RenderNewV2() {
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
@@ -178,6 +197,14 @@ export default function RenderNewV2() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  // F3 (audit 16/07) — Stage REALE dal server (render_sessions.meta.stage via
+  // Realtime) mostrato nella ProcessingCard al posto della % simulata.
+  const [serverStage, setServerStage] = useState<string | null>(null);
+  // F3 — Sessione ripristinabile dopo F5 (v. persistenza sotto): salviamo lo
+  // snapshot in sessionStorage e la ripresa avviene SOLO su azione esplicita
+  // dell'utente (banner), mai in automatico — era il bug della v8.4 che
+  // pre-selezionava le scelte del render precedente.
+  const [resumable, setResumable] = useState<ResumeSnapshot | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -296,9 +323,6 @@ export default function RenderNewV2() {
       return;
     }
 
-    const nextPreview = URL.createObjectURL(file);
-    setPhoto(file);
-    setPhotoPreview(nextPreview);
     setPhotoMeta(null);
     setPhotoPath(null);
     setSessionId(null);
@@ -308,9 +332,21 @@ export default function RenderNewV2() {
     setResultUrl(null);
     setGenerateError(null);
 
-    void readImageDimensions(file)
-      .then(setPhotoMeta)
-      .catch(() => setPhotoMeta(null));
+    // F3 (audit 16/07) — Compressione client PRIMA dell'upload: lato lungo
+    // 1600px + JPEG q0.85 (12MB → ~500KB, upload 10-20× più veloce su 4G di
+    // cantiere). Gli HEIC di iPhone che il browser non sa decodificare
+    // vengono bloccati QUI con un messaggio chiaro, invece di far fallire
+    // l'intera catena AI a valle.
+    void compressRenderPhoto(file)
+      .then(({ file: ready, meta }) => {
+        setPhoto(ready);
+        setPhotoPreview(URL.createObjectURL(ready));
+        setPhotoMeta(meta);
+      })
+      .catch((err) => {
+        setPhoto(null);
+        toast.error(err instanceof Error ? err.message : String(err));
+      });
   }, []);
 
   const startWindowAnalysis = useCallback(async (path: string, sid: string) => {
@@ -505,8 +541,13 @@ export default function RenderNewV2() {
       result_urls?: string[] | null;
       error_message?: string | null;
       processing_started_at?: string | null;
+      meta?: { stage?: string } | Record<string, unknown> | null;
     } | null,
   ): Promise<boolean> => {
+    // F3 (audit 16/07) — Stage reale dal server (meta.stage) → ProcessingCard.
+    const stage = (sess?.meta as { stage?: string } | null)?.stage;
+    if (typeof stage === "string" && stage) setServerStage(stage);
+
     if (sess?.status === "completed" && sess.result_urls?.length) {
       stopPolling();
       await preloadImage(sess.result_urls[0]);
@@ -599,6 +640,7 @@ export default function RenderNewV2() {
             result_urls?: string[] | null;
             error_message?: string | null;
             processing_started_at?: string | null;
+            meta?: { stage?: string } | null;
           };
           void handleSessionRow(sid, sess);
         },
@@ -621,7 +663,7 @@ export default function RenderNewV2() {
 
       const { data: sess, error: pollError } = await supabase
         .from("render_sessions")
-        .select("status, result_urls, error_message, processing_started_at")
+        .select("status, result_urls, error_message, processing_started_at, meta")
         .eq("id", sid)
         .single();
 
@@ -644,7 +686,10 @@ export default function RenderNewV2() {
     pollRef.current = setTimeout(poll, 50);
   }, [stopPoll, stopPolling, handleSessionRow]);
 
-  const startRender = useCallback(async () => {
+  // F4 (audit 16/07) — opts.refine: correzione MIRATA del risultato precedente
+  // (image-to-image sul render, non rigenerazione da zero). La prima entro
+  // 10 minuti è inclusa — la logica free vive nell'edge.
+  const startRender = useCallback(async (opts?: { refine?: boolean }) => {
     // v8.6.34 — Guard SINCRONO anti doppio-submit. `generating` è stato React
     // (async): due click ravvicinati nello stesso frame lo leggono entrambi
     // false → partono due generazioni → DOPPIO addebito credito (la edge claim-a
@@ -675,6 +720,7 @@ export default function RenderNewV2() {
     setGenerating(true);
     setGenerateError(null);
     setResultUrl(null);
+    setServerStage(null);
     elapsedRef.current = 0;
     setElapsedSec(0);
 
@@ -714,6 +760,7 @@ export default function RenderNewV2() {
           config,
           target_width: photoMeta?.width,
           target_height: photoMeta?.height,
+          refine: opts?.refine === true,
         },
         headers,
       });
@@ -799,6 +846,112 @@ export default function RenderNewV2() {
     })();
   }, [originalSignedUrl, photoPath]);
 
+  // F3 (audit 16/07) — PERSISTENZA wizard. Salviamo lo snapshot solo DOPO
+  // l'upload (sessionId+photoPath esistono: la foto è già sul bucket).
+  // La ripresa è SOLO esplicita via banner — mai automatica (il bug v8.4
+  // era proprio l'auto-restore che pre-selezionava le scelte precedenti).
+  useEffect(() => {
+    if (!sessionId || !photoPath) return;
+    try {
+      const snap: ResumeSnapshot = {
+        ts: Date.now(),
+        sessionId,
+        photoPath,
+        step,
+        state,
+        notes,
+        selectedOpeningIds,
+        photoMeta,
+        contactId,
+        opportunityId,
+      };
+      sessionStorage.setItem(RESUME_KEY, JSON.stringify(snap));
+    } catch {
+      // storage non disponibile (Safari private) → nessuna persistenza
+    }
+  }, [sessionId, photoPath, step, state, notes, selectedOpeningIds, photoMeta, contactId, opportunityId]);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(RESUME_KEY);
+      if (!raw) return;
+      const snap = JSON.parse(raw) as ResumeSnapshot;
+      if (!snap?.sessionId || !snap?.photoPath || Date.now() - (snap.ts ?? 0) > RESUME_TTL_MS) {
+        sessionStorage.removeItem(RESUME_KEY);
+        return;
+      }
+      setResumable(snap);
+    } catch {
+      // snapshot corrotto → ignora
+    }
+  }, []);
+
+  const resumeSession = useCallback(async () => {
+    const snap = resumable;
+    if (!snap) return;
+    setResumable(null);
+    setSessionId(snap.sessionId);
+    setPhotoPath(snap.photoPath);
+    setState(snap.state ?? INITIAL_STATE);
+    setNotes(snap.notes ?? "");
+    setSelectedOpeningIds(snap.selectedOpeningIds ?? []);
+    setPhotoMeta(snap.photoMeta ?? null);
+    setContactId(snap.contactId ?? null);
+    setOpportunityId(snap.opportunityId ?? null);
+
+    // Analisi + stato reale della sessione dal DB (fonte di verità).
+    const { data: row } = await supabase
+      .from("render_sessions")
+      .select("status, foto_analisi, result_urls, processing_started_at")
+      .eq("id", snap.sessionId)
+      .maybeSingle();
+
+    if (row?.foto_analisi) {
+      try {
+        const normalized = normalizeWindowSceneAnalysis(row.foto_analisi, snap.photoMeta ?? null);
+        setSceneAnalysis(normalized);
+        if (!snap.selectedOpeningIds?.length) {
+          setSelectedOpeningIds(normalized.openings.map((o) => o.id));
+        }
+      } catch {
+        // analisi non ricostruibile → lo step 2 permette il retry
+      }
+    }
+
+    setStep(((snap.step ?? 2) as Step));
+
+    // Render ancora in corso al momento del refresh → riaggancia il tracking
+    // (il render prosegue lato server anche a pagina chiusa).
+    if (row?.status === "processing") {
+      setStep(7);
+      setGenerating(true);
+      const startedMs = row.processing_started_at
+        ? new Date(row.processing_started_at as string).getTime()
+        : Date.now();
+      elapsedRef.current = Math.max(0, Math.round((Date.now() - startedMs) / 1000));
+      setElapsedSec(elapsedRef.current);
+      if (tickRef.current) clearInterval(tickRef.current);
+      tickRef.current = setInterval(() => {
+        elapsedRef.current += 1;
+        setElapsedSec(elapsedRef.current);
+      }, 1000);
+      startPolling(snap.sessionId);
+    } else if (row?.status === "completed" && Array.isArray(row.result_urls) && row.result_urls.length) {
+      setStep(7);
+      setResultUrl(row.result_urls[0] as string);
+    }
+    toast.success("Sessione ripresa da dove l'avevi lasciata.");
+  }, [resumable, startPolling]);
+
+  const discardResume = useCallback(() => {
+    setResumable(null);
+    try {
+      sessionStorage.removeItem(RESUME_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     if (!sessionId) return;
     if (!contactId && !opportunityId && !crmPersistedRef.current) return;
@@ -809,8 +962,34 @@ export default function RenderNewV2() {
       .eq("id", sessionId);
   }, [contactId, opportunityId, sessionId]);
 
+  // F3 (audit 16/07) — Gate crediti a INIZIO wizard: prima l'utente con saldo
+  // zero compilava tutti i 7 step (pagando anche l'analisi foto) e scopriva
+  // il blocco solo al submit finale. Ora il blocco scatta allo step 1.
+  const { data: renderBalance } = useQuery({
+    queryKey: ["render-credits-balance", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("render_credits")
+        .select("balance")
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      return (data?.balance as number | undefined) ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
   const goNext = useCallback(async () => {
     if (step === 1) {
+      if ((renderBalance ?? 0) <= 0) {
+        toast.error("Crediti render esauriti. Ricarica il pacchetto per continuare.", {
+          action: {
+            label: "Ricarica",
+            onClick: () => navigate("/azienda/impostazioni/crediti"),
+          },
+        });
+        return;
+      }
       const created = await uploadAndCreateSession();
       if (!created) return;
       setStep(2);
@@ -818,7 +997,7 @@ export default function RenderNewV2() {
       return;
     }
     if (step < 7) setStep((current) => (current + 1) as Step);
-  }, [startWindowAnalysis, step, uploadAndCreateSession]);
+  }, [navigate, renderBalance, startWindowAnalysis, step, uploadAndCreateSession]);
 
   const goBack = useCallback(() => {
     if (step > 1) setStep((current) => (current - 1) as Step);
@@ -840,9 +1019,12 @@ export default function RenderNewV2() {
     // hanno ancora dati persistiti dalla vecchia versione). Idempotente.
     try {
       sessionStorage.removeItem("render-wizard-state");
+      sessionStorage.removeItem(RESUME_KEY); // F3 — nuovo render = snapshot via
     } catch {
       // sessionStorage non disponibile, ignora
     }
+    setResumable(null);
+    setServerStage(null);
     setSceneAnalysis(null);
     setSelectedOpeningIds([]);
     setAnalysisLoading(false);
@@ -974,6 +1156,23 @@ export default function RenderNewV2() {
       <div className="space-y-4 px-4">
         <RenderCreditGate />
 
+        {step === 1 && resumable && !photo && (
+          <Card className="border-orange-300 bg-orange-50">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm">
+                <div className="font-semibold">Hai un render lasciato a metà</div>
+                <div className="text-muted-foreground">
+                  Foto e scelte sono salvate (step {resumable.step} di 7). Vuoi riprendere da dove eri?
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="sm" onClick={() => void resumeSession()}>Riprendi</Button>
+                <Button size="sm" variant="outline" onClick={discardResume}>Ricomincia</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {step === 1 && (
           <StepPhoto
             preview={photoPreview}
@@ -1055,6 +1254,7 @@ export default function RenderNewV2() {
             resultUrl={resultUrl}
             generating={generating}
             elapsedSec={elapsedSec}
+            serverStage={serverStage}
             error={generateError}
             contactId={contactId}
             opportunityId={opportunityId}
@@ -2163,6 +2363,7 @@ function StepRender({
   resultUrl,
   generating,
   elapsedSec,
+  serverStage,
   error,
   contactId,
   opportunityId,
@@ -2184,6 +2385,7 @@ function StepRender({
   resultUrl: string | null;
   generating: boolean;
   elapsedSec: number;
+  serverStage: string | null;
   error: string | null;
   contactId: string | null;
   opportunityId: string | null;
@@ -2191,7 +2393,7 @@ function StepRender({
   onContactChange: (id: string | null) => void;
   onOpportunityChange: (id: string | null) => void;
   onNotesChange: (value: string) => void;
-  onGenerate: () => void;
+  onGenerate: (opts?: { refine?: boolean }) => void;
   onRetry: () => void;
   onReset: () => void;
   onBack: () => void;
@@ -2349,6 +2551,7 @@ function StepRender({
         <RenderProcessingCard
           photoPreview={originalSignedUrl ?? localPreview ?? undefined}
           elapsedSec={elapsedSec}
+          serverStage={serverStage}
           accent="orange"
           subjectLabel="L'AI sostituisce gli infissi mantenendo l'ambiente originale"
           tips={[
@@ -2419,14 +2622,17 @@ function StepRender({
             </Button>
           </div>
 
+          {/* F4 (audit 16/07) — Refinement MIRATO: la nota corregge il render
+              appena generato (image-to-image sul risultato), non riparte da
+              zero. La prima correzione entro 10 minuti è inclusa. */}
           <RenderResultRefinementPanel
             config={preview}
             noteValue={notes}
             onNoteChange={onNotesChange}
             onEditChoices={onBack}
-            onRegenerate={onGenerate}
+            onRegenerate={() => onGenerate({ refine: true })}
             disabled={generating}
-            regenerateLabel="Genera nuova variante infissi"
+            regenerateLabel="Correggi questo render (1ª correzione entro 10 min inclusa)"
           />
 
           <Button

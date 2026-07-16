@@ -16,10 +16,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import {
   editImage,
   type ImageProviderAttempt,
@@ -286,11 +283,13 @@ Deno.serve(async (req) => {
 
     // ── Parse request ─────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { session_id, config, target_width, target_height } = body as {
+    const { session_id, config, target_width, target_height, refine } = body as {
       session_id?: string;
       config?: Record<string, unknown>;
       target_width?: number;
       target_height?: number;
+      /** F4 — correzione mirata del risultato precedente (image-to-image). */
+      refine?: boolean;
     };
 
     if (!session_id) {
@@ -392,9 +391,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── F4 — Refinement mirato (correzione del risultato precedente) ─────
+    // Valido solo su sessione COMPLETED con risultato: usiamo il render come
+    // immagine sorgente e la nota utente come istruzione correttiva. Se le
+    // condizioni non ci sono, degrada a generazione normale.
+    let refineSourcePath: string | null = null;
+    if (
+      refine === true &&
+      session.status === "completed" &&
+      Array.isArray(session.result_urls) &&
+      session.result_urls.length > 0
+    ) {
+      const match = String(session.result_urls[0]).match(/render-results\/(.+)$/);
+      refineSourcePath = match ? decodeURIComponent(match[1]) : null;
+    }
+    const isRefine = refineSourcePath !== null;
+
     // ── Idempotency check ─────────────────────────────────────────────────
+    // (saltato per i refine: la sessione è per definizione già completed con
+    // lo stesso config — il refine DEVE rigenerare, non tornare la cache)
     const idempotencyKey = await computeIdempotencyKey(session_id, rawConfig);
     if (
+      !isRefine &&
       session.idempotency_key === idempotencyKey &&
       session.status === "completed" &&
       Array.isArray(session.result_urls) &&
@@ -420,67 +438,127 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── v8.6.23 — In-flight lock check (race condition guard) ────────────
-    // Se l'utente fa doppio click su "Genera" o se due tab parallele
-    // invocano la stessa session_id, vogliamo evitare:
-    //  - doppio deduct credito (anche se deduct_render_credit_v3 ha FOR
-    //    UPDATE, il refund è gestito su catena diversa)
-    //  - doppio background work che genera 2 PNG e race su result_urls
-    //  - doppio costo provider AI
-    //
-    // Logica: se la sessione è già in stato "processing" e processing_started_at
-    // è recente (< 170s, stessa soglia dead-detection client), rifiutiamo
-    // questa invocation con 409 Conflict. Il client può continuare a fare
-    // polling/realtime sulla sessione esistente.
-    // Soglia 170s = se più vecchia, è dead (edge function killata) e
-    // l'utente può ri-tentare legittimamente.
-    if (session.status === "processing" && session.processing_started_at) {
-      const ageSec = (Date.now() - new Date(session.processing_started_at as string).getTime()) / 1000;
-      if (ageSec < 170) {
-        logInfo({
-          session_id,
-          msg: "render_already_in_flight",
-          age_sec: Math.round(ageSec),
-        });
-        return new Response(
-          JSON.stringify({
-            error: "already_in_flight",
-            message: `Render già in corso per questa sessione (avviato ${Math.round(ageSec)}s fa). Attendere il risultato o riprovare tra qualche secondo.`,
-            session_id,
-            status: "processing",
-          }),
-          {
-            status: 409,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          },
-        );
-      }
+    // ── F1 (audit 16/07) — CLAIM ATOMICO prima del deduct ────────────────
+    // Il vecchio guard leggeva status e poi (più avanti) lo aggiornava: due
+    // invocation simultanee passavano entrambe → 2 deduct + 2 costi provider.
+    // claim_render_session fa lock FOR UPDATE + update condizionale in un
+    // colpo solo: UNA sola invocation ottiene il claim, l'altra riceve 409.
+    // Il claim mette anche status='processing' → l'ordine deduct/processing
+    // è invertito rispetto a prima (claim → deduct → lavoro).
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_session",
+      { _session_id: session_id, _stale_seconds: 170, _allow_completed: isRefine },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_session failed: ${claimErr.message}`);
     }
-
-    // ── Deduct crediti ────────────────────────────────────────────────────
-    const deductResult = await deductRenderCreditSafe(supabase, {
-      companyId: session.company_id as string,
-      sessionId: session_id,
-      userId: user.id,
-      reasonMeta: { vertical: "infissi", edge_fn: "generate-render" },
-      logTag: "generate-render",
-    });
-
-    if (deductResult.status === "insufficient") {
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      age_sec?: number;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
+      const ageSec = claim?.age_sec ?? 0;
+      logInfo({
+        session_id,
+        msg: "render_claim_rejected",
+        reason: claim?.reason,
+        age_sec: ageSec,
+      });
       return new Response(
         JSON.stringify({
-          error: "insufficient_credits",
-          message: "Crediti render insufficienti",
+          error: "already_in_flight",
+          message: `Render già in corso per questa sessione (avviato ${ageSec}s fa). Attendere il risultato o riprovare tra qualche secondo.`,
+          session_id,
+          status: "processing",
         }),
         {
-          status: 402,
+          status: 409,
           headers: { ...CORS, "Content-Type": "application/json" },
         },
       );
     }
-    creditDeducted = true;
-    const revenueEur = deductResult.revenue_eur;
-    const purchaseId = deductResult.purchase_id;
+
+    // Takeover di un tentativo morto (isolate killata >170s fa): il consume
+    // orfano del tentativo precedente va rimborsato PRIMA del nuovo deduct,
+    // altrimenti l'utente paga 2 crediti per 1 render.
+    if (claim.stale_takeover) {
+      const { data: refundAll, error: refundAllErr } = await supabase.rpc(
+        "refund_render_credit_all",
+        {
+          _company_id: session.company_id as string,
+          _session_id: session_id,
+          _reason_meta: { source: "stale_takeover", edge_fn: "generate-render" },
+        },
+      );
+      logInfo({
+        session_id,
+        msg: "stale_takeover_refund",
+        result: refundAll ?? null,
+        error: refundAllErr?.message ?? null,
+      });
+    }
+
+    // ── Deduct crediti ────────────────────────────────────────────────────
+    // F4 — La PRIMA correzione entro 10 minuti dal render è inclusa (nessun
+    // addebito): trasforma il "quasi giusto" in "giusto" senza far ricomprare.
+    // Dalla seconda correzione in poi, o oltre la finestra, credito normale.
+    const refinementsUsed = Number(
+      ((session.meta as Record<string, unknown> | null)?.refinements_used as
+        | number
+        | undefined) ?? 0,
+    );
+    let freeRefine = false;
+    if (isRefine) {
+      const completedAtMs = session.processing_completed_at
+        ? new Date(session.processing_completed_at as string).getTime()
+        : 0;
+      freeRefine = refinementsUsed === 0 &&
+        completedAtMs > 0 &&
+        Date.now() - completedAtMs < 10 * 60_000;
+    }
+
+    let revenueEur = 0;
+    let purchaseId: string | null | undefined = null;
+    if (freeRefine) {
+      logInfo({
+        session_id,
+        msg: "free_refinement_no_deduct",
+        refinements_used: refinementsUsed,
+      });
+    } else {
+      const deductResult = await deductRenderCreditSafe(supabase, {
+        companyId: session.company_id as string,
+        sessionId: session_id,
+        userId: user.id,
+        reasonMeta: {
+          vertical: "infissi",
+          edge_fn: "generate-render",
+          refinement: isRefine,
+        },
+        logTag: "generate-render",
+      });
+
+      if (deductResult.status === "insufficient") {
+        // Rilascia il claim: la sessione torna 'pending' e l'utente può
+        // riprovare dopo la ricarica (senza takeover-window di 170s).
+        await supabase.rpc("release_render_session", { _session_id: session_id });
+        return new Response(
+          JSON.stringify({
+            error: "insufficient_credits",
+            message: "Crediti render insufficienti",
+          }),
+          {
+            status: 402,
+            headers: { ...CORS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      creditDeducted = true;
+      revenueEur = deductResult.revenue_eur;
+      purchaseId = deductResult.purchase_id;
+    }
 
     // ── Marca sessione processing + idempotency ──────────────────────────
     const originalPrompt = [
@@ -555,6 +633,10 @@ Deno.serve(async (req) => {
           revenueEur,
           purchaseId,
           requestStartMs,
+          refine: isRefine,
+          refineSourcePath,
+          refineNotes: String((rawConfig as { notes?: unknown }).notes ?? ""),
+          refinementsUsed,
         });
       } catch (bgErr) {
         const msg = bgErr instanceof Error ? bgErr.message : String(bgErr);
@@ -563,20 +645,29 @@ Deno.serve(async (req) => {
           msg: "background_render_failed",
           error: msg,
         });
-        // Refund credito + marca session failed (in DB, niente response)
+        // Refund credito + marca session failed (in DB, niente response).
+        // F1 (audit 16/07) — refund_render_credit_all al posto di v1: v1 si
+        // blocca ("already_refunded") se la sessione ha GIÀ un refund da un
+        // ciclo precedente → il consume del ciclo corrente restava non
+        // rimborsato. refund_all rimborsa tutti i consume scoperti.
         if (refundableCompanyId && refundableSessionId) {
           try {
-            await refundRenderCreditSafe(supabase, {
-              companyId: refundableCompanyId,
-              sessionId: refundableSessionId,
-              userId: user.id,
-              reasonMeta: {
-                vertical: "infissi",
-                edge_fn: "generate-render",
-                error: msg.substring(0, 500),
-                background_failure: true,
-              },
-              logTag: "generate-render-bg",
+            const { data: refundAllRes, error: refundAllErr } = await supabase
+              .rpc("refund_render_credit_all", {
+                _company_id: refundableCompanyId,
+                _session_id: refundableSessionId,
+                _reason_meta: {
+                  vertical: "infissi",
+                  edge_fn: "generate-render",
+                  error: msg.substring(0, 500),
+                  background_failure: true,
+                },
+              });
+            if (refundAllErr) throw new Error(refundAllErr.message);
+            logInfo({
+              session_id,
+              msg: "background_refund_all",
+              result: refundAllRes ?? null,
             });
           } catch (refundErr) {
             logError({
@@ -678,6 +769,11 @@ interface BackgroundRenderArgs {
   revenueEur: number;
   purchaseId: string | null | undefined;
   requestStartMs: number;
+  /** F4 — correzione mirata: usa il risultato precedente come sorgente. */
+  refine?: boolean;
+  refineSourcePath?: string | null;
+  refineNotes?: string;
+  refinementsUsed?: number;
 }
 
 async function processRenderBackground(args: BackgroundRenderArgs): Promise<void> {
@@ -700,6 +796,55 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
 
   const elapsed = () => Date.now() - requestStartMs;
 
+  // F3 (audit 16/07) — Progress REALE verso il client. Scriviamo lo stage
+  // corrente in meta.stage: il wizard lo riceve via Realtime (canale già
+  // cablato su render_sessions) e lo mostra al posto della % simulata.
+  // Fire-and-forget: un fallimento qui non deve mai toccare il render.
+  // meta viene comunque riscritto per intero all'update finale di completed.
+  const setStage = (stage: string) => {
+    supabase
+      .from("render_sessions")
+      .update({ meta: { stage } })
+      .eq("id", session_id)
+      .then(() => {}, () => {});
+  };
+  setStage("ottimizzazione_prompt");
+
+  // ── F4 (audit 16/07) — REFINEMENT MIRATO ─────────────────────────────
+  // La sorgente è il RENDER precedente (non la foto originale) e il prompt
+  // è una pura istruzione correttiva: niente rewriter (il prompt lungo
+  // farebbe ri-restyling), niente QA (il confronto col source non ha più
+  // senso semantico). Obiettivo: cambia SOLO ciò che la nota chiede.
+  const isRefinePass = args.refine === true && !!args.refineSourcePath;
+  if (isRefinePass) {
+    const noteText = (args.refineNotes ?? "").trim();
+    composedPrompt = [
+      "You are refining an ALREADY APPROVED photorealistic render of an Italian window replacement. Image 1 is that render.",
+      "Apply ONLY the corrections listed below. Everything else must remain as close to pixel-identical as possible: same room, same lighting, same camera angle, same crop, same window design except where the corrections say otherwise.",
+      "",
+      "CORRECTIONS REQUESTED BY THE CUSTOMER:",
+      noteText || "(no specific notes — subtly improve installation realism only, change nothing else)",
+      "",
+      "Do NOT restyle the scene, do NOT regenerate from scratch, do NOT invent objects, do NOT change colors or components that the corrections do not mention.",
+    ].join("\n");
+    try {
+      await supabase
+        .from("render_sessions")
+        .update({
+          prompt_used: composedPrompt,
+          prompt_char_count: composedPrompt.length,
+        })
+        .eq("id", args.session_id);
+    } catch {
+      // observability best-effort
+    }
+    logInfo({
+      session_id: args.session_id,
+      msg: "refinement_pass_prompt",
+      notes_length: noteText.length,
+    });
+  }
+
   // ── v8.6.29 — META-PROMPT è ora il PATH UNICO (no env, no flag) ──────
   // La storia: block-based prompt aveva accumulato 25KB di regole +
   // 6 PRIORITY OVERRIDE + 13 categorie QA. Ogni nuova regola CONFONDEVA
@@ -715,6 +860,8 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
   //
   // Se il rewriter fallisce su entrambi i modelli della chain, fallback
   // al block-based originale (composedPrompt). Safety net mantenuto.
+  // (Saltato nel refinement pass: il prompt correttivo è già pronto.)
+  if (!isRefinePass) {
   try {
     const metaResult = await rewriteToMetaPrompt({
       config: args.normalizedConfig,
@@ -780,14 +927,21 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       error: (e as Error).message?.substring(0, 200),
     });
   }
+  } // fine if (!isRefinePass)
 
   const providerChain: Array<Record<string, unknown>> = [];
 
   // ── Prepara immagine input ───────────────────────────────────────────
-  const originalPath = session.original_photo_url as string;
+  // F4 — Nel refinement la sorgente è il RENDER precedente (bucket
+  // render-results), non la foto originale.
+  setStage("preparazione_foto");
+  const originalPath = isRefinePass
+    ? (args.refineSourcePath as string)
+    : (session.original_photo_url as string);
+  const sourceBucket = isRefinePass ? "render-results" : "render-originals";
     const prepared = await prepareInputImage({
       supabase,
-      bucket: "render-originals",
+      bucket: sourceBucket,
       originalPath,
       hintWidth: target_width,
       hintHeight: target_height,
@@ -926,6 +1080,22 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     };
 
     const generateCandidate = async (promptText: string) => {
+      // F1 (audit 16/07) — Budget deadline-aware al posto del timeout fisso 90s.
+      // La matematica vecchia (fino a 3 tentativi × 90s + backoff, × 2 tier)
+      // arrivava a ~275s contro il cap runtime di 150s: l'isolate veniva
+      // killata a metà → sessione zombie + credito perso. Ora:
+      //  - maxRetries=0 → UN tentativo per tier (il fallback di affidabilità
+      //    è il Tier 2, non il retry sullo stesso provider: un image-edit che
+      //    fallisce dopo 60-80s raramente riesce ritentando identico)
+      //  - timeout per tentativo ricavato dal budget residuo, riservando
+      //    RESERVE_MS per QA + upload + update DB, mai oltre 75s
+      //  - worst case: 2 tier × 65s = ~130s, dentro il budget 140s
+      const RESERVE_MS = 25_000;
+      const remaining = TOTAL_BUDGET_MS - elapsed() - RESERVE_MS;
+      const perAttemptTimeout = Math.max(
+        30_000,
+        Math.min(75_000, Math.floor(remaining / 2)),
+      );
       try {
         const result = await editImage({
           prompt: promptText,
@@ -936,13 +1106,8 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           effectiveWidth: prepared.effective_width ?? undefined,
           effectiveHeight: prepared.effective_height ?? undefined,
           negativePrompt,
-          // v8.5.4 — Timeout per-provider 75s → 90s.
-          // OpenAI direct (gpt-image-1, quality medium) impiega legittimamente
-          // 60-80s per render complessi con 4-6 reference images. 75s era
-          // troppo stretto: tagliava render in corso. Con 90s OpenAI ha
-          // margine + fallback rapido a Tier 2 se davvero blocca.
-          // Compatibile con budget edge function 150s grazie a background work.
-          timeoutMs: 90_000,
+          timeoutMs: perAttemptTimeout,
+          maxRetries: 0,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id as string,
@@ -972,6 +1137,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
 
     // v8.5 — composedPrompt e' gia' inizializzato dall'argomento all'inizio
     // di processRenderBackground (let composedPrompt = args.composedPrompt).
+    setStage("generazione");
     let candidate = await generateCandidate(composedPrompt);
     let generationAttempts = 1;
 
@@ -1006,6 +1172,12 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     let qaIssuesForLog: QaIssue[] = [];
     let qaModelUsed: string | null = null;
     const qaForceOn = Deno.env.get("RENDER_QA_FORCE_ON") === "1";
+    // F2 (audit 16/07) — QA SEMPRE attiva di default. Il check vision costa
+    // ~€0.002 (Claude Haiku) contro €0.05+ di un render difettoso consegnato
+    // al cliente: lo skip sui render "facili" risparmiava 6s ma lasciava
+    // passare i difetti senza rete. RENDER_QA_SKIP_EASY=1 ripristina il
+    // vecchio comportamento (skip senza risk factors) se mai servisse.
+    const qaSkipEasy = Deno.env.get("RENDER_QA_SKIP_EASY") === "1";
     const riskFactors = normalizedConfig.technical_specification.some((s) => {
       const transomRequiresRemoval = typeof s.transomRule === "string" &&
         s.transomRule.toUpperCase().includes("REMOVE");
@@ -1030,7 +1202,9 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           hiddenHingeRisk,
       );
     });
-    const shouldRunQa = qaForceOn || riskFactors;
+    // F4 — QA saltata nel refinement: il confronto "source foto vs candidate"
+    // non ha più senso quando la source è essa stessa un render approvato.
+    const shouldRunQa = !isRefinePass && (qaForceOn || riskFactors || !qaSkipEasy);
     if (!shouldRunQa) {
       logInfo({
         session_id,
@@ -1040,6 +1214,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       });
     }
     if (shouldRunQa) {
+      setStage("controllo_qualita");
       // v8.6.22 — usa la helper cached invece di riconvertire sourceBlob
       const sourceDataUrl = await getSourceDataUrl();
       const qaResult = await callVisionQa({
@@ -1128,6 +1303,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     // Edge runtime, oppure il WASM init pianta silenziosamente la function.
     // Il problema "render tagliato rispetto a source" e' meglio risolto lato
     // CLIENT (CSS object-fit nel BeforeAfterSlider) che lato server.
+    setStage("salvataggio");
     const base64Data = candidate.imageDataUrl.replace(
       /^data:image\/\w+;base64,/,
       "",
@@ -1172,7 +1348,16 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         : 0.039,
     });
 
-    const costReal = capture.cost_eur * generationAttempts;
+    // F2 (audit 16/07) — Costi ausiliari nel costo reale. Prima veniva
+    // catturato SOLO il costo dell'image-edit finale: rewriter meta-prompt
+    // (~€0.001, gpt-4o-mini) e QA Vision (~€0.002 a passata, Claude Haiku)
+    // restavano invisibili → margine sovrastimato in dashboard economics.
+    // Stime flat conservative (le call non espongono sempre il costo reale).
+    const AUX_COST_REWRITER_EUR = 0.001;
+    const AUX_COST_QA_PASS_EUR = 0.002;
+    const auxCostEur = AUX_COST_REWRITER_EUR +
+      (qaModelUsed ? AUX_COST_QA_PASS_EUR : 0);
+    const costReal = capture.cost_eur * generationAttempts + auxCostEur;
     const { data: providerConfig } = await supabase
       .from("render_provider_config")
       .select("id, cost_billed_per_render, renders_generated")
@@ -1235,6 +1420,10 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         qa_issue_categories: qaIssuesForLog.map((i) => i.category),
         qa_issues_count: qaIssuesForLog.length,
         qa_retried: generationAttempts > 1,
+        // F4 — contatore correzioni: la 1ª entro 10 min è gratis, poi credito.
+        // Una generazione normale azzera il ciclo.
+        refinements_used: isRefinePass ? (args.refinementsUsed ?? 0) + 1 : 0,
+        is_refinement: isRefinePass,
         // v8.4.3 — Tempo totale processing (server-side) per audit budget
         total_processing_ms: elapsed(),
         budget_ms: TOTAL_BUDGET_MS,
@@ -1279,6 +1468,26 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       render_url: resultUrl,
       tags: [tagMat, tagCol].filter(Boolean),
     });
+
+    // F3 (audit 16/07) — Notifica campanella: il render è pronto anche se
+    // l'utente ha chiuso la tab (il vecchio "Ti avviseremo quando è pronto"
+    // della ProcessingCard ora è vero). Best-effort.
+    try {
+      await supabase.from("notifications").insert({
+        company_id: session.company_id,
+        user_id: user.id,
+        type: "render_completed",
+        title: "Il tuo render è pronto ✨",
+        body: "Il render infissi è stato generato: aprilo dalla galleria per vederlo, scaricarlo o condividerlo col cliente.",
+        entity_type: "render_session",
+        entity_id: session_id,
+        action_url: "/azienda/render/infissi/gallery",
+        is_read: false,
+        is_dismissed: false,
+      });
+    } catch (_notifErr) {
+      // best-effort: la notifica non deve mai far fallire un render riuscito
+    }
 
     logInfo({
       session_id,
@@ -1334,17 +1543,20 @@ async function handleSyncError(args: SyncErrorArgs): Promise<Response> {
 
   if (creditDeducted && refundableCompanyId && refundableSessionId) {
     try {
-      await refundRenderCreditSafe(supabase, {
-        companyId: refundableCompanyId,
-        sessionId: refundableSessionId,
-        userId: user.id,
-        reasonMeta: {
-          vertical: "infissi",
-          edge_fn: "generate-render",
-          error: msg.substring(0, 500),
+      // F1 (audit 16/07) — refund_all: v. commento nel background catch.
+      const { error: refundAllErr } = await supabase.rpc(
+        "refund_render_credit_all",
+        {
+          _company_id: refundableCompanyId,
+          _session_id: refundableSessionId,
+          _reason_meta: {
+            vertical: "infissi",
+            edge_fn: "generate-render",
+            error: msg.substring(0, 500),
+          },
         },
-        logTag: "generate-render",
-      });
+      );
+      if (refundAllErr) throw new Error(refundAllErr.message);
       logInfo({ session_id: refundableSessionId, msg: "credit_refunded_ok" });
     } catch (refundErr) {
       logError({
