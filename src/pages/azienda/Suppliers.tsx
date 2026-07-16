@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Truck, Search, Loader2, Star, ArrowLeft, Phone, Mail, Globe,
   MapPin, CreditCard, Package, CalendarClock, BookOpen, BarChart3,
@@ -101,7 +102,25 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="pt-4 pb-3 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">Nessun fornitore trovato.</div>
       ) : (
