@@ -982,8 +982,9 @@ Ciao {{user.first_name}},
 Lo ritrovi quando vuoi nella sezione documenti del cantiere: niente più "me lo rimandi?".
 ```
 
-### Attività assegnata  ·  `task_assigned`  ·  💤 DORMIENTE
+### Attività assegnata  ·  `task_assigned`  ·  ✅ ATTIVA
 
+*Inviata da: system-emails-tick (cron, sweep orario)*
 *Quando/a chi: Viene assegnato un task a un utente · Utente assegnatario*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{sender.name}}`, `{{task.due_date}}`, `{{task.name}}`, `{{user.first_name}}`*
 

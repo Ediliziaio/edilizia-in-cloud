@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   }
 
   const siteUrl = ((await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "").replace(/\/$/, "");
-  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, invite_expired: 0, renewal_upcoming: 0, errors: [] as string[] };
+  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, invite_expired: 0, renewal_upcoming: 0, task_assigned: 0, errors: [] as string[] };
   const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
   // dedup-then-send: inserisce il guard PRIMA dell'invio (no doppioni in caso di
@@ -231,6 +231,51 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     result.errors.push(`renewal_upcoming job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Job F — Attività assegnata (sweep ultime 25h, dedup per task+assegnatario) ──
+  // Le task nascono da insert frontend (nessuna edge fn sul percorso di scrittura):
+  // sweep orario su updated_at. Il guard (task_assigned, taskId:assignee) garantisce
+  // UNA email per coppia anche se la task viene modificata più volte.
+  try {
+    const from = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const { data: tasks, error } = await admin
+      .from("tasks")
+      .select("id, title, due_date, company_id, created_by, assigned_to, status")
+      .not("assigned_to", "is", null)
+      .in("status", ["da_fare", "in_corso"])
+      .gte("updated_at", from);
+    if (error) throw error;
+    for (const t of (tasks ?? []) as Array<{ id: string; title: string; due_date: string | null; company_id: string; created_by: string; assigned_to: string }>) {
+      if (!t.assigned_to || t.assigned_to === t.created_by) continue; // niente auto-notifica
+      const { data: prof } = await admin.from("profiles").select("id, first_name").eq("id", t.assigned_to).maybeSingle();
+      if (!prof) continue;
+      const { data: ud } = await admin.auth.admin.getUserById(t.assigned_to);
+      const toEmail = ud?.user?.email;
+      if (!toEmail) continue;
+      const { data: sender } = await admin.from("profiles").select("first_name, last_name").eq("id", t.created_by).maybeSingle();
+      const senderName = [sender?.first_name, sender?.last_name].filter(Boolean).join(" ").trim() || "Un collega";
+      const dueDate = t.due_date
+        ? new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(t.due_date))
+        : "—";
+      const ok = await guardedSend("task_assigned", `${t.id}:${t.assigned_to}`, t.company_id, toEmail, () =>
+        renderEmailTemplate({
+          templateName: "task_assigned",
+          companyId: t.company_id,
+          adminClient: admin,
+          props: {
+            recipientName: prof.first_name || toEmail.split("@")[0],
+            senderName,
+            taskName: t.title,
+            dueDate,
+            ctaUrl: siteUrl ? `${siteUrl}/azienda/attivita` : "",
+          },
+        }),
+      );
+      if (ok) result.task_assigned++;
+    }
+  } catch (e) {
+    result.errors.push(`task_assigned job: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return new Response(JSON.stringify({ ok: true, ...result }), {
