@@ -1745,6 +1745,8 @@ function OrdersListInner() {
               </div>
             </PopoverContent>
           </Popover>
+          {/* Esportazioni: nascoste su mobile (download file poco pratici da telefono/app). */}
+          {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -1771,7 +1773,9 @@ function OrdersListInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
+          {(!isCommercialistaMode || !isMobile) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Altre azioni">
@@ -1784,14 +1788,18 @@ function OrdersListInner() {
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" /> Importa commesse
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  {!isMobile && <DropdownMenuSeparator />}
                 </>
               )}
-              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
-                <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
-              </DropdownMenuItem>
+              {/* Export schede clienti: nascosto su mobile */}
+              {!isMobile && (
+                <DropdownMenuItem onClick={openCustomerSheetsDialog}>
+                  <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
           {isCommercialistaMode ? (
             <Button variant="outline" disabled className="border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
               <ShieldCheck className="h-4 w-4 mr-1" />
