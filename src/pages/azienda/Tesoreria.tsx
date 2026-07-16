@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -159,8 +160,22 @@ export default function Tesoreria() {
 
   if (hasConnections === null) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+          <div className="flex items-start gap-3">
+            <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-36" />
+              <Skeleton className="hidden h-4 w-64 sm:block" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -175,7 +190,7 @@ export default function Tesoreria() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
+              <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
             </div>
           </div>
         </div>
@@ -213,7 +228,7 @@ export default function Tesoreria() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">
                 Gestisci conti bancari e monitora il cash flow in tempo reale.
               </p>
             </div>
