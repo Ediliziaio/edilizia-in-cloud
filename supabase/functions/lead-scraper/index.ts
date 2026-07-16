@@ -800,60 +800,145 @@ interface GPlace {
 }
 
 // ── OpenStreetMap / Overpass — fonte GRATUITA senza chiave ────────────────────
-// Nominatim geolocalizza la città → bbox; Overpass estrae imprese (office/craft/
-// shop pertinenti all'edilizia) con nome, telefono, sito, indirizzo.
-interface OsmBiz { name: string; phone: string | null; website: string | null; address: string | null; city: string | null; lat?: number; lng?: number; }
+// Nominatim geolocalizza città/regione → Overpass estrae le imprese con nome,
+// telefono, sito, EMAIL (tag contact:email/email), indirizzo, categoria.
+// v2: ricerca area-wide (regione/provincia intera via Overpass area, non solo
+// bbox città), targeting per mestiere, multi-città ("Milano, Monza, Como").
+interface OsmBiz { name: string; phone: string | null; website: string | null; email: string | null; address: string | null; city: string | null; category: string | null; lat?: number; lng?: number; }
+
+/** keyword italiana → filtri tag OSM mirati. Ritorna [] se il mestiere non è
+ *  riconosciuto (in quel caso si usa il set edile completo). */
+function osmTagsForKeyword(kw: string): string[] {
+  const k = kw.toLowerCase();
+  const t: string[] = [];
+  if (/idraul|termoidraul/.test(k)) t.push('"craft"="plumber"', '"craft"="hvac"');
+  if (/elettricist/.test(k)) t.push('"craft"="electrician"');
+  if (/serrament|infiss|finestre|vetr/.test(k)) t.push('"craft"~"window_construction|glaziery"', '"shop"="window_blind"');
+  if (/falegnam|carpent/.test(k)) t.push('"craft"~"carpenter|joiner"');
+  if (/imbianch|pittur|decorat/.test(k)) t.push('"craft"="painter"');
+  if (/tett|copertur|lattoner/.test(k)) t.push('"craft"~"roofer|tinsmith"');
+  if (/piastrell|pavim/.test(k)) t.push('"craft"~"tiler|flooring"');
+  if (/giardin|verde|paesagg/.test(k)) t.push('"craft"="gardener"', '"shop"="garden_centre"');
+  if (/architett/.test(k)) t.push('"office"="architect"');
+  if (/geometr|ingegn|studio tecnic/.test(k)) t.push('"office"~"engineer|surveyor"');
+  if (/impresa|costruz|edil|ristruttur|general contractor/.test(k)) {
+    t.push('"craft"="builder"', '"office"="construction_company"', '"industrial"="construction"');
+  }
+  if (/ferrament|material.*edil|rivendit/.test(k)) t.push('"shop"~"trade|doityourself|hardware"');
+  if (/scav|movimento terra|demoliz/.test(k)) t.push('"craft"~"builder"', '"industrial"="construction"');
+  if (/ponteggi/.test(k)) t.push('"craft"="scaffolder"');
+  if (/cartongess|controsoffitt/.test(k)) t.push('"craft"="plasterer"');
+  return [...new Set(t)];
+}
+const OSM_BROAD_TAGS = [
+  '"craft"~"builder|carpenter|electrician|plumber|painter|roofer|hvac|stonemason|scaffolder|tiler|plasterer|glaziery|window_construction"',
+  '"office"~"architect|engineer|construction_company|surveyor"',
+  '"shop"~"trade|doityourself|hardware"',
+  '"industrial"="construction"',
+];
+
 async function osmSearch(keyword: string, city: string, region: string, max: number): Promise<OsmBiz[]> {
   const UA = "EiC-LeadBot/1.0 (edilizia in cloud lead scraper)";
-  // 1) geocoding città via Nominatim (gratis, no key)
-  const q = encodeURIComponent([city, region, "Italia"].filter(Boolean).join(", "));
-  const geoRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
-    timeoutMs: 10000, headers: { "User-Agent": UA, Accept: "application/json" },
-  });
-  const geo = await geoRes.json().catch(() => []);
-  const place = Array.isArray(geo) ? geo[0] : null;
-  if (!place?.boundingbox) return [];
-  const [south, north, west, east] = place.boundingbox.map(Number); // Nominatim: [S,N,W,E]
-  const bbox = `${south},${west},${north},${east}`; // Overpass: S,W,N,E
+  const targeted = osmTagsForKeyword(keyword);
+  const tags = targeted.length ? targeted : OSM_BROAD_TAGS;
 
-  // 2) mappa keyword → tag OSM edili (broad, poi filtro per nome)
-  const kw = keyword.toLowerCase();
-  const tagFilters: string[] = [];
-  const push = (f: string) => tagFilters.push(`nwr[${f}](${bbox});`);
-  // categorie edili/tecniche più comuni su OSM
-  push('"craft"~"builder|carpenter|electrician|plumber|painter|roofer|hvac|stonemason|scaffolder|tiler"');
-  push('"office"~"architect|engineer|construction_company"');
-  push('"shop"~"trade|doityourself|hardware"');
-  if (/architett/.test(kw)) push('"office"="architect"');
-  if (/geometr|tecnic|ingegn/.test(kw)) push('"office"="engineer"');
+  // Zone: multi-città separate da virgola; senza città → regione/provincia INTERA.
+  const zones = city
+    ? city.split(",").map((c) => c.trim()).filter(Boolean)
+    : [region.trim()].filter(Boolean);
+  if (zones.length === 0) return [];
 
-  const overpassQL = `[out:json][timeout:25];(${tagFilters.join("")});out center ${Math.min(200, max * 3)};`;
-  const opRes = await fetchWithTimeout("https://overpass-api.de/api/interpreter", {
-    timeoutMs: 25000, method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
-    body: `data=${encodeURIComponent(overpassQL)}`,
-  });
-  if (!opRes.ok) throw new Error(`Overpass ${opRes.status}`);
-  const data = await opRes.json().catch(() => ({ elements: [] }));
   const out: OsmBiz[] = [];
   const seen = new Set<string>();
-  for (const el of (data.elements || [])) {
-    const t = el.tags || {};
-    const name = t.name || t["operator"] || null;
-    if (!name) continue;
-    const nk = String(name).trim().toLowerCase();
-    if (seen.has(nk)) continue;
-    seen.add(nk);
-    const addr = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ") || null;
-    out.push({
-      name: String(name),
-      phone: t["contact:phone"] || t["phone"] || null,
-      website: t["contact:website"] || t["website"] || null,
-      address: addr,
-      city: t["addr:city"] || city || null,
-      lat: el.lat ?? el.center?.lat,
-      lng: el.lon ?? el.center?.lon,
+
+  for (const zone of zones.slice(0, 5)) { // max 5 zone per ricerca
+    // 1) Nominatim: risolvi la zona. Preferisci il risultato amministrativo →
+    //    area Overpass (copre TUTTO il comune/provincia/regione, non solo il bbox).
+    const q = encodeURIComponent([zone, city ? region : "", "Italia"].filter(Boolean).join(", "));
+    const geoRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=3`, {
+      timeoutMs: 10000, headers: { "User-Agent": UA, Accept: "application/json" },
     });
+    const geo = await geoRes.json().catch(() => []);
+    const relation = (Array.isArray(geo) ? geo : []).find((g: any) => g.osm_type === "relation");
+    const place = relation || (Array.isArray(geo) ? geo[0] : null);
+    if (!place) continue;
+
+    // 2) query Overpass: area amministrativa se disponibile, altrimenti bbox
+    let spatial: string;
+    let header = "";
+    if (place.osm_type === "relation" && place.osm_id) {
+      const areaId = 3600000000 + Number(place.osm_id); // relazione → area id
+      header = `area(${areaId})->.z;`;
+      spatial = "(area.z)";
+    } else {
+      const [south, north, west, east] = place.boundingbox.map(Number);
+      spatial = `(${south},${west},${north},${east})`;
+    }
+    // Aree amministrative grandi (provincia/regione): una query con tutti i tag
+    // insieme manda in timeout l'endpoint pubblico → spezza per gruppo di tag e
+    // prova più mirror in fallback.
+    const MIRRORS = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
+      "https://overpass.private.coffee/api/interpreter",
+    ];
+    const runOverpass = async (ql: string): Promise<any[]> => {
+      let lastErr = "";
+      for (const url of MIRRORS) {
+        try {
+          const res = await fetchWithTimeout(url, {
+            timeoutMs: 40000, method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
+            body: `data=${encodeURIComponent(ql)}`,
+          });
+          if (!res.ok) { lastErr = `Overpass ${res.status}`; continue; }
+          const d = await res.json().catch(() => null);
+          if (d?.elements) return d.elements;
+          lastErr = "risposta non valida";
+        } catch (e) { lastErr = (e as Error).message; }
+      }
+      throw new Error(lastErr || "tutti i mirror Overpass hanno fallito");
+    };
+
+    const isArea = !!header;
+    const groups = isArea ? tags.map((t) => [t]) : [tags]; // area → una query per tag
+    const elements: any[] = [];
+    for (const group of groups) {
+      const body = group.map((f) => `nwr[${f}]${spatial};`).join("");
+      const ql = `[out:json][timeout:30];${header}(${body});out center ${Math.min(400, max * 4)};`;
+      try {
+        elements.push(...await runOverpass(ql));
+      } catch (e) {
+        // un gruppo fallito non azzera la ricerca: continua con gli altri
+        console.warn(`[osm] gruppo tag fallito (${group[0].slice(0, 40)}…):`, (e as Error).message);
+      }
+      if (elements.length >= max * 4) break;
+    }
+    if (elements.length === 0 && groups.length > 0) throw new Error("Overpass timeout/nessun mirror disponibile — riprova tra poco o restringi l'area");
+
+    for (const el of elements) {
+      const t = el.tags || {};
+      const name = t.name || t["operator"] || null;
+      if (!name) continue;
+      const nk = String(name).trim().toLowerCase();
+      if (seen.has(nk)) continue;
+      seen.add(nk);
+      const addr = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ") || null;
+      const rawEmail = t["contact:email"] || t["email"] || null;
+      const email = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rawEmail)) ? String(rawEmail).toLowerCase() : null;
+      out.push({
+        name: String(name),
+        phone: t["contact:phone"] || t["phone"] || null,
+        website: t["contact:website"] || t["website"] || null,
+        email,
+        address: addr,
+        city: t["addr:city"] || (city ? zone : null),
+        category: t["craft"] || t["office"] || t["shop"] || t["industrial"] || null,
+        lat: el.lat ?? el.center?.lat,
+        lng: el.lon ?? el.center?.lon,
+      });
+      if (out.length >= max) break;
+    }
     if (out.length >= max) break;
   }
   return out;
@@ -1322,10 +1407,10 @@ Deno.serve(async (req) => {
         const keyword = String(body.keyword || "").trim();
         const city = String(body.city || "").trim();
         const region = String(body.region || "").trim();
-        const max = Math.max(1, Math.min(100, Number(body.maxResults) || 20));
+        const max = Math.max(1, Math.min(200, Number(body.maxResults) || 20));
         const extractEmails = body.extractEmails !== false;
         if (!keyword) return errorResponse("Parametro 'keyword' obbligatorio (es. 'impresa edile').", 400, corsH);
-        if (!city && !region) return errorResponse("Indica almeno città o regione per delimitare l'area.", 400, corsH);
+        if (!city && !region) return errorResponse("Indica una città (anche più di una: 'Milano, Monza') oppure solo la regione/provincia per una ricerca area-wide.", 400, corsH);
 
         let biz: OsmBiz[];
         try {
@@ -1337,12 +1422,13 @@ Deno.serve(async (req) => {
           return jsonResponse({ searchId: null, count: 0, withEmail: 0, withPhone: 0, results: [], note: "Nessuna impresa mappata su OpenStreetMap per questi criteri. OSM ha copertura variabile: prova un'area più ampia o un'altra fonte." }, 200, corsH);
         }
 
-        // email best-effort dai siti trovati
+        // email: prima dai tag OSM (già pubbliche), poi best-effort dai siti
         const emails = extractEmails
-          ? await poolMap(biz.map((b) => b.website || ""), 5, (w) => (w ? extractEmailFromSite(w) : Promise.resolve(null)))
+          ? await poolMap(biz.map((b) => (b.email ? "" : b.website || "")), 5, (w) => (w ? extractEmailFromSite(w) : Promise.resolve(null)))
           : biz.map(() => null);
 
         const rows = biz.map((b, i) => {
+          const email = b.email || emails[i] || null;
           const base = {
             source: "osm",
             business_name: b.name,
@@ -1352,8 +1438,9 @@ Deno.serve(async (req) => {
             city: b.city || city || null,
             region: region || null,
             country: "IT",
-            email: emails[i] || null,
-            email_status: emails[i] ? "found" : null,
+            email,
+            email_status: email ? "found" : null,
+            raw: b.category ? { osm_category: b.category } : null,
           };
           return { ...base, dedupe_key: dedupeKey(base) };
         });
