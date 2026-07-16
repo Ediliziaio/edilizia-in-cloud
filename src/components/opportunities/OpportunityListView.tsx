@@ -17,6 +17,13 @@ import type { OpportunityStage } from "@/types/opportunities";
 import { useUpdateOpportunityStage } from "@/hooks/useOpportunitiesData";
 import { toast } from "sonner";
 
+// Valore compatto per le mini-card di fase (mobile): 733200 → "733k", 1_250_000 → "1,3M".
+function fmtCompactEuro(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")}M`;
+  if (v >= 1_000) return `${Math.round(v / 1_000)}k`;
+  return `${Math.round(v)}`;
+}
+
 interface ListProps {
   stages: OpportunityStage[];
   opportunities: any[];
@@ -103,6 +110,20 @@ export const OpportunityListView = memo(function OpportunityListView({
     return m;
   }, [opportunities]);
 
+  // Aggregato conteggio + valore € per fase, per la striscia pipeline mobile.
+  const { stageAgg, totalValue } = useMemo(() => {
+    const agg: Record<string, { count: number; value: number }> = {};
+    let tv = 0;
+    for (const o of opportunities) {
+      const v = Number(o.value || 0);
+      tv += v;
+      const a = agg[o.stage_id] || (agg[o.stage_id] = { count: 0, value: 0 });
+      a.count += 1;
+      a.value += v;
+    }
+    return { stageAgg: agg, totalValue: tv };
+  }, [opportunities]);
+
   const virtualizer = useVirtualizer({
     count: opportunities.length,
     getScrollElement: () => scrollRef.current,
@@ -114,33 +135,49 @@ export const OpportunityListView = memo(function OpportunityListView({
     <>
       {/* ── MOBILE: card list con filtro per fase ── */}
       <div className="sm:hidden flex flex-col gap-0">
-        {/* Stage pills */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {/* Striscia pipeline: una mini-card per fase (nome + n. deal + € in fase),
+            così su mobile si vede la pipeline con le fasi di lavoro, allineata. */}
+        <div className="flex gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-none">
           <button
+            type="button"
             onClick={() => setMobileStageId(null)}
             className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors",
+              "flex w-[92px] shrink-0 flex-col gap-0.5 rounded-xl border px-2.5 py-1.5 text-left transition-colors",
               !mobileStageId
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "border-primary bg-primary/5 shadow-sm"
+                : "border-slate-200 bg-white hover:bg-slate-50"
             )}
+            aria-pressed={!mobileStageId}
           >
-            Tutte ({opportunities.length})
+            <span className="flex w-full min-w-0 items-center gap-1">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+              <span className="truncate text-[11px] font-medium text-muted-foreground">Tutte</span>
+            </span>
+            <span className="text-base font-bold leading-none text-foreground">{opportunities.length}</span>
+            <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(totalValue)}</span>
           </button>
           {stages.map((stage: any) => {
-            const count = opportunities.filter((o: any) => o.stage_id === stage.id).length;
+            const agg = stageAgg[stage.id] || { count: 0, value: 0 };
+            const active = mobileStageId === stage.id;
             return (
               <button
                 key={stage.id}
+                type="button"
                 onClick={() => setMobileStageId(stage.id)}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors",
-                  mobileStageId === stage.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  "flex w-[92px] shrink-0 flex-col gap-0.5 rounded-xl border px-2.5 py-1.5 text-left transition-colors",
+                  active
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
                 )}
+                aria-pressed={active}
               >
-                {stage.name} ({count})
+                <span className="flex w-full min-w-0 items-center gap-1">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hashColor(stage.name) }} />
+                  <span className="truncate text-[11px] font-medium text-muted-foreground">{stage.name}</span>
+                </span>
+                <span className="text-base font-bold leading-none text-foreground">{agg.count}</span>
+                <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(agg.value)}</span>
               </button>
             );
           })}

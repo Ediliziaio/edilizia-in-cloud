@@ -12,7 +12,7 @@ export function PipelineSelector({ pipelines, value, onChange }: {
 }) {
   return (
     <Select value={value || ""} onValueChange={onChange}>
-      <SelectTrigger className="w-[220px] h-9">
+      <SelectTrigger className="h-8 w-[150px] min-w-0 sm:h-9 sm:w-[220px]">
         <SelectValue placeholder="Seleziona sequenza" />
       </SelectTrigger>
       <SelectContent>

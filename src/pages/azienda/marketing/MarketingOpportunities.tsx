@@ -598,14 +598,14 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3 md:pb-0">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm">
-        <div className="flex items-center gap-2">
+      <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
-          <Badge className="h-6 bg-orange-100 px-2 text-xs text-orange-700 hover:bg-orange-100">
-            {filteredOpportunities.length} opportunità
+          <Badge className="h-6 shrink-0 bg-orange-100 px-2 text-xs text-orange-700 hover:bg-orange-100">
+            {filteredOpportunities.length}<span className="hidden sm:inline">&nbsp;opportunità</span>
           </Badge>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
@@ -638,14 +638,13 @@ function MarketingOpportunitiesContent() {
           <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
-          <Button size="sm" className="h-9 sm:h-8 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
+          <Button size="sm" className="h-8 w-8 shrink-0 p-0 sm:w-auto sm:px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
+            <Plus className="h-4 w-4 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
             <span className="hidden sm:inline">Aggiungi opportunità</span>
-            <span className="sm:hidden">Aggiungi</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-8 sm:w-8" aria-label="Altre azioni">
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Altre azioni">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

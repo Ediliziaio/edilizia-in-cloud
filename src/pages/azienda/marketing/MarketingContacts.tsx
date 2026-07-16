@@ -1617,23 +1617,23 @@ export default function MarketingContacts() {
       )}
 
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
-              <ContactRound className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 sm:h-11 sm:w-11 sm:rounded-2xl">
+              <ContactRound className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950">Contatti</h1>
+                <h1 className="text-lg font-bold text-slate-950 sm:text-2xl">Contatti</h1>
                 {!isLoading && activeTab === "all" && (
                   <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{totalCount}</Badge>
                 )}
               </div>
-              <p className="text-sm text-slate-600">Gestisci lead, clienti e liste commerciali.</p>
+              <p className="hidden text-sm text-slate-600 sm:block">Gestisci lead, clienti e liste commerciali.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Desktop: Export + Import */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1658,7 +1658,7 @@ export default function MarketingContacts() {
             {/* Mobile: ... menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="sm:hidden h-9 w-9 border-slate-200 bg-white/80">
+                <Button variant="outline" size="icon" className="sm:hidden h-8 w-8 border-slate-200 bg-white/80">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1678,10 +1678,10 @@ export default function MarketingContacts() {
               </DropdownMenuContent>
             </DropdownMenu>
             {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
-            <Button className="h-9 px-3 text-sm sm:h-10 sm:px-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
-              <Plus className="h-4 w-4 mr-1" />
+            <Button className="h-8 shrink-0 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+              <Plus className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Aggiungi Contatto</span>
-              <span className="sm:hidden">Aggiungi</span>
+              <span className="ml-1 sm:hidden">Aggiungi</span>
             </Button>
           </div>
         </div>
