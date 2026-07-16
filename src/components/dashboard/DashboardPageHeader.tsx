@@ -25,7 +25,7 @@ export function DashboardPageHeader({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 print:border-0 print:shadow-none",
+        "rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
         className,
       )}
     >
@@ -44,7 +44,7 @@ export function DashboardPageHeader({
               {leftAccessory}
             </div>
             {subtitle && (
-              <p className="mt-0.5 text-sm leading-5 text-slate-500">
+              <p className="mt-0.5 hidden text-sm leading-5 text-slate-500 sm:block">
                 {subtitle}
               </p>
             )}
