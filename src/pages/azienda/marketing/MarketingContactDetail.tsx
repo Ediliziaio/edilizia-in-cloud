@@ -114,10 +114,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
   const [waLocaleSending, setWaLocaleSending] = useState(false);
   // Arricchimento dati via motore lead-scraper (solo piattaforma):
-  // scraping sito + VIES (visura light) + firmografici/PEC openapi.it.
+  // pre-flight (conferma/ricerca sito) → scraping sito + VIES (visura light)
+  // + firmografici/PEC openapi.it → verifica di coerenza P.IVA sito↔contatto.
   const [enriching, setEnriching] = useState(false);
   const [enrichResult, setEnrichResult] = useState<Record<string, unknown> | null>(null);
   const [enrichOpen, setEnrichOpen] = useState(false);
+  const [enrichSetupOpen, setEnrichSetupOpen] = useState(false);
+  const [enrichWebsite, setEnrichWebsite] = useState("");
+  const [enrichPiva, setEnrichPiva] = useState("");
+  const [enrichName, setEnrichName] = useState("");
+  const [findingSite, setFindingSite] = useState(false);
+  const [siteCandidates, setSiteCandidates] = useState<Array<{ url: string; domain: string; title: string }> | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -388,17 +395,50 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     }
   };
 
-  // Arricchimento contatto via lead-scraper (enrich_company): usa sito/P.IVA/
-  // ragione sociale del contatto; il motore compila da solo i campi CRM vuoti.
+  // Pre-flight arricchimento: apre il dialog con i dati del contatto, così
+  // l'operatore VERIFICA (o trova) il sito giusto prima di lanciare lo scraping.
+  const openEnrichSetup = () => {
+    if (!contact) return;
+    setEnrichWebsite(contact.website?.trim() || "");
+    setEnrichPiva((contact as { vat_number?: string | null }).vat_number?.trim() || "");
+    setEnrichName(
+      contact.company_name?.trim()
+        || [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim()
+        || "",
+    );
+    setSiteCandidates(null);
+    setEnrichSetupOpen(true);
+  };
+
+  // Ricerca del sito ufficiale dal nome (DuckDuckGo filtrato dagli aggregatori):
+  // restituisce candidati, la scelta resta all'operatore.
+  const findWebsite = async () => {
+    if (findingSite || !enrichName.trim()) return;
+    setFindingSite(true);
+    setSiteCandidates(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "find_website", business_name: enrichName.trim(), city: contact?.city || null, province: (contact as { province?: string | null })?.province || null },
+      });
+      if (error) throw error;
+      setSiteCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ricerca sito fallita");
+      setSiteCandidates([]);
+    } finally {
+      setFindingSite(false);
+    }
+  };
+
+  // Esecuzione: usa i valori CONFERMATI nel pre-flight (non i campi grezzi del
+  // contatto); il motore compila da solo i campi CRM vuoti.
   const runEnrich = async () => {
-    if (enriching || !contact) return;
-    const website = contact.website?.trim() || null;
-    const piva = (contact as { vat_number?: string | null }).vat_number?.trim() || null;
-    const businessName = contact.company_name?.trim()
-      || [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim()
-      || null;
+    if (enriching) return;
+    const website = enrichWebsite.trim() || null;
+    const piva = enrichPiva.replace(/\s/g, "") || null;
+    const businessName = enrichName.trim() || null;
     if (!website && !piva && !businessName) {
-      toast.error("Servono almeno sito web, P.IVA o ragione sociale sul contatto");
+      toast.error("Servono almeno sito web, P.IVA o ragione sociale");
       return;
     }
     setEnriching(true);
@@ -409,6 +449,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
       setEnrichResult(data as Record<string, unknown>);
+      setEnrichSetupOpen(false);
       setEnrichOpen(true);
       // Traccia in timeline + ricarica il contatto (il motore può aver riempito campi)
       const updated = Array.isArray(data?.contact_updated) ? data.contact_updated as string[] : [];
@@ -420,7 +461,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           ? `Arricchimento scraper: compilati ${updated.join(", ")}`
           : "Arricchimento scraper eseguito",
         created_by: user?.id,
-        metadata: { source: "lead-scraper", fields: updated },
+        metadata: { source: "lead-scraper", fields: updated, website },
       });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
@@ -814,8 +855,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   size="sm"
                   className="gap-1.5 h-9 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
                   disabled={enriching}
-                  onClick={runEnrich}
-                  title="Scraping sito + VIES (visura light) + firmografici e PEC. Compila da solo i campi vuoti del contatto."
+                  onClick={openEnrichSetup}
+                  title="Scraping sito + VIES (visura light) + firmografici e PEC. Prima verifichi il sito, poi il motore compila i campi vuoti del contatto."
                 >
                   {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci
                 </Button>
@@ -1807,6 +1848,79 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Pre-flight arricchimento: verifica/trova il sito PRIMA dello scraping */}
+      <Dialog open={enrichSetupOpen} onOpenChange={setEnrichSetupOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Arricchisci contatto</DialogTitle>
+            <DialogDescription className="text-xs">
+              Controlla che il sito sia quello giusto (o cercalo dal nome): lo scraping legge email, telefoni e P.IVA da lì.
+              VIES e registri usano la P.IVA. I campi vuoti del contatto verranno compilati.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</Label>
+              <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder="Es. Rossi Costruzioni SRL" className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito web</Label>
+              <div className="flex gap-1.5">
+                <Input value={enrichWebsite} onChange={(e) => setEnrichWebsite(e.target.value)} placeholder="https://…" className="h-8 text-xs flex-1" />
+                {enrichWebsite.trim() && (
+                  <Button asChild variant="outline" size="sm" className="h-8 px-2 text-xs shrink-0" title="Apri il sito per controllarlo">
+                    <a href={enrichWebsite.startsWith("http") ? enrichWebsite : `https://${enrichWebsite}`} target="_blank" rel="noreferrer"><Globe className="h-3.5 w-3.5" /></a>
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="h-8 text-xs shrink-0 gap-1" disabled={findingSite || !enrichName.trim()} onClick={findWebsite}>
+                  {findingSite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />} Cerca sito
+                </Button>
+              </div>
+              {siteCandidates !== null && (
+                siteCandidates.length > 0 ? (
+                  <div className="rounded-md border divide-y mt-1">
+                    {siteCandidates.map((c) => (
+                      <button
+                        key={c.domain}
+                        type="button"
+                        onClick={() => setEnrichWebsite(c.url)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-muted/60 transition-colors",
+                          enrichWebsite === c.url && "bg-orange-50",
+                        )}
+                      >
+                        <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="font-medium shrink-0">{c.domain}</span>
+                        <span className="text-muted-foreground truncate flex-1">{c.title}</span>
+                        <a
+                          href={c.url} target="_blank" rel="noreferrer"
+                          className="text-[10px] text-primary underline shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          apri
+                        </a>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1">Nessun candidato trovato: inserisci il sito a mano o vai di P.IVA.</p>
+                )
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</Label>
+              <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-[10px] text-muted-foreground">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+              <Button size="sm" className="gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
+                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Risultati arricchimento scraper (solo piattaforma) */}
       <Dialog open={enrichOpen} onOpenChange={setEnrichOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
@@ -1823,9 +1937,16 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               emails?: string[]; phones?: string[];
               facebook_url?: string; instagram_url?: string; linkedin_url?: string;
               partita_iva?: string | null;
+              site_partita_iva?: string | null;
               contact_updated?: string[];
               intent_signals?: string[];
             };
+            // Coerenza sito↔azienda: se sul sito c'è una P.IVA, confrontala con
+            // quella nota → conferma (o smentisce) che il sito è quello giusto.
+            const knownPiva = enrichPiva.replace(/\s/g, "") || null;
+            const sitePivaMatch = r.site_partita_iva && knownPiva
+              ? (r.site_partita_iva.replace(/^IT/i, "") === knownPiva.replace(/^IT/i, "") ? "match" : "mismatch")
+              : null;
             const row = (label: string, value: React.ReactNode) => (
               <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
                 <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
@@ -1834,6 +1955,22 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             );
             return (
               <div className="space-y-3">
+                {sitePivaMatch === "match" && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
+                    ✓ <b>Sito confermato</b>: la P.IVA pubblicata sul sito coincide con quella dell'azienda.
+                  </div>
+                )}
+                {sitePivaMatch === "mismatch" && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                    ⚠️ <b>Verifica il sito</b>: sul sito c'è la P.IVA {r.site_partita_iva}, diversa da quella indicata ({knownPiva}).
+                    Potrebbe non essere il sito di questa azienda — controlla prima di fidarti dei recapiti trovati.
+                  </div>
+                )}
+                {r.site_partita_iva && !knownPiva && (
+                  <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-800">
+                    ℹ️ P.IVA <b>{r.site_partita_iva}</b> rilevata dal sito e usata per VIES/registri.
+                  </div>
+                )}
                 {r.contact_updated && r.contact_updated.length > 0 && (
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
                     ✓ Compilati sul contatto: <b>{r.contact_updated.join(", ")}</b>

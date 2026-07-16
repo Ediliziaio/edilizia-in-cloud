@@ -1611,6 +1611,75 @@ Deno.serve(async (req) => {
       return jsonResponse({ enriched, attempted: (leads || []).length }, 200, corsH);
     }
 
+    // ═══════ FIND WEBSITE (ricerca sito ufficiale dal nome, gratis) ═══════
+    // Input { business_name, city? }. Cerca su DuckDuckGo e restituisce i
+    // candidati (dominio+titolo) filtrando aggregatori/social/directory: la
+    // scelta finale resta all'operatore (pre-flight dell'arricchimento).
+    if (action === "find_website") {
+      const businessName: string | null = typeof body.business_name === "string" ? body.business_name.trim() : null;
+      const city: string | null = typeof body.city === "string" ? body.city.trim() : null;
+      if (!businessName) return errorResponse("business_name richiesto.", 400, corsH);
+
+      const BLOCKED = [
+        "duckduckgo.", "paginegialle.", "paginebianche.", "facebook.", "instagram.", "linkedin.",
+        "youtube.", "twitter.", "x.com", "tiktok.", "wikipedia.", "reportaziende.", "ufficiocamerale.",
+        "registroimprese.", "informazione-aziende.", "aziende.virgilio.", "virgilio.", "cylex", "misterimprese.",
+        "infoimprese.", "icribis.", "companyreports.", "trustpilot.", "yelp.", "glassdoor.", "indeed.",
+        "subito.it", "immobiliare.it", "amazon.", "ebay.", "trovaprezzi.", "europages.", "kompass.",
+        "mappy.", "tuttocitta.", "prontoimprese.", "guidafinestra.", "edilportale.", "wikidata.",
+      ];
+      const q = `${businessName}${city ? " " + city : ""}`;
+      // Motore di ricerca: Serper.dev (preferito) → Google CSE (gratis 100/g) →
+      // DuckDuckGo lite (best-effort, spesso rate-limitato server-side).
+      const serperKey = await getPlatformSetting("serper_api_key", "SERPER_API_KEY");
+      const cseKey = await getPlatformSetting("google_cse_api_key", "GOOGLE_CSE_API_KEY");
+      const cseCx = await getPlatformSetting("google_cse_cx", "GOOGLE_CSE_CX");
+
+      const candidates: Array<{ url: string; domain: string; title: string }> = [];
+      const seen = new Set<string>();
+      const pushCandidate = (link: string, title: string) => {
+        if (!/^https?:\/\//i.test(link)) return;
+        let host: string;
+        try { host = new URL(link).hostname.toLowerCase().replace(/^www\./, ""); } catch { return; }
+        if (BLOCKED.some((b) => host.includes(b))) return;
+        if (seen.has(host)) return;
+        seen.add(host);
+        candidates.push({ url: `https://${host}`, domain: host, title: (title || "").slice(0, 120) });
+      };
+
+      let items: Array<{ title: string; link: string; snippet: string }> = [];
+      let engineUsed = "none";
+      try {
+        if (serperKey) { items = await serperSearch(q, serperKey, 10); engineUsed = "serper"; }
+        else if (cseKey && cseCx) { items = await googleCseSearch(q, cseKey, cseCx); engineUsed = "google_cse"; }
+      } catch (e) {
+        console.warn(`[find_website] ${engineUsed} fallito:`, (e as Error)?.message);
+      }
+      for (const it of items) { pushCandidate(it.link, it.title); if (candidates.length >= 5) break; }
+
+      // Fallback affidabile senza chiavi di ricerca: openapi.it (registro imprese).
+      // Cerca l'azienda ufficiale per ragione sociale (+ provincia dal contatto)
+      // e recupera il sito web dal dettaglio. Costa 1-2 crediti openapi.
+      if (candidates.length === 0) {
+        const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+        if (openapiToken) {
+          engineUsed = "openapi";
+          const base = await openapiBase();
+          const province = typeof body.province === "string" && body.province.trim().length === 2 ? body.province.trim().toUpperCase() : undefined;
+          const ids = await companySearchIds({ companyName: businessName, province, limit: 5 }, openapiToken, base);
+          for (const cid of ids.slice(0, 3)) {
+            const det = await companyDetail(cid, openapiToken, base, "IT-start");
+            const web = det?.website || det?.web || det?.contacts?.website || det?.registeredOffice?.website || null;
+            const denom = det?.companyName || det?.denomination || businessName;
+            if (web) pushCandidate(String(web).startsWith("http") ? String(web) : `https://${web}`, denom);
+            if (candidates.length >= 5) break;
+          }
+        }
+      }
+
+      return jsonResponse({ candidates, query: q, engine: engineUsed }, 200, corsH);
+    }
+
     // ═══════ ENRICH COMPANY (ad-hoc: dati liberi → tutte le info, gratis) ═══════
     // Input { business_name?, website?, partita_iva?, vies?, contactId? }. Non
     // richiede una riga lead. Se contactId è fornito, riempie i campi vuoti del
@@ -1640,6 +1709,9 @@ Deno.serve(async (req) => {
         result.linkedin_url = deep.linkedin_url;
         result.intent_signals = deep.intent_signals;
         result.site_excerpt = deep.excerpt;
+        // P.IVA letta sul sito, restituita SEPARATA: serve al chiamante per la
+        // verifica di coerenza "il sito è davvero di questa azienda?"
+        result.site_partita_iva = deep.partita_iva;
         if (deep.partita_iva && !piva) piva = deep.partita_iva;
       }
       result.partita_iva = piva;
