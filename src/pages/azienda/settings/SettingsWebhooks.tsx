@@ -17,6 +17,7 @@ import { formatRelativeTime } from "@/lib/formatters";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -562,7 +563,7 @@ function DeliveriesSheet({
 
         <div className="mt-4 space-y-3">
           {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
           ) : deliveries.length === 0 ? (
             <div className="text-center py-12">
               <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
@@ -760,7 +761,9 @@ export default function SettingsWebhooks() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+        </div>
       ) : webhooks.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-14">

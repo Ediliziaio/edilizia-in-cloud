@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -457,7 +458,9 @@ export default function SettingsBilling() {
 
               {/* Connected providers */}
               {isLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+                </div>
               ) : integrations.length === 0 && !showAdd ? (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
@@ -696,7 +699,9 @@ export default function SettingsBilling() {
                 </CardHeader>
                 <CardContent>
                   {logsLoading ? (
-                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                    <div className="space-y-2">
+                      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
+                    </div>
                   ) : syncLogs.length === 0 ? (
                     <p className="text-center py-8 text-muted-foreground">Nessun log di sincronizzazione.</p>
                   ) : (
