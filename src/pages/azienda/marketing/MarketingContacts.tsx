@@ -1873,63 +1873,63 @@ export default function MarketingContacts() {
           {/* Mobile: card list */}
           <div className="sm:hidden flex flex-col gap-2">
             {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-lg border bg-white p-3">
-                  <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-3/5" />
+              <div className="divide-y overflow-hidden rounded-lg border bg-card">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2.5 px-3 py-2">
+                    <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Skeleton className="h-3.5 w-2/5" />
+                      <Skeleton className="h-3 w-3/5" />
+                    </div>
+                    <Skeleton className="h-4 w-8 shrink-0" />
                   </div>
-                  <Skeleton className="h-5 w-14 shrink-0" />
-                </div>
-              ))
+                ))}
+              </div>
             ) : contacts.length === 0 ? (
               <div className="text-center text-muted-foreground py-12 text-sm">Nessun contatto trovato</div>
             ) : (
-              contacts.map((c) => {
-                const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
-                const initials = getInitials(c.first_name, c.last_name || "");
-                const color = getAvatarColor(fullName);
-                const issues = contactIssuesById[c.id] || [];
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => setPreviewContact(c)}
-                    className="border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${color}`}>
+              /* Righe dense stile tabella: con migliaia di lead le card
+                 occupavano ~110px l'una; qui ~50px, una sola riga secondaria
+                 e indicatori compatti (pallino stato + conteggio warning). */
+              <div className="divide-y overflow-hidden rounded-lg border bg-card">
+                {contacts.map((c) => {
+                  const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
+                  const initials = getInitials(c.first_name, c.last_name || "");
+                  const color = getAvatarColor(fullName);
+                  const issues = contactIssuesById[c.id] || [];
+                  const secondary =
+                    c.company_name && c.company_name !== fullName
+                      ? c.company_name
+                      : (c.email ?? c.phone ?? "");
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setPreviewContact(c)}
+                      className="flex cursor-pointer items-center gap-2.5 px-3 py-2 active:bg-muted"
+                    >
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}>
                         {initials}
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{fullName}</p>
-                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                        {c.company_name && <p className="text-xs text-muted-foreground truncate">{c.company_name}</p>}
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {issues.length > 0 && (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px]">
-                            {issues.length} warning
-                          </Badge>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium leading-tight">{fullName}</p>
+                        {secondary && (
+                          <p className="truncate text-[11px] leading-tight text-muted-foreground">{secondary}</p>
                         )}
-                        {c.tags?.slice(0, 1).map((t) => (
-                          <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
-                        ))}
-                        {c.opp_status === "open" && <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">Aperta</Badge>}
-                        {c.opp_status === "won" && <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">Vinta</Badge>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Opportunità aperta" />}
+                        {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label="Opportunità vinta" />}
+                        {issues.length > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700">
+                            <AlertTriangle className="h-3 w-3" />
+                            {issues.length}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {(c.email || c.opp_name) && (
-                      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
-                        {c.opp_name
-                          ? <span className="truncate">💼 {c.opp_name}{c.opp_value ? ` · € ${Number(c.opp_value).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : ""}</span>
-                          : <span className="truncate">{c.email}</span>
-                        }
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
             {/* Mobile pagination */}
             {totalCount > pageSize && (
