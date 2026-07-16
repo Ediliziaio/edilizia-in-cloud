@@ -1728,7 +1728,7 @@ export default function QuoteBuilder() {
   }
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-4 pb-24">
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
       {!isEdit && recoverableDraft && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
