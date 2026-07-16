@@ -639,7 +639,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     "bg-slate-400 text-white";
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] md:overflow-hidden bg-background">
+    // Altezza definita per il layout a colonne con scroll interno. In area admin
+    // (contesto piattaforma) la top-bar + padding del <main> sono più alti, quindi
+    // sottraiamo di più: senza, il composer in fondo veniva tagliato.
+    <div className={cn(
+      "flex flex-col min-h-[calc(100dvh-8rem)] md:overflow-hidden bg-background",
+      isPlatformContext ? "md:h-[calc(100dvh-8rem)]" : "md:h-[calc(100dvh-3.5rem)]",
+    )}>
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
@@ -1315,13 +1321,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {/* ══════════ CENTER COLUMN — Timeline (Hero gestisce header/banner)
           Mobile: altezza limitata 60vh per non spingere troppo in basso l'anagrafica.
           Desktop: prende tutto lo spazio rimanente. */}
-      <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 h-[60vh] lg:h-auto">
         {/* Azioni rapide sul contatto (registra chiamata manuale, senza centralino) */}
         <div className="shrink-0 flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
           <LogCallButton companyId={companyId} contactId={id} userId={user?.id} />
         </div>
-        {/* Unified Timeline */}
-        <div className="flex-1 overflow-hidden">
+        {/* Unified Timeline — min-h-0 così il timeline si restringe e scrolla
+            invece di spingere il composer fuori dal contenitore (bug flexbox). */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} contactEmail={contact.email} />
         </div>
 
@@ -1489,7 +1496,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <>
                 <Textarea
                   ref={composerRef}
-                  placeholder="Scrivi il messaggio… (Invio per inviare, Shift+Invio per andare a capo)"
+                  placeholder="Scrivi il messaggio WhatsApp…"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 4096))}
                   onInput={(e) => autoGrow(e.currentTarget)}
@@ -1510,7 +1517,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <>
                 <Textarea
                   ref={composerRef}
-                  placeholder={messageChannel === "email" ? "Scrivi l'email… (Invio invia, Shift+Invio a capo)" : "Scrivi l'SMS…"}
+                  placeholder={messageChannel === "email" ? "Scrivi l'email…" : "Scrivi l'SMS…"}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
                   onInput={(e) => autoGrow(e.currentTarget)}
