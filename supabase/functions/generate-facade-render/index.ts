@@ -1,13 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
 import { buildFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
@@ -290,6 +288,7 @@ async function renderWithProvider(params: {
   height?: number;
   companyId: string;
   sessionId: string;
+  timeoutMs?: number;
 }): Promise<
   {
     imageData: string;
@@ -297,6 +296,7 @@ async function renderWithProvider(params: {
     modelUsed: string;
     providerKey: string;
     attempts: number;
+    sourceDataUrl: string;
   }
 > {
   const originalImage = await downloadImageAsInlineData(params.preparedUrl);
@@ -312,11 +312,10 @@ async function renderWithProvider(params: {
     effectiveWidth: params.width,
     effectiveHeight: params.height,
     openaiQuality: "medium",
-    // v8.5 — Per-provider timeout 180s → 75s. Supabase Edge Function cap = 150s.
-    // Con 180s un singolo provider lento blocca tutto il budget e la function
-    // viene killata dal gateway. Con 75s, fallback rapido al provider successivo.
-    // Allineato a generate-render/infissi v8.4.3.
-    timeoutMs: 75_000,
+    // F1-parity (audit 16/07) — timeout deadline-aware dal chiamante,
+    // 1 tentativo per tier (il fallback è il Tier 2, non il retry).
+    timeoutMs: params.timeoutMs ?? 75_000,
+    maxRetries: 0,
     metadata: {
       task_kind: "render_image_edit",
       company_id: params.companyId,
@@ -339,6 +338,9 @@ async function renderWithProvider(params: {
     modelUsed: result.modelUsed,
     providerKey,
     attempts: result.attempts,
+    sourceDataUrl: `data:${
+      originalImage.mimeType || "image/jpeg"
+    };base64,${originalImage.base64}`,
   };
 }
 
@@ -451,6 +453,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_vertical_session",
+      {
+        _table: "render_facciata_sessions",
+        _session_id: requestSessionId,
+        _stale_seconds: 170,
+      },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
+    }
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
+      return jsonResponse({
+        error: "already_in_flight",
+        message: "Render già in corso per questa sessione.",
+        session_id: requestSessionId,
+        status: "processing",
+      }, 409);
+    }
+    if (claim.stale_takeover) {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: typedSession.company_id,
+        _session_id: requestSessionId,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-facade-render" },
+      });
+    }
+
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: typedSession.company_id,
       sessionId: requestSessionId,
@@ -460,20 +495,16 @@ Deno.serve(async (req) => {
     });
 
     if (deductResult.status === "insufficient") {
+      await supabase.rpc("release_render_vertical_session", {
+        _table: "render_facciata_sessions",
+        _session_id: requestSessionId,
+      });
       return jsonResponse({
         error: "insufficient_credits",
         message: "Crediti render insufficienti",
       }, 402);
     }
     creditDeducted = true;
-
-    await supabase
-      .from("render_facciata_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-      })
-      .eq("id", requestSessionId);
 
     if (!typedSession.original_photo_url) {
       throw new Error("Foto originale della sessione mancante");
@@ -524,7 +555,7 @@ Deno.serve(async (req) => {
       );
 
     const prompt = `${systemPrompt}\n\n${userPrompt}`;
-    const { imageData, providerRawResponse, modelUsed, providerKey, attempts } =
+    const { imageData, providerRawResponse, modelUsed, providerKey, attempts, sourceDataUrl } =
       await renderWithProvider({
         prompt,
         preparedUrl: prepared.url,
@@ -532,9 +563,87 @@ Deno.serve(async (req) => {
         height: prepared.effective_height ?? undefined,
         companyId: typedSession.company_id,
         sessionId: requestSessionId,
+        timeoutMs: 70_000,
       });
 
-    const uploadPayload = dataUrlToBytes(imageData);
+    // ── QA VISION facciata (audit 16/07) ─────────────────────────────────
+    // Difetti tipici: PIANI aggiunti/tolti all'edificio, finestre/balconi
+    // inventati o spostati, geometria/prospettiva cambiata. 1 retry budget.
+    let finalImageData = imageData;
+    let generationAttempts = 1;
+    const facadeJobStartMs = Date.now();
+    try {
+      const qaPrompt = [
+        "You are a LENIENT quality inspector for a building facade renovation render.",
+        "Image 1 = SOURCE photo of the real building. Image 2 = CANDIDATE render (same building, new finishes per brief).",
+        'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+        "Fail ONLY on clear, unambiguous violations:",
+        "- wrong_floor_count: the candidate building has MORE or FEWER storeys than the source.",
+        "- invented_openings: windows, doors or balconies added, removed or relocated compared to the source facade.",
+        "- geometry_change: camera angle, perspective, crop or building footprint clearly different from the source.",
+        "- invented_objects: structures (canopies, extensions, vehicles, people) in neither the source nor the brief.",
+        "When in doubt, PASS. Color/material/finish CHANGES are expected — only structural violations fail.",
+      ].join("\n");
+
+      const qaResult = await callVisionQa({
+        sourceImageDataUrl: sourceDataUrl,
+        candidateImageDataUrl: imageData,
+        qaPrompt,
+        metadata: {
+          task_kind: "render_image_qa",
+          company_id: typedSession.company_id,
+          session_id: requestSessionId,
+        },
+      });
+
+      const qaIssues = (qaResult.issues ?? []).map((raw) => {
+        if (typeof raw === "string") return { category: "unspecified", detail: raw };
+        const r = raw as { category?: string; detail?: string };
+        return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+      });
+
+      if (
+        qaResult.checked && !qaResult.pass && qaIssues.length > 0 &&
+        Date.now() - facadeJobStartMs < 60_000
+      ) {
+        console.log(JSON.stringify({
+          fn: "generate-facade-render",
+          msg: "qa_failed_retry_corrective",
+          session_id: requestSessionId,
+          issues: qaIssues.map((i) => i.category),
+        }));
+        const retry = await renderWithProvider({
+          prompt: `${prompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as the source, same windows/doors/balconies in the same positions, same camera and crop. Only the finishes/colors specified in the brief change.`,
+          preparedUrl: prepared.url,
+          width: prepared.effective_width ?? undefined,
+          height: prepared.effective_height ?? undefined,
+          companyId: typedSession.company_id,
+          sessionId: requestSessionId,
+          timeoutMs: 60_000,
+        });
+        finalImageData = retry.imageData;
+        generationAttempts += 1;
+      } else if (qaResult.checked && !qaResult.pass) {
+        console.warn(JSON.stringify({
+          fn: "generate-facade-render",
+          msg: "qa_failed_retry_skipped_budget",
+          session_id: requestSessionId,
+          issues: qaIssues.map((i) => i.category),
+        }));
+      }
+    } catch (qaErr) {
+      console.warn(
+        "[generate-facade-render] QA vision error (ignored):",
+        qaErr instanceof Error ? qaErr.message : String(qaErr),
+      );
+    }
+
+    const uploadPayload = dataUrlToBytes(finalImageData);
     const resultPath =
       `${typedSession.company_id}/${requestSessionId}/render_${Date.now()}.${uploadPayload.extension}`;
 
@@ -618,16 +727,15 @@ Deno.serve(async (req) => {
     if (requestSessionId) {
       try {
         if (creditDeducted && refundableCompanyId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: requestSessionId,
-            userId: requestUserId,
-            reasonMeta: {
+          // F1-parity — refund_all: rimborsa TUTTI i consume scoperti.
+          await supabase.rpc("refund_render_credit_all", {
+            _company_id: refundableCompanyId,
+            _session_id: requestSessionId,
+            _reason_meta: {
               vertical: "facciata",
               edge_fn: "generate-facade-render",
               error: message.substring(0, 500),
             },
-            logTag: "generate-facade-render",
           });
         }
         await supabase
