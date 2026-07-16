@@ -154,14 +154,23 @@ function cleanPhone(raw: string): string {
  */
 function classifyItPhone(raw: string): { e164: string; type: "mobile" | "landline"; whatsapp: boolean } | null {
   let d = raw.replace(/[^\d]/g, "");
+  // Togli il prefisso internazionale 39 SOLO quando è davvero il country code:
+  //  - 0039… → nazionale
+  //  - 39 + numero che inizia per 0 (fisso) → è +39 su un fisso
+  //  - 39 + numero 3xx di 9-10 cifre → è +39 su un cellulare
+  // Così "+390150530" NON viene scambiato per un cellulare 39x.
   if (d.startsWith("0039")) d = d.slice(4);
-  else if (d.startsWith("39") && d.length >= 11) d = d.slice(2);
-  d = d.replace(/^0039/, "");
-  // Cellulare: 3xx + 6-7 cifre = 9-10 totali, prefisso 3
+  else if (d.startsWith("39")) {
+    const rest = d.slice(2);
+    if (rest.startsWith("0")) d = rest;
+    else if (rest.startsWith("3") && (rest.length === 9 || rest.length === 10)) d = rest;
+  }
+  // Cellulare: 3xx + numero = 9-10 cifre totali, prefisso 3
   if (/^3\d{8,9}$/.test(d)) return { e164: `+39${d}`, type: "mobile", whatsapp: true };
-  // Fisso: 0 + distretto + numero, 6-10 cifre totali (mai 11 → sarebbe P.IVA)
-  if (/^0\d{5,9}$/.test(d)) return { e164: `+39${d}`, type: "landline", whatsapp: false };
-  return null; // scarta P.IVA (11 cifre), CAP, sequenze non plausibili
+  // Fisso: 0 + prefisso + locale = 9-10 cifre totali. Sotto le 9 è un frammento
+  // (es. "0150530"), a 11 sarebbe la P.IVA: entrambi scartati.
+  if (/^0\d{8,9}$/.test(d)) return { e164: `+39${d}`, type: "landline", whatsapp: false };
+  return null; // scarta frammenti, P.IVA, CAP, sequenze non plausibili
 }
 
 interface DeepEnrich {
