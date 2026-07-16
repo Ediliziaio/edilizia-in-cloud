@@ -146,12 +146,15 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
   }
 
   return (
-    <div className={`space-y-3 ${className ?? ""}`}>
-      {/* Riga: numero mittente + stato finestra 24h */}
+    <div className={`space-y-2 ${className ?? ""}`}>
+      {/* Riga unica: numero mittente + stato finestra 24h + toggle testo/template.
+          Prima il caso "finestra chiusa" mostrava badge + Alert lungo: due avvisi
+          per lo stesso concetto che ingolfavano il centro della scheda. Ora un
+          solo badge compatto; la spiegazione completa sta nel title (tooltip). */}
       <div className="flex flex-wrap items-center gap-2">
         {activeNumbers.length > 1 && (
           <Select value={numberId ?? undefined} onValueChange={setNumberId}>
-            <SelectTrigger className="h-8 w-auto min-w-[180px] text-xs">
+            <SelectTrigger className="h-7 w-auto min-w-[160px] text-xs">
               <SelectValue placeholder="Numero mittente" />
             </SelectTrigger>
             <SelectContent>
@@ -174,41 +177,35 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
             Finestra 24h aperta{window24.data?.hoursLeft != null ? ` · ~${window24.data.hoursLeft}h` : ""}
           </Badge>
         ) : (
-          <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[11px]">
-            <AlertTriangle className="mr-1 h-3 w-3" /> Finestra 24h chiusa → serve template
+          <Badge
+            variant="secondary"
+            className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[11px] cursor-help"
+            title="Il cliente non scrive da oltre 24h: per regolamento WhatsApp puoi inviare solo un template approvato. La finestra si riapre quando il cliente risponde."
+          >
+            <AlertTriangle className="mr-1 h-3 w-3" /> Solo template (finestra 24h chiusa)
           </Badge>
         )}
+
+        {/* Toggle testo/template, disponibile solo a finestra APERTA */}
+        {isOpen && !windowLoading && (
+          <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("text")}
+              className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "text" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+            >
+              <MessageSquare className="h-3 w-3" /> Testo libero
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("template")}
+              className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "template" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+            >
+              <FileText className="h-3 w-3" /> Template
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Toggle testo/template, disponibile solo a finestra APERTA */}
-      {isOpen && !windowLoading && (
-        <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setMode("text")}
-            className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "text" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-          >
-            <MessageSquare className="h-3 w-3" /> Testo libero
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("template")}
-            className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "template" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-          >
-            <FileText className="h-3 w-3" /> Template
-          </button>
-        </div>
-      )}
-
-      {!isOpen && !windowLoading && (
-        <Alert className="py-2">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="text-xs">
-            Il cliente non scrive da oltre 24h: per regolamento WhatsApp puoi inviare
-            <b> solo un template approvato</b>. Per riaprire la finestra, attendi una sua risposta.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Corpo: testo libero oppure template */}
       {mode === "text" ? (
@@ -222,10 +219,9 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       ) : (
         <div className="space-y-2">
           <div className="space-y-1">
-            <Label className="text-xs">Template approvato</Label>
             <Select value={templateId ?? undefined} onValueChange={handlePickTemplate}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder={templates.length ? "Scegli un template…" : "Nessun template approvato"} />
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder={templates.length ? "Scegli un template approvato…" : "Nessun template approvato"} />
               </SelectTrigger>
               <SelectContent>
                 {templates.map((t) => (

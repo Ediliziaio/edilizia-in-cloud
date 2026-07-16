@@ -34,6 +34,7 @@ import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
 import { buildTemplateVars } from "@/lib/messageTemplateVars";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -106,7 +107,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
+  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "whatsapp_locale" | "email" | "sms">("whatsapp");
+  // Contesto piattaforma (superadmin): niente Preventivo (l'opzione non esiste lì)
+  // e in più il canale WhatsApp Locale (pool numeri non-ufficiali, solo piattaforma).
+  const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
+  const [waLocaleSending, setWaLocaleSending] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -353,6 +358,29 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
   });
 
+  // Invio WhatsApp Locale (OpenWA, solo contesto piattaforma): passa dal
+  // gateway con rotazione numero per tag/capacità, bypass quiet-hours (manuale).
+  const sendWaLocale = async () => {
+    const text = messageText.trim();
+    const to = (contact?.phone ?? "").replace(/\D/g, "");
+    if (!text || to.length < 6 || waLocaleSending) return;
+    setWaLocaleSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("openwa-gateway", {
+        body: { action: "send_text", contact_id: id ?? null, to, text },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      setMessageText("");
+      toast.success("Messaggio WhatsApp Locale inviato");
+      queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp Locale");
+    } finally {
+      setWaLocaleSending(false);
+    }
+  };
 
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
@@ -726,8 +754,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </Button>
               )}
               <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
-              {/* Crea preventivo dal contatto — link preservato (classico o modulo verticale) */}
-              <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />
+              {/* Crea preventivo dal contatto — SOLO area azienda: nel CRM di
+                  piattaforma (superadmin) i preventivi non esistono. */}
+              {!isPlatformContext && <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -1210,6 +1239,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
               </button>
             )}
+            {contact.phone && isPlatformContext && (
+              <button
+                type="button"
+                onClick={() => setMessageChannel("whatsapp_locale")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  messageChannel === "whatsapp_locale" ? "bg-teal-100 text-teal-700" : "text-muted-foreground hover:bg-muted",
+                )}
+                title="Canale non-ufficiale dal pool numeri della piattaforma (rotazione per tag e capacità giornaliera)"
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> WA Locale
+              </button>
+            )}
             {contact.phone && (
               <button
                 type="button"
@@ -1299,7 +1341,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 oggetto+testo, per sms imposta il testo, per whatsapp fa il
                 seed del composer. */}
             <MessageTemplatePicker
-              channel={messageChannel}
+              channel={messageChannel === "whatsapp_locale" ? "whatsapp" : messageChannel}
               vars={buildTemplateVars({
                 firstName: contact.first_name,
                 lastName: contact.last_name,
@@ -1316,7 +1358,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   setWaSeedAt((n) => n + 1);
                 } else {
                   if (messageChannel === "email" && subject != null) setEmailSubject(subject.slice(0, 200));
-                  setMessageText(body.slice(0, 5000));
+                  setMessageText(body.slice(0, 5000)); // vale anche per whatsapp_locale
                 }
               }}
               align="start"
@@ -1339,6 +1381,24 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   });
                 }}
               />
+            ) : messageChannel === "whatsapp_locale" ? (
+              <>
+                <Input
+                  placeholder="Scrivi messaggio WhatsApp (canale locale, senza finestra 24h)..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value.slice(0, 4096))}
+                  onKeyDown={(e) => { if (e.key === "Enter") sendWaLocale(); }}
+                  className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+                />
+                <Button
+                  size="icon"
+                  className="h-9 w-9 md:h-7 md:w-7 shrink-0 bg-teal-600 hover:bg-teal-700"
+                  disabled={!messageText.trim() || waLocaleSending}
+                  onClick={sendWaLocale}
+                >
+                  {waLocaleSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                </Button>
+              </>
             ) : (
               <>
                 <Input
