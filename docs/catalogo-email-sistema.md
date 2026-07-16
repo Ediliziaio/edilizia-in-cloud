@@ -22,12 +22,13 @@ Benvenuto, {{user.first_name}}.
 
 Da oggi {{company.name}} ha tutto in un posto solo: cantieri, preventivi, fatture, DDT, clienti e team. Anche dal telefono, direttamente dal cantiere.
 
-Il tuo account è attivo con ruolo {{user.role_label}}. Entra con la tua email e la password del tuo account:
+Il tuo account è attivo con ruolo {{user.role_label}}. Scegli la tua password e sei dentro:
 
-[Accedi alla piattaforma]({{link_url_1}})
+[Imposta la password e accedi]({{link_url_1}})
 
 Primo passo che ti consiglio: crea il primo cantiere e carica un cliente. Cinque minuti. Da lì il resto viene da sé.
 
+Il link vale 24 ore — se è scaduto, vai alla pagina di accesso e usa "Password dimenticata".
 PS. Ti blocchi da qualche parte? Rispondi a questa email: dall'altra parte c'è una persona vera, non un robot.
 ```
 

@@ -295,7 +295,21 @@ Deno.serve(async (req) => {
         (await getPlatformSetting("site_url", "SITE_URL")) ||
         Deno.env.get("SITE_URL") ||
         "";
-      const loginUrl = siteUrl ? `${siteUrl.replace(/\/$/, "")}/login` : "";
+      const base = siteUrl.replace(/\/$/, "");
+      // CTA benvenuto: link recovery one-shot per far scegliere la password al
+      // nuovo admin (stesso pattern di reset-password-branded). Fallback /login
+      // se la generazione fallisce: la password iniziale dal form resta valida.
+      let loginUrl = base ? `${base}/login` : "";
+      try {
+        const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: trimmedAdminEmail,
+          options: { redirectTo: `${base}/reset-password` },
+        });
+        if (linkData?.properties?.action_link) loginUrl = linkData.properties.action_link;
+      } catch (linkErr) {
+        console.warn("[create-company] generateLink recovery fallito, fallback /login:", linkErr);
+      }
       const rendered = await renderEmailTemplate({
         templateName: "welcome",
         companyId,
