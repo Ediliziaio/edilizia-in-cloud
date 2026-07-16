@@ -7,13 +7,11 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
 import { normalizeBathroomSceneAnalysis } from "../../../shared/render-bathroom/bathroomSceneAnalysis.ts";
@@ -603,8 +601,34 @@ Deno.serve(async (req) => {
         already_completed: true,
       });
     }
-    if (session.stato === "processing") {
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO come per gli infissi ──────
+    // Il vecchio guard read-then-act ("stato === processing → accepted")
+    // lasciava passare due invocation simultanee → doppio deduct + doppio
+    // costo provider. Il claim serializza con FOR UPDATE: una sola vince.
+    const { data: bagnoClaimRaw, error: bagnoClaimErr } = await supabase.rpc(
+      "claim_render_bagno_session",
+      { _session_id: session_id, _stale_seconds: 170 },
+    );
+    if (bagnoClaimErr) {
+      throw new Error(`claim_render_bagno_session failed: ${bagnoClaimErr.message}`);
+    }
+    const bagnoClaim = bagnoClaimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!bagnoClaim?.claimed) {
+      // In-flight legittimo: il client si aggancia alla sessione in corso.
       return acceptedRenderResponse(session_id);
+    }
+    if (bagnoClaim.stale_takeover) {
+      // Tentativo morto (isolate killata): rimborsa il consume orfano PRIMA
+      // del nuovo deduct, o l'utente paga 2 crediti per 1 render.
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-bathroom-render" },
+      });
     }
 
     const deductResult = await deductRenderCreditSafe(supabase, {
@@ -616,6 +640,8 @@ Deno.serve(async (req) => {
     });
 
     if (deductResult.status === "insufficient") {
+      // Rilascia il claim: la sessione torna disponibile dopo la ricarica.
+      await supabase.rpc("release_render_bagno_session", { _session_id: session_id });
       return jsonResponse(
         {
           error: "insufficient_credits",
@@ -628,11 +654,7 @@ Deno.serve(async (req) => {
 
     await supabase
       .from("render_bagno_sessions")
-      .update({
-        stato: "processing",
-        processing_started_at: new Date().toISOString(),
-        provider_key: "openrouter_image",
-      })
+      .update({ provider_key: "openrouter_image" })
       .eq("id", session_id);
 
     const renderJob = (async () => {
@@ -670,11 +692,12 @@ Deno.serve(async (req) => {
         }
         : null;
 
-      const { systemPrompt, userPrompt, promptVersion } = buildBathroomPrompt(
-        (session.configurazione || {}) as Record<string, unknown>,
-        session.analisi_bagno || {},
-        photoMetaForPrompt,
-      );
+      const { systemPrompt, userPrompt, promptVersion, normalizedConfig } =
+        buildBathroomPrompt(
+          (session.configurazione || {}) as Record<string, unknown>,
+          session.analisi_bagno || {},
+          photoMetaForPrompt,
+        );
 
       const sourceImageBlob = new Blob([
         originalImage.bytes.buffer.slice(
@@ -684,20 +707,34 @@ Deno.serve(async (req) => {
       ], {
         type: originalImage.mimeType || "image/jpeg",
       });
-      const generateCandidate = (prompt: string) =>
-        editImage({
+      // F1-parity (audit 16/07) — Budget deadline-aware: il vecchio timeout
+      // fisso 180s per tentativo (con 3 retry interni) superava DA SOLO il
+      // cap 150s dell'isolate → morte a metà, sessione zombie, credito perso.
+      // Ora: 1 tentativo per tier, timeout ricavato dal budget residuo.
+      const BAGNO_BUDGET_MS = 140_000;
+      const jobStartMs = Date.now();
+      const jobElapsed = () => Date.now() - jobStartMs;
+      const generateCandidate = (prompt: string) => {
+        const remaining = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
+        const perAttemptTimeout = Math.max(
+          30_000,
+          Math.min(75_000, Math.floor(remaining / 2)),
+        );
+        return editImage({
           prompt,
           sourceImageBlob,
           effectiveWidth: sourceDimensions?.width ?? undefined,
           effectiveHeight: sourceDimensions?.height ?? undefined,
           openaiQuality: "medium",
-          timeoutMs: 180_000,
+          timeoutMs: perAttemptTimeout,
+          maxRetries: 0,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id,
             session_id,
           },
         });
+      };
 
       let composedPrompt = `${systemPrompt}\n\n${userPrompt}`;
       let renderResult = await generateCandidate(composedPrompt);
@@ -720,6 +757,103 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         renderResult = await generateCandidate(composedPrompt);
         generationAttempts = 2;
         uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
+      }
+
+      // ── QA VISION anti-duplicati (audit 16/07) ─────────────────────────
+      // Il difetto n.1 dei render bagno è la violazione dei CONTEGGI: due
+      // water, la vasca rimasta dopo la conversione in doccia, un secondo
+      // mobile. Il check vision costa ~€0.002 (Claude Haiku) contro €0.05+
+      // di un render inutilizzabile consegnato al cliente. 1 retry max,
+      // budget-gated. Graceful: se il provider vision fallisce, il render
+      // passa comunque (callVisionQa ritorna {checked:false}).
+      try {
+        const qaSpec = normalizedConfig.technical_specification;
+        const qaScene = normalizedConfig.scene_analysis;
+        const wallHungSelected = qaSpec.sanitaryWare.replace &&
+          String(qaSpec.sanitaryWare.toiletType ?? "").includes("sospeso");
+        const tubToShower = qaSpec.shower.replace && !qaSpec.bathtub.replace &&
+          qaScene.bathtub.present;
+        const showerToTub = qaSpec.bathtub.replace && !qaSpec.shower.replace &&
+          qaScene.shower.present;
+
+        const qaPrompt = [
+          "You are a LENIENT quality inspector for a bathroom renovation render.",
+          "Image 1 = SOURCE photo of the real bathroom. Image 2 = CANDIDATE render.",
+          'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+          "Fail ONLY on clear, unambiguous violations of these categories:",
+          "- duplicated_wc: the candidate shows TWO OR MORE toilets (a real bathroom has exactly one).",
+          "- duplicated_fixture: two bathtubs, two showers, or two vanity/basin units.",
+          tubToShower
+            ? "- leftover_bathtub: the old bathtub is still visible even though it must be REPLACED by the new shower (tub-to-shower conversion)."
+            : "",
+          showerToTub
+            ? "- leftover_shower: the old shower is still visible even though it must be REPLACED by the new bathtub."
+            : "",
+          wallHungSelected
+            ? "- wallhung_violation: the WC has a floor pedestal, monobloc base or exposed external cistern despite the selected WALL-HUNG WC."
+            : "",
+          "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief.",
+          "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          "When in doubt, PASS. Minor styling differences are fine.",
+        ].filter(Boolean).join("\n");
+
+        const sourceBuf = originalImage.bytes.buffer.slice(
+          originalImage.bytes.byteOffset,
+          originalImage.bytes.byteOffset + originalImage.bytes.byteLength,
+        ) as ArrayBuffer;
+        const sourceDataUrl = `data:${
+          originalImage.mimeType || "image/jpeg"
+        };base64,${arrayBufferToBase64(sourceBuf)}`;
+
+        const qaResult = await callVisionQa({
+          sourceImageDataUrl: sourceDataUrl,
+          candidateImageDataUrl: renderResult.imageDataUrl,
+          qaPrompt,
+          metadata: {
+            task_kind: "render_image_qa",
+            company_id: session.company_id,
+            session_id,
+          },
+        });
+
+        const qaIssues = (qaResult.issues ?? []).map((raw) => {
+          if (typeof raw === "string") return { category: "unspecified", detail: raw };
+          const r = raw as { category?: string; detail?: string };
+          return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+        });
+
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+          console.log(JSON.stringify({
+            fn: "generate-bathroom-render",
+            msg: "qa_failed_retry_corrective",
+            session_id,
+            qa_model: qaResult.modelUsed,
+            issues: qaIssues.map((i) => i.category),
+          }));
+          composedPrompt = `${composedPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exactly ONE toilet, no duplicated fixtures, no leftover bathtub or shower after a conversion, no invented objects. Fix every violation listed above.`;
+          renderResult = await generateCandidate(composedPrompt);
+          generationAttempts += 1;
+          uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
+        } else if (qaResult.checked && !qaResult.pass) {
+          console.warn(JSON.stringify({
+            fn: "generate-bathroom-render",
+            msg: "qa_failed_retry_skipped_budget",
+            session_id,
+            issues: qaIssues.map((i) => i.category),
+            elapsed_ms: jobElapsed(),
+          }));
+        }
+      } catch (qaErr) {
+        // La QA non deve MAI far fallire un render riuscito.
+        console.warn(
+          "[generate-bathroom-render] QA vision error (ignored):",
+          qaErr instanceof Error ? qaErr.message : String(qaErr),
+        );
       }
 
       const resultPath =
@@ -808,16 +942,17 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-bathroom-render] background error:", message);
-      await refundRenderCreditSafe(supabase, {
-        companyId: session.company_id,
-        sessionId: session_id,
-        userId: user.id,
-        reasonMeta: {
+      // F1-parity — refund_all: rimborsa TUTTI i consume scoperti della
+      // sessione (v1 si bloccava se esisteva già un refund di un ciclo prima).
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: {
           vertical: "bagno",
           edge_fn: "generate-bathroom-render",
           error: message.substring(0, 500),
+          background_failure: true,
         },
-        logTag: "generate-bathroom-render",
       });
       await supabase
         .from("render_bagno_sessions")
@@ -841,16 +976,14 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
 
       if (sid) {
         if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: refundableSessionId,
-            userId: user.id,
-            reasonMeta: {
+          await supabase.rpc("refund_render_credit_all", {
+            _company_id: refundableCompanyId,
+            _session_id: refundableSessionId,
+            _reason_meta: {
               vertical: "bagno",
               edge_fn: "generate-bathroom-render",
               error: message.substring(0, 500),
             },
-            logTag: "generate-bathroom-render",
           });
         }
         await supabase

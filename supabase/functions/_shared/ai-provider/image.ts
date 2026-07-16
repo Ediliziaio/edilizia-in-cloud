@@ -77,6 +77,11 @@ export interface ImageEditParams {
   negativePrompt?: string;
   /** Timeout per chiamata singola (millisecondi). */
   timeoutMs?: number;
+  /** F1 (audit 16/07) — Max retry per provider (default DEFAULT_RETRIES=2).
+   *  I render image-edit durano 60-80s a tentativo: 3 tentativi × 90s
+   *  sforavano il cap 150s dell'edge runtime (isolate killata a metà =
+   *  credito perso). Il chiamante passa 0/1 per stare nel budget. */
+  maxRetries?: number;
   /** Metadati per tracciamento (logging + header X-OR-*). */
   metadata: {
     task_kind: string;
@@ -258,9 +263,10 @@ async function callOpenRouterImage(
   };
 
   const backoff = [1500, 4000];
+  const maxAttempts = args.params.maxRetries ?? DEFAULT_RETRIES;
   let lastErr: AIProviderError | null = null;
 
-  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const startMs = Date.now();
@@ -303,7 +309,7 @@ async function callOpenRouterImage(
           true,
           429,
         );
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
@@ -318,7 +324,7 @@ async function callOpenRouterImage(
           true,
           resp.status,
         );
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
@@ -374,7 +380,7 @@ async function callOpenRouterImage(
       clearTimeout(timer);
       const err = e as AIProviderError;
       if (err?.code) {
-        if (!err.retryable || attempt >= DEFAULT_RETRIES) throw err;
+        if (!err.retryable || attempt >= maxAttempts) throw err;
         lastErr = err;
         await sleep(backoff[attempt] ?? 4000);
         continue;
@@ -382,14 +388,14 @@ async function callOpenRouterImage(
       const asError = e as Error;
       if (asError.name === "AbortError") {
         lastErr = makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true);
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
         throw lastErr;
       }
       lastErr = makeAIError("unknown", String(asError.message ?? e), true);
-      if (attempt < DEFAULT_RETRIES) {
+      if (attempt < maxAttempts) {
         await sleep(backoff[attempt] ?? 4000);
         continue;
       }
@@ -431,9 +437,10 @@ async function callOpenAIImage(
   const sourceBlob = await ensureSourceBlob(args.params);
 
   const backoff = [1500, 4000];
+  const maxAttempts = args.params.maxRetries ?? DEFAULT_RETRIES;
   let lastErr: AIProviderError | null = null;
 
-  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const startMs = Date.now();
@@ -483,7 +490,7 @@ async function callOpenAIImage(
       if (resp.status === 429) {
         const txt = await safeRead(resp);
         lastErr = makeAIError("rate_limit", `OpenAI 429: ${txt}`, true, 429);
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
@@ -498,7 +505,7 @@ async function callOpenAIImage(
           true,
           resp.status,
         );
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
@@ -554,7 +561,7 @@ async function callOpenAIImage(
       clearTimeout(timer);
       const err = e as AIProviderError;
       if (err?.code) {
-        if (!err.retryable || attempt >= DEFAULT_RETRIES) throw err;
+        if (!err.retryable || attempt >= maxAttempts) throw err;
         lastErr = err;
         await sleep(backoff[attempt] ?? 4000);
         continue;
@@ -562,14 +569,14 @@ async function callOpenAIImage(
       const asError = e as Error;
       if (asError.name === "AbortError") {
         lastErr = makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true);
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxAttempts) {
           await sleep(backoff[attempt] ?? 4000);
           continue;
         }
         throw lastErr;
       }
       lastErr = makeAIError("unknown", String(asError.message ?? e), true);
-      if (attempt < DEFAULT_RETRIES) {
+      if (attempt < maxAttempts) {
         await sleep(backoff[attempt] ?? 4000);
         continue;
       }

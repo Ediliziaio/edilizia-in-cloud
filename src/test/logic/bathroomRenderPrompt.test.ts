@@ -130,6 +130,48 @@ describe("bathroom render pipeline", () => {
     expect(prompt.validation.isValid).toBe(true);
   });
 
+  // v2.1.0 (audit 16/07) — FIXTURE COUNT CONTRACT: i conteggi dei sanitari
+  // devono stare in CIMA al prompt (i modelli ignorano le regole sepolte)
+  // ed essere corretti: 1 WC, conversione vasca→doccia = zero vasche.
+  it("puts the fixture count contract first with exact sanitary counts", () => {
+    const config = cloneConfig();
+    config.sostituzione.doccia = true;
+    config.doccia.attivo = true;
+    config.doccia.tipo = "walk_in";
+    config.sostituzione.vasca = false;
+
+    const analysis = baseAnalysis({
+      presenza_vasca: true,
+      bathtub: {
+        present: true,
+        type: "incassata",
+        position: "back_wall",
+        faucet_type: "a_parete",
+        screen_present: true,
+        notes: "existing built-in tub under the wall tiles",
+      },
+      sanitary_ware: {
+        wc_present: true,
+        wc_type: "a_terra",
+        bidet_present: true,
+        bidet_type: "a_terra",
+        position: "left_wall",
+        notes: "wc and bidet visible",
+      },
+    });
+
+    const prompt = buildBathroomPrompt(config as unknown as Record<string, unknown>, analysis);
+    // Il contratto è il PRIMO blocco del prompt
+    expect(prompt.userPrompt.startsWith("[🚨 FIXTURE COUNT CONTRACT")).toBe(true);
+    // Esattamente 1 WC, mai due
+    expect(prompt.userPrompt).toContain("1 toilet (WC)");
+    expect(prompt.userPrompt).toContain("NEVER render two toilets");
+    // Conversione vasca→doccia: 1 doccia, 0 vasche
+    expect(prompt.userPrompt).toContain("1 shower and 0 bathtub");
+    expect(prompt.userPrompt).toContain("ZERO bathtubs may remain");
+    expect(prompt.promptVersion).toBe("2.1.0");
+  });
+
   it("removes the shower and adds a freestanding bathtub when requested", () => {
     const config = cloneConfig();
     config.sostituzione.doccia = false;
