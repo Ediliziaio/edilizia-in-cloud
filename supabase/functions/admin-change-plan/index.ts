@@ -3,8 +3,10 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
+import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const APP_BASE = "https://app.ediliziaincloud.com";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -44,7 +46,7 @@ Deno.serve(async (req) => {
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("subscription_plans")
-      .select("id, name, stripe_price_monthly_id")
+      .select("id, name, stripe_price_monthly_id, price_monthly")
       .eq("id", new_plan_id)
       .single();
     if (planErr || !newPlan) return errorResponse("Piano non trovato", 404, corsH);
@@ -188,6 +190,36 @@ Deno.serve(async (req) => {
           : " (Stripe non configurato)"),
       performed_by: userId,
     });
+
+    // Email "piano aggiornato" all'admin azienda (best-effort)
+    try {
+      const contact = await getCompanyAdminContact(supabaseAdmin, company_id);
+      if (contact) {
+        const { data: subRow } = await supabaseAdmin
+          .from("company_subscriptions")
+          .select("current_period_end")
+          .eq("company_id", company_id)
+          .maybeSingle();
+        const priceMonthly = Number((newPlan as { price_monthly?: number }).price_monthly ?? 0);
+        await sendSystemEmail(supabaseAdmin, {
+          templateName: "plan_changed",
+          companyId: company_id,
+          to: contact.email,
+          userId: contact.userId,
+          props: {
+            recipientName: contact.firstName || "Admin",
+            planName: newPlan.name,
+            amountFormatted: priceMonthly > 0 ? `${formatEur(priceMonthly)}/mese` : "—",
+            renewalDate: subRow?.current_period_end
+              ? formatDateIt(new Date(subRow.current_period_end as string))
+              : "—",
+            ctaUrl: `${APP_BASE}/azienda/impostazioni/abbonamento`,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("[admin-change-plan] email plan_changed fallita:", (e as Error)?.message);
+    }
 
     // Audit log
     await supabaseAdmin.from("admin_audit_log").insert({

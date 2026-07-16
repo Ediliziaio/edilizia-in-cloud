@@ -4,6 +4,9 @@ import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
+import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
+
+const APP_BASE = "https://app.ediliziaincloud.com";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -586,6 +589,42 @@ async function handleInvoicePaid(
     notes: `Fattura Stripe pagata (${invoice.id})`,
   });
 
+  // Email "ricevuta pagamento" all'admin (best-effort, dedup su invoice.id).
+  // CTA = hosted_invoice_url Stripe (fattura scaricabile), fallback pagina abbonamento.
+  try {
+    const contact = await getCompanyAdminContact(supabase, company.id);
+    if (contact) {
+      let last4 = "····";
+      try {
+        const chargeId = typeof invoice.charge === "string" ? invoice.charge : null;
+        if (chargeId) {
+          const chRes = await fetch(`https://api.stripe.com/v1/charges/${chargeId}`, {
+            headers: { Authorization: `Bearer ${stripeSecretKey}` },
+          });
+          const ch = await chRes.json();
+          last4 = ch?.payment_method_details?.card?.last4 ?? "····";
+        }
+      } catch { /* fallback "····" */ }
+      await sendSystemEmail(supabase, {
+        templateName: "payment_received",
+        companyId: company.id,
+        to: contact.email,
+        userId: contact.userId,
+        dedupeKey: `invoice:${invoice.id}`,
+        props: {
+          recipientName: contact.firstName || "Admin",
+          amountFormatted: typeof invoice.amount_paid === "number" ? formatEur(invoice.amount_paid / 100) : "—",
+          paymentMethod: "Carta",
+          last4,
+          eventDate: formatDateIt(new Date()),
+          ctaUrl: invoice.hosted_invoice_url || `${APP_BASE}/azienda/impostazioni/abbonamento`,
+        },
+      });
+    }
+  } catch (e) {
+    console.warn("[stripe-webhook] email payment_received fallita:", (e as Error)?.message);
+  }
+
   // Trigger di PIATTAFORMA: pagamento abbonamento ricevuto (best-effort).
   const cPaid = company as { id: string; name?: string };
   await emitPlatformEvent(supabase, PLATFORM_EVENTS.PAYMENT_RECEIVED, {
@@ -777,6 +816,31 @@ async function handleSubscriptionUpdated(
         current_period_end: period.end,
       })
       .eq("company_id", company.id);
+  }
+
+  // Email "abbonamento cancellato" quando l'utente disdice a fine periodo
+  // (cancel_at_period_end=true): il copy dice "continui a usare tutto fino al X"
+  // e la CTA riattiva — semantica esatta di questo momento. Dedup su sub+periodo.
+  if (subscription.cancel_at_period_end === true && period.end) {
+    try {
+      const contact = await getCompanyAdminContact(supabase, company.id);
+      if (contact) {
+        await sendSystemEmail(supabase, {
+          templateName: "subscription_cancelled",
+          companyId: company.id,
+          to: contact.email,
+          userId: contact.userId,
+          dedupeKey: `subcancel:${subscription.id}:${period.end.slice(0, 10)}`,
+          props: {
+            recipientName: contact.firstName || "Admin",
+            renewalDate: formatDateIt(new Date(period.end)),
+            ctaUrl: `${APP_BASE}/azienda/impostazioni/abbonamento`,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("[stripe-webhook] email subscription_cancelled fallita:", (e as Error)?.message);
+    }
   }
 
   // Meta CAPI — StartTrial: l'azienda entra in prova (status trialing per la

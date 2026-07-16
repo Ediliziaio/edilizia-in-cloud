@@ -289,8 +289,9 @@ Non ti riconosci? Blocca subito e cambia la password:
 [Non sono stato io]({{link_url_1}})
 ```
 
-### Account bloccato (troppi tentativi)  ·  `account_locked`  ·  💤 DORMIENTE
+### Account bloccato (troppi tentativi)  ·  `account_locked`  ·  ✅ ATTIVA
 
+*Inviata da: check-login-security (lock automatico)*
 *Quando/a chi: Troppi tentativi di accesso falliti · Utente*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
@@ -392,8 +393,9 @@ Conferma che questo indirizzo è tuo e attiviamo subito il tuo account su {{comp
 Il link vale 24 ore. Non hai creato tu questo account? Ignora questa email e non si attiva niente.
 ```
 
-### Invito accettato (notifica admin)  ·  `invite_accepted_admin`  ·  💤 DORMIENTE
+### Invito accettato (notifica admin)  ·  `invite_accepted_admin`  ·  ✅ ATTIVA
 
+*Inviata da: accept-admin-invite*
 *Quando/a chi: Un invitato accetta e attiva l'account · Admin che ha invitato*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.full_name}}`, `{{user.role_label}}`*
 
@@ -441,8 +443,9 @@ il tuo accesso a {{company.name}} su Edilizia in Cloud è stato rimosso. Da ques
 Pensi sia un errore? Contatta chi gestisce gli accessi in {{company.name}}: possono riattivarti in un minuto.
 ```
 
-### Invito scaduto  ·  `invite_expired`  ·  💤 DORMIENTE
+### Invito scaduto  ·  `invite_expired`  ·  ✅ ATTIVA
 
+*Inviata da: system-emails-tick (cron)*
 *Quando/a chi: Un invito non accettato supera la scadenza · Utente invitato*
 *Variabili: `{{company.name}}`, `{{inviter.name}}`, `{{user.first_name}}`*
 
@@ -554,8 +557,9 @@ La ricevuta arriva con una mail separata: girala pure al commercialista.
 Un consiglio da subito: invita il tuo team. Il gestionale rende il doppio quando le ore e le foto le caricano loro, direttamente dal cantiere.
 ```
 
-### Ricevuta di pagamento  ·  `payment_received`  ·  💤 DORMIENTE
+### Ricevuta di pagamento  ·  `payment_received`  ·  ✅ ATTIVA
 
+*Inviata da: stripe-webhook (invoice.paid)*
 *Quando/a chi: Ogni addebito andato a buon fine · Admin azienda*
 *Variabili: `{{card.last4}}`, `{{company.name}}`, `{{event.date}}`, `{{link_url_1}}`, `{{payment.method}}`, `{{subscription.amount}}`, `{{user.first_name}}`*
 
@@ -575,8 +579,9 @@ pagamento ricevuto per l'abbonamento di {{company.name}}. Tutto regolare.
 Conserva questa email o girala al commercialista: è già tutto quello che gli serve.
 ```
 
-### Rinnovo imminente  ·  `renewal_upcoming`  ·  💤 DORMIENTE
+### Rinnovo imminente  ·  `renewal_upcoming`  ·  ✅ ATTIVA
 
+*Inviata da: system-emails-tick (cron, D-3)*
 *Quando/a chi: Pochi giorni prima del rinnovo automatico · Admin azienda*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{subscription.amount}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
@@ -634,8 +639,9 @@ Un avviso onesto: li conserviamo per un periodo limitato. Non lasciar passare me
 PS. Se non hai attivato per un dubbio — prezzo, funzioni, tempo per imparare a usarlo — rispondi a questa email. Meglio una risposta vera che un account fermo.
 ```
 
-### Cambio piano confermato  ·  `plan_changed`  ·  💤 DORMIENTE
+### Cambio piano confermato  ·  `plan_changed`  ·  ✅ ATTIVA
 
+*Inviata da: admin-change-plan*
 *Quando/a chi: Upgrade o downgrade del piano · Admin azienda*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{plan.name}}`, `{{subscription.amount}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
@@ -653,8 +659,9 @@ il piano di {{company.name}} è passato a {{plan.name}}. La modifica è già att
 [Vedi cosa è incluso nel tuo piano]({{link_url_1}})
 ```
 
-### Abbonamento cancellato  ·  `subscription_cancelled`  ·  💤 DORMIENTE
+### Abbonamento cancellato  ·  `subscription_cancelled`  ·  ✅ ATTIVA
 
+*Inviata da: stripe-webhook (disdetta a fine periodo)*
 *Quando/a chi: L'utente cancella l'abbonamento · Admin azienda*
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
@@ -1193,8 +1200,9 @@ Se continui a usare il gestionale dopo quella data, accetti le nuove condizioni.
 I documenti completi sono linkati nella pagina.
 ```
 
-### Export dati pronto (GDPR)  ·  `gdpr_export`  ·  💤 DORMIENTE
+### Export dati pronto (GDPR)  ·  `gdpr_export`  ·  ✅ ATTIVA
 
+*Inviata da: gdpr-compliance (request_export)*
 *Quando/a chi: Un export dati richiesto è pronto · Admin azienda*
 *Variabili: `{{company.name}}`, `{{export.days_left}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 

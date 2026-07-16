@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   }
 
   const siteUrl = ((await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "").replace(/\/$/, "");
-  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, errors: [] as string[] };
+  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, invite_expired: 0, renewal_upcoming: 0, errors: [] as string[] };
   const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
   // dedup-then-send: inserisce il guard PRIMA dell'invio (no doppioni in caso di
@@ -154,6 +154,83 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     result.errors.push(`purchase_confirmed job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Job D — Invito scaduto (finestra ultime 25h) ────────────────────────────
+  try {
+    const now = new Date();
+    const from = new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString();
+    const { data: expired, error } = await admin
+      .from("admin_invites")
+      .select("id, email, invited_by, expires_at")
+      .is("accepted_at", null)
+      .gte("expires_at", from)
+      .lt("expires_at", now.toISOString());
+    if (error) throw error;
+    for (const iv of (expired ?? []) as Array<{ id: string; email: string; invited_by: string | null }>) {
+      let inviterName = "EdiliziaInCloud";
+      if (iv.invited_by) {
+        const { data: p } = await admin.from("profiles").select("first_name, last_name").eq("id", iv.invited_by).maybeSingle();
+        const full = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
+        if (full) inviterName = full;
+      }
+      const ok = await guardedSend("invite_expired", iv.id, null, iv.email, () =>
+        renderEmailTemplate({
+          templateName: "invite_expired",
+          companyId: null,
+          adminClient: admin,
+          props: { recipientName: String(iv.email).split("@")[0] || "", inviterName },
+        }),
+      );
+      if (ok) result.invite_expired++;
+    }
+  } catch (e) {
+    result.errors.push(`invite_expired job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Job E — Rinnovo in arrivo (D-3, finestra 2-4 giorni) ────────────────────
+  try {
+    const in2d = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    const in4d = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: subs, error } = await admin
+      .from("company_subscriptions")
+      .select("company_id, plan_id, billing_period, current_period_end")
+      .eq("status", "active")
+      .gte("current_period_end", in2d)
+      .lte("current_period_end", in4d);
+    if (error) throw error;
+    for (const s of (subs ?? []) as Array<{ company_id: string; plan_id: string | null; billing_period: string | null; current_period_end: string }>) {
+      // ref_id = company+scadenza → una sola email per periodo di rinnovo
+      const refId = `${s.company_id}:${String(s.current_period_end).slice(0, 10)}`;
+      let amount = "—";
+      if (s.plan_id) {
+        const { data: plan } = await admin.from("subscription_plans").select("price_monthly, price_yearly").eq("id", s.plan_id).maybeSingle();
+        const n = s.billing_period === "yearly" ? Number(plan?.price_yearly ?? 0) : Number(plan?.price_monthly ?? 0);
+        if (n > 0) amount = eur(n);
+      }
+      const { data: prof } = await admin.from("profiles").select("id, first_name").eq("company_id", s.company_id).order("id", { ascending: true }).limit(1).maybeSingle();
+      if (!prof) continue;
+      const { data: ud } = await admin.auth.admin.getUserById(prof.id);
+      const adminEmail = ud?.user?.email;
+      if (!adminEmail) continue;
+      const renewalDate = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(s.current_period_end));
+      const ok = await guardedSend("renewal_upcoming", refId, s.company_id, adminEmail, () =>
+        renderEmailTemplate({
+          templateName: "renewal_upcoming",
+          companyId: s.company_id,
+          adminClient: admin,
+          props: {
+            recipientName: prof.first_name || "Admin",
+            renewalDate,
+            amountFormatted: amount,
+            ctaUrl: siteUrl ? `${siteUrl}/azienda/impostazioni/abbonamento` : "",
+          },
+        }),
+      );
+      if (ok) result.renewal_upcoming++;
+    }
+  } catch (e) {
+    result.errors.push(`renewal_upcoming job: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return new Response(JSON.stringify({ ok: true, ...result }), {

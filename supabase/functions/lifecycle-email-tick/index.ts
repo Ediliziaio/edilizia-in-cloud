@@ -411,11 +411,13 @@ Deno.serve(async (req) => {
     );
   }
 
-  // v8.6.94 — Auth check: solo service_role bearer può triggerare
-  // (chiamato da pg_cron internamente o admin tooling). Blocca utenti generici.
+  // v8.6.94 — Auth check: service_role bearer OPPURE x-cron-secret (pg_cron,
+  // stesso pattern di system-emails-tick). Blocca utenti generici.
   const authHeader = req.headers.get("authorization") ?? "";
   const providedToken = authHeader.replace(/^Bearer\s+/i, "");
-  if (providedToken !== SERVICE_ROLE_KEY) {
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const cronOk = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+  if (providedToken !== SERVICE_ROLE_KEY && !cronOk) {
     return new Response(
       JSON.stringify({ error: "Unauthorized: service_role required" }),
       { status: 401, headers: { ...CORS, "Content-Type": "application/json" } },
