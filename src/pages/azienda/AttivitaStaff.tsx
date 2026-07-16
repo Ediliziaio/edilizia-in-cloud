@@ -1519,8 +1519,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <CardTitle className="flex items-center gap-2 text-base shrink-0">
-                <ClipboardCheck className="h-4 w-4" />{seesTeamTasks ? "Attività" : "Le mie Attività"}
+              <CardTitle className="flex items-center gap-2 text-lg shrink-0">
+                <ClipboardCheck className="h-5 w-5 text-primary" />{seesTeamTasks ? "Attività" : "Le mie Attività"}
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </CardTitle>
               {calendarDate && (
@@ -1552,11 +1552,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
           {/* Stats */}
           {(stats.total > 0 || stats.completed > 0) && (
-            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-              {stats.overdue > 0 && <span className="text-red-500 font-medium">{stats.overdue} scadute</span>}
-              {stats.inProgress > 0 && <span className="text-blue-500">{stats.inProgress} in corso</span>}
-              {stats.today > 0 && <span className="text-amber-600">{stats.today} oggi</span>}
-              <span className="text-green-500">{stats.completed} completate</span>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium">
+              {stats.overdue > 0 && <span className="inline-flex items-center gap-1 text-red-500"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />{stats.overdue} scadute</span>}
+              {stats.inProgress > 0 && <span className="inline-flex items-center gap-1 text-blue-500"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />{stats.inProgress} in corso</span>}
+              {stats.today > 0 && <span className="inline-flex items-center gap-1 text-amber-600"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{stats.today} oggi</span>}
+              <span className="inline-flex items-center gap-1 text-green-600"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />{stats.completed} completate</span>
             </div>
           )}
 
