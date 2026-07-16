@@ -11,6 +11,7 @@ import {
 } from "@/hooks/billing/useAnagraficaReconciliation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -24,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Plus, Search, Loader2, Upload, Link2, Unlink, ArrowRightLeft,
+  Plus, Search, Upload, Link2, Unlink, ArrowRightLeft,
   Check, RefreshCw, Info, Users,
 } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
@@ -190,9 +191,18 @@ function AnagraficheTable() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <Card>
+          <CardContent className="divide-y p-0">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-3">
+                <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="hidden h-4 w-24 sm:block" />
+                <Skeleton className="ml-auto h-4 w-20" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">Nessuna anagrafica trovata</div>
       ) : (
@@ -293,8 +303,10 @@ function ReconciliazionePanel({ companyId, userId }: { companyId: string | null;
       </Card>
 
       {isLoading && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
         </div>
       )}
 

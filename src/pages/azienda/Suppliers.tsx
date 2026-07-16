@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Truck, Search, Loader2, Star, ArrowLeft, Phone, Mail, Globe,
+  Truck, Search, Star, ArrowLeft, Phone, Mail, Globe,
   MapPin, CreditCard, Package, CalendarClock, BookOpen, BarChart3,
   AlertTriangle, CheckCircle2, Pencil, Save, X, ExternalLink,
 } from "lucide-react";
@@ -175,7 +175,20 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
   const [editForm, setEditForm] = useState<Record<string, any>>({});
 
   if (isSupLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-7 w-52" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-56 w-full rounded-xl" />
+      </div>
+    );
   }
 
   if (!supplier) {
@@ -480,7 +493,11 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
 
 // ========== ODA TAB ==========
 function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; navigate: any }) {
-  if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mt-8" />;
+  if (isLoading) return (
+    <div className="mt-4 space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+    </div>
+  );
   if (oda.length === 0) return <p className="text-center py-8 text-muted-foreground">Nessun ordine d'acquisto.</p>;
 
   const STATUS_COLORS: Record<string, string> = {
@@ -538,7 +555,11 @@ function OdaTab({ oda, isLoading, navigate }: { oda: any[]; isLoading: boolean; 
 
 // ========== SCADENZE TAB ==========
 function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoading: boolean; navigate: any }) {
-  if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mt-8" />;
+  if (isLoading) return (
+    <div className="mt-4 space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+    </div>
+  );
   if (scadenze.length === 0) return <p className="text-center py-8 text-muted-foreground">Nessuna scadenza.</p>;
 
   return (
@@ -617,7 +638,11 @@ function ScadenzeTab({ scadenze, isLoading, navigate }: { scadenze: any[]; isLoa
 
 // ========== PRIMA NOTA TAB ==========
 function PrimaNotaTab({ entries, isLoading, navigate }: { entries: any[]; isLoading: boolean; navigate: any }) {
-  if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mt-8" />;
+  if (isLoading) return (
+    <div className="mt-4 space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+    </div>
+  );
   if (entries.length === 0) return <p className="text-center py-8 text-muted-foreground">Nessun movimento.</p>;
 
   return (
