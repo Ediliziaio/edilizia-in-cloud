@@ -4,13 +4,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
 import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
@@ -319,6 +317,45 @@ Use short values. Do not describe a renovation.`;
       );
     }
 
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
+    // Questa edge non aveva NEMMENO il guard in-flight: due invocation
+    // simultanee scalavano due crediti e generavano due render. Il claim
+    // generico serializza con FOR UPDATE e mette status='processing'.
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_vertical_session",
+      {
+        _table: "render_pavimento_sessions",
+        _session_id: session_id,
+        _stale_seconds: 170,
+      },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
+    }
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
+      return new Response(
+        JSON.stringify({
+          error: "already_in_flight",
+          message: "Render già in corso per questa sessione.",
+          session_id,
+          status: "processing",
+        }),
+        { status: 409, headers: { ...CORS, "Content-Type": "application/json" } },
+      );
+    }
+    if (claim.stale_takeover) {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-floor-render" },
+      });
+    }
+
     // ── Deduct credits (v3 → v2 → v1 fallback + audit ledger) ────────────
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,
@@ -329,6 +366,10 @@ Use short values. Do not describe a renovation.`;
     });
 
     if (deductResult.status === "insufficient") {
+      await supabase.rpc("release_render_vertical_session", {
+        _table: "render_pavimento_sessions",
+        _session_id: session_id,
+      });
       return new Response(
         JSON.stringify({
           error: "insufficient_credits",
@@ -341,15 +382,6 @@ Use short values. Do not describe a renovation.`;
       );
     }
     creditDeducted = true;
-
-    // ── Update session: processing ──────────────────────────────────────
-    await supabase
-      .from("render_pavimento_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-      })
-      .eq("id", session_id);
 
     const originalPath = session.original_photo_url as string;
     if (!originalPath) {
@@ -398,22 +430,105 @@ Use short values. Do not describe a renovation.`;
     ], {
       type: originalImage.mimeType || "image/jpeg",
     });
-    const renderResult = await editImage({
-      prompt: fullPrompt,
-      sourceImageBlob: imageBlob,
-      effectiveWidth: prepared.effective_width ?? undefined,
-      effectiveHeight: prepared.effective_height ?? undefined,
-      openaiQuality: "medium",
-      // v8.5 — Per-provider timeout 180s → 75s. Allineato a generate-render
-      // v8.4.3: con 180s un singolo provider lento esauriva il budget 150s
-      // dell'edge function. Con 75s, fallback rapido al provider successivo.
-      timeoutMs: 75_000,
-      metadata: {
-        task_kind: "render_image_edit",
-        company_id: session.company_id as string,
-        session_id,
-      },
-    });
+    // F1-parity (audit 16/07) — 1 tentativo per tier, timeout dal budget
+    // residuo (75s fisso × retry interni sforava comunque il cap 150s).
+    const PAVIMENTO_BUDGET_MS = 140_000;
+    const jobStartMs = Date.now();
+    const jobElapsed = () => Date.now() - jobStartMs;
+    const generateCandidate = (prompt: string) => {
+      const remaining = PAVIMENTO_BUDGET_MS - jobElapsed() - 15_000;
+      const perAttemptTimeout = Math.max(
+        30_000,
+        Math.min(75_000, Math.floor(remaining / 2)),
+      );
+      return editImage({
+        prompt,
+        sourceImageBlob: imageBlob,
+        effectiveWidth: prepared.effective_width ?? undefined,
+        effectiveHeight: prepared.effective_height ?? undefined,
+        openaiQuality: "medium",
+        timeoutMs: perAttemptTimeout,
+        maxRetries: 0,
+        metadata: {
+          task_kind: "render_image_edit",
+          company_id: session.company_id as string,
+          session_id,
+        },
+      });
+    };
+
+    let renderResult = await generateCandidate(fullPrompt);
+    let generationAttempts = 1;
+
+    // ── QA VISION pavimento (audit 16/07) ────────────────────────────────
+    // Difetti tipici: griglia fitta di piastrelline al posto delle lastre
+    // grandi selezionate, pareti/mobili ridipinti quando era richiesto SOLO
+    // il pavimento, prospettiva cambiata. Check ~€0.002, 1 retry budget-gated.
+    try {
+      const qaPrompt = [
+        "You are a LENIENT quality inspector for a floor replacement render.",
+        "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, ONLY the floor replaced per brief).",
+        'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+        "Fail ONLY on clear, unambiguous violations:",
+        "- wrong_module_scale: the new floor reads as a dense grid of small tiles when large-format slabs/planks were clearly intended (very few joints expected).",
+        "- non_target_change: walls, furniture, doors or ceiling clearly repainted/replaced even though only the FLOOR had to change.",
+        "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+        "- invented_objects: furniture or fixtures that are in neither the source photo nor the brief.",
+        "When in doubt, PASS. The floor material/color CHANGE is expected — only scale errors, non-target changes and geometry breaks fail.",
+      ].join("\n");
+
+      const sourceDataUrl = `data:${
+        originalImage.mimeType || "image/jpeg"
+      };base64,${originalImage.base64}`;
+
+      const qaResult = await callVisionQa({
+        sourceImageDataUrl: sourceDataUrl,
+        candidateImageDataUrl: renderResult.imageDataUrl,
+        qaPrompt,
+        metadata: {
+          task_kind: "render_image_qa",
+          company_id: session.company_id as string,
+          session_id,
+        },
+      });
+
+      const qaIssues = (qaResult.issues ?? []).map((raw) => {
+        if (typeof raw === "string") return { category: "unspecified", detail: raw };
+        const r = raw as { category?: string; detail?: string };
+        return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+      });
+
+      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        console.log(JSON.stringify({
+          fn: "generate-floor-render",
+          msg: "qa_failed_retry_corrective",
+          session_id,
+          issues: qaIssues.map((i) => i.category),
+        }));
+        const correctedPrompt = `${fullPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: change ONLY the floor, keep walls/furniture/ceiling pixel-identical to the source, respect the selected module size (large slabs = few joints, never a dense small-tile grid), keep the exact source camera and crop.`;
+        renderResult = await generateCandidate(correctedPrompt);
+        generationAttempts += 1;
+      } else if (qaResult.checked && !qaResult.pass) {
+        console.warn(JSON.stringify({
+          fn: "generate-floor-render",
+          msg: "qa_failed_retry_skipped_budget",
+          session_id,
+          issues: qaIssues.map((i) => i.category),
+          elapsed_ms: jobElapsed(),
+        }));
+      }
+    } catch (qaErr) {
+      console.warn(
+        "[generate-floor-render] QA vision error (ignored):",
+        qaErr instanceof Error ? qaErr.message : String(qaErr),
+      );
+    }
+
     const uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
     const resultPath =
       `${session.company_id}/${session_id}/render_${Date.now()}.${uploadPayload.extension}`;
@@ -515,16 +630,15 @@ Use short values. Do not describe a renovation.`;
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
         if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: refundableSessionId,
-            userId: user.id,
-            reasonMeta: {
+          // F1-parity — refund_all: rimborsa TUTTI i consume scoperti.
+          await supabase.rpc("refund_render_credit_all", {
+            _company_id: refundableCompanyId,
+            _session_id: refundableSessionId,
+            _reason_meta: {
               vertical: "pavimento",
               edge_fn: "generate-floor-render",
               error: msg.substring(0, 500),
             },
-            logTag: "generate-floor-render",
           });
         }
         await supabase
