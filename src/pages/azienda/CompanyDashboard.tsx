@@ -134,7 +134,7 @@ function ManagementOverview({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Dashboard gestione</p>
-                <p className="mt-2 text-sm leading-6 text-blue-50/85">
+                <p className="mt-2 hidden text-sm leading-6 text-blue-50/85 sm:block">
                   Commesse, venduto, incassi, calendario, materiali, assistenza e anomalie — tutto in un colpo d'occhio per decidere cosa controllare prima.
                 </p>
               </div>
