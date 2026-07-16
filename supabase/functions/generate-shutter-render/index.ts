@@ -7,14 +7,12 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
 import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
@@ -537,22 +535,94 @@ Deno.serve(async (req) => {
       ) as ArrayBuffer,
     ], { type: originalImage.mimeType || "image/jpeg" });
 
-    const providerResult = await editImage({
-      prompt: combinedPrompt,
-      sourceImageBlob: imageBlob,
-      effectiveWidth: sourceDimensions?.width,
-      effectiveHeight: sourceDimensions?.height,
-      openaiQuality: "medium",
-      // v8.5 — Per-provider timeout 180s → 75s. Allineato a generate-render
-      // v8.4.3: con 180s un singolo provider lento esauriva il budget 150s
-      // dell'edge function. Con 75s, fallback rapido al provider successivo.
-      timeoutMs: 75_000,
-      metadata: {
-        task_kind: "render_image_edit",
-        company_id: session.company_id,
-        session_id,
-      },
-    });
+    // F1-parity (audit 16/07) — 1 tentativo per tier: 75s × 3 retry interni
+    // arrivava a ~225s contro il cap 150s. Il fallback è il Tier 2.
+    const jobStartMs = Date.now();
+    const jobElapsed = () => Date.now() - jobStartMs;
+    const generateCandidate = (prompt: string) =>
+      editImage({
+        prompt,
+        sourceImageBlob: imageBlob,
+        effectiveWidth: sourceDimensions?.width,
+        effectiveHeight: sourceDimensions?.height,
+        openaiQuality: "medium",
+        timeoutMs: 70_000,
+        maxRetries: 0,
+        metadata: {
+          task_kind: "render_image_edit",
+          company_id: session.company_id,
+          session_id,
+        },
+      });
+
+    let providerResult = await generateCandidate(combinedPrompt);
+
+    // ── QA VISION persiane (audit 16/07) ─────────────────────────────────
+    // Difetti tipici: persiane su finestre che non ne avevano (o mancanti
+    // su finestre che dovevano averle), numero ante sbagliato, facciata
+    // ridipinta quando erano richieste SOLO le persiane, geometria cambiata.
+    try {
+      const qaPrompt = [
+        "You are a LENIENT quality inspector for a window-shutter (persiane) replacement render.",
+        "Image 1 = SOURCE photo of the real facade. Image 2 = CANDIDATE render (same facade, ONLY the shutters replaced/recolored per brief).",
+        'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+        "Fail ONLY on clear, unambiguous violations:",
+        "- shutter_count_mismatch: shutters appear on windows that had none in the source, or windows that clearly had shutters now have none (unless removal was the brief).",
+        "- invented_openings: windows or doors added, removed or relocated compared to the source.",
+        "- non_target_change: the facade wall clearly repainted/replastered even though only the SHUTTERS had to change.",
+        "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+        "When in doubt, PASS. Shutter color/style CHANGES are expected — only count errors, non-target changes and geometry breaks fail.",
+      ].join("\n");
+
+      const sourceDataUrl = `data:${
+        originalImage.mimeType || "image/jpeg"
+      };base64,${originalImage.base64}`;
+
+      const qaResult = await callVisionQa({
+        sourceImageDataUrl: sourceDataUrl,
+        candidateImageDataUrl: providerResult.imageDataUrl,
+        qaPrompt,
+        metadata: {
+          task_kind: "render_image_qa",
+          company_id: session.company_id,
+          session_id,
+        },
+      });
+
+      const qaIssues = (qaResult.issues ?? []).map((raw) => {
+        if (typeof raw === "string") return { category: "unspecified", detail: raw };
+        const r = raw as { category?: string; detail?: string };
+        return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+      });
+
+      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        console.log(JSON.stringify({
+          fn: "generate-shutter-render",
+          msg: "qa_failed_retry_corrective",
+          session_id,
+          issues: qaIssues.map((i) => i.category),
+        }));
+        providerResult = await generateCandidate(`${combinedPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows that have them per source/brief, same windows and doors in the same positions, facade wall untouched, same camera and crop.`);
+      } else if (qaResult.checked && !qaResult.pass) {
+        console.warn(JSON.stringify({
+          fn: "generate-shutter-render",
+          msg: "qa_failed_retry_skipped_budget",
+          session_id,
+          issues: qaIssues.map((i) => i.category),
+          elapsed_ms: jobElapsed(),
+        }));
+      }
+    } catch (qaErr) {
+      console.warn(
+        "[generate-shutter-render] QA vision error (ignored):",
+        qaErr instanceof Error ? qaErr.message : String(qaErr),
+      );
+    }
 
     const providerKey = providerResult.providerUsed === "openrouter"
       ? "openrouter_image"
@@ -647,16 +717,14 @@ Deno.serve(async (req) => {
     try {
       if (requestSessionId) {
         if (creditDeducted && refundableCompanyId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: requestSessionId,
-            userId: user.id,
-            reasonMeta: {
+          await supabase.rpc("refund_render_credit_all", {
+            _company_id: refundableCompanyId,
+            _session_id: requestSessionId,
+            _reason_meta: {
               vertical: "persiane",
               edge_fn: "generate-shutter-render",
               error: message.substring(0, 500),
             },
-            logTag: "generate-shutter-render",
           });
         }
         await supabase

@@ -38,7 +38,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -48,7 +48,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "user.role_label": "Amministratore",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "terms_accepted": {
@@ -88,38 +88,31 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
       {
         "key": "link_url_2",
         "label": "Link / bottone #2",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
       {
         "key": "link_url_3",
         "label": "Link / bottone #3",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
       {
         "key": "link_url_4",
         "label": "Link / bottone #4",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
-      {
-        "key": "link_url_5",
-        "label": "Link / bottone #5",
-        "example": "https://app.ediliziaincloud.com/…",
-        "required": true,
-        "category": "link"
-      }
     ],
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
@@ -127,11 +120,10 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "event.date": "24/06/2026",
       "event.time": "14:32",
-      "link_url_1": "https://app.ediliziaincloud.com/…",
-      "link_url_2": "https://app.ediliziaincloud.com/…",
-      "link_url_3": "https://app.ediliziaincloud.com/…",
-      "link_url_4": "https://app.ediliziaincloud.com/…",
-      "link_url_5": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda",
+      "link_url_2": "https://app.ediliziaincloud.com/azienda",
+      "link_url_3": "https://app.ediliziaincloud.com/azienda",
+      "link_url_4": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "staff_access": {
@@ -164,7 +156,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -174,7 +166,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "inviter.name": "Luca Bianchi",
       "user.email": "marco@azienda.it",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "employee_account": {
@@ -207,7 +199,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -217,7 +209,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "user.email": "marco@azienda.it",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "salesperson_account": {
@@ -250,7 +242,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -260,7 +252,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "user.email": "marco@azienda.it",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "password_reset": {
@@ -272,14 +264,14 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
     ],
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "password_reset_admin": {
@@ -305,7 +297,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
@@ -321,7 +313,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…",
+      "link_url_1": "https://app.ediliziaincloud.com/azienda",
       "platform.support_email": "assistenza@ediliziaincloud.it"
     }
   },
@@ -417,7 +409,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -427,7 +419,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "user.new_email": "nuova@azienda.it",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "email_change_new": {
@@ -453,7 +445,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -462,7 +454,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "twofa_enabled": {
@@ -523,7 +515,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -532,7 +524,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "new_device_login": {
@@ -586,7 +578,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -599,7 +591,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "device.location": "Milano, IT",
       "event.date": "24/06/2026",
       "event.time": "14:32",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "account_locked": {
@@ -625,7 +617,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -634,7 +626,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "user_invited": {
@@ -660,7 +652,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -669,7 +661,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "inviter.name": "Luca Bianchi",
       "user.role_label": "Amministratore",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "accountant_invite": {
@@ -709,7 +701,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -720,7 +712,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "accountant.name": "Studio Verdi",
       "inviter.name": "Luca Bianchi",
       "access.level": "Lettura e scrittura",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "invite_reminder": {
@@ -746,7 +738,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -755,7 +747,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "company.name": "Rossi Costruzioni SRL",
       "inviter.name": "Luca Bianchi",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "account_verify": {
@@ -774,7 +766,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -782,7 +774,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "invite_accepted_admin": {
@@ -822,7 +814,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -833,7 +825,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "user.role_label": "Amministratore",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "role_changed": {
@@ -866,7 +858,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -876,7 +868,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "user.role_label": "Amministratore",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "user_removed": {
@@ -964,7 +956,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -973,7 +965,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "lifecycle_trial_ending": {
@@ -1013,7 +1005,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1024,7 +1016,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "stats.orders": "12",
       "stats.customers": "8",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "lifecycle_payment_failed": {
@@ -1064,7 +1056,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1075,7 +1067,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "subscription.amount": "€89,00",
       "company.name": "Rossi Costruzioni SRL",
       "dunning.attempt": "1",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "purchase_confirmed": {
@@ -1106,16 +1098,23 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "contenuto"
       },
       {
-        "key": "subscription.renewal_date",
-        "label": "Data rinnovo",
-        "example": "01/07/2026",
+        "key": "plan.name",
+        "label": "Nome piano",
+        "example": "Professional",
+        "required": false,
+        "category": "contenuto"
+      },
+      {
+        "key": "subscription.periodicity",
+        "label": "Periodicità (mensile/annuale)",
+        "example": "mensile",
         "required": false,
         "category": "contenuto"
       },
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1125,8 +1124,9 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "subscription.amount": "€89,00",
-      "subscription.renewal_date": "01/07/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "plan.name": "Professional",
+      "subscription.periodicity": "mensile",
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "payment_received": {
@@ -1180,7 +1180,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1193,7 +1193,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "payment.method": "Visa",
       "card.last4": "4242",
       "event.date": "24/06/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "renewal_upcoming": {
@@ -1233,7 +1233,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1244,7 +1244,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "subscription.renewal_date": "01/07/2026",
       "subscription.amount": "€89,00",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "card_expiring": {
@@ -1277,7 +1277,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1287,7 +1287,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "card.last4": "4242",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "trial_expired": {
@@ -1313,7 +1313,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1322,7 +1322,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "plan_changed": {
@@ -1332,9 +1332,9 @@ export const SYSTEM_EMAIL_META: Record<string, {
     "iconName": "CreditCard",
     "placeholders": [
       {
-        "key": "partner.new_tier",
-        "label": "Nuovo tier",
-        "example": "Silver",
+        "key": "plan.name",
+        "label": "Nuovo piano",
+        "example": "Professional",
         "required": false,
         "category": "contenuto"
       },
@@ -1369,19 +1369,19 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
     ],
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
-      "partner.new_tier": "Silver",
+      "plan.name": "Professional",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "subscription.amount": "€89,00",
       "subscription.renewal_date": "01/07/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "subscription_cancelled": {
@@ -1414,7 +1414,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1424,7 +1424,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "subscription.renewal_date": "01/07/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "account_suspended": {
@@ -1450,7 +1450,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1459,7 +1459,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "refund_issued": {
@@ -1558,7 +1558,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1569,7 +1569,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "partner.tier": "Bronze",
       "partner.commission": "20% del piano mensile",
       "referral.code": "MARCO2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "partner_conversion": {
@@ -1595,7 +1595,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1604,7 +1604,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "company.name": "Rossi Costruzioni SRL",
       "user.full_name": "Marco Rossi",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "partner_commission": {
@@ -1644,7 +1644,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1655,7 +1655,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.full_name": "Marco Rossi",
       "commission.amount": "€340,00",
       "partner.active_companies": "3",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "partner_payout": {
@@ -1723,7 +1723,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1733,7 +1733,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "partner.new_tier": "Silver",
       "user.full_name": "Marco Rossi",
       "partner.multiplier": "1,5x",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "document_shared": {
@@ -1773,7 +1773,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1784,7 +1784,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "document.name": "Preventivo 2026-014",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "task_assigned": {
@@ -1822,8 +1822,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "azienda"
       },
       {
-        "key": "event.date",
-        "label": "Data",
+        "key": "task.due_date",
+        "label": "Scadenza attività",
         "example": "24/06/2026",
         "required": false,
         "category": "contenuto"
@@ -1831,7 +1831,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1842,8 +1842,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "sender.name": "Luca Bianchi",
       "company.name": "Rossi Costruzioni SRL",
-      "event.date": "24/06/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "task.due_date": "24/06/2026",
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "report_ready": {
@@ -1876,7 +1876,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1886,7 +1886,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "document.name": "Preventivo 2026-014",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "silvio_approval": {
@@ -1919,7 +1919,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -1929,7 +1929,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "task.name": "Sopralluogo cantiere",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "sdi_accepted": {
@@ -2012,7 +2012,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2023,7 +2023,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "sdi.reject_reason": "Codice destinatario errato",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "payment_reminder": {
@@ -2121,7 +2121,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2133,7 +2133,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "document.expiry_date": "30/06/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "site_inspection": {
@@ -2180,7 +2180,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2192,7 +2192,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "company.name": "Rossi Costruzioni SRL",
       "inspection.time": "09:00",
       "site.address": "Via Roma 12, Milano",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "lifecycle_monthly_summary": {
@@ -2239,7 +2239,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2251,7 +2251,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "stats.orders": "12",
       "stats.revenue": "€42.300",
       "stats.hours_saved": "26",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "lifecycle_d3_no_activation": {
@@ -2277,7 +2277,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2286,7 +2286,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "lifecycle_d7_features": {
@@ -2305,7 +2305,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2313,7 +2313,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "winback": {
@@ -2346,7 +2346,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2356,7 +2356,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
       "user.inactive_days": "30",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "feature_announcement": {
@@ -2382,7 +2382,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2391,7 +2391,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "feature.name": "Render AI",
       "user.first_name": "Marco",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "nps_feedback": {
@@ -2410,7 +2410,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2418,7 +2418,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "maintenance_scheduled": {
@@ -2477,9 +2477,16 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "category": "contenuto"
       },
       {
+        "key": "terms.summary",
+        "label": "Riassunto modifiche (in chiaro)",
+        "example": "più trasparenza sui dati di fatturazione",
+        "required": true,
+        "category": "contenuto"
+      },
+      {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       }
@@ -2488,7 +2495,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "event.date": "24/06/2026",
-      "link_url_1": "https://app.ediliziaincloud.com/…"
+      "terms.summary": "più trasparenza sui dati di fatturazione",
+      "link_url_1": "https://app.ediliziaincloud.com/azienda"
     }
   },
   "gdpr_export": {
@@ -2514,13 +2522,13 @@ export const SYSTEM_EMAIL_META: Record<string, {
       {
         "key": "link_url_1",
         "label": "Link / bottone #1",
-        "example": "https://app.ediliziaincloud.com/…",
+        "example": "https://app.ediliziaincloud.com/azienda",
         "required": true,
         "category": "link"
       },
       {
-        "key": "trial.days_left",
-        "label": "Giorni rimasti",
+        "key": "export.days_left",
+        "label": "Giorni validità link",
         "example": "3",
         "required": false,
         "category": "contenuto"
@@ -2530,8 +2538,8 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "companyName": "Rossi Costruzioni SRL",
       "user.first_name": "Marco",
       "company.name": "Rossi Costruzioni SRL",
-      "link_url_1": "https://app.ediliziaincloud.com/…",
-      "trial.days_left": "3"
+      "link_url_1": "https://app.ediliziaincloud.com/azienda",
+      "export.days_left": "3"
     }
   }
 };

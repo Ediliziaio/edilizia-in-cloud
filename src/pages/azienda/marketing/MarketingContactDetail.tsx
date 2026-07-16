@@ -1,4 +1,4 @@
-import { useState, useMemo, forwardRef } from "react";
+import { useState, useMemo, useEffect, useRef, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
@@ -34,6 +34,7 @@ import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
 import { buildTemplateVars } from "@/lib/messageTemplateVars";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -60,7 +61,8 @@ import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPane
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
-import { RefreshCw, CalendarDays, Sparkles } from "lucide-react";
+import { RefreshCw, CalendarDays, Sparkles, Radar, Building2, Globe, AtSign } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
 // ── Extracted sub-components ──
@@ -106,7 +108,44 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
+  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "whatsapp_locale" | "email" | "sms">("whatsapp");
+  // Contesto piattaforma (superadmin): niente Preventivo (l'opzione non esiste lì)
+  // e in più il canale WhatsApp Locale (pool numeri non-ufficiali, solo piattaforma).
+  const isPlatformContext = effectiveCompany?.id === PLATFORM_ADMIN_COMPANY_ID;
+  const [waLocaleSending, setWaLocaleSending] = useState(false);
+  // Auto-grow della textarea composer: cresce col contenuto fino a max-height,
+  // poi scrolla. shadcn Textarea è statica, quindi lo facciamo a mano.
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  };
+  // Reset altezza quando il testo si svuota (dopo l'invio) o cambia canale.
+  useEffect(() => {
+    if (composerRef.current && !messageText) composerRef.current.style.height = "auto";
+  }, [messageText, messageChannel]);
+  // Arricchimento dati via motore lead-scraper (solo piattaforma):
+  // pre-flight (conferma/ricerca sito) → scraping sito + VIES (visura light)
+  // + firmografici/PEC openapi.it → verifica di coerenza P.IVA sito↔contatto.
+  const [enriching, setEnriching] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<Record<string, unknown> | null>(null);
+  const [enrichOpen, setEnrichOpen] = useState(false);
+  const [enrichSetupOpen, setEnrichSetupOpen] = useState(false);
+  const [enrichWebsite, setEnrichWebsite] = useState("");
+  const [enrichPiva, setEnrichPiva] = useState("");
+  const [enrichName, setEnrichName] = useState("");
+  const [findingSite, setFindingSite] = useState(false);
+  const [siteCandidates, setSiteCandidates] = useState<Array<{ url: string; domain: string; title: string }> | null>(null);
+  // Visura camerale on-demand (openapi.it IT-advanced): anagrafica completa,
+  // bilancio, soci, amministratori, PEC, ATECO. Consuma crediti openapi.
+  const [visuraLoading, setVisuraLoading] = useState(false);
+  const [visuraResult, setVisuraResult] = useState<{ ok: boolean; fields?: Record<string, unknown>; error?: string; contact_updated?: string[] } | null>(null);
+  const [visuraOpen, setVisuraOpen] = useState(false);
+  // Trova/verifica email (solo piattaforma)
+  const [findingEmail, setFindingEmail] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
   // Seed per il composer WhatsApp (precompila il testo dai template, stesso
   // meccanismo seedText/seedAt usato in QuickContactSendDialog).
@@ -353,6 +392,198 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
   });
 
+  // Invio WhatsApp Locale (OpenWA, solo contesto piattaforma): passa dal
+  // gateway con rotazione numero per tag/capacità, bypass quiet-hours (manuale).
+  const sendWaLocale = async () => {
+    const text = messageText.trim();
+    const to = (contact?.phone ?? "").replace(/\D/g, "");
+    if (!text || to.length < 6 || waLocaleSending) return;
+    setWaLocaleSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("openwa-gateway", {
+        body: { action: "send_text", contact_id: id ?? null, to, text },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      setMessageText("");
+      toast.success("Messaggio WhatsApp Locale inviato");
+      queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp Locale");
+    } finally {
+      setWaLocaleSending(false);
+    }
+  };
+
+  // Pre-flight arricchimento: apre il dialog con i dati del contatto, così
+  // l'operatore VERIFICA (o trova) il sito giusto prima di lanciare lo scraping.
+  const openEnrichSetup = () => {
+    if (!contact) return;
+    setEnrichWebsite(contact.website?.trim() || "");
+    setEnrichPiva((contact as { vat_number?: string | null }).vat_number?.trim() || "");
+    setEnrichName(
+      contact.company_name?.trim()
+        || [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim()
+        || "",
+    );
+    setSiteCandidates(null);
+    setEnrichSetupOpen(true);
+  };
+
+  // Ricerca del sito ufficiale dal nome (DuckDuckGo filtrato dagli aggregatori):
+  // restituisce candidati, la scelta resta all'operatore.
+  const findWebsite = async () => {
+    if (findingSite || !enrichName.trim()) return;
+    setFindingSite(true);
+    setSiteCandidates(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "find_website", business_name: enrichName.trim(), city: contact?.city || null, province: (contact as { province?: string | null })?.province || null },
+      });
+      if (error) throw error;
+      setSiteCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ricerca sito fallita");
+      setSiteCandidates([]);
+    } finally {
+      setFindingSite(false);
+    }
+  };
+
+  // Esecuzione: usa i valori CONFERMATI nel pre-flight (non i campi grezzi del
+  // contatto); il motore compila da solo i campi CRM vuoti.
+  const runEnrich = async () => {
+    if (enriching) return;
+    const website = enrichWebsite.trim() || null;
+    const piva = enrichPiva.replace(/\s/g, "") || null;
+    const businessName = enrichName.trim() || null;
+    if (!website && !piva && !businessName) {
+      toast.error("Servono almeno sito web, P.IVA o ragione sociale");
+      return;
+    }
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "enrich_company", website, partita_iva: piva, business_name: businessName, vies: true, contactId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      setEnrichResult(data as Record<string, unknown>);
+      setEnrichSetupOpen(false);
+      setEnrichOpen(true);
+      // Traccia in timeline + ricarica il contatto (il motore può aver riempito campi)
+      const updated = Array.isArray(data?.contact_updated) ? data.contact_updated as string[] : [];
+      await supabase.from("marketing_contact_activities").insert({
+        contact_id: id!,
+        company_id: companyId!,
+        activity_type: "updated",
+        description: updated.length
+          ? `Arricchimento scraper: compilati ${updated.join(", ")}`
+          : "Arricchimento scraper eseguito",
+        created_by: user?.id,
+        metadata: { source: "lead-scraper", fields: updated, website },
+      });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      toast.success(updated.length ? `Contatto arricchito: ${updated.length} campi compilati` : "Arricchimento completato");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore arricchimento");
+    } finally {
+      setEnriching(false);
+    }
+  };
+
+  // Visura camerale on-demand: usa la P.IVA (dal campo o dal contatto) e
+  // chiama enrich_visura (openapi.it IT-advanced). Consuma crediti openapi.
+  const runVisura = async () => {
+    if (visuraLoading) return;
+    const piva = (enrichPiva.replace(/\D/g, "") || (contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "")) || "";
+    if (piva.length !== 11) {
+      toast.error("Serve una P.IVA valida (11 cifre) per la visura");
+      return;
+    }
+    setVisuraLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "enrich_visura", partita_iva: piva, contactId: id },
+      });
+      if (error) throw error;
+      setVisuraResult(data as { ok: boolean; fields?: Record<string, unknown>; error?: string; contact_updated?: string[] });
+      setEnrichSetupOpen(false);
+      setVisuraOpen(true);
+      if (data?.ok) {
+        const updated = Array.isArray(data?.contact_updated) ? data.contact_updated as string[] : [];
+        await supabase.from("marketing_contact_activities").insert({
+          contact_id: id!,
+          company_id: companyId!,
+          activity_type: "updated",
+          description: updated.length ? `Visura openapi: compilati ${updated.join(", ")}` : "Visura camerale openapi scaricata",
+          created_by: user?.id,
+          metadata: { source: "openapi-visura", fields: updated, piva },
+        });
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+        toast.success(updated.length ? `Visura ok: ${updated.length} campi compilati` : "Visura scaricata");
+      } else {
+        toast.error(data?.error || "Visura non disponibile");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore visura");
+    } finally {
+      setVisuraLoading(false);
+    }
+  };
+
+  // Trova email: scraping sito + guess pattern + MX (gratis)
+  const runFindEmail = async () => {
+    if (findingEmail) return;
+    setFindingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "find_contact_email", contactId: id },
+      });
+      if (error) throw error;
+      if (data?.email) {
+        toast.success(data.status === "guessed" ? `Email probabile trovata: ${data.email} (ipotesi su dominio valido)` : `Email trovata: ${data.email}`);
+        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      } else {
+        toast.error("Nessuna email trovata: aggiungi il sito web e riprova.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore ricerca email");
+    } finally {
+      setFindingEmail(false);
+    }
+  };
+
+  // Verifica email: sintassi + MX (+ provider se configurato)
+  const runVerifyEmail = async () => {
+    if (verifyingEmail || !contact?.email) return;
+    setVerifyingEmail(true);
+    setEmailStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: { action: "verify_contact_email", email: contact.email },
+      });
+      if (error) throw error;
+      const s = String(data?.status || "");
+      setEmailStatus(s);
+      const msg: Record<string, string> = {
+        valid: "Email valida e consegnabile ✓",
+        mx_ok: "Dominio riceve email (MX ok) — probabilmente valida",
+        invalid: "Email non valida ✗",
+        no_mx: "Il dominio NON riceve email — probabilmente non valida",
+        invalid_syntax: "Formato email non valido",
+      };
+      if (s === "invalid" || s === "no_mx" || s === "invalid_syntax") toast.error(msg[s] || s);
+      else toast.success(msg[s] || s);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore verifica email");
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
 
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
@@ -508,7 +739,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     "bg-slate-400 text-white";
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] md:overflow-hidden bg-background">
+    // Altezza definita per il layout a colonne con scroll interno. In area admin
+    // (contesto piattaforma) la top-bar + padding del <main> sono più alti, quindi
+    // sottraiamo di più: senza, il composer in fondo veniva tagliato.
+    <div className={cn(
+      "flex flex-col min-h-[calc(100dvh-8rem)] md:overflow-hidden bg-background",
+      isPlatformContext ? "md:h-[calc(100dvh-8rem)]" : "md:h-[calc(100dvh-3.5rem)]",
+    )}>
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
@@ -726,8 +963,35 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </Button>
               )}
               <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
-              {/* Crea preventivo dal contatto — link preservato (classico o modulo verticale) */}
-              <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />
+              {/* Crea preventivo dal contatto — SOLO area azienda: nel CRM di
+                  piattaforma (superadmin) i preventivi non esistono. */}
+              {!isPlatformContext && <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />}
+              {/* Arricchimento scraper — SOLO piattaforma: sito+VIES+firmografici */}
+              {isPlatformContext && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-9 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  disabled={enriching}
+                  onClick={openEnrichSetup}
+                  title="Scraping sito + VIES (visura light) + firmografici e PEC. Prima verifichi il sito, poi il motore compila i campi vuoti del contatto."
+                >
+                  {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Arricchisci
+                </Button>
+              )}
+              {isPlatformContext && !contact.email && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={findingEmail} onClick={runFindEmail} title="Cerca l'email dal sito o la deduce dal dominio (verifica MX)">
+                  {findingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Trova email
+                </Button>
+              )}
+              {isPlatformContext && contact.email && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled={verifyingEmail} onClick={runVerifyEmail} title="Verifica che l'email sia valida e consegnabile (sintassi + MX)">
+                  {verifyingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AtSign className="h-3.5 w-3.5" />} Verifica email
+                  {emailStatus === "valid" && <span className="text-emerald-600">✓</span>}
+                  {emailStatus === "mx_ok" && <span className="text-emerald-600">✓</span>}
+                  {(emailStatus === "invalid" || emailStatus === "no_mx") && <span className="text-red-600">✗</span>}
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -1170,59 +1434,61 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {/* ══════════ CENTER COLUMN — Timeline (Hero gestisce header/banner)
           Mobile: altezza limitata 60vh per non spingere troppo in basso l'anagrafica.
           Desktop: prende tutto lo spazio rimanente. */}
-      <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 h-[60vh] lg:h-auto">
         {/* Azioni rapide sul contatto (registra chiamata manuale, senza centralino) */}
         <div className="shrink-0 flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
           <LogCallButton companyId={companyId} contactId={id} userId={user?.id} />
         </div>
-        {/* Unified Timeline */}
-        <div className="flex-1 overflow-hidden">
+        {/* Unified Timeline — min-h-0 così il timeline si restringe e scrolla
+            invece di spingere il composer fuori dal contenitore (bug flexbox). */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} contactEmail={contact.email} />
         </div>
 
         {/* Message input bar */}
         <div className="border-t shrink-0 bg-muted/20">
-          {/* Selettore canale a pillole: chiaro quale canale è attivo
-              (prima era un dropdown a sola icona, poco evidente). Mostra solo
-              i canali disponibili in base ai recapiti del contatto. */}
-          <div className="flex items-center gap-1 px-3 pt-2">
-            {contact.email && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("email")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "email" ? "bg-violet-100 text-violet-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <Mail className="h-3.5 w-3.5" /> Email
-              </button>
-            )}
-            {contact.phone && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("whatsapp")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "whatsapp" ? "bg-emerald-100 text-emerald-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
-              </button>
-            )}
-            {contact.phone && (
-              <button
-                type="button"
-                onClick={() => setMessageChannel("sms")}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  messageChannel === "sms" ? "bg-sky-100 text-sky-700" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <Smartphone className="h-3.5 w-3.5" /> SMS
-              </button>
-            )}
+          {/* Selettore canale a pillole. Il canale attivo ha pillola piena +
+              anello colorato; gli altri sono muti. Solo i canali disponibili
+              per i recapiti del contatto (email/telefono). */}
+          <div className="flex items-center gap-1.5 px-3 pt-2.5 flex-wrap">
+            {([
+              contact.email && { key: "email" as const, icon: Mail, label: "Email", active: "bg-violet-100 text-violet-700 ring-1 ring-violet-300" },
+              contact.phone && { key: "whatsapp" as const, icon: MessageSquare, label: "WhatsApp", active: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" },
+              contact.phone && isPlatformContext && { key: "whatsapp_locale" as const, icon: MessageSquare, label: "WA Locale", active: "bg-teal-100 text-teal-700 ring-1 ring-teal-300", title: "Canale non-ufficiale dal pool numeri della piattaforma (rotazione per tag e capacità giornaliera)" },
+              contact.phone && { key: "sms" as const, icon: Smartphone, label: "SMS", active: "bg-sky-100 text-sky-700 ring-1 ring-sky-300" },
+            ].filter(Boolean) as Array<{ key: typeof messageChannel; icon: typeof Mail; label: string; active: string; title?: string }>).map((ch) => {
+              const Icon = ch.icon;
+              const isActive = messageChannel === ch.key;
+              return (
+                <button
+                  key={ch.key}
+                  type="button"
+                  onClick={() => setMessageChannel(ch.key)}
+                  title={ch.title}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all",
+                    isActive ? ch.active : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {ch.label}
+                </button>
+              );
+            })}
           </div>
+          {/* Riga contestuale: spiega il canale attivo (e per SMS/WA il limite). */}
+          {messageChannel === "whatsapp_locale" && (
+            <p className="px-3.5 pt-1.5 text-[11px] text-teal-700 flex items-center gap-1">
+              <MessageSquare className="h-3 w-3 shrink-0" /> Canale non ufficiale · pool numeri piattaforma · nessuna finestra 24h
+            </p>
+          )}
+          {messageChannel === "sms" && (
+            <p className="px-3.5 pt-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> Messaggio breve</span>
+              <span className={cn("tabular-nums", messageText.length > 160 && "text-amber-600 font-medium")}>
+                {messageText.length} caratteri · {Math.max(1, Math.ceil(messageText.length / 160))} SMS
+              </span>
+            </p>
+          )}
           {messageChannel === "email" && (
             <div className="px-3 pt-2 space-y-1.5">
               {/* Riga oggetto + toggle Cc/Ccn (stile Gmail) */}
@@ -1294,12 +1560,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
           )}
-          <div className={messageChannel === "whatsapp" ? "flex items-start px-3 pb-2 pt-1.5 gap-2" : "flex items-center px-3 pb-2.5 pt-1.5 gap-2"}>
+          <div className="flex items-start px-3 pb-2.5 pt-1.5 gap-2">
             {/* Template picker — applica già le variabili; per email imposta
                 oggetto+testo, per sms imposta il testo, per whatsapp fa il
                 seed del composer. */}
             <MessageTemplatePicker
-              channel={messageChannel}
+              channel={messageChannel === "whatsapp_locale" ? "whatsapp" : messageChannel}
               vars={buildTemplateVars({
                 firstName: contact.first_name,
                 lastName: contact.last_name,
@@ -1316,7 +1582,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   setWaSeedAt((n) => n + 1);
                 } else {
                   if (messageChannel === "email" && subject != null) setEmailSubject(subject.slice(0, 200));
-                  setMessageText(body.slice(0, 5000));
+                  setMessageText(body.slice(0, 5000)); // vale anche per whatsapp_locale
                 }
               }}
               align="start"
@@ -1339,14 +1605,39 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   });
                 }}
               />
+            ) : messageChannel === "whatsapp_locale" ? (
+              <>
+                <Textarea
+                  ref={composerRef}
+                  placeholder="Scrivi il messaggio WhatsApp…"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value.slice(0, 4096))}
+                  onInput={(e) => autoGrow(e.currentTarget)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWaLocale(); } }}
+                  rows={1}
+                  className="border-0 bg-muted/50 shadow-none text-xs min-h-[36px] max-h-32 resize-none py-2 flex-1"
+                />
+                <Button
+                  size="icon"
+                  className="h-9 w-9 shrink-0 self-end bg-teal-600 hover:bg-teal-700"
+                  disabled={!messageText.trim() || waLocaleSending}
+                  onClick={sendWaLocale}
+                >
+                  {waLocaleSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </>
             ) : (
               <>
-                <Input
-                  placeholder={`Scrivi messaggio ${messageChannel === "email" ? "email" : "SMS"}...`}
+                <Textarea
+                  ref={composerRef}
+                  placeholder={messageChannel === "email" ? "Scrivi l'email…" : "Scrivi l'SMS…"}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
+                  onInput={(e) => autoGrow(e.currentTarget)}
+                  rows={1}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
+                    if (e.key === "Enter" && !e.shiftKey && messageText.trim() && !sendMessage.isPending) {
+                      e.preventDefault();
                       const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
                       const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
                       sendMessage.mutate({
@@ -1357,11 +1648,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       });
                     }
                   }}
-                  className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+                  className="border-0 bg-muted/50 shadow-none text-xs min-h-[36px] max-h-32 resize-none py-2 flex-1"
                 />
                 <Button
                   size="icon"
-                  className="h-9 w-9 md:h-7 md:w-7 shrink-0"
+                  className="h-9 w-9 shrink-0 self-end"
                   disabled={!messageText.trim() || sendMessage.isPending}
                   onClick={() => {
                     const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
@@ -1683,6 +1974,330 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Pre-flight arricchimento: verifica/trova il sito PRIMA dello scraping */}
+      <Dialog open={enrichSetupOpen} onOpenChange={setEnrichSetupOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Arricchisci contatto</DialogTitle>
+            <DialogDescription className="text-xs">
+              Controlla che il sito sia quello giusto (o cercalo dal nome): lo scraping legge email, telefoni e P.IVA da lì.
+              VIES e registri usano la P.IVA. I campi vuoti del contatto verranno compilati.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</Label>
+              <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder="Es. Rossi Costruzioni SRL" className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito web</Label>
+              <div className="flex gap-1.5">
+                <Input value={enrichWebsite} onChange={(e) => setEnrichWebsite(e.target.value)} placeholder="https://…" className="h-8 text-xs flex-1" />
+                {enrichWebsite.trim() && (
+                  <Button asChild variant="outline" size="sm" className="h-8 px-2 text-xs shrink-0" title="Apri il sito per controllarlo">
+                    <a href={enrichWebsite.startsWith("http") ? enrichWebsite : `https://${enrichWebsite}`} target="_blank" rel="noreferrer"><Globe className="h-3.5 w-3.5" /></a>
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="h-8 text-xs shrink-0 gap-1" disabled={findingSite || !enrichName.trim()} onClick={findWebsite}>
+                  {findingSite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />} Cerca sito
+                </Button>
+              </div>
+              {siteCandidates !== null && (
+                siteCandidates.length > 0 ? (
+                  <div className="rounded-md border divide-y mt-1">
+                    {siteCandidates.map((c) => (
+                      <button
+                        key={c.domain}
+                        type="button"
+                        onClick={() => setEnrichWebsite(c.url)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-muted/60 transition-colors",
+                          enrichWebsite === c.url && "bg-orange-50",
+                        )}
+                      >
+                        <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="font-medium shrink-0">{c.domain}</span>
+                        <span className="text-muted-foreground truncate flex-1">{c.title}</span>
+                        <a
+                          href={c.url} target="_blank" rel="noreferrer"
+                          className="text-[10px] text-primary underline shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          apri
+                        </a>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1">Nessun candidato trovato: inserisci il sito a mano o vai di P.IVA.</p>
+                )
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</Label>
+              <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
+            </div>
+            <p className="text-[10px] text-muted-foreground pt-1">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+              <Button size="sm" className="flex-1 gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
+                {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
+              </Button>
+              {/* Visura/bilancio openapi (a parte perché consuma crediti openapi
+                  e richiede la P.IVA): anagrafica camerale completa + bilancio + soci */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 gap-1.5 border-slate-300"
+                disabled={visuraLoading || (enrichPiva.replace(/\D/g, "").length !== 11 && ((contact as { vat_number?: string | null })?.vat_number?.replace(/\D/g, "").length !== 11))}
+                onClick={runVisura}
+                title="Scarica la visura camerale da openapi.it (bilancio, soci, PEC, ATECO…). Richiede P.IVA e consuma crediti openapi."
+              >
+                {visuraLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />} Visura / bilancio
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Risultati arricchimento scraper (solo piattaforma) */}
+      <Dialog open={enrichOpen} onOpenChange={setEnrichOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Radar className="h-4 w-4 text-orange-600" /> Dati trovati dallo scraper</DialogTitle>
+            <DialogDescription className="text-xs">
+              Sito, VIES e registri pubblici. I campi vuoti del contatto sono stati compilati automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          {enrichResult && (() => {
+            const r = enrichResult as {
+              vies?: { valid?: boolean; name?: string; address?: string };
+              firmografici?: Record<string, unknown>;
+              visura?: Record<string, unknown>;
+              openapi_error?: string;
+              emails?: string[]; phones?: string[];
+              phones_classified?: Array<{ e164: string; type: "mobile" | "landline"; whatsapp: boolean }>;
+              facebook_url?: string; instagram_url?: string; linkedin_url?: string;
+              partita_iva?: string | null;
+              site_partita_iva?: string | null;
+              contact_updated?: string[];
+              intent_signals?: Record<string, boolean> | string[];
+              intent_score?: number;
+            };
+            // Coerenza sito↔azienda: se sul sito c'è una P.IVA, confrontala con
+            // quella nota → conferma (o smentisce) che il sito è quello giusto.
+            const knownPiva = enrichPiva.replace(/\s/g, "") || null;
+            const sitePivaMatch = r.site_partita_iva && knownPiva
+              ? (r.site_partita_iva.replace(/^IT/i, "") === knownPiva.replace(/^IT/i, "") ? "match" : "mismatch")
+              : null;
+            const row = (label: string, value: React.ReactNode) => (
+              <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
+                <span className="font-medium break-all">{value}</span>
+              </div>
+            );
+            const SIGNAL_LABELS: Record<string, string> = {
+              outdated_copyright: "sito con anno vecchio", not_mobile: "sito non mobile",
+              no_https: "sito senza HTTPS", has_form: "ha un form contatti", no_website: "nessun sito",
+            };
+            const activeSignals = r.intent_signals && !Array.isArray(r.intent_signals)
+              ? Object.entries(r.intent_signals).filter(([, v]) => v).map(([k]) => SIGNAL_LABELS[k] || k)
+              : [];
+            const score = typeof r.intent_score === "number" ? r.intent_score : null;
+            const scoreColor = score == null ? "" : score >= 75 ? "bg-red-100 text-red-700" : score >= 60 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600";
+            const scoreLabel = score == null ? "" : score >= 75 ? "Lead caldo" : score >= 60 ? "Lead tiepido" : "Lead freddo";
+            return (
+              <div className="space-y-3">
+                {score != null && (
+                  <div className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-2">
+                    <Radar className="h-4 w-4 text-orange-600 shrink-0" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold">Segnale d'acquisto</span>
+                        <Badge className={cn("h-4 px-1.5 text-[10px]", scoreColor)}>{scoreLabel} · {score}/100</Badge>
+                      </div>
+                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{activeSignals.join(" · ")}</p>}
+                    </div>
+                  </div>
+                )}
+                {sitePivaMatch === "match" && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
+                    ✓ <b>Sito confermato</b>: la P.IVA pubblicata sul sito coincide con quella dell'azienda.
+                  </div>
+                )}
+                {sitePivaMatch === "mismatch" && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                    ⚠️ <b>Verifica il sito</b>: sul sito c'è la P.IVA {r.site_partita_iva}, diversa da quella indicata ({knownPiva}).
+                    Potrebbe non essere il sito di questa azienda — controlla prima di fidarti dei recapiti trovati.
+                  </div>
+                )}
+                {r.site_partita_iva && !knownPiva && (
+                  <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-800">
+                    ℹ️ P.IVA <b>{r.site_partita_iva}</b> rilevata dal sito e usata per VIES/registri.
+                  </div>
+                )}
+                {r.contact_updated && r.contact_updated.length > 0 && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
+                    ✓ Compilati sul contatto: <b>{r.contact_updated.join(", ")}</b>
+                  </div>
+                )}
+                {(r.vies || r.partita_iva) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
+                    {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">valida</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">non valida</Badge> : null}</>)}
+                    {r.vies?.name && row("Ragione sociale", r.vies.name)}
+                    {r.vies?.address && row("Sede legale", r.vies.address)}
+                  </div>
+                )}
+                {(() => {
+                  const vis = r.visura as Record<string, unknown> | undefined;
+                  if (!vis) return null;
+                  const LABELS: Record<string, string> = {
+                    ragione_sociale: "Ragione sociale", forma_giuridica: "Forma giuridica",
+                    stato_attivita: "Stato attività", data_costituzione: "Costituita il",
+                    capitale_sociale: "Capitale sociale", rea: "REA", codice_fiscale: "Codice fiscale",
+                    sdi: "Codice SDI", pec: "PEC", ateco: "ATECO", ateco_desc: "Attività (ATECO)",
+                    indirizzo: "Indirizzo", comune: "Comune", provincia: "Provincia", cap: "CAP",
+                    dipendenti: "Dipendenti", fatturato: "Fatturato", utile: "Utile", anno_bilancio: "Anno bilancio",
+                  };
+                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+                  const rows = Object.entries(LABELS)
+                    .filter(([k]) => vis[k] != null && String(vis[k]).trim() !== "")
+                    .map(([k]) => {
+                      let val: React.ReactNode = String(vis[k]);
+                      if ((k === "capitale_sociale" || k === "fatturato" || k === "utile") && typeof vis[k] === "number") val = fmtMoneyIt(vis[k] as number);
+                      if (k === "pec") val = <a href={`mailto:${vis[k]}`} className="text-primary underline">{String(vis[k])}</a>;
+                      return <div key={k}>{row(LABELS[k], val)}</div>;
+                    });
+                  const soci = Array.isArray(vis.soci) ? vis.soci as Array<{ nome?: string; ruolo?: string }> : [];
+                  const amm = Array.isArray(vis.amministratori) ? vis.amministratori as Array<{ nome?: string; ruolo?: string }> : [];
+                  if (rows.length === 0 && soci.length === 0 && amm.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
+                      {rows}
+                      {amm.length > 0 && row("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                      {soci.length > 0 && row("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                    </div>
+                  );
+                })()}
+                {r.openapi_error && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                    ⚠️ Dati camerali non disponibili — {r.openapi_error}
+                    {/Wrong Token|non configurato|401/i.test(r.openapi_error) && (
+                      <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, PEC e firmografici.</>
+                    )}
+                  </div>
+                )}
+                {((r.emails?.length ?? 0) > 0 || (r.phones_classified?.length ?? r.phones?.length ?? 0) > 0) && (() => {
+                  const classified = r.phones_classified ?? (r.phones ?? []).map((e164) => ({ e164, type: "landline" as const, whatsapp: false }));
+                  const mobiles = classified.filter((p) => p.type === "mobile");
+                  const landlines = classified.filter((p) => p.type === "landline");
+                  return (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 italic">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
+                      {r.emails?.map((e) => <div key={e}>{row("Email", <a href={`mailto:${e}`} className="text-primary underline">{e}</a>)}</div>)}
+                      {mobiles.map((p) => (
+                        <div key={p.e164}>{row(
+                          <span className="inline-flex items-center gap-1"><Smartphone className="h-3 w-3" /> Cellulare</span>,
+                          <span className="inline-flex items-center gap-1.5 flex-wrap">
+                            {p.e164}
+                            <Badge className="h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-0.5"><MessageSquare className="h-2.5 w-2.5" /> WhatsApp possibile</Badge>
+                          </span>,
+                        )}</div>
+                      ))}
+                      {landlines.map((p) => (
+                        <div key={p.e164}>{row(
+                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> Fisso</span>,
+                          p.e164,
+                        )}</div>
+                      ))}
+                      {mobiles.length === 0 && (
+                        <p className="text-[11px] text-amber-700 mt-1">Nessun cellulare trovato: sul sito solo numeri fissi. Il cellulare (per WhatsApp) va cercato altrove.</p>
+                      )}
+                    </div>
+                  );
+                })()}
+                {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Social</p>
+                    {r.linkedin_url && row("LinkedIn", <a href={r.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.linkedin_url}</a>)}
+                    {r.facebook_url && row("Facebook", <a href={r.facebook_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.facebook_url}</a>)}
+                    {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
+                  </div>
+                )}
+                {(r.intent_signals?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Segnali dal sito</p>
+                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                  </div>
+                )}
+                {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (
+                  <p className="text-xs text-muted-foreground py-2">Nessun dato aggiuntivo trovato. Prova ad aggiungere sito web o P.IVA al contatto e rilancia.</p>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Visura camerale openapi (bilancio, soci, PEC, ATECO…) */}
+      <Dialog open={visuraOpen} onOpenChange={setVisuraOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="h-4 w-4 text-slate-600" /> Visura camerale</DialogTitle>
+            <DialogDescription className="text-xs">Dati ufficiali dal registro imprese (openapi.it). I campi vuoti del contatto sono stati compilati.</DialogDescription>
+          </DialogHeader>
+          {visuraResult && (visuraResult.ok && visuraResult.fields ? (() => {
+            const f = visuraResult.fields as Record<string, unknown>;
+            const LABELS: Record<string, string> = {
+              ragione_sociale: "Ragione sociale", forma_giuridica: "Forma giuridica", stato_attivita: "Stato attività",
+              data_costituzione: "Costituita il", capitale_sociale: "Capitale sociale", rea: "REA", codice_fiscale: "Codice fiscale",
+              sdi: "Codice SDI", pec: "PEC", ateco: "ATECO", ateco_desc: "Attività (ATECO)", indirizzo: "Indirizzo",
+              comune: "Comune", provincia: "Provincia", cap: "CAP", dipendenti: "Dipendenti", fatturato: "Fatturato",
+              utile: "Utile", anno_bilancio: "Anno bilancio",
+            };
+            const money = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+            const rowV = (label: string, value: React.ReactNode) => (
+              <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
+                <span className="font-medium break-all">{value}</span>
+              </div>
+            );
+            const rows = Object.entries(LABELS).filter(([k]) => f[k] != null && String(f[k]).trim() !== "").map(([k]) => {
+              let val: React.ReactNode = String(f[k]);
+              if ((k === "capitale_sociale" || k === "fatturato" || k === "utile") && typeof f[k] === "number") val = money(f[k] as number);
+              if (k === "pec") val = <a href={`mailto:${f[k]}`} className="text-primary underline">{String(f[k])}</a>;
+              return <div key={k}>{rowV(LABELS[k], val)}</div>;
+            });
+            const soci = Array.isArray(f.soci) ? f.soci as Array<{ nome?: string; ruolo?: string }> : [];
+            const amm = Array.isArray(f.amministratori) ? f.amministratori as Array<{ nome?: string; ruolo?: string }> : [];
+            return (
+              <div className="space-y-1">
+                {visuraResult.contact_updated && visuraResult.contact_updated.length > 0 && (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800 mb-2">
+                    ✓ Compilati sul contatto: <b>{visuraResult.contact_updated.join(", ")}</b>
+                  </div>
+                )}
+                {rows}
+                {amm.length > 0 && rowV("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                {soci.length > 0 && rowV("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
+                {rows.length === 0 && amm.length === 0 && soci.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">Nessun campo restituito da openapi per questa P.IVA.</p>
+                )}
+              </div>
+            );
+          })() : (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              ⚠️ Visura non disponibile — {visuraResult.error}
+              {/Wrong Token|non configurato|401/i.test(visuraResult.error || "") && (
+                <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, bilancio e PEC.</>
+              )}
+            </div>
+          ))}
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

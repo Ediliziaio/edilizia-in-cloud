@@ -1250,6 +1250,65 @@ Deno.serve(async (req) => {
       drawWatermark(page);
     }
 
+    // ─── Pagina finale "Anteprima render AI" (ponte render→preventivo) ───
+    // Se il preventivo è nato dal wizard render (quotes.render_url), il PDF
+    // chiude con l'immagine fotorealistica + disclaimer. Best-effort: qualunque
+    // errore (fetch, formato webp non incorporabile da pdf-lib) salta la pagina
+    // senza far fallire la generazione.
+    if (quote.render_url && typeof quote.render_url === "string") {
+      try {
+        const imgResp = await fetch(quote.render_url, { signal: AbortSignal.timeout(15_000) });
+        if (imgResp.ok) {
+          const imgBytes = new Uint8Array(await imgResp.arrayBuffer());
+          let renderImg: { width: number; height: number } | null = null;
+          if (imgBytes[0] === 0x89 && imgBytes[1] === 0x50) {
+            renderImg = await pdfDoc.embedPng(imgBytes);
+          } else if (imgBytes[0] === 0xff && imgBytes[1] === 0xd8) {
+            renderImg = await pdfDoc.embedJpg(imgBytes);
+          } else {
+            console.warn("[generate-quote-pdf] render_url in formato non PNG/JPEG (webp?): pagina render saltata");
+          }
+          if (renderImg) {
+            const rp = pdfDoc.addPage([pageWidth, pageHeight]);
+            rp.drawText("ANTEPRIMA RENDER AI", {
+              x: margin, y: pageHeight - margin - 18, size: 16, font: fontBold, color: primaryC,
+            });
+            rp.drawText("Visualizzazione fotorealistica dell'intervento proposto", {
+              x: margin, y: pageHeight - margin - 34, size: 9.5, font, color: grayC,
+            });
+            const imgTop = pageHeight - margin - 52;
+            const imgBottom = margin + 58; // riserva per il disclaimer
+            const maxW = contentWidth;
+            const maxH = imgTop - imgBottom;
+            const ratio = Math.min(maxW / renderImg.width, maxH / renderImg.height);
+            const w = renderImg.width * ratio;
+            const h = renderImg.height * ratio;
+            // deno-lint-ignore no-explicit-any
+            rp.drawImage(renderImg as any, {
+              x: margin + (maxW - w) / 2,
+              y: imgTop - h,
+              width: w,
+              height: h,
+            });
+            const disclaimer =
+              "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. " +
+              "L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi " +
+              "tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
+            let dy = margin + 40;
+            for (const line of wrapText(disclaimer, 110).slice(0, 4)) {
+              rp.drawText(line, { x: margin, y: dy, size: 7.5, font: fontItalic, color: grayC });
+              dy -= 10;
+            }
+            drawWatermark(rp);
+          }
+        } else {
+          console.warn(`[generate-quote-pdf] fetch render_url fallito (${imgResp.status}): pagina render saltata`);
+        }
+      } catch (e) {
+        console.warn("[generate-quote-pdf] pagina render saltata:", e);
+      }
+    }
+
     // ─── Merge attached PDFs (skip in preview mode) ───
     if (!isPreview) {
       for (const att of attachmentRows) {

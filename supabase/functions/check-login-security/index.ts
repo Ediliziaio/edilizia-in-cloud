@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     // Find user by email
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id, company_id, failed_login_count, locked_until")
+      .select("id, company_id, first_name, failed_login_count, locked_until")
       .eq("email", email)
       .maybeSingle();
 
@@ -129,6 +129,24 @@ Deno.serve(async (req) => {
           success: false,
           failure_reason: "account_auto_locked",
         }]);
+
+        // Email "account bloccato" al titolare (best-effort, dedup per lock)
+        try {
+          const { sendSystemEmail } = await import("../_shared/systemEmail.ts");
+          await sendSystemEmail(supabaseAdmin, {
+            templateName: "account_locked",
+            companyId: profile.company_id ?? null,
+            to: email,
+            userId: profile.id,
+            dedupeKey: `lock:${profile.id}:${lockUntil}`,
+            props: {
+              recipientName: (profile as { first_name?: string }).first_name || email.split("@")[0],
+              ctaUrl: "https://app.ediliziaincloud.com/login",
+            },
+          });
+        } catch (mailErr) {
+          console.warn("[check-login-security] email account_locked fallita:", (mailErr as Error)?.message);
+        }
 
         return new Response(
           JSON.stringify({ allowed: false, reason: "account_locked", locked_until: lockUntil }),

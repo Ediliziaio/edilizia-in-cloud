@@ -168,23 +168,32 @@ export function UnifiedContactTimeline({
     refetchIntervalInBackground: false,
   });
 
-  // Email IN ARRIVO (risposte del contatto) → email_inbox, agganciata per indirizzo.
+  // Email IN ARRIVO (risposte del contatto) → email_inbox, agganciata per
+  // indirizzo mittente OPPURE via matched_contact_id (reply GHL-style: l'edge
+  // email-inbound-reply valorizza matched_contact_id dalla route, così la
+  // risposta compare qui anche se il contatto scrive da un alias diverso o
+  // non ha un'email in anagrafica).
   const emailLower = (contactEmail ?? "").trim().toLowerCase();
   const { data: emailInbox = [], isError: errEmailIn } = useQuery({
-    queryKey: ["unified_email_inbox", companyId, emailLower],
+    queryKey: ["unified_email_inbox", companyId, contactId, emailLower],
     queryFn: async () => {
+      const orParts = [`matched_contact_id.eq.${contactId}`];
+      // ilike solo se c'è un'email valida (senza virgole che romperebbero l'or).
+      if (emailLower.includes("@") && !emailLower.includes(",")) {
+        orParts.push(`from_email.ilike.${emailLower}`);
+      }
       const { data, error } = await supabase
         .from("email_inbox")
         .select("id, subject, raw_text, raw_html, from_email, received_at")
         .eq("company_id", companyId)
-        .ilike("from_email", emailLower)
+        .or(orParts.join(","))
         .neq("is_personale", true)
         .order("received_at", { ascending: false })
         .limit(100);
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!companyId && emailLower.includes("@"),
+    enabled: !!companyId && !!contactId,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });

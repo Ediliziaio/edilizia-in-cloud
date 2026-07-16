@@ -229,6 +229,9 @@ export async function renderEmailTemplate(params: {
 
   if (source) {
     const placeholderData: Record<string, unknown> = {
+      // supportEmail dal branding come base: i props del caller possono sovrascriverlo.
+      // Senza questo {{platform.support_email}} resta in chiaro (nessun caller lo passa).
+      supportEmail: branding.replyTo,
       ...(params.props as unknown as Record<string, unknown>),
       companyName: branding.companyName,
     };

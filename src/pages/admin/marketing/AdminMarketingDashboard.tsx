@@ -10,6 +10,7 @@ import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPo
 import { OutreachWarmupDashboard } from "@/components/admin/outreach/OutreachWarmupDashboard";
 import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetupChecklist";
 import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
+import { OutreachDeliverabilityScore } from "@/components/admin/outreach/OutreachDeliverabilityScore";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
@@ -22,7 +23,6 @@ import { OutreachCallTasks } from "@/components/admin/outreach/OutreachCallTasks
 import { OutreachRubricaCard } from "@/components/admin/outreach/OutreachRubricaCard";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
-import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
 import { OutreachPipelineAnalytics } from "@/components/admin/outreach/OutreachPipelineAnalytics";
 import { OutreachStatsDashboard } from "@/components/admin/outreach/OutreachStatsDashboard";
 import { OutreachConvertContactDialog } from "@/components/admin/outreach/OutreachConvertContactDialog";
@@ -30,7 +30,6 @@ import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOv
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Reveal } from "@/components/admin/Reveal";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
@@ -80,29 +79,6 @@ function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Ma
   );
 }
 
-function ComplianceCard() {
-  const items = [
-    "Blocklist email attiva: bounce e lamentele rimuovono il contatto in automatico.",
-    "Ogni arruolamento salta opt-out, contatti soppressi e chi è già in cadenza.",
-    "Gestisci e aggiungi soppressioni nella scheda Deliverability.",
-  ];
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldCheck className="h-5 w-5 text-emerald-500" /> Conformità & opt-out
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-1.5 text-sm text-muted-foreground">
-          {items.map((p) => (
-            <li key={p} className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />{p}</li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
 
 function OutreachCockpit() {
   const { companyId } = useAdminMarketing();
@@ -170,7 +146,17 @@ function OutreachCockpit() {
               <SectionLabel>Motore &amp; performance</SectionLabel>
               <OutreachQueueStatus companyId={companyId} />
               <OutreachPilotPulse companyId={companyId} />
-              <OutreachAnalytics companyId={companyId} />
+              {/* Il funnel completo (aperture/clic/risposte + trend) vive nella
+                  tab Statistiche: qui basta il polso del motore (coda + pilota). */}
+              <button
+                type="button"
+                onClick={() => setTab("statistiche")}
+                className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Funnel completo, aperture, clic e risposte
+                <span className="ml-auto font-medium text-primary">Statistiche →</span>
+              </button>
             </Reveal>
 
             <Reveal className="space-y-3" delay={0.06}>
@@ -244,9 +230,8 @@ function OutreachCockpit() {
           </div>
 
           <Reveal className="space-y-3" delay={0.12}>
-            <SectionLabel>Strumenti &amp; conformità</SectionLabel>
+            <SectionLabel>Strumenti</SectionLabel>
             <OutreachMessagePlayground companyId={companyId} />
-            <ComplianceCard />
           </Reveal>
         </TabsContent>
 
@@ -283,6 +268,9 @@ function OutreachCockpit() {
             "da chi parto?" (identità), "quanto posso spingere?" (warm-up e
             finestre), "chi non devo contattare?" (blocklist). */}
         <TabsContent value="deliverability" className="mt-4 space-y-6">
+          <Reveal>
+            <OutreachDeliverabilityScore companyId={companyId} />
+          </Reveal>
           <Reveal className="space-y-3">
             <SectionLabel>Identità di invio — brand, domini e caselle</SectionLabel>
             <OutreachBrands companyId={companyId} />

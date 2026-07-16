@@ -137,6 +137,37 @@ Deno.serve(async (req) => {
       details: { email: invite.email, had_existing_account: hadExistingAccount },
     });
 
+    // 7. Notifica a chi ha invitato: "X è entrato" (best-effort, dedup su invito)
+    try {
+      if (invite.invited_by) {
+        const { data: inviterProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("id, first_name")
+          .eq("id", invite.invited_by)
+          .maybeSingle();
+        const { data: inviterAuth } = await supabaseAdmin.auth.admin.getUserById(invite.invited_by);
+        const inviterEmail = inviterAuth?.user?.email;
+        if (inviterEmail) {
+          const { sendSystemEmail } = await import("../_shared/systemEmail.ts");
+          await sendSystemEmail(supabaseAdmin, {
+            templateName: "invite_accepted_admin",
+            companyId: null,
+            to: inviterEmail,
+            userId: invite.invited_by,
+            dedupeKey: `invacc:${invite.id}`,
+            props: {
+              userFirstName: inviterProfile?.first_name || inviterEmail.split("@")[0],
+              userFullName: invite.email,
+              userRoleLabel: "Amministratore piattaforma",
+              ctaUrl: "https://app.ediliziaincloud.com/admin",
+            },
+          });
+        }
+      }
+    } catch (mailErr) {
+      console.warn("[accept-admin-invite] email invite_accepted_admin fallita:", (mailErr as Error)?.message);
+    }
+
     return new Response(
       JSON.stringify({ ok: true, had_existing_account: hadExistingAccount }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }

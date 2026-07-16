@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 // Alert operativo quando un'integrazione si rompe (email best-effort).
@@ -178,15 +179,18 @@ Deno.serve(async (req) => {
 });
 
 /**
- * Iscrive al webhook leadgen le pagine selezionate che non risultano già
- * iscritte (integration_webhook_subscriptions status=active). Al momento
- * dell'iscrizione recupera anche i lead recenti persi.
+ * Iscrive al webhook leadgen le pagine selezionate che non risultano iscritte
+ * SU META (GET /{page}/subscribed_apps). La riga locale in
+ * integration_webhook_subscriptions non fa fede: può dire "active" anche
+ * quando su Meta l'iscrizione non esiste (POST fallito/rollback lato Meta)
+ * — e in quel caso i lead arrivano solo col backfill manuale.
+ * Al momento dell'iscrizione recupera anche i lead recenti persi.
  */
 async function ensureLeadgenSubscriptions(
   admin: any,
   integ: { id: string; company_id: string },
-): Promise<Array<{ integration_id: string; page_id: string; backfilled: number }>> {
-  const out: Array<{ integration_id: string; page_id: string; backfilled: number }> = [];
+): Promise<Array<{ integration_id: string; page_id: string; backfilled: number; verified?: boolean }>> {
+  const out: Array<{ integration_id: string; page_id: string; backfilled: number; verified?: boolean }> = [];
 
   const { data: pages } = await admin
     .from("meta_assets")
@@ -205,18 +209,10 @@ async function ensureLeadgenSubscriptions(
   const pageTokens = (creds?.meta_page_tokens ?? {}) as Record<string, string>;
   if (Object.keys(pageTokens).length === 0) return out;
 
-  const { data: subs } = await admin
-    .from("integration_webhook_subscriptions")
-    .select("page_id, status")
-    .eq("integration_id", integ.id);
-  const activeSubs = new Set(
-    (subs ?? []).filter((s: any) => s.status === "active" && s.page_id).map((s: any) => s.page_id),
-  );
-
+  const { metaAppId } = await getMetaCredentials();
   const encKey = getEncryptionKey();
 
   for (const page of pages) {
-    if (activeSubs.has(page.asset_id)) continue;
     const encTok = pageTokens[page.asset_id];
     if (!encTok) continue;
 
@@ -225,6 +221,50 @@ async function ensureLeadgenSubscriptions(
       pageToken = await decrypt(encTok, encKey);
     } catch {
       console.warn(`meta-health-check: token pagina ${page.asset_id} non decifrabile`);
+      continue;
+    }
+
+    // Verità di Meta: la nostra app è iscritta a leadgen su questa pagina?
+    let subscribedOnMeta = false;
+    let checkDebug: unknown = null;
+    try {
+      // fields esplicito: senza, Graph non include subscribed_fields nella risposta
+      const checkRes = await fetch(
+        `https://graph.facebook.com/${apiVersion}/${page.asset_id}/subscribed_apps?fields=id,subscribed_fields&access_token=${pageToken}`,
+      );
+      const checkData = await checkRes.json();
+      // Solo il messaggio d'errore nel report: il caso tipico è il token senza
+      // pages_manage_metadata (riconnessione Meta necessaria per lo scope).
+      checkDebug = checkData.error ? { error: checkData.error.message } : null;
+      if (checkData.error) {
+        console.warn(`meta-health-check: verifica subscribed_apps ${page.asset_id} fallita:`, checkData.error.message);
+      } else {
+        subscribedOnMeta = (checkData.data ?? []).some(
+          (app: { id?: string; subscribed_fields?: string[] }) =>
+            (!metaAppId || String(app.id) === String(metaAppId)) &&
+            (app.subscribed_fields ?? []).includes("leadgen"),
+        );
+      }
+    } catch (e) {
+      console.warn(`meta-health-check: verifica subscribed_apps ${page.asset_id} errore rete:`, e);
+      checkDebug = String(e);
+    }
+
+    if (subscribedOnMeta) {
+      // Allinea la riga locale (può mancare se l'iscrizione è nata fuori app).
+      await admin.from("integration_webhook_subscriptions").upsert(
+        {
+          company_id: integ.company_id,
+          integration_id: integ.id,
+          provider: "meta",
+          page_id: page.asset_id,
+          subscribed_fields: ["leadgen"],
+          status: "active",
+          subscribed_at: new Date().toISOString(),
+        },
+        { onConflict: "integration_id,page_id" },
+      );
+      out.push({ integration_id: integ.id, page_id: page.asset_id, backfilled: 0, verified: true });
       continue;
     }
 
@@ -264,7 +304,7 @@ async function ensureLeadgenSubscriptions(
     // Lead persi mentre mancava l'iscrizione: rimettili in coda (upsert
     // idempotente su event_id, formato canonico con form/page espliciti).
     const backfilled = await backfillPageLeads(admin, integ, page, pageToken, 3);
-    out.push({ integration_id: integ.id, page_id: page.asset_id, backfilled });
+    out.push({ integration_id: integ.id, page_id: page.asset_id, backfilled, check: checkDebug } as never);
   }
   return out;
 }

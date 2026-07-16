@@ -134,6 +134,7 @@ import {
   Wallet,
   Percent,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -392,6 +393,11 @@ export default function QuoteBuilder() {
 
   // Step 2: Documents + PDF settings
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  // Ponte render→preventivo: arriva da `?render_url=…` (wizard render) o dal
+  // preventivo esistente. Se presente, il PDF esce con la pagina finale
+  // "Anteprima render AI".
+  const [renderUrl, setRenderUrl] = useState<string | null>(null);
+  const [renderSessionId, setRenderSessionId] = useState<string | null>(null);
   const [pdfPrezziRiga, setPdfPrezziRiga] = useState(true);
   const [pdfSoloTotale, setPdfSoloTotale] = useState(false);
   const [pdfSconti, setPdfSconti] = useState(false);
@@ -655,6 +661,10 @@ export default function QuoteBuilder() {
     if (q.pdf_mostra_condizioni != null) setPdfCondizioni(q.pdf_mostra_condizioni as boolean);
     if (typeof q.pdf_watermark_text === "string") setPdfWatermarkText(q.pdf_watermark_text);
     if (typeof q.pdf_copia_destinatario === "string") setPdfCopiaDestinatario(q.pdf_copia_destinatario);
+    if (typeof q.render_url === "string" && q.render_url) {
+      setRenderUrl(q.render_url);
+      setRenderSessionId((q.render_session_id as string | null) ?? null);
+    }
 
     // Hydrate finanziamento se presente
     if (q.financing_table_id && q.financing_num_installments && q.financing_monthly_rate != null) {
@@ -763,6 +773,18 @@ export default function QuoteBuilder() {
     // è definita dopo l'effect (hoisting function → stabile per render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contacts, isEdit, searchParams]);
+
+  // Ponte render→preventivo: solo alla creazione (in edit si idrata dal DB).
+  useEffect(() => {
+    if (isEdit) return;
+    const url = searchParams.get("render_url");
+    if (url) {
+      setRenderUrl(url);
+      setRenderSessionId(searchParams.get("render_session_id"));
+    }
+    // Intenzionale: run-once al mount, come il prefill contatto sopra.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Contact selection
   const handleContactSelect = (cId: string) => {
@@ -1560,6 +1582,8 @@ export default function QuoteBuilder() {
         // Preventivi V2
         salesperson_id: salespersonId,
         sede_id: sedeId,
+        render_url: renderUrl,
+        render_session_id: renderSessionId,
         margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
@@ -2987,6 +3011,46 @@ export default function QuoteBuilder() {
               )}
             </CardContent>
           </Card>
+
+          {renderUrl && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Render AI allegato
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start gap-4">
+                  <img
+                    src={renderUrl}
+                    alt="Anteprima render AI allegato al preventivo"
+                    loading="lazy"
+                    className="w-40 h-28 object-cover rounded-lg border shrink-0"
+                  />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Il PDF del preventivo includerà una pagina finale
+                      "Anteprima render AI" con questa immagine e il
+                      disclaimer di legge.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRenderUrl(null);
+                        setRenderSessionId(null);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Rimuovi dal preventivo
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

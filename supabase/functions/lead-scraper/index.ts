@@ -147,9 +147,36 @@ function cleanPhone(raw: string): string {
   return raw.replace(/[^\d+]/g, "");
 }
 
+/**
+ * Normalizza un numero italiano in E.164 (+39…) e lo classifica.
+ * Ritorna null se non è un telefono plausibile (scarta P.IVA/CAP/anni, ecc.).
+ * mobile = +39 3xx (cellulare, possibile WhatsApp); landline = fisso.
+ */
+function classifyItPhone(raw: string): { e164: string; type: "mobile" | "landline"; whatsapp: boolean } | null {
+  let d = raw.replace(/[^\d]/g, "");
+  // Togli il prefisso internazionale 39 SOLO quando è davvero il country code:
+  //  - 0039… → nazionale
+  //  - 39 + numero che inizia per 0 (fisso) → è +39 su un fisso
+  //  - 39 + numero 3xx di 9-10 cifre → è +39 su un cellulare
+  // Così "+390150530" NON viene scambiato per un cellulare 39x.
+  if (d.startsWith("0039")) d = d.slice(4);
+  else if (d.startsWith("39")) {
+    const rest = d.slice(2);
+    if (rest.startsWith("0")) d = rest;
+    else if (rest.startsWith("3") && (rest.length === 9 || rest.length === 10)) d = rest;
+  }
+  // Cellulare: 3xx + numero = 9-10 cifre totali, prefisso 3
+  if (/^3\d{8,9}$/.test(d)) return { e164: `+39${d}`, type: "mobile", whatsapp: true };
+  // Fisso: 0 + prefisso + locale = 9-10 cifre totali. Sotto le 9 è un frammento
+  // (es. "0150530"), a 11 sarebbe la P.IVA: entrambi scartati.
+  if (/^0\d{8,9}$/.test(d)) return { e164: `+39${d}`, type: "landline", whatsapp: false };
+  return null; // scarta frammenti, P.IVA, CAP, sequenze non plausibili
+}
+
 interface DeepEnrich {
   emails: string[];
   phones: string[];
+  phones_classified: Array<{ e164: string; type: "mobile" | "landline"; whatsapp: boolean }>;
   partita_iva: string | null;
   linkedin_url: string | null;
   facebook_url: string | null;
@@ -216,14 +243,8 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
     return score(b) - score(a);
   });
 
-  // telefoni
-  const phones = new Set<string>();
-  for (const m of combined.matchAll(PHONE_RE)) {
-    const p = cleanPhone(m[0]);
-    if (p.replace(/^\+39/, "").length >= 6) phones.add(p);
-  }
-
   // P.IVA — prima con label, poi fallback se ne esiste una sola sulla pagina
+  // (calcolata PRIMA dei telefoni così possiamo escluderla dai numeri).
   let piva: string | null = null;
   const labelled = combined.match(PIVA_LABEL_RE);
   if (labelled) piva = labelled[1];
@@ -232,6 +253,18 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
     for (const m of combined.matchAll(PIVA_ANY_RE)) all.add(m[1]);
     if (all.size === 1) piva = [...all][0];
   }
+
+  // telefoni: normalizza in E.164, classifica fisso/cellulare, scarta P.IVA e
+  // numeri non plausibili, dedup per numero normalizzato (mobile prima).
+  const phonesMap = new Map<string, { e164: string; type: "mobile" | "landline"; whatsapp: boolean }>();
+  for (const m of combined.matchAll(PHONE_RE)) {
+    const digits = cleanPhone(m[0]).replace(/^\+/, "");
+    if (piva && digits.replace(/^0039|^39/, "") === piva) continue; // è la P.IVA, non un telefono
+    const c = classifyItPhone(m[0]);
+    if (c && !phonesMap.has(c.e164)) phonesMap.set(c.e164, c);
+  }
+  const phonesClassified = [...phonesMap.values()].sort((a, b) => Number(b.whatsapp) - Number(a.whatsapp));
+  const phones = phonesClassified.map((p) => p.e164);
 
   // social
   const fb = combined.match(SOCIAL_RE.facebook)?.[0] || null;
@@ -261,7 +294,8 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
 
   return {
     emails: emailList,
-    phones: [...phones],
+    phones,
+    phones_classified: phonesClassified,
     partita_iva: piva,
     linkedin_url: li,
     facebook_url: fb,
@@ -527,6 +561,76 @@ async function companyDetail(idOrPiva: string, token: string, base = "company.op
   } catch { return null; }
 }
 
+/**
+ * Visura camerale (openapi.it IT-advanced): estrazione RICCA di tutti i campi
+ * utili del dettaglio impresa. A differenza di fetchFirmografici (solo 8 campi),
+ * qui restituiamo l'anagrafica completa + registro + bilancio + soci/amministratori.
+ * In caso di errore ritorna { error, status } così l'UI spiega il perché
+ * (crediti finiti, prodotto non attivo sul piano openapi, P.IVA non trovata…).
+ */
+async function fetchVisura(piva: string, token: string, base = "company.openapi.com"): Promise<
+  { ok: true; rec: any; fields: Record<string, unknown> } | { ok: false; status: number; error: string }
+> {
+  const num = piva.replace(/\D/g, "");
+  if (num.length !== 11) return { ok: false, status: 0, error: "P.IVA non valida (servono 11 cifre)." };
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`https://${base}/IT-advanced/${num}`, {
+      timeoutMs: 12000,
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch (e) {
+    return { ok: false, status: 0, error: `Rete openapi.it: ${(e as Error).message}` };
+  }
+  const bodyText = await res.text().catch(() => "");
+  let body: any = null;
+  try { body = JSON.parse(bodyText); } catch { /* non-JSON */ }
+  if (!res.ok) {
+    const msg = body?.message || body?.error || bodyText.slice(0, 200) || `HTTP ${res.status}`;
+    return { ok: false, status: res.status, error: String(msg) };
+  }
+  const rec = Array.isArray(body?.data) ? (body.data[0] || null) : (body?.data || body);
+  if (!rec) return { ok: false, status: res.status, error: "openapi.it non ha restituito dati per questa P.IVA." };
+
+  const num0 = (v: unknown): number | undefined => {
+    const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const addr = rec.address?.registeredOffice || rec.registeredOffice || rec.address || {};
+  const balance = rec.balanceSheets?.[0] || rec.lastBalanceSheet || {};
+  const atecoObj = rec.atecoClassification?.ateco || rec.ateco || {};
+  const people = (arr: any): Array<{ nome?: string; ruolo?: string }> =>
+    Array.isArray(arr) ? arr.slice(0, 12).map((x: any) => ({
+      nome: x?.name || [x?.firstName, x?.lastName].filter(Boolean).join(" ") || x?.companyName || undefined,
+      ruolo: x?.role || x?.charge || x?.position || undefined,
+    })).filter((p) => p.nome) : [];
+
+  const fields: Record<string, unknown> = {
+    ragione_sociale: rec.companyName || rec.denomination || undefined,
+    forma_giuridica: rec.detailedLegalForm?.description || rec.legalForm?.description || rec.legalForm || undefined,
+    stato_attivita: rec.activityStatus || rec.status || rec.companyStatus || undefined,
+    data_costituzione: rec.startDate || rec.registrationDate || rec.creationDate || undefined,
+    capitale_sociale: num0(rec.shareCapital?.amount ?? rec.shareCapital ?? rec.capital),
+    rea: rec.rea?.number || rec.reaNumber || rec.rea || undefined,
+    codice_fiscale: rec.taxCode || rec.fiscalCode || undefined,
+    sdi: rec.sdiCode || rec.recipientCode || undefined,
+    pec: (rec.pec || rec.pecEmail || rec.contacts?.pec) ? String(rec.pec || rec.pecEmail || rec.contacts?.pec).toLowerCase() : undefined,
+    ateco: atecoObj?.code || rec.atecoCode || undefined,
+    ateco_desc: atecoObj?.description || rec.atecoDescription || undefined,
+    indirizzo: [addr.streetName || addr.address, addr.streetNumber].filter(Boolean).join(" ") || undefined,
+    comune: addr.town || addr.city || addr.municipality || undefined,
+    provincia: addr.province || addr.provinceCode || undefined,
+    cap: addr.zipCode || addr.postalCode || addr.cap || undefined,
+    dipendenti: num0(rec.employees ?? balance.employees),
+    fatturato: num0(balance.turnover ?? balance.revenue ?? rec.turnover),
+    utile: num0(balance.netIncome ?? balance.profit),
+    anno_bilancio: num0(balance.year),
+    soci: people(rec.shareholders || rec.members),
+    amministratori: people(rec.administrators || rec.managers || rec.directors),
+  };
+  return { ok: true, rec, fields };
+}
+
 // ── LinkedIn full profile via Proxycurl — gated ───────────────────────────────
 async function proxycurlProfile(linkedinUrl: string, key: string): Promise<{ name?: string; role?: string; email?: string } | null> {
   try {
@@ -693,6 +797,151 @@ interface GPlace {
   formatted_address?: string;
   rating?: number;
   user_ratings_total?: number;
+}
+
+// ── OpenStreetMap / Overpass — fonte GRATUITA senza chiave ────────────────────
+// Nominatim geolocalizza città/regione → Overpass estrae le imprese con nome,
+// telefono, sito, EMAIL (tag contact:email/email), indirizzo, categoria.
+// v2: ricerca area-wide (regione/provincia intera via Overpass area, non solo
+// bbox città), targeting per mestiere, multi-città ("Milano, Monza, Como").
+interface OsmBiz { name: string; phone: string | null; website: string | null; email: string | null; address: string | null; city: string | null; category: string | null; lat?: number; lng?: number; }
+
+/** keyword italiana → filtri tag OSM mirati. Ritorna [] se il mestiere non è
+ *  riconosciuto (in quel caso si usa il set edile completo). */
+function osmTagsForKeyword(kw: string): string[] {
+  const k = kw.toLowerCase();
+  const t: string[] = [];
+  if (/idraul|termoidraul/.test(k)) t.push('"craft"="plumber"', '"craft"="hvac"');
+  if (/elettricist/.test(k)) t.push('"craft"="electrician"');
+  if (/serrament|infiss|finestre|vetr/.test(k)) t.push('"craft"~"window_construction|glaziery"', '"shop"="window_blind"');
+  if (/falegnam|carpent/.test(k)) t.push('"craft"~"carpenter|joiner"');
+  if (/imbianch|pittur|decorat/.test(k)) t.push('"craft"="painter"');
+  if (/tett|copertur|lattoner/.test(k)) t.push('"craft"~"roofer|tinsmith"');
+  if (/piastrell|pavim/.test(k)) t.push('"craft"~"tiler|flooring"');
+  if (/giardin|verde|paesagg/.test(k)) t.push('"craft"="gardener"', '"shop"="garden_centre"');
+  if (/architett/.test(k)) t.push('"office"="architect"');
+  if (/geometr|ingegn|studio tecnic/.test(k)) t.push('"office"~"engineer|surveyor"');
+  if (/impresa|costruz|edil|ristruttur|general contractor/.test(k)) {
+    t.push('"craft"="builder"', '"office"="construction_company"', '"industrial"="construction"');
+  }
+  if (/ferrament|material.*edil|rivendit/.test(k)) t.push('"shop"~"trade|doityourself|hardware"');
+  if (/scav|movimento terra|demoliz/.test(k)) t.push('"craft"~"builder"', '"industrial"="construction"');
+  if (/ponteggi/.test(k)) t.push('"craft"="scaffolder"');
+  if (/cartongess|controsoffitt/.test(k)) t.push('"craft"="plasterer"');
+  return [...new Set(t)];
+}
+const OSM_BROAD_TAGS = [
+  '"craft"~"builder|carpenter|electrician|plumber|painter|roofer|hvac|stonemason|scaffolder|tiler|plasterer|glaziery|window_construction"',
+  '"office"~"architect|engineer|construction_company|surveyor"',
+  '"shop"~"trade|doityourself|hardware"',
+  '"industrial"="construction"',
+];
+
+async function osmSearch(keyword: string, city: string, region: string, max: number): Promise<OsmBiz[]> {
+  const UA = "EiC-LeadBot/1.0 (edilizia in cloud lead scraper)";
+  const targeted = osmTagsForKeyword(keyword);
+  const tags = targeted.length ? targeted : OSM_BROAD_TAGS;
+
+  // Zone: multi-città separate da virgola; senza città → regione/provincia INTERA.
+  const zones = city
+    ? city.split(",").map((c) => c.trim()).filter(Boolean)
+    : [region.trim()].filter(Boolean);
+  if (zones.length === 0) return [];
+
+  const out: OsmBiz[] = [];
+  const seen = new Set<string>();
+
+  for (const zone of zones.slice(0, 5)) { // max 5 zone per ricerca
+    // 1) Nominatim: risolvi la zona. Preferisci il risultato amministrativo →
+    //    area Overpass (copre TUTTO il comune/provincia/regione, non solo il bbox).
+    const q = encodeURIComponent([zone, city ? region : "", "Italia"].filter(Boolean).join(", "));
+    const geoRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=3`, {
+      timeoutMs: 10000, headers: { "User-Agent": UA, Accept: "application/json" },
+    });
+    const geo = await geoRes.json().catch(() => []);
+    const relation = (Array.isArray(geo) ? geo : []).find((g: any) => g.osm_type === "relation");
+    const place = relation || (Array.isArray(geo) ? geo[0] : null);
+    if (!place) continue;
+
+    // 2) query Overpass: area amministrativa se disponibile, altrimenti bbox
+    let spatial: string;
+    let header = "";
+    if (place.osm_type === "relation" && place.osm_id) {
+      const areaId = 3600000000 + Number(place.osm_id); // relazione → area id
+      header = `area(${areaId})->.z;`;
+      spatial = "(area.z)";
+    } else {
+      const [south, north, west, east] = place.boundingbox.map(Number);
+      spatial = `(${south},${west},${north},${east})`;
+    }
+    // Aree amministrative grandi (provincia/regione): una query con tutti i tag
+    // insieme manda in timeout l'endpoint pubblico → spezza per gruppo di tag e
+    // prova più mirror in fallback.
+    const MIRRORS = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
+      "https://overpass.private.coffee/api/interpreter",
+    ];
+    const runOverpass = async (ql: string): Promise<any[]> => {
+      let lastErr = "";
+      for (const url of MIRRORS) {
+        try {
+          const res = await fetchWithTimeout(url, {
+            timeoutMs: 40000, method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
+            body: `data=${encodeURIComponent(ql)}`,
+          });
+          if (!res.ok) { lastErr = `Overpass ${res.status}`; continue; }
+          const d = await res.json().catch(() => null);
+          if (d?.elements) return d.elements;
+          lastErr = "risposta non valida";
+        } catch (e) { lastErr = (e as Error).message; }
+      }
+      throw new Error(lastErr || "tutti i mirror Overpass hanno fallito");
+    };
+
+    const isArea = !!header;
+    const groups = isArea ? tags.map((t) => [t]) : [tags]; // area → una query per tag
+    const elements: any[] = [];
+    for (const group of groups) {
+      const body = group.map((f) => `nwr[${f}]${spatial};`).join("");
+      const ql = `[out:json][timeout:30];${header}(${body});out center ${Math.min(400, max * 4)};`;
+      try {
+        elements.push(...await runOverpass(ql));
+      } catch (e) {
+        // un gruppo fallito non azzera la ricerca: continua con gli altri
+        console.warn(`[osm] gruppo tag fallito (${group[0].slice(0, 40)}…):`, (e as Error).message);
+      }
+      if (elements.length >= max * 4) break;
+    }
+    if (elements.length === 0 && groups.length > 0) throw new Error("Overpass timeout/nessun mirror disponibile — riprova tra poco o restringi l'area");
+
+    for (const el of elements) {
+      const t = el.tags || {};
+      const name = t.name || t["operator"] || null;
+      if (!name) continue;
+      const nk = String(name).trim().toLowerCase();
+      if (seen.has(nk)) continue;
+      seen.add(nk);
+      const addr = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ") || null;
+      const rawEmail = t["contact:email"] || t["email"] || null;
+      const email = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rawEmail)) ? String(rawEmail).toLowerCase() : null;
+      out.push({
+        name: String(name),
+        phone: t["contact:phone"] || t["phone"] || null,
+        website: t["contact:website"] || t["website"] || null,
+        email,
+        address: addr,
+        city: t["addr:city"] || (city ? zone : null),
+        category: t["craft"] || t["office"] || t["shop"] || t["industrial"] || null,
+        lat: el.lat ?? el.center?.lat,
+        lng: el.lon ?? el.center?.lon,
+      });
+      if (out.length >= max) break;
+    }
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 async function googleTextSearch(query: string, key: string, maxResults: number): Promise<GPlace[]> {
@@ -1153,6 +1402,80 @@ Deno.serve(async (req) => {
         return jsonResponse({ searchId: searchRow.id, count: (inserted || []).length, withEmail: (inserted || []).filter((r: any) => r.email).length, withPhone: (inserted || []).filter((r: any) => r.phone).length, results: inserted || [] }, 200, corsH);
       }
 
+      // ── OSM / OpenStreetMap — fonte GRATUITA senza chiave ──────────────────
+      if (source === "osm") {
+        const keyword = String(body.keyword || "").trim();
+        const city = String(body.city || "").trim();
+        const region = String(body.region || "").trim();
+        const max = Math.max(1, Math.min(200, Number(body.maxResults) || 20));
+        const extractEmails = body.extractEmails !== false;
+        if (!keyword) return errorResponse("Parametro 'keyword' obbligatorio (es. 'impresa edile').", 400, corsH);
+        if (!city && !region) return errorResponse("Indica una città (anche più di una: 'Milano, Monza') oppure solo la regione/provincia per una ricerca area-wide.", 400, corsH);
+
+        let biz: OsmBiz[];
+        try {
+          biz = await osmSearch(keyword, city, region, max);
+        } catch (e) {
+          return errorResponse(`Ricerca OpenStreetMap fallita: ${(e as Error).message}`, 502, corsH);
+        }
+        if (biz.length === 0) {
+          return jsonResponse({ searchId: null, count: 0, withEmail: 0, withPhone: 0, results: [], note: "Nessuna impresa mappata su OpenStreetMap per questi criteri. OSM ha copertura variabile: prova un'area più ampia o un'altra fonte." }, 200, corsH);
+        }
+
+        // email: prima dai tag OSM (già pubbliche), poi best-effort dai siti
+        const emails = extractEmails
+          ? await poolMap(biz.map((b) => (b.email ? "" : b.website || "")), 5, (w) => (w ? extractEmailFromSite(w) : Promise.resolve(null)))
+          : biz.map(() => null);
+
+        const rows = biz.map((b, i) => {
+          const email = b.email || emails[i] || null;
+          const base = {
+            source: "osm",
+            business_name: b.name,
+            phone: b.phone || null,
+            website: b.website || null,
+            address: b.address || null,
+            city: b.city || city || null,
+            region: region || null,
+            country: "IT",
+            email,
+            email_status: email ? "found" : null,
+            raw: b.category ? { osm_category: b.category } : null,
+          };
+          return { ...base, dedupe_key: dedupeKey(base) };
+        });
+
+        // tag seen_before
+        const dkeys = rows.map((r) => r.dedupe_key).filter(Boolean);
+        const seenKeys = new Set<string>();
+        if (dkeys.length) {
+          const { data: prev } = await supabaseAdmin.from("lead_scraper_results").select("dedupe_key").in("dedupe_key", dkeys);
+          for (const row of prev || []) if (row.dedupe_key) seenKeys.add(row.dedupe_key);
+        }
+
+        const label = body.label || `${keyword}${city ? " · " + city : ""}${region ? " · " + region : ""} · OSM`;
+        const { data: searchRow, error: sErr } = await supabaseAdmin
+          .from("lead_scraper_searches")
+          .insert({ created_by: userId, source: "osm", label, query: { keyword, city, region, maxResults: max, extractEmails }, status: "completed", results_count: rows.length })
+          .select("id").single();
+        if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
+
+        const toInsert = rows.map((r) => ({ ...r, search_id: searchRow.id, seen_before: seenKeys.has(r.dedupe_key) }));
+        const { data: inserted, error: rErr } = await supabaseAdmin
+          .from("lead_scraper_results")
+          .upsert(toInsert, { onConflict: "search_id,dedupe_key", ignoreDuplicates: true })
+          .select("*");
+        if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
+
+        return jsonResponse({
+          searchId: searchRow.id, label,
+          count: (inserted || []).length,
+          withEmail: (inserted || []).filter((r: any) => r.email).length,
+          withPhone: (inserted || []).filter((r: any) => r.phone).length,
+          results: inserted || [],
+        }, 200, corsH);
+      }
+
       if (source !== "google_maps") {
         // Explorium gated — verifica chiave, altrimenti messaggio chiaro
         const k = await getPlatformSetting("explorium_api_key", "EXPLORIUM_API_KEY");
@@ -1611,6 +1934,75 @@ Deno.serve(async (req) => {
       return jsonResponse({ enriched, attempted: (leads || []).length }, 200, corsH);
     }
 
+    // ═══════ FIND WEBSITE (ricerca sito ufficiale dal nome, gratis) ═══════
+    // Input { business_name, city? }. Cerca su DuckDuckGo e restituisce i
+    // candidati (dominio+titolo) filtrando aggregatori/social/directory: la
+    // scelta finale resta all'operatore (pre-flight dell'arricchimento).
+    if (action === "find_website") {
+      const businessName: string | null = typeof body.business_name === "string" ? body.business_name.trim() : null;
+      const city: string | null = typeof body.city === "string" ? body.city.trim() : null;
+      if (!businessName) return errorResponse("business_name richiesto.", 400, corsH);
+
+      const BLOCKED = [
+        "duckduckgo.", "paginegialle.", "paginebianche.", "facebook.", "instagram.", "linkedin.",
+        "youtube.", "twitter.", "x.com", "tiktok.", "wikipedia.", "reportaziende.", "ufficiocamerale.",
+        "registroimprese.", "informazione-aziende.", "aziende.virgilio.", "virgilio.", "cylex", "misterimprese.",
+        "infoimprese.", "icribis.", "companyreports.", "trustpilot.", "yelp.", "glassdoor.", "indeed.",
+        "subito.it", "immobiliare.it", "amazon.", "ebay.", "trovaprezzi.", "europages.", "kompass.",
+        "mappy.", "tuttocitta.", "prontoimprese.", "guidafinestra.", "edilportale.", "wikidata.",
+      ];
+      const q = `${businessName}${city ? " " + city : ""}`;
+      // Motore di ricerca: Serper.dev (preferito) → Google CSE (gratis 100/g) →
+      // DuckDuckGo lite (best-effort, spesso rate-limitato server-side).
+      const serperKey = await getPlatformSetting("serper_api_key", "SERPER_API_KEY");
+      const cseKey = await getPlatformSetting("google_cse_api_key", "GOOGLE_CSE_API_KEY");
+      const cseCx = await getPlatformSetting("google_cse_cx", "GOOGLE_CSE_CX");
+
+      const candidates: Array<{ url: string; domain: string; title: string }> = [];
+      const seen = new Set<string>();
+      const pushCandidate = (link: string, title: string) => {
+        if (!/^https?:\/\//i.test(link)) return;
+        let host: string;
+        try { host = new URL(link).hostname.toLowerCase().replace(/^www\./, ""); } catch { return; }
+        if (BLOCKED.some((b) => host.includes(b))) return;
+        if (seen.has(host)) return;
+        seen.add(host);
+        candidates.push({ url: `https://${host}`, domain: host, title: (title || "").slice(0, 120) });
+      };
+
+      let items: Array<{ title: string; link: string; snippet: string }> = [];
+      let engineUsed = "none";
+      try {
+        if (serperKey) { items = await serperSearch(q, serperKey, 10); engineUsed = "serper"; }
+        else if (cseKey && cseCx) { items = await googleCseSearch(q, cseKey, cseCx); engineUsed = "google_cse"; }
+      } catch (e) {
+        console.warn(`[find_website] ${engineUsed} fallito:`, (e as Error)?.message);
+      }
+      for (const it of items) { pushCandidate(it.link, it.title); if (candidates.length >= 5) break; }
+
+      // Fallback affidabile senza chiavi di ricerca: openapi.it (registro imprese).
+      // Cerca l'azienda ufficiale per ragione sociale (+ provincia dal contatto)
+      // e recupera il sito web dal dettaglio. Costa 1-2 crediti openapi.
+      if (candidates.length === 0) {
+        const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+        if (openapiToken) {
+          engineUsed = "openapi";
+          const base = await openapiBase();
+          const province = typeof body.province === "string" && body.province.trim().length === 2 ? body.province.trim().toUpperCase() : undefined;
+          const ids = await companySearchIds({ companyName: businessName, province, limit: 5 }, openapiToken, base);
+          for (const cid of ids.slice(0, 3)) {
+            const det = await companyDetail(cid, openapiToken, base, "IT-start");
+            const web = det?.website || det?.web || det?.contacts?.website || det?.registeredOffice?.website || null;
+            const denom = det?.companyName || det?.denomination || businessName;
+            if (web) pushCandidate(String(web).startsWith("http") ? String(web) : `https://${web}`, denom);
+            if (candidates.length >= 5) break;
+          }
+        }
+      }
+
+      return jsonResponse({ candidates, query: q, engine: engineUsed }, 200, corsH);
+    }
+
     // ═══════ ENRICH COMPANY (ad-hoc: dati liberi → tutte le info, gratis) ═══════
     // Input { business_name?, website?, partita_iva?, vies?, contactId? }. Non
     // richiede una riga lead. Se contactId è fornito, riempie i campi vuoti del
@@ -1635,14 +2027,30 @@ Deno.serve(async (req) => {
       if (deep) {
         result.emails = deep.emails;
         result.phones = deep.phones;
+        result.phones_classified = deep.phones_classified;
         result.facebook_url = deep.facebook_url;
         result.instagram_url = deep.instagram_url;
         result.linkedin_url = deep.linkedin_url;
         result.intent_signals = deep.intent_signals;
         result.site_excerpt = deep.excerpt;
+        // P.IVA letta sul sito, restituita SEPARATA: serve al chiamante per la
+        // verifica di coerenza "il sito è davvero di questa azienda?"
+        result.site_partita_iva = deep.partita_iva;
         if (deep.partita_iva && !piva) piva = deep.partita_iva;
       }
       result.partita_iva = piva;
+
+      // Segnale d'acquisto: punteggio "lead caldo" dai segnali del sito.
+      {
+        const reachable = !!((deep?.emails?.length) || (deep?.phones?.length));
+        result.intent_score = computeIntentScore(deep?.intent_signals || {}, reachable, !!website);
+        // salva su lead_score del contatto (best-effort)
+        if (contactId) {
+          await supabaseAdmin.from("marketing_contacts")
+            .update({ lead_score: result.intent_score, ai_intent_signals: deep?.intent_signals || {} })
+            .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+        }
+      }
 
       // 2) VIES (gratis): valida P.IVA → ragione sociale + indirizzo ufficiali
       if (doVies && piva) {
@@ -1650,10 +2058,24 @@ Deno.serve(async (req) => {
         if (vies) result.vies = vies;
       }
 
-      // 3) Firmografici + PEC (opzionale, openapi.it solo se token configurato)
+      // 3) Firmografici + visura (openapi.it, solo se token configurato).
+      // Usa fetchVisura (ricca) e, in caso di errore, SURFACE il motivo invece
+      // di sparire in silenzio (es. "Wrong Token" → token openapi non valido).
       if (openapiToken && piva) {
-        const firmo = await fetchFirmografici(piva, openapiToken, await openapiBase());
-        if (firmo) result.firmografici = firmo;
+        const v = await fetchVisura(piva, openapiToken, await openapiBase());
+        if (v.ok) {
+          result.visura = v.fields;
+          // retrocompat: mantieni anche il sotto-set "firmografici"
+          result.firmografici = {
+            ateco: v.fields.ateco, ateco_desc: v.fields.ateco_desc,
+            pec: v.fields.pec, dipendenti: v.fields.dipendenti,
+            fatturato: v.fields.fatturato, forma_giuridica: v.fields.forma_giuridica,
+          };
+        } else {
+          result.openapi_error = v.error;
+        }
+      } else if (!openapiToken) {
+        result.openapi_error = "openapi.it non configurato (nessun token).";
       }
 
       // 4) Opzionale: riempi i campi vuoti del contatto CRM
@@ -1662,16 +2084,19 @@ Deno.serve(async (req) => {
           .from("marketing_contacts").select("*")
           .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
         if (c) {
-          const firmo = (result.firmografici || {}) as Record<string, unknown>;
+          const vis = (result.visura || {}) as Record<string, unknown>;
           const viesName = (result.vies as { name?: string } | undefined)?.name;
-          const bestEmail = c.email || deep?.emails?.[0] || (firmo.pec as string | undefined) || null;
+          const bestEmail = c.email || deep?.emails?.[0] || (vis.pec as string | undefined) || null;
           const bestPhone = c.phone || deep?.phones?.[0] || null;
           const patch: Record<string, unknown> = {};
           if (!c.email && bestEmail) patch.email = bestEmail;
           if (!c.phone && bestPhone) patch.phone = bestPhone;
           if (!c.website && website) patch.website = website;
           if (!c.vat_number && piva) patch.vat_number = piva;
-          if (!c.company_name && (businessName || viesName)) patch.company_name = businessName || viesName;
+          if (!c.company_name && (businessName || viesName || vis.ragione_sociale)) patch.company_name = businessName || viesName || vis.ragione_sociale;
+          if (!c.city && vis.comune) patch.city = vis.comune;
+          if (!c.province && vis.provincia) patch.province = vis.provincia;
+          if (!c.address && vis.indirizzo) patch.address = vis.indirizzo;
           if (Object.keys(patch).length) {
             await supabaseAdmin.from("marketing_contacts").update(patch)
               .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
@@ -1683,7 +2108,146 @@ Deno.serve(async (req) => {
       return jsonResponse(result, 200, corsH);
     }
 
+    // ═══════ VISURA (openapi.it IT-advanced: anagrafica camerale ricca) ═══════
+    // Input { partita_iva? , contactId? }. Opzionale/on-demand (consuma crediti
+    // openapi). Se contactId, riempie i campi vuoti del contatto (PEC, indirizzo,
+    // forma giuridica). Diagnostica esplicita se openapi fallisce.
+    if (action === "enrich_visura") {
+      let piva: string | null = typeof body.partita_iva === "string" ? body.partita_iva.replace(/\D/g, "") : null;
+      const contactId: string | null = typeof body.contactId === "string" ? body.contactId : null;
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      if (!openapiToken) {
+        return jsonResponse({ ok: false, error: "openapi.it non configurato: imposta openapi_it_token nelle impostazioni piattaforma." }, 200, corsH);
+      }
+      // Se manca la P.IVA ma ho il contatto, provo a leggerla dal contatto
+      if (!piva && contactId) {
+        const { data: c } = await supabaseAdmin.from("marketing_contacts").select("vat_number").eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+        if (c?.vat_number) piva = String(c.vat_number).replace(/\D/g, "");
+      }
+      if (!piva || piva.length !== 11) {
+        return jsonResponse({ ok: false, error: "Serve una P.IVA valida (11 cifre) per la visura." }, 200, corsH);
+      }
+      const v = await fetchVisura(piva, openapiToken, await openapiBase());
+      if (!v.ok) {
+        return jsonResponse({ ok: false, status: v.status, error: `openapi.it: ${v.error}` }, 200, corsH);
+      }
+      const f = v.fields as Record<string, unknown>;
+      // Auto-fill campi vuoti del contatto (best-effort)
+      let contact_updated: string[] = [];
+      if (contactId) {
+        const { data: c } = await supabaseAdmin.from("marketing_contacts").select("*").eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+        if (c) {
+          const patch: Record<string, unknown> = {};
+          if (!c.email && f.pec) patch.email = f.pec;
+          if (!c.company_name && f.ragione_sociale) patch.company_name = f.ragione_sociale;
+          if (!c.vat_number) patch.vat_number = piva;
+          if (!c.city && f.comune) patch.city = f.comune;
+          if (!c.province && f.provincia) patch.province = f.provincia;
+          if (!c.address && f.indirizzo) patch.address = f.indirizzo;
+          if (Object.keys(patch).length) {
+            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+            contact_updated = Object.keys(patch);
+          }
+        }
+      }
+      return jsonResponse({ ok: true, partita_iva: piva, fields: f, contact_updated }, 200, corsH);
+    }
+
     // ════════════════════ FIND EMAIL (pattern + MX, gratis) ════════════════════
+    // ═══════ CONTATTO CRM: trova email (scraping sito + guess + MX) ═══════
+    if (action === "find_contact_email") {
+      const contactId: string | null = typeof body.contactId === "string" ? body.contactId : null;
+      if (!contactId) return errorResponse("contactId richiesto.", 400, corsH);
+      const { data: c } = await supabaseAdmin.from("marketing_contacts")
+        .select("id, email, website, company_name, first_name, last_name")
+        .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+      if (!c) return errorResponse("Contatto non trovato.", 404, corsH);
+      if (c.email) return jsonResponse({ ok: true, already: true, email: c.email }, 200, corsH);
+
+      let domain: string | null = null;
+      const siteEmails: string[] = [];
+      if (c.website) {
+        try { domain = new URL(c.website.startsWith("http") ? c.website : `https://${c.website}`).hostname.replace(/^www\./, ""); } catch { /* skip */ }
+        const deep = c.website ? await scrapeWebsiteDeep(c.website) : null;
+        if (deep?.emails?.length) siteEmails.push(...deep.emails);
+      }
+      let chosen: string | null = siteEmails[0] || null;
+      let status = chosen ? "found" : "none";
+      let candidates: string[] = siteEmails;
+      if (!chosen && domain) {
+        const hasMx = await domainHasMx(domain);
+        if (hasMx) {
+          candidates = guessEmails([c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "", domain);
+          chosen = candidates[0] || null;
+          status = chosen ? "guessed" : "none";
+        }
+      }
+      if (chosen) {
+        await supabaseAdmin.from("marketing_contacts").update({ email: chosen }).eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+      }
+      return jsonResponse({ ok: true, email: chosen, status, candidates, domain }, 200, corsH);
+    }
+
+    // ═══════ CONTATTO CRM: verifica email (sintassi + MX, provider opz) ═══════
+    if (action === "verify_contact_email") {
+      const email: string | null = typeof body.email === "string" ? body.email.trim().toLowerCase() : null;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return jsonResponse({ ok: true, status: "invalid_syntax", email }, 200, corsH);
+      }
+      const domain = email.split("@")[1];
+      const hasMx = await domainHasMx(domain);
+      let status = hasMx ? "mx_ok" : "no_mx";
+      // Se configurato un provider di verifica (NeverBounce/ZeroBounce), affina.
+      const vkey = await getPlatformSetting("email_verify_api_key", "EMAIL_VERIFY_API_KEY");
+      if (hasMx && vkey) {
+        const provider = (await getPlatformSetting("email_verify_provider", "EMAIL_VERIFY_PROVIDER")) || "neverbounce";
+        const r = await verifyEmailProvider(email, provider, vkey);
+        if (r === "valid") status = "valid";
+        else if (r === "invalid") status = "invalid";
+      }
+      return jsonResponse({ ok: true, status, email, domain, provider_used: !!vkey }, 200, corsH);
+    }
+
+    // ═══════ CONTATTI CRM: arricchimento MASSIVO (sito+VIES+autofill) ═══════
+    if (action === "enrich_contacts_batch") {
+      const ids: string[] = Array.isArray(body.contactIds) ? body.contactIds.filter((x: unknown) => typeof x === "string") : [];
+      if (ids.length === 0) return errorResponse("contactIds vuoto.", 400, corsH);
+      if (ids.length > 100) return errorResponse("Massimo 100 contatti per lotto.", 400, corsH);
+      const { data: contacts, error } = await supabaseAdmin.from("marketing_contacts")
+        .select("id, email, phone, website, company_name, first_name, last_name, vat_number, city, province")
+        .in("id", ids).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let enriched = 0, filled = 0, failed = 0;
+      await poolMap(contacts || [], 4, async (c: any) => {
+        try {
+          const website = c.website || null;
+          let piva = c.vat_number ? String(c.vat_number).replace(/\D/g, "") : null;
+          const deep = website ? await scrapeWebsiteDeep(website) : null;
+          if (deep?.partita_iva && !piva) piva = deep.partita_iva;
+          let viesName: string | undefined;
+          if (piva) { const v = await viesValidate(piva); if (v?.valid) viesName = v.name; }
+          const patch: Record<string, unknown> = {};
+          if (!c.email && (deep?.emails?.[0])) patch.email = deep.emails[0];
+          if (!c.phone && (deep?.phones?.[0])) patch.phone = deep.phones[0];
+          if (!c.vat_number && piva) patch.vat_number = piva;
+          if (!c.company_name && viesName) patch.company_name = viesName;
+          // segnale d'acquisto → lead_score
+          if (deep) {
+            const reachable = !!(patch.email || c.email || patch.phone || c.phone);
+            patch.lead_score = computeIntentScore(deep.intent_signals || {}, reachable, !!website);
+            patch.ai_intent_signals = deep.intent_signals || {};
+          }
+          if (Object.keys(patch).length) {
+            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", c.id).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
+            filled += (patch.email || patch.phone || patch.vat_number || patch.company_name) ? 1 : 0;
+          }
+          enriched++;
+        } catch { failed++; }
+      });
+      return jsonResponse({ ok: true, enriched, filled, failed, attempted: (contacts || []).length }, 200, corsH);
+    }
+
     if (action === "find_email") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);

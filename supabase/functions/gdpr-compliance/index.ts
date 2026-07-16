@@ -120,6 +120,27 @@ Deno.serve(async (req) => {
           details: { request_id: request.id, file_name: fileName },
         });
 
+        // Email "export pronto" al richiedente col link firmato (best-effort)
+        if (urlData?.signedUrl && user.email) {
+          try {
+            const { sendSystemEmail } = await import("../_shared/systemEmail.ts");
+            await sendSystemEmail(admin, {
+              templateName: "gdpr_export",
+              companyId,
+              to: user.email,
+              userId: user.id,
+              dedupeKey: `gdpr:${request.id}`,
+              props: {
+                recipientName: profile?.first_name || user.email.split("@")[0],
+                url: urlData.signedUrl,
+                exportDaysLeft: "1",
+              },
+            });
+          } catch (mailErr) {
+            console.warn("[gdpr-compliance] email gdpr_export fallita:", (mailErr as Error)?.message);
+          }
+        }
+
         return jsonResponse({ success: true, download_url: urlData?.signedUrl, expires_in_hours: 24 });
       }
 

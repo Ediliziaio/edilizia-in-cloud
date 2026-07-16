@@ -6,6 +6,7 @@ import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/
 import { checkMarketingDomainGate } from "../_shared/marketingDomainGate.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { getReplyAddressMap } from "../_shared/replyRoutes.ts";
 import {
   getSuppressedEmailMap,
   isValidEmailAddress,
@@ -466,6 +467,7 @@ Deno.serve(async (req) => {
     let customDomainForCampaign: string | null = null;
     let providerDomainForCampaign: string | null = null;
     let fromAddress: string;
+    let campaignReplyTo: string | undefined;
     let senderOverrideAllowed = false;
     if (campaign.sender_email?.includes("@")) {
       const overrideDomain = campaign.sender_email.split("@").pop()!.toLowerCase();
@@ -496,6 +498,7 @@ Deno.serve(async (req) => {
       try {
         const sender = await resolveSender(companyId, "marketing", adminClient);
         fromAddress = sender.from;
+        campaignReplyTo = sender.replyTo;
         providerDomainForCampaign = sender.domain;
         if (sender.usingCustomDomain) {
           customDomainForCampaign = sender.domain;
@@ -537,6 +540,15 @@ Deno.serve(async (req) => {
       companyId,
       recipients.map((c: any) => c.id),
       [campaign.html_content, campaign.ab_html_content_b],
+    );
+
+    // Reply GHL-style: indirizzo di risposta unico per contatto (una sola
+    // upsert set-based). Mappa vuota se email_reply_domain non è configurato
+    // → resta il Reply-To classico dell'azienda.
+    const replyRoutes = await getReplyAddressMap(
+      adminClient,
+      companyId,
+      recipients.map((c: any) => c.id),
     );
 
     // Send emails in parallel batches (BUG-08: was 5, increased to avoid timeout on large lists)
@@ -631,6 +643,7 @@ Deno.serve(async (req) => {
 
         const result = await sendViaProviderWithFailover("marketing", settings, {
           from: fromAddress,
+          replyTo: replyRoutes.get(contact.id) ?? campaignReplyTo,
           to: [contact.email],
           subject: emailSubject,
           html,

@@ -11,6 +11,9 @@ export interface RenderProcessingCardProps {
   photoPreview?: string | null;
   /** Elapsed seconds since the render started. */
   elapsedSec: number;
+  /** F3 (audit 16/07) — Stage REALE dal server (render_sessions.meta.stage via
+   *  Realtime). Quando presente, sostituisce la stima basata su elapsedSec. */
+  serverStage?: string | null;
   /** Pulse counter for the dots animation (0-3). */
   dots?: number;
   /** Accent color hue. Defaults to 'red'. */
@@ -27,6 +30,17 @@ const DEFAULT_STAGES: ReadonlyArray<{ id: string; label: string; icon: LucideIco
   { id: "compose", label: "Composizione del rendering", icon: Wand2, until: 75 },
   { id: "finalize", label: "Finalizzazione & upload", icon: ImageDown, until: Infinity },
 ];
+
+// F3 — Mappa stage server → indice stage visuale + pavimento % onesto.
+// Ordine reale dell'edge: ottimizzazione_prompt → preparazione_foto →
+// generazione → controllo_qualita → salvataggio.
+const SERVER_STAGE_MAP: Record<string, { idx: number; floorPct: number }> = {
+  ottimizzazione_prompt: { idx: 0, floorPct: 8 },
+  preparazione_foto: { idx: 0, floorPct: 15 },
+  generazione: { idx: 1, floorPct: 30 },
+  controllo_qualita: { idx: 2, floorPct: 75 },
+  salvataggio: { idx: 3, floorPct: 92 },
+};
 
 const DEFAULT_TIPS = [
   "L'AI riconosce la geometria dalla foto e applica la nuova configurazione preservando luci e ombre.",
@@ -50,6 +64,7 @@ const ACCENT: Record<NonNullable<RenderProcessingCardProps["accent"]>, {
 export function RenderProcessingCard({
   photoPreview,
   elapsedSec,
+  serverStage,
   dots = 0,
   accent = "red",
   tips,
@@ -58,12 +73,20 @@ export function RenderProcessingCard({
   const stages = DEFAULT_STAGES;
   const tipsList = useMemo(() => (tips && tips.length > 0 ? tips : DEFAULT_TIPS), [tips]);
 
+  const serverInfo = serverStage ? SERVER_STAGE_MAP[serverStage] ?? null : null;
   const stageIdx = useMemo(() => {
+    // Stage reale dal server quando disponibile; fallback alla stima a tempo.
+    if (serverInfo) return serverInfo.idx;
     const idx = stages.findIndex((s) => elapsedSec < s.until);
     return idx === -1 ? stages.length - 1 : idx;
-  }, [stages, elapsedSec]);
+  }, [stages, elapsedSec, serverInfo]);
   const tipIdx = Math.floor(elapsedSec / 8) % tipsList.length;
-  const progressPct = Math.min((elapsedSec / 90) * 100, 96);
+  const simulatedPct = Math.min((elapsedSec / 90) * 100, 96);
+  // Con lo stage reale la barra non scende sotto il pavimento dello stage in
+  // corso (es. controllo qualità = almeno 75%), restando comunque ≤ 96%.
+  const progressPct = serverInfo
+    ? Math.min(Math.max(simulatedPct, serverInfo.floorPct), 96)
+    : simulatedPct;
   const a = ACCENT[accent];
 
   return (

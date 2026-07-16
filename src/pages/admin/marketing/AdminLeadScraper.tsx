@@ -91,9 +91,10 @@ interface LeadSearch {
 }
 
 const SOURCES = [
+  { id: "osm", label: "OpenStreetMap", icon: Globe, active: true, hint: "Imprese locali da OpenStreetMap: nome, telefono, sito, indirizzo. GRATIS e senza chiave — funziona subito. Copertura variabile (meglio in città medio-grandi)." },
   { id: "internal", label: "Interno", icon: Database, active: true, hint: "Scraper self-host + DB proprietario: scrapa 1 volta, riusa per sempre (~€0). Richiede scraper-worker." },
   { id: "company_search", label: "Registro Imprese", icon: Building2, active: true, hint: "Liste imprese italiane dal Registro (openapi.it): filtra per ATECO + provincia (sigla). Ritorna P.IVA, ATECO, PEC, codice SdI. ~€0,03/azienda (ricerca + dettaglio). Sandbox = dati finti gratis (openapi_it_token + openapi_env)." },
-  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
+  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email. Richiede google_maps_api_key (Google Places, a consumo)." },
   { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
   { id: "apollo", label: "Apollo", icon: Rocket, active: true, hint: "Decisori + email (apollo.io). Free tier + crediti economici (apollo_api_key)" },
@@ -163,7 +164,8 @@ function stimaCostoRicerca(source: string, n: number): { testo: string } {
     }
     case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
     case "apify_maps": return { testo: "usa il piano Apify ($5 free/mese, poi a consumo)" };
-    case "google_maps": return { testo: "gratis (entro il cap giornaliero Google Places)" };
+    case "osm": return { testo: "gratis (OpenStreetMap, nessuna chiave)" };
+    case "google_maps": return { testo: "a consumo (Google Places — richiede google_maps_api_key)" };
     case "linkedin": return { testo: "~gratis (ricerca web)" };
     case "internal": return { testo: "gratis (DB proprietario / scraper self-host)" };
     default: return { testo: "" };
@@ -726,12 +728,15 @@ export default function AdminLeadScraper() {
   const navigate = useNavigate();
   const confirm = useConfirm();
 
-  const [source, setSource] = useState<string>("google_maps");
+  const [source, setSource] = useState<string>("osm");
   const [keyword, setKeyword] = useState("impresa edile");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [maxResults, setMaxResults] = useState("20");
   const [extractEmails, setExtractEmails] = useState(true);
+  // Pipeline automatica dopo la ricerca (solo OSM/gratis): arricchisce, valuta i
+  // segnali, qualifica con l'AI e filtra i già-clienti senza click manuali.
+  const [autoPipeline, setAutoPipeline] = useState(false);
   const [icp, setIcp] = useState(
     "Impresa edile / studio tecnico in Italia, 5-50 dipendenti, gestisce cantieri, preventivi, DDT e fatture — cliente ideale per un gestionale cloud.",
   );
@@ -901,9 +906,13 @@ export default function AdminLeadScraper() {
           ? `${data.withPhone} con telefono · ${data.withEmail} con email`
           : "Usa Arricchisci per recuperare contatti";
       toast.success(`${data.count} lead trovati`, { description: desc });
+      // Auto-pipeline: se attiva e ci sono risultati, avvia arricchimento+
+      // qualifica in automatico (segnale via flag, eseguito dall'effetto sotto).
+      if (autoPipeline && data.count > 0 && data.searchId) setPendingAutoPipeline(data.searchId);
     },
     onError: (e: Error) => toast.error("Ricerca fallita", { description: e.message }),
   });
+  const [pendingAutoPipeline, setPendingAutoPipeline] = useState<string | null>(null);
 
   // Scraping MASSIVO (migliaia): enqueue di un job → il worker lo processa in
   // background → polling con setTimeout (no effetti → no warning lint).
@@ -1131,6 +1140,18 @@ export default function AdminLeadScraper() {
       setPipelineRunning(false);
     }
   };
+
+  // Auto-pipeline: parte quando i risultati della ricerca appena fatta sono
+  // caricati (currentSearchId corrisponde al pending) e non c'è già una pipeline
+  // in corso. Un solo trigger per ricerca.
+  useEffect(() => {
+    if (!pendingAutoPipeline) return;
+    if (currentSearchId !== pendingAutoPipeline) return;
+    if (results.length === 0 || pipelineRunning) return;
+    setPendingAutoPipeline(null);
+    void runPipeline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoPipeline, currentSearchId, results.length]);
 
   const pushMutation = useMutation({
     mutationFn: (resultIds: string[]) => batchInvoke("Salvataggio CRM", "push_crm", resultIds, 25, { createOpportunity: createOpp }),
@@ -1575,20 +1596,25 @@ export default function AdminLeadScraper() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">{source === "company_search" ? "Provincia (sigla)" : "Città"}</Label>
-                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder={source === "company_search" ? "es. MI" : "Milano"} className="mt-1" />
+                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder={source === "company_search" ? "es. MI" : source === "osm" ? "Milano, Monza…" : "Milano"} className="mt-1" />
                 </div>
                 <div>
                   <Label className="text-xs">Regione/Prov.</Label>
                   <Input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Lombardia" className="mt-1" />
                 </div>
               </div>
+              {source === "osm" && (
+                <p className="text-[11px] text-muted-foreground -mt-1">
+                  Più città separate da virgola, oppure lascia vuota la città e metti solo la <b>provincia/regione</b> per cercare su tutta l'area.
+                </p>
+              )}
 
               <div>
                 <Label className="text-xs">Numero risultati</Label>
                 <Select value={maxResults} onValueChange={setMaxResults}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["20", "40", "60"].map((n) => <SelectItem key={n} value={n}>{n} lead</SelectItem>)}
+                    {(source === "osm" ? ["20", "40", "60", "100", "200"] : ["20", "40", "60"]).map((n) => <SelectItem key={n} value={n}>{n} lead</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1599,6 +1625,17 @@ export default function AdminLeadScraper() {
                   <span className="text-xs">Estrai email dai siti</span>
                 </div>
                 <Switch checked={extractEmails} onCheckedChange={setExtractEmails} />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-2.5">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  <div>
+                    <span className="text-xs font-medium">Pipeline automatica</span>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Dopo la ricerca: arricchisce, valuta i segnali, qualifica con l'AI e filtra i già-clienti.</p>
+                  </div>
+                </div>
+                <Switch checked={autoPipeline} onCheckedChange={setAutoPipeline} />
               </div>
 
               {source === "google_maps" && (

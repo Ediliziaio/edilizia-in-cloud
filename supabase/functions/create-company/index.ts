@@ -295,7 +295,21 @@ Deno.serve(async (req) => {
         (await getPlatformSetting("site_url", "SITE_URL")) ||
         Deno.env.get("SITE_URL") ||
         "";
-      const loginUrl = siteUrl ? `${siteUrl.replace(/\/$/, "")}/login` : "";
+      const base = siteUrl.replace(/\/$/, "");
+      // CTA benvenuto: link recovery one-shot per far scegliere la password al
+      // nuovo admin (stesso pattern di reset-password-branded). Fallback /login
+      // se la generazione fallisce: la password iniziale dal form resta valida.
+      let loginUrl = base ? `${base}/login` : "";
+      try {
+        const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: trimmedAdminEmail,
+          options: { redirectTo: `${base}/reset-password` },
+        });
+        if (linkData?.properties?.action_link) loginUrl = linkData.properties.action_link;
+      } catch (linkErr) {
+        console.warn("[create-company] generateLink recovery fallito, fallback /login:", linkErr);
+      }
       const rendered = await renderEmailTemplate({
         templateName: "welcome",
         companyId,
@@ -336,11 +350,11 @@ Deno.serve(async (req) => {
           recipientName: adminFirstName || "Admin",
           acceptedDate: dz({ day: "2-digit", month: "2-digit", year: "numeric" }),
           acceptedTime: dz({ hour: "2-digit", minute: "2-digit" }),
-          tcUrl: legalBase ? `${legalBase}/termini.pdf` : "", tcVersion: "1.0",
-          privacyUrl: legalBase ? `${legalBase}/privacy.pdf` : "", privacyVersion: "1.0",
-          dpaUrl: legalBase ? `${legalBase}/dpa.pdf` : "", dpaVersion: "1.0",
-          cookieUrl: legalBase ? `${legalBase}/cookie.pdf` : "", cookieVersion: "1.0",
-          moduloOperaiUrl: legalBase ? `${legalBase}/modulo-privacy-lavoratori.pdf` : "",
+          // Nomi file REALI in public/legal/ — i nomi corti (termini.pdf ecc.) sono 404
+          tcUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Termini-e-Condizioni.pdf` : "", tcVersion: "1.0",
+          privacyUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Privacy-Policy.pdf` : "", privacyVersion: "1.0",
+          dpaUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_DPA.pdf` : "", dpaVersion: "1.0",
+          cookieUrl: legalBase ? `${legalBase}/Edilizia-in-Cloud_Cookie-Policy.pdf` : "", cookieVersion: "1.0",
         },
       });
       await sendEmailUnified({

@@ -92,6 +92,10 @@ Deno.serve(async (req) => {
     const scopes = [
       "pages_show_list",
       "pages_read_engagement",
+      // Senza pages_manage_metadata l'iscrizione della pagina al webhook
+      // leadgen (POST /{page}/subscribed_apps) NON è effettiva: Meta risponde
+      // success ma non consegna gli eventi → lead solo via backfill manuale.
+      "pages_manage_metadata",
       "leads_retrieval",
       "pages_manage_ads",
       "ads_read",

@@ -286,7 +286,62 @@ ${bullets([
       : `Prompt validation warnings: missing sections = ${validation.missingSections.join(", ") || "none"}; missing business rules = ${validation.missingBusinessRules.join(", ") || "none"}.`,
   ])}`;
 
+  // ── v2.1.0 — FIXTURE COUNT CONTRACT (audit 16/07) ─────────────────────────
+  // I modelli image ignorano le regole anti-duplicazione sepolte nei blocchi
+  // G/M/N (lezione identica al modulo infissi, changelog v8.6.9): quando
+  // sbagliano, sbagliano PROPRIO sui conteggi — due water, la vasca rimasta
+  // dopo la conversione in doccia, un secondo mobile. Il contratto dei
+  // conteggi va detto PRIMA di tutto, breve e assoluto.
+  const wcCount = scene.sanitaryWare.wcPresent || spec.sanitaryWare.replace ? 1 : 0;
+  const bidetRemoved = spec.sanitaryWare.replace && spec.sanitaryWare.bidetAction === "rimuovi";
+  const bidetCount = bidetRemoved
+    ? 0
+    : (scene.sanitaryWare.bidetPresent ||
+        (spec.sanitaryWare.replace && spec.sanitaryWare.bidetAction === "sostituisci"))
+    ? 1
+    : 0;
+  const showerRequested = spec.shower.replace;
+  const bathtubRequested = spec.bathtub.replace;
+  let showerCount: number;
+  let bathtubCount: number;
+  let conversionLine = "";
+  if (showerRequested && !bathtubRequested) {
+    showerCount = 1;
+    bathtubCount = 0;
+    if (scene.bathtub.present) {
+      conversionLine =
+        "CONVERSION: the photographed bathtub is REMOVED and the new shower takes ITS place. ZERO bathtubs may remain anywhere in the final image.";
+    }
+  } else if (bathtubRequested && !showerRequested) {
+    bathtubCount = 1;
+    showerCount = 0;
+    if (scene.shower.present) {
+      conversionLine =
+        "CONVERSION: the photographed shower is REMOVED and the new bathtub takes ITS place. ZERO showers may remain anywhere in the final image.";
+    }
+  } else if (showerRequested && bathtubRequested) {
+    showerCount = 1;
+    bathtubCount = 1;
+  } else {
+    showerCount = scene.shower.present ? 1 : 0;
+    bathtubCount = scene.bathtub.present ? 1 : 0;
+  }
+  const basinCount = spec.vanity.replace
+    ? spec.vanity.basinCount
+    : scene.vanity.present
+    ? scene.vanity.basinCount
+    : 1;
+
+  blocks.CONTRACT = `[🚨 FIXTURE COUNT CONTRACT — ABSOLUTE PRIORITY, READ FIRST 🚨]
+This is ONE real Italian bathroom with real plumbing: each sanitary fixture exists ONCE. The final image MUST contain EXACTLY:
+- ${wcCount} toilet (WC)${wcCount === 1 ? " — the single replacement WC in the original sanitary position. NEVER render two toilets, never add an extra WC anywhere else in the room." : " — no toilet is visible in the source and none was requested: do not invent one."}
+- ${bidetCount} bidet${bidetRemoved ? " — the existing bidet is REMOVED: repair wall and floor seamlessly where it stood, no bidet anywhere in the final image." : bidetCount === 1 ? " — next to the WC, matching set." : " — do not invent a bidet."}
+- ${showerCount} shower and ${bathtubCount} bathtub${conversionLine ? ` — ${conversionLine}` : ""}
+- ${basinCount} washbasin${basinCount > 1 ? "s" : ""} on ONE single vanity unit — never a second vanity or extra basin.
+A count violation (a second toilet, a leftover bathtub after conversion, both tub and shower when only one is requested, a duplicated vanity) makes the render UNUSABLE for the customer regardless of any other quality. These counts override every other instruction below.`;
+
   const userPrompt = [
+    blocks.CONTRACT,
     blocks.B,
     blocks.C,
     blocks.D,
@@ -311,7 +366,7 @@ ${bullets([
     userPrompt,
     negativePrompt:
       "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, external toilet cistern when wall-hung WC is selected, missing wall flush plate, omitted flush plate, detached flush plate away from WC, duplicated WC, second toilet, extra toilet, floor-standing WC when wall-hung WC is selected, monobloc toilet, toilet pedestal under wall-hung WC, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
-    promptVersion: "2.0.0",
+    promptVersion: "2.1.0",
     blocks,
     validation,
     normalizedConfig,

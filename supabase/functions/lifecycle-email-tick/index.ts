@@ -191,7 +191,7 @@ async function runD3NoActivation(
     if (!email) continue;
 
     const vars = {
-      recipientName: (profile as AnyRecord).first_name ?? "ciao",
+      recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
       companyName: c.name ?? "la tua azienda",
       loginUrl: "https://app.ediliziaincloud.com/azienda",
       completedSteps: "1/6",
@@ -244,7 +244,7 @@ async function runD7Features(supa: ReturnType<typeof createClient>): Promise<Sen
     if (!email) continue;
 
     const vars = {
-      recipientName: (profile as AnyRecord).first_name ?? "ciao",
+      recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
       companyName: c.name ?? "",
       tutorialUrl: "https://app.ediliziaincloud.com/azienda",
     };
@@ -301,7 +301,7 @@ async function runTrialEnding(supa: ReturnType<typeof createClient>): Promise<Se
     if (!email) continue;
 
     const vars = {
-      recipientName: (profile as AnyRecord).first_name ?? "ciao",
+      recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
       companyName: c.name ?? "",
       daysRemaining: String(daysRemaining),
       ordersCount: String(ordersCount ?? 0),
@@ -349,12 +349,28 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
       .limit(5);
     if (existing?.some((e: AnyRecord) => e.metadata?.month_key === monthKey)) continue;
 
-    const { count: ordersCount } = await supa
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", c.id)
-      .gte("created_at", lastMonth.toISOString())
-      .lt("created_at", monthEnd.toISOString());
+    const [{ count: ordersCount }, { data: monthInvoices }] = await Promise.all([
+      supa
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", c.id)
+        .gte("created_at", lastMonth.toISOString())
+        .lt("created_at", monthEnd.toISOString()),
+      // Fatturato del mese = Σ invoices.subtotal (stessa fonte del Controllo di Gestione)
+      supa
+        .from("invoices")
+        .select("subtotal")
+        .eq("company_id", c.id)
+        .gte("issue_date", lastMonth.toISOString().slice(0, 10))
+        .lt("issue_date", monthEnd.toISOString().slice(0, 10)),
+    ]);
+    const revenue = (monthInvoices ?? []).reduce(
+      (sum: number, r: AnyRecord) => sum + Number(r.subtotal ?? 0),
+      0,
+    );
+    const revenueFormatted = revenue > 0
+      ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(revenue)
+      : "—";
 
     const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
     if (!profile) continue;
@@ -363,10 +379,10 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
     if (!email) continue;
 
     const vars = {
-      recipientName: (profile as AnyRecord).first_name ?? "ciao",
+      recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
       monthName,
       ordersCount: String(ordersCount ?? 0),
-      revenueFormatted: "—",
+      revenueFormatted,
       hoursSaved: String(Math.max(8, (ordersCount ?? 0) * 4)),
       dashboardUrl: "https://app.ediliziaincloud.com/azienda",
     };
@@ -395,11 +411,13 @@ Deno.serve(async (req) => {
     );
   }
 
-  // v8.6.94 — Auth check: solo service_role bearer può triggerare
-  // (chiamato da pg_cron internamente o admin tooling). Blocca utenti generici.
+  // v8.6.94 — Auth check: service_role bearer OPPURE x-cron-secret (pg_cron,
+  // stesso pattern di system-emails-tick). Blocca utenti generici.
   const authHeader = req.headers.get("authorization") ?? "";
   const providedToken = authHeader.replace(/^Bearer\s+/i, "");
-  if (providedToken !== SERVICE_ROLE_KEY) {
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const cronOk = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+  if (providedToken !== SERVICE_ROLE_KEY && !cronOk) {
     return new Response(
       JSON.stringify({ error: "Unauthorized: service_role required" }),
       { status: 401, headers: { ...CORS, "Content-Type": "application/json" } },
