@@ -214,19 +214,20 @@ export default function QuoteDetail() {
             >
               <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3">
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3" aria-label="Genera PDF">
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
-              <span className="hidden sm:inline">{generating ? "Generando..." : "Genera "}</span>{generating ? "" : "PDF"}
+              <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
 
             {quote.status === "bozza" && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
-                className="h-9"
+                className="h-9 px-2.5 sm:px-3"
+                aria-label="Modifica"
               >
-                <Pencil className="h-4 w-4 mr-2" />
-                Modifica
+                <Pencil className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Modifica</span>
               </Button>
             )}
 
@@ -234,7 +235,7 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
               >
                 <Send className="h-4 w-4" />
                 {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
@@ -246,7 +247,7 @@ export default function QuoteDetail() {
                 type="button"
                 onClick={handleConvertToCantiere}
                 disabled={converting}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
               >
                 {converting
                   ? <Loader2 className="h-4 w-4 animate-spin" />
