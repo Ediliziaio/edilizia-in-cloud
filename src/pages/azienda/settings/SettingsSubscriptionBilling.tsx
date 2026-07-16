@@ -55,7 +55,12 @@ function formatEurCents(centesimi: number, currency = "eur"): string {
 
 function formatPeriod(start: string | null, end: string | null): string {
   if (!start || !end) return "—";
-  return `${format(new Date(start), "d MMM yyyy", { locale: it })} → ${format(new Date(end), "d MMM yyyy", { locale: it })}`;
+  const s = new Date(start);
+  const e = new Date(end);
+  // Stripe sulla prima fattura mette period_start = period_end (stesso giorno):
+  // "15 lug 2026 → 15 lug 2026" è rumore, mostriamo la sola data.
+  if (s.toDateString() === e.toDateString()) return format(s, "d MMM yyyy", { locale: it });
+  return `${format(s, "d MMM yyyy", { locale: it })} → ${format(e, "d MMM yyyy", { locale: it })}`;
 }
 
 /** Restituisce label + colore brand pulito (visa, mastercard, amex…). */
@@ -395,6 +400,24 @@ function TabPagamenti() {
 
   return (
     <div className="space-y-5">
+      {/* Prossimo addebito — a colpo d'occhio, stile GHL */}
+      {billing?.currentPeriodEnd && billing.planPriceMonthly > 0 && (
+        <div className="rounded-xl border bg-muted/30 px-4 py-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+          {billing.cancelAtPeriodEnd ? (
+            <span>
+              Piano attivo fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong> — nessun rinnovo previsto.
+            </span>
+          ) : (
+            <span>
+              Prossimo addebito: <strong>{formatCurrency(billing.billingCycle === "yearly" ? billing.planPriceYearly : billing.planPriceMonthly)}</strong> il{" "}
+              <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong>
+              {pm?.hasMethod && pm.last4 ? <> su {brandLabel(pm.brand).label} •••• {pm.last4}</> : null}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Card Metodo di pagamento */}
         <Card>
@@ -404,11 +427,12 @@ function TabPagamenti() {
               Metodo di pagamento
             </CardTitle>
             <Button
-              variant="outline" size="sm" className="h-7 px-2"
+              variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
               onClick={() => openPortal()} disabled={isPending}
               aria-label="Modifica metodo di pagamento"
             >
               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+              Gestisci
             </Button>
           </CardHeader>
           <CardContent>
@@ -426,8 +450,9 @@ function TabPagamenti() {
                   {brandLabel(pm.brand).label}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium flex items-center gap-2">
                     {brandLabel(pm.brand).label} •••• {pm.last4}
+                    <Badge variant="secondary" className="text-[10px] font-normal">Predefinita</Badge>
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {pm.expMonth && pm.expYear ? (
@@ -496,6 +521,21 @@ function TabPagamenti() {
                             <ShieldCheck className="h-3 w-3 mr-1" />
                             Verificato
                           </Badge>
+                        </div>
+                      )}
+                      {(billingDetails.address_line1 || billingDetails.city) && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sede legale</p>
+                          <p className="text-sm font-medium truncate">
+                            {[billingDetails.address_line1, [billingDetails.postal_code, billingDetails.city].filter(Boolean).join(" ")]
+                              .filter(Boolean).join(", ")}
+                          </p>
+                        </div>
+                      )}
+                      {billingDetails.invoice_email && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Email fatturazione</p>
+                          <p className="text-sm font-medium truncate">{billingDetails.invoice_email}</p>
                         </div>
                       )}
                     </div>
@@ -626,7 +666,6 @@ function TabPagamenti() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Descrizione</TableHead>
                       <TableHead className="text-right">Importo</TableHead>
@@ -637,14 +676,14 @@ function TabPagamenti() {
                   <TableBody>
                     {invoices.map((inv) => (
                       <TableRow key={inv.id}>
-                        <TableCell>
-                          <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{inv.id.slice(0, 10)}…</code>
-                        </TableCell>
                         <TableCell className="text-sm whitespace-nowrap">
-                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                          {inv.paidAt
+                            ? format(new Date(inv.paidAt), "d MMM yyyy", { locale: it })
+                            : inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {formatPeriod(inv.periodStart, inv.periodEnd)}
+                        <TableCell>
+                          <p className="text-sm font-medium">Abbonamento {billing?.planName ?? ""}</p>
+                          <p className="text-xs text-muted-foreground">{formatPeriod(inv.periodStart, inv.periodEnd)}</p>
                         </TableCell>
                         <TableCell className="font-semibold text-right tabular-nums">
                           {inv.status === "paid"
