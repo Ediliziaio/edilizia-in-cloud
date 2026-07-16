@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock, HardHat, ShieldOff } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Wifi, FileText, Lock, HardHat, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
 import { UserRolesPermissionsTab } from "@/components/users/UserRolesPermissionsTab";
@@ -526,8 +527,18 @@ export default function SettingsUserDetail() {
   // While auth is resolving, show a loading state instead of a blank/redirect flash
   if (authLoading || permissions.isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-44" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -536,8 +547,18 @@ export default function SettingsUserDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-44" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
       </div>
     );
   }
