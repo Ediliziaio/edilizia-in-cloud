@@ -21,6 +21,7 @@ import {
 import GoogleCalendarSyncPrefsDialog from "@/components/settings/GoogleCalendarSyncPrefsDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -573,8 +574,18 @@ export default function MioProfilo() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="max-w-6xl space-y-5">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-44" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-56 w-full rounded-xl" />
+          <Skeleton className="h-56 w-full rounded-xl" />
+        </div>
       </div>
     );
   }

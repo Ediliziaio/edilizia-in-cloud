@@ -2,13 +2,14 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -1872,7 +1873,16 @@ export default function MarketingContacts() {
           {/* Mobile: card list */}
           <div className="sm:hidden flex flex-col gap-2">
             {isLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg border bg-white p-3">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-3/5" />
+                  </div>
+                  <Skeleton className="h-5 w-14 shrink-0" />
+                </div>
+              ))
             ) : contacts.length === 0 ? (
               <div className="text-center text-muted-foreground py-12 text-sm">Nessun contatto trovato</div>
             ) : (
@@ -1938,8 +1948,15 @@ export default function MarketingContacts() {
           {/* Desktop: table */}
           <div className="hidden sm:block">
           {isLoading ? (
-            <div className="flex justify-center items-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="divide-y rounded-lg border">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                  <Skeleton className="h-4 w-44" />
+                  <Skeleton className="h-4 w-56" />
+                  <Skeleton className="ml-auto h-4 w-20" />
+                </div>
+              ))}
             </div>
           ) : (
             <ContactsTable

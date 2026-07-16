@@ -828,8 +828,15 @@ function MarketingOpportunitiesContent() {
       </div>
 
       {loadingOpps ? (
-        <div className="flex items-center justify-center flex-1">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex flex-1 gap-3 overflow-hidden px-1">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex w-72 shrink-0 flex-col gap-2">
+              <Skeleton className="h-8 w-full rounded-lg" />
+              <Skeleton className="h-28 w-full rounded-lg" />
+              <Skeleton className="h-28 w-full rounded-lg" />
+              <Skeleton className="h-28 w-full rounded-lg" />
+            </div>
+          ))}
         </div>
       ) : stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">

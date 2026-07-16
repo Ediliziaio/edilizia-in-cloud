@@ -12,6 +12,7 @@ import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSigna
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -166,8 +167,17 @@ export default function QuoteDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-5 pb-10">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
