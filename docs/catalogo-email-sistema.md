@@ -16,9 +16,7 @@ Le variabili `{{così}}` vengono sostituite all'invio. Builder: **Admin → Impo
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.role_label}}`*
 
 **Oggetto:** {{company.name}} è pronta. Si parte.
-
 **Testo:**
-
 ```
 Benvenuto, {{user.first_name}}.
 
@@ -37,12 +35,10 @@ PS. Ti blocchi da qualche parte? Rispondi a questa email: dall'altra parte c'è 
 
 *Inviata da: create-company*
 *Quando/a chi: Subito dopo il benvenuto, stesso admin · Admin azienda*
-*Variabili: `{{company.name}}`, `{{event.date}}`, `{{event.time}}`, `{{link_url_1}}`, `{{link_url_2}}`, `{{link_url_3}}`, `{{link_url_4}}`, `{{link_url_5}}`, `{{user.first_name}}`*
+*Variabili: `{{company.name}}`, `{{event.date}}`, `{{event.time}}`, `{{link_url_1}}`, `{{link_url_2}}`, `{{link_url_3}}`, `{{link_url_4}}`, `{{user.first_name}}`*
 
 **Oggetto:** La tua copia dei documenti, {{user.first_name}}
-
 **Testo:**
-
 ```
 Qui c'è tutto quello che hai firmato.
 
@@ -54,9 +50,7 @@ Accettazione registrata il {{event.date}} alle {{event.time}}.
 - Privacy Policy — [apri]({{link_url_2}})
 - Accordo trattamento dati (DPA) — [apri]({{link_url_3}})
 - Cookie Policy — [apri]({{link_url_4}})
-E un documento in più, che serve a te: quando i tuoi operai usano l'app (GPS, timbrature) devi consegnargli l'informativa privacy. Te la lasciamo già pronta — da stampare, firmare e archiviare. Un pensiero in meno se passa un controllo.
-
-[Apri i tuoi documenti]({{link_url_5}})
+Conserva questa email: è la tua copia di riferimento. Per qualsiasi dubbio rispondi pure qui.
 ```
 
 ### Accesso staff  ·  `staff_access`  ·  💤 DORMIENTE
@@ -65,9 +59,7 @@ E un documento in più, che serve a te: quando i tuoi operai usano l'app (GPS, t
 *Variabili: `{{company.name}}`, `{{inviter.name}}`, `{{link_url_1}}`, `{{user.email}}`*
 
 **Oggetto:** Il tuo accesso a {{company.name}} è pronto
-
 **Testo:**
-
 ```
 Benvenuto in {{company.name}}.
 
@@ -88,9 +80,7 @@ Il link vale 24 ore. Se scade, usa "Password dimenticata" dalla pagina di access
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.email}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{user.first_name}}, da oggi le ore le timbri dal telefono
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -111,9 +101,7 @@ Il link vale 24 ore. Ci metti meno che a compilare un rapportino.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.email}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{user.first_name}}, il tuo portafoglio commesse è qui dentro
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -140,9 +128,7 @@ Il link vale 24 ore.
 *Variabili: `{{link_url_1}}`*
 
 **Oggetto:** Reimposta la password
-
 **Testo:**
-
 ```
 Capita a tutti.
 
@@ -161,9 +147,7 @@ Non hai richiesto tu il reset? Ignora questa email: la password resta quella di 
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{platform.support_email}}`, `{{user.first_name}}`*
 
 **Oggetto:** Devi impostare una nuova password
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -180,9 +164,7 @@ Non te l'aspettavi? Scrivici a {{platform.support_email}} prima di cliccare qual
 *Variabili: `{{company.name}}`, `{{event.date}}`, `{{event.time}}`, `{{platform.support_email}}`*
 
 **Oggetto:** La tua password è stata cambiata
-
 **Testo:**
-
 ```
 La password del tuo account {{company.name}} è stata cambiata il {{event.date}} alle {{event.time}}.
 
@@ -198,9 +180,7 @@ Non sei stato tu? Allora qualcuno ha accesso al tuo account, e ogni minuto conta
 *Variabili: `{{otp.code}}`*
 
 **Oggetto:** Codice di accesso: {{otp.code}}
-
 **Testo:**
-
 ```
 Il tuo codice di sicurezza:
 
@@ -217,9 +197,7 @@ Non stai accedendo tu? Allora qualcuno conosce la tua password. Non inserire il 
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.new_email}}`*
 
 **Oggetto:** Hai chiesto tu di cambiare l'email di accesso?
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -240,9 +218,7 @@ Per sicurezza mandiamo questo avviso anche al nuovo indirizzo.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Un click e il cambio email è fatto
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -259,9 +235,7 @@ Finché non confermi, l'accesso resta sull'email precedente. Il link vale 24 ore
 *Variabili: `{{company.name}}`, `{{platform.support_email}}`, `{{user.first_name}}`*
 
 **Oggetto:** Fatto: il tuo account ora è blindato
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -278,9 +252,7 @@ Non sei stato tu ad attivarla? Scrivici a {{platform.support_email}}.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Hai tolto la protezione in due passaggi
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -299,9 +271,7 @@ Non sei stato tu? Riattivala e cambia subito la password:
 *Variabili: `{{company.name}}`, `{{device.location}}`, `{{device.name}}`, `{{event.date}}`, `{{event.time}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Nuovo accesso al tuo account — sei stato tu?
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -324,9 +294,7 @@ Non ti riconosci? Blocca subito e cambia la password:
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Account bloccato per qualche minuto — ecco perché
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -354,9 +322,7 @@ Non hai provato a entrare tu? Reimposta comunque la password: qualcuno ci sta pr
 *Variabili: `{{inviter.name}}`, `{{link_url_1}}`, `{{user.role_label}}`*
 
 **Oggetto:** {{inviter.name}} ti ha invitato su Edilizia in Cloud
-
 **Testo:**
-
 ```
 {{inviter.name}} ti ha invitato a entrare in Edilizia in Cloud come {{user.role_label}}.
 
@@ -373,9 +339,7 @@ L'invito vale 7 giorni. Non riconosci la richiesta? Ignora questa email e non su
 *Variabili: `{{access.level}}`, `{{accountant.name}}`, `{{company.name}}`, `{{inviter.name}}`, `{{link_url_1}}`*
 
 **Oggetto:** {{company.name}} ti ha dato accesso ai suoi documenti
-
 **Testo:**
-
 ```
 Ciao {{accountant.name}},
 
@@ -397,9 +361,7 @@ Una cosa chiara: {{company.name}} non avrà mai accesso ai dati del tuo studio. 
 *Variabili: `{{company.name}}`, `{{inviter.name}}`, `{{link_url_1}}`*
 
 **Oggetto:** {{inviter.name}} ti sta aspettando
-
 **Testo:**
-
 ```
 {{inviter.name}} ti ha invitato su {{company.name}} un paio di giorni fa, ma non sei ancora entrato.
 
@@ -418,9 +380,7 @@ Link scaduto? Chiedi a {{inviter.name}} di rimandartelo: ci mette dieci secondi.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`*
 
 **Oggetto:** Un click e il tuo account è attivo
-
 **Testo:**
-
 ```
 Ci siamo quasi.
 
@@ -437,9 +397,7 @@ Il link vale 24 ore. Non hai creato tu questo account? Ignora questa email e non
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.full_name}}`, `{{user.role_label}}`*
 
 **Oggetto:** {{user.full_name}} è dentro ✅
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -456,9 +414,7 @@ Vuoi controllare o cambiare cosa può vedere e modificare? Lo fai da Persone & A
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.role_label}}`*
 
 **Oggetto:** Il tuo ruolo su {{company.name}} è cambiato: ora sei {{user.role_label}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -475,9 +431,7 @@ Qualcosa non torna? Parlane con chi gestisce gli accessi in azienda: la modifica
 *Variabili: `{{company.name}}`, `{{user.first_name}}`*
 
 **Oggetto:** Il tuo accesso a {{company.name}} è stato revocato
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -492,9 +446,7 @@ Pensi sia un errore? Contatta chi gestisce gli accessi in {{company.name}}: poss
 *Variabili: `{{company.name}}`, `{{inviter.name}}`, `{{user.first_name}}`*
 
 **Oggetto:** L'invito a {{company.name}} è scaduto (rimedio facile)
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -517,9 +469,7 @@ Gli inviti scadono per sicurezza: nessun link deve restare valido all'infinito.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Ti mancano 5 minuti, {{user.first_name}}
-
 **Testo:**
-
 ```
 Hai aperto l'account di {{company.name}}, poi qualcosa ti ha chiamato via. Normale: il cantiere non aspetta.
 
@@ -540,9 +490,7 @@ Ti blocchi su un passaggio? Rispondi a questa email: ti guidiamo noi, passo pass
 *Variabili: `{{link_url_1}}`, `{{stats.customers}}`, `{{stats.orders}}`, `{{trial.days_left}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{trial.days_left}} giorni, poi l'accesso si ferma
-
 **Testo:**
-
 ```
 {{user.first_name}}, mancano {{trial.days_left}} giorni.
 
@@ -566,9 +514,7 @@ PS. Un dubbio sul prezzo o sul piano giusto per la tua impresa? Rispondi a quest
 *Variabili: `{{company.name}}`, `{{dunning.attempt}}`, `{{link_url_1}}`, `{{subscription.amount}}`, `{{user.first_name}}`*
 
 **Oggetto:** Pagamento non passato — 1 minuto per sistemarlo
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -590,9 +536,7 @@ Problemi col pagamento? Rispondi a questa email: troviamo una soluzione insieme.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{plan.name}}`, `{{subscription.amount}}`, `{{subscription.periodicity}}`, `{{user.first_name}}`*
 
 **Oggetto:** Fatto: {{company.name}} è operativa senza limiti
-
 **Testo:**
-
 ```
 Grazie {{user.first_name}}.
 
@@ -615,9 +559,7 @@ Un consiglio da subito: invita il tuo team. Il gestionale rende il doppio quando
 *Variabili: `{{card.last4}}`, `{{company.name}}`, `{{event.date}}`, `{{link_url_1}}`, `{{payment.method}}`, `{{subscription.amount}}`, `{{user.first_name}}`*
 
 **Oggetto:** Ricevuta pagamento · {{company.name}} · {{event.date}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -638,9 +580,7 @@ Conserva questa email o girala al commercialista: è già tutto quello che gli s
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{subscription.amount}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
 **Oggetto:** Il {{subscription.renewal_date}} si rinnova l'abbonamento — tutto ok?
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -659,9 +599,7 @@ Vuoi cambiare piano o metodo di pagamento? Fallo prima del rinnovo:
 *Variabili: `{{card.last4}}`, `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** La carta ••{{card.last4}} sta per scadere
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -680,9 +618,7 @@ Meglio ora che a account sospeso, con te chiuso fuori e il lavoro che aspetta.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Il trial è finito. I tuoi dati no.
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -703,9 +639,7 @@ PS. Se non hai attivato per un dubbio — prezzo, funzioni, tempo per imparare a
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{plan.name}}`, `{{subscription.amount}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
 **Oggetto:** Fatto: ora sei su {{plan.name}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -724,9 +658,7 @@ il piano di {{company.name}} è passato a {{plan.name}}. La modifica è già att
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{subscription.renewal_date}}`, `{{user.first_name}}`*
 
 **Oggetto:** Cancellazione registrata — hai tempo fino al {{subscription.renewal_date}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -745,9 +677,7 @@ Un minuto per dirmi cosa non ha funzionato? Rispondi a questa email. La leggo io
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Account sospeso — 2 minuti per riaccenderlo
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -768,9 +698,7 @@ Se il problema non è la carta, rispondi a questa email: parliamone.
 *Variabili: `{{card.last4}}`, `{{company.name}}`, `{{payment.amount}}`, `{{payment.method}}`, `{{payment.reference}}`, `{{user.first_name}}`*
 
 **Oggetto:** Rimborso di {{payment.amount}} in arrivo sulla tua carta
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -797,9 +725,7 @@ Se dopo 10 giorni non è arrivato, rispondi a questa email col riferimento qui s
 *Variabili: `{{link_url_1}}`, `{{period.month}}`, `{{stats.hours_saved}}`, `{{stats.orders}}`, `{{stats.revenue}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{period.month}} in 3 numeri: {{stats.orders}} commesse, {{stats.revenue}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -821,9 +747,7 @@ il tuo {{period.month}}, in tre numeri — quelli che contano davvero:
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Ti do una mano a partire, {{user.first_name}}?
-
 **Testo:**
-
 ```
 Hai aperto l'account di {{company.name}} qualche giorno fa, poi tutto fermo. Capita a tanti: il cantiere chiama e il gestionale aspetta.
 
@@ -847,9 +771,7 @@ PS. Preferisci farlo insieme? Rispondi a questa email e ti seguo io, passo passo
 *Variabili: `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Il preventivo in 2 minuti, dettato a voce
-
 **Testo:**
-
 ```
 {{user.first_name}}, è passata una settimana.
 
@@ -870,9 +792,7 @@ Prova la prima già oggi, sul prossimo preventivo che devi fare comunque.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.first_name}}`, `{{user.inactive_days}}`*
 
 **Oggetto:** {{user.first_name}}, i tuoi cantieri sono ancora qui
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -893,9 +813,7 @@ PS. Se qualcosa ti ha bloccato — una funzione che non trovavi, un dubbio, un a
 *Variabili: `{{feature.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Da oggi su EiC: {{feature.name}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -914,9 +832,7 @@ Ti torna utile? Ci piacerebbe saperlo. Non ti serve? Ignorala, non cambia nient'
 *Variabili: `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Una domanda sola, {{user.first_name}}. Un click.
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -939,9 +855,7 @@ E se c'è qualcosa che non va, scrivimelo senza filtri, anche brutale. Le pacche
 *Variabili: `{{link_url_1}}`, `{{partner.commission}}`, `{{partner.tier}}`, `{{referral.code}}`, `{{user.full_name}}`*
 
 **Oggetto:** Sei dentro. Ecco come si guadagna.
-
 **Testo:**
-
 ```
 Ciao {{user.full_name}}, benvenuto: da oggi sei partner {{partner.tier}} di Edilizia in Cloud.
 
@@ -965,9 +879,7 @@ Primo passo che funziona sempre: mandalo alle 3 imprese che conosci meglio. Il p
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{user.full_name}}`*
 
 **Oggetto:** 🚀 {{company.name}} si è registrata col tuo link
-
 **Testo:**
-
 ```
 Ottimo lavoro, {{user.full_name}}.
 
@@ -985,9 +897,7 @@ Il momento buono per raddoppiare è adesso: a chi altro puoi girare il link ques
 *Variabili: `{{commission.amount}}`, `{{link_url_1}}`, `{{partner.active_companies}}`, `{{period.month}}`, `{{user.full_name}}`*
 
 **Oggetto:** {{commission.amount}} maturati a {{period.month}} 💰
-
 **Testo:**
-
 ```
 Ciao {{user.full_name}},
 
@@ -1008,9 +918,7 @@ E ricorda come funziona il ricorrente: le {{partner.active_companies}} aziende d
 *Variabili: `{{payment.reference}}`, `{{payout.amount}}`, `{{user.full_name}}`*
 
 **Oggetto:** ✅ {{payout.amount}} in arrivo: bonifico partito
-
 **Testo:**
-
 ```
 Ci siamo, {{user.full_name}}.
 
@@ -1031,9 +939,7 @@ Soldi veri, guadagnati facendo conoscere uno strumento che ai colleghi serve dav
 *Variabili: `{{link_url_1}}`, `{{partner.multiplier}}`, `{{partner.new_tier}}`, `{{user.full_name}}`*
 
 **Oggetto:** 🎊 Nuovo tier {{partner.new_tier}}: da oggi guadagni di più
-
 **Testo:**
-
 ```
 Complimenti {{user.full_name}}: sei salito al tier {{partner.new_tier}}.
 
@@ -1055,9 +961,7 @@ Tradotto: il lavoro fatto finora ha appena aumentato di valore. Da solo.
 *Variabili: `{{company.name}}`, `{{document.name}}`, `{{link_url_1}}`, `{{sender.name}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{sender.name}} ti ha condiviso: {{document.name}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1076,9 +980,7 @@ Lo ritrovi quando vuoi nella sezione documenti del cantiere: niente più "me lo 
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{sender.name}}`, `{{task.due_date}}`, `{{task.name}}`, `{{user.first_name}}`*
 
 **Oggetto:** Nuova attività da {{sender.name}}: {{task.name}} · entro {{task.due_date}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1098,9 +1000,7 @@ Dentro trovi i dettagli e puoi segnare l'avanzamento — così {{sender.name}} l
 *Variabili: `{{company.name}}`, `{{document.name}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Pronto: {{document.name}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1119,9 +1019,7 @@ Resta comunque disponibile nella tua dashboard, quando ti serve.
 *Variabili: `{{company.name}}`, `{{link_url_1}}`, `{{task.name}}`, `{{user.first_name}}`*
 
 **Oggetto:** Silvio aspetta il tuo ok: {{task.name}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1147,9 +1045,7 @@ Non c'è fretta: finché non decidi tu, Silvio resta fermo. Comandi tu, lui eseg
 *Variabili: `{{company.name}}`, `{{invoice.number}}`, `{{payment.amount}}`, `{{user.first_name}}`*
 
 **Oggetto:** ✅ Fattura {{invoice.number}} consegnata: tutto in regola
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1168,9 +1064,7 @@ Non devi fare nulla: la ricevuta di consegna è già archiviata nel CassettoSDI,
 *Variabili: `{{company.name}}`, `{{invoice.number}}`, `{{link_url_1}}`, `{{sdi.reject_reason}}`, `{{user.first_name}}`*
 
 **Oggetto:** ⚠️ Fattura {{invoice.number}} scartata — correggila oggi
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1192,9 +1086,7 @@ Attenzione al termine: hai 5 giorni dalla notifica di scarto per rinviarla mante
 *Variabili: `{{company.name}}`, `{{customer.name}}`, `{{document.expiry_date}}`, `{{invoice.number}}`, `{{payment.amount}}`*
 
 **Oggetto:** Promemoria di {{company.name}}: fattura {{invoice.number}} in scadenza il {{document.expiry_date}}
-
 **Testo:**
-
 ```
 Gentile {{customer.name}},
 
@@ -1217,9 +1109,7 @@ Messaggio inviato automaticamente da {{company.name}} tramite Edilizia in Cloud.
 *Variabili: `{{company.name}}`, `{{document.days_left}}`, `{{document.expiry_date}}`, `{{document.type}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** {{document.type}} scade tra {{document.days_left}} giorni — muoviti per tempo
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1242,9 +1132,7 @@ Te lo ricordiamo apposta in anticipo: il tempo per muoverti ce l'hai, usalo.
 *Variabili: `{{company.name}}`, `{{inspection.date}}`, `{{inspection.time}}`, `{{link_url_1}}`, `{{site.address}}`, `{{user.first_name}}`*
 
 **Oggetto:** Sopralluogo {{inspection.date}} ore {{inspection.time}} — {{site.address}}
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1270,9 +1158,7 @@ Sul posto compili il rilievo direttamente dal telefono: foto, misure e note fini
 *Variabili: `{{maintenance.date}}`, `{{maintenance.window}}`, `{{user.first_name}}`*
 
 **Oggetto:** Manutenzione il {{maintenance.date}} ({{maintenance.window}}): cosa aspettarti
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1291,9 +1177,7 @@ Non devi fare nulla: ti avvisiamo solo per non farti trovare la sorpresa.
 *Variabili: `{{event.date}}`, `{{link_url_1}}`, `{{terms.summary}}`, `{{user.first_name}}`*
 
 **Oggetto:** Aggiorniamo Termini e Privacy — te lo spieghiamo in italiano
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 
@@ -1314,9 +1198,7 @@ I documenti completi sono linkati nella pagina.
 *Variabili: `{{company.name}}`, `{{export.days_left}}`, `{{link_url_1}}`, `{{user.first_name}}`*
 
 **Oggetto:** Il tuo export è pronto — scaricalo entro {{export.days_left}} giorni
-
 **Testo:**
-
 ```
 Ciao {{user.first_name}},
 

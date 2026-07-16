@@ -113,13 +113,6 @@ export const SYSTEM_EMAIL_META: Record<string, {
         "required": true,
         "category": "link"
       },
-      {
-        "key": "link_url_5",
-        "label": "Link / bottone #5",
-        "example": "https://app.ediliziaincloud.com/…",
-        "required": true,
-        "category": "link"
-      }
     ],
     "mockProps": {
       "companyName": "Rossi Costruzioni SRL",
@@ -130,8 +123,7 @@ export const SYSTEM_EMAIL_META: Record<string, {
       "link_url_1": "https://app.ediliziaincloud.com/…",
       "link_url_2": "https://app.ediliziaincloud.com/…",
       "link_url_3": "https://app.ediliziaincloud.com/…",
-      "link_url_4": "https://app.ediliziaincloud.com/…",
-      "link_url_5": "https://app.ediliziaincloud.com/…"
+      "link_url_4": "https://app.ediliziaincloud.com/…"
     }
   },
   "staff_access": {

@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
         // Guardie: senza, un payload incompleto produce "€undefined" nell'email
         totalAmount: data?.total_amount != null ? `€${data.total_amount}` : "—",
         companyCount: data?.company_count ?? "—",
-        ctaUrl: `${PARTNER_BASE}/commissions`,
+        ctaUrl: `${PARTNER_BASE}/commissioni`,
       },
       payout_approved: {
         fullName: referrer.name,
