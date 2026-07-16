@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover, PopoverTrigger, PopoverContent,
 } from "@/components/ui/popover";
@@ -16,7 +17,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  ShoppingCart, Plus, Loader2, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
+  ShoppingCart, Plus, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
   FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity, Warehouse, Link2, ArrowRight,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
@@ -509,7 +510,32 @@ export default function PurchaseOrdersList() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        <>
+          {/* Mobile card skeleton */}
+          <div className="divide-y border rounded-lg sm:hidden">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-24" />
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <Skeleton className="h-4 w-16 shrink-0" />
+              </div>
+            ))}
+          </div>
+          {/* Desktop table skeleton */}
+          <div className="hidden divide-y border rounded-lg sm:block">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="ml-auto h-4 w-20" />
+              </div>
+            ))}
+          </div>
+        </>
       ) : isError ? (
         <Alert variant="destructive">
           <AlertDescription>Errore nel caricamento degli ordini. Riprova.</AlertDescription>
