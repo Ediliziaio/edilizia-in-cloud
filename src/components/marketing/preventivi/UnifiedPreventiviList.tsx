@@ -896,7 +896,7 @@ export function UnifiedPreventiviList() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* ─── KPI Hero 4 cards ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
@@ -905,7 +905,9 @@ export function UnifiedPreventiviList() {
         <KpiCard label="Ricavo firmato" value={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
-      {/* ─── Striscia navy avanzata ─── */}
+      {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
+          sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
+      {!isMobile && (
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1E3A5F] to-[#2C5184] p-4 sm:p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label="Tasso conversione" value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? `${kpi.vintaCount}/${kpi.vintaCount + kpi.persoCount} con risposta` : undefined} />
@@ -926,6 +928,7 @@ export function UnifiedPreventiviList() {
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
+      )}
 
       {/* ─── Grafici ─── (trend BarChart + distribuzione PieChart): vetrina
           desktop, pesanti e illeggibili su telefono → i KPI hero sopra bastano;
@@ -1297,7 +1300,7 @@ function KpiCard({
         <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</p>
         <span className={cn("h-7 w-7 rounded-md flex items-center justify-center shrink-0", c.iconBg, c.iconColor)}>{icon}</span>
       </div>
-      <p className={cn("text-2xl font-bold mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      <p className={cn("text-xl sm:text-2xl font-bold mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>}
     </div>
   );
