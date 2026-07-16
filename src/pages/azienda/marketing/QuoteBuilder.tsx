@@ -1728,7 +1728,7 @@ export default function QuoteBuilder() {
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
       {!isEdit && recoverableDraft && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -3461,10 +3461,9 @@ export default function QuoteBuilder() {
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
               className="h-9 shrink-0"
-              aria-label="Indietro"
             >
-              <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Indietro</span>
+              <ArrowLeft className="h-4 w-4 mr-1.5" />
+              Indietro
             </Button>
           </div>
 
