@@ -356,8 +356,8 @@ export default function CreateCustomer() {
           <UserPlus className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-tight">Nuovo Cliente</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Nuovo Cliente</h1>
+          <p className="hidden text-sm text-muted-foreground sm:block">
             Crea un nuovo cliente in anagrafica. L'accesso al portale privato è opzionale.
           </p>
         </div>
@@ -374,7 +374,7 @@ export default function CreateCustomer() {
                   <FileText className="h-4 w-4 text-primary" />
                   Dati anagrafici
                 </CardTitle>
-                <CardDescription>Informazioni di contatto del cliente</CardDescription>
+                <CardDescription className="hidden sm:block">Informazioni di contatto del cliente</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Categoria cliente — visibile solo se Modulo Appaltatori attivo */}
@@ -538,7 +538,7 @@ export default function CreateCustomer() {
                   <FileCheck2 className="h-4 w-4 text-emerald-500" />
                   Documenti cliente
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="hidden sm:block">
                   Contratto, documento identità e codice fiscale non sono obbligatori, ma il sistema segnala cosa manca.
                 </CardDescription>
               </CardHeader>
@@ -613,7 +613,7 @@ export default function CreateCustomer() {
                   <MapPin className="h-4 w-4 text-blue-500" />
                   Indirizzi
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="hidden sm:block">
                   {isBusiness ? "Sede legale e indirizzo del cantiere" : "Residenza e indirizzo del cantiere"}
                 </CardDescription>
               </CardHeader>
@@ -725,7 +725,7 @@ export default function CreateCustomer() {
                   <FileText className="h-4 w-4 text-amber-500" />
                   Note interne
                 </CardTitle>
-                <CardDescription>Informazioni aggiuntive visibili solo al tuo team</CardDescription>
+                <CardDescription className="hidden sm:block">Informazioni aggiuntive visibili solo al tuo team</CardDescription>
               </CardHeader>
               <CardContent>
                 <Textarea
