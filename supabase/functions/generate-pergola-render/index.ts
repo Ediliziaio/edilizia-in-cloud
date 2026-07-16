@@ -5,13 +5,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import {
-  deductRenderCreditSafe,
-  refundRenderCreditSafe,
-} from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 
 const PERGOLA_TYPE: Record<string, string> = {
   addossata:
@@ -642,8 +641,32 @@ Deno.serve(async (req) => {
         already_completed: true,
       });
     }
-    if (session.status === "processing") {
+    // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
+    const { data: claimRaw, error: claimErr } = await supabase.rpc(
+      "claim_render_vertical_session",
+      {
+        _table: "render_pergole_sessions",
+        _session_id: session_id,
+        _stale_seconds: 170,
+      },
+    );
+    if (claimErr) {
+      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
+    }
+    const claim = claimRaw as {
+      claimed: boolean;
+      reason?: string;
+      stale_takeover?: boolean;
+    };
+    if (!claim?.claimed) {
       return acceptedRenderResponse(session_id);
+    }
+    if (claim.stale_takeover) {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id,
+        _session_id: session_id,
+        _reason_meta: { source: "stale_takeover", edge_fn: "generate-pergola-render" },
+      });
     }
 
     const deductResult = await deductRenderCreditSafe(supabase, {
@@ -655,6 +678,10 @@ Deno.serve(async (req) => {
     });
 
     if (deductResult.status === "insufficient") {
+      await supabase.rpc("release_render_vertical_session", {
+        _table: "render_pergole_sessions",
+        _session_id: session_id,
+      });
       return new Response(
         JSON.stringify({
           error: "insufficient_credits",
@@ -667,14 +694,6 @@ Deno.serve(async (req) => {
       );
     }
     creditDeducted = true;
-
-    await supabase
-      .from("render_pergole_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-      })
-      .eq("id", session_id);
 
     const renderJob = (async () => {
       const originalPath = session.original_photo_url as string;
@@ -710,19 +729,102 @@ Deno.serve(async (req) => {
         );
       }
       const imgBlob = await imgResp.blob();
-      const providerResult = await editImage({
-        prompt: finalProviderPrompt,
-        sourceImageBlob: imgBlob,
-        effectiveWidth,
-        effectiveHeight,
-        openaiQuality: "medium",
-        timeoutMs: 180_000,
-        metadata: {
-          task_kind: "render_image_edit",
-          company_id: session.company_id as string,
-          session_id,
-        },
-      });
+
+      // F1-parity (audit 16/07) — budget deadline-aware, 1 tentativo per tier.
+      const PERGOLE_BUDGET_MS = 140_000;
+      const jobStartMs = Date.now();
+      const jobElapsed = () => Date.now() - jobStartMs;
+      const generateCandidate = (prompt: string) => {
+        const remaining = PERGOLE_BUDGET_MS - jobElapsed() - 20_000;
+        const perAttemptTimeout = Math.max(
+          30_000,
+          Math.min(75_000, Math.floor(remaining / 2)),
+        );
+        return editImage({
+          prompt,
+          sourceImageBlob: imgBlob,
+          effectiveWidth,
+          effectiveHeight,
+          openaiQuality: "medium",
+          timeoutMs: perAttemptTimeout,
+          maxRetries: 0,
+          metadata: {
+            task_kind: "render_image_edit",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        });
+      };
+
+      let providerResult = await generateCandidate(finalProviderPrompt);
+
+      // ── QA VISION pergole (audit 16/07) ────────────────────────────────
+      // Difetti tipici: DUE pergole invece di una, struttura "galleggiante"
+      // senza ancoraggio a terra/parete, casa o giardino ridisegnati oltre
+      // l'area pergola, prospettiva cambiata. 1 retry budget-gated.
+      try {
+        const qaPrompt = [
+          "You are a LENIENT quality inspector for a pergola installation render.",
+          "Image 1 = SOURCE photo of the real outdoor space. Image 2 = CANDIDATE render (same space with the new pergola installed per brief).",
+          'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
+          "Fail ONLY on clear, unambiguous violations:",
+          "- duplicated_pergola: TWO or more pergola structures when the brief asks for one.",
+          "- floating_structure: the pergola posts do not reach the ground or the structure is visibly detached/unanchored from wall or floor.",
+          "- non_target_change: the house facade, windows or garden clearly redesigned beyond the pergola installation area.",
+          "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          "- invented_objects: furniture, people or structures in neither the source nor the brief.",
+          "When in doubt, PASS. The NEW pergola itself is expected — only duplications, physics breaks and non-target changes fail.",
+        ].join("\n");
+
+        const sourceDataUrl = `data:${
+          imgBlob.type || "image/jpeg"
+        };base64,${bytesToBase64(new Uint8Array(await imgBlob.arrayBuffer()))}`;
+
+        const qaResult = await callVisionQa({
+          sourceImageDataUrl: sourceDataUrl,
+          candidateImageDataUrl: providerResult.imageDataUrl,
+          qaPrompt,
+          metadata: {
+            task_kind: "render_image_qa",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        });
+
+        const qaIssues = (qaResult.issues ?? []).map((raw) => {
+          if (typeof raw === "string") return { category: "unspecified", detail: raw };
+          const r = raw as { category?: string; detail?: string };
+          return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
+        });
+
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+          console.log(JSON.stringify({
+            fn: "generate-pergola-render",
+            msg: "qa_failed_retry_corrective",
+            session_id,
+            issues: qaIssues.map((i) => i.category),
+          }));
+          providerResult = await generateCandidate(`${finalProviderPrompt}
+
+[QC FAILURE — MANDATORY CORRECTIONS]
+The previous attempt failed quality control with these violations:
+${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
+Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pergola, posts firmly anchored to the ground and structure attached as specified, house and garden untouched outside the installation area, same camera and crop.`);
+        } else if (qaResult.checked && !qaResult.pass) {
+          console.warn(JSON.stringify({
+            fn: "generate-pergola-render",
+            msg: "qa_failed_retry_skipped_budget",
+            session_id,
+            issues: qaIssues.map((i) => i.category),
+            elapsed_ms: jobElapsed(),
+          }));
+        }
+      } catch (qaErr) {
+        console.warn(
+          "[generate-pergola-render] QA vision error (ignored):",
+          qaErr instanceof Error ? qaErr.message : String(qaErr),
+        );
+      }
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
@@ -819,16 +921,14 @@ Deno.serve(async (req) => {
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-pergola-render] background error:", msg);
-      await refundRenderCreditSafe(supabase, {
-        companyId: session.company_id as string,
-        sessionId: session_id,
-        userId: user.id,
-        reasonMeta: {
+      await supabase.rpc("refund_render_credit_all", {
+        _company_id: session.company_id as string,
+        _session_id: session_id,
+        _reason_meta: {
           vertical: "pergole",
           edge_fn: "generate-pergola-render",
           error: msg.substring(0, 500),
         },
-        logTag: "generate-pergola-render",
       });
       await supabase
         .from("render_pergole_sessions")
@@ -851,17 +951,15 @@ Deno.serve(async (req) => {
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
         if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: refundableSessionId,
-            userId: user.id,
-            reasonMeta: {
+          await supabase.rpc("refund_render_credit_all", {
+        _company_id: refundableCompanyId,
+        _session_id: refundableSessionId,
+        _reason_meta: {
               vertical: "pergole",
               edge_fn: "generate-pergola-render",
               error: msg.substring(0, 500),
             },
-            logTag: "generate-pergola-render",
-          });
+      });
         }
         await supabase.from("render_pergole_sessions").update({
           status: "failed",
