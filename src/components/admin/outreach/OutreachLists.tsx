@@ -129,27 +129,58 @@ export function OutreachLists({ companyId }: { companyId: string }) {
               </span>
             </div>
 
-            {/* breakdown sorgente */}
-            <div>
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                <Hash className="h-3 w-3" /> Per sorgente
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {d.sources.map((s) => (
-                  <span
-                    key={s.source}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs"
-                  >
-                    <span className="font-medium text-foreground">{s.source}</span>
-                    <span className="tabular-nums text-muted-foreground">{fmt(s.total)}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
+            {/* breakdown sorgente — solo le rilevanti; la coda lunga di sorgenti
+                minime (test, form una-tantum…) si collassa in "+N altre" per
+                togliere rumore. */}
+            <SourceBreakdown sources={d.sources} fmt={fmt} />
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+const SOURCE_MIN = 10;   // sotto questa soglia la sorgente finisce in "altre"
+const SOURCE_TOP = 8;    // massimo chip mostrati
+
+function SourceBreakdown({ sources, fmt }: { sources: { source: string; total: number }[]; fmt: (n: number) => string }) {
+  const [showAll, setShowAll] = useState(false);
+  const sorted = [...sources].sort((a, b) => b.total - a.total);
+  const significant = sorted.filter((s) => s.total >= SOURCE_MIN).slice(0, SOURCE_TOP);
+  const shownSet = new Set(significant.map((s) => s.source));
+  const rest = sorted.filter((s) => !shownSet.has(s.source));
+  const restTotal = rest.reduce((a, s) => a + s.total, 0);
+  const visible = showAll ? sorted : significant;
+
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <Hash className="h-3 w-3" /> Per sorgente
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((s) => (
+          <span key={s.source} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs">
+            <span className="font-medium text-foreground">{s.source}</span>
+            <span className="tabular-nums text-muted-foreground">{fmt(s.total)}</span>
+          </span>
+        ))}
+        {!showAll && rest.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            title={`Mostra le altre ${rest.length} sorgenti minori`}
+          >
+            +{rest.length} altre <span className="tabular-nums">({fmt(restTotal)})</span>
+          </button>
+        )}
+        {showAll && rest.length > 0 && (
+          <button type="button" onClick={() => setShowAll(false)} className="inline-flex items-center rounded-md px-2 py-1 text-xs text-primary hover:underline">
+            mostra meno
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
