@@ -26,8 +26,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -53,10 +52,6 @@ import {
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
-type ChatMembership = {
-  channel_id: string;
-};
-
 type CampoNavItem = {
   title: string;
   url: string;
@@ -66,7 +61,7 @@ type CampoNavItem = {
 };
 
 export default function CampoLayout() {
-  const { profile, user, signOut, company, effectiveCompany } = useAuth();
+  const { profile, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
   const activeCompany = effectiveCompany ?? company;
   const location = useLocation();
@@ -74,31 +69,11 @@ export default function CampoLayout() {
   // Sotto-pagina = non la home /campo: mostra la freccia "indietro" come nell'app azienda.
   const isSubPage = location.pathname !== "/campo" && location.pathname !== "/campo/";
 
-  // Conta messaggi non letti
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["campo-unread", user?.id],
-    queryFn: async () => {
-      if (!user?.id || !profile?.company_id) return 0;
-      const { data: membership } = await supabase
-        .from("chat_channel_members")
-        .select("channel_id")
-        .eq("user_id", user.id);
-      if (!membership?.length) return 0;
-      const channelIds = (membership as ChatMembership[]).map((member) => member.channel_id);
-      const since = new Date();
-      since.setDate(since.getDate() - 1);
-      const { count } = await supabase
-        .from("chat_messages")
-        .select("id", { count: "exact", head: true })
-        .in("channel_id", channelIds)
-        .neq("sender_id", user.id)
-        .gte("created_at", since.toISOString());
-      return count ?? 0;
-    },
-    refetchInterval: 30000,
-    refetchIntervalInBackground: false,
-    enabled: !!user?.id && !!profile?.company_id,
-  });
+  // Messaggi chat team non letti. Riusa l'hook condiviso (RPC
+  // get_internal_chat_sidebar_state + realtime), come nell'app azienda: le
+  // tabelle "chat_channel_members"/"chat_messages" NON esistono (davano 404 in
+  // loop) — i nomi reali sono internal_chat_members / internal_chat_messages.
+  const unreadCount = useInternalChatUnreadTotal();
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
   const previewSession = usePreviewToken();
