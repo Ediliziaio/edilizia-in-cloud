@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdAccountPickerDialog } from "@/components/ads/AdAccountPickerDialog";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -1040,6 +1041,9 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
     isLoading: integrationLoading || assetsLoading,
     pages: assets.filter((asset) => asset.asset_type === "page"),
     adAccounts: selectedAdAccounts.length > 0 ? selectedAdAccounts : adAccountAssets,
+    // Lista completa (selected e non) per il picker dell'account: la RLS
+    // la restituisce intera solo agli admin.
+    allAdAccounts: adAccountAssets,
     businesses: assets.filter((asset) => asset.asset_type === "business"),
   };
 }
@@ -1427,10 +1431,14 @@ function isCancelledStatusValue(status: string | null | undefined) {
 }
 
 export default function AdsManagerBeta() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const companyName = effectiveCompany?.name ?? "La tua azienda";
   const isDemoCompany = companyId === DEMO_COMPANY_ID;
+  const isAdmin = role === "company_admin" || role === "super_admin";
+  // Picker account pubblicitario: serve quando l'utente Meta (agenzia) ha più
+  // account e bisogna scegliere quello dell'azienda. Solo admin (RLS enforced).
+  const [adAccountPickerOpen, setAdAccountPickerOpen] = useState(false);
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -1852,7 +1860,17 @@ export default function AdsManagerBeta() {
           onCancel={() => backToList()}
         />
         <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
-          <ConnectionPill meta={meta} google={google} />
+          <ConnectionPill
+            meta={meta}
+            google={google}
+            onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
+          />
+          <AdAccountPickerDialog
+            open={adAccountPickerOpen}
+            onOpenChange={setAdAccountPickerOpen}
+            companyId={companyId}
+            accounts={meta.allAdAccounts}
+          />
           <div className="mt-5">
             <CampaignBuilderTab
               companyName={companyName}
@@ -1995,7 +2013,17 @@ export default function AdsManagerBeta() {
       />
       <ListHeader onCreate={openWizardNew} />
       <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
-        <ConnectionPill meta={meta} google={google} />
+        <ConnectionPill
+          meta={meta}
+          google={google}
+          onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
+        />
+        <AdAccountPickerDialog
+          open={adAccountPickerOpen}
+          onOpenChange={setAdAccountPickerOpen}
+          companyId={companyId}
+          accounts={meta.allAdAccounts}
+        />
 
         <Tabs
           value={activeTab}
@@ -2275,15 +2303,20 @@ function DetailHeader({
 function ConnectionPill({
   meta,
   google,
+  onPickAdAccount,
 }: {
   meta: ReturnType<typeof useMetaConnection>;
   google: ReturnType<typeof useGoogleAdsConnection>;
+  /** Presente solo per admin con più ad account: apre il picker. */
+  onPickAdAccount?: () => void;
 }) {
   const metaConnected = meta.integration?.status === "connected";
   const metaReady = metaConnected && meta.adAccounts.length > 0 && meta.pages.length > 0;
   const googleConnected = google.integration?.status === "connected";
   const googleReady = googleConnected && google.accounts.length > 0;
   const anyMissing = !metaReady || !googleReady;
+  // Nome dell'account attivo: più utile del conteggio quando è uno solo.
+  const activeAdAccountName = meta.adAccounts[0]?.asset_name;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
@@ -2294,7 +2327,7 @@ function ConnectionPill({
           label="Meta Ads"
           detail={
             metaReady
-              ? `${meta.adAccounts.length} ad account · ${meta.pages.length} pagine`
+              ? `${activeAdAccountName ?? `${meta.adAccounts.length} ad account`} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`
               : metaConnected
                 ? meta.adAccounts.length === 0
                   ? "ad account da configurare"
@@ -2303,6 +2336,15 @@ function ConnectionPill({
           }
           tone="blue"
         />
+        {onPickAdAccount && metaConnected && (
+          <button
+            type="button"
+            onClick={onPickAdAccount}
+            className="rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            Cambia account
+          </button>
+        )}
         <ConnectionChip
           loading={google.isLoading}
           connected={googleReady}
@@ -6968,7 +7010,7 @@ function SettingsTab({
       items: [
         { label: "Integrazione Meta", ok: meta.integration?.status === "connected", detail: meta.integration?.status ?? "non collegata", action: { label: "Connetti", href: "/azienda/impostazioni/lead-forms" } },
         { label: "Business Manager", ok: meta.businesses.length > 0, detail: `${meta.businesses.length} rilevati`, action: meta.businesses.length === 0 ? { label: "Crea su Meta", href: "https://business.facebook.com/", external: true } : null },
-        { label: "Account pubblicitario", ok: meta.adAccounts.length > 0, detail: `${meta.adAccounts.length} rilevati`, action: meta.adAccounts.length === 0 ? { label: "Crea account", href: "https://www.facebook.com/adsmanager/", external: true } : null },
+        { label: "Account pubblicitario", ok: meta.adAccounts.length > 0, detail: meta.adAccounts[0]?.asset_name ? `attivo: ${meta.adAccounts[0].asset_name}` : `${meta.adAccounts.length} rilevati`, action: meta.adAccounts.length === 0 ? { label: "Crea account", href: "https://www.facebook.com/adsmanager/", external: true } : null },
         { label: "Pagina Facebook", ok: meta.pages.length > 0, detail: `${meta.pages.length} pagine disponibili`, action: meta.pages.length === 0 ? { label: "Collega pagina", href: "/azienda/impostazioni/lead-forms" } : null },
       ],
     },
