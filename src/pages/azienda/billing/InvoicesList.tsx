@@ -141,7 +141,7 @@ export default function InvoicesList() {
         // Nomi reali verificati a schema: tax_amount (non vat_amount), document_type (non
         // invoice_type), external_provider (non provider), external_xml_url (non xml_url).
         // currency/customer_id NON esistono → rimosse.
-        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider")
+        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider, external_status")
         .eq("company_id", companyId!)
         .order("issue_date", { ascending: false, nullsFirst: false })
         .limit(500);
@@ -374,6 +374,40 @@ export default function InvoicesList() {
     return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth, total: base.length };
   }, [invoices, yearFilter]);
 
+  // RECUPERO CREDITI — cosa mancava: la pagina diceva "36 scadute 38k" ma non
+  // QUANTO è vecchio il credito né CHI deve pagarti. Qui: bucket di aging
+  // (0-30 / 31-60 / 60+ giorni) sul residuo scaduto + top debitori cliccabili
+  // (click → cerca quel cliente nella lista). Rispetta il filtro anno corrente.
+  const recupero = useMemo(() => {
+    const now = Date.now();
+    const base = (yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter)))
+      .filter((i) => i.document_type !== "credit_note" && !["paid", "cancelled", "draft"].includes(i.status));
+    const buckets = { b30: 0, b60: 0, b60p: 0 };
+    const perCliente = new Map<string, { residuo: number; maxDays: number; n: number }>();
+    for (const i of base) {
+      if (!i.due_date) continue;
+      const residuo = Number(i.total || 0) - Number(i.paid_amount || 0);
+      if (residuo <= 0.005) continue;
+      const days = Math.floor((now - new Date(i.due_date).getTime()) / 86_400_000);
+      if (days <= 0) continue; // solo scadute
+      if (days <= 30) buckets.b30 += residuo;
+      else if (days <= 60) buckets.b60 += residuo;
+      else buckets.b60p += residuo;
+      const key = i.client_company_name || "—";
+      const cur = perCliente.get(key) ?? { residuo: 0, maxDays: 0, n: 0 };
+      cur.residuo += residuo;
+      cur.maxDays = Math.max(cur.maxDays, days);
+      cur.n += 1;
+      perCliente.set(key, cur);
+    }
+    const totale = buckets.b30 + buckets.b60 + buckets.b60p;
+    const topDebitori = Array.from(perCliente.entries())
+      .map(([nome, v]) => ({ nome, ...v }))
+      .sort((a, b) => b.residuo - a.residuo)
+      .slice(0, 5);
+    return { buckets, totale, topDebitori };
+  }, [invoices, yearFilter]);
+
   const fmtEur = (n: number) => formatCurrency(n);
 
   return (
@@ -495,6 +529,72 @@ export default function InvoicesList() {
               </CardContent>
             </Card>
           </div>
+
+          {/* RECUPERO CREDITI — appare solo se c'è credito scaduto. Traduce il
+              numero rosso "36 scadute" in azione: quanto è vecchio il credito
+              (aging) e chi ti deve di più (top debitori cliccabili). */}
+          {recupero.totale > 0.005 && (
+            <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10">
+              <CardContent className="pt-4 pb-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    Recupero crediti · {fmtEur(recupero.totale)} scaduti
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("overdue")}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Vedi tutte →
+                  </button>
+                </div>
+                {/* Aging: barra proporzionale 0-30 / 31-60 / 60+ giorni */}
+                <div>
+                  <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                    {[
+                      { v: recupero.buckets.b30, c: "bg-amber-400" },
+                      { v: recupero.buckets.b60, c: "bg-orange-500" },
+                      { v: recupero.buckets.b60p, c: "bg-rose-600" },
+                    ].map((s, idx) => s.v > 0 && (
+                      <div key={idx} className={s.c} style={{ width: `${(s.v / recupero.totale) * 100}%` }} />
+                    ))}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />0-30 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b30)}</span></span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />31-60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60)}</span></span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-600" />oltre 60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60p)}</span></span>
+                  </div>
+                </div>
+                {/* Top debitori — click filtra la lista su quel cliente */}
+                {recupero.topDebitori.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-xs font-medium text-muted-foreground">Chi ti deve di più</p>
+                    {recupero.topDebitori.map((d) => (
+                      <button
+                        key={d.nome}
+                        type="button"
+                        onClick={() => { setSearch(d.nome); setStatusFilter("overdue"); }}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
+                        title={`Filtra le fatture di ${d.nome}`}
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-200/70 text-[10px] font-semibold text-amber-800">
+                            {clienteInitials(d.nome)}
+                          </span>
+                          <span className="truncate">{d.nome}</span>
+                        </span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-rose-600 font-medium">{d.maxDays} gg</span>
+                          <span className="font-semibold tabular-nums">{fmtEur(d.residuo)}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tab tipo documento (stile Fatture in Cloud) */}
           <div className="flex flex-wrap items-center gap-1 border-b">
@@ -737,7 +837,24 @@ export default function InvoicesList() {
                             </td>
                             <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
                             <td className="p-3">
-                              <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                              <div className="flex flex-col gap-1 items-start">
+                                <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                                {/* Esito SDI: si accende SOLO quando il provider popola
+                                    external_status. Scartata/errore = alert rosso da
+                                    correggere (fattura non consegnata = non pagata). */}
+                                {(() => {
+                                  const sdi = (inv.external_status || "").toLowerCase();
+                                  if (!sdi) return null;
+                                  const rejected = /scart|error|rifiut|ns|ec02/.test(sdi);
+                                  const delivered = /conseg|deliver|rc|ec01|accett/.test(sdi);
+                                  return (
+                                    <span className={`inline-flex items-center gap-1 text-[10px] ${rejected ? "text-rose-600 font-medium" : delivered ? "text-green-600" : "text-muted-foreground"}`}>
+                                      {rejected && <AlertTriangle className="h-2.5 w-2.5" />}
+                                      SDI: {inv.external_status}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                             </td>
                             <td className="p-3">
                               {inv.external_provider ? (
