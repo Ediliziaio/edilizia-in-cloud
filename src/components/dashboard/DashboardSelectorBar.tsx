@@ -21,6 +21,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -63,11 +64,15 @@ interface SystemDash {
     | "canViewControlloGestione";
   /** Se valorizzato, la dashboard è visibile solo se il flag è attivo per la company. */
   featureKey?: string;
+  /** Se true, la voce è nascosta su mobile: la rotta reindirizza comunque ad
+   *  Attività su schermi piccoli (Gestione/Cruscotto index è desktop-only, vedi
+   *  companyRoutes AziendaIndex), quindi offrirla manderebbe l'utente altrove. */
+  desktopOnly?: boolean;
 }
 
 const SYSTEM_DASHBOARDS: SystemDash[] = [
   { id: "sys-aziendale", label: "Cruscotto Aziendale", url: "/azienda/cruscotto/aziendale", icon: LayoutGrid,  permKey: "canViewCruscotto"          },
-  { id: "sys-gestione",  label: "Dashboard Gestione",  url: "/azienda",                     icon: HardHat,     permKey: "canViewDashboard"          },
+  { id: "sys-gestione",  label: "Dashboard Gestione",  url: "/azienda",                     icon: HardHat,     permKey: "canViewDashboard", desktopOnly: true },
   // Controllo di Gestione rimosso dal selector Cruscotto: non e' una dashboard
   // ma un modulo dedicato con sidebar voce propria → l'utente lo trova li.
   { id: "sys-marketing", label: "Dashboard Marketing", url: "/azienda/marketing",            icon: TrendingUp,  permKey: "canViewMarketingDashboard" },
@@ -243,7 +248,8 @@ export function DashboardSelectorBar({
   const deletePendingId = deleteDash.isPending ? deleteDash.variables ?? null : null;
 
   const featureFlags = useFeatureFlags();
-  // Dashboard di sistema filtrate per permessi + feature flag (add-on)
+  const isMobile = useIsMobile();
+  // Dashboard di sistema filtrate per permessi + feature flag (add-on) + viewport
   const visibleSystem = useMemo(
     () =>
       permissions.isLoading
@@ -252,9 +258,13 @@ export function DashboardSelectorBar({
             const hasPerm = permissions.isAdmin || permissions[s.permKey];
             if (!hasPerm) return false;
             if (s.featureKey && !featureFlags.isFeatureEnabled(s.featureKey)) return false;
+            // Nascondi su mobile le voci desktop-only: la rotta reindirizza comunque
+            // ad Attività su schermi piccoli (vedi companyRoutes AziendaIndex),
+            // quindi offrirle nel selettore manderebbe l'utente altrove = confusione.
+            if (s.desktopOnly && isMobile) return false;
             return true;
           }),
-    [permissions, featureFlags],
+    [permissions, featureFlags, isMobile],
   );
 
   // Filtro ricerca

@@ -38,11 +38,11 @@ export function DashboardPageHeader({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
+        "rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
         className,
       )}
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-2.5 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className={cn("flex min-w-0 items-start gap-3", compactTitle && "hidden sm:flex")}>
           {Icon && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -71,12 +71,11 @@ export function DashboardPageHeader({
               type="button"
               onClick={() => setMobileControlsOpen((o) => !o)}
               aria-expanded={mobileControlsOpen}
-              className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600 sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
+              className="tap-compact inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-500 sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <span className="flex items-center gap-2">
-                <Filter className="h-4 w-4" /> Filtri e azioni
-              </span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", mobileControlsOpen && "rotate-180")} />
+              <Filter className="h-3.5 w-3.5" />
+              Filtri
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", mobileControlsOpen && "rotate-180")} />
             </button>
 
             <div
