@@ -3,7 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   GripVertical, Mail, Phone, Type, Hash, AlignLeft, List, CheckSquare,
-  CircleDot, Calendar, Heading, FileText, Minus, EyeOff,
+  CircleDot, Calendar, Heading, FileText, Minus, EyeOff, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   textarea: <AlignLeft className="h-3.5 w-3.5" />,
   select: <List className="h-3.5 w-3.5" />,
   checkbox: <CheckSquare className="h-3.5 w-3.5" />,
+  consent: <ShieldCheck className="h-3.5 w-3.5" />,
   radio: <CircleDot className="h-3.5 w-3.5" />,
   date: <Calendar className="h-3.5 w-3.5" />,
   heading: <Heading className="h-3.5 w-3.5" />,
@@ -26,6 +27,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 const TYPE_LABELS: Record<string, string> = {
   text: "testo", email: "email", phone: "telefono", number: "numero",
   textarea: "testo lungo", select: "selezione", checkbox: "checkbox",
+  consent: "consenso privacy",
   radio: "scelta singola", date: "data", heading: "titolo",
   paragraph: "paragrafo", divider: "separatore", hidden: "nascosto",
 };

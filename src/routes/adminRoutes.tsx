@@ -92,6 +92,7 @@ const AdminCampaignEditor = lazy(() => import("@/pages/admin/marketing/AdminCamp
 const AdminDragDropEmailBuilder = lazy(() => import("@/pages/admin/marketing/AdminDragDropEmailBuilder"));
 const AdminCampaignSendSettings = lazy(() => import("@/pages/admin/marketing/AdminCampaignSendSettings"));
 const AdminFacebookForms = lazy(() => import("@/pages/admin/marketing/AdminFacebookForms"));
+const AdminFormBuilder = lazy(() => import("@/pages/admin/marketing/AdminFormBuilder"));
 const AdminMarketingReportistica = lazy(() => import("@/pages/admin/marketing/AdminMarketingReportistica"));
 const AdminSalesOS = lazy(() => import("@/pages/admin/marketing/AdminSalesOS"));
 const AdminRoiSimulator = lazy(() => import("@/pages/admin/marketing/AdminRoiSimulator"));
@@ -339,6 +340,7 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/automazioni" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAutomations /></RequireAdminPermission>} />
         {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
         <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />
+        <Route path="marketing/form-builder" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFormBuilder /></RequireAdminPermission>} />
         <Route path="marketing/reportistica" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingReportistica /></RequireAdminPermission>} />
         <Route path="marketing/sales-os" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSalesOS /></RequireAdminPermission>} />
         <Route path="marketing/simulatore-roi" element={<RequireAdminPermission permission="can_manage_marketing"><AdminRoiSimulator /></RequireAdminPermission>} />

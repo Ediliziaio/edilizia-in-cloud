@@ -8,6 +8,8 @@ type FormFieldDraft = {
   options?: string[];
   mapping?: string;
   defaultValue?: string;
+  linkUrl?: string;
+  linkText?: string;
 };
 
 type LeadFormDraft = {
@@ -99,6 +101,9 @@ export function normalizeLeadFormFields(fields: readonly FormFieldDraft[] | unde
       mapping: field.mapping?.trim() || undefined,
       defaultValue: field.defaultValue?.trim() || undefined,
       options: OPTION_TYPES.has(type) ? normalizeLeadFormOptions(field.options) : undefined,
+      // Solo per i campi "consent": link all'informativa privacy.
+      linkUrl: type === "consent" ? (field.linkUrl?.trim() || undefined) : undefined,
+      linkText: type === "consent" ? (field.linkText?.trim() || undefined) : undefined,
     };
   });
 }
@@ -166,11 +171,39 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
   };
 }
 
-export function buildLeadFormPublicUrl(supabaseUrl: string | undefined, slug: string, companyId: string) {
-  const baseUrl = String(supabaseUrl ?? "").trim().replace(/\/+$/, "");
-  if (!baseUrl || !slug || !companyId) return null;
+/**
+ * Base URL pubblica su cui è servito il proxy /f del form (dominio app, NON
+ * *.supabase.co: lì l'HTML verrebbe riscritto a text/plain e l'iframe mostra
+ * il sorgente). Configurabile via env, con fallback all'origin corrente in dev
+ * e al dominio app in produzione.
+ */
+export function getLeadFormBaseUrl(): string {
+  const configured =
+    (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined) ||
+    (import.meta.env.VITE_APP_URL as string | undefined);
+  if (configured) return String(configured).trim().replace(/\/+$/, "");
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+      return window.location.origin.replace(/\/+$/, "");
+    }
+  }
+  return "https://app.ediliziaincloud.com";
+}
+
+/**
+ * URL pubblico del form da aprire/incorporare. Punta al proxy Cloudflare Pages
+ * /f (vedi functions/f.js) sul dominio app, che ri-serve l'HTML dell'edge
+ * form-render come text/html framebile.
+ *
+ * @param baseUrl base URL del dominio app (usa getLeadFormBaseUrl()).
+ */
+export function buildLeadFormPublicUrl(baseUrl: string | undefined, slug: string, companyId: string) {
+  const appBase = String(baseUrl ?? "").trim().replace(/\/+$/, "");
+  if (!appBase || !slug || !companyId) return null;
   const params = new URLSearchParams({ slug, company_id: companyId });
-  return `${baseUrl}/functions/v1/form-render?${params.toString()}`;
+  return `${appBase}/f?${params.toString()}`;
 }
 
 type LeadFormEmbedOptions = {

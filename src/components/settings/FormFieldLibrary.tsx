@@ -2,7 +2,7 @@ import { FormFieldType } from "@/hooks/useFormBuilder";
 import { Button } from "@/components/ui/button";
 import {
   Plus, Type, Mail, Phone, Hash, AlignLeft, List,
-  CheckSquare, CircleDot, Calendar, Heading, FileText, Minus, EyeOff,
+  CheckSquare, CircleDot, Calendar, Heading, FileText, Minus, EyeOff, ShieldCheck,
 } from "lucide-react";
 
 const INPUT_FIELDS: { type: FormFieldType; label: string; icon: React.ReactNode }[] = [
@@ -14,6 +14,7 @@ const INPUT_FIELDS: { type: FormFieldType; label: string; icon: React.ReactNode 
   { type: "select", label: "Selezione", icon: <List className="h-4 w-4" /> },
   { type: "radio", label: "Scelta singola", icon: <CircleDot className="h-4 w-4" /> },
   { type: "checkbox", label: "Checkbox", icon: <CheckSquare className="h-4 w-4" /> },
+  { type: "consent", label: "Consenso privacy", icon: <ShieldCheck className="h-4 w-4" /> },
   { type: "date", label: "Data", icon: <Calendar className="h-4 w-4" /> },
 ];
 

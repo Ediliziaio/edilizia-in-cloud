@@ -21,6 +21,13 @@ function cssSafe(value: unknown, fallback: string): string {
   return v.length > 0 ? v : fallback;
 }
 
+// Intero clampato in un range (per larghezza/arrotondamento del layout).
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 // Safe insertion of a string inside a JS single-quoted literal.
 function jsStr(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -62,6 +69,18 @@ function renderField(f: any): string {
     }
     case "checkbox":
       return `<div class="field checkbox"><label><input type="checkbox" name="${fieldKey}" ${req}> ${label}</label></div>`;
+    case "consent": {
+      // Consenso privacy/marketing: checkbox + link cliccabile all'informativa.
+      // Solo URL http/https (blocca javascript:/data: → XSS). Il valore spuntato
+      // ("1") viene salvato nella submission come prova del consenso.
+      const rawUrl = String(f.linkUrl ?? "");
+      const safeUrl = /^https?:\/\//i.test(rawUrl) ? esc(rawUrl) : "";
+      const linkText = esc(f.linkText || "Informativa privacy");
+      const linkHtml = safeUrl
+        ? ` <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`
+        : "";
+      return `<div class="field checkbox"><label><input type="checkbox" name="${fieldKey}" value="1" ${req}> <span>${label}${linkHtml}</span></label></div>`;
+    }
     case "date":
       return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><input type="date" name="${fieldKey}" ${req}></div>`;
     default: {
@@ -116,6 +135,10 @@ Deno.serve(async (req) => {
   const textColor = cssSafe(theme.text_color, "#1a1a1a");
   const accentColor = cssSafe(theme.accent_color, "#2563eb");
   const fontFamily = cssSafe(theme.font_family, "system-ui, sans-serif");
+  // Layout configurabile: larghezza contenitore e arrotondamento angoli.
+  const containerWidth = clampInt(theme.container_width, 520, 320, 900);
+  const radius = clampInt(theme.border_radius, 8, 0, 28);
+  const containerRadius = clampInt(theme.border_radius, 8, 0, 28) + 4;
   const formTitle = settings.title || form.name;
   const successTitle = theme.success_title || settings.success_title || "✓";
   const successMessage = settings.success_message || "Grazie! La tua richiesta è stata inviata.";
@@ -133,23 +156,24 @@ Deno.serve(async (req) => {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:${fontFamily};background:${bgColor};color:${textColor};min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-    .container{max-width:520px;width:100%;background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:32px}
+    .container{max-width:${containerWidth}px;width:100%;background:#fff;border-radius:${containerRadius}px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:32px}
     h1{font-size:1.5rem;margin-bottom:8px}
     .desc{font-size:0.9rem;color:#666;margin-bottom:24px}
     .heading{font-size:1.15rem;font-weight:600;margin:20px 0 8px}
     .paragraph{font-size:0.85rem;color:#666;margin:8px 0 16px}
     .divider{border:none;border-top:1px solid #e5e7eb;margin:16px 0}
     .field{margin-bottom:16px}
-    .field.checkbox{display:flex;align-items:center;gap:8px}
-    .field.checkbox label{display:flex;align-items:center;gap:6px;font-size:0.85rem}
+    .field.checkbox{display:flex;align-items:flex-start;gap:8px}
+    .field.checkbox label{display:flex;align-items:flex-start;gap:6px;font-size:0.85rem;font-weight:400;margin-bottom:0}
+    .field.checkbox a{color:${accentColor};text-decoration:underline}
     .radio-group{display:flex;flex-direction:column;gap:6px;margin-top:4px}
     .radio-opt{display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer}
     label{display:block;font-size:0.85rem;font-weight:500;margin-bottom:4px}
-    input,textarea,select{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s}
+    input,textarea,select{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:${radius}px;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s}
     input:focus,textarea:focus,select:focus{border-color:${accentColor}}
-    input[type=checkbox],input[type=radio]{width:auto}
+    input[type=checkbox],input[type=radio]{width:auto;margin-top:2px}
     input[type=date]{color-scheme:light}
-    button{width:100%;padding:12px;background:${accentColor};color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:opacity 0.2s}
+    button{width:100%;padding:12px;background:${accentColor};color:#fff;border:none;border-radius:${radius}px;font-size:1rem;font-weight:600;cursor:pointer;transition:opacity 0.2s}
     button:hover{opacity:0.9}
     button:disabled{opacity:0.5;cursor:not-allowed}
     .success{text-align:center;padding:40px 20px}

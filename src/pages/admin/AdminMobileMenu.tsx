@@ -89,6 +89,7 @@ const allSections: AppSection[] = [
       { icon: LayoutDashboard, label: "Dashboard", url: "/admin/marketing/dashboard", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
       { icon: BarChart3, label: "Outreach", url: "/admin/marketing", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
       { icon: Users, label: "Contatti", url: "/admin/marketing/contatti", color: "text-indigo-600 bg-indigo-50", permission: "can_manage_marketing" },
+      { icon: FileText, label: "Form Builder", url: "/admin/marketing/form-builder", color: "text-sky-600 bg-sky-50", permission: "can_manage_marketing" },
       { icon: Target, label: "Opportunita", url: "/admin/marketing/opportunita", color: "text-emerald-600 bg-emerald-50", permission: "can_manage_marketing" },
       { icon: CalendarDays, label: "Calendario", url: "/admin/marketing/calendario", color: "text-orange-600 bg-orange-50", permission: "can_manage_marketing" },
       { icon: Mail, label: "Email MKT", url: "/admin/marketing/email", color: "text-rose-600 bg-rose-50", permission: "can_manage_marketing" },
