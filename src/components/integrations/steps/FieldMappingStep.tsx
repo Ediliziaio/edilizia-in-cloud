@@ -24,29 +24,78 @@ interface MetaQuestion {
   type: string;
 }
 
-const AUTO_MAP: Record<string, string> = {
-  full_name: "full_name",
-  email: "email",
-  phone_number: "phone",
-  city: "city",
-  street_address: "address",
-  zip: "postal_code",
-  state: "province",
-  first_name: "first_name",
-  last_name: "last_name",
-  company_name: "company_name",
+// Mappa i TYPE standard dei moduli Meta ai campi CRM. Il `type` è
+// indipendente dalla lingua (es. FULL_NAME anche se la chiave è
+// "nome_e_cognome"), quindi è il segnale affidabile per l'auto-mapping.
+const TYPE_TO_CRM: Record<string, string> = {
+  FULL_NAME: "full_name",
+  FIRST_NAME: "first_name",
+  LAST_NAME: "last_name",
+  EMAIL: "email",
+  PHONE: "phone",
+  PHONE_NUMBER: "phone",
+  CITY: "city",
+  STATE: "province",
+  PROVINCE: "province",
+  ZIP: "postal_code",
+  POST_CODE: "postal_code",
+  POSTAL_CODE: "postal_code",
+  STREET_ADDRESS: "address",
+  COMPANY_NAME: "company_name",
 };
 
-const EXAMPLE_VALUES: Record<string, string> = {
+// Normalizza chiave/etichetta: minuscole, accenti rimossi, separatori a "_"
+// (così "Città" → "citta", "E-mail" → "e_mail").
+function normalizeField(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(new RegExp("[\\u0300-\\u036f]", "g"), "") // rimuove accenti/diacritici
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+// Indovina il campo CRM per un campo modulo Meta: prima per TYPE (affidabile),
+// poi fallback su chiave/etichetta per campi CUSTOM o con type localizzato.
+function guessCrmField(q: { key: string; label: string; type: string }): string | null {
+  const byType = TYPE_TO_CRM[(q.type || "").toUpperCase()];
+  if (byType) return byType;
+
+  const text = `${normalizeField(q.key)}_${normalizeField(q.label)}`;
+  if (/nome_?e_?cognome|nome_completo|full_?name|nominativo|nome_cognome/.test(text)) return "full_name";
+  if (/e_?mail|email/.test(text)) return "email";
+  if (/telefono|phone|cellulare|numero_di_telefono|whatsapp|mobile/.test(text)) return "phone";
+  if (/citta|city|comune|localita/.test(text)) return "city";
+  if (/cognome|last_?name|surname/.test(text)) return "last_name";
+  if (/(^|_)nome(_|$)|first_?name/.test(text)) return "first_name";
+  if (/cap|zip|postal|codice_postale/.test(text)) return "postal_code";
+  if (/provincia|province|regione|(^|_)state(_|$)/.test(text)) return "province";
+  if (/indirizzo|address|(^|_)via(_|$)|street/.test(text)) return "address";
+  if (/azienda|company|ditta|ragione_sociale/.test(text)) return "company_name";
+  return null;
+}
+
+// Costruisce la mappatura automatica per la lista di campi del modulo.
+function buildAutoMap(qs: { key: string; label: string; type: string }[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const q of qs) {
+    const crm = guessCrmField(q);
+    if (crm) map[q.key] = crm;
+  }
+  return map;
+}
+
+// Valori d'esempio per l'anteprima, per campo CRM.
+const EXAMPLE_BY_CRM: Record<string, string> = {
   full_name: "Mario Rossi",
   first_name: "Mario",
   last_name: "Rossi",
   email: "mario.rossi@email.it",
-  phone_number: "+39 333 1234567",
+  phone: "+39 333 1234567",
   city: "Roma",
-  street_address: "Via Roma 1",
-  zip: "00100",
-  state: "RM",
+  address: "Via Roma 1",
+  postal_code: "00100",
+  province: "RM",
   company_name: "Rossi Srl",
 };
 
@@ -150,13 +199,8 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
 
       const existing = mappings.find((m: any) => m.form_id === formId);
       if (!existing?.rules?.field_map) {
-        const autoMap: Record<string, string> = {};
-        for (const q of qs) {
-          if (AUTO_MAP[q.key]) {
-            autoMap[q.key] = AUTO_MAP[q.key];
-          }
-        }
-        setFieldMap(autoMap);
+        // Auto-mapping sui campi standard (per TYPE, indipendente dalla lingua)
+        setFieldMap(buildAutoMap(qs));
       }
     } catch (error: any) {
       toast.error(`Errore caricamento campi: ${error.message}`);
@@ -169,6 +213,19 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
     ...CRM_STANDARD_FIELDS.map((f) => ({ key: f.key, label: f.label })),
     ...customFields.map((f: { id: string; name: string }) => ({ key: `custom_${f.id}`, label: `✦ ${f.name}` })),
   ];
+
+  // Riapplica l'auto-mapping ai campi standard non ancora mappati, senza
+  // sovrascrivere le scelte manuali dell'utente.
+  const handleAutoMap = () => {
+    const auto = buildAutoMap(questions);
+    const added = Object.keys(auto).filter((k) => !fieldMap[k]).length;
+    setFieldMap((prev) => {
+      const next = { ...prev };
+      for (const k in auto) if (!next[k]) next[k] = auto[k];
+      return next;
+    });
+    toast.success(added > 0 ? `${added} campi mappati automaticamente` : "Campi standard già mappati");
+  };
 
   const handleSave = () => {
     const mappedValues = Object.values(fieldMap).filter(Boolean);
@@ -228,7 +285,7 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
 
     for (const q of questions) {
       const crmField = fieldMap[q.key];
-      const exampleVal = EXAMPLE_VALUES[q.key] || `Valore ${q.label}`;
+      const exampleVal = (crmField && EXAMPLE_BY_CRM[crmField]) || `Valore ${q.label}`;
       if (crmField) {
         const crmLabel = allCrmFields.find((f) => f.key === crmField)?.label || crmField;
         contact[crmLabel] = exampleVal;
@@ -261,6 +318,19 @@ export function FieldMappingStep({ hook, formId, onSaved }: FieldMappingStepProp
 
       <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
         Prima di attivare il modulo, mappa almeno un identificativo stabile del contatto. La deduplica userà la regola selezionata nelle opzioni avanzate.
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs gap-1.5"
+          onClick={handleAutoMap}
+          disabled={questions.length === 0}
+        >
+          <Wand2 className="h-3.5 w-3.5" />
+          Mappa automaticamente
+        </Button>
       </div>
 
       {/* Field mapping table */}
