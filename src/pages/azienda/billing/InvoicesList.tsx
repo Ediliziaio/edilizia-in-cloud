@@ -12,9 +12,28 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
+
+/**
+ * Freschezza dell'ultima sincronizzazione: tempo relativo leggibile
+ * ("12 min fa", "3 h fa", "2 gg fa") + flag `stale` se il dato ha più di 24h,
+ * così l'utente capisce a colpo d'occhio se le fatture sono aggiornate.
+ */
+function syncFreshness(iso?: string | null): { label: string; stale: boolean } | null {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diffMs)) return null;
+  const min = Math.floor(diffMs / 60_000);
+  let label: string;
+  if (min < 1) label = "adesso";
+  else if (min < 60) label = `${min} min fa`;
+  else if (min < 1440) label = `${Math.floor(min / 60)} h fa`;
+  else label = `${Math.floor(min / 1440)} gg fa`;
+  return { label, stale: diffMs > 24 * 3_600_000 };
+}
 
 /**
  * Stato "effettivo" per il badge: una fattura non pagata/annullata con scadenza
@@ -122,7 +141,7 @@ export default function InvoicesList() {
         // Nomi reali verificati a schema: tax_amount (non vat_amount), document_type (non
         // invoice_type), external_provider (non provider), external_xml_url (non xml_url).
         // currency/customer_id NON esistono → rimosse.
-        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider")
+        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider, external_status")
         .eq("company_id", companyId!)
         .order("issue_date", { ascending: false, nullsFirst: false })
         .limit(500);
@@ -286,7 +305,23 @@ export default function InvoicesList() {
     // Filtro per anno (selettore in alto) + eventuale mese cliccato nella panoramica.
     if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
     if (monthFilter) list = list.filter((i) => i.issue_date?.startsWith(`${stripYear}-${monthFilter}`));
-    if (statusFilter !== "all") list = list.filter((i) => i.status === statusFilter);
+    // FIX: il filtro usava lo status GREZZO, ma "overdue" è uno stato calcolato
+    // (una fattura scaduta ha status 'issued'/'sent' + scadenza passata) → la tab
+    // "Scadute" non filtrava nulla. Ora usa lo stato effettivo + pseudo-filtri
+    // "unpaid" (da incassare) e "paid" che cattura anche i saldi per acconto.
+    if (statusFilter !== "all") {
+      list = list.filter((i) => {
+        const residuo = Number(i.total ?? 0) - Number(i.paid_amount ?? 0);
+        if (statusFilter === "unpaid") {
+          return !["paid", "cancelled"].includes(i.status) && residuo > 0.005;
+        }
+        if (statusFilter === "overdue") return effectiveStatus(i) === "overdue";
+        if (statusFilter === "paid") {
+          return i.status === "paid" || (Number(i.paid_amount ?? 0) > 0.005 && residuo <= 0.005);
+        }
+        return i.status === statusFilter;
+      });
+    }
     if (search) {
       const s = search.toLowerCase();
       list = list.filter((i) =>
@@ -339,6 +374,40 @@ export default function InvoicesList() {
     return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth, total: base.length };
   }, [invoices, yearFilter]);
 
+  // RECUPERO CREDITI — cosa mancava: la pagina diceva "36 scadute 38k" ma non
+  // QUANTO è vecchio il credito né CHI deve pagarti. Qui: bucket di aging
+  // (0-30 / 31-60 / 60+ giorni) sul residuo scaduto + top debitori cliccabili
+  // (click → cerca quel cliente nella lista). Rispetta il filtro anno corrente.
+  const recupero = useMemo(() => {
+    const now = Date.now();
+    const base = (yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter)))
+      .filter((i) => i.document_type !== "credit_note" && !["paid", "cancelled", "draft"].includes(i.status));
+    const buckets = { b30: 0, b60: 0, b60p: 0 };
+    const perCliente = new Map<string, { residuo: number; maxDays: number; n: number }>();
+    for (const i of base) {
+      if (!i.due_date) continue;
+      const residuo = Number(i.total || 0) - Number(i.paid_amount || 0);
+      if (residuo <= 0.005) continue;
+      const days = Math.floor((now - new Date(i.due_date).getTime()) / 86_400_000);
+      if (days <= 0) continue; // solo scadute
+      if (days <= 30) buckets.b30 += residuo;
+      else if (days <= 60) buckets.b60 += residuo;
+      else buckets.b60p += residuo;
+      const key = i.client_company_name || "—";
+      const cur = perCliente.get(key) ?? { residuo: 0, maxDays: 0, n: 0 };
+      cur.residuo += residuo;
+      cur.maxDays = Math.max(cur.maxDays, days);
+      cur.n += 1;
+      perCliente.set(key, cur);
+    }
+    const totale = buckets.b30 + buckets.b60 + buckets.b60p;
+    const topDebitori = Array.from(perCliente.entries())
+      .map(([nome, v]) => ({ nome, ...v }))
+      .sort((a, b) => b.residuo - a.residuo)
+      .slice(0, 5);
+    return { buckets, totale, topDebitori };
+  }, [invoices, yearFilter]);
+
   const fmtEur = (n: number) => formatCurrency(n);
 
   return (
@@ -346,15 +415,15 @@ export default function InvoicesList() {
       {/* No provider banner */}
       {!isLoading && !integration && (
         <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+          <CardContent className="pt-4 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Link2 className="h-5 w-5 text-primary" />
+              <Link2 className="h-5 w-5 text-primary shrink-0" />
               <div>
                 <p className="font-medium">Connetti il tuo gestionale di fatturazione</p>
                 <p className="text-sm text-muted-foreground">Collega Fatture in Cloud, Fattura24, Aruba o Invoicetronic per importare automaticamente le fatture.</p>
               </div>
             </div>
-            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni")}>
+            <Button variant="outline" className="shrink-0" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
               Configura
             </Button>
           </CardContent>
@@ -384,11 +453,19 @@ export default function InvoicesList() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          {integration?.last_sync_at && (
-            <span className="hidden sm:inline text-xs text-muted-foreground">
-              Ultimo sync: {format(new Date(integration.last_sync_at), "dd/MM HH:mm", { locale: it })}
-            </span>
-          )}
+          {integration?.last_sync_at && (() => {
+            const f = syncFreshness(integration.last_sync_at);
+            if (!f) return null;
+            return (
+              <span
+                className={`inline-flex items-center gap-1 text-xs ${f.stale ? "text-amber-600 font-medium" : "text-muted-foreground"}`}
+                title={`Ultima sincronizzazione: ${format(new Date(integration.last_sync_at!), "dd/MM/yyyy HH:mm", { locale: it })}`}
+              >
+                {f.stale && <AlertTriangle className="h-3 w-3 shrink-0" />}
+                Sync {f.label}
+              </span>
+            );
+          })()}
           <Button onClick={syncInvoices} disabled={syncing || !integration}>
             {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sincronizza
@@ -408,20 +485,37 @@ export default function InvoicesList() {
         </TabsList>
 
         <TabsContent value="fatture" className="space-y-6 mt-4">
-          {/* KPI Cards */}
+          {/* KPI Cards — "Da incassare" e "Fatture scadute" sono azionabili:
+              cliccandole filtrano la lista (pattern GHL, il numero diventa un
+              punto d'ingresso invece di una decorazione). Toggle: ri-cliccare
+              torna a "Tutte". */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Da incassare</p>
-                <p className="text-xl font-bold">{fmtEur(kpis.receivable)}</p>
-              </CardContent>
-            </Card>
-            <Card className={kpis.overdueCount > 0 ? "border-destructive" : ""}>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Fatture scadute</p>
-                <p className="text-xl font-bold text-destructive">{kpis.overdueCount} ({fmtEur(kpis.overdueAmount)})</p>
-              </CardContent>
-            </Card>
+            <button
+              type="button"
+              onClick={() => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid"))}
+              className="text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-pressed={statusFilter === "unpaid"}
+            >
+              <Card className={`h-full transition-colors hover:border-primary/50 ${statusFilter === "unpaid" ? "border-primary ring-1 ring-primary/30" : ""}`}>
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs text-muted-foreground">Da incassare</p>
+                  <p className="text-xl font-bold">{fmtEur(kpis.receivable)}</p>
+                </CardContent>
+              </Card>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue"))}
+              className="text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-pressed={statusFilter === "overdue"}
+            >
+              <Card className={`h-full transition-colors ${kpis.overdueCount > 0 ? "border-destructive" : ""} ${statusFilter === "overdue" ? "ring-1 ring-destructive/40" : "hover:border-destructive/50"}`}>
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs text-muted-foreground">Fatture scadute</p>
+                  <p className="text-xl font-bold text-destructive">{kpis.overdueCount} ({fmtEur(kpis.overdueAmount)})</p>
+                </CardContent>
+              </Card>
+            </button>
             <Card>
               <CardContent className="pt-4 pb-3">
                 <p className="text-xs text-muted-foreground">Emesse questo mese</p>
@@ -435,6 +529,72 @@ export default function InvoicesList() {
               </CardContent>
             </Card>
           </div>
+
+          {/* RECUPERO CREDITI — appare solo se c'è credito scaduto. Traduce il
+              numero rosso "36 scadute" in azione: quanto è vecchio il credito
+              (aging) e chi ti deve di più (top debitori cliccabili). */}
+          {recupero.totale > 0.005 && (
+            <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10">
+              <CardContent className="pt-4 pb-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    Recupero crediti · {fmtEur(recupero.totale)} scaduti
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("overdue")}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Vedi tutte →
+                  </button>
+                </div>
+                {/* Aging: barra proporzionale 0-30 / 31-60 / 60+ giorni */}
+                <div>
+                  <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                    {[
+                      { v: recupero.buckets.b30, c: "bg-amber-400" },
+                      { v: recupero.buckets.b60, c: "bg-orange-500" },
+                      { v: recupero.buckets.b60p, c: "bg-rose-600" },
+                    ].map((s, idx) => s.v > 0 && (
+                      <div key={idx} className={s.c} style={{ width: `${(s.v / recupero.totale) * 100}%` }} />
+                    ))}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />0-30 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b30)}</span></span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />31-60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60)}</span></span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-600" />oltre 60 gg <span className="font-semibold tabular-nums">{fmtEur(recupero.buckets.b60p)}</span></span>
+                  </div>
+                </div>
+                {/* Top debitori — click filtra la lista su quel cliente */}
+                {recupero.topDebitori.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-xs font-medium text-muted-foreground">Chi ti deve di più</p>
+                    {recupero.topDebitori.map((d) => (
+                      <button
+                        key={d.nome}
+                        type="button"
+                        onClick={() => { setSearch(d.nome); setStatusFilter("overdue"); }}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
+                        title={`Filtra le fatture di ${d.nome}`}
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-200/70 text-[10px] font-semibold text-amber-800">
+                            {clienteInitials(d.nome)}
+                          </span>
+                          <span className="truncate">{d.nome}</span>
+                        </span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-rose-600 font-medium">{d.maxDays} gg</span>
+                          <span className="font-semibold tabular-nums">{fmtEur(d.residuo)}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tab tipo documento (stile Fatture in Cloud) */}
           <div className="flex flex-wrap items-center gap-1 border-b">
@@ -530,14 +690,60 @@ export default function InvoicesList() {
 
           {/* Table */}
           {isLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+            /* Skeleton che conserva il layout della tabella (niente più spinner
+               solitario che fa "saltare" la pagina al caricamento). */
+            <div className="rounded-lg border divide-y">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-20 ml-auto" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              {invoices.length === 0
-                ? integration
-                  ? "Nessuna fattura importata. Premi 'Sincronizza' per importare dal gestionale."
-                  : "Nessuna fattura. Connetti un gestionale per iniziare."
-                : "Nessun risultato per i filtri selezionati."}
+            /* Empty state ricco: icona + testo guida + CTA contestuale
+               (Sincronizza se connesso, Connetti se manca il provider,
+               Azzera filtri se sono i filtri a nascondere tutto). */
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                {invoices.length === 0 ? <Inbox className="h-7 w-7 text-muted-foreground" /> : <Search className="h-7 w-7 text-muted-foreground" />}
+              </div>
+              {invoices.length === 0 ? (
+                integration ? (
+                  <>
+                    <div>
+                      <p className="font-medium">Nessuna fattura importata</p>
+                      <p className="text-sm text-muted-foreground">Sincronizza per importare le fatture da {PROVIDER_LABELS[integration.provider] || "il tuo gestionale"}.</p>
+                    </div>
+                    <Button onClick={syncInvoices} disabled={syncing}>
+                      {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                      Sincronizza ora
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-medium">Nessuna fattura</p>
+                      <p className="text-sm text-muted-foreground">Connetti un gestionale (Fatture in Cloud, Aruba…) per importare le fatture.</p>
+                    </div>
+                    <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
+                      <Link2 className="h-4 w-4 mr-2" /> Connetti un gestionale
+                    </Button>
+                  </>
+                )
+              ) : (
+                <>
+                  <div>
+                    <p className="font-medium">Nessun risultato</p>
+                    <p className="text-sm text-muted-foreground">Nessuna fattura corrisponde ai filtri selezionati.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => { setStatusFilter("all"); setSearch(""); setMonthFilter(null); }}>
+                    Azzera filtri
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -631,7 +837,24 @@ export default function InvoicesList() {
                             </td>
                             <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
                             <td className="p-3">
-                              <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                              <div className="flex flex-col gap-1 items-start">
+                                <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                                {/* Esito SDI: si accende SOLO quando il provider popola
+                                    external_status. Scartata/errore = alert rosso da
+                                    correggere (fattura non consegnata = non pagata). */}
+                                {(() => {
+                                  const sdi = (inv.external_status || "").toLowerCase();
+                                  if (!sdi) return null;
+                                  const rejected = /scart|error|rifiut|ns|ec02/.test(sdi);
+                                  const delivered = /conseg|deliver|rc|ec01|accett/.test(sdi);
+                                  return (
+                                    <span className={`inline-flex items-center gap-1 text-[10px] ${rejected ? "text-rose-600 font-medium" : delivered ? "text-green-600" : "text-muted-foreground"}`}>
+                                      {rejected && <AlertTriangle className="h-2.5 w-2.5" />}
+                                      SDI: {inv.external_status}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                             </td>
                             <td className="p-3">
                               {inv.external_provider ? (

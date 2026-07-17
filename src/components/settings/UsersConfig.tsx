@@ -571,14 +571,21 @@ export function UsersConfig() {
       const blockedByUser: Record<string, boolean> = {};
       profilesById.forEach((row) => { blockedByUser[row.id] = row.is_blocked === true; });
 
+      // La RPC get_internal_chat_profiles è la fonte AUTOREVOLE per lo staff
+      // (INNER JOIN user_roles con whitelist ruoli piattaforma): se risponde,
+      // chi non compare lì e non ha accessi multi-azienda/ruoli noti è un
+      // cliente del portale, non un utente azienda.
+      const rpcAuthoritative = rpcProfiles.length > 0;
+
       const users = userIds.map((uid) => {
         const profile = profilesById.get(uid);
         const accessRole = accessRoleByUser[uid];
-        const userRoles = uniqueValues([
+        // Ruoli NOTI (RPC / user_roles / multi_company_access / auth corrente).
+        const knownRoles = uniqueValues([
           ...(accessRole ? [accessRole] : []),
           ...(rolesByUser[uid] || []),
         ]);
-        const safeRoles = userRoles.length > 0 ? userRoles : ["company_staff"];
+        const safeRoles = knownRoles.length > 0 ? knownRoles : ["company_staff"];
         return [{
           id: uid,
           first_name: profile?.first_name ?? "Utente",
@@ -593,16 +600,25 @@ export function UsersConfig() {
           permissions: null,
           active_sessions: sessionsByUser[uid] || 0,
           is_blocked: blockedByUser[uid] ?? false,
+          hasKnownStaffRole: knownRoles.some((r) => r !== "customer"),
         }];
       }).flat()
-        // BUGFIX: questa pagina (Persone & Accessi) deve mostrare SOLO gli
+        // BUGFIX v2: questa pagina (Persone & Accessi) deve mostrare SOLO gli
         // utenti-piattaforma (admin/staff/venditori/operai/call-center/
-        // subappaltatori), NON i clienti col portale commesse (ruolo
-        // `customer`). L'RPC get_internal_chat_profiles già li esclude, ma la
-        // query profiles di fallback (per resilienza) li ri-aggiungeva tutti
-        // → 382 righe coi clienti mischiati. Teniamo solo chi ha ALMENO un
-        // ruolo diverso da `customer` (i clienti hanno solo ['customer']).
-        .filter((u) => u.allRoles.some((r) => r !== "customer")) as CompanyUser[];
+        // subappaltatori), NON i clienti col portale (ruolo `customer`).
+        // Il filtro v1 su allRoles era vanificato dal default "company_staff"
+        // assegnato ai profili senza ruoli caricati: con RPC attiva i ruoli
+        // dei clienti non venivano mai letti (shouldFetchRoles=false) → 358
+        // clienti passavano travestiti da Operatore. Ora:
+        //  - RPC autorevole → tieni solo chi ha un ruolo staff NOTO;
+        //  - RPC fallita (fallback resiliente) → tieni anche gli sconosciuti
+        //    come Operatore (meglio uno staff in più che nasconderlo), ma
+        //    escludi sempre chi risulta SOLO customer da user_roles.
+        .filter((u) =>
+          u.hasKnownStaffRole ||
+          (!rpcAuthoritative && u.allRoles.every((r) => r !== "customer")),
+        )
+        .map(({ hasKnownStaffRole: _hasKnownStaffRole, ...u }) => u) as CompanyUser[];
 
       return { users, warnings };
     },
