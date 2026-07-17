@@ -24,7 +24,7 @@ import {
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
-  CalendarClock, Sparkles,
+  CalendarClock, Sparkles, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -1051,6 +1051,10 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  // Modalità selezione multipla: di default la card mostra SOLO il cerchio
+  // "completa"; il checkbox di selezione compare unicamente in questa modalità,
+  // così l'utente non vede mai due controlli (cerchio + quadrato) insieme.
+  const [selectionMode, setSelectionMode] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [filterAssignee, setFilterAssignee] = useState<string>("me");
@@ -1369,24 +1373,26 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       // Vista compatta — riga singola
       return (
         <div key={t.id} className={`group flex items-center gap-1.5 sm:gap-2 rounded border px-2 sm:px-3 py-1.5 transition-all text-sm ${isDone ? "opacity-50 bg-muted/30" : ""} ${scaduta ? "border-red-200 bg-red-50/20" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}>
-          {/* Checkbox select */}
-          {canManage && (
+          {/* Un solo controllo a sinistra: in modalità selezione il checkbox,
+              altrimenti il cerchio "completa". Mai entrambi insieme. */}
+          {selectionMode && canManage ? (
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => toggleSelect(t.id)}
-              className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary shrink-0"
+              className="h-4 w-4 rounded border-muted-foreground/40 accent-primary shrink-0"
+              aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
             />
+          ) : (
+            <button
+              onClick={() => !isDone && canManage && markDone(t)}
+              disabled={isDone || !canManage}
+              className={`shrink-0 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
+              title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
+            >
+              {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+            </button>
           )}
-          {/* Complete button */}
-          <button
-            onClick={() => !isDone && canManage && markDone(t)}
-            disabled={isDone || !canManage}
-            className={`shrink-0 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-            title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
-          >
-            {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-          </button>
           {/* Title */}
           <span className={`flex-1 truncate ${canManage ? "cursor-pointer" : ""} ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => canManage && openEdit(t)}>
             {t.title}
@@ -1432,30 +1438,34 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     // Vista normale — card
     return (
       <div key={t.id} className={`group flex items-start gap-3 rounded-lg border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
-        {/* Checkbox + Complete */}
-        <div className="flex flex-col items-center gap-1 mt-0.5 shrink-0">
-          {canManage && (
+        {/* Un solo controllo a sinistra: checkbox in modalità selezione,
+            altrimenti il cerchio "completa" (gesto to-do naturale). Niente più
+            cerchio + quadrato impilati. */}
+        <div className="mt-0.5 shrink-0">
+          {selectionMode && canManage ? (
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => toggleSelect(t.id)}
-              className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
+              className="h-[18px] w-[18px] rounded border-muted-foreground/40 accent-primary"
+              aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
             />
+          ) : (
+            <button
+              onClick={() => !isDone && canManage && markDone(t)}
+              disabled={isDone || !canManage}
+              className={`transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
+              title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
+            >
+              {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+            </button>
           )}
-          <button
-            onClick={() => !isDone && canManage && markDone(t)}
-            disabled={isDone || !canManage}
-            className={`transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-            title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
-          >
-            {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-          </button>
         </div>
 
         {/* Content */}
         <div className={`flex-1 min-w-0 ${canManage ? "cursor-pointer" : ""}`} onClick={() => canManage && openEdit(t)}>
           <div className="flex items-start justify-between gap-2">
-            <p className={`font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+            <p className={`font-medium text-sm leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
             <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${cfg.badgeClass}`}>
               <PriorityIcon className="h-2.5 w-2.5 mr-0.5" />{cfg.label}
             </Badge>
@@ -1626,33 +1636,57 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                   <TooltipContent>{compact ? "Vista espansa" : "Vista compatta"}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {/* Toggle modalità selezione multipla: attiva/disattiva i checkbox
+                  sulle card (di default resta solo il cerchio "completa"). */}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={selectionMode ? "default" : "outline"}
+                      size="sm"
+                      className="h-9 w-9 p-0 shrink-0"
+                      onClick={() => setSelectionMode(v => { if (v) setSelectedIds(new Set()); return !v; })}
+                      aria-label="Seleziona più attività"
+                      aria-pressed={selectionMode}
+                    >
+                      <ListChecks className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{selectionMode ? "Esci dalla selezione" : "Seleziona più attività"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </CardHeader>
 
         <CardContent>
-          {/* Bulk action bar — su mobile wrap, su desktop 1 riga */}
-          {hasSelection && (
+          {/* Bulk action bar — visibile in modalità selezione o quando c'è già
+              una selezione; su mobile wrap, su desktop 1 riga */}
+          {(hasSelection || selectionMode) && (
             <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <input type="checkbox" checked={selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona tutte" />
-                <span className="text-xs font-medium truncate">{selectedIds.size} {selectedIds.size === 1 ? "selezionata" : "selezionate"}</span>
-                <button onClick={() => setSelectedIds(new Set())} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label="Annulla selezione"><X className="h-4 w-4" /></button>
+                <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona tutte" />
+                <span className="text-xs font-medium truncate">
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} ${selectedIds.size === 1 ? "selezionata" : "selezionate"}`
+                    : "Tocca le attività da selezionare"}
+                </span>
+                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label="Chiudi selezione"><X className="h-4 w-4" /></button>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
+                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
                   <CheckCircle className="h-3.5 w-3.5" />Fatte
                 </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
+                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
                   <PlayCircle className="h-3.5 w-3.5" />In corso
                 </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
+                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
                   <Circle className="h-3.5 w-3.5" />Da fare
                 </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
+                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
                   <Trash2 className="h-3.5 w-3.5" />Elimina
                 </Button>
-                <button onClick={() => setSelectedIds(new Set())} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label="Annulla selezione"><X className="h-3.5 w-3.5" /></button>
+                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label="Chiudi selezione"><X className="h-3.5 w-3.5" /></button>
               </div>
             </div>
           )}
