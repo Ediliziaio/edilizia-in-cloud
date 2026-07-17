@@ -815,7 +815,9 @@ export default function AnalisiPreventivi() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
+            {/* 9 colonne: su mobile la tabella scrolla in orizzontale (min-w) invece
+                di schiacciare le colonne fino a renderle illeggibili. */}
+            <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>N°</TableHead>

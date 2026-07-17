@@ -157,14 +157,14 @@ export function FvPageHeader({
         {chips}
         {lastModified && <span>· {lastModified}</span>}
       </div>
-      <div className="flex items-start justify-between gap-6 flex-wrap mb-5">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
+      <div className="flex items-start justify-between gap-3 sm:gap-6 flex-wrap mb-4 sm:mb-5">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">{title}</h1>
           {subtitle && (
-            <p className="text-slate-500 text-sm mt-1 truncate max-w-xl">{subtitle}</p>
+            <p className="hidden sm:block text-slate-500 text-sm mt-1 truncate max-w-xl">{subtitle}</p>
           )}
         </div>
-        {actions && <div className="flex gap-2 items-center flex-wrap">{actions}</div>}
+        {actions && <div className="flex w-full sm:w-auto gap-2 items-center flex-wrap justify-end">{actions}</div>}
       </div>
     </div>
   );

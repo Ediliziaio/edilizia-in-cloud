@@ -514,7 +514,7 @@ export default function FotovoltaicoDettaglio() {
           {/* TAB Componenti */}
           <TabsContent value="componenti" className="mt-4">
             <FvCard compact>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -579,6 +579,34 @@ export default function FotovoltaicoDettaglio() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+
+              {/* Mobile: una card per componente (niente tabella a 6-7 colonne) */}
+              <div className="md:hidden space-y-2">
+                {componenti.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-slate-500">Nessun componente.</p>
+                ) : componenti.map((c) => (
+                  <div key={c.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <FvChip variant="navy">{c.categoria}</FvChip>
+                        <p className="mt-1 font-medium text-sm leading-snug">{c.descrizione}</p>
+                        {(c.marca || c.modello) && (
+                          <p className="text-xs text-slate-500 leading-snug">{c.marca ?? ""} {c.modello ?? ""}</p>
+                        )}
+                      </div>
+                      <p className="shrink-0 font-semibold text-sm tabular-nums">
+                        € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_vendita) || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                      <span className="tabular-nums">{c.quantita ?? 1} × € {(Number(c.prezzo_unitario_vendita) || 0).toFixed(2)}</span>
+                      {isAdmin && (
+                        <span className="tabular-nums">netto € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_netto) || 0)).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </FvCard>
 

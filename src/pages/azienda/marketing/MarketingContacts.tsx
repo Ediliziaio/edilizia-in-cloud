@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -1649,23 +1650,23 @@ export default function MarketingContacts() {
       )}
 
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
-              <ContactRound className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 sm:h-11 sm:w-11 sm:rounded-2xl">
+              <ContactRound className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950">Contatti</h1>
+                <h1 className="text-lg font-bold text-slate-950 sm:text-2xl">Contatti</h1>
                 {!isLoading && activeTab === "all" && (
                   <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{totalCount}</Badge>
                 )}
               </div>
-              <p className="text-sm text-slate-600">Gestisci lead, clienti e liste commerciali.</p>
+              <p className="hidden text-sm text-slate-600 sm:block">Gestisci lead, clienti e liste commerciali.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Desktop: Export + Import */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1690,7 +1691,7 @@ export default function MarketingContacts() {
             {/* Mobile: ... menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="sm:hidden h-9 w-9 border-slate-200 bg-white/80">
+                <Button variant="outline" size="icon" className="sm:hidden h-8 w-8 border-slate-200 bg-white/80">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1709,11 +1710,11 @@ export default function MarketingContacts() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Mobile: flex-1 — la CTA riempie la riga (niente vuoto a destra del bottone) */}
-            <Button className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
-              <Plus className="h-4 w-4 mr-1" />
+            {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
+            <Button className="h-8 shrink-0 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+              <Plus className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Aggiungi Contatto</span>
-              <span className="sm:hidden">Aggiungi contatto</span>
+              <span className="ml-1 sm:hidden">Aggiungi</span>
             </Button>
           </div>
         </div>
@@ -1734,8 +1735,38 @@ export default function MarketingContacts() {
         <ContactListsView />
       ) : (
         <>
-          {/* Quality cockpit */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* Mini dashboard mobile: 4 KPI compatti al posto del cockpit qualità
+              (richiesta utente: su mobile solo numeri essenziali + elenco).
+              Il tap filtra la lista come le chip desktop; ri-tap = rimuove. */}
+          <div className="grid grid-cols-4 gap-1.5 sm:hidden">
+            {([
+              { key: "all", label: "Totale", value: reachStats?.total, activeCls: "border-slate-400 bg-slate-100 text-slate-900" },
+              { key: "contactable", label: "Contattabili", value: reachStats?.reachable, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+              { key: "has_email", label: "Email", value: reachStats?.withEmail, activeCls: "border-sky-300 bg-sky-50 text-sky-700" },
+              { key: "no_contact", label: "No contatto", value: reachStats?.unreachable, activeCls: "border-red-300 bg-red-50 text-red-700" },
+            ] as const).map(({ key, label, value, activeCls }) => {
+              const active = qualityFilter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setQualityFilter(active && key !== "all" ? "all" : key)}
+                  className={`rounded-xl border px-1 py-2 text-center transition-colors ${
+                    active ? activeCls : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  <p className="text-base font-bold leading-none tabular-nums">
+                    {value != null ? value.toLocaleString("it-IT") : "—"}
+                  </p>
+                  <p className="mt-1 truncate text-[10px] leading-none text-muted-foreground">{label}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quality cockpit — solo desktop: su mobile è sostituito dalla
+              mini dashboard qui sopra. */}
+          <div className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:block">
             {/* v8.7 — header ripulito su feedback utente: via il badge "pagina corrente"
                 (gergo interno) e l'hint sull'anteprima laterale, che su mobile non esiste
                 nemmeno → resta solo su desktop, dove è vero. */}
@@ -1905,54 +1936,63 @@ export default function MarketingContacts() {
           {/* Mobile: card list */}
           <div className="sm:hidden flex flex-col gap-2">
             {isLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+              <div className="divide-y overflow-hidden rounded-lg border bg-card">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2.5 px-3 py-2">
+                    <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Skeleton className="h-3.5 w-2/5" />
+                      <Skeleton className="h-3 w-3/5" />
+                    </div>
+                    <Skeleton className="h-4 w-8 shrink-0" />
+                  </div>
+                ))}
+              </div>
             ) : contacts.length === 0 ? (
               <div className="text-center text-muted-foreground py-12 text-sm">Nessun contatto trovato</div>
             ) : (
-              contacts.map((c) => {
-                const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
-                const initials = getInitials(c.first_name, c.last_name || "");
-                const color = getAvatarColor(fullName);
-                const issues = contactIssuesById[c.id] || [];
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => setPreviewContact(c)}
-                    className="border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${color}`}>
+              /* Righe dense stile tabella: con migliaia di lead le card
+                 occupavano ~110px l'una; qui ~50px, una sola riga secondaria
+                 e indicatori compatti (pallino stato + conteggio warning). */
+              <div className="divide-y overflow-hidden rounded-lg border bg-card">
+                {contacts.map((c) => {
+                  const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
+                  const initials = getInitials(c.first_name, c.last_name || "");
+                  const color = getAvatarColor(fullName);
+                  const issues = contactIssuesById[c.id] || [];
+                  const secondary =
+                    c.company_name && c.company_name !== fullName
+                      ? c.company_name
+                      : (c.email ?? c.phone ?? "");
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setPreviewContact(c)}
+                      className="flex cursor-pointer items-center gap-2.5 px-3 py-2 active:bg-muted"
+                    >
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}>
                         {initials}
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{fullName}</p>
-                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                        {c.company_name && <p className="text-xs text-muted-foreground truncate">{c.company_name}</p>}
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {issues.length > 0 && (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px]">
-                            {issues.length} warning
-                          </Badge>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium leading-tight">{fullName}</p>
+                        {secondary && (
+                          <p className="truncate text-[11px] leading-tight text-muted-foreground">{secondary}</p>
                         )}
-                        {c.tags?.slice(0, 1).map((t) => (
-                          <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
-                        ))}
-                        {c.opp_status === "open" && <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">Aperta</Badge>}
-                        {c.opp_status === "won" && <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-300">Vinta</Badge>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Opportunità aperta" />}
+                        {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label="Opportunità vinta" />}
+                        {issues.length > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700">
+                            <AlertTriangle className="h-3 w-3" />
+                            {issues.length}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {(c.email || c.opp_name) && (
-                      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
-                        {c.opp_name
-                          ? <span className="truncate">💼 {c.opp_name}{c.opp_value ? ` · € ${Number(c.opp_value).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : ""}</span>
-                          : <span className="truncate">{c.email}</span>
-                        }
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
             {/* Mobile pagination */}
             {totalCount > pageSize && (
@@ -1971,8 +2011,15 @@ export default function MarketingContacts() {
           {/* Desktop: table */}
           <div className="hidden sm:block">
           {isLoading ? (
-            <div className="flex justify-center items-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="divide-y rounded-lg border">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                  <Skeleton className="h-4 w-44" />
+                  <Skeleton className="h-4 w-56" />
+                  <Skeleton className="ml-auto h-4 w-20" />
+                </div>
+              ))}
             </div>
           ) : (
             <ContactsTable

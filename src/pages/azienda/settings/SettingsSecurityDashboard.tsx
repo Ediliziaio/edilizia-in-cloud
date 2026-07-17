@@ -11,6 +11,7 @@ import {
   RefreshCw, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -214,8 +215,8 @@ export default function SettingsSecurityDashboard() {
 
       {/* KPI Overview */}
       {loadingOverview ? (
-        <div className="flex items-center justify-center p-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
         </div>
       ) : overview ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -292,7 +293,9 @@ export default function SettingsSecurityDashboard() {
             </CardHeader>
             <CardContent>
               {loadingSessions ? (
-                <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+                </div>
               ) : sessions.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">Nessuna sessione registrata</p>
               ) : (
@@ -386,7 +389,9 @@ export default function SettingsSecurityDashboard() {
             </CardHeader>
             <CardContent>
               {loadingAttempts ? (
-                <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+                </div>
               ) : loginAttempts.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">Nessun tentativo registrato</p>
               ) : (

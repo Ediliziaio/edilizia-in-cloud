@@ -1,7 +1,8 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit, Loader2 } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 // 2026-05-27 (perf fix P0): tab lazy-loaded.
 // PRIMA: 12 tab import statici → chunk PersonalePage 559KB (talent-profile,
 // charts, calendari, GPS, ecc. tutti caricati anche se l'utente apre solo
@@ -26,8 +27,14 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 
 function TabFallback() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+    <div className="space-y-3 py-2">
+      <Skeleton className="h-9 w-2/3 max-w-xs" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-56 w-full rounded-xl" />
     </div>
   );
 }

@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Phone } from "lucide-react";
+import { PhoneOutgoing } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,10 +128,11 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
         className={className}
         onClick={() => setOpen(true)}
         disabled={!contactId}
+        aria-label="Registra chiamata"
         title={contactId ? "Registra una chiamata fatta a questo contatto" : "Contatto non disponibile"}
       >
-        <Phone className="mr-1.5 h-4 w-4" />
-        Registra chiamata
+        <PhoneOutgoing className="h-4 w-4 sm:mr-1.5" />
+        <span className="hidden sm:inline">Registra chiamata</span>
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => !saving && setOpen(o)}>

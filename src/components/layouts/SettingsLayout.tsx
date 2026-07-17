@@ -103,7 +103,9 @@ export function SettingsLayout() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+              {/* Descrizione nascosta su mobile: su 375px occupava fino a 3 righe
+                  prima del contenuto in ogni sotto-pagina impostazioni. */}
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
             </div>
             {/* v8.6.71 — Search settings: nascosta su mobile (richiesto), resta su desktop */}
             <div className="hidden md:block">

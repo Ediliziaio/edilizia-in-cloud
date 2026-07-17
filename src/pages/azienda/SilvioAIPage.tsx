@@ -1398,10 +1398,10 @@ export default function SilvioAIPage() {
              irraggiungibile. min-h-full sul wrapper interno: se il contenuto
              ci sta è centrato, se è più alto scorre normalmente dall'alto. */
           <div className="flex-1 overflow-y-auto">
-            <div className="flex min-h-full w-full flex-col items-center justify-center gap-4 px-4 py-6 md:gap-6 md:py-10">
+            <div className="flex min-h-full w-full flex-col items-center justify-start sm:justify-center gap-4 px-4 py-6 md:gap-6 md:py-10">
             <AIAssistantInterface onSend={handleSend} disabled={sending} userName={firstName} />
             {!onboarded && (
-              <div className="w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm text-slate-600">
+              <div className="w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-3 py-2.5 text-[13px] leading-snug sm:px-4 sm:py-3 sm:text-sm text-slate-600">
                 <div className="flex items-start gap-2">
                   <Sparkles className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                   <div className="flex-1">

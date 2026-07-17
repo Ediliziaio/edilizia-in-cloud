@@ -167,6 +167,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const [fattMin, setFattMin] = useState("0");
   const [soloEmail, setSoloEmail] = useState(false);
   const [soloContattabili, setSoloContattabili] = useState(false);
+  const [soloEsatti, setSoloEsatti] = useState(false);
   const [search, setSearch] = useState("");
   const [showAdv, setShowAdv] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -230,11 +231,12 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
       if (regione !== "tutte" && p.regione !== regione) return false;
       if (minTier > 0 && pesoTier(p.fatturato) < minTier) return false;
       if (soloEmail && !p.email) return false;
-      if (soloContattabili && !p.email) return false;
+      if (soloContattabili && !p.email && !p.telefono) return false;
+      if (soloEsatti && !p.precise) return false;
       if (q && !p.nome.toLowerCase().includes(q) && !(p.categoria ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [points, tipo, provincia, categoria, temperatura, stato, regione, fattMin, soloEmail, soloContattabili, search]);
+  }, [points, tipo, provincia, categoria, temperatura, stato, regione, fattMin, soloEmail, soloContattabili, soloEsatti, search]);
 
   const filteredRef = useRef(filtered);
   useEffect(() => { filteredRef.current = filtered; }, [filtered]);
@@ -354,12 +356,12 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
   const shownProspect = filtered.length - shownClienti;
   const activeAdv = [
     provincia !== "tutte", regione !== "tutte", categoria !== "tutte",
-    temperatura !== "tutte", stato !== "tutti", fattMin !== "0", soloEmail, soloContattabili,
+    temperatura !== "tutte", stato !== "tutti", fattMin !== "0", soloEmail, soloContattabili, soloEsatti,
   ].filter(Boolean).length;
   const resetFilters = () => {
     setProvincia("tutte"); setRegione("tutte"); setCategoria("tutte");
     setTemperatura("tutte"); setStato("tutti"); setFattMin("0");
-    setSoloEmail(false); setSoloContattabili(false);
+    setSoloEmail(false); setSoloContattabili(false); setSoloEsatti(false);
   };
 
   // ── Azioni outreach dalla selezione ────────────────────────────────────
@@ -584,6 +586,9 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
                 </label>
                 <label className={`flex h-9 cursor-pointer select-none items-center gap-2 rounded-md border px-3 text-sm ${soloContattabili ? "border-orange-300 bg-orange-50 text-orange-800" : "bg-background"}`}>
                   <Checkbox checked={soloContattabili} onCheckedChange={(v) => setSoloContattabili(v === true)} /> Solo contattabili
+                </label>
+                <label className={`flex h-9 cursor-pointer select-none items-center gap-2 rounded-md border px-3 text-sm ${soloEsatti ? "border-orange-300 bg-orange-50 text-orange-800" : "bg-background"}`} title="Mostra solo le aziende geolocalizzate all'indirizzo civico esatto">
+                  <Checkbox checked={soloEsatti} onCheckedChange={(v) => setSoloEsatti(v === true)} /> Solo indirizzo esatto
                 </label>
               </div>
             </div>

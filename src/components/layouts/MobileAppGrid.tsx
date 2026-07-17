@@ -42,11 +42,19 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/marketing/reputazione",
   "/azienda/automazioni",
   "/azienda/marketing/email",
-  // "/azienda/whatsapp" RIENTRA nella griglia: rispondere su WhatsApp è il caso
-  // d'uso più mobile che esista — era l'unica nav completa senza percorso.
+  // 2026-07-16 (richiesta utente): anche WhatsApp esce dall'app mobile,
+  // insieme all'intera sezione "Automazioni & AI" (vedi MOBILE_HIDDEN_AREAS).
+  "/azienda/whatsapp",
   "/azienda/agenti-ai",
   "/azienda/sms",
 ]);
+
+/**
+ * Intere sezioni escluse dal menu app mobile (richiesta utente 2026-07-16:
+ * via "Automazioni & AI" e WhatsApp dall'app mobile). La sidebar desktop
+ * continua a mostrarle secondo permessi/feature.
+ */
+const MOBILE_HIDDEN_AREAS = new Set<string>(["area_automazioni"]);
 
 /**
  * Palette per macroArea — ogni sezione ha il suo colore identificativo.
@@ -274,6 +282,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
 
   const filteredAreas = useMemo(() => {
     return macroAreas
+      .filter((area) => !MOBILE_HIDDEN_AREAS.has(area.id))
       .map((area) => {
         let items = filterNavItems(area.items);
         if (search.trim()) {

@@ -90,7 +90,7 @@ export function QuotePageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex gap-1.5 sm:gap-2 items-center flex-wrap w-full sm:w-auto">{actions}</div>
+          <div className="flex w-full sm:w-auto shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">{actions}</div>
         )}
       </div>
     </div>
@@ -129,12 +129,12 @@ export function QuoteCard({
     <div
       className={cn(
         "bg-white border border-slate-200 rounded-2xl shadow-sm transition-shadow hover:shadow-md",
-        compact ? "p-4" : "p-5 sm:p-6",
+        compact ? "p-4" : "p-4 sm:p-6",
         className,
       )}
     >
       {!noHeader && (title || action) && (
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 sm:mb-4">
           {title && (
             <div className="min-w-0">
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
@@ -415,7 +415,7 @@ export function QuoteStepper({
               onClick={() => isClickable && onSelect?.(i)}
               disabled={!isClickable}
               className={cn(
-                "shrink-0 flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-3 border-b-[3px] border-transparent whitespace-nowrap transition-all text-sm font-medium",
+                "shrink-0 flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 border-b-[3px] border-transparent whitespace-nowrap transition-all text-sm font-medium",
                 "hover:bg-slate-50",
                 isActive && "border-orange-500 text-slate-900 bg-white font-semibold",
                 isCompleted && !isActive && "text-slate-700",
@@ -449,12 +449,12 @@ export function QuoteStepper({
           );
         })}
       </div>
-      <div className="bg-slate-50 px-4 sm:px-6 py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100">
-        <span>
+      <div className="bg-slate-50 px-4 sm:px-6 py-1.5 sm:py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100">
+        <span className="shrink-0">
           <strong className="text-slate-900">
             Step {current + 1} di {steps.length}
-          </strong>{" "}
-          · {steps[current]?.label}
+          </strong>
+          <span className="hidden sm:inline"> · {steps[current]?.label}</span>
         </span>
         <div className="flex-1 max-w-[240px] h-1 bg-slate-200 rounded-full overflow-hidden">
           <div

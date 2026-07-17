@@ -77,11 +77,13 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
   const stopProp = (e: React.MouseEvent) => e.stopPropagation();
 
-  const handleCopyPhone = (e: React.MouseEvent) => {
+  // Tap sul telefono = avvia la chiamata (tel:). Su mobile apre il dialer del
+  // dispositivo, così l'utente chiama col proprio cellulare. Prima copiava solo
+  // il numero negli appunti.
+  const handleCallPhone = (e: React.MouseEvent) => {
     stopProp(e);
     if (contact?.phone) {
-      navigator.clipboard.writeText(contact.phone);
-      toast.success("Numero copiato");
+      window.location.href = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
     } else {
       toast.info("Nessun telefono disponibile");
     }
@@ -158,7 +160,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   }
 
   const actionIcons = [
-    { icon: Phone, tooltip: "Copia telefono", action: handleCopyPhone, mobileVisible: true },
+    { icon: Phone, tooltip: "Chiama", action: handleCallPhone, mobileVisible: true },
     { icon: Mail, tooltip: "Invia email", action: handleEmail, mobileVisible: true },
     {
       icon: Tag,

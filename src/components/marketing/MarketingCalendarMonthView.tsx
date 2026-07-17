@@ -7,11 +7,14 @@ import {
   addDays,
   isSameMonth,
   isToday,
+  isSameDay,
   format,
 } from "date-fns";
+import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
 import { buildColorMap } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
@@ -136,6 +139,21 @@ export default function MarketingCalendarMonthView({
     return grouped;
   }, [busySlots]);
 
+  // ── Mobile (stile Google Calendar) ──────────────────────────────────────
+  // Su 375px le chip evento nelle celle sono illeggibili (testo troncato a
+  // "08:"): griglia compatta con PALLINI per giorno + agenda del giorno
+  // selezionato sotto. Il tap sul giorno seleziona (non apre il dialog);
+  // "Nuovo" nell'agenda crea l'appuntamento sul giorno selezionato.
+  const isMobile = useIsMobile();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const selectedDate = useMemo(() => {
+    if (selectedKey) {
+      const d = new Date(`${selectedKey}T00:00:00`);
+      if (isSameMonth(d, currentDate)) return d;
+    }
+    return currentDate;
+  }, [selectedKey, currentDate]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
     setActiveApt(apt || null);
@@ -153,6 +171,148 @@ export default function MarketingCalendarMonthView({
     const newDate = overId.replace("day-", "");
     onDropAppointment(aptId, newDate);
   };
+
+  if (isMobile) {
+    const selKey = format(selectedDate, "yyyy-MM-dd");
+    const selApts = appointmentsByDate.get(selKey) ?? [];
+    const selBusy = busySlotsByDate.get(selKey) ?? [];
+    const fmtBusy = (iso: string) =>
+      new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    // Agenda unificata (appuntamenti + eventi esterni) ordinata per orario.
+    const agenda = [
+      ...selApts.map((apt) => ({
+        kind: "apt" as const,
+        sort: apt.appointment_time || "23:59",
+        apt,
+      })),
+      ...selBusy.map((slot) => ({
+        kind: "busy" as const,
+        sort: slot.is_all_day ? "00:00" : fmtBusy(slot.start_at),
+        slot,
+      })),
+    ].sort((a, b) => a.sort.localeCompare(b.sort));
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        {/* Griglia mese compatta: numero giorno + pallini evento */}
+        <div className="shrink-0 overflow-hidden rounded-lg border bg-background shadow-sm">
+          <div className="grid grid-cols-7 border-b bg-muted/30">
+            {DAY_NAMES.map((name) => (
+              <div key={name} className="py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {name}
+              </div>
+            ))}
+          </div>
+          {weeks.map((week) => (
+            <div key={format(week[0], "yyyy-MM-dd")} className="grid grid-cols-7">
+              {week.map((day) => {
+                const dateKey = format(day, "yyyy-MM-dd");
+                const inMonth = isSameMonth(day, currentDate);
+                const nApts = (appointmentsByDate.get(dateKey) ?? []).length;
+                const nBusy = (busySlotsByDate.get(dateKey) ?? []).length;
+                const selected = isSameDay(day, selectedDate);
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => setSelectedKey(dateKey)}
+                    className={cn("flex h-11 flex-col items-center justify-center gap-0.5", !inMonth && "opacity-40")}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-full text-xs",
+                        selected
+                          ? "bg-primary font-semibold text-primary-foreground"
+                          : isToday(day)
+                            ? "font-bold text-primary"
+                            : "text-foreground"
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
+                    <span className="flex h-1.5 items-center gap-0.5">
+                      {nApts > 0 && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                      {nApts > 1 && <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />}
+                      {nBusy > 0 && <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Agenda del giorno selezionato */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
+          <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+            <p className="text-sm font-semibold capitalize">
+              {format(selectedDate, "EEEE d MMMM", { locale: it })}
+            </p>
+            <button
+              type="button"
+              onClick={() => onClickDay(selectedDate)}
+              className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+            >
+              <Plus className="h-3.5 w-3.5" /> Nuovo
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {agenda.length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nessun impegno</p>
+            ) : (
+              <div className="divide-y">
+                {agenda.map((item) =>
+                  item.kind === "apt" ? (
+                    <button
+                      key={`apt-${item.apt.id}`}
+                      type="button"
+                      onClick={() => onClickAppointment(item.apt)}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left active:bg-muted"
+                    >
+                      <span className="w-11 shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
+                        {item.apt.appointment_time ? item.apt.appointment_time.slice(0, 5) : "—"}
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate rounded border-l-2 px-2 py-1 text-[13px] leading-tight",
+                          item.apt.calendar_id && colorMap[item.apt.calendar_id]
+                            ? colorMap[item.apt.calendar_id]
+                            : "border-muted-foreground/40 bg-muted text-foreground",
+                          item.apt.status === "annullato" && "line-through opacity-50 saturate-50"
+                        )}
+                      >
+                        {item.apt.title}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      key={`busy-${item.slot.id}`}
+                      type="button"
+                      onClick={() => onClickBusySlot?.(item.slot)}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left active:bg-muted"
+                    >
+                      <span className="w-11 shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
+                        {item.slot.is_all_day ? "Tutto il giorno" : fmtBusy(item.slot.start_at)}
+                      </span>
+                      <span className={cn(
+                        "flex min-w-0 flex-1 items-center gap-1 truncate rounded border-l-2 border-dashed px-2 py-1 text-[13px] italic leading-tight",
+                        item.slot.provider === "apple"
+                          ? "border-zinc-500/60 bg-zinc-100/80 text-zinc-700"
+                          : "border-blue-500/60 bg-blue-50 text-blue-800"
+                      )}>
+                        <CalendarIcon className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{item.slot.summary || "Occupato"}</span>
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

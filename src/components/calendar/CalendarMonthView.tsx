@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -188,6 +189,61 @@ export function CalendarMonthView({
 
   const weekDays = WEEK_DAYS_IT;
 
+  // ── Mobile (stile Google Calendar) ──────────────────────────────────────
+  // Le celle mese su 375px rendevano il testo evento illeggibile: qui griglia
+  // a pallini (max 3 per giorno + colore per tipo) + agenda del giorno
+  // selezionato. Il tap seleziona il giorno; le voci agenda aprono l'editor.
+  const isMobile = useIsMobile();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const selectedDate = useMemo(() => {
+    if (selectedKey) {
+      const d = parseISO(selectedKey);
+      if (isSameMonth(d, currentDate)) return d;
+    }
+    return currentDate;
+  }, [selectedKey, currentDate]);
+
+  /** Riga d'agenda leggibile da un CalendarEvent (etichetta + azione). */
+  const describeEvent = (event: CalendarEvent): { label: string; color: string; onClick?: () => void } => {
+    if (event.type === "google_busy" && event.busySlot) {
+      return { label: event.busySlot.summary || "Occupato (Google)", color: event.color };
+    }
+    if (event.type === "leave" && event.leave) {
+      return { label: `Ferie/permesso · ${event.leave.employee_name ?? ""}`.trim(), color: event.color };
+    }
+    if (event.type === "intervento" && event.intervento) {
+      return { label: event.intervento.subject, color: event.color };
+    }
+    if (event.type === "manutenzione" && event.manutenzione) {
+      return { label: event.manutenzione.titolo, color: event.color };
+    }
+    if (event.type === "appointment" && event.appointment) {
+      return {
+        label: event.appointment.title || "Appuntamento",
+        color: event.color,
+        onClick: () => {
+          setEditingAppointment(mapAppointmentToEditData(event.appointment!));
+          setAppointmentDialogOpen(true);
+        },
+      };
+    }
+    if (event.order) {
+      const kind = event.type === "posa" ? "Posa" : event.type === "lavoro" ? "Lavoro" : "Merce";
+      return {
+        label: `${kind} · ${event.order.customer_name ?? event.order.order_code ?? ""}`.trim(),
+        color: event.color,
+        onClick: () => {
+          if (event.type === "merce" && warehouseInfo?.get(event.order!.id)) {
+            setWarehouseDrawer(warehouseInfo.get(event.order!.id)!);
+          } else {
+            setEditingOrder(event.order!);
+          }
+        },
+      };
+    }
+    return { label: "Evento", color: event.color };
+  };
+
   return (
     <Card className="p-3 sm:p-4">
       <div className="flex items-center justify-between mb-4">
@@ -202,6 +258,90 @@ export function CalendarMonthView({
         </Button>
       </div>
 
+      {isMobile ? (
+        (() => {
+          const selKey = format(selectedDate, "yyyy-MM-dd");
+          const selEvents = getEventsForDay(selectedDate);
+          return (
+            <div className="flex flex-col gap-2">
+              {/* Griglia mese a pallini */}
+              <div className="overflow-hidden rounded-lg border">
+                <div className="grid grid-cols-7 border-b bg-muted/30">
+                  {weekDays.map((day) => (
+                    <div key={day} className="py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7">
+                  {days.map((day) => {
+                    const dayEvents = getEventsForDay(day);
+                    const inMonth = isSameMonth(day, currentDate);
+                    const today = isSameDay(day, new Date());
+                    const selected = isSameDay(day, selectedDate);
+                    const dotColors = [...new Set(dayEvents.map((e) => e.color))].slice(0, 3);
+                    return (
+                      <button
+                        key={format(day, "yyyy-MM-dd")}
+                        type="button"
+                        onClick={() => setSelectedKey(format(day, "yyyy-MM-dd"))}
+                        className={cn("flex h-11 flex-col items-center justify-center gap-0.5", !inMonth && "opacity-40")}
+                      >
+                        <span className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-xs",
+                          selected ? "bg-primary font-semibold text-primary-foreground" : today ? "font-bold text-primary" : "text-foreground"
+                        )}>
+                          {format(day, "d")}
+                        </span>
+                        <span className="flex h-1.5 items-center gap-0.5">
+                          {dotColors.map((c, i) => (
+                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
+                          ))}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Agenda del giorno selezionato */}
+              <div className="overflow-hidden rounded-lg border">
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <p className="text-sm font-semibold capitalize">{format(selectedDate, "EEEE d MMMM", { locale: it })}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingAppointment(null); setNewAppointmentDate(selKey); setAppointmentDialogOpen(true); }}
+                    className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  >
+                    + Nuovo
+                  </button>
+                </div>
+                {selEvents.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nessun impegno</p>
+                ) : (
+                  <div className="divide-y">
+                    {selEvents.map((event, i) => {
+                      const d = describeEvent(event);
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={d.onClick}
+                          disabled={!d.onClick}
+                          className={cn("flex w-full items-center gap-2 px-3 py-2 text-left", d.onClick && "active:bg-muted")}
+                        >
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+                          <span className="min-w-0 flex-1 truncate text-[13px] leading-tight">{d.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()
+      ) : (
       <TooltipProvider delayDuration={200}>
         <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
           {weekDays.map((day) => (
@@ -527,6 +667,7 @@ export function CalendarMonthView({
           })}
         </div>
       </TooltipProvider>
+      )}
 
       {editingOrder && (
         <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)} />

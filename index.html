@@ -696,6 +696,39 @@
         var LOCAL_DEV_HOST_RE = /^(localhost|127\.0\.0\.1)$/;
         var PRIVATE_PATH_RE = /^\/(azienda|admin|cliente|campo|tecnico|dipendente|venditore|partner)(\/|$)/;
 
+        // Dev: Vite trasforma i moduli a freddo e il primo boot può superare di
+        // molto i timeout tarati per la prod. Finché il browser continua a
+        // ricevere risorse NON è un blocco: il watchdog si riarma invece di
+        // scattare (falso positivo = fallback "Caricamento bloccato" su un
+        // caricamento che stava procedendo). Hard cap per i blocchi veri.
+        var IS_LOCAL_DEV = LOCAL_DEV_HOST_RE.test(location.hostname);
+        var DEV_WATCHDOG_HARD_CAP_MS = 150000;
+        var lastResourceAt = Date.now();
+        if (IS_LOCAL_DEV && typeof PerformanceObserver !== 'undefined') {
+          try {
+            new PerformanceObserver(function () { lastResourceAt = Date.now(); })
+              .observe({ entryTypes: ['resource'] });
+          } catch (e) {}
+        }
+        function devModulesStillStreaming() {
+          return Date.now() - lastResourceAt < 8000;
+        }
+        function armProgressAwareWatchdog(fire, baseDelayMs) {
+          var startedAt = Date.now();
+          function tick() {
+            if (
+              IS_LOCAL_DEV &&
+              devModulesStillStreaming() &&
+              Date.now() - startedAt < DEV_WATCHDOG_HARD_CAP_MS
+            ) {
+              window.setTimeout(tick, 4000);
+              return;
+            }
+            fire();
+          }
+          window.setTimeout(tick, baseDelayMs);
+        }
+
         function clearRecoveryMarkers() {
           try {
             sessionStorage.removeItem('_sw_rec');
@@ -766,6 +799,9 @@
             var bootGuard = document.getElementById('eic-boot-guard');
             if (bootGuard) bootGuard.remove();
           } catch (e) {}
+          // Boot riuscito → azzera l'escalation di recovery: il prossimo load
+          // lento nella stessa tab riparte dall'auto-recovery, non dal fallback.
+          clearRecoveryMarkers();
         };
 
         function recoverBootstrap(reason) {
@@ -821,8 +857,8 @@
         // In localhost Vite può compilare a freddo, ma 30s lasciavano l'utente
         // davanti alla rotellina troppo a lungo. Mostriamo un fallback azionabile
         // prima, senza reload automatici ripetuti.
-        var BOOT_TIMEOUT_MS = LOCAL_DEV_HOST_RE.test(location.hostname) ? 16000 : 10000;
-        window.setTimeout(function () {
+        var BOOT_TIMEOUT_MS = IS_LOCAL_DEV ? 20000 : 10000;
+        armProgressAwareWatchdog(function () {
           var root = document.getElementById('root');
           if (!root) return;
           var text = root.textContent || '';
@@ -833,7 +869,7 @@
             !root.querySelector('input, button, a[href*="login"]');
 
           if (stillInitialBootstrap || privateRootStillSpinner) {
-            if (LOCAL_DEV_HOST_RE.test(location.hostname) && stillInitialBootstrap) {
+            if (IS_LOCAL_DEV && stillInitialBootstrap) {
               showBootstrapFallback('local-dev-bootstrap-timeout');
               return;
             }
@@ -842,9 +878,9 @@
         }, BOOT_TIMEOUT_MS);
 
         // In locale Vite puo restare "bianco" mentre compila chunk grossi o
-        // mentre HMR riallinea i provider. Soglia abbastanza morbida per evitare
-        // falsi positivi, ma non cosi alta da sembrare un blocco infinito.
-        window.setTimeout(recoverBlankScreen, LOCAL_DEV_HOST_RE.test(location.hostname) ? 18_000 : 12_000);
+        // mentre HMR riallinea i provider. Il watchdog progress-aware si riarma
+        // finché arrivano moduli, quindi la soglia base può restare contenuta.
+        armProgressAwareWatchdog(recoverBlankScreen, IS_LOCAL_DEV ? 22_000 : 12_000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

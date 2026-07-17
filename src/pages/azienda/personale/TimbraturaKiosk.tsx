@@ -4,6 +4,7 @@ import { useGPS } from "@/hooks/useGPS";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { LogIn, LogOut, Coffee, Play, MapPin, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -117,8 +118,14 @@ export default function TimbraturaKiosk() {
 
   if (loadingProfilo || loadingTimb) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto w-full max-w-md space-y-4 py-6">
+        <div className="flex flex-col items-center gap-3">
+          <Skeleton className="h-16 w-16 rounded-full" />
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-28" />
+        </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-14 w-full rounded-xl" />
       </div>
     );
   }

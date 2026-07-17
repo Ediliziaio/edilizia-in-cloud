@@ -17,7 +17,6 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -97,6 +96,27 @@ const SECTIONS: Section[] = [
   },
 ];
 
+// Sezioni NASCOSTE nell'hub mobile: configurazioni avanzate/desktop che sul
+// telefono sono solo rumore (si gestiscono da desktop). Le rotte restano
+// raggiungibili da desktop e via ricerca/URL diretto — qui le togliamo solo
+// dalla griglia mobile.
+const HIDDEN_ON_MOBILE = new Set<string>([
+  "/azienda/impostazioni/abbonamento",        // Piano abbonamento
+  "/azienda/impostazioni/branding",           // White-Label
+  "/azienda/impostazioni/stati-ordine",       // Stati ordine
+  "/azienda/impostazioni/categorie-costi",    // Categorie costi
+  "/azienda/impostazioni/fornitori",          // Fornitori
+  "/azienda/impostazioni/listino",            // Listino prodotti
+  "/azienda/impostazioni/tariffe",            // Tariffe & Manutenzione
+  "/azienda/impostazioni/template-preventivi",// Template offerte
+  "/azienda/impostazioni/firma-elettronica",  // Firma elettronica
+  "/azienda/impostazioni/finanziamenti",      // Finanziamenti
+  "/azienda/impostazioni/integrazioni",       // Integrazioni
+  "/azienda/impostazioni/lead-forms",         // Lead Facebook
+  "/azienda/impostazioni/ai-memoria",         // AI Personas
+  "/azienda/impostazioni/ai-automazioni",     // AI Automazioni
+]);
+
 export default function SettingsMobileHub() {
   const { signOut, user, profile } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -106,7 +126,9 @@ export default function SettingsMobileHub() {
   const q = filtro.trim().toLowerCase();
   const sezioniFiltrate = SECTIONS.map((section) => ({
     ...section,
-    items: q ? section.items.filter((i) => i.label.toLowerCase().includes(q)) : section.items,
+    items: section.items
+      .filter((i) => !HIDDEN_ON_MOBILE.has(i.to))
+      .filter((i) => (q ? i.label.toLowerCase().includes(q) : true)),
   })).filter((s) => s.items.length > 0);
 
   return (
@@ -116,7 +138,7 @@ export default function SettingsMobileHub() {
           <SettingsIcon className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight">Tutte le impostazioni</h2>
+          <h2 className="text-base font-semibold tracking-tight">Tutte le impostazioni</h2>
           <p className="text-xs text-muted-foreground">
             Scegli la sezione che vuoi configurare.
           </p>
@@ -142,9 +164,7 @@ export default function SettingsMobileHub() {
             {section.label}
           </h3>
           <div className="grid grid-cols-2 gap-2">
-            {section.items
-              .filter((item) => !isMobileAppRuntime || item.to !== "/azienda/impostazioni/abbonamento")
-              .map((item) => {
+            {section.items.map((item) => {
               const Icon = item.icon;
               return (
                 <Link

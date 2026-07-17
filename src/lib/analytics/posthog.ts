@@ -13,7 +13,12 @@
  *  - opt-out: utenti possono disabilitarlo da "Privacy settings"
  *  - session_recording disabilitato di default
  */
-import posthog, { type PostHog } from "posthog-js";
+// posthog-js è caricato DINAMICAMENTE dentro initAnalytics(): questa facade è
+// importata da AnalyticsProvider (montato in App) e un import statico
+// trascinerebbe la libreria nel chunk d'ingresso. Gli eventi emessi tra la
+// richiesta di init e il load del modulo vengono accodati e flushati in ordine,
+// così il primo identify/pageview della sessione non va perso.
+import type { PostHog } from "posthog-js";
 
 interface PostHogConfig {
   apiKey: string;
@@ -21,18 +26,36 @@ interface PostHogConfig {
   enabled?: boolean;
 }
 
-let initialized = false;
+let posthogMod: PostHog | null = null;
+let initStarted = false;
 let configCache: PostHogConfig | null = null;
+let pending: Array<(ph: PostHog) => void> = [];
+
+/**
+ * Esegue subito se il client è pronto, accoda se l'init è in corso,
+ * scarta se PostHog non è configurato (stesso no-op di prima).
+ */
+function withPostHog(fn: (ph: PostHog) => void): void {
+  if (posthogMod) {
+    try {
+      fn(posthogMod);
+    } catch { /* swallow */ }
+    return;
+  }
+  if (initStarted) pending.push(fn);
+}
 
 /**
  * Inizializza PostHog. Idempotente — chiamabile più volte safely.
  * Se config.enabled = false o apiKey vuoto → no-op.
  */
-export function initAnalytics(config: PostHogConfig | null | undefined): void {
-  if (initialized) return;
+export async function initAnalytics(config: PostHogConfig | null | undefined): Promise<void> {
+  if (initStarted) return;
   if (!config || !config.apiKey || config.enabled === false) return;
+  initStarted = true;
 
   try {
+    const { default: posthog } = await import("posthog-js");
     posthog.init(config.apiKey, {
       api_host: config.host ?? "https://eu.i.posthog.com",
       // ── Privacy hardening ─────────────────────────────────────────
@@ -62,10 +85,19 @@ export function initAnalytics(config: PostHogConfig | null | undefined): void {
         }
       },
     });
-    initialized = true;
+    posthogMod = posthog;
     configCache = config;
+    // Flush della coda pre-init nell'ordine di emissione (identify → pageview…).
+    const queued = pending;
+    pending = [];
+    queued.forEach((fn) => {
+      try {
+        fn(posthog);
+      } catch { /* swallow */ }
+    });
   } catch (e) {
     // Non bloccare l'app se posthog fallisce
+    pending = [];
     console.warn("[analytics] PostHog init failed:", e);
   }
 }
@@ -82,9 +114,8 @@ export function identifyUser(params: {
   role?: string;
   planSlug?: string;
 }): void {
-  if (!initialized) return;
-  try {
-    posthog.identify(params.userId, {
+  withPostHog((ph) => {
+    ph.identify(params.userId, {
       // PII minima — mai email completa, solo dominio per segmentazione
       email_domain: params.email ? params.email.split("@")[1] : undefined,
       company_id: params.companyId,
@@ -96,55 +127,53 @@ export function identifyUser(params: {
     // i group precedenti per evitare leak di eventi in dashboard sbagliata.
     if (params.companyId !== lastIdentifiedCompanyId) {
       // resetGroups() rilascia tutti i group precedenti
-      posthog.resetGroups?.();
+      ph.resetGroups?.();
       lastIdentifiedCompanyId = params.companyId ?? null;
     }
     if (params.companyId) {
-      posthog.group("company", params.companyId, {
+      ph.group("company", params.companyId, {
         name: params.companyName,
         plan: params.planSlug,
       });
     }
-  } catch { /* swallow */ }
+  });
 }
 
 /** Reset session (chiamare al logout). */
 export function resetAnalytics(): void {
-  if (!initialized) return;
-  try {
-    posthog.reset();
+  withPostHog((ph) => {
+    ph.reset();
     lastIdentifiedCompanyId = null;
-  } catch { /* swallow */ }
+  });
 }
 
 /** Capture evento custom. */
 export function track(event: string, properties?: Record<string, unknown>): void {
-  if (!initialized) return;
-  try {
-    posthog.capture(event, properties);
-  } catch { /* swallow */ }
+  withPostHog((ph) => {
+    ph.capture(event, properties);
+  });
 }
 
 /** Capture pageview manuale (chiamato dal router listener). */
 export function trackPageview(path: string, properties?: Record<string, unknown>): void {
-  if (!initialized) return;
-  try {
-    posthog.capture("$pageview", { $current_url: path, ...properties });
-  } catch { /* swallow */ }
+  withPostHog((ph) => {
+    ph.capture("$pageview", { $current_url: path, ...properties });
+  });
 }
 
 /** GDPR opt-out manuale (es. settings utente). */
 export function setAnalyticsOptOut(optOut: boolean): void {
   try {
     localStorage.setItem("analytics_opt_out", optOut ? "true" : "false");
-    if (!initialized) return;
-    if (optOut) posthog.opt_out_capturing();
-    else posthog.opt_in_capturing();
   } catch { /* swallow */ }
+  withPostHog((ph) => {
+    if (optOut) ph.opt_out_capturing();
+    else ph.opt_in_capturing();
+  });
 }
 
 export function isAnalyticsInitialized(): boolean {
-  return initialized;
+  return posthogMod !== null;
 }
 
 export function getAnalyticsConfig(): PostHogConfig | null {

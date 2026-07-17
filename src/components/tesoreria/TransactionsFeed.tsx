@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { formatDateIt } from "@/lib/formatters";
+import { prettyTxDesc } from "./txLabel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -413,7 +414,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                   >
                     <td className="p-3 whitespace-nowrap">{formatDateIt(tx.booking_date)}</td>
                     <td className="p-3">
-                      <p className="truncate max-w-[300px]">{tx.description || "—"}</p>
+                      <p className="truncate max-w-[300px]">{prettyTxDesc(tx)}</p>
                       {(tx.creditor_name || tx.debtor_name) && (
                         <p className="text-xs text-muted-foreground truncate max-w-[300px]">
                           {tx.creditor_name || tx.debtor_name}

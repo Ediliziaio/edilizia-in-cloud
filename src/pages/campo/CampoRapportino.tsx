@@ -577,16 +577,16 @@ export default function CampoRapportino() {
         </div>
       </div>
 
-      {/* Contenuto */}
-      <div className="flex-1 space-y-4 overflow-y-auto px-3 py-4 pb-28 md:px-4 md:py-5">
+      {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-5">
 
         {/* ── Step 1: Descrizione ── */}
         {step === 1 && (
           <>
-            <h2 className="text-xl font-black text-foreground">Cosa hai fatto oggi?</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Cosa hai fatto oggi?</h2>
             <textarea
               className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={7}
+              rows={5}
               placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
               value={descrizione}
               onChange={e => setDescrizione(e.target.value)}
@@ -615,66 +615,68 @@ export default function CampoRapportino() {
         {/* ── Step 2: Ore + Avanzamento + Foto ── */}
         {step === 2 && (
           <>
-            <h2 className="text-xl font-black text-foreground">Ore e avanzamento</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Ore e avanzamento</h2>
 
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-muted-foreground">Ore lavorate</p>
-                <span className="text-primary font-bold">{oreLavorate}h</span>
+            {/* Ore lavorate + straordinario in un'unica card (meno scroll su mobile) */}
+            <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Ore lavorate</p>
+                  <span className="text-primary font-bold">{oreLavorate}h</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setOreLavorate(o => Math.max(0.5, o - 0.5))}
+                    className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
+                  >
+                    <Minus className="w-4 h-4 text-foreground" />
+                  </button>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={12}
+                    step={0.5}
+                    value={oreLavorate}
+                    onChange={e => setOreLavorate(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <button
+                    onClick={() => setOreLavorate(o => Math.min(12, o + 0.5))}
+                    className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
+                  >
+                    <Plus className="w-4 h-4 text-primary-foreground" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setOreLavorate(o => Math.max(0.5, o - 0.5))}
-                  className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
-                >
-                  <Minus className="w-4 h-4 text-foreground" />
-                </button>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={12}
-                  step={0.5}
-                  value={oreLavorate}
-                  onChange={e => setOreLavorate(Number(e.target.value))}
-                  className="flex-1 accent-primary"
-                />
-                <button
-                  onClick={() => setOreLavorate(o => Math.min(12, o + 0.5))}
-                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
-                >
-                  <Plus className="w-4 h-4 text-primary-foreground" />
-                </button>
-              </div>
-            </div>
 
-            {/* Ore straordinario */}
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-muted-foreground">Ore straordinario</p>
-                <span className="text-primary font-bold">{oreStraordinario}h</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
-                  className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
-                >
-                  <Minus className="w-4 h-4 text-foreground" />
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={6}
-                  step={0.5}
-                  value={oreStraordinario}
-                  onChange={e => setOreStraordinario(Number(e.target.value))}
-                  className="flex-1 accent-primary"
-                />
-                <button
-                  onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
-                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
-                >
-                  <Plus className="w-4 h-4 text-primary-foreground" />
-                </button>
+              <div className="border-t border-border pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Ore straordinario</p>
+                  <span className="text-primary font-bold">{oreStraordinario}h</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
+                    className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
+                  >
+                    <Minus className="w-4 h-4 text-foreground" />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={6}
+                    step={0.5}
+                    value={oreStraordinario}
+                    onChange={e => setOreStraordinario(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <button
+                    onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
+                    className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
+                  >
+                    <Plus className="w-4 h-4 text-primary-foreground" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -916,7 +918,7 @@ export default function CampoRapportino() {
         {/* ── Step 3: Riepilogo ── */}
         {step === 3 && (
           <>
-            <h2 className="text-xl font-black text-foreground">Riepilogo</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Riepilogo</h2>
 
             {/* Riepilogo dati */}
             <div className="space-y-3 rounded-2xl border border-border bg-muted/60 p-4">
@@ -1008,7 +1010,7 @@ export default function CampoRapportino() {
         {/* ── Step 4: Firme (solo fine lavori) ── */}
         {step === 4 && lavoro_completato && (
           <>
-            <h2 className="text-xl font-black text-foreground">Firme di fine lavori</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Firme di fine lavori</h2>
             <p className="text-sm text-muted-foreground">
               Fai firmare il cliente per confermare la fine dei lavori. La firma dell'operaio è facoltativa.
             </p>

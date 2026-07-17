@@ -12,6 +12,7 @@ import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSigna
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -166,8 +167,17 @@ export default function QuoteDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-5 pb-10">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -186,7 +196,7 @@ export default function QuoteDetail() {
   const sc = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG] || QUOTE_STATUS_CONFIG.bozza;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header (replica FvPageHeader) */}
       <QuotePageHeader
         numero={quote.quote_number}
@@ -204,19 +214,20 @@ export default function QuoteDetail() {
             >
               <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9">
-              {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
-              {generating ? "Generando..." : "Genera PDF"}
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3" aria-label="Genera PDF">
+              {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
+              <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
 
             {quote.status === "bozza" && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
-                className="h-9"
+                className="h-9 px-2.5 sm:px-3"
+                aria-label="Modifica"
               >
-                <Pencil className="h-4 w-4 mr-2" />
-                Modifica
+                <Pencil className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Modifica</span>
               </Button>
             )}
 
@@ -224,7 +235,7 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
               >
                 <Send className="h-4 w-4" />
                 {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
@@ -236,7 +247,7 @@ export default function QuoteDetail() {
                 type="button"
                 onClick={handleConvertToCantiere}
                 disabled={converting}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
               >
                 {converting
                   ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -298,7 +309,7 @@ export default function QuoteDetail() {
       />
 
       <Tabs defaultValue="offerta">
-        <TabsList className="bg-slate-100">
+        <TabsList className="bg-slate-100 max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="offerta" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
             <Package className="h-3.5 w-3.5" /> Offerta
           </TabsTrigger>
@@ -317,43 +328,74 @@ export default function QuoteDetail() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="offerta" className="space-y-6 mt-4">
+        <TabsContent value="offerta" className="space-y-4 mt-4 sm:space-y-6">
           <QuoteCard title="Prodotti e Servizi" icon={<Package className="h-4 w-4" />}>
               {items.length === 0 ? (
                 <p className="text-slate-500 text-sm">Nessun prodotto</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Prodotto</TableHead>
-                      <TableHead>Descrizione</TableHead>
-                      <TableHead className="text-right">Qtà</TableHead>
-                      <TableHead className="text-right">Prezzo</TableHead>
-                      <TableHead className="text-right">Sconto</TableHead>
-                      <TableHead className="text-right">IVA</TableHead>
-                      <TableHead className="text-right">Totale</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  {/* Desktop: tabella completa a 7 colonne */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prodotto</TableHead>
+                          <TableHead>Descrizione</TableHead>
+                          <TableHead className="text-right">Qtà</TableHead>
+                          <TableHead className="text-right">Prezzo</TableHead>
+                          <TableHead className="text-right">Sconto</TableHead>
+                          <TableHead className="text-right">IVA</TableHead>
+                          <TableHead className="text-right">Totale</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                              {item.description || "—"}
+                            </TableCell>
+                            <TableCell className="text-right">{item.quantity} {item.unit_of_measure}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                            <TableCell className="text-right">
+                              {item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">{item.vat_rate}%</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(item.line_total || 0)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile: una card leggibile per riga (niente tabella a 7 colonne) */}
+                  <div className="md:hidden space-y-2">
                     {items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                          {item.description || "—"}
-                        </TableCell>
-                        <TableCell className="text-right">{item.quantity} {item.unit_of_measure}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                        <TableCell className="text-right">
-                          {item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">{item.vat_rate}%</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(item.line_total || 0)}
-                        </TableCell>
-                      </TableRow>
+                      <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-medium text-sm leading-snug">{item.name}</p>
+                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
+                            {formatCurrency(item.line_total || 0)}
+                          </p>
+                        </div>
+                        {item.description && (
+                          <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{item.description}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                          <span className="tabular-nums">
+                            {item.quantity} {item.unit_of_measure} × {formatCurrency(item.unit_price)}
+                          </span>
+                          {item.discount_percent > 0 && (
+                            <span className="text-orange-600">−{item.discount_percent}%</span>
+                          )}
+                          <span>IVA {item.vat_rate}%</span>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </>
               )}
 
               <div className="mt-4 flex flex-col items-end gap-3">

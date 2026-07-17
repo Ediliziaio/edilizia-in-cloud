@@ -139,7 +139,6 @@ import {
 import {
   QuotePageHeader,
   QuoteCard,
-  QuoteChip,
   QuoteStepper,
   type QuoteStep,
 } from "@/components/marketing/preventivi/ui/builderUI";
@@ -1753,7 +1752,7 @@ export default function QuoteBuilder() {
   }
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
       {!isEdit && recoverableDraft && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1778,15 +1777,12 @@ export default function QuoteBuilder() {
       <QuotePageHeader
         title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
         subtitle={
-          <span className="flex items-center gap-2 flex-wrap">
-            <span>Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}</span>
-            {autosaveFailed && (
-              <span className="text-red-600 flex items-center gap-1 font-medium">
-                <AlertTriangle className="h-3 w-3" />
-                salvataggio auto fallito
-              </span>
-            )}
-          </span>
+          autosaveFailed ? (
+            <span className="flex items-center gap-1 font-medium text-red-600">
+              <AlertTriangle className="h-3 w-3" />
+              salvataggio auto fallito
+            </span>
+          ) : undefined
         }
         icon={<FileCheck className="h-5 w-5" />}
         actions={
@@ -1850,7 +1846,6 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Dati cliente"
           icon={<User className="h-4 w-4" />}
-          action={<QuoteChip variant="orange">Step 1 di 4</QuoteChip>}
         >
           <div className="space-y-5">
             {/* Blocco 1: Selezione rapida da contatto */}
@@ -3064,7 +3059,6 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Riepilogo Preventivo"
           icon={<FileCheck className="h-4 w-4" />}
-          action={<QuoteChip variant="orange">Step 4 di 4</QuoteChip>}
         >
           <div className="space-y-6">
             {/* Client summary */}
@@ -3110,43 +3104,73 @@ export default function QuoteBuilder() {
                 <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
               </h4>
               {items.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Prodotto</TableHead>
-                      <TableHead className="text-right">Qtà</TableHead>
-                      <TableHead className="text-right">Prezzo</TableHead>
-                      <TableHead className="text-right">Totale</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  {/* Desktop: tabella a 4 colonne */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prodotto</TableHead>
+                          <TableHead className="text-right">Qtà</TableHead>
+                          <TableHead className="text-right">Prezzo</TableHead>
+                          <TableHead className="text-right">Totale</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((it) => (
+                          <TableRow key={it.id}>
+                            <TableCell>
+                              {it.name || "—"}
+                              {it.is_optional && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  Opzionale
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {it.quantity}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(it.unit_price)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(
+                                it.quantity *
+                                  it.unit_price *
+                                  (1 - it.discount_percent / 100)
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile: card per riga (niente tabella schiacciata) */}
+                  <div className="md:hidden space-y-2">
                     {items.map((it) => (
-                      <TableRow key={it.id}>
-                        <TableCell>
-                          {it.name || "—"}
-                          {it.is_optional && (
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              Opzionale
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {it.quantity}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(it.unit_price)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(
-                            it.quantity *
-                              it.unit_price *
-                              (1 - it.discount_percent / 100)
-                          )}
-                        </TableCell>
-                      </TableRow>
+                      <div key={it.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 font-medium text-sm leading-snug">
+                            {it.name || "—"}
+                            {it.is_optional && (
+                              <Badge variant="outline" className="ml-1.5 text-[10px]">
+                                Opzionale
+                              </Badge>
+                            )}
+                          </p>
+                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
+                            {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
+                          </p>
+                        </div>
+                        <div className="mt-1.5 text-xs text-muted-foreground tabular-nums">
+                          {it.quantity} × {formatCurrency(it.unit_price)}
+                          {it.discount_percent > 0 ? ` · −${it.discount_percent}%` : ""}
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">Nessun prodotto</p>
               )}
@@ -3502,71 +3526,74 @@ export default function QuoteBuilder() {
           bar — incluso il CTA "Avanti/Salva" → non tappabile su telefono. Da md
           in su la nav non c'è e l'action bar torna a bottom-0. */}
       <div className="fixed bottom-[84px] md:bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
-        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
-            {saving ? (
-              <span className="flex items-center gap-1.5 text-blue-600 font-medium">
-                <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
-              </span>
-            ) : autosaveFailed ? (
-              <span className="flex items-center gap-1.5 text-red-600 font-medium">
-                <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
-              </span>
-            ) : isEdit ? (
-              <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Salvataggio automatico
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
-              </span>
-            )}
+        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Stato salvataggio: solo da sm (su mobile è rumore, sotto c'è il totale) */}
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+              {saving ? (
+                <span className="flex items-center gap-1.5 text-blue-600 font-medium">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+                </span>
+              ) : autosaveFailed ? (
+                <span className="flex items-center gap-1.5 text-red-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
+                </span>
+              ) : isEdit ? (
+                <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Salvataggio automatico
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
+                </span>
+              )}
+            </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
-              className="h-9"
+              className="h-9 shrink-0"
             >
               <ArrowLeft className="h-4 w-4 mr-1.5" />
               Indietro
             </Button>
           </div>
 
-          {/* Totale live per mobile (desktop è nell'header) */}
+          {/* Totale live per mobile (desktop è nell'header): compatto, non spinge il wrap */}
           {total > 0 && (
-            <div className="md:hidden flex items-center gap-3 text-xs flex-1 justify-center">
-              <span className="text-slate-500">Totale:</span>
+            <div className="md:hidden flex items-center shrink-0 text-xs">
               <span className="font-bold text-orange-600 tabular-nums text-sm">
                 {formatCurrency(total)}
               </span>
             </div>
           )}
 
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center shrink-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => handleSave("bozza")}
               disabled={saving}
               className="h-9 text-slate-600"
+              aria-label="Salva bozza"
             >
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="h-4 w-4 sm:mr-2" />
               )}
-              Bozza
+              <span className="hidden sm:inline">Bozza</span>
             </Button>
             {step < STEPS.length - 1 ? (
               <button
                 type="button"
                 onClick={handleNext}
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
-                Avanti · {STEPS[step + 1]?.label}
+                Avanti<span className="hidden sm:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
@@ -3574,14 +3601,15 @@ export default function QuoteBuilder() {
                 type="button"
                 onClick={() => handleSave("bozza")}
                 disabled={saving || !clientName}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <FileCheck className="h-4 w-4" />
                 )}
-                Salva preventivo
+                <span className="hidden sm:inline">Salva preventivo</span>
+                <span className="sm:hidden">Salva</span>
               </button>
             )}
           </div>

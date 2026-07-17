@@ -121,7 +121,7 @@ export function CategoryGrid({
   const empty = cats.length === 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {macrocategory && onBack && (
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onBack}>
@@ -150,10 +150,10 @@ export function CategoryGrid({
               type="button"
               onClick={() => onSelectCategory(cat)}
               title={cat.nome}
-              className="group flex min-h-[130px] w-full flex-col items-start gap-2 rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+              className="group flex min-h-[100px] w-full flex-col items-start gap-1.5 rounded-lg border bg-card p-2.5 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring sm:min-h-[130px] sm:gap-2 sm:p-3"
             >
               <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md text-primary overflow-hidden"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-primary overflow-hidden sm:h-14 sm:w-14"
                 style={
                   cat.colore && !cat.immagine_url
                     ? { backgroundColor: `${cat.colore}1a`, color: cat.colore }
@@ -184,7 +184,7 @@ export function CategoryGrid({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 border-t pt-4">
+      <div className="flex flex-wrap gap-2 border-t pt-3 sm:pt-4">
         {onAddFreeLine && (
           <Button variant="outline" size="sm" onClick={onAddFreeLine}>
             <Plus className="mr-1 h-4 w-4" /> Riga libera

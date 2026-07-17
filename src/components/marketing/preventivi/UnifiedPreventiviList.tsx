@@ -896,16 +896,18 @@ export function UnifiedPreventiviList() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* ─── KPI Hero 4 cards ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
         <KpiCard label="In corso" value={kpi.inCorsoCount} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in pipeline` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
         <KpiCard label="Vinte" value={kpi.vintaCount} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% conversion rate` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
         <KpiCard label="Ricavo firmato" value={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
-      {/* ─── Striscia navy avanzata ─── */}
+      {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
+          sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
+      {!isMobile && (
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1E3A5F] to-[#2C5184] p-4 sm:p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label="Tasso conversione" value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? `${kpi.vintaCount}/${kpi.vintaCount + kpi.persoCount} con risposta` : undefined} />
@@ -926,6 +928,7 @@ export function UnifiedPreventiviList() {
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
+      )}
 
       {/* ─── Grafici ─── (trend BarChart + distribuzione PieChart): vetrina
           desktop, pesanti e illeggibili su telefono → i KPI hero sopra bastano;
@@ -999,8 +1002,8 @@ export function UnifiedPreventiviList() {
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
       <Card>
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
+        <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Cerca per numero, cliente o commerciale…"
@@ -1009,33 +1012,37 @@ export function UnifiedPreventiviList() {
               className="pl-8 h-9"
             />
           </div>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setFiltersOpen(true)}>
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setFiltersOpen(true)} aria-label="Filtri">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filtri
+            <span className="hidden sm:inline">Filtri</span>
             {advancedFiltersCount > 0 && (
               <Badge className="ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
                 {advancedFiltersCount}
               </Badge>
             )}
           </Button>
+          {/* Export Excel: nascosto su mobile (download poco pratico da telefono/app) */}
+          {!isMobile && (
           <Button
-            variant="outline" size="sm" className="h-9 gap-1.5"
+            variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
             onClick={handleExportExcel}
             disabled={exporting || filtered.length === 0}
+            aria-label="Esporta Excel"
           >
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            Excel
+            <span className="hidden sm:inline">Excel</span>
           </Button>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setCestinoOpen(true)}>
+          )}
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setCestinoOpen(true)} aria-label="Cestino">
             <Trash2 className="h-3.5 w-3.5" />
-            Cestino
+            <span className="hidden sm:inline">Cestino</span>
           </Button>
           {hasAnyFilter && (
-            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1">
-              <X className="h-3.5 w-3.5" /> Azzera
+            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label="Azzera filtri">
+              <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Azzera</span>
             </Button>
           )}
-          <span className="text-xs text-muted-foreground ml-auto">
+          <span className="text-xs text-muted-foreground ml-auto tabular-nums">
             {filtered.length} di {allRows.length}
             {totalPages > 1 && ` · pag ${currentPage}/${totalPages}`}
           </span>
@@ -1292,13 +1299,11 @@ function KpiCard({
 }: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone }) {
   const c = KPI_TONE[tone];
   return (
-    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4", c.border)}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{label}</p>
-        <span className={cn("h-7 w-7 rounded-md flex items-center justify-center shrink-0", c.iconBg, c.iconColor)}>{icon}</span>
-      </div>
-      <p className={cn("text-2xl font-bold mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
-      {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>}
+    <div className={cn("relative bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4", c.border)}>
+      <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
+      <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
+      <p className={cn("text-xl sm:text-2xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
     </div>
   );
 }

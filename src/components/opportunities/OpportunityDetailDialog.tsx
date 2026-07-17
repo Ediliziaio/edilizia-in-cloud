@@ -477,7 +477,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       <DialogContent className="w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none sm:w-full sm:max-w-5xl sm:h-auto sm:max-h-[92vh] sm:rounded-lg flex flex-col p-0 gap-0 [&>button]:hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background px-3 sm:px-6 pt-3 sm:pt-5 pb-2 sm:pb-3 border-b sm:border-b-0">
-          <div className="flex items-start gap-2 pr-1">
+          <div className="flex flex-wrap items-start gap-2 pr-1">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -505,12 +505,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 })()}
               </div>
               <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
-                Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
+                Aggiorna dettagli, attività, note e appuntamenti dell'opportunità.
               </DialogDescription>
             </div>
             {/* Trigger rapidi contatto: chiama (centralino) · email · whatsapp */}
             {opportunity.contact_id && (
-              <div className="flex items-center gap-0.5 shrink-0 mt-0.5 sm:mt-0">
+              <div className="flex items-center gap-0.5 shrink-0 mt-1 w-full overflow-x-auto scrollbar-none [&>*]:shrink-0 sm:mt-0 sm:w-auto sm:overflow-visible">
                 {contactPhone && (
                   <button
                     type="button"
