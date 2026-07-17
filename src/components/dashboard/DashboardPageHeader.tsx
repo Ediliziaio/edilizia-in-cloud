@@ -1,4 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
+import { useState } from "react";
+import { ChevronDown, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type DashboardPageHeaderProps = {
@@ -28,6 +30,10 @@ export function DashboardPageHeader({
   compactTitle = false,
 }: DashboardPageHeaderProps) {
   const hasControls = Boolean(toolbar || actions);
+  // Su mobile filtri+azioni sono pesanti e occupavano troppo spazio verticale
+  // (più righe che spingono giù i dati). Li collassiamo dietro un toggle "Filtri
+  // e azioni": chiusi di default, un tap li apre. Su ≥sm restano inline come prima.
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   return (
     <div
@@ -59,14 +65,35 @@ export function DashboardPageHeader({
         </div>
 
         {hasControls && (
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 xl:w-auto xl:max-w-[74%] xl:justify-end print:hidden">
-            {toolbar}
-            {actions && (
-              <div className="flex flex-wrap items-center gap-2">
-                {actions}
-              </div>
-            )}
-          </div>
+          <>
+            {/* Mobile: un solo toggle apre/chiude tutti i controlli (default chiuso). */}
+            <button
+              type="button"
+              onClick={() => setMobileControlsOpen((o) => !o)}
+              aria-expanded={mobileControlsOpen}
+              className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600 sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
+            >
+              <span className="flex items-center gap-2">
+                <Filter className="h-4 w-4" /> Filtri e azioni
+              </span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", mobileControlsOpen && "rotate-180")} />
+            </button>
+
+            <div
+              className={cn(
+                "min-w-0 flex-wrap items-center gap-2 xl:w-auto xl:max-w-[74%] xl:justify-end print:hidden",
+                mobileControlsOpen ? "flex w-full" : "hidden",
+                "sm:flex sm:w-full xl:w-auto",
+              )}
+            >
+              {toolbar}
+              {actions && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {actions}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

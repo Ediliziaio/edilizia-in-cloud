@@ -354,8 +354,12 @@ export default function MarketingDashboard() {
 
       <ApiHealthBanner filter={["meta", "email_marketing"]} />
 
-      {/* Alert banner generico */}
-      <AlertBanner alerts={data?.alerts} isLoading={isLoading} />
+      {/* Alert banner generico — nascosto su mobile (richiesta utente: toglieva
+          spazio in alto; gli alert chiave sono già nelle card del Quadro
+          esecutivo qui sotto). Su ≥sm resta visibile. */}
+      <div className="hidden sm:block">
+        <AlertBanner alerts={data?.alerts} isLoading={isLoading} />
+      </div>
 
       {/* P3.4 — skeleton placeholder durante il primo caricamento */}
       {isLoading && !data?.kpi && (
