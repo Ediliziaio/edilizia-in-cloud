@@ -97,33 +97,11 @@ export default function CampoRapportinoVoce(): JSX.Element {
   const activeDraft = localDraft ?? draft;
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            if (activeDraft) {
-              handleReset();
-            } else {
-              navigate(orderId ? `/campo/lavoro/${orderId}` : "/campo");
-            }
-          }}
-          aria-label="Indietro"
-          className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-transform"
-        >
-          <ChevronLeft className="w-5 h-5 text-foreground" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-foreground leading-tight flex items-center gap-2">
-            <Mic className="w-5 h-5 text-primary" />
-            Rapportino Vocale
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Racconta cosa hai fatto, l&apos;AI compila il rapportino
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-4 p-4">
+      {/* Header di pagina rimosso: la top-bar della shell campo fornisce già
+          branding + freccia indietro. Qui il titolo vive dentro l'area di
+          registrazione (stato iniziale) e il "Registra di nuovo" sostituisce
+          il vecchio back con reset del draft. */}
 
       {orderId && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
@@ -184,13 +162,17 @@ export default function CampoRapportinoVoce(): JSX.Element {
         </div>
       )}
 
-      {/* Contenuto condizionale */}
+      {/* Stato iniziale: mic centrato per riempire lo spazio (niente vuoto).
+          Guida in una riga invece del box istruzioni ridondante. */}
       {!activeDraft && !transcribing && !uploading && (
-        <div className="space-y-4">
-          <div className="rounded-xl bg-primary/10 border border-primary/40 p-3">
-            <p className="text-xs text-primary leading-relaxed">
-              Tocca il microfono e descrivi il lavoro svolto: ore, lavorazione,
-              materiali usati, note. Massimo <strong>2 minuti</strong>.
+        <div className="flex min-h-[68vh] flex-col items-center justify-center gap-6 text-center">
+          <div className="space-y-1">
+            <h1 className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
+              <Mic className="h-5 w-5 text-primary" />
+              Rapportino Vocale
+            </h1>
+            <p className="mx-auto max-w-[17rem] text-sm text-muted-foreground">
+              Racconta il lavoro — ore, lavorazione, materiali, note. L&apos;AI compila, tu confermi.
             </p>
           </div>
           <CampoAudioRecorder onConfirm={handleAudioConfirm} />
@@ -198,7 +180,18 @@ export default function CampoRapportinoVoce(): JSX.Element {
       )}
 
       {(uploading || transcribing || activeDraft) && (
-        <CampoRapportinoForm
+        <>
+          {activeDraft && !transcribing && !uploading && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-1 self-start rounded-lg px-1.5 py-1 text-sm font-medium text-muted-foreground active:scale-95"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Registra di nuovo
+            </button>
+          )}
+          <CampoRapportinoForm
           draft={
             activeDraft ?? {
               trascrizione: "",
@@ -211,7 +204,8 @@ export default function CampoRapportinoVoce(): JSX.Element {
           onConfirm={handleConfirm}
           saving={saving}
           orderLinked={!!orderId}
-        />
+          />
+        </>
       )}
     </div>
   );
