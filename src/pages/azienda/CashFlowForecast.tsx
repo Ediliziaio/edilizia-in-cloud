@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { Download, Printer, CalendarClock, BookOpen, Landmark, TrendingUp, TrendingDown } from "lucide-react";
+import { Download, Printer, CalendarClock, BookOpen, Landmark, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import { exportToCSV } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { useCashFlowData } from "@/hooks/useCashFlowData";
 import { CollectedTab } from "@/components/forecast/CollectedTab";
 import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
-import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -32,12 +31,6 @@ export default function CashFlowForecast() {
     expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
-    paidCompanyCosts,
-    paidExternalTeams,
-    paidCommissions,
-    paidSupplierItems,
-    activeEmployees,
-    treasuryCategories,
     companyId,
     scadenzeForForecast,
     primaNotaSaldo,
@@ -210,6 +203,10 @@ export default function CashFlowForecast() {
             </div>
           </div>
         <div className="flex items-center gap-2 print:hidden flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/tesoreria")} className="gap-1">
+            <Landmark className="h-4 w-4" />
+            <span className="hidden sm:inline">Tesoreria</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
             <CalendarClock className="h-4 w-4" />
             <span className="hidden sm:inline">Scadenzario</span>
@@ -298,10 +295,6 @@ export default function CashFlowForecast() {
           <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
           <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
-          <TabsTrigger value="ai-forecast" className="gap-1">
-            <span className="hidden md:inline">✨</span>AI Forecast 90gg
-          </TabsTrigger>
-          <TabsTrigger value="tesoreria">Tesoreria</TabsTrigger>
         </TabsList>
 
         <TabsContent value="incassato" className="mt-6">
@@ -323,7 +316,7 @@ export default function CashFlowForecast() {
           />
         </TabsContent>
 
-        <TabsContent value="cassa" className="mt-6">
+        <TabsContent value="cassa" className="mt-6 space-y-6">
           <CashForecastTab
             stats={stats}
             expectedPayments={expectedPayments}
@@ -335,28 +328,17 @@ export default function CashFlowForecast() {
             primaNotaSaldo={primaNotaSaldo}
             bankBalance={bankingSummary?.bankBalance ?? null}
           />
-        </TabsContent>
-
-        <TabsContent value="ai-forecast" className="mt-6">
-          <SilvioCashflowForecast weeks={13} applyDelay={true} />
-        </TabsContent>
-
-        <TabsContent value="tesoreria" className="mt-6">
-          <TreasuryTab
-            orders={orders}
-            paidCompanyCosts={paidCompanyCosts}
-            paidExternalTeams={paidExternalTeams}
-            paidCommissions={paidCommissions}
-            paidSupplierItems={paidSupplierItems}
-            activeEmployees={activeEmployees}
-            treasuryCategories={treasuryCategories}
-            companyId={companyId}
-            expectedPayments={expectedPayments}
-            expectedExpenses={expectedExpenses}
-            expectedCommissions={expectedCommissions}
-            expectedSupplierPayments={expectedSupplierPayments}
-            expectedCompanyCosts={expectedCompanyCosts}
-          />
+          {/* AI Forecast unificato qui (prima era una tab a sé, ridondante con
+              la previsione di cassa e col grafico in alto): la stima predittiva
+              a 13 settimane vive accanto alla previsione manuale nella stessa
+              vista. */}
+          <div className="border-t pt-6">
+            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+              <Sparkles className="h-4 w-4 text-orange-500" />
+              Previsione AI (13 settimane)
+            </h3>
+            <SilvioCashflowForecast weeks={13} applyDelay={true} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

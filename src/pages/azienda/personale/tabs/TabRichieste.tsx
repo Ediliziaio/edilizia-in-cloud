@@ -32,6 +32,8 @@ const TIPO_LABELS: Record<RichiestaTipo, string> = {
   smart_working: "Smart Working",
   trasferta: "Trasferta",
   formazione: "Formazione",
+  rettifica_timbratura: "Rettifica timbratura",
+  segnalazione: "Segnalazione",
 };
 
 const STATO_STYLE: Record<RichiestaStato, { bg: string; text: string; icon: LucideIcon; label: string }> = {

@@ -26,8 +26,7 @@ const CampoRapportinoVoce = lazy(() => import("@/pages/campo/CampoRapportinoVoce
 const CampoPresenze       = lazy(() => import("@/pages/campo/CampoPresenze"));
 const CampoFerie          = lazy(() => import("@/pages/campo/CampoFerie"));
 const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
-const SubSAL              = lazy(() => import("@/pages/campo/subappaltatore/SubSAL"));
-const SubDocumenti        = lazy(() => import("@/pages/campo/subappaltatore/SubDocumenti"));
+const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 
@@ -66,8 +65,15 @@ export default function CampoRoutesContainer() {
         <Route path="tesserino" element={<CampoTesserino />} />
         <Route path="ticket/nuovo" element={<CampoTicketNuovo />} />
         <Route path="ticket/nuovo/:orderId" element={<CampoTicketNuovo />} />
-        <Route path="sal" element={<SubSAL />} />
-        <Route path="sub/documenti" element={<SubDocumenti />} />
+        <Route path="avanzamento" element={<CampoAvanzamento />} />
+        {/* Legacy: la vecchia pagina "SAL" era costruita sugli importi (e non ha
+            mai funzionato: FK e colonne sbagliate). In cantiere serve segnare le
+            fasi fatte, non la contabilità → redirect all'avanzamento. */}
+        <Route path="sal" element={<Navigate to="/campo/avanzamento" replace />} />
+        {/* Legacy: link/bookmark esistenti. Rende CampoDocumenti (che delega per
+            ruolo) e non SubDocumenti diretto, così un operaio che ci arriva non
+            finisce sulla pagina documenti del subappaltatore. */}
+        <Route path="sub/documenti" element={<CampoDocumenti />} />
         <Route path="profilo" element={<CampoProfilo />} />
         <Route path="impostazioni" element={<CampoImpostazioni />} />
         <Route path="attivita" element={<CampoAttivita />} />

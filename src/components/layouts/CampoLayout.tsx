@@ -22,6 +22,7 @@ import {
   CalendarDays,
   Receipt,
   ArrowLeft,
+  ListChecks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,6 +85,7 @@ export default function CampoLayout() {
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
+    { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },
@@ -91,7 +93,10 @@ export default function CampoLayout() {
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
-    { title: "Documenti", url: "/campo/sub/documenti", icon: FileText },
+    // /campo/documenti delega per ruolo (CampoDocumenti → SubDocumenti solo se
+    // subappaltatore). Puntare a /campo/sub/documenti mostrava all'OPERAIO la
+    // pagina documenti del subappaltatore (visura/DURC/SOA, con upload).
+    { title: "Documenti", url: "/campo/documenti", icon: FileText },
     { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
@@ -104,7 +109,8 @@ export default function CampoLayout() {
     { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
-    { title: "SAL", url: "/campo/sal", icon: ClipboardCheck },
+    // Era "SAL" (importi/ritenute): in cantiere serve segnare le fasi fatte.
+    { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
     { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },

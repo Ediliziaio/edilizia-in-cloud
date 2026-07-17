@@ -49,6 +49,39 @@ async function canManage(supabaseAdmin: Admin, userId: string, companyId: string
   return false;
 }
 
+/**
+ * Conta gli amministratori EFFETTIVI di un'azienda: admin primari (ruolo
+ * globale company_admin + azienda primaria) + admin via accesso multi-azienda
+ * ATTIVO e non scaduto. Serve alla guardia anti-lockout: non si può togliere
+ * l'ultimo admin (sospensione/declassamento/revoca) lasciando l'azienda senza
+ * chi la amministra.
+ */
+async function countActiveAdmins(supabaseAdmin: Admin, companyId: string): Promise<number> {
+  const adminIds = new Set<string>();
+
+  const { data: roleAdmins } = await supabaseAdmin
+    .from("user_roles").select("user_id").eq("role", "company_admin");
+  const roleAdminIds = (roleAdmins ?? [])
+    .map((r: { user_id?: string }) => r.user_id)
+    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+  if (roleAdminIds.length > 0) {
+    const { data: primaryAdmins } = await supabaseAdmin
+      .from("profiles").select("id").eq("company_id", companyId).in("id", roleAdminIds);
+    for (const p of primaryAdmins ?? []) if (p.id) adminIds.add(p.id);
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: mcaAdmins } = await supabaseAdmin
+    .from("multi_company_access")
+    .select("user_id, expires_at")
+    .eq("company_id", companyId).eq("access_role", "company_admin").eq("status", "active");
+  for (const m of mcaAdmins ?? []) {
+    if (m.user_id && (!m.expires_at || m.expires_at > nowIso)) adminIds.add(m.user_id);
+  }
+
+  return adminIds.size;
+}
+
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsH });
@@ -143,24 +176,53 @@ Deno.serve(async (req) => {
     if (!accessId) return errorResponse("access_id mancante", 400, corsH);
     // La riga deve appartenere alla company gestita (anti-IDOR).
     const { data: row } = await supabaseAdmin
-      .from("multi_company_access").select("id, company_id, user_id").eq("id", accessId).maybeSingle();
+      .from("multi_company_access").select("id, company_id, user_id, access_role, status")
+      .eq("id", accessId).maybeSingle();
     if (!row || (row as { company_id: string }).company_id !== companyId) {
       return errorResponse("Accesso non trovato per questa azienda", 404, corsH);
     }
+    const targetRow = row as { access_role: string; status: string; user_id: string };
+    const targetIsActiveAdmin = targetRow.access_role === "company_admin" && targetRow.status === "active";
+
+    // Guardia anti-lockout: se questa riga è l'ultimo admin attivo dell'azienda,
+    // non la si può declassare/sospendere/revocare (l'azienda resterebbe senza
+    // amministratore). Il super_admin di piattaforma non è vincolato.
+    const guardLastAdmin = async (): Promise<Response | null> => {
+      if (!targetIsActiveAdmin) return null;
+      const admins = await countActiveAdmins(supabaseAdmin, companyId);
+      if (admins <= 1) {
+        return errorResponse(
+          "Non puoi rimuovere l'ultimo amministratore dell'azienda. Assegna prima un altro admin.",
+          409, corsH,
+        );
+      }
+      return null;
+    };
 
     if (action === "update-role") {
       const accessRole = String(body?.access_role ?? "");
       if (!ALLOWED_ROLES.has(accessRole)) return errorResponse("Ruolo non valido", 400, corsH);
+      // Declassamento dell'ultimo admin → blocca (mantiene admin → admin ok).
+      if (accessRole !== "company_admin") {
+        const blocked = await guardLastAdmin();
+        if (blocked) return blocked;
+      }
       await supabaseAdmin.from("multi_company_access").update({ access_role: accessRole }).eq("id", accessId);
       return jsonResponse({ success: true }, 200, corsH);
     }
     if (action === "set-status") {
       const status = String(body?.status ?? "");
       if (!["active", "suspended"].includes(status)) return errorResponse("Stato non valido", 400, corsH);
+      if (status === "suspended") {
+        const blocked = await guardLastAdmin();
+        if (blocked) return blocked;
+      }
       await supabaseAdmin.from("multi_company_access").update({ status }).eq("id", accessId);
       return jsonResponse({ success: true }, 200, corsH);
     }
     if (action === "revoke") {
+      const blocked = await guardLastAdmin();
+      if (blocked) return blocked;
       await supabaseAdmin.from("multi_company_access").delete().eq("id", accessId);
       return jsonResponse({ success: true }, 200, corsH);
     }

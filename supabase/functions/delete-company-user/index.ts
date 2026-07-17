@@ -54,6 +54,9 @@ async function hasCompanyAdminAccess(
     .select("access_role")
     .eq("user_id", userId)
     .eq("company_id", companyId)
+    // Solo un accesso ATTIVO conferisce autorità: un admin multi-azienda
+    // sospeso non può più eliminare utenti (coerente con le guardie RLS).
+    .eq("status", "active")
     .maybeSingle();
 
   return access?.access_role === "company_admin";
@@ -93,6 +96,7 @@ async function userIsAdminInCompany(
     .select("access_role")
     .eq("user_id", userId)
     .eq("company_id", companyId)
+    .eq("status", "active")
     .maybeSingle();
 
   return access?.access_role === "company_admin";
@@ -127,7 +131,11 @@ async function countCompanyAdmins(adminClient: SupabaseAdminClient, companyId: s
     .from("multi_company_access")
     .select("user_id")
     .eq("company_id", companyId)
-    .eq("access_role", "company_admin");
+    .eq("access_role", "company_admin")
+    // Gli admin multi-azienda SOSPESI non sono amministratori effettivi: contarli
+    // gonfiava il totale e la guardia "ultimo admin" poteva far eliminare l'unico
+    // admin operativo lasciando l'azienda di fatto senza amministrazione.
+    .eq("status", "active");
   if (grantedError) throw grantedError;
 
   for (const row of grantedAdmins ?? []) {

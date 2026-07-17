@@ -31,13 +31,21 @@ Deno.serve(async (req) => {
     const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !caller) throw new Error("Non autorizzato");
 
-    const { data: callerRole } = await supabaseAdmin
+    // Tutti i ruoli del chiamante (.single() andava in errore per chi ne ha
+    // più d'uno) + azienda primaria, per l'isolamento multi-tenant sotto.
+    const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
-      .single();
+      .eq("user_id", caller.id);
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("company_id")
+      .eq("id", caller.id)
+      .maybeSingle();
 
-    if (!callerRole || !["company_admin", "super_admin"].includes(callerRole.role)) {
+    const callerRoleSet = new Set((callerRoles ?? []).map((r) => r.role));
+    const isSuperAdmin = callerRoleSet.has("super_admin");
+    if (!isSuperAdmin && !callerRoleSet.has("company_admin")) {
       throw new Error("Permessi insufficienti");
     }
 
@@ -55,6 +63,12 @@ Deno.serve(async (req) => {
 
     if (empError || !employee) throw new Error("Dipendente non trovato");
     if (employee.user_id) throw new Error("Il dipendente ha già un account utente");
+
+    // ISOLAMENTO MULTI-TENANT: un company_admin può creare l'accesso dipendente
+    // SOLO per la propria azienda (prima bastava un employee_id altrui).
+    if (!isSuperAdmin && employee.company_id !== callerProfile?.company_id) {
+      throw new Error("Permessi insufficienti");
+    }
 
     const finalPassword = password && password.trim().length > 0
       ? password.trim()

@@ -1129,11 +1129,32 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
     }
 
     setSyncStatus("caricamento");
-    withPortalTimeout(
-      listPortalCourses(companyId),
-      9_000,
-      "La sincronizzazione del Portale sta impiegando troppo tempo.",
-    )
+    // Sync resiliente: la prima query può scadere se il mount scatena molte
+    // richieste supabase in parallelo (badge sidebar, dashboard, audience,
+    // enrollments…) e il pooler è momentaneamente sotto carico. Invece di
+    // cadere subito in "modalità locale", riproviamo fino a 3 volte con
+    // backoff crescente e timeout più generosi sui tentativi successivi.
+    const fetchRemoteCoursesWithRetry = async (): Promise<
+      Awaited<ReturnType<typeof listPortalCourses>>
+    > => {
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          return await withPortalTimeout(
+            listPortalCourses(companyId),
+            attempt === 1 ? 9_000 : 15_000,
+            "La sincronizzazione del Portale sta impiegando troppo tempo.",
+          );
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3 && active) {
+            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+          }
+        }
+      }
+      throw lastError;
+    };
+    fetchRemoteCoursesWithRetry()
       .then((remoteCourses) => {
         if (!active) return;
         setRemoteEnabled(true);

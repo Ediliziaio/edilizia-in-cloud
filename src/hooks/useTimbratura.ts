@@ -101,13 +101,15 @@ export function useTimbra() {
       gps: GPSResult | null;
     }) => {
       const now = new Date().toISOString();
+      // data_evento e ora_evento sono colonne GENERATED ALWAYS nel DB
+      // (calcolate da timestamp AT TIME ZONE 'Europe/Rome'): NON vanno mai
+      // passate nell'insert, altrimenti Postgres rifiuta con
+      // "cannot insert a non-DEFAULT value into column data_evento".
       const payload: HrTimbraturaInsert = {
         company_id: companyId,
         profilo_id: profiloId,
         tipo,
         timestamp: now,
-        data_evento: now.slice(0, 10),
-        ora_evento: now.slice(11, 19),
         lat: gps?.lat || null,
         lng: gps?.lng || null,
         sede_id: gps?.sede_id || null,

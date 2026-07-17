@@ -205,9 +205,14 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
             .upsert(payload as never, {
               onConflict: "company_id,operaio_id,data,turno",
             });
+          // Se siamo ONLINE ed è il server a rifiutare (RLS, vincolo, payload)
+          // non è un problema di rete: accodare significa solo ritentare 5
+          // volte, fallire e morire in silenzio in IndexedDB — mentre l'utente
+          // ha già letto "Checklist confermata". Su un adempimento di
+          // sicurezza è inaccettabile: qui l'errore va detto.
           if (error) {
-            // Fallback: metti in coda offline
-            await enqueue("checklist", payload);
+            setState((s) => ({ ...s, saving: false, error: error.message }));
+            return false;
           }
         } else {
           await enqueue("checklist", payload);
@@ -216,7 +221,15 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
         return true;
       } catch (err) {
         console.error("[useChecklistSicurezza] conferma error", err);
-        // Fallback: coda offline
+        // Idem: la coda è per l'OFFLINE. Se siamo online l'eccezione è reale.
+        if (isOnline()) {
+          setState((s) => ({
+            ...s,
+            saving: false,
+            error: err instanceof Error ? err.message : "Impossibile salvare la checklist",
+          }));
+          return false;
+        }
         try {
           await enqueue("checklist", payload);
           setState((s) => ({ ...s, saving: false }));

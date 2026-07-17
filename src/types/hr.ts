@@ -4,7 +4,7 @@ export type OrarioTipo = "fisso" | "flessibile" | "turnista" | "standard" | "tur
 export type TimbraturaTipo = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine" | "inizio_pausa" | "fine_pausa" | "missione_start" | "missione_end";
 export type TimbrataFonte = "web" | "app" | "nfc" | "qr" | "manuale" | "badge" | "admin";
 export type GiornataStato = "presente" | "assente" | "ferie" | "permesso" | "malattia" | "smart_working" | "trasferta" | "festivita" | "infortunio" | "maternita" | "paternita" | "lutto" | "rol" | "non_lavorativo" | "missione";
-export type RichiestaTipo = "ferie" | "permesso" | "malattia" | "straordinario" | "cambio_turno" | "rimborso" | "altro" | "rol" | "infortunio" | "maternita" | "paternita" | "lutto" | "smart_working" | "trasferta" | "formazione";
+export type RichiestaTipo = "ferie" | "permesso" | "malattia" | "straordinario" | "cambio_turno" | "rimborso" | "altro" | "rol" | "infortunio" | "maternita" | "paternita" | "lutto" | "smart_working" | "trasferta" | "formazione" | "rettifica_timbratura" | "segnalazione";
 export type RichiestaStato = "in_attesa" | "approvata" | "rifiutata" | "annullata" | "revocata";
 
 export interface HrSede {

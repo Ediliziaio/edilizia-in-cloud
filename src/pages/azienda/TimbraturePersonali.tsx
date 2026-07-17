@@ -24,6 +24,7 @@ import {
   useTimbra,
 } from "@/hooks/useTimbratura";
 import { useAuth } from "@/contexts/AuthContext";
+import { RichiesteHrPersonali } from "@/components/hr/RichiesteHrPersonali";
 import type { HrTimbratura, TimbraturaTipo } from "@/types/hr";
 import { cn } from "@/lib/utils";
 
@@ -441,6 +442,9 @@ export default function TimbraturePersonali() {
           </CardContent>
         </Card>
       </div>
+
+      {/* BLOCCO D — Richieste e segnalazioni all'HR / amministrazione */}
+      <RichiesteHrPersonali companyId={companyId!} profiloId={profilo.id} />
     </div>
   );
 }

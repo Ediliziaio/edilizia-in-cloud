@@ -153,6 +153,16 @@ function isOpenOrder(order: OrderSummary | null | undefined): order is OrderSumm
   return status !== "annullato" && status !== "chiuso";
 }
 
+/**
+ * Lavoro ancora aperto ma con la data di fine già passata → è IN RITARDO
+ * (se fosse finito sarebbe "chiuso"). Confronto per giorni di calendario:
+ * evita i falsi positivi dovuti all'orario e ai fusi.
+ */
+function isOverdueOrder(order: OrderSummary | null | undefined): boolean {
+  if (!order?.work_end_date) return false;
+  return differenceInCalendarDays(new Date(), parseISO(order.work_end_date)) > 0;
+}
+
 function assignmentsToCantieri(rows: AssignmentRow[] | null | undefined): Cantiere[] {
   const seen = new Set<string>();
   return (rows ?? [])
@@ -276,7 +286,15 @@ export default function CampoCalendario() {
         const o = a.order;
         if (!o) return false;
         if (o.work_start_date && o.work_end_date) {
-          return isWithinInterval(day, { start: parseISO(o.work_start_date), end: parseISO(o.work_end_date) });
+          if (isWithinInterval(day, { start: parseISO(o.work_start_date), end: parseISO(o.work_end_date) })) {
+            return true;
+          }
+          // Lavoro ancora APERTO (allCantieri esclude già chiuso/annullato) ma
+          // oltre la data di fine = in ritardo, non finito. Senza questo ramo
+          // spariva del tutto da "I miei lavori" proprio mentre la Home lo
+          // conta ancora tra i "Cantieri attivi" → le due schermate si
+          // contraddicevano. Lo teniamo visibile su OGGI finché non è chiuso.
+          return isToday(day) && isOverdueOrder(o);
         }
         if (o.work_start_date) return parseISO(o.work_start_date) <= day;
         return true;
