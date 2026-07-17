@@ -644,11 +644,13 @@ export default function MarketingDashboard() {
           </div>
 
           <Tabs value={effectiveTab} onValueChange={(v) => switchTab(v as DashboardTab)}>
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-4 lg:grid-cols-7">
+            {/* Mobile: riga unica scorrevole invece della griglia a 2 col (7 tab =
+                4 file troppo alte). Da sm resta a griglia (4 → 7 colonne). */}
+            <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 lg:grid-cols-7">
               {visibleTabs.map((tab) => {
                 const Icon = TAB_ICONS[tab.id];
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="rounded-lg gap-1.5 text-xs">
+                  <TabsTrigger key={tab.id} value={tab.id} className="shrink-0 rounded-lg gap-1.5 text-xs">
                     <Icon className="h-3.5 w-3.5" />
                     <span>{tab.label}</span>
                   </TabsTrigger>

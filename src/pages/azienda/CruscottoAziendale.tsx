@@ -630,16 +630,18 @@ export default function CruscottoAziendale() {
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aree di controllo</p>
               <h2 className="text-lg font-semibold text-slate-950">Approfondisci solo quello che ti serve ora</h2>
             </div>
-            <p className="text-sm text-slate-500">La sintesi resta sopra. Qui sotto trovi i dettagli separati per area.</p>
+            <p className="hidden text-sm text-slate-500 sm:block">La sintesi resta sopra. Qui sotto trovi i dettagli separati per area.</p>
           </div>
 
           <Tabs value={cruscottoTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
-              <TabsTrigger value="sintesi" className="rounded-lg">Sintesi</TabsTrigger>
-              <TabsTrigger value="finanza" className="rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
-              <TabsTrigger value="operations" className="rounded-lg" disabled={!showOperazioni}>Operations</TabsTrigger>
-              <TabsTrigger value="vendite" className="rounded-lg" disabled={!showCommerciale}>Vendite</TabsTrigger>
-              <TabsTrigger value="team" className="rounded-lg" disabled={!showHR && sediVisibili.length === 0}>Team / sedi</TabsTrigger>
+            {/* Mobile: riga unica scorrevole (niente griglia a 3 file con l'ultima
+                voce spaiata). Da sm: griglia a 5 colonne come prima. */}
+            <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-5">
+              <TabsTrigger value="sintesi" className="shrink-0 rounded-lg">Sintesi</TabsTrigger>
+              <TabsTrigger value="finanza" className="shrink-0 rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
+              <TabsTrigger value="operations" className="shrink-0 rounded-lg" disabled={!showOperazioni}>Operations</TabsTrigger>
+              <TabsTrigger value="vendite" className="shrink-0 rounded-lg" disabled={!showCommerciale}>Vendite</TabsTrigger>
+              <TabsTrigger value="team" className="shrink-0 rounded-lg" disabled={!showHR && sediVisibili.length === 0}>Team / sedi</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sintesi" className="mt-4 space-y-4">
