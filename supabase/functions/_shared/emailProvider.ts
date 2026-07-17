@@ -202,6 +202,16 @@ export async function sendViaProvider(
     stream?: "marketing" | "transactional";
     disableNativeTracking?: boolean;
     smtp?: SmtpConfig;
+    /**
+     * Elastic Email: forza la CLASSE messaggio "transactional" (endpoint
+     * /v4/emails/transactional) pur restando sulle credenziali/failover del
+     * flusso marketing. Serve alle notifiche operative interne (es. "nuovo
+     * lead da contattare") che sono transazionali per natura ma vengono
+     * addebitate sui crediti marketing dell'azienda: così non escono come
+     * campagna bulk (niente footer unsubscribe auto di EE) e hanno una
+     * consegna in inbox migliore. Ininfluente sugli altri provider.
+     */
+    elasticTransactionalClass?: boolean;
   }
 ): Promise<EmailSendResult> {
   let url: string;
@@ -317,9 +327,14 @@ export async function sendViaProvider(
 
     case "elastic_email":
     case "elasticemail": {
-      url = stream === "marketing"
-        ? "https://api.elasticemail.com/v4/emails"
-        : "https://api.elasticemail.com/v4/emails/transactional";
+      // La classe transactional si attiva sia per lo stream transactional puro,
+      // sia quando il chiamante lo forza pur usando le credenziali marketing
+      // (notifiche operative interne). L'endpoint transactional non appende il
+      // footer unsubscribe automatico e migliora la consegna in inbox.
+      const elasticTransactional = stream !== "marketing" || opts?.elasticTransactionalClass === true;
+      url = elasticTransactional
+        ? "https://api.elasticemail.com/v4/emails/transactional"
+        : "https://api.elasticemail.com/v4/emails";
       headers = {
         "X-ElasticEmail-ApiKey": apiKey,
         "Content-Type": "application/json",
@@ -348,15 +363,15 @@ export async function sendViaProvider(
       // l'override per-email ("You cannot change the tracking options") sugli
       // account dove il tracking è gestito a livello account. Il tracking
       // EiC (pixel + link firmati) funziona comunque.
-      const payload: Record<string, unknown> = stream === "marketing"
+      const payload: Record<string, unknown> = elasticTransactional
         ? {
-            Recipients: req.to.map((email) => ({ Email: email })),
-            Content: content,
-          }
-        : {
             Recipients: {
               To: req.to.map((e) => e),
             },
+            Content: content,
+          }
+        : {
+            Recipients: req.to.map((email) => ({ Email: email })),
             Content: content,
           };
       body = JSON.stringify(payload);
@@ -481,6 +496,7 @@ export async function sendViaProviderWithFailover(
     domain?: string;
     stream?: "marketing" | "transactional";
     disableNativeTracking?: boolean;
+    elasticTransactionalClass?: boolean;
   },
 ): Promise<EmailSendResult> {
   const failoverRaw = await getPlatformSetting(`email_${stream}_failover_providers`);
