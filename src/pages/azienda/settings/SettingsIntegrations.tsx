@@ -305,6 +305,7 @@ export default function SettingsIntegrations() {
   // "forms" → gestione moduli lead diretta dal kebab.
   const [metaTroubleshootOpen, setMetaTroubleshootOpen] = useState(false);
   const [metaWizardStep, setMetaWizardStep] = useState<MetaWizardStep | null>(null);
+  const [metaOpenDisconnect, setMetaOpenDisconnect] = useState(false);
   const handleTroubleshoot = (item: IntegrationItem) => {
     if (item.id === "meta") setMetaTroubleshootOpen(true);
   };
@@ -314,9 +315,15 @@ export default function SettingsIntegrations() {
 
   // ── Disconnect handler ────────────────────────────────────────────────────
   const handleDisconnect = (item: IntegrationItem) => {
-    // Per ora il disconnect è gestito dentro il popup di ogni integrazione
-    // (es. GbpConnectionCard ha il proprio dialog di disconnessione).
-    // Apriamo il popup/wizard così l'utente trova il pulsante di disconnect.
+    // Meta gestisce la disconnessione nel proprio wizard: apriamolo già sulla
+    // conferma di disconnessione. Prima questo handler faceva navigate(pageHref)
+    // → per Meta finiva su Gestione Social senza disconnettere nulla.
+    if (item.id === "meta") {
+      setMetaOpenDisconnect(true);
+      setMetaWizardStep("pages");
+      return;
+    }
+    // Altre integrazioni: il disconnect è nel loro popup dedicato.
     toast.info("Apri la pagina dell'integrazione per disconnetterla.", {
       description: item.name,
     });
@@ -421,9 +428,10 @@ export default function SettingsIntegrations() {
       {/* Wizard Meta con passo iniziale: "oauth" (Ricollega) o "forms" (Moduli lead) */}
       <MetaIntegrationWizard
         open={metaWizardStep !== null}
-        onOpenChange={(v) => { if (!v) setMetaWizardStep(null); }}
+        onOpenChange={(v) => { if (!v) { setMetaWizardStep(null); setMetaOpenDisconnect(false); } }}
         integration={metaIntegration}
         initialStep={metaWizardStep ?? undefined}
+        openDisconnect={metaOpenDisconnect}
         onComplete={() => {
           refetchIntegrations();
           queryClient.invalidateQueries({ queryKey: ["integrations", companyId] });
