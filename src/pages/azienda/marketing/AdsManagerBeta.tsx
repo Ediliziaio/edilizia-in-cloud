@@ -1028,12 +1028,18 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
     staleTime: 60_000,
   });
 
+  // Ad account: preferisci SEMPRE i selezionati. Un utente Meta "agenzia"
+  // porta decine di account di altri clienti: senza questo filtro
+  // adAccounts[0] (alfabetico) farebbe creare campagne sull'account sbagliato.
+  const adAccountAssets = assets.filter((asset) => asset.asset_type === "ad_account");
+  const selectedAdAccounts = adAccountAssets.filter((asset) => asset.selected);
+
   return {
     integration,
     assets,
     isLoading: integrationLoading || assetsLoading,
     pages: assets.filter((asset) => asset.asset_type === "page"),
-    adAccounts: assets.filter((asset) => asset.asset_type === "ad_account"),
+    adAccounts: selectedAdAccounts.length > 0 ? selectedAdAccounts : adAccountAssets,
     businesses: assets.filter((asset) => asset.asset_type === "business"),
   };
 }
@@ -1436,8 +1442,11 @@ export default function AdsManagerBeta() {
   const initialGoogleChannelFromUrl =
     (searchParams.get("googleChannel") as "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX" | null) ?? undefined;
 
-  const meta = useMetaConnection(companyId, isDemoCompany);
-  const google = useGoogleAdsConnection(companyId, isDemoCompany);
+  // BUG FIX: le query di connessione erano gated su isDemoCompany (invertito):
+  // giravano SOLO per la Demo Azienda, quindi ogni azienda REALE vedeva
+  // "non collegato" anche con Meta/Google Ads attivi. Devono girare sempre.
+  const meta = useMetaConnection(companyId, true);
+  const google = useGoogleAdsConnection(companyId, true);
   const pixel = useMetaPixelConfig(companyId);
   const googleStats = useGoogleAdsStats();
 

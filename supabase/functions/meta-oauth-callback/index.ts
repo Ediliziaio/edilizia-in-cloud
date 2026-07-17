@@ -227,6 +227,53 @@ Deno.serve(async (req) => {
         console.warn("Business Manager fetch failed (non-fatal):", bizErr.message);
       }
 
+      // Fetch AD ACCOUNTS: senza questi asset la Gestione Pubblicitaria mostra
+      // "Account pubblicitario assente" e il wizard campagne resta bloccato
+      // (il callback salvava solo pages/businesses). Scope: ads_read (richiesto).
+      // NB multi-tenant: come per le pagine, /me/adaccounts può includere
+      // account di altri clienti di un'agenzia — la pagina Ads usa il primo,
+      // una selezione esplicita è un miglioramento futuro del wizard.
+      try {
+        const adRes = await fetch(
+          `https://graph.facebook.com/${apiVersion}/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
+        );
+        const adData = await adRes.json();
+        const adAccounts: any[] = adData.data || [];
+        if (adAccounts.length > 0) {
+          // Preserva le selezioni esistenti prima del refresh (un ri-OAuth non
+          // deve azzerare la scelta dell'account fatta dall'azienda).
+          const { data: prevSel } = await adminClient
+            .from("meta_assets")
+            .select("asset_id")
+            .eq("integration_id", integration.id)
+            .eq("asset_type", "ad_account")
+            .eq("selected", true);
+          const prevSelected = new Set((prevSel ?? []).map((r: any) => r.asset_id));
+
+          await adminClient
+            .from("meta_assets")
+            .delete()
+            .eq("integration_id", integration.id)
+            .eq("asset_type", "ad_account");
+          await adminClient.from("meta_assets").insert(
+            adAccounts.map((acc: any) => ({
+              integration_id: integration.id,
+              company_id,
+              asset_type: "ad_account",
+              asset_id: acc.id, // formato act_<numero>
+              asset_name: acc.name || acc.id,
+              // selected=true SOLO se già scelto prima o se è l'unico account:
+              // un utente agenzia vede DECINE di account di altri clienti e la
+              // campagna finirebbe sull'account sbagliato.
+              selected: prevSelected.has(acc.id) || adAccounts.length === 1,
+              metadata: { account_status: acc.account_status ?? null, currency: acc.currency ?? null },
+            })),
+          );
+        }
+      } catch (adErr: any) {
+        console.warn("Ad accounts fetch failed (non-fatal):", adErr.message);
+      }
+
       if (allPages.length > 0) {
         // Clear old page assets for this integration
         await adminClient
