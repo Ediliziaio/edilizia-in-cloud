@@ -932,13 +932,14 @@ function TimbraturaSede() {
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
       const now = new Date();
+      // data_evento e ora_evento sono colonne GENERATE dal DB (derivate da
+      // `timestamp` in fuso Europe/Rome): NON vanno passate nell'insert, o
+      // Postgres risponde "cannot insert a non-DEFAULT value into column".
       const { error } = await supabase.from("hr_timbrature").insert({
         company_id: companyId,
         profilo_id: profilo!.id,
         tipo,
         timestamp: now.toISOString(),
-        data_evento: format(now, "yyyy-MM-dd"),
-        ora_evento: format(now, "HH:mm:ss"),
         lat: null,
         lng: null,
         fonte: "web",
