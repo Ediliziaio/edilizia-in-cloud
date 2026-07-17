@@ -159,15 +159,15 @@ export default function CedoliniPersonali() {
   const isLoading = loadingEmployee || loadingCedolini;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <Receipt className="h-5 w-5 text-primary" />
+    <div className="space-y-4">
+      {/* Header compatto */}
+      <div className="flex items-center gap-2.5">
+        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <Receipt className="h-[18px] w-[18px] text-primary" />
         </div>
-        <div>
-          <h1 className="text-xl font-bold">I miei Cedolini</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="min-w-0">
+          <h1 className="text-base font-bold leading-tight">I miei Cedolini</h1>
+          <p className="text-xs text-muted-foreground">
             Visualizza e scarica le tue buste paga
           </p>
         </div>

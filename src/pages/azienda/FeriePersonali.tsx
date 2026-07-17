@@ -210,33 +210,33 @@ export default function FeriePersonali() {
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <Palmtree className="h-5 w-5 text-primary" />
+    <div className="space-y-4">
+      {/* Header compatto */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Palmtree className="h-[18px] w-[18px] text-primary" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold">Ferie & Permessi</h1>
-            <p className="text-sm text-muted-foreground">Gestisci le tue richieste</p>
+          <div className="min-w-0">
+            <h1 className="text-base font-bold leading-tight">Ferie &amp; Permessi</h1>
+            <p className="text-xs text-muted-foreground">Gestisci le tue richieste</p>
           </div>
         </div>
-        <Button onClick={() => { setForm(FORM_DEFAULT); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuova richiesta
+        <Button size="sm" className="shrink-0" onClick={() => { setForm(FORM_DEFAULT); setDialogOpen(true); }}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          Nuova
         </Button>
       </div>
 
-      {/* BLOCCO A — Saldo ferie */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* BLOCCO A — Saldo ferie (3 card affiancate anche su mobile) */}
+      <div className="grid grid-cols-3 gap-2">
         {/* Ferie */}
         <Card>
-          <CardContent className="pt-4 pb-4">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Ferie</p>
-                <p className="text-2xl font-bold mt-0.5">{profilo.ferie_residue ?? 0}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">Ferie</p>
+                <p className="text-xl font-bold mt-0.5">{profilo.ferie_residue ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
                   giorni su {profilo.ferie_anno_giorni}
                 </p>
@@ -248,11 +248,11 @@ export default function FeriePersonali() {
         </Card>
         {/* Permessi */}
         <Card>
-          <CardContent className="pt-4 pb-4">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Permessi</p>
-                <p className="text-2xl font-bold mt-0.5">{profilo.permessi_residui_ore ?? 0}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">Permessi</p>
+                <p className="text-xl font-bold mt-0.5">{profilo.permessi_residui_ore ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
                   ore su {profilo.permessi_anno_ore}
                 </p>
@@ -264,11 +264,11 @@ export default function FeriePersonali() {
         </Card>
         {/* ROL */}
         <Card>
-          <CardContent className="pt-4 pb-4">
+          <CardContent className="p-3">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">ROL</p>
-                <p className="text-2xl font-bold mt-0.5">{profilo.rol_residuo_ore ?? 0}</p>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">ROL</p>
+                <p className="text-xl font-bold mt-0.5">{profilo.rol_residuo_ore ?? 0}</p>
                 <p className="text-xs text-muted-foreground">
                   ore su {profilo.rol_anno_ore}
                 </p>
