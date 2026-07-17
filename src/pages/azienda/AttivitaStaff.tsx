@@ -1437,7 +1437,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
     // Vista normale — card
     return (
-      <div key={t.id} className={`group flex items-start gap-3 rounded-lg border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
+      <div key={t.id} className={`group flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
         {/* Un solo controllo a sinistra: checkbox in modalità selezione,
             altrimenti il cerchio "completa" (gesto to-do naturale). Niente più
             cerchio + quadrato impilati. */}
@@ -1462,25 +1462,29 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           )}
         </div>
 
-        {/* Content */}
+        {/* Content — compatto: 2 righe (titolo su una riga + chip meta su una
+            sola riga). La descrizione è visibile aprendo l'attività. */}
         <div className={`flex-1 min-w-0 ${canManage ? "cursor-pointer" : ""}`} onClick={() => canManage && openEdit(t)}>
-          <div className="flex items-start justify-between gap-2">
-            <p className={`font-medium text-sm leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+          {/* Riga 1: titolo (una riga) + priorità */}
+          <div className="flex items-center gap-2">
+            <p className={`flex-1 min-w-0 truncate font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
             <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${cfg.badgeClass}`}>
               <PriorityIcon className="h-2.5 w-2.5 mr-0.5" />{cfg.label}
             </Badge>
           </div>
-          {t.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.notes}</p>}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${stCfg.className}`}>{stCfg.label}</Badge>
-            {assigneeName && <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
-            {catLabel && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{catLabel}</span>}
-            {t.order?.order_code && <Link to="/azienda/ordini" className="flex items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
+          {/* Riga 2: chip meta su UNA sola riga — stato · scadenza · categoria.
+              overflow-hidden: le voci meno importanti (assegnatario/ordine) si
+              troncano invece di mandare a capo la card. */}
+          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
             {t.due_date && (
-              <span className={scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}>
+              <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}`}>
                 {scaduta ? "Scaduta " : isToday(new Date(t.due_date)) ? "Oggi" : "Entro "}{!isToday(new Date(t.due_date)) && format(new Date(t.due_date), "d MMM", { locale: it })}
               </span>
             )}
+            {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
+            {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
+            {t.order?.order_code && <Link to="/azienda/ordini" onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
           </div>
         </div>
 
