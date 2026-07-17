@@ -1361,7 +1361,6 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     const scaduta = t.due_date && t.status !== "completata" && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
     const isDone = t.status === "completata";
     const catLabel = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label;
-    const PriorityIcon = cfg.icon;
     const isSelected = selectedIds.has(t.id);
     // Chi ha solo la visione team (non admin) vede le task altrui in sola
     // lettura: le mutation lato client filtrano già assigned_to = me.
@@ -1462,20 +1461,16 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           )}
         </div>
 
-        {/* Content — compatto: 2 righe (titolo su una riga + chip meta su una
-            sola riga). La descrizione è visibile aprendo l'attività. */}
+        {/* Content — titolo leggibile su TUTTA la larghezza (fino a 2 righe) +
+            una sola riga meta. La priorità è un pallino colorato: non ruba
+            spazio al titolo e alleggerisce il testo. */}
         <div className={`flex-1 min-w-0 ${canManage ? "cursor-pointer" : ""}`} onClick={() => canManage && openEdit(t)}>
-          {/* Riga 1: titolo (una riga) + priorità */}
-          <div className="flex items-center gap-2">
-            <p className={`flex-1 min-w-0 truncate font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
-            <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${cfg.badgeClass}`}>
-              <PriorityIcon className="h-2.5 w-2.5 mr-0.5" />{cfg.label}
-            </Badge>
-          </div>
-          {/* Riga 2: chip meta su UNA sola riga — stato · scadenza · categoria.
-              overflow-hidden: le voci meno importanti (assegnatario/ordine) si
-              troncano invece di mandare a capo la card. */}
-          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+          <p className={`font-medium text-[13px] leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+          {/* Riga meta su UNA sola riga: priorità (pallino) · stato · scadenza.
+              overflow-hidden: le voci meno importanti (categoria/assegnatario/
+              ordine) si troncano invece di mandare a capo la card. */}
+          <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={`Priorità ${cfg.label}`} />
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
             {t.due_date && (
               <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}`}>
