@@ -3004,11 +3004,13 @@ function GalleriaTab({
   onUseInPost,
   onUseInAds,
   onUploadRequested,
+  demoMode = false,
 }: {
   mediaItems: MediaItem[];
   onUseInPost: (item: MediaItem) => void;
   onUseInAds:  (item: MediaItem) => void;
   onUploadRequested: () => void;
+  demoMode?: boolean;
 }) {
   const [typeFilter, setTypeFilter]   = useState<"all" | "image" | "video" | "story">("all");
   const [catFilter,  setCatFilter]    = useState<MediaItem["category"] | "all">("all");
@@ -3026,12 +3028,14 @@ function GalleriaTab({
 
   return (
     <div className="space-y-5">
-      <Alert className="border-amber-200 bg-amber-50 py-2">
-        <Info className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-xs text-amber-800">
-          Galleria demo/fallback: usa un media nel composer oppure carica/genera contenuti dalla sezione Crea Post. Se il database social non e' ancora migrato, resta attivo il fallback locale.
-        </AlertDescription>
-      </Alert>
+      {demoMode && (
+        <Alert className="border-amber-200 bg-amber-50 py-2">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs text-amber-800">
+            Galleria demo/fallback: usa un media nel composer oppure carica/genera contenuti dalla sezione Crea Post. Se il database social non e' ancora migrato, resta attivo il fallback locale.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* ── HEADER ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3208,16 +3212,30 @@ interface GridCell {
   pillarEmoji?: string;
 }
 
-// Build 18-cell grid: last 6 published (from media items) + future slots
-function buildGrid(posts: ScheduledPost[]): GridCell[] {
-  // Last 6 "published" from demo media as past cells
-  const published: GridCell[] = DEMO_MEDIA_ITEMS.slice(0, 6).map((m) => ({
-    id: `pub-${m.id}`,
-    type: "published",
-    gradient: m.gradient,
-    text: m.title,
-    platform: "instagram",
-  }));
+// Build 18-cell grid: last 6 published + future slots
+function buildGrid(posts: ScheduledPost[], demoMode: boolean): GridCell[] {
+  // Celle "pubblicato": per la Demo Azienda i 6 media demo; per un'azienda
+  // reale gli ULTIMI post davvero pubblicati (niente contenuti finti).
+  const published: GridCell[] = demoMode
+    ? DEMO_MEDIA_ITEMS.slice(0, 6).map((m) => ({
+        id: `pub-${m.id}`,
+        type: "published" as const,
+        gradient: m.gradient,
+        text: m.title,
+        platform: "instagram",
+      }))
+    : posts
+        .filter((p) => p.status === "published" && p.platforms.includes("instagram"))
+        .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+        .slice(0, 6)
+        .map((p) => ({
+          id: `pub-${p.id}`,
+          type: "published" as const,
+          gradient: "from-slate-400 to-slate-600",
+          text: p.text,
+          image_url: p.image_url,
+          platform: "instagram",
+        }));
 
   // Scheduled instagram posts — deterministic gradient based on post id (no random)
   const FALLBACK_GRADIENTS = DEMO_MEDIA_ITEMS.map((m) => m.gradient);
@@ -3279,13 +3297,13 @@ function getCellPillar(cell: GridCell): string | null {
   return null;
 }
 
-function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
+function GridPlannerTab({ posts, demoMode = false }: { posts: ScheduledPost[]; demoMode?: boolean }) {
   const [showLabels, setShowLabels] = useState(true);
   const [highlightPillar, setHighlightPillar] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
 
   // Memoize grid so it doesn't rebuild on every state change (toggle labels, etc.)
-  const grid = useMemo(() => buildGrid(posts), [posts]);
+  const grid = useMemo(() => buildGrid(posts, demoMode), [posts, demoMode]);
   // Pre-compute pillar per cell to avoid calling getCellPillar multiple times per cell
   const cellPillars = useMemo(() => {
     const map: Record<string, string | null> = {};
@@ -3534,8 +3552,10 @@ const SENTIMENT_CONFIG: Record<InboxItem["sentiment"], { icon: string; color: st
   negative: { icon: "😟", color: "text-red-400"     },
 };
 
-function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) {
-  const [items, setItems] = useState<InboxItem[]>(DEMO_INBOX);
+function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: number) => void; demoMode?: boolean }) {
+  // I 4 messaggi demo si vedono SOLO nella Demo Azienda: un'azienda reale
+  // partirebbe convinta di avere conversazioni clienti mai esistite.
+  const [items, setItems] = useState<InboxItem[]>(demoMode ? DEMO_INBOX : []);
   const [filterType, setFilterType] = useState<InboxItemType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<InboxStatus | "all">("all");
   const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
@@ -3582,14 +3602,31 @@ function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) 
     return `${Math.round(diff / 86400000)}g fa`;
   };
 
+  // Azienda reale senza messaggi: empty state onesto invece di stats a zero
+  // su conversazioni demo mai esistite.
+  if (!demoMode && items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
+        <MessageSquare className="mb-3 h-10 w-10 text-slate-300" />
+        <p className="text-sm font-medium text-slate-700">Nessun messaggio</p>
+        <p className="mt-1 max-w-sm text-xs text-slate-400">
+          Commenti, DM e recensioni delle tue pagine social compariranno qui
+          quando la sincronizzazione conversazioni sarà attiva.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <Alert className="border-amber-200 bg-amber-50 py-2">
-        <Info className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-xs text-amber-800">
-          Inbox demo locale: le risposte non vengono inviate alle piattaforme finché non è collegata l&apos;integrazione social live.
-        </AlertDescription>
-      </Alert>
+      {demoMode && (
+        <Alert className="border-amber-200 bg-amber-50 py-2">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs text-amber-800">
+            Inbox demo locale: le risposte non vengono inviate alle piattaforme finché non è collegata l&apos;integrazione social live.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* ── HEADER STATS ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4056,6 +4093,10 @@ export default function SocialManagerBeta() {
   const activeTab = searchParams.get("tab") ?? "crea-post";
   const { effectiveCompany } = useAuthCompany();
   const companyId = effectiveCompany?.id ?? DEMO_COMPANY_ID;
+  // I contenuti demo (media, inbox, celle grid) si mostrano SOLO alla Demo
+  // Azienda: un'azienda reale deve vedere esclusivamente i propri dati, non
+  // 12 media finti e 4 messaggi mai ricevuti.
+  const isDemoCompany = companyId === DEMO_COMPANY_ID;
   const queryClient = useQueryClient();
   const socialData = useSocialManagerData(companyId);
   const {
@@ -4068,8 +4109,8 @@ export default function SocialManagerBeta() {
     isDbBacked,
   } = socialData;
   const mediaItems = useMemo(
-    () => storedMediaItems.length > 0 ? storedMediaItems : DEMO_MEDIA_ITEMS,
-    [storedMediaItems],
+    () => storedMediaItems.length > 0 ? storedMediaItems : (isDemoCompany ? DEMO_MEDIA_ITEMS : []),
+    [storedMediaItems, isDemoCompany],
   );
   const [selectedMediaForComposer, setSelectedMediaForComposer] = useState<MediaItem | null>(null);
 
@@ -4126,8 +4167,12 @@ export default function SocialManagerBeta() {
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const reviewCount    = posts.filter((p) => p.status === "review").length;
   const mediaCount     = mediaItems.length;
-  // inboxUnread is kept in sync by InboxTab via onUnreadChange callback
-  const [inboxUnread, setInboxUnread] = useState(() => DEMO_INBOX.filter((i) => i.status === "unread").length);
+  // inboxUnread is kept in sync by InboxTab via onUnreadChange callback.
+  // Il badge parte da 0 per le aziende reali: i "4 da leggere" erano i
+  // messaggi DEMO, mostrati come se fossero conversazioni vere.
+  const [inboxUnread, setInboxUnread] = useState(() =>
+    isDemoCompany ? DEMO_INBOX.filter((i) => i.status === "unread").length : 0,
+  );
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
@@ -4212,16 +4257,16 @@ export default function SocialManagerBeta() {
               <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
             )}
             {activeTab === "grid" && (
-              <GridPlannerTab posts={posts} />
+              <GridPlannerTab posts={posts} demoMode={isDemoCompany} />
             )}
             {activeTab === "inbox" && (
-              <InboxTab onUnreadChange={setInboxUnread} />
+              <InboxTab onUnreadChange={setInboxUnread} demoMode={isDemoCompany} />
             )}
             {activeTab === "analitiche" && (
               <AnaliticsTab connectedAccounts={connectedAccounts} />
             )}
             {activeTab === "galleria" && (
-              <GalleriaTab mediaItems={mediaItems} onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} onUploadRequested={handleUploadRequested} />
+              <GalleriaTab mediaItems={mediaItems} onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} onUploadRequested={handleUploadRequested} demoMode={isDemoCompany} />
             )}
           </div>
         </div>
