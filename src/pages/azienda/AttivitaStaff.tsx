@@ -1474,7 +1474,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
             {t.due_date && (
               <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}`}>
-                {scaduta ? "Scaduta " : isToday(new Date(t.due_date)) ? "Oggi" : "Entro "}{!isToday(new Date(t.due_date)) && format(new Date(t.due_date), "d MMM", { locale: it })}
+                {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d MMM", { locale: it })}
               </span>
             )}
             {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
