@@ -636,14 +636,11 @@ export default function CompanyCostsManager({
   return (
     <>
       <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" /> Controllo Costi Aziendali
-              </CardTitle>
-              <CardDescription>Gestione costi con IVA, fornitori e analisi fiscale</CardDescription>
-            </div>
+        {/* Titolo interno "Controllo Costi Aziendali" rimosso: ripeteva
+            l'intestazione di pagina "Costi Aziendali". La CardHeader resta come
+            barra azioni pulita (Genera, Importa, Esporta, Nuovo Costo). */}
+        <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
             <div className="flex items-center gap-2 flex-wrap">
               <UITooltipProvider>
                 <UITooltip>
@@ -873,15 +870,10 @@ export default function CompanyCostsManager({
                 </Popover>
               </div>
             )}
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato pagamento" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="paid">Solo pagati</SelectItem>
-                <SelectItem value="unpaid">Solo da pagare</SelectItem>
-                <SelectItem value="overdue">Solo scaduti</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Dropdown "Stato pagamento" rimosso: era ridondante con la barra
+                tab di stato qui sotto (Tutti/Sostenuti/Previsti/In ritardo/…),
+                più chiara e con i conteggi. statusFilter resta "all" (non filtra):
+                tutto lo status filtering passa dalle tab. */}
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
               <SelectContent>
