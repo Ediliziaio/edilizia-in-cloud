@@ -319,6 +319,7 @@ export default function CruscottoAziendale() {
         title="Cruscotto Aziendale"
         subtitle={`Centro di comando operativo, economico e commerciale — ${todayCap}`}
         icon={LayoutDashboard}
+        compactTitle
         toolbar={<CruscottoFilters filters={filters} onUpdate={updateFilters} compact />}
         actions={
           <Button

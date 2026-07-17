@@ -1345,6 +1345,7 @@ function CompanyDashboardInner() {
         title="Dashboard Gestione"
         subtitle={`La tua sala operativa · aggiornata ${lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
         icon={LayoutDashboard}
+        compactTitle
         leftAccessory={<DashboardKeyboardHint />}
         toolbar={<CompanyDashboardFilters filters={filters} onUpdate={updateFilters} compact />}
         actions={

@@ -334,6 +334,7 @@ export default function MarketingDashboard() {
         title="Dashboard Marketing"
         subtitle={`Regia commerciale, pipeline e conversioni — ${todayCap}`}
         icon={LayoutDashboard}
+        compactTitle
         toolbar={<DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />}
         actions={
           <>
