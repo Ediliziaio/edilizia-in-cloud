@@ -381,7 +381,7 @@ export default function CruscottoAziendale() {
                   <Button
                     asChild
                     size="sm"
-                    className="w-fit shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-950/20 hover:from-orange-600 hover:to-amber-500"
+                    className="w-fit shrink-0 bg-white text-orange-600 shadow-sm hover:bg-orange-50"
                   >
                     <Link to={executiveState.route}>
                       {executiveState.cta}
