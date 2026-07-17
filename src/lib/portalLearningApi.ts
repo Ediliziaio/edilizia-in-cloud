@@ -259,44 +259,80 @@ function mapCourse(row: PortalCourseRow, viewerCompanyId?: string): PortalLearni
  * solo i corsi propri).
  */
 export async function listPortalCourses(companyId: string): Promise<PortalLearningCourse[]> {
-  // 1° tentativo: query "open" (RLS decide). Funziona post-migration grants.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbAny = supabase as any;
-  const primary = await dbAny
-    .from("portal_courses")
-    .select(
-      "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
-    )
-    .order("sort_order", { ascending: true })
-    .order("updated_at", { ascending: false });
-  let data = primary.data;
 
-  // Fallback (pre-migration grants): query stretta solo su company_id
-  if (primary.error) {
-    const fallback = await dbAny
+  // ── PERF (critico): NON usare l'embed PostgREST (portal_courses con
+  // portal_course_modules(...) + portal_course_assets(...) annidati).
+  // Le RLS di queste tabelle referenziano la policy di `profiles` inlinata
+  // dall'hardening multi-tenant → ~130 sub-plan per tabella. Un singolo
+  // SELECT pianifica in ~8ms, ma quando PostgREST FONDE i 3 livelli in
+  // un'unica query il PLANNING esplode (>9s) pur eseguendo in <3ms → il
+  // Portale admin andava in timeout e mostrava 0 corsi ("modalità locale").
+  // Soluzione: 3 query separate, una per tabella, ricomposte lato client.
+  // Filtriamo per company (own + platform): index scan, RLS+grants restano
+  // applicate (una company vede i corsi platform SOLO se concessi via grant).
+  const scope = Array.from(new Set([companyId, PLATFORM_ADMIN_COMPANY_ID]));
+  const PARENT_COLS =
+    "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at";
+  const MODULE_COLS =
+    "id,company_id,course_id,title,description,lessons,duration,completed_rate,sort_order";
+  const ASSET_COLS =
+    "id,company_id,course_id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order";
+
+  const [coursesRes, modulesRes, assetsRes] = await Promise.all([
+    dbAny
       .from("portal_courses")
-      .select(
-        "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
-      )
-      .eq("company_id", companyId)
+      .select(PARENT_COLS)
+      .in("company_id", scope)
       .order("sort_order", { ascending: true })
-      .order("updated_at", { ascending: false });
-    if (fallback.error) throw fallback.error;
-    data = fallback.data;
-  }
+      .order("updated_at", { ascending: false }),
+    dbAny.from("portal_course_modules").select(MODULE_COLS).in("company_id", scope),
+    dbAny.from("portal_course_assets").select(ASSET_COLS).in("company_id", scope),
+  ]);
 
-  // PRIVACY: la query "open" si affida alla RLS, ma per un super_admin la RLS
-  // restituisce i corsi di TUTTE le aziende, e per un utente multi-azienda i
-  // corsi della sua seconda azienda. Entrambi finirebbero mislabellati come
-  // "piattaforma". Teniamo solo: corsi PROPRI dell'azienda visualizzatrice +
-  // corsi della piattaforma (gli unici concessi via grant nel flusso reale).
-  return ((data ?? []) as PortalCourseRow[])
+  if (coursesRes.error) throw coursesRes.error;
+
+  type ChildRow = { company_id?: string | null; course_id?: string | null };
+  const courseRows = (coursesRes.data ?? []) as PortalCourseRow[];
+  const moduleRows = (modulesRes.error ? [] : modulesRes.data ?? []) as (PortalModuleRow & ChildRow)[];
+  const assetRows = (assetsRes.error ? [] : assetsRes.data ?? []) as (PortalAssetRow & ChildRow)[];
+
+  // La PK dei corsi è (company_id, id): raggruppa figli per company+course,
+  // così due aziende con lo stesso course id ("sicurezza-base") non si mischiano.
+  const key = (c?: string | null, id?: string | null) => `${c ?? ""}::${id ?? ""}`;
+  const groupBy = <T extends ChildRow>(rows: T[]) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows) {
+      const k = key(row.company_id, row.course_id);
+      const bucket = map.get(k);
+      if (bucket) bucket.push(row);
+      else map.set(k, [row]);
+    }
+    return map;
+  };
+  const modulesByCourse = groupBy(moduleRows);
+  const assetsByCourse = groupBy(assetRows);
+
+  // PRIVACY: teniamo solo corsi PROPRI dell'azienda visualizzatrice + corsi
+  // della piattaforma (già garantito da .in(scope), ridondanza difensiva).
+  return courseRows
     .filter(
       (row) =>
         row.company_id === companyId ||
         row.company_id === PLATFORM_ADMIN_COMPANY_ID,
     )
-    .map((row) => mapCourse(row, companyId));
+    .map((row) => {
+      const k = key(row.company_id, row.id);
+      return mapCourse(
+        {
+          ...row,
+          portal_course_modules: modulesByCourse.get(k) ?? [],
+          portal_course_assets: assetsByCourse.get(k) ?? [],
+        },
+        companyId,
+      );
+    });
 }
 
 export async function listPortalCourseEnrollments(companyId: string, userId: string): Promise<PortalLearningEnrollment[]> {
