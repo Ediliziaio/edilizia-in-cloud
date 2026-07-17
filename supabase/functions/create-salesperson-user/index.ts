@@ -31,13 +31,21 @@ Deno.serve(async (req) => {
     const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !caller) throw new Error("Non autorizzato");
 
-    const { data: callerRole } = await supabaseAdmin
+    // Tutti i ruoli del chiamante (.single() andava in errore per chi ne ha
+    // più d'uno: es. company_admin + salesperson) + azienda primaria.
+    const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
-      .single();
+      .eq("user_id", caller.id);
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("company_id")
+      .eq("id", caller.id)
+      .maybeSingle();
 
-    if (!callerRole || !["company_admin", "super_admin"].includes(callerRole.role)) {
+    const callerRoleSet = new Set((callerRoles ?? []).map((r) => r.role));
+    const isSuperAdmin = callerRoleSet.has("super_admin");
+    if (!isSuperAdmin && !callerRoleSet.has("company_admin")) {
       throw new Error("Permessi insufficienti");
     }
 
@@ -55,6 +63,13 @@ Deno.serve(async (req) => {
 
     if (spError || !salesperson) throw new Error("Venditore non trovato");
     if (salesperson.user_id) throw new Error("Il venditore ha già un account utente");
+
+    // ISOLAMENTO MULTI-TENANT: un company_admin può creare l'accesso venditore
+    // SOLO per la propria azienda. Senza questo check, con un salesperson_id di
+    // un'altra azienda si creava un utente-venditore in quell'azienda.
+    if (!isSuperAdmin && salesperson.company_id !== callerProfile?.company_id) {
+      throw new Error("Permessi insufficienti");
+    }
 
     // ── Utente già esistente? (multi-azienda) ──────────────────────────────
     // La stessa persona può essere admin/staff in un'azienda e venditore in

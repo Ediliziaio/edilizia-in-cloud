@@ -115,6 +115,9 @@ Deno.serve(async (req) => {
       .select("access_role")
       .eq("user_id", callerId)
       .eq("company_id", targetCompanyId)
+      // Un accesso multi-azienda sospeso/invitato non conferisce autorità: solo
+      // 'active' abilita la creazione utenti (coerente con le guardie RLS).
+      .eq("status", "active")
       .maybeSingle();
 
     const isGrantedCompanyAdmin = selectedCompanyAccess?.access_role === "company_admin";
