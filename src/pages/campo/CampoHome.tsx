@@ -37,6 +37,21 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
   bassa:   { label: "Bassa",   dotClass: "bg-slate-400", badgeClass: "bg-muted text-muted-foreground" },
 };
 
+/**
+ * Peso di ordinamento della priorità: più basso = più urgente.
+ * Serve perché `tasks.priority` è una colonna TESTO — ordinarla nel DB
+ * significa ordinare in ordine alfabetico, non per urgenza.
+ * ("media" è un valore legacy equivalente a "normale".)
+ */
+function campoPriorityScore(priority: string | null | undefined): number {
+  switch (priority) {
+    case "urgente": return 0;
+    case "alta": return 1;
+    case "bassa": return 3;
+    default: return 2; // normale / media / sconosciuta
+  }
+}
+
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
 interface CampoAiOrder {
@@ -715,7 +730,7 @@ function CantieriSub() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
 
-  const { data: cantieri = [], isLoading } = useQuery({
+  const { data: cantieri = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["campo-cantieri-sub", user?.id, profile?.company_id],
     queryFn: async () => {
       // Prima prova order_campo_assignments (assegnazioni dirette)
@@ -773,6 +788,16 @@ function CantieriSub() {
         {isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-16 w-full" />
+          </div>
+        ) : isError ? (
+          /* Errore onesto: prima uno errore di rete/permessi restava uno
+             skeleton infinito o mentiva con "Nessun cantiere attivo". */
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <p className="text-sm font-medium text-foreground">Non riesco a caricare i cantieri</p>
+            <p className="text-xs text-muted-foreground">Controlla la connessione e riprova.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              {isFetching ? "Riprovo…" : "Riprova"}
+            </Button>
           </div>
         ) : cantieri.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
@@ -1107,6 +1132,11 @@ function MieAttivitaCampo() {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["campo-my-tasks", user?.id, companyId],
     queryFn: async () => {
+      // `tasks.priority` è TESTO, non un enum ordinato: ordinarlo lato DB dava
+      // un ordine ALFABETICO discendente (urgente → normale → bassa → alta),
+      // cioè le attività "alta" finivano ULTIME, sotto quelle "bassa", e con
+      // il limite potevano sparire del tutto. Prendiamo una finestra più ampia
+      // ordinata per scadenza e ordiniamo per priorità reale lato client.
       const { data, error } = await supabase
         .from("tasks")
         .select(`
@@ -1116,10 +1146,12 @@ function MieAttivitaCampo() {
         .eq("company_id", companyId!)
         .eq("assigned_to", user!.id)
         .neq("status", "completata")
-        .order("priority", { ascending: false })
-        .limit(8);
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(40);
       if (error) throw error;
-      return data ?? [];
+      return [...(data ?? [])]
+        .sort((a, b) => campoPriorityScore(a.priority) - campoPriorityScore(b.priority))
+        .slice(0, 8);
     },
     enabled: !!user?.id && !!companyId,
     staleTime: 60_000,
@@ -1206,8 +1238,8 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
     ...(isSubappaltatore ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-      { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-teal-600 bg-teal-50" },
-      { icon: FileText, label: "Documenti", url: "/campo/sub/documenti", color: "text-blue-600 bg-blue-50" },
+      { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-teal-600 bg-teal-50" },
+      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
       { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),

@@ -17,6 +17,20 @@ const PRIORITA = [
   { value: "alta", label: "Alta", color: "bg-red-500/20 text-red-600 border-red-500/30" },
 ];
 
+/**
+ * `tickets` ha DUE colonne priorità: `priorita` (text, legacy) e `priority`
+ * (enum ticket_priority, NOT NULL DEFAULT 'normale') — ed è `priority` la
+ * fonte di verità dell'ufficio (ordinamento, KPI "urgenti", badge in
+ * TicketsList/TicketDetail). Scrivendo solo `priorita`, un ticket segnalato
+ * "Alta" dal campo arrivava all'ufficio come "Normale" (il default), fuori
+ * dal conteggio urgenti. Mappiamo — non copiamo: "media" non esiste nell'enum.
+ */
+const PRIORITA_TO_ENUM: Record<string, "bassa" | "normale" | "alta"> = {
+  bassa: "bassa",
+  media: "normale",
+  alta: "alta",
+};
+
 export default function CampoTicketNuovo() {
   const { orderId } = useParams<{ orderId?: string }>();
   const navigate = useNavigate();
@@ -45,6 +59,9 @@ export default function CampoTicketNuovo() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!titolo.trim()) throw new Error("Inserisci un titolo");
+      // company_id è NOT NULL: senza guardia un profilo non ancora caricato
+      // produceva un errore criptico invece di un messaggio chiaro.
+      if (!companyId) throw new Error("Azienda non disponibile, riprova tra un istante");
       const { error } = await supabase.from("tickets").insert({
         company_id: companyId,
         order_id: selectedOrderId || null,
@@ -54,6 +71,7 @@ export default function CampoTicketNuovo() {
         titolo: titolo.trim(),
         descrizione: descrizione.trim() || null,
         priorita,
+        priority: PRIORITA_TO_ENUM[priorita] ?? "normale",
         status: "aperto",
         fonte: "campo",
       });

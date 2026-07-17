@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
+import { useIsCampo } from "@/hooks/useIsCampo";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
@@ -202,6 +203,7 @@ export default function CampoLavoroDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
+  const { isOperaio } = useIsCampo();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
   const [assignmentTimedOut, setAssignmentTimedOut] = useState(false);
@@ -241,26 +243,6 @@ export default function CampoLavoroDetail() {
           description: fallbackOrderTitle,
           indirizzo_lavori: fallbackOrderAddress,
         });
-      }
-
-      if (contextOrderCode || contextOrderTitle || contextOrderAddress) {
-        return {
-          id: `context-${orderId}`,
-          order_id: orderId,
-          role_type: "field",
-          is_capocantiere: false,
-          order: {
-            id: orderId,
-            order_code: contextOrderCode ?? "Cantiere selezionato",
-            description: contextOrderTitle ?? "Lavoro aperto dal calendario",
-            status: "assegnato",
-            indirizzo_lavori: contextOrderAddress,
-            percentuale_avanzamento: 0,
-            work_start_date: null,
-            work_end_date: null,
-            customer: null,
-          },
-        } satisfies CampoAssignment;
       }
 
       // Su rete lenta (cantiere) i probe possono scadere: distinguiamo il
@@ -409,7 +391,34 @@ export default function CampoLavoroDetail() {
 
       // Se qualche probe è scaduto non possiamo concludere "non assegnato":
       // errore → react-query riprova da solo invece del falso negativo.
+      //
+      // ⚠️ Rete di sicurezza SOLO qui, dopo i probe. Prima questo blocco stava
+      // in cima alla queryFn: bastava un query param (e "Lavori" li passa
+      // SEMPRE via campoLavoroUrl) per saltare del tutto il DB e renderizzare
+      // un ordine sintetico — 0% avanzamento, stato "assegnato", date "non
+      // impostato", cliente assente — anche quando i dati veri erano
+      // perfettamente leggibili. Peggio: il contesto veniva riscritto in
+      // sessionStorage e avvelenava anche l'apertura dalla Home.
       if (probeTimedOut) {
+        if (contextOrderCode || contextOrderTitle || contextOrderAddress) {
+          return {
+            id: `context-${orderId}`,
+            order_id: orderId,
+            role_type: "field",
+            is_capocantiere: false,
+            order: {
+              id: orderId,
+              order_code: contextOrderCode ?? "Cantiere selezionato",
+              description: contextOrderTitle ?? "Lavoro aperto dal calendario",
+              status: "assegnato",
+              indirizzo_lavori: contextOrderAddress,
+              percentuale_avanzamento: 0,
+              work_start_date: null,
+              work_end_date: null,
+              customer: null,
+            },
+          } satisfies CampoAssignment;
+        }
         throw new Error("Connessione lenta: verifica assegnazione non completata");
       }
 
@@ -526,20 +535,28 @@ export default function CampoLavoroDetail() {
   });
 
   const { data: checklistOggi } = useQuery({
-    queryKey: ["campo-lavoro-checklist-oggi", companyId, orderId, currentUserId, today],
+    queryKey: ["campo-lavoro-checklist-oggi", companyId, currentUserId, today],
     queryFn: async () => {
+      // La checklist è UNA AL GIORNO per persona: l'upsert in
+      // useChecklistSicurezza va in conflitto su (company_id, operaio_id,
+      // data, turno) e la pagina Sicurezza la conferma SEMPRE con
+      // order_id = null. Filtrare qui per order_id non matchava quindi mai
+      // → "Sicurezza: Da fare" restava rosso anche dopo averla firmata e il
+      // CTA della giornata non avanzava mai. Usiamo la chiave naturale.
       const { data, error } = await supabase
         .from("checklist_sicurezza")
         .select("id, completata, firmata")
         .eq("company_id", companyId!)
-        .eq("order_id", orderId!)
         .eq("operaio_id", currentUserId!)
         .eq("data", today)
+        // Più turni nello stesso giorno → tieni quello completato.
+        .order("completata", { ascending: false })
+        .limit(1)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!companyId && !!orderId && !!currentUserId,
+    enabled: !!companyId && !!currentUserId,
     staleTime: 30_000,
   });
 
@@ -655,15 +672,21 @@ export default function CampoLavoroDetail() {
   const checklistUrl = withOrderContext("/campo/sicurezza");
   const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
   const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
-  const nextStickyAction: { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" } = !hasTimbratoQui
-    ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
-    : !checklistCompletataOggi
-      ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
-      : !rapportinoInviatoOggi
-        ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
-        : !uscitaRegistrataOggi
-          ? { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" }
-          : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
+  // La timbratura è un flusso da OPERAIO: il subappaltatore non ce l'ha né in
+  // sidebar né nelle azioni rapide (CampoLayout subItems / AccesaoRapido), così
+  // `hasTimbratoQui` restava false per sempre e il CTA principale del lavoro
+  // era bloccato su "Timbra entrata" → una pagina fuori dalla sua navigazione.
+  // Per il sub la sequenza sensata è: checklist → rapportino → fine.
+  const nextStickyAction: { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" } =
+    isOperaio && !hasTimbratoQui
+      ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
+      : !checklistCompletataOggi
+        ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
+        : !rapportinoInviatoOggi
+          ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
+          : isOperaio && !uscitaRegistrataOggi
+            ? { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" }
+            : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
   const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
     { key: "descrizione", label: "Info" },
@@ -747,6 +770,7 @@ export default function CampoLavoroDetail() {
       {/* Contenuto tab */}
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-4 md:pb-4">
 	        <CampoCloseDayCard
+	          isOperaio={isOperaio}
 	          hasTimbrato={hasTimbratoQui}
 	          isInCantiere={isInCantiere}
 	          isInPausa={isInPausa}
@@ -1037,6 +1061,7 @@ export default function CampoLavoroDetail() {
 }
 
 function CampoCloseDayCard({
+  isOperaio,
   hasTimbrato,
   isInCantiere,
   isInPausa,
@@ -1048,6 +1073,7 @@ function CampoCloseDayCard({
   oreRapportino,
   avanzamentoRapportino,
 }: {
+  isOperaio: boolean;
   hasTimbrato: boolean;
   isInCantiere: boolean;
   isInPausa: boolean;
@@ -1059,12 +1085,19 @@ function CampoCloseDayCard({
   oreRapportino: number | null;
   avanzamentoRapportino: number | null;
 }) {
-  const evidenceOk = fotoCount > 0 || materialiCount > 0 || avanzamentoRapportino != null;
-  const requiredMissing = [hasTimbrato, checklistDone, rapportinoDone].filter((ok) => !ok).length;
-  const readyToExit = hasTimbrato && checklistDone && rapportinoDone && !uscitaRegistrata;
-  const giornataCompleta = hasTimbrato && checklistDone && rapportinoDone && uscitaRegistrata;
+  // Il subappaltatore non timbra: la timbratura non è nella sua navigazione
+  // (né sidebar né azioni rapide), quindi entrata/uscita resterebbero per
+  // sempre "Manca" e la giornata non si chiuderebbe mai. Per lui la giornata
+  // è checklist + rapportino.
+  const entrataOk = isOperaio ? hasTimbrato : true;
+  const uscitaOk = isOperaio ? uscitaRegistrata : true;
 
-  const status = !hasTimbrato
+  const evidenceOk = fotoCount > 0 || materialiCount > 0 || avanzamentoRapportino != null;
+  const requiredMissing = [entrataOk, checklistDone, rapportinoDone].filter((ok) => !ok).length;
+  const readyToExit = entrataOk && checklistDone && rapportinoDone && !uscitaOk;
+  const giornataCompleta = entrataOk && checklistDone && rapportinoDone && uscitaOk;
+
+  const status = !entrataOk
     ? {
         label: "Avvio giornata",
         cls: "bg-blue-100 text-blue-800",
@@ -1113,7 +1146,9 @@ function CampoCloseDayCard({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-        <CloseDayStep ok={hasTimbrato} icon={LogIn} label="Entrata" detail={hasTimbrato ? "Registrata" : "Manca"} />
+        {isOperaio && (
+          <CloseDayStep ok={hasTimbrato} icon={LogIn} label="Entrata" detail={hasTimbrato ? "Registrata" : "Manca"} />
+        )}
         <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} />
         <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional />
         <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0}h` : "Manca"} />

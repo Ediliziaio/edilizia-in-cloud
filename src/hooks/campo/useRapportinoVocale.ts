@@ -351,7 +351,19 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
         return true;
       } catch (err) {
         console.error("[useRapportinoVocale] confirm error", err);
-        // Fallback coda offline
+        // Accodare ha senso SOLO se il salvataggio è fallito per la rete.
+        // Prima qualunque errore (RLS, vincolo, payload malformato) finiva in
+        // coda e la funzione tornava comunque `true`: l'utente vedeva
+        // "Rapportino salvato" mentre in commessa non arrivava nulla, la coda
+        // ritentava 5 volte, falliva e moriva in silenzio. Se è il server a
+        // rifiutare, è un errore vero e va detto.
+        if (isOnline()) {
+          setState((s) => ({
+            ...s,
+            error: err instanceof Error ? err.message : "Impossibile salvare il rapportino",
+          }));
+          return false;
+        }
         try {
           await enqueue("rapportino_vocale", payload);
           setState((s) => ({ ...s, draft: null, error: null }));
