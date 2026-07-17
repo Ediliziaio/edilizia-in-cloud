@@ -37,6 +37,14 @@
 # telefoni alla 768w — il Link header con imagesizes=100vw avrebbe
 # precaricato la 1440w in parallelo = doppio download su mobile.
 
+# Form pubblico (proxy /f, functions/f.js): DEVE essere incorporabile via iframe
+# sui siti esterni dei clienti (marketingedile.com, ecc.). Rimuoviamo qui
+# X-Frame-Options: SAMEORIGIN ereditato da /* (che altrimenti bloccherebbe
+# l'embed cross-origin). La CSP di /* non ha frame-ancestors → non blocca il
+# framing una volta tolto X-Frame-Options.
+/f
+  ! X-Frame-Options
+
 # Security headers for all pages
 /*
   X-Frame-Options: SAMEORIGIN
