@@ -70,7 +70,19 @@ describe("social manager storage contract", () => {
   it("does not mix demo gallery media into a real company library", () => {
     const source = socialManagerSource();
 
-    expect(source).toContain("storedMediaItems.length > 0 ? storedMediaItems : DEMO_MEDIA_ITEMS");
+    // I media demo sono un fallback SOLO per la Demo Azienda: un'azienda
+    // reale senza media deve vedere la galleria vuota, non 12 contenuti finti.
+    expect(source).toContain(
+      "storedMediaItems.length > 0 ? storedMediaItems : (isDemoCompany ? DEMO_MEDIA_ITEMS : [])",
+    );
     expect(source).not.toContain("mergeSocialMediaItems(storedMediaItems, DEMO_MEDIA_ITEMS)");
+  });
+
+  it("gates demo inbox and demo grid cells behind the demo company", () => {
+    const source = socialManagerSource();
+
+    expect(source).toContain("useState<InboxItem[]>(demoMode ? DEMO_INBOX : [])");
+    expect(source).toContain("buildGrid(posts, demoMode)");
+    expect(source).toContain("isDemoCompany ? DEMO_INBOX.filter((i) => i.status === \"unread\").length : 0");
   });
 });

@@ -26,6 +26,7 @@ import { AlertCircle, Plus, Eye, FileText, Trash2, Pencil, ExternalLink, Copy, A
 import { toast } from "sonner";
 import {
   buildLeadFormPublicUrl,
+  getLeadFormBaseUrl,
   buildUniqueFieldName,
   copyTextToClipboard,
   sanitizeLeadFormSlug,
@@ -136,7 +137,7 @@ function FormsList({
 }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+  const formBaseUrl = getLeadFormBaseUrl();
 
   const copyPublicUrl = async (url: string) => {
     try {
@@ -181,7 +182,7 @@ function FormsList({
         <div className="grid gap-3">
           {forms.map((f) => {
             const convRate = f.total_views > 0 ? ((f.total_submissions / f.total_views) * 100).toFixed(1) : "0";
-            const publicUrl = buildLeadFormPublicUrl(supabaseUrl, f.slug, f.company_id);
+            const publicUrl = buildLeadFormPublicUrl(formBaseUrl, f.slug, f.company_id);
             return (
               <Card key={f.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
@@ -335,15 +336,18 @@ function FormEditor({
       email: "Email", phone: "Telefono", heading: "Titolo sezione",
       paragraph: "Testo descrittivo", divider: "Separatore", hidden: "Campo nascosto",
       date: "Data", radio: "Scelta", select: "Selezione", checkbox: "Accetto",
+      consent: "Ho letto e accetto l'informativa privacy",
     };
     const newField: FormField = {
       id: crypto.randomUUID(),
       name: type === "divider" ? `divider_${fields.length + 1}` : buildUniqueFieldName(labelMap[type] || type, fields.map((field) => field.name)),
       label: labelMap[type] || `Campo ${fields.length + 1}`,
       type,
-      required: type === "email",
+      // Il consenso privacy nasce obbligatorio (deve essere spuntato per inviare).
+      required: type === "email" || type === "consent",
       placeholder: "",
       options: (type === "select" || type === "radio") ? ["Opzione 1", "Opzione 2"] : undefined,
+      linkText: type === "consent" ? "Informativa privacy" : undefined,
     };
     setFields([...fields, newField]);
     setSelectedFieldId(newField.id);
@@ -501,6 +505,10 @@ function FormEditor({
 }
 
 export default function SettingsFormBuilder() {
+  // Riuso lato super-admin: la pagina è avvolta in PlatformCompanyProvider, che
+  // sovrascrive effectiveCompany sulla Platform Admin CRM. useFormBuilder e
+  // usePermissions leggono quel contesto (super_admin → ALL_PERMISSIONS), quindi
+  // qui non serve nessuna prop dedicata.
   const { forms, isLoading, isError, error, refetch, editingForm, setEditingForm, createForm, updateForm, deleteForm, togglePublish } = useFormBuilder();
   const permissions = usePermissions();
   const canEdit = permissions.isAdmin || permissions.canEditSettingsCustomization;

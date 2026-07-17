@@ -1369,11 +1369,40 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         ])];
         if (recipients.length === 0) return { success: false, error: "Nessun destinatario email configurato" };
         const escapeNotif = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const html =
-          `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">` +
-          messaggio.split("\n").map((l) => `<p style="margin:0 0 8px">${escapeNotif(l) || "&nbsp;"}</p>`).join("") +
-          `<p style="margin-top:16px;color:#6b7280;font-size:12px">Notifica automatica del flusso di lavoro.</p>` +
-          `</div>`;
+
+        // Dati azienda per intestazione + footer con indirizzo fisico reale:
+        // un indirizzo postale nel footer è un requisito di deliverability
+        // (linee guida Gmail bulk / CAN-SPAM) e riduce la probabilità spam.
+        const { data: companyRow } = await supabase
+          .from("companies")
+          .select("name, business_name, legal_address, operational_address")
+          .eq("id", companyId)
+          .maybeSingle();
+        const mittenteNome = escapeNotif(companyRow?.business_name || companyRow?.name || "La tua azienda");
+        const indirizzoAzienda = escapeNotif(companyRow?.legal_address || companyRow?.operational_address || "");
+        const bodyLines = messaggio
+          .split("\n")
+          .map((l) => `<p style="margin:0 0 10px;line-height:1.55;color:#1f2937">${escapeNotif(l) || "&nbsp;"}</p>`)
+          .join("");
+        const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="it"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="light"/></head>
+<body style="margin:0;padding:0;background:#f4f5f7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;"><tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;">
+      <tr><td style="padding:20px 28px;border-bottom:1px solid #eef0f2;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#111827;">${mittenteNome}</td></tr>
+      <tr><td style="padding:28px 28px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;">${bodyLines}</td></tr>
+      <tr><td style="padding:8px 28px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
+          <a href="https://app.ediliziaincloud.com/azienda/attivita" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Apri in Edilizia in Cloud</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td style="padding:16px 28px 22px;border-top:1px solid #eef0f2;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#8a94a3;">
+        Notifica automatica del flusso di lavoro di ${mittenteNome}.${indirizzoAzienda ? `<br/>${indirizzoAzienda}` : ""}<br/>
+        Inviata tramite Edilizia in Cloud.
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
         // Flusso MARKETING (decisione 16/07): a scala le notifiche non possono
         // pesare sul canale transazionale di piattaforma (costo Resend e
         // reputazione del dominio EiC a carico nostro). Escono dal provider
@@ -1420,6 +1449,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             domain: notifSender?.domain ?? provider.domain ?? undefined,
             stream: "marketing",
             disableNativeTracking: true,
+            // Notifica operativa interna: classe transactional su Elastic Email
+            // (niente footer unsubscribe bulk, consegna in inbox migliore),
+            // pur restando sul provider/crediti marketing dell'azienda.
+            elasticTransactionalClass: true,
           });
 
           await logEmailDelivery(supabase, {

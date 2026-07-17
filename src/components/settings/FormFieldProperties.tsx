@@ -21,8 +21,10 @@ const CONTACT_MAPPINGS = [
 ];
 
 const STRUCTURAL_TYPES = ["heading", "paragraph", "divider"];
-const NO_PLACEHOLDER_TYPES = ["checkbox", "heading", "paragraph", "divider", "hidden"];
+const NO_PLACEHOLDER_TYPES = ["checkbox", "consent", "heading", "paragraph", "divider", "hidden"];
 const HAS_OPTIONS_TYPES = ["select", "radio"];
+// Il consenso non mappa su un campo contatto: è un flag salvato nella submission.
+const NO_MAPPING_TYPES = ["consent"];
 
 interface Props {
   field: FormField | null;
@@ -93,6 +95,34 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
         </div>
       )}
 
+      {field.type === "consent" && (
+        <>
+          <div className="space-y-2">
+            <Label className="text-xs">Link informativa (URL)</Label>
+            <Input
+              value={field.linkUrl || ""}
+              onChange={(e) => onUpdate({ linkUrl: e.target.value })}
+              className="h-8 text-sm"
+              placeholder="https://tuosito.it/privacy-policy"
+              disabled={disabled}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Solo link https://. Verrà mostrato come link cliccabile accanto al testo.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Testo del link</Label>
+            <Input
+              value={field.linkText || ""}
+              onChange={(e) => onUpdate({ linkText: e.target.value })}
+              className="h-8 text-sm"
+              placeholder="Informativa privacy"
+              disabled={disabled}
+            />
+          </div>
+        </>
+      )}
+
       {!isStructural && field.type !== "hidden" && (
         <div className="flex items-center justify-between">
           <Label className="text-xs">Obbligatorio</Label>
@@ -117,7 +147,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
         </div>
       )}
 
-      {!isStructural && field.type !== "hidden" && (
+      {!isStructural && field.type !== "hidden" && !NO_MAPPING_TYPES.includes(field.type) && (
         <div className="space-y-2">
           <Label className="text-xs">Mappatura contatto</Label>
           <Select value={field.mapping || ""} onValueChange={(v) => onUpdate({ mapping: v === "none" ? undefined : v || undefined })} disabled={disabled}>

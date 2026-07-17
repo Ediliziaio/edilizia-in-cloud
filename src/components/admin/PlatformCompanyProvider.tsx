@@ -52,6 +52,10 @@ const PLATFORM_COMPANY: Company = {
   white_label_enabled_at: null,
   white_label_enabled_by: null,
   white_label_monthly_price: 0,
+  fleet_track_enabled: false,
+  vertical: null,
+  verticals_secondari: [],
+  onboarding_vertical_completed: false,
 };
 
 /**

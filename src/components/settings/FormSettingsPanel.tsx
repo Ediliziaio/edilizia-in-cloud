@@ -15,6 +15,7 @@ import {
   buildLeadFormAutoResizeEmbedSnippet,
   buildLeadFormIframeSnippet,
   buildLeadFormPublicUrl,
+  getLeadFormBaseUrl,
   copyTextToClipboard,
   normalizeEmbedDimension,
 } from "@/lib/formBuilder";
@@ -71,8 +72,7 @@ function stringSetting(source: Record<string, unknown>, key: string, fallback = 
 }
 
 export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSettingsChange, disabled = false }: Props) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-  const publicUrl = buildLeadFormPublicUrl(supabaseUrl, form.slug, form.company_id) || "";
+  const publicUrl = buildLeadFormPublicUrl(getLeadFormBaseUrl(), form.slug, form.company_id) || "";
   const embedMinHeight = normalizeEmbedDimension(settings.embed_min_height, 620, 360, 1600);
   const embedMaxWidth = normalizeEmbedDimension(settings.embed_max_width, 640, 320, 1200);
   const selectedPipelineId = stringSetting(settings, "pipelineId");
@@ -205,6 +205,62 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             className="h-8"
             disabled={disabled}
           />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Colore testo</Label>
+          <Input
+            type="color"
+            value={stringSetting(theme, "text_color", "#1a1a1a")}
+            onChange={(e) => onThemeChange({ ...theme, text_color: e.target.value })}
+            className="h-8"
+            disabled={disabled}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Font</Label>
+          <Select
+            value={stringSetting(theme, "font_family", "system-ui, sans-serif")}
+            onValueChange={(v) => onThemeChange({ ...theme, font_family: v })}
+            disabled={disabled}
+          >
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system-ui, sans-serif">Sistema (default)</SelectItem>
+              <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+              <SelectItem value="Helvetica, Arial, sans-serif">Helvetica</SelectItem>
+              <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
+              <SelectItem value="Tahoma, sans-serif">Tahoma</SelectItem>
+              <SelectItem value="'Trebuchet MS', sans-serif">Trebuchet MS</SelectItem>
+              <SelectItem value="Georgia, serif">Georgia</SelectItem>
+              <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Larghezza (px)</Label>
+            <Input
+              type="number"
+              min={320}
+              max={900}
+              value={stringSetting(theme, "container_width", "520")}
+              onChange={(e) => onThemeChange({ ...theme, container_width: e.target.value === "" ? undefined : Number(e.target.value) })}
+              className="h-8 text-sm"
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Arrotondamento (px)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={28}
+              value={stringSetting(theme, "border_radius", "8")}
+              onChange={(e) => onThemeChange({ ...theme, border_radius: e.target.value === "" ? undefined : Number(e.target.value) })}
+              className="h-8 text-sm"
+              disabled={disabled}
+            />
+          </div>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Testo bottone</Label>

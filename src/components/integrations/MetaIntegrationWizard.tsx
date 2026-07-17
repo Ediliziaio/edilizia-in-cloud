@@ -31,6 +31,9 @@ interface MetaIntegrationWizardProps {
    *  "oauth" dal Risolvi problemi (ri-consenso permessi). Se non connessi
    *  si parte sempre dall'OAuth. */
   initialStep?: MetaWizardStep;
+  /** Se true, all'apertura mostra subito la conferma di disconnessione
+   *  (usato dal menu "Disconnetti" della card, che prima navigava altrove). */
+  openDisconnect?: boolean;
 }
 
 const STEP_TITLES: Record<MetaWizardStep, string> = {
@@ -44,7 +47,7 @@ const STEP_TITLES: Record<MetaWizardStep, string> = {
 
 const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "confirm", "forms", "mapping", "activation"];
 
-export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete, initialStep }: MetaIntegrationWizardProps) {
+export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete, initialStep, openDisconnect }: MetaIntegrationWizardProps) {
   const isConnected = integration?.status === "connected";
   // Passo di partenza: OAuth se non connessi; da connessi initialStep
   // esplicito (anche "oauth" per il ri-consenso) o il default "pages".
@@ -67,6 +70,12 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
       setDirty(false);
     }
   }, [open, baseStep]);
+
+  // Se aperto in modalità "disconnetti" (dal menu della card), mostra subito
+  // la conferma di disconnessione senza far cercare il pulsante all'utente.
+  useEffect(() => {
+    if (open && openDisconnect && isConnected) setShowDisconnectAlert(true);
+  }, [open, openDisconnect, isConnected]);
 
   // Track dirty state on step changes beyond initial
   useEffect(() => {
@@ -141,8 +150,10 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   }, []);
 
   const handleComplete = () => {
-    setDirty(false);
+    // "Salva e chiudi": oltre a rinfrescare (onComplete) deve CHIUDERE il
+    // dialog — prima restava aperto perché mancava onOpenChange(false).
     onComplete();
+    doClose();
   };
 
   const handleDisconnect = async () => {

@@ -11,7 +11,7 @@ import {
 
 export type FormFieldType =
   | "text" | "email" | "phone" | "number" | "textarea"
-  | "select" | "checkbox" | "radio" | "date"
+  | "select" | "checkbox" | "radio" | "date" | "consent"
   | "heading" | "paragraph" | "divider" | "hidden";
 
 export interface FormField {
@@ -24,6 +24,11 @@ export interface FormField {
   options?: string[];
   mapping?: string;
   defaultValue?: string; // for hidden fields
+  // Campo "consent" (autorizzazione privacy / consenso marketing):
+  // testo + link cliccabile all'informativa. Il valore spuntato è salvato
+  // nella submission come prova del consenso.
+  linkUrl?: string;
+  linkText?: string;
 }
 
 export interface LeadForm {
@@ -94,6 +99,9 @@ async function withSupabaseTimeout<T>(request: PromiseLike<T>, message: string, 
 }
 
 export function useFormBuilder() {
+  // effectiveCompany può essere sovrascritta a monte da PlatformCompanyProvider
+  // (area super-admin) per far puntare i form alla Platform Admin CRM senza
+  // modificare questo hook.
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();

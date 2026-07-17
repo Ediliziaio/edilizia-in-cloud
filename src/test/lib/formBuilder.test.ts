@@ -40,14 +40,16 @@ describe("formBuilder utilities", () => {
     expect(result.errors.join(" ")).toContain("email o telefono");
   });
 
-  it("builds encoded public URLs", () => {
-    expect(buildLeadFormPublicUrl("https://example.supabase.co/", "richiesta-preventivo", "company-1")).toBe(
-      "https://example.supabase.co/functions/v1/form-render?slug=richiesta-preventivo&company_id=company-1",
+  it("builds encoded public URLs pointing to the /f app proxy", () => {
+    // L'URL pubblico ora punta al proxy /f sul dominio app (Cloudflare Pages),
+    // NON a *.supabase.co (lì l'HTML verrebbe riscritto a text/plain).
+    expect(buildLeadFormPublicUrl("https://app.ediliziaincloud.com/", "richiesta-preventivo", "company-1")).toBe(
+      "https://app.ediliziaincloud.com/f?slug=richiesta-preventivo&company_id=company-1",
     );
   });
 
   it("builds robust iframe and auto-resize embed snippets", () => {
-    const publicUrl = "https://example.supabase.co/functions/v1/form-render?slug=richiesta&company_id=company-1";
+    const publicUrl = "https://app.ediliziaincloud.com/f?slug=richiesta&company_id=company-1";
     const options = { slug: "richiesta", title: "Richiesta preventivo", minHeight: 580, maxWidth: 720 };
 
     expect(buildLeadFormIframeSnippet(publicUrl, options)).toContain('loading="lazy"');
@@ -55,7 +57,9 @@ describe("formBuilder utilities", () => {
 
     const autoResizeSnippet = buildLeadFormAutoResizeEmbedSnippet(publicUrl, options);
     expect(autoResizeSnippet).toContain("eic-lead-form-height");
-    expect(autoResizeSnippet).toContain("event.origin!=='https://example.supabase.co'");
+    // L'origin atteso nel postMessage è il dominio del proxy (origin reale
+    // dell'iframe), non più supabase.co.
+    expect(autoResizeSnippet).toContain("event.origin!=='https://app.ediliziaincloud.com'");
     expect(autoResizeSnippet).toContain("iframe.style.height");
   });
 
