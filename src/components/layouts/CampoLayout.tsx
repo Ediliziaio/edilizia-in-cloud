@@ -3,7 +3,7 @@
  * Usa la stessa UX white-sidebar dell'app principale.
  * Su mobile la sidebar diventa un sheet laterale.
  */
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   Calendar,
@@ -21,6 +21,7 @@ import {
   Clock,
   CalendarDays,
   Receipt,
+  ArrowLeft,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +35,7 @@ import OfflineBanner from "@/components/campo/OfflineBanner";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -67,6 +69,10 @@ export default function CampoLayout() {
   const { profile, user, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
   const activeCompany = effectiveCompany ?? company;
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Sotto-pagina = non la home /campo: mostra la freccia "indietro" come nell'app azienda.
+  const isSubPage = location.pathname !== "/campo" && location.pathname !== "/campo/";
 
   // Conta messaggi non letti
   const { data: unreadCount = 0 } = useQuery({
@@ -251,6 +257,47 @@ export default function CampoLayout() {
               Token preview non valido: {previewSession.error}
             </div>
           )}
+
+          {/* Top bar MOBILE — coerente con l'app azienda (richiesta utente: "la parte
+              in alto deve essere uguale"): logo EiC + azienda/area + Impostazioni.
+              Prima su mobile non c'era header; ora la cornice è uniforme tra le app. */}
+          <header className="md:hidden sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-2">
+            {isSubPage && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-ml-1 h-10 w-10 shrink-0"
+                onClick={() => navigate(-1)}
+                aria-label="Torna indietro"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            )}
+            <Link to="/campo" aria-label="Home Edilizia in Cloud" className="shrink-0">
+              <img
+                src={ediliziaLogo}
+                alt="Edilizia in Cloud"
+                className="h-7 w-auto max-w-[120px] object-contain"
+              />
+            </Link>
+            <div className="min-w-0 flex-1 border-l border-border/60 pl-2">
+              {activeCompany?.name && (
+                <p className="truncate text-xs font-semibold leading-tight">{activeCompany.name}</p>
+              )}
+              <p className="text-[10px] uppercase leading-none tracking-wider text-muted-foreground">
+                Area {roleLabel}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => navigate("/campo/impostazioni")}
+              aria-label="Impostazioni"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </header>
 
           {/* Top bar — hidden on mobile (bottom nav replaces it) */}
           <header className="hidden md:flex h-14 border-b bg-secondary items-center gap-3 px-4 sticky top-0 z-40">
