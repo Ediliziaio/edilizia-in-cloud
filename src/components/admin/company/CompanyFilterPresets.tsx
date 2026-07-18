@@ -24,9 +24,9 @@ export function CompanyFilterPresets({ activePreset, onClearPreset, presets }: C
   if (visiblePresets.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 overflow-x-auto flex-nowrap pb-1 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
       <Sparkles className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      <span className="text-xs font-medium text-muted-foreground shrink-0">Filtri rapidi:</span>
+      <span className="hidden text-xs font-medium text-muted-foreground shrink-0 sm:inline">Filtri rapidi:</span>
       {visiblePresets.map((preset) => {
         const Icon = preset.icon;
         const isActive = activePreset === preset.key;
@@ -36,7 +36,7 @@ export function CompanyFilterPresets({ activePreset, onClearPreset, presets }: C
             variant={isActive ? "default" : "outline"}
             size="sm"
             className={cn(
-              "h-7 text-xs gap-1.5 transition-all",
+              "h-7 shrink-0 text-xs gap-1.5 transition-all",
               isActive && "shadow-sm"
             )}
             onClick={isActive ? onClearPreset : preset.apply}

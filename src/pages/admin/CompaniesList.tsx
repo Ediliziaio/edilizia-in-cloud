@@ -1534,11 +1534,9 @@ export default function CompaniesList() {
               {columnsBtn}
             </div>
 
-            {/* MOBILE: Export + Columns sotto la search (in 2 colonne) */}
-            <div className="grid grid-cols-2 gap-2 sm:hidden">
-              {exportBtn}
-              {columnsBtn}
-            </div>
+            {/* MOBILE: niente Export (regola no-export mobile) né "Colonne
+                visibili" (inutile nella vista a card): i filtri stanno nel Sheet
+                "Filtri". Barra più leggera. */}
           </>
         );
       })()}
