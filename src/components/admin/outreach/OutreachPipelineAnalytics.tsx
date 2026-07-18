@@ -86,7 +86,7 @@ export function OutreachPipelineAnalytics({ companyId }: { companyId: string }) 
         <Button
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5"
+          className="h-8 gap-1.5 hidden sm:inline-flex"
           onClick={handleExport}
           disabled={!hasData}
           title={hasData ? "Scarica i KPI come file CSV" : "Nessun dato da esportare"}

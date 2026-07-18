@@ -120,7 +120,7 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
           Analytics campagne (email)
         </CardTitle>
         <Button
-          size="sm" variant="outline" className="h-8 gap-1.5"
+          size="sm" variant="outline" className="h-8 gap-1.5 hidden sm:inline-flex"
           onClick={handleExport} disabled={!hasData}
           title={hasData ? "Scarica il funnel come file CSV" : "Nessun dato da esportare"}
         >

@@ -426,7 +426,7 @@ export function EmailSuppressionsTable() {
             size="sm"
             onClick={handleExportCsv}
             disabled={filteredCount === 0 || exporting}
-            className="ml-auto h-8"
+            className="ml-auto hidden h-8 sm:inline-flex"
           >
             {exporting ? (
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
