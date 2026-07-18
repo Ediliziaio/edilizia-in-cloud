@@ -548,6 +548,7 @@ export default function ManodoperaTariffe() {
               <Button
                 variant="outline"
                 size="sm"
+                className="hidden sm:inline-flex"
                 onClick={() => handleExportCsv(visibleRows)}
                 disabled={visibleRows.length === 0}
                 title="Esporta le righe visibili in CSV (stesso formato dell'import)"

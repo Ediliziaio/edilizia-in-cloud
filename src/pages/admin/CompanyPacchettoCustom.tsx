@@ -597,6 +597,7 @@ export default function CompanyPacchettoCustom() {
               <Button
                 variant="outline"
                 size="sm"
+                className="hidden sm:inline-flex"
                 onClick={handleExportPdf}
                 disabled={totals.enabledCount === 0}
                 title="Genera PDF dell'offerta da inviare al cliente"

@@ -170,7 +170,7 @@ export function CompanyDetailHeader({
                     </DropdownMenuItem>
                   )}
                   {onExport && (
-                    <DropdownMenuItem onClick={onExport}>
+                    <DropdownMenuItem onClick={onExport} className="hidden sm:flex">
                       <Download className="h-4 w-4 mr-2" />
                       Esporta Dati
                     </DropdownMenuItem>
