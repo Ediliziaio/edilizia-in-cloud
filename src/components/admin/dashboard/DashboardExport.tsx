@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ interface ExportData {
 }
 
 export function DashboardExport({ data }: { data: ExportData }) {
+  const isMobile = useIsMobile();
   const exportCSV = useCallback(() => {
     const rows = [
       ["Metrica", "Valore"],
@@ -129,6 +131,11 @@ export function DashboardExport({ data }: { data: ExportData }) {
       toast.error("Errore nell'esportazione Excel");
     }
   }, [data]);
+
+  // Regola fondamentale: niente export/download su mobile (l'export è azione
+  // da desktop) — feedback_no_mobile_export. Nascosto ovunque il componente
+  // sia usato, senza wrapper per-uso.
+  if (isMobile) return null;
 
   return (
     <DropdownMenu>

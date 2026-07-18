@@ -1429,7 +1429,8 @@ export default function CompaniesList() {
         );
 
         const exportBtn = (
-          <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleExportCSV} title="Esporta CSV">
+          // Regola: niente export/download su mobile (feedback_no_mobile_export).
+          <Button variant="outline" className="gap-2 hidden sm:inline-flex sm:w-auto" onClick={handleExportCSV} title="Esporta CSV">
             <Download className="h-4 w-4" />
             <span>
               {selectedIds.size > 0 ? `Esporta ${selectedIds.size}` : "Esporta pagina"}
