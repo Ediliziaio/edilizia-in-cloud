@@ -128,16 +128,19 @@ Deno.serve(async (req) => {
     }
 
     // ACTIONS che richiedono Meta API
-    const { data: integration } = await admin
-      .from("integrations")
-      .select("access_token_encrypted, status")
-      .eq("id", campaign.integration_id)
+    // Il token Meta vive su integration_credentials (AES-GCM), non su
+    // integrations (colonna access_token_encrypted inesistente) — stessa
+    // fonte di meta-ads-sync-insights / meta-api-proxy.
+    const { data: cred } = await admin
+      .from("integration_credentials")
+      .select("access_token_encrypted")
+      .eq("integration_id", campaign.integration_id)
       .maybeSingle();
-    if (!integration?.access_token_encrypted) {
+    if (!cred?.access_token_encrypted) {
       return json({ error: "integration_token_missing" }, 400, corsHeaders);
     }
     const encKey = await getEncryptionKey();
-    const accessToken = await decrypt(integration.access_token_encrypted, encKey);
+    const accessToken = await decrypt(cred.access_token_encrypted, encKey);
 
     let metaPayload: Record<string, unknown> = {};
     let localUpdate: Record<string, unknown> = {};

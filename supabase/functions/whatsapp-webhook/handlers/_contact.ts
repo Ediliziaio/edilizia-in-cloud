@@ -10,9 +10,9 @@ export interface MarketingContact {
   opt_out: boolean | null;
   stato: string | null;
   tipo: string | null;
-  nome: string | null;
-  cognome: string | null;
-  telefono: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
   telefono_normalized: string | null;
   qualificazione_json: Record<string, unknown> | null;
 }
@@ -44,7 +44,7 @@ export async function resolveOrCreateContact(
     const { data } = await supabase
       .from("marketing_contacts")
       .select(
-        "id, company_id, opt_out, stato, tipo, nome, cognome, telefono, telefono_normalized, qualificazione_json",
+        "id, company_id, opt_out, stato, tipo, first_name, last_name, phone, telefono_normalized, qualificazione_json",
       )
       .eq("company_id", companyId)
       .eq("telefono_normalized", v)
@@ -57,7 +57,7 @@ export async function resolveOrCreateContact(
     .from("marketing_contacts")
     .insert({
       company_id: companyId,
-      telefono: phone,
+      phone: phone,
       telefono_normalized: variants[0],
       tipo: defaults.tipo ?? "cliente_prospect",
       stato: defaults.stato ?? "nuovo",
@@ -122,7 +122,7 @@ export async function sendPlainReply(
   const baseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
-    await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
+    const res = await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -130,6 +130,12 @@ export async function sendPlainReply(
       },
       body: JSON.stringify({ wa_number_id: waNumberId, company_id: companyId, to, text }),
     });
+    if (!res.ok) {
+      const b = await res.text().catch(() => "");
+      console.error(
+        JSON.stringify({ level: "error", fn: "sendPlainReply", msg: "whatsapp-send failed", status: res.status, body: b }),
+      );
+    }
   } catch (e) {
     console.error(
       JSON.stringify({ level: "error", fn: "sendPlainReply", error: String(e) }),

@@ -183,6 +183,27 @@ verify_jwt = false
 [functions.meta-ads-spend-check]
 verify_jwt = false
 
+# Cron Meta (auth in-code via x-cron-secret == CRON_SECRET, senza JWT): il gateway
+# deve lasciarli passare, altrimenti pg_cron riceve 401 prima del handler.
+[functions.meta-token-refresh]
+verify_jwt = false
+
+[functions.meta-leads-backfill]
+verify_jwt = false
+
+[functions.meta-warmup-api-calls]
+verify_jwt = false
+
+# Publisher social organico. Lo scheduler è cron (x-cron-secret, nessun JWT) →
+# verify_jwt=false o il gateway respinge la chiamata pg_cron con 401.
+[functions.social-publish-scheduler]
+verify_jwt = false
+
+# social-publish è "pubblica-ora" dalla UI: usa il JWT utente (Bearer) →
+# verify_jwt=true esplicito.
+[functions.social-publish]
+verify_jwt = true
+
 [functions.suggest-calendars]
 verify_jwt = false
 

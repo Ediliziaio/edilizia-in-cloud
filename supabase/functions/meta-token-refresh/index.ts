@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_shared/headers.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 

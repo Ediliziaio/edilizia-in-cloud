@@ -925,6 +925,10 @@ function getPublishQa(
   const checks = [
     { ok: meta.integration?.status === "connected", message: "Meta non collegato." },
     { ok: meta.adAccounts.length > 0, message: "Account pubblicitario assente." },
+    // Deve esserci ESATTAMENTE un account selezionato: con un utente agenzia
+    // (decine di account di altri clienti) pubblicare su adAccounts[0]
+    // alfabetico rischia l'account sbagliato. 0 → nessuna scelta; >1 → ambiguo.
+    { ok: meta.selectedAdAccounts.length === 1, message: "Seleziona l'account pubblicitario prima di pubblicare (selezionane uno solo)." },
     { ok: meta.pages.length > 0, message: "Pagina Facebook non disponibile." },
     { ok: Boolean(pixelConfig?.pixel_id), message: "Pixel/CAPI non configurato." },
     { ok: pixelTested, message: "Evento Pixel/CAPI non ancora testato." },
@@ -1041,6 +1045,10 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
     isLoading: integrationLoading || assetsLoading,
     pages: assets.filter((asset) => asset.asset_type === "page"),
     adAccounts: selectedAdAccounts.length > 0 ? selectedAdAccounts : adAccountAssets,
+    // Solo gli account esplicitamente selezionati: la QA di pubblicazione
+    // esige che ce ne sia ESATTAMENTE uno, così non si pubblica mai
+    // sull'account di un altro cliente (agenzia con più account).
+    selectedAdAccounts,
     // Lista completa (selected e non) per il picker dell'account: la RLS
     // la restituisce intera solo agli admin.
     allAdAccounts: adAccountAssets,
@@ -1608,8 +1616,10 @@ export default function AdsManagerBeta() {
       try {
         const request = buildMetaPublishRequest({
           companyId,
-          draft,
-          adAccountAsset: meta.adAccounts[0],
+          // getPublishQa garantisce selectedAdAccounts.length === 1: usiamo
+          // l'account SELEZIONATO, non adAccounts[0] (alfabetico → poteva
+          // essere quello di un altro cliente).
+          adAccountAsset: meta.selectedAdAccounts[0],
           dryRun: false,
         });
         const { data, error } = await supabase.functions.invoke<{

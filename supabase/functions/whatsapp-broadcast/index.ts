@@ -95,7 +95,8 @@ Deno.serve(async (req) => {
       .eq("company_id", company_id)
       .not("phone", "is", null)
       .or("optout_whatsapp.is.null,optout_whatsapp.eq.false")
-      .or("unsubscribed.is.null,unsubscribed.eq.false");
+      .or("unsubscribed.is.null,unsubscribed.eq.false")
+      .or("opt_out.is.null,opt_out.eq.false");
 
     const seg = segment || "tutti";
     const segCfg = segment_config || {};

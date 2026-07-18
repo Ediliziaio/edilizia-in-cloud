@@ -124,17 +124,18 @@ Deno.serve(async (req) => {
           const { data: activeCampaigns } = await pauseQuery;
 
           for (const camp of activeCampaigns ?? []) {
-            // Get token
-            const { data: integ } = await admin
-              .from("integrations")
+            // Get token — vive su integration_credentials (AES-GCM), non su
+            // integrations (colonna access_token_encrypted inesistente).
+            const { data: cred } = await admin
+              .from("integration_credentials")
               .select("access_token_encrypted")
-              .eq("id", camp.integration_id)
+              .eq("integration_id", camp.integration_id)
               .maybeSingle();
-            if (!integ?.access_token_encrypted) continue;
+            if (!cred?.access_token_encrypted) continue;
 
             try {
               const encKey = await getEncryptionKey();
-              const accessToken = await decrypt(integ.access_token_encrypted, encKey);
+              const accessToken = await decrypt(cred.access_token_encrypted, encKey);
 
               // Pausa su Meta
               await fetch(`https://graph.facebook.com/${apiVersion}/${camp.meta_campaign_id}`, {

@@ -151,12 +151,19 @@ Deno.serve(async (req) => {
     waNumberSettings?.operational_settings,
   );
 
-  // Lock ottimistico
-  await supabase
+  // Lock ottimistico atomico: se due invocazioni concorrenti arrivano insieme,
+  // solo quella che vince l'UPDATE (processing_status ancora 'received') ottiene
+  // righe indietro. L'altra torna vuota → esce subito (già presa in carico),
+  // evitando doppia risposta AI + doppio consumo budget.
+  const { data: claimed } = await supabase
     .from("whatsapp_messages")
     .update({ processing_status: "processing" })
     .eq("id", body.message_id)
-    .eq("processing_status", "received");
+    .eq("processing_status", "received")
+    .select("id");
+  if (!claimed || claimed.length === 0) {
+    return json({ skip: "already_claimed" }, 200);
+  }
 
   try {
     // ── MP-SILVIO-07 — conferma verifica canale (reverse-OTP) ─────────────────
@@ -787,7 +794,7 @@ async function sendReply(msg: MsgForSend, text: string): Promise<void> {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   try {
-    await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
+    const res = await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -800,6 +807,14 @@ async function sendReply(msg: MsgForSend, text: string): Promise<void> {
         text,
       }),
     });
+    // whatsapp-send può fallire su crediti (402), payload invalido (422) o Meta
+    // giù (502): senza questo check la risposta veniva persa in silenzio.
+    if (!res.ok) {
+      const b = await res.text().catch(() => "");
+      console.error(
+        JSON.stringify({ level: "error", fn: "sendReply", msg: "whatsapp-send failed", status: res.status, body: b, wa_message_id: msg.id }),
+      );
+    }
   } catch (e) {
     console.error(
       JSON.stringify({ level: "error", fn: "sendReply", error: String(e) }),
@@ -822,7 +837,7 @@ async function sendInteractiveReply(
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   try {
-    await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
+    const res = await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -836,6 +851,12 @@ async function sendInteractiveReply(
         interactive,
       }),
     });
+    if (!res.ok) {
+      const b = await res.text().catch(() => "");
+      console.error(
+        JSON.stringify({ level: "error", fn: "sendInteractiveReply", msg: "whatsapp-send failed", status: res.status, body: b, wa_message_id: msg.id }),
+      );
+    }
   } catch (e) {
     console.error(
       JSON.stringify({ level: "error", fn: "sendInteractiveReply", error: String(e) }),
