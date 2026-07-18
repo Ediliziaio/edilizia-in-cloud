@@ -288,6 +288,7 @@ export default function AuditLogTab() {
           <Button
             variant="outline"
             size="sm"
+            className="hidden sm:inline-flex"
             disabled={!data?.total || isExporting}
             onClick={exportFullCsv}
           >

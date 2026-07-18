@@ -145,7 +145,8 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
           <RefreshCw className={`h-4 w-4 mr-1.5 ${calculating ? "animate-spin" : ""}`} />
           Calcola Commissioni Mese Corrente
         </Button>
-        <Button variant="outline" onClick={exportCSV}>
+        {/* Export CSV nascosto su mobile (feedback_no_mobile_export). */}
+        <Button variant="outline" onClick={exportCSV} className="hidden sm:inline-flex">
           <Download className="h-4 w-4 mr-1.5" /> Esporta CSV
         </Button>
       </div>

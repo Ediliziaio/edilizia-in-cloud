@@ -356,7 +356,8 @@ export function ReferralMegaDashboard({
           <h2 className="text-lg font-semibold">Panoramica referral</h2>
           <p className="text-sm text-muted-foreground">Tutte le statistiche di partner e referenze in un colpo d'occhio</p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportAll} disabled={conversions.length === 0}>
+        {/* Export nascosto su mobile (feedback_no_mobile_export). */}
+        <Button variant="outline" size="sm" onClick={exportAll} disabled={conversions.length === 0} className="hidden sm:inline-flex">
           <Download className="mr-1.5 h-4 w-4" /> Esporta tutte le referenze
         </Button>
       </div>
