@@ -135,7 +135,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-      {kpis.map((kpi) => {
+      {kpis.map((kpi, i) => {
         const isActive = activeKpi === kpi.key;
         const isClickable = !!kpi.onClick;
         return (
@@ -143,6 +143,9 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
             key={kpi.key}
             className={cn(
               "group relative overflow-hidden p-4 flex items-center gap-3 transition-all duration-200",
+              // Ultima card di un numero dispari → span pieno su mobile: niente
+              // mezza colonna vuota (feedback_no_white_space).
+              i === kpis.length - 1 && kpis.length % 2 === 1 && "col-span-2 md:col-span-1",
               isClickable && "cursor-pointer hover:shadow-xl hover:shadow-slate-900/[0.08] hover:-translate-y-1 hover:border-transparent",
               isActive && `ring-2 ${kpi.ring} shadow-sm`,
               !isActive && isClickable && "hover:ring-1 hover:ring-border"
