@@ -825,7 +825,11 @@ export function AdminLayout() {
   // Mobile: no sidebar at all — bottom nav replaces it
   if (isMobile) {
     return (
-      <div className="min-h-screen flex flex-col w-full">
+      <div className="h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden flex flex-col w-full">
+        {/* Altezza viewport bloccata + overflow-hidden → lo scroll avviene nel
+            <main> (overflow-y-auto), affidabile su Capacitor/iOS. Prima era
+            min-h-screen (scroll di documento) come il campo: su nativo non
+            scrollava. Ramo solo-mobile (isMobile) → niente override md:. */}
         {/* Mobile header — clean, native-style */}
         <header className="flex h-11 border-b items-center px-3 bg-background sticky top-0 z-40">
           <div className="flex-1 min-w-0">
@@ -840,7 +844,7 @@ export function AdminLayout() {
         {/* Settings sub-navigation on mobile */}
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
-        <main className="flex-1 p-3 pb-20 bg-muted/30 overflow-x-hidden">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-20 bg-muted/30">
           <ErrorBoundary title="Errore nel caricamento della pagina">
             <Outlet />
           </ErrorBoundary>
