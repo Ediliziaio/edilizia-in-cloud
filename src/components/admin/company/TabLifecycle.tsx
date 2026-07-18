@@ -74,6 +74,7 @@ export function TabLifecycle({ companyId }: TabLifecycleProps) {
         <Button
           variant="outline"
           size="sm"
+          className="hidden sm:inline-flex"
           onClick={() => exportCsv(filteredEvents)}
           disabled={filteredEvents.length === 0}
         >

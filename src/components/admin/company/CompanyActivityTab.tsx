@@ -215,7 +215,7 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
+              className="h-9 hidden sm:inline-flex"
               onClick={handleExportCsv}
               disabled={filtered.length === 0}
             >

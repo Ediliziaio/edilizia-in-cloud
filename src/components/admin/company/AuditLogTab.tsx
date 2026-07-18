@@ -261,7 +261,7 @@ export function AuditLogTab({ companyId }: AuditLogTabProps) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs"
+              className="h-8 text-xs hidden sm:inline-flex"
               onClick={handleExportCsv}
             >
               <Download className="h-3.5 w-3.5 mr-1.5" />
