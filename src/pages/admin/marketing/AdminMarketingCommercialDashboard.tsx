@@ -304,7 +304,7 @@ export default function AdminMarketingCommercialDashboard() {
           <HeroAurora />
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm">
                 <BarChart3 className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
