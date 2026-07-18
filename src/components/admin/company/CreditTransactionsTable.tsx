@@ -431,7 +431,7 @@ export function CreditTransactionsTable({ companyId }: Props) {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 ml-auto"
+            className="h-8 ml-auto hidden sm:inline-flex"
             onClick={handleExportCsv}
             disabled={exporting || total === 0}
           >

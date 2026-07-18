@@ -530,7 +530,7 @@ export function CompanyTeamTab({
             size="sm"
             onClick={handleExportCsv}
             disabled={!teamData || totalTeam === 0}
-            className="h-9"
+            className="h-9 hidden sm:inline-flex"
           >
             <Download className="h-3.5 w-3.5 mr-1.5" />
             CSV
