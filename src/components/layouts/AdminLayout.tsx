@@ -66,6 +66,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
+import { CompanyQuickEnterPopover } from "@/components/admin/CompanyQuickEnterPopover";
 import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
 import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
@@ -825,11 +826,12 @@ export function AdminLayout() {
   // Mobile: no sidebar at all — bottom nav replaces it
   if (isMobile) {
     return (
-      <div className="h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden flex flex-col w-full">
+      <div className="relative h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden flex flex-col w-full">
         {/* Altezza viewport bloccata + overflow-hidden → lo scroll avviene nel
             <main> (overflow-y-auto), affidabile su Capacitor/iOS. Prima era
             min-h-screen (scroll di documento) come il campo: su nativo non
-            scrollava. Ramo solo-mobile (isMobile) → niente override md:. */}
+            scrollava. Ramo solo-mobile (isMobile) → niente override md:.
+            relative: àncora la bottom nav flottante (absolute) come in azienda. */}
         {/* Mobile header — clean, native-style */}
         <header className="flex h-11 border-b items-center px-3 bg-background sticky top-0 z-40">
           <div className="flex-1 min-w-0">
@@ -837,6 +839,7 @@ export function AdminLayout() {
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
             <AdminNotificationCenter />
+            <CompanyQuickEnterPopover />
             <QuickLoginPopover />
           </div>
         </header>
@@ -844,7 +847,7 @@ export function AdminLayout() {
         {/* Settings sub-navigation on mobile */}
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-20 bg-muted/30">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-28 bg-muted/30">
           <ErrorBoundary title="Errore nel caricamento della pagina">
             <Outlet />
           </ErrorBoundary>
@@ -869,6 +872,7 @@ export function AdminLayout() {
               <AdminQuickActions />
               <AdminNotificationCenter />
               <Separator orientation="vertical" className="h-5" />
+              <CompanyQuickEnterPopover />
               <QuickLoginPopover />
             </div>
           </header>
