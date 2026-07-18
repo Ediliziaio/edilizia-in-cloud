@@ -177,7 +177,7 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
 });
 
 const ImpersonationBanner = memo(function ImpersonationBanner() {
-  const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
+  const { isImpersonating, exitImpersonation } = useAuth();
   const navigate = useNavigate();
 
   if (!isImpersonating) return null;
@@ -199,26 +199,19 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
     navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
-  // Fallback testuale quando la fetch di impersonatedCompany è ancora in corso
-  // (evita il flash con stringa vuota "Stai visualizzando come:  " che confondeva
-  // l'utente su "quale azienda sto impersonando?").
-  const label = impersonatedCompany?.name ?? "caricamento azienda…";
-
   return (
+    // Barra fissa (sticky, sopra il main-scroller → resta sempre in alto): il
+    // super admin salta tra aziende senza scrollare. Lo SWITCHER ⇅ è l'elemento
+    // primario a sinistra — mostra l'azienda corrente E permette di cambiarla in
+    // 1 tap (dinamico), quindi niente più nome duplicato accanto.
     <div className="sticky top-0 z-50 bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2 shadow-md">
       <div className="flex items-center gap-2 min-w-0">
         <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
-        <span className="font-medium text-sm truncate">
-          <span className="hidden sm:inline">Stai visualizzando come: </span>
-          <strong>{label}</strong>
-          <span className="hidden md:inline ml-2 text-xs opacity-80">
-            (azioni eseguite come questa azienda)
-          </span>
-        </span>
+        <span className="hidden shrink-0 text-sm font-medium sm:inline">Stai visualizzando:</span>
+        <SuperAdminCompanySwitcher />
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <ImpersonationViewToggle />
-        <SuperAdminCompanySwitcher />
         <Button
           variant="secondary"
           size="sm"
