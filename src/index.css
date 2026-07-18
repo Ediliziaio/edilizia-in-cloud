@@ -789,3 +789,19 @@ html .react-flow .react-flow__edges svg {
   height: 100%;
   overflow: visible;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Chat AZIENDA: conversazione mobile a schermo intero (SENZA position:fixed)
+   ──────────────────────────────────────────────────────────────────────────
+   Su iOS Safari/Capacitor `position: fixed` dentro il main con overflow-y-auto
+   è inaffidabile: la chat non copriva la bottom-nav → il menu in basso restava
+   sopra e bloccava il campo di scrittura (chat inutilizzabile). Quando è aperta
+   una conversazione su mobile, InternalChat (embedded in ChatHub) mette
+   `.chat-mobile-conv-open` su <body>: qui nascondiamo header-app + bottom-nav
+   della CompanyLayout, così la chat riempie lo schermo e il composer resta
+   sempre raggiungibile. Il padding del #main-content NON si tocca (i margini
+   negativi di ChatHub lo assumono). Solo mobile (<768px); desktop intatto. */
+@media (max-width: 767px) {
+  body.chat-mobile-conv-open [data-app-header] { display: none !important; }
+  body.chat-mobile-conv-open nav[aria-label="Navigazione principale"] { display: none !important; }
+}

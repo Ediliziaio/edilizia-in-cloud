@@ -1734,7 +1734,7 @@ export function CompanyLayout() {
           <AnnouncementBanner />
           {/* Apple Guideline 3.1.1 — SubscriptionBanner contiene CTA upgrade Stripe, nascosto su iOS native */}
           {!isIOSNativePlatform && <SubscriptionBanner />}
-          <header className="h-14 border-b flex items-center px-2 md:px-3 gap-1.5 md:gap-4 bg-background">
+          <header data-app-header className="h-14 border-b flex items-center px-2 md:px-3 gap-1.5 md:gap-4 bg-background">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (
               <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">

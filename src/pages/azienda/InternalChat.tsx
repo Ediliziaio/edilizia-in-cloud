@@ -1362,6 +1362,20 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
   useEffect(() => { selectedChannelIdRef.current = selectedChannelId; }, [selectedChannelId]);
   useEffect(() => { profileMapRef.current = profileMap; }, [profileMap]);
 
+  // Conversazione mobile a schermo intero SENZA position:fixed (inaffidabile su
+  // iOS Safari/Capacitor: lasciava la bottom-nav a coprire il composer → chat
+  // inutilizzabile). Solo per la chat AZIENDA (embedded in ChatHub, dentro
+  // CompanyLayout): segnaliamo al layout — via classe su <body> — di nascondere
+  // header-app + bottom-nav, così la chat riempie lo schermo in flusso normale e
+  // il campo di scrittura resta sempre raggiungibile. La chat CAMPO (non-embedded,
+  // chrome diversa) NON attiva la classe e mantiene il comportamento originale.
+  // La classe si rimuove tornando alla lista o smontando.
+  useEffect(() => {
+    const cls = "chat-mobile-conv-open";
+    document.body.classList.toggle(cls, !!embedded && showMobile && !!selectedChannelId);
+    return () => document.body.classList.remove(cls);
+  }, [embedded, showMobile, selectedChannelId]);
+
   useEffect(() => {
     if (!companyId || !userId) return;
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -2220,7 +2234,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       embedded
         ? "h-full flex overflow-hidden bg-slate-50 dark:bg-gray-950"
         : "h-[calc(100vh-7.5rem)] supports-[height:100dvh]:h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-slate-50 dark:bg-gray-950 -mx-3 sm:mx-0",
-      isMobileConvOpen && "max-md:!fixed max-md:!inset-0 max-md:!h-auto max-md:!z-[60] max-md:!border-0 max-md:!rounded-none max-md:!shadow-none max-md:!mx-0 max-md:!pt-[env(safe-area-inset-top)]",
+      // Fullscreen conversazione su mobile.
+      // • Chat azienda (embedded in ChatHub / CompanyLayout): NIENTE position:fixed
+      //   (inaffidabile su iOS Safari/Capacitor → la bottom-nav restava sopra il
+      //   composer). Riempie il main; header-app e bottom-nav li nasconde il layout
+      //   via .chat-mobile-conv-open (vedi effect). Il main mantiene il suo padding
+      //   così i margini negativi di ChatHub (-mx-3/-mb-24) restano coerenti.
+      // • Chat campo (non-embedded, CampoLayout, chrome diversa): comportamento
+      //   originale invariato, per non regredire il campo.
+      isMobileConvOpen && embedded && "max-md:!h-full max-md:!border-0 max-md:!rounded-none max-md:!shadow-none max-md:!pt-[env(safe-area-inset-top)]",
+      isMobileConvOpen && !embedded && "max-md:!fixed max-md:!inset-0 max-md:!h-auto max-md:!z-[60] max-md:!border-0 max-md:!rounded-none max-md:!shadow-none max-md:!mx-0 max-md:!pt-[env(safe-area-inset-top)]",
     )}>
       {/* ═══ LEFT PANEL: Chat List ═══ */}
       <div className={cn(
