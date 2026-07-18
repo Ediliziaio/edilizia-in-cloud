@@ -803,11 +803,13 @@ export function CompanyDetailsTab({
 
             <div className="pt-4 border-t mt-4">
               <p className="text-xs text-muted-foreground mb-2">Conformità GDPR</p>
+              {/* Export GDPR nascosto su mobile (feedback_no_mobile_export): azione da desktop. */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => void handleGDPRExport()}
                 disabled={exporting}
+                className="hidden sm:inline-flex"
               >
                 {exporting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

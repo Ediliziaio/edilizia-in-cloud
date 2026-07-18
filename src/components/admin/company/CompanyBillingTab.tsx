@@ -1056,7 +1056,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   variant="outline"
                   size="sm"
                   onClick={handleExportAdjustmentsCsv}
-                  className="h-8 text-xs"
+                  className="h-8 text-xs hidden sm:inline-flex"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5" />
                   CSV
