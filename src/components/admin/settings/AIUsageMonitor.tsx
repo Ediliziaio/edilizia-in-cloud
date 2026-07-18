@@ -913,7 +913,8 @@ export function AIUsageMonitor() {
         </Button>
 
         {filteredSummaries.length > 0 && (
-          <div className="flex items-center gap-1.5 ml-auto">
+          /* Export CSV (summary + drill-down) nascosti su mobile (feedback_no_mobile_export) */
+          <div className="hidden sm:flex items-center gap-1.5 ml-auto">
             <Button
               variant="outline"
               size="sm"

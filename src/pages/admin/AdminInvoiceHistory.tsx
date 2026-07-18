@@ -112,7 +112,8 @@ export default function AdminInvoiceHistory() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={handleExport} disabled={data.length === 0} className="w-full sm:w-auto">
+          {/* Export CSV nascosto su mobile (feedback_no_mobile_export). */}
+          <Button variant="outline" onClick={handleExport} disabled={data.length === 0} className="hidden sm:inline-flex sm:w-auto">
             <Download className="h-4 w-4 mr-2" /> Esporta CSV
           </Button>
         </div>
