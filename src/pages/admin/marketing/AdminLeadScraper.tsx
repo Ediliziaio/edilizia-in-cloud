@@ -1909,10 +1909,11 @@ export default function AdminLeadScraper() {
                   title="Aggiungi alla do-not-contact (GDPR)">
                   {suppressMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldBan className="h-3.5 w-3.5" />}
                 </Button>
-                <Button size="sm" variant="ghost" className="gap-1.5 ml-auto" onClick={exportCsv} disabled={results.length === 0}>
+                {/* Export CSV (vista + completo) nascosti su mobile (feedback_no_mobile_export) */}
+                <Button size="sm" variant="ghost" className="gap-1.5 ml-auto hidden sm:inline-flex" onClick={exportCsv} disabled={results.length === 0}>
                   <Download className="h-3.5 w-3.5" /> CSV {selectedIds.length ? `(${selectedIds.length})` : "vista"}
                 </Button>
-                <Button size="sm" variant="ghost" className="gap-1.5" onClick={exportCsvAll}
+                <Button size="sm" variant="ghost" className="gap-1.5 hidden sm:inline-flex" onClick={exportCsvAll}
                   disabled={!currentSearchId || exportingAll}
                   title="Esporta TUTTI i lead della ricerca (anche oltre 2000) — paginazione dal DB">
                   {exportingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} CSV completo

@@ -313,7 +313,7 @@ export function PayoutApprovalTab() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={exportCSV}>
+        <Button variant="outline" size="sm" onClick={exportCSV} className="hidden sm:inline-flex">
           <Download className="h-4 w-4 mr-1.5" /> Esporta CSV
         </Button>
       </div>
