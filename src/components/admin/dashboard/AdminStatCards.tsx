@@ -194,9 +194,8 @@ export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
             }}
             aria-label={`${stat.title}: ${stat.value}. ${stat.description}`}
           >
-            {/* Barra accento superiore (vivida) + alone che si accende in hover */}
+            {/* Barra accento superiore */}
             <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${stat.grad}`} />
-            <div className={`pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-to-br ${stat.grad} opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20`} />
             <CardContent className="pt-4 pb-3 md:pt-5 md:pb-4 px-3 md:px-4">
               <div className="flex items-start justify-between mb-2 md:mb-3">
                 <div

@@ -159,8 +159,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
             aria-pressed={isClickable ? isActive : undefined}
             aria-label={`${kpi.label}: ${kpi.value}${kpi.sub ? `. ${kpi.sub}` : ""}${isClickable ? ". Click per filtrare" : ""}`}
           >
-            <div className={cn("pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20", kpi.grad)} />
-            <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3", kpi.grad)}>
+                  <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3", kpi.grad)}>
               <kpi.icon className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">

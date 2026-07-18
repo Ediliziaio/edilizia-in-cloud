@@ -75,7 +75,6 @@ function KpiTile({
   return (
     <Card className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-xl hover:shadow-slate-900/[0.08]">
       <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", grad)} />
-      <div className={cn("pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20", grad)} />
       <CardContent className="p-3 md:p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
