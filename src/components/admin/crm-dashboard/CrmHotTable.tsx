@@ -678,10 +678,12 @@ export function CrmHotTable({ companyId }: { companyId: string }) {
               <span className="text-xs font-medium">
                 {selected.size} {view === "leads" ? (selected.size === 1 ? "lead" : "lead") : (selected.size === 1 ? "opportunità" : "opportunità")} selezionat{selected.size === 1 ? "a" : "e"}
               </span>
+              {/* Export CSV: nascosto su mobile (regola no-export mobile,
+                  feedback_no_mobile_export) — resta su tablet/desktop. */}
               <button
                 type="button"
                 onClick={exportCsv}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 <Download className="h-3.5 w-3.5" aria-hidden="true" /> Esporta CSV
               </button>
