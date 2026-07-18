@@ -34,7 +34,7 @@ export function AdminHeroHeader({
         <div className="flex items-start gap-3 min-w-0">
           <div
             aria-hidden="true"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
           >
             <Icon className="h-5 w-5" />
           </div>

@@ -37,10 +37,6 @@ export function AIPageHeader({
 }: Props) {
   return (
     <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/20 dark:to-rose-950/20 p-5 md:p-6 mb-6">
-      {/* Decorative blob */}
-      <div className="absolute -top-12 -right-12 w-48 h-48 bg-orange-300/20 dark:bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-12 w-56 h-56 bg-amber-300/20 dark:bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
       <div className="relative">
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
@@ -52,10 +48,9 @@ export function AIPageHeader({
 
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="flex items-start gap-4 min-w-0">
-            {/* Icon with glow */}
+            {/* Icon tile */}
             <div className="relative shrink-0">
-              <div className="absolute inset-0 bg-orange-400 dark:bg-orange-500 rounded-xl blur-md opacity-30 scale-110" />
-              <div className="relative h-12 w-12 md:h-14 md:w-14 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center text-white shadow-lg">
+              <div className="relative h-12 w-12 md:h-14 md:w-14 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center text-white shadow-sm">
                 <Icon className="h-6 w-6 md:h-7 md:w-7" />
               </div>
             </div>
