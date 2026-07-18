@@ -522,7 +522,7 @@ export function AdminAiMarginsOverview() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5"
+            className="h-8 text-xs gap-1.5 hidden sm:inline-flex"
             onClick={() => {
               const today = new Date().toISOString().slice(0, 10);
               const allRows = [

@@ -339,7 +339,7 @@ export function BankingOverviewPanel() {
         <Button
           variant="outline"
           size="sm"
-          className="h-8"
+          className="h-8 hidden sm:inline-flex"
           onClick={handleExport}
           disabled={sorted.length === 0}
         >
