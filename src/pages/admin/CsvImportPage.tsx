@@ -312,11 +312,6 @@ interface Step3Props {
   onImporta: () => void;
 }
 
-interface CellaConErrore {
-  campo: CampoTarget;
-  errore: string;
-}
-
 function validaRiga(
   riga: Record<string, string>,
   mapping: ColumnMapping
