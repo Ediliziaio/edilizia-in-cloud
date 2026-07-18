@@ -44,7 +44,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/ridurre-costi-cantieri-edili.jpg",
     content: [
       {
         type: "intro",
@@ -114,7 +114,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/gestione-cantieri-digitale.jpg",
     content: [
       {
         type: "intro",
@@ -183,7 +183,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/preventivi-edilizia-guida.jpg",
     content: [
       {
         type: "intro",
@@ -252,7 +252,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/hr-edilizia-presenze-buste-paga.jpg",
     content: [
       {
         type: "intro",
@@ -320,7 +320,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/analisi-margini-imprese-edili.jpg",
     content: [
       {
         type: "intro",
@@ -393,7 +393,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/marketing-digitale-imprese-edili.jpg",
     content: [
       {
         type: "intro",
@@ -461,7 +461,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/software-gestionale-vs-excel.jpg",
     content: [
       {
         type: "intro",
@@ -523,7 +523,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/digitalizzare-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -615,7 +615,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/come-organizzare-cantiere-edile.jpg",
     content: [
       {
         type: "intro",
@@ -718,7 +718,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/documentazione-obbligatoria-cantiere-2025.jpg",
     content: [
       {
         type: "intro",
@@ -831,7 +831,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/come-fare-preventivo-edilizia.jpg",
     content: [
       {
         type: "intro",
@@ -928,7 +928,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/alternativa-excel-cantieri.jpg",
     content: [
       {
         type: "intro",
@@ -1028,7 +1028,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/sal-cantiere-come-funziona.jpg",
     content: [
       {
         type: "intro",
@@ -1120,7 +1120,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/durc-edilizia-guida-completa.jpg",
     content: [
       {
         type: "intro",
@@ -1223,7 +1223,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/giornale-dei-lavori-cantiere.jpg",
     content: [
       {
         type: "intro",
@@ -1299,7 +1299,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/subappalto-edilizia-guida.jpg",
     content: [
       {
         type: "intro",
@@ -1375,7 +1375,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/acquisire-clienti-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -1434,7 +1434,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/gestione-operai-cantiere-presenze-ore.jpg",
     content: [
       {
         type: "intro",
@@ -1487,7 +1487,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/sito-web-impresa-edile-guida.jpg",
     content: [
       {
         type: "intro",
@@ -1536,7 +1536,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/digitalizzazione-impresa-edile-passo-passo.jpg",
     content: [
       {
         type: "intro",
@@ -1591,7 +1591,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-18",
     readTime: 14,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/computo-metrico-estimativo-guida.jpg",
     content: [
       {
         type: "intro",
@@ -1727,7 +1727,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-21",
     readTime: 8,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/bim-edilizia-guida-pratica.jpg",
     content: [
       {
         type: "intro",
@@ -1805,7 +1805,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-24",
     readTime: 7,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/cassa-edile-come-funziona.jpg",
     content: [
       {
         type: "intro",
@@ -1894,7 +1894,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-27",
     readTime: 10,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/appalti-pubblici-edilizia-guida.jpg",
     content: [
       {
         type: "intro",
@@ -1965,7 +1965,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/sicurezza-cantieri-dlgs-81.jpg",
     content: [
       {
         type: "intro",
@@ -2048,7 +2048,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/ccnl-edilizia-guida.jpg",
     content: [
       {
         type: "intro",
@@ -2112,7 +2112,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/attestazione-soa-imprese-edili.jpg",
     content: [
       {
         type: "intro",
@@ -2181,7 +2181,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/superbonus-imprese-edili-2026.jpg",
     content: [
       {
         type: "intro",
@@ -2243,7 +2243,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     readTime: 13,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/gestione-liquidita-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -2348,7 +2348,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/pnrr-edilizia-imprese-2026.jpg",
     content: [
       {
         type: "intro",
@@ -2448,7 +2448,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-scegliere-software-gestionale-edilizia.jpg",
     content: [
       {
         type: "intro",
@@ -2551,7 +2551,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1562259929-b4e1fd3aef09?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/gestione-subappaltatori-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -2647,7 +2647,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/cassa-impresa-edile-non-torna.jpg",
     content: [
       {
         type: "intro",
@@ -2734,7 +2734,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/trovare-operai-edili-qualificati.jpg",
     content: [
       {
         type: "intro",
@@ -2821,7 +2821,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/passaparola-impresa-edile-non-basta.jpg",
     content: [
       {
         type: "intro",
@@ -2908,7 +2908,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1507209696998-3c532be9b2b5?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/gestire-piu-cantieri-contemporaneamente.jpg",
     content: [
       {
         type: "intro",
@@ -2995,7 +2995,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/burocrazia-impresa-edile-scadenze-documenti.jpg",
     content: [
       {
         type: "intro",
@@ -3082,7 +3082,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1507209696998-3c532be9b2b5?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/delegare-impresa-edile-senza-perdere-controllo.jpg",
     content: [
       {
         type: "intro",
@@ -3169,7 +3169,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/preventivi-edili-non-si-chiudono.jpg",
     content: [
       {
         type: "intro",
@@ -3258,7 +3258,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/segnali-crisi-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -3347,7 +3347,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-trovare-clienti-impresa-edile-marketing.jpg",
     content: [
       {
         type: "intro",
@@ -3466,7 +3466,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/aumentare-vendite-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -3585,7 +3585,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/lead-serramenti-come-generare-richieste-qualificate.jpg",
     content: [
       {
         type: "intro",
@@ -3705,7 +3705,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/richieste-preventivo-ristrutturazione-online.jpg",
     content: [
       {
         type: "intro",
@@ -3825,7 +3825,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/google-ads-impresa-edile-errori-budget.jpg",
     content: [
       {
         type: "intro",
@@ -3945,7 +3945,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/crm-edilizia-gestire-lead-preventivi-follow-up.jpg",
     content: [
       {
         type: "intro",
@@ -4065,7 +4065,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-trovare-clienti-serramentisti.jpg",
     content: [
       {
         type: "intro",
@@ -4159,7 +4159,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-trovare-clienti-rifacimento-tetti.jpg",
     content: [
       {
         type: "intro",
@@ -4248,7 +4248,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-trovare-clienti-fotovoltaico.jpg",
     content: [
       {
         type: "intro",
@@ -4337,7 +4337,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1554224155-1696413565d3?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/sistema-fatturazione-aziende-edili.jpg",
     content: [
       {
         type: "intro",
@@ -4426,7 +4426,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/fattura-corretta-serramentisti.jpg",
     content: [
       {
         type: "intro",
@@ -4515,7 +4515,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/preventivo-rifacimento-tetto-come-farlo.jpg",
     content: [
       {
         type: "intro",
@@ -4604,7 +4604,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/seo-locale-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -4693,7 +4693,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-04-28",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/recupero-crediti-impresa-edile-fatture-scadute.jpg",
     content: [
       {
         type: "intro",
@@ -4787,7 +4787,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-07-10",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1677442d019cecf8328cd4fab61a67a96f4a7e0d?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/intelligenza-artificiale-edilizia-2026.jpg",
     content: [
       {
         type: "intro",
@@ -4855,7 +4855,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-05-22",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/ai-analisi-margini-cantiere.jpg",
     content: [
       {
         type: "intro",
@@ -4909,7 +4909,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-05-22",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80",
+    coverImage: "/blog/covers/come-scegliere-gestionale-ai-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -4984,7 +4984,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/miglior-gestionale-edilizia-guida-scelta.jpg",
     content: [
       {
         type: "intro",
@@ -5056,7 +5056,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/quanto-costa-gestionale-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -5116,7 +5116,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/patente-a-crediti-edilizia-guida.jpg",
     content: [
       {
         type: "intro",
@@ -5199,7 +5199,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/durc-congruita-manodopera-soglie.jpg",
     content: [
       {
         type: "intro",
@@ -5259,7 +5259,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/cila-scia-permesso-di-costruire-differenze.jpg",
     content: [
       {
         type: "intro",
@@ -5326,7 +5326,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/contabilita-di-cantiere-guida.jpg",
     content: [
       {
         type: "intro",
@@ -5399,7 +5399,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/ritenuta-di-garanzia-appalti-come-funziona.jpg",
     content: [
       {
         type: "intro",
@@ -5459,7 +5459,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/report-avanzamento-cantiere-guida.jpg",
     content: [
       {
         type: "intro",
@@ -5518,7 +5518,7 @@ export const blogPosts: BlogPost[] = [
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage:
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+      "/blog/covers/nota-di-credito-edilizia-quando-come.jpg",
     content: [
       {
         type: "intro",
