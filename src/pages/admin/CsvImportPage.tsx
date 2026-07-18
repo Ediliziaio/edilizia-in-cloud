@@ -520,7 +520,7 @@ function Step4Risultato({
             <h4 className="font-medium text-sm">
               Dettaglio errori ({errori.length})
             </h4>
-            <Button variant="outline" size="sm" onClick={esportaErroriCsv}>
+            <Button variant="outline" size="sm" onClick={esportaErroriCsv} className="hidden sm:inline-flex">
               Esporta errori CSV
             </Button>
           </div>

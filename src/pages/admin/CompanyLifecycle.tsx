@@ -530,7 +530,7 @@ export default function CompanyLifecycle() {
             Gestisci onboarding, trial, recupero e win-back delle aziende
           </p>
         </div>
-        <Button variant="outline" onClick={exportAll} disabled={isLoading || healthScores.length === 0}>
+        <Button variant="outline" onClick={exportAll} disabled={isLoading || healthScores.length === 0} className="hidden sm:inline-flex">
           <Download className="h-4 w-4 mr-2" />
           Esporta CSV
         </Button>

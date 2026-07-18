@@ -622,7 +622,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
             <span className="text-sm font-semibold text-orange-800">
               {selectedPoints.length} selezionate{selProspectIds.length > 0 ? ` · ${selProspectIds.length} prospect` : ""}
             </span>
-            <Button size="sm" variant="outline" onClick={exportCsv}><Download className="mr-1.5 h-4 w-4" /> CSV</Button>
+            <Button size="sm" variant="outline" onClick={exportCsv} className="hidden sm:inline-flex"><Download className="mr-1.5 h-4 w-4" /> CSV</Button>
             <Button size="sm" onClick={() => createOpp.mutate()} disabled={!selProspectIds.length || createOpp.isPending || !pipelineQ.data?.stageId} title={!pipelineQ.data?.stageId ? "Nessuna pipeline configurata" : ""}>
               {createOpp.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Target className="mr-1.5 h-4 w-4" />} Crea opportunità
             </Button>

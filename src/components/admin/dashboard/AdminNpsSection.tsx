@@ -201,7 +201,7 @@ export function AdminNpsSection() {
             NPS Survey
           </CardTitle>
           {(data?.allRows.length ?? 0) > 0 && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={exportCsv}>
+            <Button size="sm" variant="outline" className="hidden sm:inline-flex h-7 text-xs" onClick={exportCsv}>
               <Download className="h-3 w-3 mr-1" />
               CSV
             </Button>

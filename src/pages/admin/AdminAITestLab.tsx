@@ -325,7 +325,7 @@ export default function AdminAITestLab() {
           <SmokeTestButton onComplete={() => refetch()} />
           <KbIngestButton />
           {stats && stats.length > 0 && (
-            <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta confronto modelli in CSV">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta confronto modelli in CSV" className="hidden sm:inline-flex">
               <Download className="h-4 w-4 mr-2" />
               CSV
             </Button>
