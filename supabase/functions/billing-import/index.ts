@@ -459,7 +459,13 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       paymentMethod: doc.payment_method?.name,
       iban: doc.payment_account?.iban || null,
       lines: (doc.items_list || []).map((item: any) => {
-        const taxRate = item.vat?.value || 22;
+        // BUG FISCALE: `item.vat?.value || 22` trasformava l'IVA 0 in 22%.
+        // In JS `0 || 22 === 22`, quindi i forfettari (IVA 0, Natura N2.2) e
+        // le righe esenti/non imponibili (N1..N7) di una SRL prendevano un
+        // 22% fantasma. L'aliquota va LETTA da FIC preservando lo 0; se manca
+        // del tutto NON si inventa IVA (0), mai un default a 22.
+        const vatRaw = item.vat?.value;
+        const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
         const lineNet = Math.round(item.net_price * item.qty * (1 - (item.discount || 0) / 100) * 100) / 100;
         const lineTax = Math.round(lineNet * (taxRate / 100) * 100) / 100;
         return {
@@ -470,6 +476,9 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
           unitPrice: item.net_price,
           discountPercent: item.discount,
           taxRate,
+          // Natura IVA da FIC (N2.2 forfettario, N1..N7): serve per esenti/
+          // non imponibili e per la coerenza in XML/anteprima.
+          taxNature: item.vat?.ei_type || null,
           lineNet,
           lineTax,
           lineGross: Math.round((lineNet + lineTax) * 100) / 100,
@@ -517,7 +526,10 @@ async function importFICReceived(integ: any, companyId: string): Promise<{ impor
     if (!numero || !dataFattura) { failed++; continue; }
 
     const righe = (doc.items_list || []).map((item: any) => {
-      const taxRate = item.vat?.value ?? 22;
+      // Stesso principio del blocco attive: preserva l'IVA 0 (forfettario/
+      // esente/non imponibile), mai un default a 22%.
+      const vatRaw = item.vat?.value;
+      const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
       const qty = Number(item.qty ?? 1);
       const net = Math.round(Number(item.net_price ?? 0) * qty * (1 - (Number(item.discount ?? 0)) / 100) * 100) / 100;
       const tax = Math.round(net * (taxRate / 100) * 100) / 100;
