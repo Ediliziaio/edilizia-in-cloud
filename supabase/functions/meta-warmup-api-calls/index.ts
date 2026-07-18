@@ -80,6 +80,39 @@ Deno.serve(async (req) => {
     .select("ad_account_id")
     .eq("company_id", companyId);
 
+  // 2.5 Sync ad account in meta_assets: la Gestione Pubblicitaria richiede
+  // asset_type='ad_account' ma le integrazioni collegate PRIMA del fix nel
+  // callback OAuth non li hanno mai salvati — questo backfill li allinea
+  // senza costringere l'azienda a rifare il collegamento.
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 8000);
+    const adRes = await fetch(
+      `${BASE}/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`,
+      { signal: ctrl.signal },
+    );
+    const adData = await adRes.json();
+    const accounts: Array<{ id: string; name?: string; account_status?: number; currency?: string }> = adData.data || [];
+    if (accounts.length > 0) {
+      // Inserisce SOLO i mancanti senza toccare i selected esistenti
+      // (ignoreDuplicates). selected=true solo se l'account è unico: un utente
+      // agenzia vede decine di account di altri clienti — la scelta resta
+      // esplicita (manuale/SQL) finché non c'è un picker nel wizard.
+      await admin.from("meta_assets").upsert(
+        accounts.map((acc) => ({
+          integration_id: integRow.id,
+          company_id: companyId,
+          asset_type: "ad_account",
+          asset_id: acc.id,
+          asset_name: acc.name || acc.id,
+          selected: accounts.length === 1,
+          metadata: { account_status: acc.account_status ?? null, currency: acc.currency ?? null },
+        })),
+        { onConflict: "integration_id,asset_type,asset_id", ignoreDuplicates: true },
+      );
+    }
+  } catch { /* non-fatal: la warmup prosegue comunque */ }
+
   // 3. Fetch pages (per pages_show_list + pages_read_engagement + leads_retrieval)
   let pages: Array<{ id: string; access_token?: string }> = [];
   try {
