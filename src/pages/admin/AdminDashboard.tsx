@@ -243,21 +243,25 @@ export default function AdminDashboard() {
           isRefreshing={isRefreshing}
           onRefresh={refetch}
         >
-          <DashboardExport
-            data={{
-              stats,
-              mrrStats,
-              revenueData: revenueData
-                ? {
-                    currentMrr: revenueData.currentMrr,
-                    arr: revenueData.arr,
-                    nrr: revenueData.nrr,
-                    avgLtv: revenueData.avgLtv,
-                    healthSummary: revenueData.healthSummary,
-                  }
-                : null,
-            }}
-          />
+          {/* Esporta: nascosto su mobile (download non adatto all'app mobile,
+              richiesta utente) — resta su tablet/desktop. */}
+          <span className="hidden sm:inline-flex">
+            <DashboardExport
+              data={{
+                stats,
+                mrrStats,
+                revenueData: revenueData
+                  ? {
+                      currentMrr: revenueData.currentMrr,
+                      arr: revenueData.arr,
+                      nrr: revenueData.nrr,
+                      avgLtv: revenueData.avgLtv,
+                      healthSummary: revenueData.healthSummary,
+                    }
+                  : null,
+              }}
+            />
+          </span>
           <WidgetConfigurator
             widgets={widgets}
             isSaving={isSaving}
@@ -265,7 +269,8 @@ export default function AdminDashboard() {
             onReset={resetLayout}
             onSave={saveNow}
           />
-          <Button asChild size="sm">
+          {/* CTA primaria: riempie lo spazio su mobile (niente vuoti), naturale da sm. */}
+          <Button asChild size="sm" className="flex-1 sm:flex-none">
             <Link to="/admin/aziende/nuova">
               <Plus className="h-4 w-4 mr-2" /> Nuova Azienda
             </Link>
