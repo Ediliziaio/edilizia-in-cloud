@@ -1497,13 +1497,15 @@ export default function AdminLeadScraper() {
   return (
     <div className="space-y-6 p-1">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-primary/10 p-2.5"><Target className="h-6 w-6 text-primary" /></div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Lead Scraper</h1>
-          <p className="text-sm text-muted-foreground">Genera liste di imprese edili da più fonti, qualificale con l'AI e portale nel CRM.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="rounded-xl bg-primary/10 p-2.5 shrink-0"><Target className="h-6 w-6 text-primary" /></div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Lead Scraper</h1>
+            <p className="text-sm text-muted-foreground">Genera liste di imprese edili da più fonti, qualificale con l'AI e portale nel CRM.</p>
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:flex-nowrap">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAnalyticsOpen(true)}>
             <BarChart3 className="h-4 w-4" /> Analytics
           </Button>
@@ -1516,9 +1518,9 @@ export default function AdminLeadScraper() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
         {/* ── Colonna sinistra: form + cronologia ── */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><Search className="h-4 w-4" /> Nuova ricerca</CardTitle>
@@ -1753,7 +1755,7 @@ export default function AdminLeadScraper() {
         </div>
 
         {/* ── Colonna destra: risultati ── */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* KPI + barra azioni */}
           {currentSearchId && (
             <>
