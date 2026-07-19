@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useManualTreasury, type ManualAccount } from "@/hooks/useManualTreasury";
 import { BankStatementImportDialog } from "./BankStatementImportDialog";
-import { useConfirm } from "@/hooks/useConfirm";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Row {
   id: string; booking_date: string; description: string | null; amount: number;
@@ -23,7 +23,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
   account: ManualAccount | null; open: boolean; onOpenChange: (v: boolean) => void;
 }) {
   const { upsertTx, deleteTx } = useManualTreasury();
-  const { confirm } = useConfirm();
+  const confirm = useConfirm();
   const [importOpen, setImportOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), desc: "", amount: "", verso: "uscita" as "entrata" | "uscita" });
