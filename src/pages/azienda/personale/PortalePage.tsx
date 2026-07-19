@@ -4241,7 +4241,7 @@ function PortalPreview({
       return matchesFilter && matchesSearch;
     });
   }, [getCourseCompletion, learnerCourses, learnerFilter, learnerSearch]);
-  const unlockedLessons = learnerCourses.reduce((sum, item) => sum + item.modules.reduce((moduleSum, module) => moduleSum + module.lessons, 0), 0);
+  const unlockedModules = learnerCourses.reduce((sum, item) => sum + item.modules.length, 0);
   const unlockedAssets = learnerCourses.reduce((sum, item) => sum + item.assets.length, 0);
   const completedCourses = learnerCourses.filter((item) => {
     return getCourseCompletion(item) >= 100;
@@ -4690,20 +4690,19 @@ function PortalPreview({
           <div className="flex min-w-0 flex-col justify-between gap-5">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">Vista utente reale</Badge>
                 <Badge className="border-emerald-300/30 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/15">
                   {learnerCourses.length} corsi sbloccati
                 </Badge>
               </div>
               <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">
-                I tuoi corsi sbloccati
+                La tua formazione
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
                 Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <LearnerMetric label="Lezioni" value={String(unlockedLessons)} icon={Video} />
+              <LearnerMetric label="Moduli" value={String(unlockedModules)} icon={ListChecks} />
               <LearnerMetric label="Materiali" value={String(unlockedAssets)} icon={FileArchive} />
               <LearnerMetric label="Completati" value={String(completedCourses)} icon={CheckCircle2} />
             </div>
