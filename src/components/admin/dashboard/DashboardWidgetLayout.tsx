@@ -199,7 +199,7 @@ export function SortableWidget({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group ${span === 2 ? "col-span-2" : ""}`}
+      className={`relative group ${span === 2 ? "md:col-span-2" : ""}`}
     >
       {/* Drag handle: nascosta su mobile (DnD non attivo) e a11y-friendly */}
       <button
