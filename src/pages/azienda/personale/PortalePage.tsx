@@ -4247,9 +4247,6 @@ function PortalPreview({
     return getCourseCompletion(item) >= 100;
   }).length;
   const learnerKnowledgeItems = useMemo(() => getKnowledgeItems(learnerCourses), [learnerCourses]);
-  const learnerMandatoryItems = learnerKnowledgeItems
-    .filter((item) => item.requiresAcknowledgement || item.governanceStatus !== "ok")
-    .slice(0, 4);
   const currentModuleNumber = activeLearnerCourse?.modules.findIndex((module) => module.id === activeModule?.id) ?? 0;
   const readableModuleNumber = currentModuleNumber >= 0 ? currentModuleNumber + 1 : 1;
   const remainingModules = activeLearnerCourse?.modules.filter(
@@ -4396,21 +4393,6 @@ function PortalPreview({
       view: "course",
       courseId: activeLearnerCourse?.id ?? null,
       moduleId: activeModule?.id ?? null,
-      mode: "lesson",
-    });
-    window.setTimeout(() => scrollToPreviewSection("portal-preview-materials"), 0);
-  };
-
-  const openLearnerKnowledgeItem = (item: PortalKnowledgeItem) => {
-    setLearnerCourseId(item.course.id);
-    setActiveModuleId(item.asset.moduleId ?? item.course.modules[0]?.id ?? "");
-    setActivePreviewAssetId(item.asset.id);
-    setCourseExperienceView("lesson");
-    setLearnerView("course");
-    updateLearnerUrl({
-      view: "course",
-      courseId: item.course.id,
-      moduleId: item.asset.moduleId ?? item.course.modules[0]?.id ?? null,
       mode: "lesson",
     });
     window.setTimeout(() => scrollToPreviewSection("portal-preview-materials"), 0);
@@ -4749,41 +4731,6 @@ function PortalPreview({
           </div>
         </div>
       </div>
-
-      <aside className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Obblighi e scadenze</p>
-              <h3 className="mt-1 text-lg font-bold text-orange-950">Da leggere o completare</h3>
-            </div>
-            <ShieldCheck className="h-5 w-5 text-orange-600" />
-          </div>
-          <div className="mt-4 space-y-2">
-            {learnerMandatoryItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => openLearnerKnowledgeItem(item)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-orange-100 bg-white p-3 text-left transition hover:border-orange-300 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
-                  <CalendarClock className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-950">{item.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
-                    {item.reviewDue} · {knowledgeCategoryLabels[item.category]}
-                  </p>
-                </div>
-              </button>
-            ))}
-            {learnerMandatoryItems.length === 0 && (
-              <div className="rounded-2xl border border-emerald-100 bg-white p-3 text-sm text-emerald-800">
-                Nessun obbligo aperto: il percorso pubblicato è pulito.
-              </div>
-            )}
-          </div>
-        </aside>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
