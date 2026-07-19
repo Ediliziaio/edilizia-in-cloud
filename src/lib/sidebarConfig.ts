@@ -45,7 +45,6 @@ import {
   GraduationCap,
   Star,
   Calculator,
-  Building2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -164,15 +163,24 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
-      // Separazione netta dei ruoli, ora con permessi dedicati:
-      //  • "Portale" = creazione/gestione corsi — gated canManagePortal (grant esplicito a
-      //    HR/admin/responsabile formazione). Il dipendente NON lo vede. (Il superadmin crea
-      //    i portali master in /admin.)
-      //  • "Formazione" = fruizione — gated canViewFormazione (default ON per gli staff): il
-      //    dipendente vede i corsi assegnati e accede ai materiali. Nessun ponte verso la gestione.
-      { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
-      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", featureKey: "hr_personale" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
+    ],
+  },
+
+  // 4b. Formazione — area a sé, staccata da "Persone" (era annidata lì).
+  // È il portale corsi + fruizione learner. Vision: catalogo corsi vendibili
+  // stile Kajabi (il superadmin li crea e vende in /admin) + community stile Skool.
+  //  • "Portale" = creazione/gestione corsi — gated canManagePortal (HR/admin/
+  //    responsabile formazione). Il dipendente NON lo vede.
+  //  • "La mia formazione" = fruizione — gated canViewFormazione (default ON per
+  //    gli staff): vede i corsi assegnati/comprati e i materiali.
+  {
+    id: "area_formazione",
+    title: "Formazione",
+    icon: GraduationCap,
+    items: [
+      { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
+      { title: "La mia formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", featureKey: "hr_personale" },
     ],
   },
 

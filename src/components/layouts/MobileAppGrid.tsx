@@ -116,6 +116,15 @@ const AREA_TONES: Record<string, AreaTone> = {
     activeBorder: "border-cyan-500",
     sectionLabel: "text-cyan-700",
   },
+  area_formazione: {
+    iconBg: "bg-indigo-50",
+    iconColor: "text-indigo-600",
+    iconBorder: "border-indigo-100",
+    activeBg: "bg-indigo-500",
+    activeColor: "text-white",
+    activeBorder: "border-indigo-500",
+    sectionLabel: "text-indigo-700",
+  },
   area_marketing: {
     iconBg: "bg-pink-50",
     iconColor: "text-pink-600",
