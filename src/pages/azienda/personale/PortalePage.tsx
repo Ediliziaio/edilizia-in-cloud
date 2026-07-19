@@ -5032,38 +5032,82 @@ function PortalPreview({
                   <div className="space-y-2">
                     {activeLearnerCourse.modules.map((module, index) => {
                       const previewRate = getPreviewModuleCompletion(module, activeLearnerCourse.id);
+                      const isActiveMod = module.id === activeModule?.id;
+                      const moduleLessons = activeLearnerCourse.assets.filter((a) => a.moduleId === module.id);
                       return (
-                        <button
+                        <div
                           key={module.id}
-                          type="button"
                           className={cn(
-                            "flex w-full gap-3 rounded-2xl border p-3 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                            module.id === activeModule?.id
-                              ? "border-blue-300 bg-blue-50 ring-1 ring-blue-100"
-                              : "border-slate-200 bg-white",
+                            "rounded-2xl border transition",
+                            isActiveMod ? "border-blue-300 bg-blue-50 ring-1 ring-blue-100" : "border-slate-200 bg-white",
                           )}
-                          onClick={() => openLearnerLesson(module.id)}
                         >
-                          <div
-                            className={cn(
-                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
-                              previewRate >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
-                            )}
+                          <button
+                            type="button"
+                            className="flex w-full gap-3 rounded-2xl p-3 text-left transition hover:bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            onClick={() => openLearnerLesson(module.id)}
                           >
-                            {previewRate >= 100 ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="line-clamp-2 text-sm font-bold text-slate-950">{module.title}</p>
-                              <span className="shrink-0 text-xs font-medium text-slate-500">{module.duration}</span>
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
+                                previewRate >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
+                              )}
+                            >
+                              {previewRate >= 100 ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{module.description}</p>
-                            <div className="mt-2 flex items-center gap-2">
-                              <Progress value={previewRate} className="h-1.5 flex-1" />
-                              <span className="w-8 text-right text-[11px] font-bold text-slate-500">{previewRate}%</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="line-clamp-2 text-sm font-bold text-slate-950">{module.title}</p>
+                                <span className="shrink-0 text-xs font-medium text-slate-500">{module.duration}</span>
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{module.description}</p>
+                              <div className="mt-2 flex items-center gap-2">
+                                <Progress value={previewRate} className="h-1.5 flex-1" />
+                                <span className="w-8 text-right text-[11px] font-bold text-slate-500">{previewRate}%</span>
+                                <span className="shrink-0 text-[11px] font-medium text-slate-400">
+                                  {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                          {isActiveMod && moduleLessons.length > 0 && (
+                            <ul className="space-y-1 border-t border-blue-100 px-2 pb-2 pt-2">
+                              {moduleLessons.map((lesson, lessonIndex) => {
+                                const LessonIcon = assetIcon[lesson.type];
+                                const isCurrent = lesson.id === activePreviewAssetId;
+                                return (
+                                  <li key={lesson.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openLearnerLesson(module.id, lesson.id)}
+                                      className={cn(
+                                        "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500",
+                                        isCurrent ? "bg-white shadow-sm ring-1 ring-blue-200" : "hover:bg-white/70",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                                          isCurrent ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700",
+                                        )}
+                                      >
+                                        <LessonIcon className="h-3.5 w-3.5" />
+                                      </span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-xs font-semibold text-slate-900">
+                                          {lessonIndex + 1}. {lesson.title}
+                                        </span>
+                                        <span className="block truncate text-[11px] text-slate-500">
+                                          {assetTypeLabels[lesson.type]} · {lesson.duration}
+                                        </span>
+                                      </span>
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
                       );
                     })}
                     {activeLearnerCourse.modules.length === 0 && (
