@@ -4708,7 +4708,7 @@ function PortalPreview({
   return (
     <section id="portal-preview-root" className="space-y-5">
       {learnerView === "library" && (
-        <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+        <div className="z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:sticky sm:top-2">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white">
