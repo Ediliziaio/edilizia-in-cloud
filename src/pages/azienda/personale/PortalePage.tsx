@@ -997,20 +997,34 @@ function cloneTemplateCourse(template: PortalTemplate): PortalCourse {
  */
 export interface PortalePageProps {
   portalContext?: "azienda" | "admin";
+  /** Modalità della shell di gestione (azienda):
+   *  - "builder"  → voce "Crea corsi": authoring (Corsi + Builder + Anteprima)
+   *  - "library"  → voce "Portale": libreria/gestione (Corsi + Procedure/Accessi/
+   *    Persone/Riepilogo + Anteprima), SENZA Builder né azioni di creazione
+   *  - "full"     → tutto insieme (superadmin /admin/portale-formazione) */
+  mode?: "full" | "builder" | "library";
 }
 
-export default function PortalePage({ portalContext = "azienda" }: PortalePageProps = {}) {
+export default function PortalePage({ portalContext = "azienda", mode = "full" }: PortalePageProps = {}) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
   const isAdminContext = portalContext === "admin";
+  // Il Builder (creazione/editing corsi) è disponibile in "builder" e "full",
+  // nascosto in "library" (il Portale mostra solo la libreria + gestione).
+  const showBuilder = mode !== "library";
+  // Le tab di gestione azienda-edile (procedure/accessi/persone/riepilogo) NON
+  // hanno senso in "builder" (authoring puro) né in admin.
+  const showManagement = !isAdminContext && mode !== "builder";
   const [courses, setCourses] = useState<PortalCourse[]>(() =>
     isAdminContext ? [] : loadCourses(companyId),
   );
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? "");
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"locale" | "caricamento" | "sincronizzato">("locale");
-  const [activeTab, setActiveTab] = useState("preview");
+  const [activeTab, setActiveTab] = useState(
+    mode === "library" ? "corsi" : mode === "builder" ? "builder" : "preview",
+  );
   const [search, setSearch] = useState("");
   const [areaFilter, setAreaFilter] = useState<PortalArea | "tutte">("tutte");
   const [knowledgeSearch, setKnowledgeSearch] = useState("");
@@ -1538,7 +1552,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
         toast.error("Corso non pronto per la pubblicazione.", {
           description: "Completa moduli, materiali e accessi prima di renderlo visibile agli utenti.",
         });
-        setActiveTab("builder");
+        if (showBuilder) setActiveTab("builder");
         return false;
       }
     }
@@ -1715,11 +1729,15 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             )}
 
             <div className="flex flex-col gap-2 sm:flex-row">
-              {/* Creazione a 1 clic: crea subito la bozza e apre il Builder. */}
-              <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={createCourseQuick}>
-                <Plus className="h-4 w-4" />
-                Nuovo corso
-              </Button>
+              {/* Creazione a 1 clic: crea subito la bozza e apre il Builder.
+                  Solo dove il Builder è disponibile ("Crea corsi"): nel "Portale"
+                  (library) la creazione non c'è. */}
+              {showBuilder && (
+                <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={createCourseQuick}>
+                  <Plus className="h-4 w-4" />
+                  Nuovo corso
+                </Button>
+              )}
 
               {/* Dialog "Impostazioni corso": modifica i metadati del corso
                   selezionato. Aperto dal Builder (openCourseSettings), non più
@@ -2021,16 +2039,19 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             <Library className="h-4 w-4" />
             Corsi
           </TabsTrigger>
-          <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-            <LayoutTemplate className="h-4 w-4" />
-            Builder
-          </TabsTrigger>
+          {showBuilder && (
+            <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <LayoutTemplate className="h-4 w-4" />
+              Builder
+            </TabsTrigger>
+          )}
           {/* Tab azienda-edile nascoste in admin context:
               - Procedure: pensato per checklist sicurezza/operativi cantiere
               - Accessi: in admin la gestione cross-company avviene in
                 AdminPortaleDistributionBar a monte
-              - Persone: avanzamento per-persona da iscrizioni reali (non in admin) */}
-          {!isAdminContext && (
+              - Persone: avanzamento per-persona da iscrizioni reali (non in admin)
+              Nascoste anche in modalità "builder" (Crea corsi = authoring puro). */}
+          {showManagement && (
             <>
               <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <ClipboardCheck className="h-4 w-4" />
@@ -2056,7 +2077,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
           </TabsTrigger>
         </TabsList>
 
-        {activeTab !== "preview" && activeTab !== "riepilogo" && (
+        {showBuilder && activeTab !== "preview" && activeTab !== "riepilogo" && (
           <PortalCommandCenter
             course={selectedCourse}
             quality={quality}
@@ -2129,6 +2150,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
           </div>
         </TabsContent>
 
+        {showBuilder && (
         <TabsContent value="builder">
           <CourseBuilder
             course={selectedCourse}
@@ -2145,7 +2167,9 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             onUpdateModule={updateModule}
           />
         </TabsContent>
+        )}
 
+        {showManagement && (<>
         <TabsContent value="procedure">
           <KnowledgeBasePanel
             items={filteredKnowledgeItems}
@@ -2178,6 +2202,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
         <TabsContent value="riepilogo">
           <PortalRiepilogoPanel courses={courses} companyId={companyId} />
         </TabsContent>
+        </>)}
 
         <TabsContent value="preview">
           <PortalPreview
