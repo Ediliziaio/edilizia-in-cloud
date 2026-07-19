@@ -4410,7 +4410,10 @@ function PortalPreview({
     window.requestAnimationFrame(() => scrollToPreviewSection("portal-preview-root"));
   }, [updateLearnerUrl]);
 
-  const openLearnerLesson = (moduleId = activeModule?.id ?? activeLearnerCourse?.modules[0]?.id ?? "") => {
+  const openLearnerLesson = (
+    moduleId = activeModule?.id ?? activeLearnerCourse?.modules[0]?.id ?? "",
+    focusAssetId?: string,
+  ) => {
     const targetModuleId = moduleId || activeModule?.id || activeLearnerCourse?.modules[0]?.id || "";
 
     if (!targetModuleId) {
@@ -4427,7 +4430,7 @@ function PortalPreview({
     }
 
     setActiveModuleId(targetModuleId);
-    setActivePreviewAssetId("");
+    setActivePreviewAssetId(focusAssetId ?? "");
     setCourseExperienceView("lesson");
     updateLearnerUrl({
       view: "course",
@@ -5010,6 +5013,7 @@ function PortalPreview({
                 quizAssets={quizAssets}
                 hasQuizStep={courseHasQuizStep}
                 onOpenLesson={(moduleId) => openLearnerLesson(moduleId)}
+                onOpenLessonAsset={(moduleId, asset) => openLearnerLesson(moduleId, asset.id)}
                 onOpenMaterials={openLearnerMaterials}
                 getModuleCompletion={(module) => getPreviewModuleCompletion(module, activeLearnerCourse.id)}
                 onOpenAsset={onOpenAsset}
@@ -5270,6 +5274,7 @@ function LearnerCourseOverview({
   quizAssets,
   hasQuizStep,
   onOpenLesson,
+  onOpenLessonAsset,
   onOpenMaterials,
   getModuleCompletion,
   onOpenAsset,
@@ -5284,6 +5289,7 @@ function LearnerCourseOverview({
   quizAssets: PortalAsset[];
   hasQuizStep: boolean;
   onOpenLesson: (moduleId: string) => void;
+  onOpenLessonAsset: (moduleId: string, asset: PortalAsset) => void;
   onOpenMaterials: () => void;
   getModuleCompletion: (module: PortalModule) => number;
   onOpenAsset: (asset: PortalAsset) => void;
@@ -5422,7 +5428,7 @@ function LearnerCourseOverview({
                               <li key={lesson.id}>
                                 <button
                                   type="button"
-                                  onClick={() => onOpenAsset(lesson)}
+                                  onClick={() => onOpenLessonAsset(module.id, lesson)}
                                   className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-300 hover:bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
