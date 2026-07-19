@@ -297,8 +297,11 @@ function mapLinesToDb(invoiceId: string, lines: any[]) {
     description: l.description,
     product_code: l.productCode || null,
     unit: l.unit || "pz",
-    quantity: l.quantity,
-    unit_price: l.unitPrice,
+    // Coercizione difensiva come il ramo passive: se il provider omette quantity/
+    // unit_price → Number(... ?? 1/0), mai NaN (che corromperebbe la riga e, via
+    // trigger SUM(righe), la testata).
+    quantity: Number(l.quantity ?? 1),
+    unit_price: Number(l.unitPrice ?? 0),
     discount_percent: l.discountPercent || 0,
     tax_rate: l.taxRate,
     tax_nature: l.taxNature || null,
@@ -310,17 +313,44 @@ function mapLinesToDb(invoiceId: string, lines: any[]) {
 }
 
 async function updateInvoiceLinesAtomically(invoiceId: string, lines: any[]) {
-  // Read existing lines for rollback
+  // TODO: spostare delete+insert in una RPC Postgres transazionale (oggi sono due
+  // chiamate REST separate → se l'edge muore tra delete e insert la fattura resta con
+  // 0 righe/total=0). Lato DB lo farà il parent; qui riduciamo la finestra col guard sotto.
+
+  // Read existing lines: serve sia per il guard "solo se cambiate" sia per il rollback.
   const { data: oldLines } = await supabase
     .from("invoice_lines").select("*").eq("invoice_id", invoiceId);
+
+  const newRows = mapLinesToDb(invoiceId, lines);
+
+  // Guard: se le righe a DB sono identiche a quelle nuove, NON toccare nulla. Elimina il
+  // delete+insert inutile (oggi riscrive TUTTE le fatture 2×/giorno) e la relativa finestra
+  // di rischio. I numeric tornano da PostgREST come stringhe → Number() su entrambi i lati.
+  const lineSig = (rows: any[]) => JSON.stringify(
+    (rows || [])
+      .map((r: any) => ({
+        description: r.description ?? null,
+        product_code: r.product_code ?? null,
+        unit: r.unit ?? null,
+        quantity: Number(r.quantity ?? 0),
+        unit_price: Number(r.unit_price ?? 0),
+        discount_percent: Number(r.discount_percent ?? 0),
+        tax_rate: Number(r.tax_rate ?? 0),
+        tax_nature: r.tax_nature ?? null,
+        line_net: Number(r.line_net ?? 0),
+        line_tax: Number(r.line_tax ?? 0),
+        line_gross: Number(r.line_gross ?? 0),
+        sort_order: Number(r.sort_order ?? 0),
+      }))
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+  );
+  if (oldLines?.length && lineSig(oldLines) === lineSig(newRows)) return;
 
   // Delete old lines
   await supabase.from("invoice_lines").delete().eq("invoice_id", invoiceId);
 
   // Insert new lines
-  const { error: insertErr } = await supabase.from("invoice_lines").insert(
-    mapLinesToDb(invoiceId, lines)
-  );
+  const { error: insertErr } = await supabase.from("invoice_lines").insert(newRows);
 
   // If insert fails, restore old lines
   if (insertErr && oldLines?.length) {
@@ -352,7 +382,36 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
   const exp = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
   if (exp && exp - Date.now() > 60_000) return; // ancora valido (>60s)
   if (!integ.refresh_token || !FIC_CLIENT_ID || !FIC_CLIENT_SECRET) return; // niente refresh possibile
+
+  // Advisory lock anti-race (stessa logica di billing-sync): FIC RUOTA il refresh_token,
+  // due refresh concorrenti (cron + manuale) lo invaliderebbero a vicenda → 401 e
+  // integrazione scollegata. Un solo worker rinnova, gli altri ri-leggono il token.
+  const { data: lockAcquired } = await supabase.rpc("try_acquire_token_refresh_lock", {
+    p_integration_id: integ.id,
+  });
+
+  if (!lockAcquired) {
+    // Un altro worker sta già rinnovando: breve attesa con jitter, poi ri-leggo il token.
+    const jitter = 500 + Math.floor(Math.random() * 1500); // 500–2000 ms
+    await new Promise((resolve) => setTimeout(resolve, jitter));
+    const { data: refreshed } = await supabase
+      .from("billing_integrations").select("access_token")
+      .eq("id", integ.id).maybeSingle();
+    if (refreshed?.access_token) integ.access_token = refreshed.access_token as string;
+    return;
+  }
+
   try {
+    // Double-check dopo il lock: un altro worker potrebbe aver già rinnovato prima di noi.
+    const { data: fresh } = await supabase
+      .from("billing_integrations").select("access_token, token_expires_at")
+      .eq("id", integ.id).maybeSingle();
+    const freshExp = fresh?.token_expires_at ? new Date(fresh.token_expires_at as string).getTime() : 0;
+    if (freshExp && freshExp - Date.now() > 60_000) {
+      if (fresh?.access_token) integ.access_token = fresh.access_token as string;
+      return; // già fresco: niente refresh (il finally rilascia il lock)
+    }
+
     const r = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -374,6 +433,9 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
       updated_at: new Date().toISOString(),
     }).eq("id", integ.id);
   } catch { /* best effort: se il refresh fallisce procediamo col token attuale */ }
+  finally {
+    await supabase.rpc("release_token_refresh_lock", { p_integration_id: integ.id });
+  }
 }
 
 async function fetchFICInvoices(integ: any): Promise<any[]> {
@@ -459,17 +521,31 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       paymentMethod: doc.payment_method?.name,
       iban: doc.payment_account?.iban || null,
       lines: (doc.items_list || []).map((item: any) => {
-        const taxRate = item.vat?.value || 22;
-        const lineNet = Math.round(item.net_price * item.qty * (1 - (item.discount || 0) / 100) * 100) / 100;
+        // BUG FISCALE: `item.vat?.value || 22` trasformava l'IVA 0 in 22%.
+        // In JS `0 || 22 === 22`, quindi i forfettari (IVA 0, Natura N2.2) e
+        // le righe esenti/non imponibili (N1..N7) di una SRL prendevano un
+        // 22% fantasma. L'aliquota va LETTA da FIC preservando lo 0; se manca
+        // del tutto NON si inventa IVA (0), mai un default a 22.
+        const vatRaw = item.vat?.value;
+        const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
+        // Coercizione difensiva come il ramo passive (~importFICReceived): se FIC omette
+        // qty/net_price/discount → Number(... ?? 1/0), mai NaN nelle righe/totali.
+        const qty = Number(item.qty ?? 1);
+        const unitPrice = Number(item.net_price ?? 0);
+        const discount = Number(item.discount ?? 0);
+        const lineNet = Math.round(unitPrice * qty * (1 - discount / 100) * 100) / 100;
         const lineTax = Math.round(lineNet * (taxRate / 100) * 100) / 100;
         return {
           description: item.name,
           productCode: item.product_code,
-          quantity: item.qty,
+          quantity: qty,
           unit: item.measure,
-          unitPrice: item.net_price,
-          discountPercent: item.discount,
+          unitPrice: unitPrice,
+          discountPercent: discount,
           taxRate,
+          // Natura IVA da FIC (N2.2 forfettario, N1..N7): serve per esenti/
+          // non imponibili e per la coerenza in XML/anteprima.
+          taxNature: item.vat?.ei_type || null,
           lineNet,
           lineTax,
           lineGross: Math.round((lineNet + lineTax) * 100) / 100,
@@ -517,7 +593,10 @@ async function importFICReceived(integ: any, companyId: string): Promise<{ impor
     if (!numero || !dataFattura) { failed++; continue; }
 
     const righe = (doc.items_list || []).map((item: any) => {
-      const taxRate = item.vat?.value ?? 22;
+      // Stesso principio del blocco attive: preserva l'IVA 0 (forfettario/
+      // esente/non imponibile), mai un default a 22%.
+      const vatRaw = item.vat?.value;
+      const taxRate = Number.isFinite(Number(vatRaw)) ? Number(vatRaw) : 0;
       const qty = Number(item.qty ?? 1);
       const net = Math.round(Number(item.net_price ?? 0) * qty * (1 - (Number(item.discount ?? 0)) / 100) * 100) / 100;
       const tax = Math.round(net * (taxRate / 100) * 100) / 100;

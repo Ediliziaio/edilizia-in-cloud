@@ -17,6 +17,8 @@ import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
 import CategorizationRules from "@/components/tesoreria/CategorizationRules";
 import ExpenseReports from "@/components/tesoreria/ExpenseReports";
+import { ManualTreasuryPanel } from "@/components/tesoreria/ManualTreasuryPanel";
+import { useManualTreasury } from "@/hooks/useManualTreasury";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
@@ -51,6 +53,10 @@ export default function Tesoreria() {
   const [refreshKey, setRefreshKey] = useState(0);
   const { isScopriPlan } = useSubscriptionLimits();
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
+  // Tesoreria manuale: conti/casse creati a mano (senza Open Banking).
+  // Permettono di usare la tesoreria anche senza collegare la banca.
+  const { accounts: manualAccounts, isLoading: manualLoading } = useManualTreasury();
+  const hasManualAccounts = manualAccounts.length > 0;
 
   const bankCallback = searchParams.get("bank_callback");
 
@@ -158,7 +164,7 @@ export default function Tesoreria() {
     );
   }
 
-  if (hasConnections === null) {
+  if (hasConnections === null || manualLoading) {
     return (
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
@@ -180,7 +186,7 @@ export default function Tesoreria() {
     );
   }
 
-  if (!hasConnections) {
+  if (!hasConnections && !hasManualAccounts) {
     return (
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
@@ -194,7 +200,7 @@ export default function Tesoreria() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-16 gap-5 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Landmark className="h-8 w-8 text-primary" />
           </div>
@@ -213,6 +219,19 @@ export default function Tesoreria() {
             <Link className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
+        </div>
+
+        {/* Alternativa senza banca: conti/casse manuali con import CSV/Excel o AI.
+            Appena l'utente ne crea uno, hasManualAccounts diventa true e si apre
+            la tesoreria completa a tab (saldi, previsionali, controllo di gestione). */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold text-slate-900">Non usi l'Open Banking? Gestisci a mano</h2>
+            <p className="text-sm text-muted-foreground">
+              Crea un conto o una cassa manuale e carica i movimenti a mano, oppure importa l'estratto conto da CSV/Excel o da una foto/PDF letta dall'AI. Alimenta comunque tesoreria, previsionali e controllo di gestione.
+            </p>
+          </div>
+          <ManualTreasuryPanel />
         </div>
       </div>
     );
@@ -234,11 +253,13 @@ export default function Tesoreria() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">Open Banking · PSD2</Badge>
-            <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-              {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Sincronizza
-            </Button>
+            <Badge variant="outline" className="text-xs">{hasConnections ? "Open Banking · PSD2" : "Gestione manuale"}</Badge>
+            {hasConnections && (
+              <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Sincronizza
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -277,7 +298,11 @@ export default function Tesoreria() {
           <TreasuryOverview companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} onNavigateToTransactions={() => handleTabChange("transazioni")} />
         </TabsContent>
         <TabsContent value="conti">
-          <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
+          <div className="space-y-8">
+            {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
+            {hasConnections && <div className="border-t border-slate-100" />}
+            <ManualTreasuryPanel />
+          </div>
         </TabsContent>
         <TabsContent value="transazioni">
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />

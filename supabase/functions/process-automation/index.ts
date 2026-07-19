@@ -2606,14 +2606,25 @@ async function processTriggerEvents(supabase: any) {
         entity_type: evt.entity_type,
         payload: evt.payload,
       });
+
+      // Segna processed SOLO in caso di successo: un errore transitorio (es.
+      // enrollment del lead FB fallito) non deve marcare l'evento come fatto,
+      // altrimenti l'automazione va persa in silenzio. Restando processed=false
+      // il cron (ogni minuto) lo riprova.
+      await supabase
+        .from("automation_trigger_events")
+        .update({ processed: true })
+        .eq("id", evt.id);
     } catch (err: any) {
       console.error(`Trigger event ${evt.id} error:`, err);
+      // NON marcare processed: l'evento resta in coda e verrà ritentato.
+      // RISCHIO NOTO: automation_trigger_events non ha un contatore di tentativi,
+      // quindi un evento che fallisce SEMPRE (es. payload corrotto) verrà
+      // ritentato all'infinito e, essendo il più vecchio (order created_at ASC,
+      // limit 100), resta in testa alla batch. Se diventa un problema, aggiungere
+      // una colonna attempt_count con cap ~5 e marcarlo processed oltre soglia.
+      // Per ora si preferisce il retry alla perdita silenziosa dell'automazione.
     }
-    // Mark as processed regardless
-    await supabase
-      .from("automation_trigger_events")
-      .update({ processed: true })
-      .eq("id", evt.id);
   }
 
   // Process waiting queue items that have timed out

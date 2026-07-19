@@ -103,8 +103,16 @@ Deno.serve(async (req) => {
       const longLivedRes = await fetch(longLivedUrl);
       const longLivedData = await longLivedRes.json();
 
-      const accessToken = longLivedData.access_token || shortLivedToken;
-      const expiresIn = longLivedData.expires_in || 5184000; // default 60 days
+      // Se lo scambio long-lived fallisce (error o access_token assente) NON dobbiamo
+      // salvare il token short-lived (~1h) con scadenza a 60 giorni: il token morirebbe
+      // in silenzio mentre health-check/UI lo credono valido per 2 mesi. In quel caso
+      // usiamo una scadenza realistica breve e marchiamo l'integrazione come 'warn'.
+      const longLivedOk = !longLivedData.error && !!longLivedData.access_token;
+      if (!longLivedOk) {
+        console.warn("Meta long-lived token exchange failed:", longLivedData.error ?? "no access_token");
+      }
+      const accessToken = longLivedOk ? longLivedData.access_token : shortLivedToken;
+      const expiresIn = longLivedOk ? (longLivedData.expires_in || 5184000) : 3600; // 60g solo se long-lived ok
 
       // Get Meta user info
       const meRes = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${accessToken}`);
@@ -121,9 +129,12 @@ Deno.serve(async (req) => {
             provider: "meta",
             status: "pending",
             connected_by: user_id,
-            health: "ok",
-            last_error_code: null,
-            last_error_message: null,
+            // Token long-lived non ottenuto → salute 'warn' (connessione a rischio scadenza breve).
+            health: longLivedOk ? "ok" : "warn",
+            last_error_code: longLivedOk ? null : "long_lived_exchange_failed",
+            last_error_message: longLivedOk
+              ? null
+              : "Token a lunga durata non ottenuto da Meta: la connessione scadrà a breve, riconnetti.",
             updated_at: new Date().toISOString(),
           },
           { onConflict: "company_id,provider" }
@@ -275,6 +286,18 @@ Deno.serve(async (req) => {
       }
 
       if (allPages.length > 0) {
+        // Preserva le pagine già selezionate prima del refresh: un ri-OAuth non deve
+        // azzerare la scelta (altrimenti tutte le pagine FB/IG tornano selected=false e
+        // la pubblicazione si ferma finché l'utente non ri-seleziona a mano). Stesso
+        // pattern degli ad account (prevSelected) qui sopra.
+        const { data: prevSelPages } = await adminClient
+          .from("meta_assets")
+          .select("asset_id")
+          .eq("integration_id", integration.id)
+          .eq("asset_type", "page")
+          .eq("selected", true);
+        const prevSelectedPages = new Set((prevSelPages ?? []).map((r: any) => r.asset_id));
+
         // Clear old page assets for this integration
         await adminClient
           .from("meta_assets")
@@ -290,7 +313,8 @@ Deno.serve(async (req) => {
           asset_type: "page",
           asset_id: page.id,
           asset_name: page.name,
-          selected: false,
+          // Ripristina la selezione precedente (vedi prevSelectedPages sopra).
+          selected: prevSelectedPages.has(page.id),
           metadata: {
             instagram_business_account: page.instagram_business_account || null,
             biz_name: page._biz_name || null,

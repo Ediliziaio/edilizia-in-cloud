@@ -12,12 +12,41 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
 const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET") || "";
 
-// Refresh token FIC (stessa logica di billing-import): rinnova se scade entro 60s.
+// Refresh token FIC (stessa logica di billing-import/billing-sync): rinnova se scade
+// entro 60s, protetto da advisory lock anti-race.
 async function ensureFreshFicToken(integ: any): Promise<void> {
   const exp = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
   if (exp && exp - Date.now() > 60_000) return;
   if (!integ.refresh_token || !FIC_CLIENT_ID || !FIC_CLIENT_SECRET) return;
+
+  // Advisory lock anti-race: FIC RUOTA il refresh_token, due refresh concorrenti
+  // (cron + azione utente) lo invaliderebbero a vicenda → 401 e integrazione scollegata.
+  const { data: lockAcquired } = await supabase.rpc("try_acquire_token_refresh_lock", {
+    p_integration_id: integ.id,
+  });
+
+  if (!lockAcquired) {
+    // Un altro worker sta già rinnovando: breve attesa con jitter, poi ri-leggo il token.
+    const jitter = 500 + Math.floor(Math.random() * 1500); // 500–2000 ms
+    await new Promise((resolve) => setTimeout(resolve, jitter));
+    const { data: refreshed } = await supabase
+      .from("billing_integrations").select("access_token")
+      .eq("id", integ.id).maybeSingle();
+    if (refreshed?.access_token) integ.access_token = refreshed.access_token as string;
+    return;
+  }
+
   try {
+    // Double-check dopo il lock: un altro worker potrebbe aver già rinnovato prima di noi.
+    const { data: fresh } = await supabase
+      .from("billing_integrations").select("access_token, token_expires_at")
+      .eq("id", integ.id).maybeSingle();
+    const freshExp = fresh?.token_expires_at ? new Date(fresh.token_expires_at as string).getTime() : 0;
+    if (freshExp && freshExp - Date.now() > 60_000) {
+      if (fresh?.access_token) integ.access_token = fresh.access_token as string;
+      return; // già fresco: niente refresh (il finally rilascia il lock)
+    }
+
     const r = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -39,6 +68,9 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
       updated_at: new Date().toISOString(),
     }).eq("id", integ.id);
   } catch { /* best effort */ }
+  finally {
+    await supabase.rpc("release_token_refresh_lock", { p_integration_id: integ.id });
+  }
 }
 
 Deno.serve(async (req) => {

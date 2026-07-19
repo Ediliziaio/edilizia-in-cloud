@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       .from("integrations")
       .select("id, company_id, status, health, last_sync_at, updated_at")
       .eq("provider", "meta")
-      .in("status", ["connected", "error", "token_expired"]);
+      .in("status", ["connected", "error", "token_expired", "pending"]);
 
     if (intErr) throw intErr;
 
@@ -161,10 +161,21 @@ Deno.serve(async (req) => {
     // tempo reale ma solo col backfill manuale. Se l'iscrizione manca la crea
     // ora e recupera i lead degli ultimi 3 giorni (persi mentre mancava).
     const healed: Array<{ integration_id: string; page_id: string; backfilled: number }> = [];
+    // Budget wall-clock: il self-healing (subscribed_apps + backfill lead per
+    // pagina/form) può superare l'IDLE_TIMEOUT (~150s) e far 504 il cron delle
+    // 06:00. Non avviare nuovo lavoro (per-integrazione e per-pagina) oltre 120s
+    // e ritorna quanto fatto: il resto viene ripreso alla prossima esecuzione.
+    const SELF_HEAL_BUDGET_MS = 120000;
+    const startedAt = Date.now();
+    const selfHealDeadline = startedAt + SELF_HEAL_BUDGET_MS;
     for (const integ of integrations || []) {
       if (integ.status === "token_expired") continue;
+      if (Date.now() > selfHealDeadline) {
+        console.warn("meta-health-check: budget self-healing (120s) esaurito, mi fermo");
+        break;
+      }
       try {
-        const results2 = await ensureLeadgenSubscriptions(admin, integ);
+        const results2 = await ensureLeadgenSubscriptions(admin, integ, selfHealDeadline);
         healed.push(...results2);
       } catch (e) {
         console.warn(`meta-health-check: self-healing iscrizioni ${integ.id} fallito:`, e);
@@ -189,6 +200,7 @@ Deno.serve(async (req) => {
 async function ensureLeadgenSubscriptions(
   admin: any,
   integ: { id: string; company_id: string },
+  deadlineMs?: number,
 ): Promise<Array<{ integration_id: string; page_id: string; backfilled: number; verified?: boolean }>> {
   const out: Array<{ integration_id: string; page_id: string; backfilled: number; verified?: boolean }> = [];
 
@@ -213,6 +225,12 @@ async function ensureLeadgenSubscriptions(
   const encKey = getEncryptionKey();
 
   for (const page of pages) {
+    // Rispetta il budget wall-clock: non avviare il self-healing di nuove
+    // pagine (verifica subscribed_apps + backfill) oltre la deadline.
+    if (deadlineMs && Date.now() > deadlineMs) {
+      console.warn("meta-health-check: budget self-healing esaurito, interrompo le pagine rimanenti");
+      break;
+    }
     const encTok = pageTokens[page.asset_id];
     if (!encTok) continue;
 

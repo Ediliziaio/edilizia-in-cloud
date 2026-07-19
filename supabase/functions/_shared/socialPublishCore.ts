@@ -161,9 +161,18 @@ async function waitForContainer(igUserId: string, creationId: string, token: str
 }
 
 async function persist(admin: Admin, post: SocialPostRow, result: PublishResult, anyOk = false): Promise<void> {
+  // social_posts NON ha colonne fail_count/last_error: l'errore per-piattaforma
+  // resta in publish_result (unico canale d'errore esistente).
+  // Bug fix: su fallimento totale marchiamo 'failed' invece di lasciare il post
+  // 'scheduled' con scheduled_at nel passato — altrimenti il cron lo ripubblicava
+  // a ogni giro all'infinito senza mai marcarlo fallito. Un post già 'published'
+  // resta 'published' (un re-publish fallito non deve declassarlo né rimetterlo in coda).
+  const nextStatus = anyOk
+    ? "published"
+    : (post.status === "published" ? "published" : "failed");
   await admin.from("social_posts").update({
     publish_result: result,
-    status: anyOk ? "published" : (post.status === "published" ? "scheduled" : post.status),
+    status: nextStatus,
     updated_at: new Date().toISOString(),
   }).eq("id", post.id);
 }

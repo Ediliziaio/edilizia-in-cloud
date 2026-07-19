@@ -172,6 +172,18 @@ Deno.serve(async (req) => {
             const today = new Date().toISOString().split("T")[0];
             const insightRow = {
               company_id: c.company_id,
+              // ad_account_id e' text NOT NULL: senza questo campo OGNI upsert
+              // campaign-daily falliva la NOT-NULL e finiva muto in errors[]
+              // (il cron restituiva comunque 200 → zero righe scritte).
+              // ⚠️ COLLISIONE INDICE: valorizzando ad_account_id, l'indice unico
+              // meta_insights_cache_company_id_ad_account_id_date_start_dat_key
+              // (company_id, ad_account_id, date_start, date_stop) diventa
+              // condiviso da TUTTE le campagne dello stesso account/giorno.
+              // L'upsert qui fa onConflict sulla campaign_daily key, quindi la
+              // 2ª campagna/giorno viola QUEST'ALTRO indice e ricade in errors[].
+              // Da risolvere a livello schema (es. indice parziale su level), NON
+              // qui.
+              ad_account_id: c.meta_act_id,
               campaign_id: lc.id,
               // Sentinel uuid-zero (le colonne sono uuid NOT NULL e fanno
               // parte della chiave unica meta_insights_cache_campaign_daily_key:

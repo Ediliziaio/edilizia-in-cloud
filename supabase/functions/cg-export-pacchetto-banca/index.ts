@@ -23,7 +23,7 @@ interface CEResp { meta: { anno: number; }; voci: VoceCE[]; }
 interface SPResp {
   meta: { anno: number; data_riferimento: string; };
   attivo: { attivo_fisso: number; attivo_circolante: number; totale: number; rimanenze: number; crediti_clienti: number; liquidita_immediate: number; };
-  passivo: { mezzi_propri: number; capitale_sociale: number; riserve: number; utile_esercizio: number; pas_consolidato: number; pas_corrente: number; debiti_fornitori: number; totale: number; };
+  passivo: { mezzi_propri: number; capitale_sociale: number; riserve: number; utile_esercizio: number; rettifica_patrimoniale: number; pas_consolidato: number; pas_corrente: number; debiti_fornitori: number; totale: number; };
   quadratura: { differenza: number; quadrato: boolean; };
 }
 interface RTResp {
@@ -229,6 +229,7 @@ function drawSPColumns(ctx: DrawCtx, sp: SPResp) {
     ["  di cui Capitale Sociale", sp.passivo.capitale_sociale, false],
     ["  di cui Riserve", sp.passivo.riserve, false],
     ["  di cui Utile Esercizio", sp.passivo.utile_esercizio, false],
+    ["  di cui Riserve/rettifiche di raccordo", sp.passivo.rettifica_patrimoniale ?? 0, false],
     ["Passivo Consolidato", sp.passivo.pas_consolidato, true],
     ["Passivo Corrente", sp.passivo.pas_corrente, true],
     ["TOTALE PASSIVO", sp.passivo.totale, true],

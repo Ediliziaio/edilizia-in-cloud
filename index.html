@@ -395,6 +395,44 @@
       })();
     </script>
 
+    <!-- Google Tag Manager — deferred, marketing pages only (stesso gating host/private di GA4) -->
+    <script>
+      (function () {
+        var GTM_ID = 'GTM-PGLNPBW9';
+        var MARKETING_HOSTS = {
+          'ediliziaincloud.com': true,
+          'www.ediliziaincloud.com': true
+        };
+        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
+        var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
+        if (!isPublicMarketingPage) return;
+
+        // dataLayer è condiviso con GA4 (già inizializzato sopra): GTM e gtag
+        // convivono spingendo sullo stesso array, nessun conflitto.
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+
+        var gtmLoaded = false;
+        function loadGTM() {
+          if (gtmLoaded) return;
+          gtmLoaded = true;
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtm.js?id=' + GTM_ID;
+          document.head.appendChild(s);
+        }
+        // Stesso defer di GA4: prima interazione utente, oppure load + 1.5s.
+        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
+        function onInteract() {
+          EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
+          loadGTM();
+        }
+        EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
+        window.addEventListener('load', function(){ setTimeout(loadGTM, 1500); }, { once: true });
+      })();
+    </script>
+    <!-- End Google Tag Manager -->
+
     <!-- Meta Pixel — deferred, marketing pages only (stesso gating host/private di GA4) -->
     <script>
       (function () {

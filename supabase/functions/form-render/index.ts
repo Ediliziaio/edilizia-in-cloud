@@ -307,7 +307,15 @@ Deno.serve(async (req) => {
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){
-          if(r.redirect_url){window.location.href=r.redirect_url;return;}
+          if(r.redirect_url){
+            // Redirect a livello di PAGINA INTERA (non solo dell'iframe): così sul
+            // sito del cliente il visitatore atterra davvero su /grazie e il
+            // tracking conversioni (GA/pixel) parte come una vera navigazione.
+            // Fallback all'iframe se il top è inaccessibile (contesto sandboxed).
+            try{ window.top.location.href=r.redirect_url; }
+            catch(e){ window.location.href=r.redirect_url; }
+            return;
+          }
           if(r.success_title)document.getElementById('successTitle').textContent=r.success_title;
           if(r.success_message)document.getElementById('successMsg').textContent=r.success_message;
           document.getElementById('formSection').classList.add('hidden');

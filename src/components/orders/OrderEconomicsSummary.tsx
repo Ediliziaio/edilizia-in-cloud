@@ -130,10 +130,13 @@ export function OrderEconomicsSummary({
     enabled: !!orderId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
+      // Solo ODA realmente emessi: escludi bozza (e annullato) dal consuntivo
+      // materiali, altrimenti una bozza mai inviata gonfia costo/margine.
       const { data, error } = await supabase
         .from("purchase_orders")
         .select("subtotal")
-        .eq("order_id", orderId);
+        .eq("order_id", orderId)
+        .in("status", ["inviato", "confermato", "parziale", "ricevuto"]);
       if (error) throw error;
       return (data ?? []) as { subtotal: number | null }[];
     },

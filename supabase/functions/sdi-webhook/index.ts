@@ -119,14 +119,19 @@ Deno.serve(async (req) => {
         // Mancata consegna — SDI deposits in cassetto fiscale, keep current stato
         newStato = null;
         break;
-      case "EC":
-        // Check EC01 (accepted) or EC02 (rejected)
-        if (body.includes("EC01") || body.includes("Accettazione")) {
+      case "EC": {
+        // Notifica Esito Committente: l'esito reale è nell'elemento <Esito>
+        // (EC01 = accettazione, EC02 = rifiuto). Leggerlo via getTag/parser è
+        // robusto; il vecchio body.includes("EC01"/"EC02") su tutto l'XML poteva
+        // matchare la stringa ovunque (es. dentro un id o un riferimento).
+        const esito = (getTag("Esito") || "").toUpperCase();
+        if (esito === "EC01") {
           newStato = "accettata";
-        } else if (body.includes("EC02") || body.includes("Rifiuto")) {
+        } else if (esito === "EC02") {
           newStato = "rifiutata";
         }
         break;
+      }
       case "DT":
         newStato = "accettata"; // Tacit acceptance
         break;

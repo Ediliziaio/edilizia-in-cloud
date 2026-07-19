@@ -47,7 +47,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
 
     const uniqueOrders = (arr: WarehouseItem[]) => new Set(arr.map((i) => i.order.id)).size;
     const calculateValue = (arr: WarehouseItem[]) =>
-      arr.reduce((sum, item) => sum + (item.purchase_price || 0) * (item.quantity || 1), 0);
+      arr.reduce((sum, item) => sum + (item.purchase_price || 0) * (item.quantity ?? 0), 0);
 
     return {
       overdue: { count: overdue.length, orders: uniqueOrders(overdue) },

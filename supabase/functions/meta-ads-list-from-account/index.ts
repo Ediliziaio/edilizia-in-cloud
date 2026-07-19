@@ -112,21 +112,32 @@ Deno.serve(async (req) => {
     }
 
     // --- LOAD ACCESS TOKEN ---
+    // Lo status resta su integrations; il token vive su integration_credentials
+    // (access_token_encrypted AES-GCM) — stessa fonte di meta-ads-sync-insights.
     const { data: integration, error: integErr } = await admin
       .from("integrations")
-      .select("access_token_encrypted, status")
+      .select("status")
       .eq("id", adAccount.integration_id)
       .eq("company_id", body.company_id)
       .maybeSingle();
-    if (integErr || !integration?.access_token_encrypted) {
+    if (integErr || !integration) {
       return json({ error: "integration_token_missing" }, 400, corsHeaders);
     }
     if (integration.status !== "connected") {
       return json({ error: "integration_not_connected" }, 400, corsHeaders);
     }
 
+    const { data: cred } = await admin
+      .from("integration_credentials")
+      .select("access_token_encrypted")
+      .eq("integration_id", adAccount.integration_id)
+      .maybeSingle();
+    if (!cred?.access_token_encrypted) {
+      return json({ error: "integration_token_missing" }, 400, corsHeaders);
+    }
+
     const encKey = await getEncryptionKey();
-    const accessToken = await decrypt(integration.access_token_encrypted, encKey);
+    const accessToken = await decrypt(cred.access_token_encrypted, encKey);
 
     // --- FETCH CAMPAIGNS ---
     const errors: string[] = [];

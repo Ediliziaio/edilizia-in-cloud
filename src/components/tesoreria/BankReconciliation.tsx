@@ -161,7 +161,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     if (matching) return;
     setMatching(true);
     try {
-      const matchedAmount = Math.abs(tx.amount);
+      // Cap sul residuo della fattura (coerente con l'edge auto-reconcile): un
+      // bonifico più grande del dovuto NON deve registrare un pagamento in eccesso.
+      const residuo = Number(inv.total || 0) - Number(inv.paid_amount || 0);
+      const matchedAmount = Math.min(Math.abs(tx.amount), residuo);
       const fullyPaid = (Number(inv.paid_amount || 0) + matchedAmount) >= Number(inv.total || 0);
 
       // Step 1: link transaction

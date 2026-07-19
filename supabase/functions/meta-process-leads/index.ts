@@ -1,9 +1,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const MAX_RETRIES = 10;
 const BATCH_SIZE = 20;
+
+/**
+ * Errore di auth/permessi da Meta (code 190 = token scaduto/revocato, 10 e 200
+ * = permessi mancanti). Gestito a parte dal loop: NON consuma i retry
+ * dell'evento e flagga l'integrazione come token_expired (health-check avvisa +
+ * UI mostra "Riconnetti").
+ */
+class MetaAuthError extends Error {
+  code: number;
+  constructor(code: number, message: string) {
+    super(message);
+    this.name = "MetaAuthError";
+    this.code = code;
+  }
+}
 
 /**
  * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza validare.
@@ -143,6 +158,35 @@ Deno.serve(async (req) => {
         console.error(`Failed to process event ${event.id}:`, error);
         const message = String((error as Error).message ?? error);
 
+        // Errore di auth/permessi Meta (token scaduto/revocato): NON bruciare i
+        // retry. Durante la finestra di token scaduto il lead va rielaborato
+        // dopo la riconnessione: flagga l'integrazione come token_expired
+        // (health-check avvisa + UI mostra "Riconnetti") e lascia l'evento
+        // 'pending' senza incrementare fail_count.
+        if (error instanceof MetaAuthError) {
+          if (event.integration_id) {
+            await adminClient
+              .from("integrations")
+              .update({
+                status: "token_expired",
+                health: "critical",
+                last_error_message: message.slice(0, 500),
+              })
+              .eq("id", event.integration_id);
+          }
+          await adminClient
+            .from("integration_webhook_events")
+            .update({
+              status: "pending",
+              locked_by: null,
+              locked_at: null,
+            })
+            .eq("id", event.id);
+
+          failed++;
+          continue;
+        }
+
         const newFailCount = (event.fail_count || 0) + 1;
         const newStatus = newFailCount >= MAX_RETRIES ? "failed" : "pending";
 
@@ -240,6 +284,10 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     lead = await leadRes.json();
 
     if (lead.error) {
+      const code = lead.error.code;
+      if (code === 190 || code === 10 || code === 200) {
+        throw new MetaAuthError(code, `Meta API auth error (${code}): ${lead.error.message}`);
+      }
       throw new Error(`Meta API error: ${lead.error.message}`);
     }
   }

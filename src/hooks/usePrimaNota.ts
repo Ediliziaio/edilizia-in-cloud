@@ -139,6 +139,38 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     gcTime: 15 * 60 * 1000,
   });
 
+  // Grafico "ultimi 6 mesi": aggregazione mensile su TUTTE le registrazioni degli
+  // ultimi 6 mesi, indipendente da paginazione e dai filtri di lista. Prima il
+  // grafico leggeva la lista paginata/filtrata (default = solo mese corrente, 50
+  // righe) → mostrava un solo mese.
+  const monthlyChartQuery = useQuery({
+    queryKey: ["primaNota", "chart6m", companyId],
+    queryFn: async () => {
+      const since = new Date();
+      since.setDate(1);
+      since.setMonth(since.getMonth() - 5);
+      const sinceStr = since.toLocaleDateString("en-CA"); // yyyy-MM-dd, locale
+      const { data, error } = await supabase
+        .from("prima_nota_entries")
+        .select("amount, direction, entry_date")
+        .eq("company_id", companyId!)
+        .gte("entry_date", sinceStr)
+        .limit(50000);
+      if (error) throw error;
+      const buckets: Record<string, { entrate: number; uscite: number }> = {};
+      for (const r of ((data as { amount: number | null; direction: string; entry_date: string }[]) ?? [])) {
+        const key = r.entry_date.slice(0, 7); // "yyyy-MM"
+        const b = (buckets[key] ??= { entrate: 0, uscite: 0 });
+        const amt = Number(r.amount) || 0;
+        if (r.direction === "entrata") b.entrate += amt; else b.uscite += amt;
+      }
+      return buckets;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
   /** Tutte le righe filtrate (senza paginazione) per l'export CSV completo. */
   const fetchAllForExport = async (): Promise<PrimaNotaEntry[]> => {
     if (!companyId) return [];
@@ -219,6 +251,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     totalPages,
     saldo: saldoQuery.data,
     isSaldoLoading: saldoQuery.isLoading,
+    monthlyChart: monthlyChartQuery.data,
     create: createMutation,
     remove: deleteMutation,
     fetchAllForExport,

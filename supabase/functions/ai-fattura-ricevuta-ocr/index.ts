@@ -174,7 +174,7 @@ serve(async (req: Request) => {
     if (autoCreate) {
       const { data: ins, error: insErr } = await supabaseAdmin
         .from("fatture_ricevute")
-        .upsert({
+        .insert({
           company_id: companyId,
           numero_fattura: parsed.numero_fattura,
           data_fattura: parsed.data_fattura,
@@ -194,12 +194,28 @@ serve(async (req: Request) => {
           pdf_url: previewUrl,
           pdf_storage_bucket: bucket,
           pdf_storage_path: storagePath,
-          stato: "da_verificare",
+          stato: "non_letta",
           note: `OCR Silvio (confidence ${parsed.confidence ?? "n/a"})`,
-        }, { onConflict: "company_id,numero_fattura,cedente_piva", ignoreDuplicates: false })
+        })
         .select("id").single();
       if (insErr) {
-        console.error("[ai-fattura-ocr] insert failed:", insErr);
+        // 23505 = duplicato sull'unique index naturale PARZIALE ux_fatture_ricevute_natural
+        // (company_id, cedente_piva, numero_fattura, data_fattura). Le upsert via PostgREST
+        // non possono inferire un indice parziale (manca il predicato) → 42P10. Come
+        // ricevi-sdi: insert semplice + recupero dell'id esistente se già registrata.
+        if ((insErr as { code?: string }).code === "23505") {
+          const { data: existing } = await supabaseAdmin
+            .from("fatture_ricevute")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("cedente_piva", cedente.piva)
+            .eq("numero_fattura", parsed.numero_fattura)
+            .eq("data_fattura", parsed.data_fattura)
+            .maybeSingle();
+          createdId = existing?.id ?? null;
+        } else {
+          console.error("[ai-fattura-ocr] insert failed:", insErr);
+        }
       } else {
         createdId = ins?.id ?? null;
       }

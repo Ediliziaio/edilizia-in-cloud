@@ -85,11 +85,10 @@ Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
 
   try {
-    const { supabaseAdmin } = await requireAuth(req, corsH);
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
     const body = await req.json().catch(() => ({}));
-    const { company_id, anno, mese_da = 1, mese_a = 12 } = body as {
-      company_id?: string;
+    const { anno, mese_da = 1, mese_a = 12 } = body as {
       anno?: number;
       mese_da?: number;
       mese_a?: number;
@@ -97,6 +96,15 @@ Deno.serve(async (req) => {
     if (!anno || typeof anno !== "number") {
       return errorResponse("Parametro 'anno' obbligatorio (es. 2026)", 400, corsH);
     }
+
+    // SICUREZZA (P0 IDOR): NON fidarsi di body.company_id — con il service-role
+    // le RPC cg_* hanno il guard NULL-unsafe (get_my_company_id() = NULL) e
+    // restituirebbero il CE di QUALSIASI azienda. Risolvi l'azienda dal profilo
+    // dell'utente autenticato, come cg-export-pacchetto-banca.
+    const { data: prof } = await supabaseAdmin
+      .from("profiles").select("company_id").eq("id", userId).maybeSingle();
+    const company_id = prof?.company_id as string | undefined;
+    if (!company_id) return errorResponse("Profilo senza company_id", 400, corsH);
 
     const { data: ceData, error: ceErr } = await supabaseAdmin.rpc(
       "cg_get_conto_economico_riclassificato" as never,

@@ -4,7 +4,7 @@ import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
-import { useSEO } from "@/hooks/useSEO";
+import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { linkifyNormative } from "@/lib/blog/normativeLinks";
 import { linkifyInternal } from "@/lib/blog/internalLinks";
@@ -176,6 +176,11 @@ export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
   const post = blogPosts.find((p) => p.slug === slug);
 
+  // og:image / JSON-LD richiedono URL assoluti (i crawler social scartano i path relativi).
+  const coverImageAbs = post
+    ? (post.coverImage.startsWith("http") ? post.coverImage : `${SITE_URL}${post.coverImage}`)
+    : undefined;
+
   // Always call hooks — conditional rendering happens after
   useSEO(
     post
@@ -183,6 +188,7 @@ export default function BlogPost() {
           title: post.title,
           description: post.excerpt,
           canonical: `/blog/${post.slug}/`,
+          ogImage: coverImageAbs,
           type: "article",
           publishedTime: post.publishedAt,
           modifiedTime: post.updatedAt ?? post.publishedAt,
@@ -242,7 +248,7 @@ export default function BlogPost() {
     description: post.excerpt,
     image: {
       "@type": "ImageObject",
-      url: post.coverImage,
+      url: coverImageAbs,
       width: 1200,
       height: 630,
     },
@@ -289,7 +295,7 @@ export default function BlogPost() {
           "@type": "HowTo",
           name: post.title,
           description: post.excerpt,
-          image: { "@type": "ImageObject", url: post.coverImage, width: 1200, height: 630 },
+          image: { "@type": "ImageObject", url: coverImageAbs, width: 1200, height: 630 },
           estimatedCost: { "@type": "MonetaryAmount", currency: "EUR", value: "0" },
           totalTime: `PT${post.readTime}M`,
           step: howToSteps,

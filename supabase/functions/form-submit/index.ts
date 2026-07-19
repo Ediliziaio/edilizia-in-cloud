@@ -222,6 +222,9 @@ Deno.serve(async (req) => {
     let mappedFirstName: string | null = null;
     let mappedLastName: string | null = null;
     let mappedPhone: string | null = null;
+    // Altri campi anagrafici mappati sul contatto (città, azienda, indirizzo…).
+    // Prima venivano ignorati: restavano solo nella submission, non sul contatto.
+    const mappedExtra: Record<string, string> = {};
 
     for (const field of fields) {
       const fieldKey = field.id || field.name;
@@ -233,6 +236,19 @@ Deno.serve(async (req) => {
       else if (mapping === "first_name" || mapping === "nome") mappedFirstName = value;
       else if (mapping === "last_name" || mapping === "cognome") mappedLastName = value;
       else if (mapping === "phone" || mapping === "telefono" || field.type === "phone") mappedPhone = value;
+      else if (mapping === "company_name" || mapping === "azienda" || mapping === "ragione_sociale") mappedExtra.company_name = value;
+      else if (mapping === "city" || mapping === "citta" || mapping === "città") mappedExtra.city = value;
+      else if (mapping === "address" || mapping === "indirizzo") mappedExtra.address = value;
+      else if (mapping === "postal_code" || mapping === "cap") mappedExtra.postal_code = value;
+      else if (mapping === "province" || mapping === "provincia") mappedExtra.province = value;
+      else if (mapping === "notes" || mapping === "note") mappedExtra.notes = value;
+    }
+
+    // Pulisce e tiene solo i valori non vuoti dei campi extra mappati.
+    const extraContactFields: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(mappedExtra)) {
+      const cleaned = cleanText(raw);
+      if (cleaned) extraContactFields[key] = cleaned;
     }
 
     // Fallback: try common field names directly
@@ -285,6 +301,9 @@ Deno.serve(async (req) => {
           last_activity_at: new Date().toISOString(),
           ...(validEmail ? { email: validEmail } : {}),
           ...(phone ? { phone } : {}),
+          // Città, azienda, indirizzo… (solo i valori compilati, non sovrascrive
+          // con vuoti un contatto già esistente).
+          ...extraContactFields,
         };
         if (assignedUserId) contactUpdate.assigned_to = assignedUserId;
         if (defaultTags.length > 0) contactUpdate.tags = mergeStringLists(existing.tags, defaultTags);
@@ -305,6 +324,8 @@ Deno.serve(async (req) => {
           attr_medium: utm_medium || null,
           attr_campaign: utm_campaign || null,
           attr_content: utm_content || null,
+          // Città, azienda, indirizzo… mappati dal form.
+          ...extraContactFields,
         };
 
         if (assignedUserId) insertPayload.assigned_to = assignedUserId;

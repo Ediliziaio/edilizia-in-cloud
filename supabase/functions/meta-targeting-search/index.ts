@@ -14,7 +14,7 @@
  *
  * Auth:
  *   • JWT utente loggato (companyId verificato)
- *   • Token Meta letto da integrations.access_token_encrypted
+ *   • Token Meta letto da integration_credentials.access_token_encrypted
  *
  * Body:
  *   {
@@ -279,17 +279,26 @@ Deno.serve(async (req) => {
     if (adAccount?.integration_id) {
       const { data: integration } = await admin
         .from("integrations")
-        .select("access_token_encrypted, status")
+        .select("status")
         .eq("id", adAccount.integration_id)
         .eq("company_id", body.company_id)
         .maybeSingle();
 
-      if (integration?.access_token_encrypted && integration.status === "connected") {
-        try {
-          const encKey = await getEncryptionKey();
-          accessToken = await decrypt(integration.access_token_encrypted, encKey);
-        } catch (e) {
-          console.warn("[meta-targeting-search] decrypt failed", e);
+      if (integration?.status === "connected") {
+        // Il token vive su integration_credentials (AES-GCM), non su
+        // integrations — stessa fonte di meta-ads-sync-insights.
+        const { data: cred } = await admin
+          .from("integration_credentials")
+          .select("access_token_encrypted")
+          .eq("integration_id", adAccount.integration_id)
+          .maybeSingle();
+        if (cred?.access_token_encrypted) {
+          try {
+            const encKey = await getEncryptionKey();
+            accessToken = await decrypt(cred.access_token_encrypted, encKey);
+          } catch (e) {
+            console.warn("[meta-targeting-search] decrypt failed", e);
+          }
         }
       }
     }

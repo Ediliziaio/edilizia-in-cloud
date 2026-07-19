@@ -1,3 +1,4 @@
+// NB: il cron whatsapp-ai-recovery (jobid 38) è disabilitato — riabilitare dopo il deploy di questo fix.
 // P1-1: cron recovery per messaggi WhatsApp stuck in processing_status='received'.
 // whatsapp-webhook invoca whatsapp-ai-processor in fire-and-forget; se il
 // processor era giù/lento/rate-limited il messaggio restava 'received' per
@@ -25,7 +26,11 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const cronSecret = Deno.env.get("CRON_SECRET") ?? Deno.env.get("INTERNAL_CRON_SECRET");
+  // Il cron invia x-cron-secret := current_setting('app.internal_cron_secret'),
+  // che corrisponde alla env INTERNAL_CRON_SECRET (stesso pattern di
+  // whatsapp-send / whatsapp-operational-reminders). CRON_SECRET resta come
+  // fallback legacy per non regredire installazioni che settano solo quello.
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? Deno.env.get("CRON_SECRET");
   const provided = req.headers.get("x-cron-secret");
   if (!cronSecret || provided !== cronSecret) {
     return new Response("Unauthorized", { status: 401, headers: corsHeaders });
@@ -34,6 +39,18 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceKey);
+
+  // whatsapp-ai-processor rifiuta le chiamate senza x-internal-worker-key valido
+  // (503/401): senza chiave reale ogni re-invocazione fallirebbe e brucerebbe i
+  // tentativi. Meglio fermarsi qui con 503 che inoltrare una chiave vuota.
+  const workerKey = Deno.env.get("INTERNAL_WORKER_KEY");
+  if (!workerKey) {
+    console.error("[whatsapp-ai-recovery] INTERNAL_WORKER_KEY non configurato: il processor rifiuterebbe ogni chiamata. Stop.");
+    return new Response(
+      JSON.stringify({ error: "service_unavailable", reason: "missing_worker_key" }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   const threshold = new Date(Date.now() - STUCK_THRESHOLD_MIN * 60_000).toISOString();
 
@@ -79,7 +96,6 @@ Deno.serve(async (req: Request) => {
       .eq("id", msg.id);
 
     try {
-      const workerKey = Deno.env.get("INTERNAL_WORKER_KEY") ?? "";
       const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
         method: "POST",
         headers: {

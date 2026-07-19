@@ -42,14 +42,14 @@ function buildCsv(docs: any[]): string {
     return [
       d.tipo || "",
       d.numero || "",
-      fmtDate(d.data_documento),
+      fmtDate(d.data_emissione),
       snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`.trim() || "",
       snap.partita_iva || snap.codice_fiscale || "",
-      fmtNum(d.totale_imponibile),
-      fmtNum(d.totale_iva),
+      fmtNum(d.imponibile_totale),
+      fmtNum(d.iva_totale),
       fmtNum(d.totale_da_pagare),
       d.stato || "",
-      d.pagato ? "Sì" : "No",
+      ((d.importo_pagato ?? 0) >= (d.totale_da_pagare ?? 0) && (d.totale_da_pagare ?? 0) > 0) ? "Sì" : "No",
       d.note_documento || "",
     ].map(escCsv).join(",");
   });
@@ -74,31 +74,31 @@ function buildPrimaNota(docs: any[]): string {
     const isNotaCredito = d.tipo?.includes("nota_credito");
     // Riga ricavi
     rows.push([
-      fmtDate(d.data_documento),
+      fmtDate(d.data_emissione),
       d.tipo || "",
       d.numero || "",
       `Emissione ${d.tipo?.replace("_", " ")}`,
       isNotaCredito ? fmtNum(d.totale_da_pagare) : "",
-      isNotaCredito ? "" : fmtNum(d.totale_imponibile),
+      isNotaCredito ? "" : fmtNum(d.imponibile_totale),
       "Ricavi vendite",
       controparte,
     ].map(escCsv).join(","));
     // Riga IVA (se presente)
-    if ((d.totale_iva || 0) !== 0) {
+    if ((d.iva_totale || 0) !== 0) {
       rows.push([
-        fmtDate(d.data_documento),
+        fmtDate(d.data_emissione),
         d.tipo || "",
         d.numero || "",
         "IVA a debito",
         "",
-        fmtNum(d.totale_iva),
+        fmtNum(d.iva_totale),
         "IVA a debito",
         controparte,
       ].map(escCsv).join(","));
     }
     // Riga crediti vs clienti
     rows.push([
-      fmtDate(d.data_documento),
+      fmtDate(d.data_emissione),
       d.tipo || "",
       d.numero || "",
       "Crediti vs clienti",
@@ -121,13 +121,13 @@ function buildXml(docs: any[], azienda: any): string {
       return `  <Documento>
     <Tipo>${escXml(d.tipo)}</Tipo>
     <Numero>${escXml(d.numero)}</Numero>
-    <Data>${d.data_documento?.split("T")[0] || ""}</Data>
+    <Data>${d.data_emissione?.split("T")[0] || ""}</Data>
     <Cliente>
       <Denominazione>${escXml(snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`)}</Denominazione>
       <PIVA>${escXml(snap.partita_iva || snap.codice_fiscale || "")}</PIVA>
     </Cliente>
-    <Totale_Imponibile>${fmtNum(d.totale_imponibile)}</Totale_Imponibile>
-    <Totale_IVA>${fmtNum(d.totale_iva)}</Totale_IVA>
+    <Totale_Imponibile>${fmtNum(d.imponibile_totale)}</Totale_Imponibile>
+    <Totale_IVA>${fmtNum(d.iva_totale)}</Totale_IVA>
     <Totale>${fmtNum(d.totale_da_pagare)}</Totale>
     <Stato>${escXml(d.stato)}</Stato>
   </Documento>`;
@@ -193,12 +193,14 @@ Deno.serve(async (req) => {
     // Fetch documenti fiscali
     const { data: docs, error: docsErr } = await supabase
       .from("documenti_fiscali")
-      .select("tipo, numero, data_documento, cliente_snapshot, totale_imponibile, totale_iva, totale_da_pagare, stato, pagato, note_documento")
+      .select("tipo, numero, data_emissione, cliente_snapshot, imponibile_totale, iva_totale, totale_da_pagare, stato, importo_pagato, note_documento")
       .eq("company_id", company_id)
-      .gte("data_documento", date_from)
-      .lte("data_documento", date_to)
+      .is("deleted_at", null)
+      .not("stato", "in", "(bozza,annullata)")
+      .gte("data_emissione", date_from)
+      .lte("data_emissione", date_to)
       .in("tipo", ["fattura", "fattura_pa", "nota_credito", "nota_debito", "parcella"])
-      .order("data_documento", { ascending: true });
+      .order("data_emissione", { ascending: true });
 
     if (docsErr) {
       return new Response(JSON.stringify({ error: "Errore nel caricamento dei documenti" }), {

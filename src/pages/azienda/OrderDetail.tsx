@@ -10,7 +10,6 @@ import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
-import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
@@ -1335,11 +1334,6 @@ function OrderDetailInner() {
         {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
         <ErrorBoundary fallback={<></>}>
           <OrderMeasureControl orderId={id!} />
-        </ErrorBoundary>
-
-        {/* Ordini fornitore (bridge procurement): bozza ODA da misure confermate */}
-        <ErrorBoundary fallback={<></>}>
-          <OrderSupplierOrders orderId={id!} />
         </ErrorBoundary>
 
         {/* ── MOBILE: tab layout ──────────────────────────────── */}

@@ -37,9 +37,37 @@ Deno.serve(async (req) => {
 
     const posts = (due ?? []) as SocialPostRow[];
     let published = 0;
+    let skipped = 0;
     const failures: Array<{ id: string; result: unknown }> = [];
 
     for (const post of posts) {
+      // ── Claim atomico per-post (anti doppia pubblicazione) ──
+      // Due run del cron possono sovrapporsi (IG impiega ~18s/post): senza claim,
+      // entrambi vedono lo stesso post 'scheduled' e lo pubblicano due volte.
+      // Con l'UPDATE condizionato `... AND status='scheduled'` solo il primo run
+      // che "vince" ottiene la riga; il secondo riceve 0 righe e salta.
+      // NB: il CHECK di social_posts.status ammette solo draft/scheduled/published/
+      // failed/review (niente 'publishing') e qui non possiamo alterare il DB, quindi
+      // usiamo 'failed' come lock transitorio: publishSocialPost→persist() lo porta a
+      // 'published' in caso di successo, o lo lascia 'failed' su errore/crash
+      // (nessun retry infinito, nessun falso "pubblicato"). Il claim è PER-POST, non
+      // sull'intero batch: i post non ancora raggiunti restano 'scheduled' e vengono
+      // ripresi dal run successivo se questo si interrompe.
+      const { data: claimed, error: claimErr } = await admin
+        .from("social_posts")
+        .update({ status: "failed", updated_at: new Date().toISOString() })
+        .eq("id", post.id)
+        .eq("status", "scheduled")
+        .select("id");
+      if (claimErr) {
+        failures.push({ id: post.id, result: { _error: claimErr.message } });
+        continue;
+      }
+      if (!claimed || claimed.length === 0) {
+        skipped += 1; // già preso da un altro run concorrente
+        continue;
+      }
+
       try {
         const { ok, result } = await publishSocialPost(admin, post);
         if (ok) published += 1;
@@ -50,7 +78,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, processed: posts.length, published, failed: failures.length, failures }),
+      JSON.stringify({ ok: true, processed: posts.length, published, skipped, failed: failures.length, failures }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (e) {

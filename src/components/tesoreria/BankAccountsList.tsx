@@ -59,6 +59,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
         .select("*, bank_connections(institution_name, institution_logo)")
         .eq("company_id", companyId)
         .eq("is_active", true)
+        .neq("is_manual", true) // i conti manuali hanno il loro pannello dedicato
         .order("created_at");
       if (error) throw error;
       setAccounts(data || []);
