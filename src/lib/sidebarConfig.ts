@@ -43,6 +43,7 @@ import {
   Image,
   Settings,
   GraduationCap,
+  SquarePen,
   Star,
   Calculator,
 } from "lucide-react";
@@ -179,6 +180,7 @@ export const macroAreas: MacroArea[] = [
     title: "Formazione",
     icon: GraduationCap,
     items: [
+      { title: "Crea corsi", url: "/azienda/corsi", icon: SquarePen, permissionKey: "canCreateCourses", featureKey: "hr_personale" },
       { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
       { title: "La mia formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", featureKey: "hr_personale" },
     ],
@@ -272,6 +274,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Crea corsi", url: "/azienda/corsi", icon: SquarePen, permissionKey: "canCreateCourses", category: "internal", subcategory: "gi_team" },
   { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewAutomazioni", category: "internal", subcategory: "gi_automation" },
   { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
