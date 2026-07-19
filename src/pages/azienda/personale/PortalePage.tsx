@@ -5409,7 +5409,7 @@ function LearnerCourseOverview({
                         toggleExpanded();
                       }
                     }}
-                    className="grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 rounded-3xl p-3 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:p-4"
+                    className="grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 rounded-3xl p-3.5 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:gap-4 sm:p-4"
                   >
                     <div
                       className={cn(
@@ -5444,24 +5444,26 @@ function LearnerCourseOverview({
                           )}
                         />
                       </div>
-                      <p className="mt-1 text-xs font-medium text-slate-500">
-                        {module.duration} · {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
-                      </p>
-                      <p className="mt-1.5 hidden line-clamp-2 text-sm leading-6 text-slate-600 sm:block">{module.description}</p>
-                      <div className="mt-2.5 flex items-center gap-3 sm:mt-3">
-                        <Progress value={moduleCompletion} className="h-1.5 flex-1 sm:h-2" />
-                        <span className="w-9 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="truncate text-xs font-medium text-slate-500">
+                          {module.duration} · {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                        </p>
                         <button
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             onOpenLesson(module.id);
                           }}
-                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-600 pl-3.5 pr-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:h-9"
+                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-600 pl-4 pr-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:h-9"
                         >
                           {moduleCompletion >= 100 ? "Rivedi" : moduleCompletion > 0 ? "Riprendi" : "Apri"}
                           <ChevronRight className="h-4 w-4" />
                         </button>
+                      </div>
+                      <p className="mt-3 hidden line-clamp-2 text-sm leading-6 text-slate-600 sm:block">{module.description}</p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <Progress value={moduleCompletion} className="h-1.5 flex-1 sm:h-2" />
+                        <span className="w-9 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
                       </div>
                     </div>
                   </div>
