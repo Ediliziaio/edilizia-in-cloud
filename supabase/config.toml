@@ -735,18 +735,11 @@ verify_jwt = false
 
 # ── Audit Meta 18/7: blocchi verify_jwt espliciti per evitare il "landmine"
 # (funzione cron/interna che, senza blocco, prende il default true → 401 al gateway
-# al prossimo deploy). ──
-
-# WhatsApp AI · processore messaggi (invocato internamente con x-internal-worker-key).
-[functions.whatsapp-ai-processor]
-verify_jwt = false
+# al prossimo deploy). NB whatsapp-ai-processor e process-automation hanno già il
+# proprio blocco più sopra: non ridefinirli qui (TOML non ammette tabelle duplicate). ──
 
 # WhatsApp AI · recovery cron messaggi bloccati (x-cron-secret).
 [functions.whatsapp-ai-recovery]
-verify_jwt = false
-
-# Automazioni · handleTrigger (user JWT) + process_queue (cron, x-cron-secret): auth interna.
-[functions.process-automation]
 verify_jwt = false
 
 # Meta Ads · invocate dal frontend con JWT utente → verify_jwt=true.

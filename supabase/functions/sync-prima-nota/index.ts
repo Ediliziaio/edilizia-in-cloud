@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
         .from("invoices")
         .select("id, invoice_number, total_amount, payment_date, due_date, contact_id, contacts(first_name, last_name, company_name)")
         .eq("company_id", company_id)
-        .eq("status", "pagata");
+        .eq("status", "paid");
 
       const { data: existingInvoiceLinks } = await supabaseAdmin
         .from("prima_nota_entries")

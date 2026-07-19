@@ -307,6 +307,22 @@ Deno.serve(async (req) => {
     // Route to provider
     const provider = azienda.sdi_provider || "manuale";
 
+    // Guardia: provider Aruba selezionato ma API key mancante. Senza questo blocco
+    // il flusso cadeva nel ramo 'manuale' e marcava comunque stato='inviata_sdi' +
+    // sdi_stato='AT' → la fattura risultava "trasmessa" senza alcun invio reale, e
+    // lo stato 'AT' la rendeva non più reinviabile. Rilascia il claim 'in_invio' e
+    // ritorna un errore chiaro SENZA toccare lo stato del documento.
+    if (provider === "aruba" && !azienda.sdi_api_key) {
+      await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
+      return new Response(
+        JSON.stringify({
+          error: "Configura la API key Aruba prima di inviare la fattura allo SDI.",
+          action: "check_aruba_api_key",
+        }),
+        { status: 422, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
     if (provider === "aruba" && azienda.sdi_api_key) {
       // Aruba Fatturazione Elettronica API
       // Docs: https://fatturazioneelettronica.aruba.it/apidoc/docs.html

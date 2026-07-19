@@ -108,11 +108,13 @@ Deno.serve(async (req) => {
 
     if (provider === "fattureincloud") {
       externalId = body?.data?.id?.toString();
-      newStatus = ficStatusMap[body?.data?.status] || "sent";
+      // NON declassare: se lo stato non è mappato lascio newStatus undefined → sotto
+      // aggiorno `status` SOLO quando c'è una mappatura reale (mai 'paid'/'delivered' → 'sent').
+      newStatus = ficStatusMap[body?.data?.status];
       sdiId = body?.data?.ei_data?.sdi_id?.toString();
     } else if (provider === "invoicetronic") {
       externalId = body?.id?.toString();
-      newStatus = itStatusMap[body?.status] || "sent";
+      newStatus = itStatusMap[body?.status];
       sdiId = body?.sdi_id?.toString();
     }
 
@@ -122,12 +124,16 @@ Deno.serve(async (req) => {
         .eq("external_id", externalId).eq("external_provider", provider).single();
 
       if (invoice) {
-        await supabase.from("invoices").update({
+        // `external_status` rispecchia sempre lo stato grezzo del provider; `status`
+        // (derivato interno) si aggiorna SOLO se lo stato è realmente mappato, così un
+        // webhook con stato ignoto non declassa una fattura già 'paid'/'delivered'.
+        const invoiceUpdate: Record<string, unknown> = {
           external_status: body?.data?.status || body?.status,
-          status: newStatus,
           external_sdi_id: sdiId,
           updated_at: new Date().toISOString(),
-        }).eq("id", invoice.id);
+        };
+        if (newStatus) invoiceUpdate.status = newStatus;
+        await supabase.from("invoices").update(invoiceUpdate).eq("id", invoice.id);
 
         await supabase.from("billing_sync_log").insert({
           company_id: invoice.company_id,
