@@ -4754,53 +4754,7 @@ function PortalPreview({
         </div>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Percorso consigliato</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-950">Riparti dal prossimo contenuto utile</h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                L'utente non deve capire da solo dove andare: vede subito il corso attivo, la prossima lezione e i
-                materiali collegati.
-              </p>
-            </div>
-            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
-              {remainingModules} moduli aperti
-            </Badge>
-          </div>
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
-            <button
-              type="button"
-              onClick={() =>
-                openLearnerCourse(activeLearnerCourse, activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")
-              }
-              className="group rounded-3xl border border-blue-100 bg-blue-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
-                  <PlayCircle className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-blue-700">Continua corso</p>
-                  <h4 className="mt-1 line-clamp-2 text-lg font-bold text-slate-950">{activeLearnerCourse.title}</h4>
-                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
-                    Prossima lezione: {activeModule?.title ?? activeLearnerCourse.modules[0]?.title ?? "Da impostare"}
-                  </p>
-                </div>
-                <ChevronRight className="hidden h-5 w-5 text-blue-500 transition group-hover:translate-x-0.5 sm:block" />
-              </div>
-            </button>
-
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-              <LearnerCompactStat label="Completamento" value={`${previewCourseCompletion}%`} icon={Target} />
-              <LearnerCompactStat label="Risorse" value={String(courseAssets.length)} icon={FileArchive} />
-            </div>
-          </div>
-        </div>
-
-        <aside className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+      <aside className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Obblighi e scadenze</p>
@@ -4834,58 +4788,6 @@ function PortalPreview({
             )}
           </div>
         </aside>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Processi aziendali</p>
-            <h3 className="mt-1 text-xl font-bold text-slate-950">Procedure e manuali da conoscere</h3>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-              Documenti operativi collegati ai corsi: regolamenti, SOP, checklist e prese visione.
-            </p>
-          </div>
-          <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-            {learnerPendingAcknowledgements} prese visione
-          </Badge>
-        </div>
-
-        <div className="mt-5 grid gap-3 lg:grid-cols-3">
-          {learnerProcessDocs.map((item) => {
-            const Icon = assetIcon[item.asset.type];
-            return (
-            <button
-                key={item.id}
-                type="button"
-                onClick={() => openLearnerKnowledgeItem(item)}
-                className="group rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <Badge variant="outline" className="border-white bg-white text-xs capitalize">
-                    {knowledgeCategoryLabels[item.category]}
-                  </Badge>
-                </div>
-                <h4 className="mt-4 line-clamp-2 font-bold text-slate-950">{item.title}</h4>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-                  {item.course.title} · {item.moduleTitle}
-                </p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-blue-700">
-                  Apri documento
-                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                </span>
-              </button>
-            );
-          })}
-          {learnerProcessDocs.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-3">
-              Nessuna procedura pubblicata: carica SOP, regolamenti o manuali dal builder.
-            </div>
-          )}
-        </div>
-      </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
