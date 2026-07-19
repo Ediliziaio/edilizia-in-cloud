@@ -4247,10 +4247,6 @@ function PortalPreview({
     return getCourseCompletion(item) >= 100;
   }).length;
   const learnerKnowledgeItems = useMemo(() => getKnowledgeItems(learnerCourses), [learnerCourses]);
-  const learnerProcessDocs = learnerKnowledgeItems
-    .filter((item) => item.category === "procedure" || item.category === "regolamenti")
-    .slice(0, 3);
-  const learnerPendingAcknowledgements = learnerKnowledgeItems.filter((item) => item.requiresAcknowledgement).length;
   const learnerMandatoryItems = learnerKnowledgeItems
     .filter((item) => item.requiresAcknowledgement || item.governanceStatus !== "ok")
     .slice(0, 4);
@@ -5261,18 +5257,6 @@ function LearnerMetric({ label, value, icon: Icon }: { label: string; value: str
         {label}
       </div>
       <p className="mt-2 text-2xl font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function LearnerCompactStat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <Icon className="h-4 w-4 text-blue-600" />
-        {label}
-      </div>
-      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
     </div>
   );
 }
