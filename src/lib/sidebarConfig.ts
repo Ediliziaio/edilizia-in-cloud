@@ -171,8 +171,10 @@ export const macroAreas: MacroArea[] = [
   // 4b. Formazione — area a sé, staccata da "Persone" (era annidata lì).
   // È il portale corsi + fruizione learner. Vision: catalogo corsi vendibili
   // stile Kajabi (il superadmin li crea e vende in /admin) + community stile Skool.
-  //  • "Portale" = creazione/gestione corsi — gated canManagePortal (HR/admin/
-  //    responsabile formazione). Il dipendente NON lo vede.
+  // Tre livelli distinti (permessi separati):
+  //  • "Crea corsi" = builder/authoring (/azienda/corsi) — gated canCreateCourses.
+  //  • "Portale" = libreria dei TUOI corsi (creati + comprati) + assegnazioni/
+  //    report, SENZA builder — gated canManagePortal. Il dipendente NON lo vede.
   //  • "La mia formazione" = fruizione — gated canViewFormazione (default ON per
   //    gli staff): vede i corsi assegnati/comprati e i materiali.
   {
