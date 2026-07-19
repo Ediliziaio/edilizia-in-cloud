@@ -35,7 +35,8 @@ import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
-import { Loader2, AlertCircle, Wand2, Monitor } from "lucide-react";
+import { Loader2, AlertCircle, Wand2 } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
@@ -1206,20 +1207,10 @@ export function FlowBuilderPage() {
     );
   }
 
-  // Il builder è un canvas drag-drop (ReactFlow): inusabile a dito su 375px.
-  // Su mobile mostriamo un messaggio invece del canvas rotto.
-  if (isMobileDevice) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background p-6">
-        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-          <Monitor className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm font-medium text-foreground">Il builder delle automazioni richiede un computer</p>
-          <p className="text-xs text-muted-foreground">L'editor a nodi (trascina e collega) non è utilizzabile da telefono. Aprilo da desktop per creare o modificare un flusso.</p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Torna ai flussi</Button>
-        </div>
-      </div>
-    );
-  }
+  // Mobile: niente muro "usa desktop". Il canvas resta navigabile (pan/zoom),
+  // i nodi NON sono trascinabili/collegabili (tap = apre la config in un Sheet dal
+  // basso), così puoi modificare i nodi esistenti e pubblicare. Aggiungere/collegare
+  // nuovi nodi resta un'operazione da desktop (palette + drag).
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -1309,8 +1300,8 @@ export function FlowBuilderPage() {
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — only in builder tab */}
-        {activeTab === "builder" && (
+        {/* Left sidebar — solo builder tab; nascosta su mobile (aggiunta nodi/palette = desktop) */}
+        {activeTab === "builder" && !isMobileDevice && (
           <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} readinessChecks={readinessChecks} />
         )}
 
@@ -1336,6 +1327,8 @@ export function FlowBuilderPage() {
                 edgeTypes={edgeTypes}
                 defaultEdgeOptions={{ type: "addStep", style: { stroke: "#64748b", strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#64748b" } }}
                 fitView
+                nodesDraggable={!isMobileDevice}
+                nodesConnectable={!isMobileDevice}
                 deleteKeyCode={["Backspace", "Delete"]}
                 className="bg-muted/30"
               >
@@ -1368,7 +1361,7 @@ export function FlowBuilderPage() {
                   shrink-0 → il secondo pulsante ("+ Azione") non viene mai tagliato
                   a destra: se lo spazio è poco i pulsanti vanno a capo invece di
                   sforare il bordo del canvas. */}
-              {!rightPanelOpen && (
+              {!rightPanelOpen && !isMobileDevice && (
                 <div className="absolute top-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-1.5">
                   <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs shadow-sm" onClick={() => openCatalog("trigger")}>
                     + Trigger
@@ -1430,8 +1423,8 @@ export function FlowBuilderPage() {
           {activeTab === "registro" && <WorkflowRegistro flowId={flowId} />}
         </div>
 
-        {/* Right panel — only in builder tab */}
-        {activeTab === "builder" && rightPanelOpen && (
+        {/* Right panel — desktop: colonna fissa a destra */}
+        {activeTab === "builder" && rightPanelOpen && !isMobileDevice && (
           <WorkflowRightPanel
             mode={rightPanelMode}
             catalogTab={catalogTab}
@@ -1450,6 +1443,33 @@ export function FlowBuilderPage() {
           />
         )}
       </div>
+
+      {/* Mobile: config del nodo selezionato in un Sheet dal basso (tap sul nodo nel canvas). */}
+      {isMobileDevice && activeTab === "builder" && (
+        <Sheet
+          open={rightPanelOpen && rightPanelMode === "config" && !!selectedRfNode}
+          onOpenChange={(o) => { if (!o) { setRightPanelOpen(false); setSelectedNodeId(null); } }}
+        >
+          <SheetContent side="bottom" className="h-[86svh] max-w-none overflow-y-auto p-0">
+            <WorkflowRightPanel
+              mode={rightPanelMode}
+              catalogTab={catalogTab}
+              catalogContext={catalogContext}
+              onCatalogTabChange={setCatalogTab}
+              selectedNode={selectedRfNode}
+              onUpdateData={handleUpdateNodeData}
+              onDelete={handleDeleteNode}
+              onClose={() => { setRightPanelOpen(false); setSelectedNodeId(null); }}
+              onSave={saveImmediate}
+              onDragStart={() => {}}
+              onSelectItem={handleSelectItem}
+              companyId={effectiveCompany?.id}
+              triggerItemId={triggerItemId}
+              isAdmin={isAdmin}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
