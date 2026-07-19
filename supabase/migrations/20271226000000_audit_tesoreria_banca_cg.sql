@@ -61,6 +61,16 @@ CREATE TRIGGER trg_bank_tx_amount_eur
 UPDATE public.bank_transactions SET amount_eur = amount
  WHERE COALESCE(currency,'EUR') = 'EUR' AND amount_eur IS NULL;
 
+-- ── P1 CORRETTEZZA — CE riclassificato: costi non classificati SCARTATI ───────
+-- cg_get_conto_economico_riclassificato sommava i costi con `macro_voce IS NOT
+-- NULL`: i costi non ancora classificati (macro_voce NULL) venivano PERSI →
+-- EBITDA/utile gonfiati (su un'azienda reale il 39,5% dei costi, €60k, mancava
+-- → EBITDA passato da -49.805 gonfiato a -110.323 reale). Fix applicato live:
+--   + variabile v_costi_non_class = SUM(importo) WHERE macro_voce IS NULL
+--   + sottratta dall'EBITDA (default gestionale conservativo)
+--   + voce '08b' "Costi non classificati" nel prospetto + meta.costi_non_classificati
+-- (corpo completo applicato live via execute_sql; renderer PDF/frontend generici).
+
 -- ── P2 CORRETTEZZA — anti doppio-pagamento in riconciliazione ────────────────
 -- bank_reconciliations non aveva vincoli oltre la PK: due run concorrenti di
 -- bank-auto-reconcile potevano creare due pagamenti per la stessa transazione.
