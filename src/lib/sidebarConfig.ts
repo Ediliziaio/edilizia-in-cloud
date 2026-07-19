@@ -55,6 +55,11 @@ export interface NavItem {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   permissionKey?: string;
+  /** Nasconde la voce se l'utente HA questo permesso (opposto di permissionKey).
+   *  Es. "La mia formazione" (fruizione dipendente) si nasconde a chi gestisce il
+   *  Portale: l'admin ha già il Portale come superficie corsi, la voce sarebbe un
+   *  doppione. Il dipendente puro (senza canManagePortal) continua a vederla. */
+  hideIfPermissionKey?: string;
   moduleKey?: ModuleKey;
   featureKey?: string;
   isBeta?: boolean;
@@ -176,7 +181,10 @@ export const macroAreas: MacroArea[] = [
   //  • "Portale" = libreria dei TUOI corsi (creati + comprati) + assegnazioni/
   //    report, SENZA builder — gated canManagePortal. Il dipendente NON lo vede.
   //  • "La mia formazione" = fruizione — gated canViewFormazione (default ON per
-  //    gli staff): vede i corsi assegnati/comprati e i materiali.
+  //    gli staff): vede i corsi assegnati/comprati e i materiali. hideIfPermissionKey
+  //    canManagePortal → NASCOSTA a chi gestisce il Portale (per l'admin sarebbe un
+  //    doppione: il Portale è già la sua superficie corsi). Resta la SOLA superficie
+  //    del dipendente puro, che il Portale non lo vede.
   {
     id: "area_formazione",
     title: "Formazione",
@@ -184,7 +192,7 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Crea corsi", url: "/azienda/corsi", icon: SquarePen, permissionKey: "canCreateCourses", featureKey: "hr_personale" },
       { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
-      { title: "La mia formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", featureKey: "hr_personale" },
+      { title: "La mia formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione", hideIfPermissionKey: "canManagePortal", featureKey: "hr_personale" },
     ],
   },
 

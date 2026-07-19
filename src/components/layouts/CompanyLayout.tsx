@@ -1236,6 +1236,12 @@ const CompanySidebar = memo(function CompanySidebar() {
       } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
       }
+      // Gate inverso: nascondi la voce a chi HA questo permesso (evita doppioni tra
+      // superfici destinate a persone diverse — es. "La mia formazione" per il
+      // dipendente puro vs "Portale" per chi lo gestisce).
+      if (item.hideIfPermissionKey && permissions[item.hideIfPermissionKey as keyof typeof permissions] === true) {
+        return false;
+      }
       // Module gate (v8.6.95 — fail-open per evitare flickering)
       if (item.moduleKey) {
         if (!isModuleEnabled(item.moduleKey)) {
