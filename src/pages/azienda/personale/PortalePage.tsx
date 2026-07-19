@@ -4803,10 +4803,25 @@ function PortalPreview({
                 <Button
                   variant="outline"
                   className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                  onClick={backToLearnerLibrary}
+                  onClick={() => {
+                    // Back gerarchico: dalla lezione si torna alla panoramica del
+                    // corso; dalla panoramica si esce alla libreria.
+                    if (courseExperienceView === "lesson") {
+                      setCourseExperienceView("overview");
+                      updateLearnerUrl({
+                        view: "course",
+                        courseId: activeLearnerCourse.id,
+                        moduleId: activeModule?.id ?? null,
+                        mode: "overview",
+                      });
+                      scheduleCourseScrollToTop();
+                    } else {
+                      backToLearnerLibrary();
+                    }
+                  }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Torna alla piattaforma
+                  {courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
                 </Button>
                 <div className="min-w-0">
                   <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl">{activeLearnerCourse.title}</h3>
@@ -5219,7 +5234,11 @@ function LearnerCourseOverview({
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
   const hasModules = course.modules.length > 0;
-  const lessonsTotal = course.modules.reduce((sum, module) => sum + module.lessons, 0);
+  // Durata totale reale (somma dei minuti dei moduli). Sostituisce il conteggio
+  // "lezioni" che era un numero seed slegato dal contenuto effettivo.
+  const totalDurationMin = course.modules.reduce((sum, module) => sum + (parseInt(module.duration, 10) || 0), 0);
+  const totalDurationLabel =
+    totalDurationMin >= 60 ? `${Math.floor(totalDurationMin / 60)}h ${totalDurationMin % 60}m` : `${totalDurationMin} min`;
   const firstOpenModule = course.modules.find((module) => getModuleCompletion(module) < 100) ?? course.modules[0];
   const featuredAssets = courseAssets.slice(0, 4);
   return (
@@ -5234,7 +5253,7 @@ function LearnerCourseOverview({
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <InfoTile label="Moduli" value={String(course.modules.length)} icon={ListChecks} />
-            <InfoTile label="Lezioni" value={String(lessonsTotal)} icon={Video} />
+            <InfoTile label="Durata" value={totalDurationLabel} icon={CalendarClock} />
             <InfoTile label="Completati" value={String(completedModules)} icon={CheckCircle2} />
             <InfoTile label="Materiali" value={String(materialAssets.length)} icon={FileArchive} />
           </div>
@@ -5277,8 +5296,17 @@ function LearnerCourseOverview({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="text-lg font-bold text-slate-950">{module.title}</h4>
-                      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-                        {module.lessons} lezioni
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          moduleCompletion >= 100
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : moduleCompletion > 0
+                              ? "border-blue-200 bg-blue-50 text-blue-700"
+                              : "border-slate-200 bg-slate-50 text-slate-600",
+                        )}
+                      >
+                        {moduleCompletion >= 100 ? "Completato" : moduleCompletion > 0 ? "In corso" : "Da iniziare"}
                       </Badge>
                       <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
                         {module.duration}
