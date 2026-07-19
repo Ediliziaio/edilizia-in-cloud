@@ -4755,7 +4755,7 @@ function PortalPreview({
                 Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
               <LearnerMetric label="Moduli" value={String(unlockedModules)} icon={ListChecks} />
               <LearnerMetric label="Materiali" value={String(unlockedAssets)} icon={FileArchive} />
               <LearnerMetric label="Completati" value={String(completedCourses)} icon={CheckCircle2} />
@@ -5287,12 +5287,12 @@ function PortalPreview({
 
 function LearnerMetric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur">
-      <div className="flex items-center gap-2 text-xs font-medium text-blue-100">
-        <Icon className="h-4 w-4" />
-        {label}
+    <div className="rounded-2xl border border-white/10 bg-white/10 p-2.5 backdrop-blur sm:p-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-100 sm:text-xs">
+        <Icon className="hidden h-3.5 w-3.5 shrink-0 sm:block sm:h-4 sm:w-4" />
+        <span className="truncate">{label}</span>
       </div>
-      <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+      <p className="mt-1.5 text-xl font-bold text-white sm:mt-2 sm:text-2xl">{value}</p>
     </div>
   );
 }
