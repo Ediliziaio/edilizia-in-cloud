@@ -644,11 +644,14 @@ export default function CompanyRoutesContainer() {
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
-        <Route path="personale/portale" element={withCompanyPermission("canManagePortal", <FeatureRoute featureKey="hr_personale"><PortalePage mode="library" /></FeatureRoute>)} />
+        {/* key distinta per route: PortalePage è lo stesso componente in due
+            modalità; senza key React riuserebbe l'istanza e activeTab
+            sopravvivrebbe al cambio route (tab non valido → area vuota). */}
+        <Route path="personale/portale" element={withCompanyPermission("canManagePortal", <FeatureRoute featureKey="hr_personale"><PortalePage key="portale-library" mode="library" /></FeatureRoute>)} />
         {/* Crea corsi — builder/authoring. Gated dal permesso azienda dedicato
             canCreateCourses (separato dalla gestione Portale). Stesso componente
             PortalePage in modalità "builder" (solo Corsi + Builder + Anteprima). */}
-        <Route path="corsi" element={withCompanyPermission("canCreateCourses", <FeatureRoute featureKey="hr_personale"><PortalePage mode="builder" /></FeatureRoute>)} />
+        <Route path="corsi" element={withCompanyPermission("canCreateCourses", <FeatureRoute featureKey="hr_personale"><PortalePage key="portale-builder" mode="builder" /></FeatureRoute>)} />
         {/* Formazione lato DIPENDENTE — gated canViewFormazione (default ON per tutti
             gli staff, ma revocabile dall'admin): corsi pubblicati + avanzamento reale
             salvato su portal_course_enrollments. */}
