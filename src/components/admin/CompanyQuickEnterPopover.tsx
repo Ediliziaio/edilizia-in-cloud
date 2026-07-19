@@ -146,7 +146,7 @@ export function CompanyQuickEnterPopover() {
           <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end" sideOffset={8}>
+      <PopoverContent className="w-[calc(100vw-1rem)] p-0 sm:w-80" align="end" sideOffset={8}>
         <div className="p-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

@@ -81,6 +81,20 @@ const ROLE_ORDER: AppRole[] = [
   "platform_implementation",
 ];
 
+// Chip "area" del QuickLogin: le aree in cui il super-admin salta più spesso,
+// sempre visibili e con filtro lato server per ruolo. "Campo" = dipendenti
+// (i subappaltatori atterrano nella stessa area /campo).
+const AREA_CHIPS: { role: AppRole | "all"; label: string }[] = [
+  { role: "all", label: "Tutti" },
+  { role: "company_admin", label: "Aziende" },
+  { role: "salesperson", label: "Venditori" },
+  { role: "employee", label: "Campo" },
+  { role: "produttore_admin", label: "Produttori" },
+  { role: "accountant", label: "Commercialisti" },
+  { role: "referrer", label: "Partner" },
+  { role: "customer", label: "Clienti" },
+];
+
 const AVATAR_COLORS = [
   "bg-rose-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
   "bg-violet-500", "bg-cyan-500", "bg-pink-500", "bg-teal-500",
@@ -152,18 +166,38 @@ export function QuickLoginPopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  // Filtro "area": salta subito al ruolo voluto (Venditore, Produttore,
+  // Commercialista, Campo…) invece di scorrere una lista dominata dai Clienti.
+  const [roleFilter, setRoleFilter] = useState<AppRole | "all">("all");
   const { profile: currentProfile, refreshAuth } = useAuth();
   const debouncedSearch = useDebounce(search, 300);
 
   const { data: users = [] } = useQuery({
-    queryKey: queryKeys.adminQuickLogin.search(debouncedSearch),
+    queryKey: [...queryKeys.adminQuickLogin.search(debouncedSearch), roleFilter],
     queryFn: async () => {
+      // Filtro "area" server-side: se è scelto un ruolo prendo prima gli user_id
+      // di quel ruolo. Senza questo, i primi 50 profili (per nome) sono dominati
+      // dai Clienti e non raggiungi mai Produttori/Commercialisti/Venditori.
+      let roleUserIds: string[] | null = null;
+      if (roleFilter !== "all") {
+        const { data: roleRows, error: roleErr } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", roleFilter)
+          .limit(300);
+        if (roleErr) throw roleErr;
+        roleUserIds = (roleRows ?? []).map((r) => r.user_id);
+        if (roleUserIds.length === 0) return [];
+      }
+
       // Build profiles query with server-side filtering + limit
       let profilesQuery = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, company_id")
         .order("first_name")
         .limit(50);
+
+      if (roleUserIds) profilesQuery = profilesQuery.in("id", roleUserIds);
 
       if (debouncedSearch) {
         // Sanitizza il termine: virgole e parentesi spezzano la grammatica
@@ -265,14 +299,14 @@ export function QuickLoginPopover() {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSearch(""); setRoleFilter("all"); } }}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <UserCog className="h-4 w-4" />
           <span className="hidden sm:inline">Accedi come utente</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-96 p-0" align="end" sideOffset={8}>
+      <PopoverContent className="w-[calc(100vw-1rem)] p-0 sm:w-96" align="end" sideOffset={8}>
         <div className="p-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -283,6 +317,24 @@ export function QuickLoginPopover() {
               className="pl-9 h-9 text-sm"
               autoFocus
             />
+          </div>
+          {/* Chip-filtro area: sempre visibili, scroll orizzontale denso
+              (pattern mobile del progetto). Filtrano lato server per ruolo →
+              salti diretti all'area voluta senza scorrere i Clienti. */}
+          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {AREA_CHIPS.map(({ role, label }) => {
+              const active = roleFilter === role;
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setRoleFilter(role)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
         <Separator />
