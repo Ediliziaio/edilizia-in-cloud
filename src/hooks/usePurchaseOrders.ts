@@ -133,7 +133,11 @@ export function usePurchaseOrders() {
           const warehouseId = odaData?.delivery_warehouse_id ?? null;
 
           for (const item of items) {
-            const qtyToLoad = item.quantity_received > 0 ? item.quantity_received : item.quantity;
+            // Carica SOLO il residuo non ancora ricevuto. Se una parte è già stata
+            // caricata via scan (quantity_received > 0 → stock già incrementato),
+            // ricaricare qui la quantità piena raddoppierebbe la giacenza.
+            const alreadyReceived = Number(item.quantity_received) || 0;
+            const qtyToLoad = Number(item.quantity) - alreadyReceived;
             if (qtyToLoad <= 0) continue;
 
             // Cerca articolo in warehouse_stock per SKU o nome; se non esiste, lo crea.
@@ -197,6 +201,13 @@ export function usePurchaseOrders() {
                 warehouse_id: warehouseId,
               } as any);
             }
+
+            // Idempotenza: la riga è ora interamente ricevuta → un eventuale nuovo
+            // passaggio a "ricevuto" ricalcola residuo 0 e non ricarica lo stock.
+            await supabase
+              .from("purchase_order_items")
+              .update({ quantity_received: Number(item.quantity), received_date: new Date().toISOString().slice(0, 10) })
+              .eq("id", item.id);
           }
         }
       }
