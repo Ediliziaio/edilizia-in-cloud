@@ -1048,7 +1048,6 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
   const [assetDialogOpen, setAssetDialogOpen] = useState(false);
   const [accessDialogOpen, setAccessDialogOpen] = useState(false);
-  const [moduleDialogOpen, setModuleDialogOpen] = useState(false);
   const [assetUploading, setAssetUploading] = useState(false);
   const [assetPreview, setAssetPreview] = useState<PortalAsset | null>(null);
   const [courseDraft, setCourseDraft] = useState({
@@ -1066,12 +1065,6 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     content: "",
     file: null as File | null,
     downloadable: true,
-  });
-  const [moduleDraft, setModuleDraft] = useState({
-    title: "",
-    description: "",
-    duration: "",
-    lessons: "1",
   });
   const mountedRef = useRef(true);
   const saveStateRef = useRef<{
@@ -1372,7 +1365,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
     setCourses((prev) => [newCourse, ...prev]);
     setSelectedCourseId(newCourse.id);
-    setActiveTab("builder");
+    if (showBuilder) setActiveTab("builder");
     persistCourse(newCourse);
     toast.success("Bozza creata — dai un titolo e aggiungi i contenuti.");
   };
@@ -1418,7 +1411,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     const newCourse = cloneTemplateCourse(template);
     setCourses((prev) => [newCourse, ...prev]);
     setSelectedCourseId(newCourse.id);
-    setActiveTab("builder");
+    if (showBuilder) setActiveTab("builder");
     persistCourse(newCourse);
     toast.success("Template corso creato come bozza.");
   };
@@ -2104,7 +2097,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             templates={courseTemplates}
             stats={stats}
             onCreateFromTemplate={createFromTemplate}
-            onOpenModule={() => setModuleDialogOpen(true)}
+            onOpenModule={() => { addModule(); if (showBuilder) setActiveTab("builder"); }}
             onOpenAsset={() => setAssetDialogOpen(true)}
           />
         )}
@@ -2236,78 +2229,6 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           />
         </TabsContent>
       </Tabs>
-
-      <Dialog open={moduleDialogOpen} onOpenChange={setModuleDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Aggiungi modulo</DialogTitle>
-            <DialogDescription>
-              Crea uno step chiaro del percorso. Mantieni moduli brevi e verificabili.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              Corso selezionato: <span className="font-semibold text-slate-900">{selectedCourse?.title}</span>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="module-title">
-                Titolo modulo
-              </label>
-              <Input
-                id="module-title"
-                value={moduleDraft.title}
-                onChange={(event) => setModuleDraft((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="Es. Ricezione materiale e controllo DDT"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="module-description">
-                Obiettivo
-              </label>
-              <Textarea
-                id="module-description"
-                value={moduleDraft.description}
-                onChange={(event) => setModuleDraft((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="Cosa deve saper fare il team dopo questo modulo."
-                rows={3}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700" htmlFor="module-lessons">
-                  Lezioni
-                </label>
-                <Input
-                  id="module-lessons"
-                  inputMode="numeric"
-                  value={moduleDraft.lessons}
-                  onChange={(event) => setModuleDraft((prev) => ({ ...prev, lessons: event.target.value }))}
-                  placeholder="Es. 4"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700" htmlFor="module-duration">
-                  Durata stimata
-                </label>
-                <Input
-                  id="module-duration"
-                  value={moduleDraft.duration}
-                  onChange={(event) => setModuleDraft((prev) => ({ ...prev, duration: event.target.value }))}
-                  placeholder="Es. 25 min"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModuleDialogOpen(false)}>
-              Annulla
-            </Button>
-            <Button onClick={addModule} className="bg-blue-600 hover:bg-blue-700">
-              Aggiungi modulo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={accessDialogOpen} onOpenChange={setAccessDialogOpen}>
         <DialogContent className="max-w-lg">
