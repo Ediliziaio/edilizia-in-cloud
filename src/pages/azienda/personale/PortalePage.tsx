@@ -1010,16 +1010,14 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
   const isAdminContext = portalContext === "admin";
-  // Builder + azioni di creazione: in "builder" (Crea corsi) e "full" (admin),
-  // nascosti in "library" (il Portale è catalogo/panoramica, non authoring).
+  // Corsi + Builder: in "builder" (Crea corsi) e "full" (admin); nascosti in
+  // "library" (il Portale È la Pagina utente, senza gestione/catalogo).
   const showBuilder = mode !== "library";
   // Authoring + distribuzione — SOLO azienda in "Crea corsi": procedure/manuali,
-  // Accessi (chi può accedere) e Persone (assegnazioni). Non in Portale né admin.
+  // Accessi (chi può accedere), Persone (assegnazioni) e Riepilogo (panoramica).
   const showAuthoringMgmt = !isAdminContext && mode === "builder";
-  // Panoramica avanzamento (Riepilogo) — SOLO azienda nel "Portale" (catalogo).
-  const showLibraryOverview = !isAdminContext && mode === "library";
-  // Anteprima "Pagina utente": nel Portale (library) e in admin (full); NON
-  // nell'authoring puro di "Crea corsi".
+  // Anteprima "Pagina utente": nel Portale (library, è l'UNICA vista) e in admin
+  // (full); NON nell'authoring puro di "Crea corsi".
   const showPreview = mode !== "builder";
   const [courses, setCourses] = useState<PortalCourse[]>(() =>
     isAdminContext ? [] : loadCourses(companyId),
@@ -1028,19 +1026,19 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"locale" | "caricamento" | "sincronizzato">("locale");
   const [activeTab, setActiveTab] = useState(
-    mode === "library" ? "corsi" : mode === "builder" ? "builder" : "preview",
+    mode === "builder" ? "builder" : "preview",
   );
   // Tab visibili nella modalità corrente + clamp di sicurezza: se activeTab non
   // è tra questi (es. un setActiveTab verso un tab nascosto in questa modalità),
   // mostra un tab valido invece di un'area contenuto vuota.
   const visibleTabs = [
-    "corsi",
-    ...(showBuilder ? ["builder"] : []),
-    ...(showAuthoringMgmt ? ["procedure", "accessi", "persone"] : []),
-    ...(showLibraryOverview ? ["riepilogo"] : []),
+    ...(showBuilder ? ["corsi", "builder"] : []),
+    ...(showAuthoringMgmt ? ["procedure", "accessi", "persone", "riepilogo"] : []),
     ...(showPreview ? ["preview"] : []),
   ];
-  const effectiveTab = visibleTabs.includes(activeTab) ? activeTab : "corsi";
+  const effectiveTab = visibleTabs.includes(activeTab)
+    ? activeTab
+    : (visibleTabs[0] ?? "preview");
   const [search, setSearch] = useState("");
   const [areaFilter, setAreaFilter] = useState<PortalArea | "tutte">("tutte");
   const [knowledgeSearch, setKnowledgeSearch] = useState("");
@@ -1842,6 +1840,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               </Dialog>
 
               <Dialog open={assetDialogOpen} onOpenChange={setAssetDialogOpen}>
+                {showBuilder && (
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
@@ -1853,6 +1852,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     Carica materiale
                   </Button>
                 </DialogTrigger>
+                )}
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Aggiungi materiale</DialogTitle>
@@ -2019,7 +2019,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 </DialogContent>
               </Dialog>
 
-              {showPreview && (
+              {mode === "full" && (
                 <Button
                   variant="ghost"
                   className="h-11 gap-2 text-slate-700 hover:bg-white"
@@ -2045,6 +2045,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       </section>
 
       <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
+        {mode !== "library" && (
         <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="corsi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
             <Library className="h-4 w-4" />
@@ -2073,14 +2074,11 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 <Users className="h-4 w-4" />
                 Persone
               </TabsTrigger>
+              <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                <BarChart3 className="h-4 w-4" />
+                Riepilogo
+              </TabsTrigger>
             </>
-          )}
-          {/* "Portale" (catalogo): panoramica avanzamento. Solo azienda in library. */}
-          {showLibraryOverview && (
-            <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-              <BarChart3 className="h-4 w-4" />
-              Riepilogo
-            </TabsTrigger>
           )}
           {showPreview && (
             <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
@@ -2089,6 +2087,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             </TabsTrigger>
           )}
         </TabsList>
+        )}
 
         {showBuilder && effectiveTab !== "preview" && effectiveTab !== "riepilogo" && (
           <PortalCommandCenter
@@ -2211,13 +2210,11 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         <TabsContent value="persone">
           <PeopleProgressPanel course={selectedCourse} courses={courses} companyId={companyId} userId={userId} />
         </TabsContent>
-        </>)}
 
-        {showLibraryOverview && (
         <TabsContent value="riepilogo">
           <PortalRiepilogoPanel courses={courses} companyId={companyId} />
         </TabsContent>
-        )}
+        </>)}
 
         <TabsContent value="preview">
           <PortalPreview
