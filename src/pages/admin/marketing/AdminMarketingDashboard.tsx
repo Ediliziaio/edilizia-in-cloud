@@ -161,7 +161,7 @@ function OutreachCockpit() {
 
             <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Da leggere &amp; attività</SectionLabel>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
                 <OutreachActivityFeed companyId={companyId} />
               </div>
