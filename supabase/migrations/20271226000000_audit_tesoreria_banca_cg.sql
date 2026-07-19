@@ -83,6 +83,43 @@ UPDATE public.bank_transactions SET amount_eur = amount
 -- Altman, PFN/EBITDA ora corretti. (corpo completo live via execute_sql;
 -- frontend TabStatoPatrimoniale + PDF pacchetto-banca mostrano la voce raccordo.)
 
+-- ── P2 CORRETTEZZA — vista v_cg_costi_classificati: doppio conteggio costi ─────
+-- Univa 3 fonti (company_costs + bank_transactions<0 + prima_nota out). Fix:
+-- (A) le uscite bancarie erano escluse solo se riconciliate a una FATTURA; ora
+--     anche se riconciliate a una SCADENZA (linked_scadenza_id o
+--     bank_reconciliations.scadenza_id) → niente doppio conteggio del pagamento
+--     di un costo già tracciato.
+-- (B) rimosso il ramo prima_nota (filtro `direction='out'` MORTO: i dati usano
+--     'uscita'; e se "corretto" duplicherebbe company_costs/bank).
+-- NB verificato sui dati reali: company_costs vs uscite bancarie hanno overlap
+-- ~nullo (€250 su €41k) → il "doppio popolamento" NON si materializza; resta
+-- aperto (decisione utente) se le uscite bancarie NON classificate debbano
+-- contare come costi (possono includere mutui/giroconti/prelievi, non-costi).
+CREATE OR REPLACE VIEW public.v_cg_costi_classificati AS
+WITH costi_company AS (
+  SELECT cc.company_id, COALESCE(cc.paid_date, cc.due_date) AS data,
+         cc.amount AS importo, cc.category AS source_value, 'company_costs'::text AS source_table
+  FROM company_costs cc WHERE cc.amount IS NOT NULL
+),
+movimenti_bancari AS (
+  SELECT bt.company_id, COALESCE(bt.value_date, bt.booking_date) AS data,
+         abs(bt.amount) AS importo, bt.category AS source_value, 'bank_transactions'::text AS source_table
+  FROM bank_transactions bt
+  WHERE bt.amount < 0::numeric
+    AND bt.linked_scadenza_id IS NULL
+    AND NOT (bt.id IN (SELECT br.transaction_id FROM bank_reconciliations br
+                       WHERE br.invoice_id IS NOT NULL OR br.scadenza_id IS NOT NULL))
+)
+SELECT u.company_id, u.data, u.importo, u.source_table, u.source_value,
+       cl.voce_chiave, cl.macro_voce, cl.tipo,
+       EXTRACT(year FROM u.data)::integer AS anno, EXTRACT(month FROM u.data)::integer AS mese
+FROM (SELECT company_id, data, importo, source_value, source_table FROM costi_company
+      UNION ALL
+      SELECT company_id, data, importo, source_value, source_table FROM movimenti_bancari) u
+LEFT JOIN cg_classificazione_voci cl
+  ON cl.company_id = u.company_id AND cl.source_table = u.source_table
+ AND cl.source_value = u.source_value AND cl.is_active = true;
+
 -- ── P2 CORRETTEZZA — anti doppio-pagamento in riconciliazione ────────────────
 -- bank_reconciliations non aveva vincoli oltre la PK: due run concorrenti di
 -- bank-auto-reconcile potevano creare due pagamenti per la stessa transazione.
