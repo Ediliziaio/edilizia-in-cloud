@@ -1312,18 +1312,16 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
 
   const quality = useMemo(() => getCourseQuality(selectedCourse), [selectedCourse]);
 
-  const createCourse = () => {
-    if (!courseDraft.title.trim()) {
-      toast.error("Inserisci un titolo corso.");
-      return;
-    }
-
+  // Creazione a 1 clic: niente dialog a monte. Crea una bozza con default
+  // sensati e apre subito il Builder — titolo e impostazioni si modificano
+  // in-place lì (vedi editable title + "Impostazioni" nel CourseBuilder).
+  const createCourseQuick = () => {
     const newCourse: PortalCourse = {
       id: createId("course"),
-      title: courseDraft.title.trim(),
-      description: courseDraft.description.trim() || "Nuovo percorso formativo pronto per essere strutturato in moduli.",
-      area: courseDraft.area,
-      audience: courseDraft.audience,
+      title: "Nuovo corso senza titolo",
+      description: "Nuovo percorso formativo pronto per essere strutturato in moduli.",
+      area: "onboarding",
+      audience: "tutti",
       status: "bozza",
       owner: "Team",
       updatedAt: "Creato ora",
@@ -1346,9 +1344,44 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
     setSelectedCourseId(newCourse.id);
     setActiveTab("builder");
     persistCourse(newCourse);
+    toast.success("Bozza creata — dai un titolo e aggiungi i contenuti.");
+  };
+
+  // Patch dei metadati del corso selezionato. persistCourse è già debounced
+  // (350ms) e ignora i corsi platform → sicuro anche a ogni battuta del titolo.
+  const updateCourseMeta = (patch: Partial<PortalCourse>) => {
+    if (!selectedCourse || selectedCourse.sourceType === "platform") return;
+    const updated: PortalCourse = { ...selectedCourse, ...patch, updatedAt: "Modificato ora" };
+    setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    persistCourse(updated);
+  };
+
+  // Apre il dialog "Impostazioni corso" precompilato dal corso selezionato.
+  const openCourseSettings = () => {
+    if (!selectedCourse) return;
+    setCourseDraft({
+      title: selectedCourse.title,
+      description: selectedCourse.description,
+      area: selectedCourse.area,
+      audience: selectedCourse.audience,
+    });
+    setCourseDialogOpen(true);
+  };
+
+  const saveCourseSettings = () => {
+    if (!selectedCourse) return;
+    if (!courseDraft.title.trim()) {
+      toast.error("Il titolo non può essere vuoto.");
+      return;
+    }
+    updateCourseMeta({
+      title: courseDraft.title.trim(),
+      description: courseDraft.description.trim() || selectedCourse.description,
+      area: courseDraft.area,
+      audience: courseDraft.audience,
+    });
     setCourseDialogOpen(false);
-    setCourseDraft({ title: "", description: "", area: "onboarding", audience: "tutti" });
-    toast.success("Corso creato nel Portale.");
+    toast.success("Impostazioni corso salvate.");
   };
 
   const createFromTemplate = (template: PortalTemplate) => {
@@ -1676,18 +1709,21 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             )}
 
             <div className="flex flex-col gap-2 sm:flex-row">
+              {/* Creazione a 1 clic: crea subito la bozza e apre il Builder. */}
+              <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={createCourseQuick}>
+                <Plus className="h-4 w-4" />
+                Nuovo corso
+              </Button>
+
+              {/* Dialog "Impostazioni corso": modifica i metadati del corso
+                  selezionato. Aperto dal Builder (openCourseSettings), non più
+                  alla creazione. */}
               <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4" />
-                    Nuovo corso
-                  </Button>
-                </DialogTrigger>
                 <DialogContent className="max-w-xl">
                   <DialogHeader>
-                    <DialogTitle>Crea corso nel Portale</DialogTitle>
+                    <DialogTitle>Impostazioni corso</DialogTitle>
                     <DialogDescription>
-                      Definisci area, pubblico e obiettivo. Potrai aggiungere moduli e materiali subito dopo.
+                      Modifica titolo, descrizione, area e pubblico del corso selezionato.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4">
@@ -1765,8 +1801,8 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
                     <Button variant="outline" onClick={() => setCourseDialogOpen(false)}>
                       Annulla
                     </Button>
-                    <Button onClick={createCourse} className="bg-blue-600 hover:bg-blue-700">
-                      Crea corso
+                    <Button onClick={saveCourseSettings} className="bg-blue-600 hover:bg-blue-700">
+                      Salva
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -2097,6 +2133,9 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             onRemoveModule={removeModule}
             onRemoveAsset={removeAsset}
             onOpenAsset={openAssetAction}
+            onUpdateTitle={(title) => updateCourseMeta({ title })}
+            onOpenSettings={openCourseSettings}
+            onCreateCourse={createCourseQuick}
           />
         </TabsContent>
 
@@ -2724,6 +2763,9 @@ function CourseBuilder({
   onRemoveModule,
   onRemoveAsset,
   onOpenAsset,
+  onUpdateTitle,
+  onOpenSettings,
+  onCreateCourse,
 }: {
   course?: PortalCourse;
   onAddAsset: () => void;
@@ -2733,8 +2775,31 @@ function CourseBuilder({
   onRemoveModule: (moduleId: string) => void;
   onRemoveAsset: (assetId: string) => void;
   onOpenAsset: (asset: PortalAsset) => void;
+  onUpdateTitle?: (title: string) => void;
+  onOpenSettings?: () => void;
+  onCreateCourse?: () => void;
 }) {
-  if (!course) return null;
+  // Empty-state chiaro: prima mostrava il vuoto (return null) se nessun corso
+  // era selezionato — l'utente non capiva cosa fare.
+  if (!course) {
+    return (
+      <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+          <GraduationCap className="h-7 w-7" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-950">Nessun corso selezionato</h2>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+          Crea un nuovo corso e inizia subito a strutturarlo, oppure scegline uno dalla scheda «Corsi».
+        </p>
+        {onCreateCourse && (
+          <Button onClick={onCreateCourse} className="mt-4 gap-2 bg-blue-600 hover:bg-blue-700">
+            <Plus className="h-4 w-4" />
+            Crea corso
+          </Button>
+        )}
+      </section>
+    );
+  }
   const isPlatform = course.sourceType === "platform";
 
   const assetsByType = course.assets.reduce<Record<PortalAssetType, number>>((acc, asset) => {
@@ -2747,11 +2812,30 @@ function CourseBuilder({
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">Builder contenuti</h2>
-            <p className="text-sm text-slate-500">
-              Struttura moduli, materiali e checklist prima della pubblicazione.
-            </p>
+          <div className="min-w-0 flex-1">
+            {isPlatform ? (
+              <h2 className="text-xl font-bold text-slate-950">{course.title}</h2>
+            ) : (
+              <input
+                value={course.title}
+                onChange={(event) => onUpdateTitle?.(event.target.value)}
+                placeholder="Titolo del corso"
+                aria-label="Titolo corso"
+                className="-ml-1 w-full max-w-md rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xl font-bold text-slate-950 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
+              />
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-sm text-slate-500">Struttura moduli, materiali e checklist, poi pubblica.</p>
+              {!isPlatform && onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50"
+                >
+                  <Settings2 className="h-3.5 w-3.5" /> Impostazioni
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
