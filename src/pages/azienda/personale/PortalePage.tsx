@@ -4874,7 +4874,9 @@ function PortalPreview({
                   }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  {courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
+                  <span className="hidden truncate sm:inline">
+                    {courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
+                  </span>
                 </Button>
                 <div className="min-w-0">
                   <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl">{activeLearnerCourse.title}</h3>
@@ -4882,11 +4884,11 @@ function PortalPreview({
               </div>
 
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                   <Button
                     variant="outline"
                     className={cn(
-                      "h-10 gap-2 rounded-2xl",
+                      "h-10 justify-center gap-1.5 rounded-2xl px-1.5 text-xs sm:gap-2 sm:px-4 sm:text-sm",
                       courseExperienceView === "overview"
                         ? "border-blue-200 bg-blue-50 text-blue-700"
                         : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
@@ -4908,7 +4910,7 @@ function PortalPreview({
                   <Button
                     variant="outline"
                     className={cn(
-                      "h-10 gap-2 rounded-2xl",
+                      "h-10 justify-center gap-1.5 rounded-2xl px-1.5 text-xs sm:gap-2 sm:px-4 sm:text-sm",
                       courseExperienceView === "lesson"
                         ? "border-blue-200 bg-blue-50 text-blue-700"
                         : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
@@ -4920,7 +4922,7 @@ function PortalPreview({
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-10 gap-2 rounded-2xl border-blue-200 text-blue-700"
+                    className="h-10 justify-center gap-1.5 rounded-2xl px-1.5 text-xs sm:gap-2 sm:px-4 sm:text-sm border-blue-200 text-blue-700"
                     onClick={openLearnerMaterials}
                   >
                     <Download className="h-4 w-4" />
@@ -5359,7 +5361,7 @@ function LearnerCourseOverview({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <InfoTile label="Moduli" value={String(course.modules.length)} icon={ListChecks} />
             <InfoTile label="Durata" value={totalDurationLabel} icon={CalendarClock} />
             <InfoTile label="Completati" value={String(completedModules)} icon={CheckCircle2} />
