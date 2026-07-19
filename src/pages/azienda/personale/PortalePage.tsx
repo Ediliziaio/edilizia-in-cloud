@@ -283,8 +283,8 @@ const defaultCourses: PortalCourse[] = [
     enrolled: 38,
     completion: 76,
     modules: [
-      { id: "m1", title: "Accesso e DPI", description: "Regole minime prima di entrare in cantiere.", lessons: 4, duration: "28 min", completedRate: 82 },
-      { id: "m2", title: "Rischi operativi", description: "Cadute, movimentazione carichi e procedure di emergenza.", lessons: 5, duration: "42 min", completedRate: 71 },
+      { id: "m1", title: "Accesso e DPI", description: "Regole minime prima di entrare in cantiere.", lessons: 2, duration: "28 min", completedRate: 82 },
+      { id: "m2", title: "Rischi operativi", description: "Cadute, movimentazione carichi e procedure di emergenza.", lessons: 2, duration: "42 min", completedRate: 71 },
       { id: "m3", title: "Quiz finale", description: "Verifica interna con esito tracciabile.", lessons: 1, duration: "8 min", completedRate: 64 },
     ],
     assets: [
@@ -293,6 +293,7 @@ const defaultCourses: PortalCourse[] = [
         title: "Manuale DPI aziendale",
         type: "pdf",
         duration: "12 pagine",
+        moduleId: "m1",
         content:
           "Manuale operativo sintetico: controllo casco, scarpe antinfortunistiche, guanti, occhiali, gilet alta visibilita e verifica autorizzazioni prima dell'accesso.",
       },
@@ -301,9 +302,38 @@ const defaultCourses: PortalCourse[] = [
         title: "Video accesso cantiere",
         type: "video",
         duration: "6 min",
+        moduleId: "m1",
         downloadable: false,
         content:
           "Storyboard video demo: ingresso in cantiere, check DPI, firma presenza, identificazione area di lavoro e comunicazione al capocantiere.",
+      },
+      {
+        id: "a3",
+        title: "Video: cadute e movimentazione carichi",
+        type: "video",
+        duration: "8 min",
+        moduleId: "m2",
+        downloadable: false,
+        content:
+          "Storyboard video demo: rischio caduta dall'alto, uso imbracatura, movimentazione manuale e meccanica dei carichi, aree di manovra e segnalazione.",
+      },
+      {
+        id: "a4",
+        title: "Procedure di emergenza",
+        type: "procedura",
+        duration: "6 step",
+        moduleId: "m2",
+        content:
+          "1. Riconosci l'emergenza.\n2. Metti in sicurezza te stesso.\n3. Dai l'allarme.\n4. Segui le vie di fuga.\n5. Raggiungi il punto di raccolta.\n6. Segnala al preposto.",
+      },
+      {
+        id: "a5",
+        title: "Quiz presa visione sicurezza",
+        type: "quiz",
+        duration: "8 domande",
+        moduleId: "m3",
+        content:
+          "Verifica finale a risposta multipla su DPI, accesso cantiere, rischi operativi ed emergenze. Esito tracciabile per l'abilitazione.",
       },
     ],
   },
@@ -319,15 +349,35 @@ const defaultCourses: PortalCourse[] = [
     enrolled: 12,
     completion: 58,
     modules: [
-      { id: "m1", title: "Richiesta materiale", description: "Dal bisogno di cantiere alla richiesta interna.", lessons: 3, duration: "18 min", completedRate: 74 },
-      { id: "m2", title: "Ricezione DDT", description: "Controlli, foto colli, seriali e carico magazzino.", lessons: 4, duration: "36 min", completedRate: 48 },
+      { id: "m1", title: "Richiesta materiale", description: "Dal bisogno di cantiere alla richiesta interna.", lessons: 2, duration: "18 min", completedRate: 74 },
+      { id: "m2", title: "Ricezione DDT", description: "Controlli, foto colli, seriali e carico magazzino.", lessons: 2, duration: "36 min", completedRate: 48 },
     ],
     assets: [
+      {
+        id: "a3",
+        title: "Video: dalla richiesta all'ODA",
+        type: "video",
+        duration: "5 min",
+        moduleId: "m1",
+        downloadable: false,
+        content:
+          "Storyboard video demo: come nasce il bisogno in cantiere, compilazione richiesta interna, approvazione e trasformazione in ordine di acquisto (ODA).",
+      },
+      {
+        id: "a4",
+        title: "Modulo richiesta materiale",
+        type: "pdf",
+        duration: "1 pagina",
+        moduleId: "m1",
+        content:
+          "Campi minimi della richiesta: cantiere, referente, materiale, quantita, data richiesta, urgenza e note per l'ufficio acquisti.",
+      },
       {
         id: "a1",
         title: "Checklist ricezione merce",
         type: "procedura",
         duration: "7 step",
+        moduleId: "m2",
         content:
           "1. Verifica fornitore e ODA.\n2. Conta colli e bancali.\n3. Controlla danni visibili.\n4. Fotografa anomalie.\n5. Abbina DDT all'ordine.\n6. Carica magazzino.\n7. Segnala extra o mancanze.",
       },
@@ -336,6 +386,7 @@ const defaultCourses: PortalCourse[] = [
         title: "Template contestazione fornitore",
         type: "pdf",
         duration: "1 pagina",
+        moduleId: "m2",
         content:
           "Oggetto: contestazione consegna ODA [numero]. Indicare DDT, materiale mancante/danneggiato, foto allegate, richiesta di reintegro e nuova data confermata.",
       },
@@ -5245,6 +5296,9 @@ function LearnerCourseOverview({
     totalDurationMin >= 60 ? `${Math.floor(totalDurationMin / 60)}h ${totalDurationMin % 60}m` : `${totalDurationMin} min`;
   const firstOpenModule = course.modules.find((module) => getModuleCompletion(module) < 100) ?? course.modules[0];
   const featuredAssets = courseAssets.slice(0, 4);
+  // Accordion moduli: ogni modulo si espande per mostrare le sue lezioni (gli
+  // asset con quel moduleId). Default: espanso il primo modulo da completare.
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="min-w-0 space-y-5">
@@ -5278,58 +5332,124 @@ function LearnerCourseOverview({
             {course.modules.map((module, index) => {
               const moduleCompletion = getModuleCompletion(module);
               const isActive = module.id === activeModuleId;
+              const moduleLessons = course.assets.filter((asset) => asset.moduleId === module.id);
+              const isExpanded = expandedModules[module.id] ?? module.id === firstOpenModule?.id;
+              const toggleExpanded = () => setExpandedModules((prev) => ({ ...prev, [module.id]: !isExpanded }));
               return (
-                <button
+                <div
                   key={module.id}
-                  type="button"
-                  onClick={() => onOpenLesson(module.id)}
                   className={cn(
-                    "group grid w-full gap-3 rounded-3xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:grid-cols-[64px_minmax(0,1fr)_160px]",
+                    "rounded-3xl border bg-white transition",
                     isActive ? "border-blue-300 ring-1 ring-blue-100" : "border-slate-200",
                   )}
                 >
                   <div
-                    className={cn(
-                      "flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold",
-                      moduleCompletion >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
-                    )}
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggleExpanded}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleExpanded();
+                      }
+                    }}
+                    className="grid w-full cursor-pointer gap-3 rounded-3xl p-4 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:grid-cols-[64px_minmax(0,1fr)_auto]"
                   >
-                    {moduleCompletion >= 100 ? <CheckCircle2 className="h-6 w-6" /> : index + 1}
-                  </div>
+                    <div
+                      className={cn(
+                        "flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold",
+                        moduleCompletion >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
+                      )}
+                    >
+                      {moduleCompletion >= 100 ? <CheckCircle2 className="h-6 w-6" /> : index + 1}
+                    </div>
 
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-lg font-bold text-slate-950">{module.title}</h4>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          moduleCompletion >= 100
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : moduleCompletion > 0
-                              ? "border-blue-200 bg-blue-50 text-blue-700"
-                              : "border-slate-200 bg-slate-50 text-slate-600",
-                        )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-lg font-bold text-slate-950">{module.title}</h4>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            moduleCompletion >= 100
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : moduleCompletion > 0
+                                ? "border-blue-200 bg-blue-50 text-blue-700"
+                                : "border-slate-200 bg-slate-50 text-slate-600",
+                          )}
+                        >
+                          {moduleCompletion >= 100 ? "Completato" : moduleCompletion > 0 ? "In corso" : "Da iniziare"}
+                        </Badge>
+                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                          {module.duration}
+                        </Badge>
+                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                          {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{module.description}</p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <Progress value={moduleCompletion} className="h-2 flex-1" />
+                        <span className="w-10 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 md:flex-col md:items-end md:justify-center">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenLesson(module.id);
+                        }}
+                        className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700"
                       >
-                        {moduleCompletion >= 100 ? "Completato" : moduleCompletion > 0 ? "In corso" : "Da iniziare"}
-                      </Badge>
-                      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-                        {module.duration}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{module.description}</p>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Progress value={moduleCompletion} className="h-2 flex-1" />
-                      <span className="w-10 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
+                        Apri
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
+                        {isExpanded ? "Nascondi" : "Lezioni"}
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-start md:justify-end">
-                    <span className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-50 px-4 text-sm font-bold text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
-                      Apri
-                      <ChevronRight className="h-4 w-4" />
-                    </span>
-                  </div>
-                </button>
+                  {isExpanded && (
+                    <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                      {moduleLessons.length > 0 ? (
+                        <ul className="space-y-1.5">
+                          {moduleLessons.map((lesson, lessonIndex) => {
+                            const LessonIcon = assetIcon[lesson.type];
+                            return (
+                              <li key={lesson.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenAsset(lesson)}
+                                  className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-300 hover:bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                                    <LessonIcon className="h-4 w-4" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-semibold text-slate-900">
+                                      {lessonIndex + 1}. {lesson.title}
+                                    </span>
+                                    <span className="block text-xs text-slate-500">
+                                      {assetTypeLabels[lesson.type]} · {lesson.duration}
+                                    </span>
+                                  </span>
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-center text-sm text-slate-500">
+                          Contenuti in preparazione per questo modulo.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
             {course.modules.length === 0 && (
