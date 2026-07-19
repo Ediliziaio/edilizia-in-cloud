@@ -5347,7 +5347,11 @@ function LearnerCourseOverview({
   const totalDurationLabel =
     totalDurationMin >= 60 ? `${Math.floor(totalDurationMin / 60)}h ${totalDurationMin % 60}m` : `${totalDurationMin} min`;
   const firstOpenModule = course.modules.find((module) => getModuleCompletion(module) < 100) ?? course.modules[0];
-  const featuredAssets = courseAssets.slice(0, 4);
+  // Materiali "generali" = non collegati a nessun modulo. I materiali di un
+  // modulo sono gia' le sue lezioni (accordion sopra): mostrarli anche qui
+  // sarebbe un doppione. Quindi la sezione Risorse elenca SOLO i generali e,
+  // se non ce ne sono, sparisce del tutto.
+  const generalAssets = courseAssets.filter((asset) => !asset.moduleId);
   // Accordion moduli: ogni modulo si espande per mostrare le sue lezioni (gli
   // asset con quel moduleId). Default: espanso il primo modulo da completare.
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
@@ -5514,38 +5518,26 @@ function LearnerCourseOverview({
           </div>
         </section>
 
+        {generalAssets.length > 0 && (
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risorse</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-950">Materiali e quiz disponibili</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="w-fit">{materialAssets.length} materiali</Badge>
-              <Badge variant="outline" className="w-fit">{quizAssets.length} quiz</Badge>
-            </div>
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risorse</p>
+            <h3 className="mt-1 text-xl font-bold text-slate-950">Materiali generali</h3>
+            <p className="mt-0.5 text-sm text-slate-500">Non collegati a un modulo specifico.</p>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
-            {featuredAssets.map((asset) => {
-              const targetModuleId = asset.moduleId ?? firstOpenModule?.id ?? course.modules[0]?.id ?? "";
-
-              return (
-                <LearnerAssetRow
-                  key={asset.id}
-                  asset={asset}
-                  course={course}
-                  onSelect={targetModuleId ? () => onOpenLesson(targetModuleId) : undefined}
-                  onOpen={() => onOpenAsset(asset)}
-                />
-              );
-            })}
-            {featuredAssets.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-2">
-                Nessun materiale collegato al corso.
-              </div>
-            )}
+            {generalAssets.map((asset) => (
+              <LearnerAssetRow
+                key={asset.id}
+                asset={asset}
+                course={course}
+                onSelect={firstOpenModule?.id ? () => onOpenLesson(firstOpenModule.id) : undefined}
+                onOpen={() => onOpenAsset(asset)}
+              />
+            ))}
           </div>
         </section>
+        )}
       </div>
 
       <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
