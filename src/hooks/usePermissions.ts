@@ -83,6 +83,12 @@ export interface Permissions {
   canViewFormazione: boolean;
   /** Gestione Portale corsi (/azienda/personale/portale) */
   canManagePortal: boolean;
+  /** Creazione/editing corsi nel builder (/azienda/corsi). Distinto da
+   *  canManagePortal: si può gestire il Portale (libreria + assegnazioni)
+   *  senza poter creare/modificare corsi. Transitorio: finché la colonna DB
+   *  `can_create_courses` non è applicata è derivato da canManagePortal
+   *  (vedi mapDbRowToPermissions). */
+  canCreateCourses: boolean;
   // Granular marketing permissions
   canViewMarketingDashboard: boolean;
   canViewMarketingContacts: boolean;
@@ -251,7 +257,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewPrimaNota: true, canViewCosts: true, canViewMargins: true,
   canViewPrevisionale: true, canViewTesoreria: true,
   canViewPersone: true,
-  canViewFormazione: true, canManagePortal: true,
+  canViewFormazione: true, canManagePortal: true, canCreateCourses: true,
   canViewMarketingDashboard: true, canViewMarketingContacts: true,
   canEditMarketingContacts: true, canViewMarketingOpportunities: true,
   canEditMarketingOpportunities: true, canViewMarketingActivities: true,
@@ -300,7 +306,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewPrimaNota: false, canViewCosts: false, canViewMargins: false,
   canViewPrevisionale: false, canViewTesoreria: false,
   canViewPersone: false,
-  canViewFormazione: false, canManagePortal: false,
+  canViewFormazione: false, canManagePortal: false, canCreateCourses: false,
   canViewMarketingDashboard: false, canViewMarketingContacts: false,
   canEditMarketingContacts: false, canViewMarketingOpportunities: false,
   canEditMarketingOpportunities: false, canViewMarketingActivities: false,
@@ -366,6 +372,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Formazione/Portale: il commercialista esterno non ne ha bisogno
   canViewFormazione: false,
   canManagePortal: false,
+  canCreateCourses: false,
   // Settings: ESPLICITAMENTE NO — il commercialista non deve modificare
   // o vedere la configurazione dell'azienda cliente (anagrafica, fornitori,
   // listini, branding, abbonamento, utenti, sicurezza)
@@ -482,6 +489,11 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewPersone:     g("can_view_persone"),
     canViewFormazione:  g("can_view_formazione"),
     canManagePortal:    g("can_manage_portal"),
+    // Transitorio: finché la colonna DB `can_create_courses` non è applicata
+    // (migration 20271225000000, da applicare in pubblicazione) la creazione
+    // corsi resta legata a chi gestisce il Portale. Post-migration diventerà
+    // `g("can_create_courses")` puro, per separare gestione da creazione.
+    canCreateCourses:   g("can_create_courses") || g("can_manage_portal"),
     canViewMarketingDashboard:     g("can_view_marketing_dashboard"),
     canViewMarketingContacts:      g("can_view_marketing_contacts"),
     canEditMarketingContacts:      g("can_edit_marketing_contacts"),
