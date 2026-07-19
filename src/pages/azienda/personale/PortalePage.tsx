@@ -1010,12 +1010,17 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
   const isAdminContext = portalContext === "admin";
-  // Il Builder (creazione/editing corsi) è disponibile in "builder" e "full",
-  // nascosto in "library" (il Portale mostra solo la libreria + gestione).
+  // Builder + azioni di creazione: in "builder" (Crea corsi) e "full" (admin),
+  // nascosti in "library" (il Portale è catalogo/panoramica, non authoring).
   const showBuilder = mode !== "library";
-  // Le tab di gestione azienda-edile (procedure/accessi/persone/riepilogo) NON
-  // hanno senso in "builder" (authoring puro) né in admin.
-  const showManagement = !isAdminContext && mode !== "builder";
+  // Authoring + distribuzione — SOLO azienda in "Crea corsi": procedure/manuali,
+  // Accessi (chi può accedere) e Persone (assegnazioni). Non in Portale né admin.
+  const showAuthoringMgmt = !isAdminContext && mode === "builder";
+  // Panoramica avanzamento (Riepilogo) — SOLO azienda nel "Portale" (catalogo).
+  const showLibraryOverview = !isAdminContext && mode === "library";
+  // Anteprima "Pagina utente": nel Portale (library) e in admin (full); NON
+  // nell'authoring puro di "Crea corsi".
+  const showPreview = mode !== "builder";
   const [courses, setCourses] = useState<PortalCourse[]>(() =>
     isAdminContext ? [] : loadCourses(companyId),
   );
@@ -1025,6 +1030,17 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const [activeTab, setActiveTab] = useState(
     mode === "library" ? "corsi" : mode === "builder" ? "builder" : "preview",
   );
+  // Tab visibili nella modalità corrente + clamp di sicurezza: se activeTab non
+  // è tra questi (es. un setActiveTab verso un tab nascosto in questa modalità),
+  // mostra un tab valido invece di un'area contenuto vuota.
+  const visibleTabs = [
+    "corsi",
+    ...(showBuilder ? ["builder"] : []),
+    ...(showAuthoringMgmt ? ["procedure", "accessi", "persone"] : []),
+    ...(showLibraryOverview ? ["riepilogo"] : []),
+    ...(showPreview ? ["preview"] : []),
+  ];
+  const effectiveTab = visibleTabs.includes(activeTab) ? activeTab : "corsi";
   const [search, setSearch] = useState("");
   const [areaFilter, setAreaFilter] = useState<PortalArea | "tutte">("tutte");
   const [knowledgeSearch, setKnowledgeSearch] = useState("");
@@ -2010,17 +2026,19 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 </DialogContent>
               </Dialog>
 
-              <Button
-                variant="ghost"
-                className="h-11 gap-2 text-slate-700 hover:bg-white"
-                onClick={() => {
-                  setActiveTab("preview");
-                  toast.success("Anteprima utente aperta.");
-                }}
-              >
-                <PanelRight className="h-4 w-4" />
-                Apri pagina utente
-              </Button>
+              {showPreview && (
+                <Button
+                  variant="ghost"
+                  className="h-11 gap-2 text-slate-700 hover:bg-white"
+                  onClick={() => {
+                    setActiveTab("preview");
+                    toast.success("Anteprima utente aperta.");
+                  }}
+                >
+                  <PanelRight className="h-4 w-4" />
+                  Apri pagina utente
+                </Button>
+              )}
             </div>
           </div>
 
@@ -2033,7 +2051,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         </div>
       </section>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
+      <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
         <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="corsi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
             <Library className="h-4 w-4" />
@@ -2045,13 +2063,10 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               Builder
             </TabsTrigger>
           )}
-          {/* Tab azienda-edile nascoste in admin context:
-              - Procedure: pensato per checklist sicurezza/operativi cantiere
-              - Accessi: in admin la gestione cross-company avviene in
-                AdminPortaleDistributionBar a monte
-              - Persone: avanzamento per-persona da iscrizioni reali (non in admin)
-              Nascoste anche in modalità "builder" (Crea corsi = authoring puro). */}
-          {showManagement && (
+          {/* "Crea corsi" (authoring + distribuzione): procedure/manuali, Accessi
+              (chi può accedere), Persone (assegnazioni). Solo azienda in builder;
+              in admin la distribuzione cross-company è nella DistributionBar. */}
+          {showAuthoringMgmt && (
             <>
               <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <ClipboardCheck className="h-4 w-4" />
@@ -2065,19 +2080,24 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 <Users className="h-4 w-4" />
                 Persone
               </TabsTrigger>
-              <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-                <BarChart3 className="h-4 w-4" />
-                Riepilogo
-              </TabsTrigger>
             </>
           )}
-          <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-            <UserRoundCheck className="h-4 w-4" />
-            Pagina utente
-          </TabsTrigger>
+          {/* "Portale" (catalogo): panoramica avanzamento. Solo azienda in library. */}
+          {showLibraryOverview && (
+            <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <BarChart3 className="h-4 w-4" />
+              Riepilogo
+            </TabsTrigger>
+          )}
+          {showPreview && (
+            <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <UserRoundCheck className="h-4 w-4" />
+              Pagina utente
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        {showBuilder && activeTab !== "preview" && activeTab !== "riepilogo" && (
+        {showBuilder && effectiveTab !== "preview" && effectiveTab !== "riepilogo" && (
           <PortalCommandCenter
             course={selectedCourse}
             quality={quality}
@@ -2169,7 +2189,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         </TabsContent>
         )}
 
-        {showManagement && (<>
+        {showAuthoringMgmt && (<>
         <TabsContent value="procedure">
           <KnowledgeBasePanel
             items={filteredKnowledgeItems}
@@ -2198,11 +2218,13 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         <TabsContent value="persone">
           <PeopleProgressPanel course={selectedCourse} courses={courses} companyId={companyId} userId={userId} />
         </TabsContent>
+        </>)}
 
+        {showLibraryOverview && (
         <TabsContent value="riepilogo">
           <PortalRiepilogoPanel courses={courses} companyId={companyId} />
         </TabsContent>
-        </>)}
+        )}
 
         <TabsContent value="preview">
           <PortalPreview
