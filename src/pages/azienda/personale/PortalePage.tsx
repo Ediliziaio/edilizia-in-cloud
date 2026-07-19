@@ -4889,6 +4889,10 @@ function PortalPreview({
           </div>
 
           <div className="mx-auto max-w-[1640px] px-4 py-5 lg:px-6 lg:py-6">
+            {/* Hero corso (titolo + progress + Avvia lezione): SOLO in panoramica.
+                In modalità lezione è ridondante (si è già dentro) e spinge giù il
+                contenuto — lì basta l'header sticky + il player. */}
+            {courseExperienceView === "overview" && (
             <div className="mb-5 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
               <div className="grid gap-5 bg-gradient-to-r from-white via-blue-50 to-orange-50 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
                 <div className="min-w-0 space-y-4">
@@ -4942,6 +4946,7 @@ function PortalPreview({
                 </div>
               </div>
             </div>
+            )}
 
             {courseExperienceView === "overview" ? (
               <LearnerCourseOverview
