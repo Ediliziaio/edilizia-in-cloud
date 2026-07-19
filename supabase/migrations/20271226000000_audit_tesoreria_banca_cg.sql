@@ -71,6 +71,18 @@ UPDATE public.bank_transactions SET amount_eur = amount
 --   + voce '08b' "Costi non classificati" nel prospetto + meta.costi_non_classificati
 -- (corpo completo applicato live via execute_sql; renderer PDF/frontend generici).
 
+-- ── P1 CORRETTEZZA — Stato Patrimoniale: non quadrava + debiti fornitori da PO ─
+-- cg_get_stato_patrimoniale_riclassificato: (1) debiti_fornitori = SUM(ordini
+-- d'acquisto aperti) — un PO non è un debito → su un'azienda reale passivo
+-- sottostimato di €146k (mostrava €0 di debiti vs €146k reali); ora dalle
+-- scadenze uscita non pagate (escluse le fiscali, già in f24). (2) Attivo e
+-- passivo da fonti indipendenti → non quadrava mai; ora quadra per identità
+-- contabile: PN = Attivo − Debiti, con voce 'rettifica_patrimoniale' che assorbe
+-- lo scarto vs PN dichiarato (riserve/utili a nuovo non registrati). differenza→0.
+-- cg_get_rating e cg_get_indici_avanzati leggono dallo SP → current ratio,
+-- Altman, PFN/EBITDA ora corretti. (corpo completo live via execute_sql;
+-- frontend TabStatoPatrimoniale + PDF pacchetto-banca mostrano la voce raccordo.)
+
 -- ── P2 CORRETTEZZA — anti doppio-pagamento in riconciliazione ────────────────
 -- bank_reconciliations non aveva vincoli oltre la PK: due run concorrenti di
 -- bank-auto-reconcile potevano creare due pagamenti per la stessa transazione.

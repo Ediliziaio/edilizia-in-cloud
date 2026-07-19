@@ -85,6 +85,7 @@ function SPExportButton({ anno }: { anno: number }) {
     rows.push({ codice: "10", label: "Capitale", valore: passivo.capitale_sociale, tipo: "voce" });
     rows.push({ codice: "11", label: "Riserve", valore: passivo.riserve, tipo: "voce" });
     rows.push({ codice: "12", label: "Utile esercizio", valore: passivo.utile_esercizio, tipo: "voce" });
+    rows.push({ codice: "12b", label: "Riserve/rettifiche di raccordo", valore: passivo.rettifica_patrimoniale ?? 0, tipo: "voce" });
     rows.push({ codice: "MP", label: "Mezzi propri TOT", valore: passivo.mezzi_propri, tipo: "subtot" });
     rows.push({ codice: "13", label: "TFR", valore: passivo.fondo_tfr, tipo: "voce" });
     rows.push({ codice: "14", label: "Fondi rischi", valore: passivo.fondi_rischi, tipo: "voce" });
@@ -214,6 +215,7 @@ const RIGHE_PASSIVO: RigaConfronto[] = [
   { label: "Capitale", livello: "voce", pick: (sp) => sp.passivo.capitale_sociale },
   { label: "Riserve", livello: "voce", pick: (sp) => sp.passivo.riserve },
   { label: "Utile esercizio", livello: "voce", pick: (sp) => sp.passivo.utile_esercizio },
+  { label: "Riserve/rettifiche di raccordo", livello: "voce", pick: (sp) => sp.passivo.rettifica_patrimoniale ?? 0 },
   { label: "Mezzi propri TOT", livello: "subtot", pick: (sp) => sp.passivo.mezzi_propri },
   // Debiti/passività: aumento = negativo (rosso).
   { label: "TFR", livello: "voce", pick: (sp) => sp.passivo.fondo_tfr, higherIsWorse: true },

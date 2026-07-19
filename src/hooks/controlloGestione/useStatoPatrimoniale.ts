@@ -31,6 +31,7 @@ export interface SPPassivo {
   capitale_sociale: number;
   riserve: number;
   utile_esercizio: number;
+  rettifica_patrimoniale: number;
   mezzi_propri: number;
   fondo_tfr: number;
   fondi_rischi: number;
