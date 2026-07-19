@@ -5038,26 +5038,6 @@ function PortalPreview({
                   onOpenAsset={onOpenAsset}
                 />
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sequenza della lezione</p>
-                      <h4 className="mt-1 text-lg font-bold text-slate-950">Blocchi chiari, uno dopo l'altro</h4>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        Video, testo, allegati, quiz e presa visione sono separati per rendere il percorso leggibile.
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-                      {activeLessonBlocks.filter((block) => block.status === "pronto").length} pronti
-                    </Badge>
-                  </div>
-                  <LessonBlockStrip
-                    blocks={activeLessonBlocks}
-                    activeBlockId={activePreviewAsset?.id}
-                    onOpenBlock={openLearnerBlock}
-                  />
-                </section>
-
                 <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
