@@ -267,7 +267,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Cadenze multi-step: il contatto entra e riceve lo step giusto ogni giorno.</p>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setAiOpen((v) => !v); setTemplateOpen(false); setCreating(false); }}><Sparkles className="h-3.5 w-3.5" /> Genera con AI</Button>
           <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setTemplateOpen((v) => !v); setAiOpen(false); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Da template</Button>
           <Button size="sm" className="h-8 gap-1" onClick={() => { setCreating((v) => !v); setTemplateOpen(false); setAiOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
