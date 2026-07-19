@@ -132,7 +132,10 @@ function main() {
       return match;
     }
     const newDate = gitLastModified(src);
-    if (!newDate || newDate === oldDate) {
+    // Monotòno: una <lastmod> non deve MAI regredire (una data più vecchia
+    // dice a Google "la pagina è più vecchia di prima" → riduce il re-crawl).
+    // Le date ISO YYYY-MM-DD si confrontano lessicograficamente.
+    if (!newDate || newDate <= oldDate) {
       skipped++;
       return match;
     }
