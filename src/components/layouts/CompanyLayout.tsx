@@ -364,6 +364,13 @@ function appendSearchToAziendaUrl(url: string, search: string) {
   return `${url}${separator}${normalizedSearch}`;
 }
 
+// Tutti gli URL di navigazione (config statica completa), usati per la logica
+// "esiste una voce più specifica?" in isActive. Va valutata CROSS-AREA, non solo
+// dentro l'area corrente: es. "Portale" (/azienda/personale/portale) vive in
+// "Formazione" ma è annidato sotto l'URL di "Personale & HR" (/azienda/personale).
+// Senza questo, su /azienda/personale/portale si accendeva ANCHE Personale & HR.
+const ALL_NAV_URLS: string[] = macroAreas.flatMap(a => a.items.map(i => i.url));
+
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo, toHref = (url) => url }: {
   area: MacroArea;
   visibleItems: NavItem[];
@@ -409,9 +416,13 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     }
     if (pathname === url) return true;
     if (pathname.startsWith(url + "/")) {
-      const hasMoreSpecific = visibleItems.some(
-        other => other.url !== url && other.url.startsWith(url + "/") &&
-          (pathname === other.url || pathname.startsWith(other.url + "/"))
+      // Cerca una voce più specifica in TUTTA la nav (cross-area), non solo in
+      // questa area: altrimenti un URL-genitore in un'area (es. Personale & HR
+      // /azienda/personale) si accende su una route figlia che appartiene a una
+      // voce di un'altra area (es. Portale /azienda/personale/portale).
+      const hasMoreSpecific = ALL_NAV_URLS.some(
+        otherUrl => otherUrl !== url && otherUrl.startsWith(url + "/") &&
+          (pathname === otherUrl || pathname.startsWith(otherUrl + "/"))
       );
       return !hasMoreSpecific;
     }
