@@ -453,7 +453,7 @@ function CourseCard({
   const progress = enrollment?.progressPercent ?? 0;
   const area = AREA_META[course.area];
   const st = statusTone(progress, enrollment);
-  const lessons = course.modules.reduce((acc, m) => acc + (m.lessons || 0), 0);
+  const materials = course.assets.length;
   const assigned = !!enrollment?.assignedBy;
   const dueAt = enrollment?.dueAt ?? null;
   const overdue = !!dueAt && progress < 100 && new Date(dueAt).getTime() < now;
@@ -489,9 +489,9 @@ function CourseCard({
         <span className="inline-flex items-center gap-1">
           <Layers className="h-3.5 w-3.5" /> {course.modules.length} moduli
         </span>
-        {lessons > 0 && (
+        {materials > 0 && (
           <span className="inline-flex items-center gap-1">
-            <BookOpen className="h-3.5 w-3.5" /> {lessons} lezioni
+            <BookOpen className="h-3.5 w-3.5" /> {materials} material{materials === 1 ? "e" : "i"}
           </span>
         )}
         {dueAt && (
@@ -751,9 +751,8 @@ function CoursePlayer({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modulo {idx + 1}</p>
                     <h3 className="mt-0.5 font-bold text-slate-950">{module.title}</h3>
                     {module.description && <p className="mt-1 text-sm text-slate-500">{module.description}</p>}
-                    {(module.lessons > 0 || module.duration || moduleAssets.length > 0) && (
+                    {(module.duration || moduleAssets.length > 0) && (
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                        {module.lessons > 0 && <span>{module.lessons} lezioni</span>}
                         {module.duration && <span>{module.duration}</span>}
                         {moduleAssets.length > 0 && (
                           <span
