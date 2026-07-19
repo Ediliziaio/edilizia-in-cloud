@@ -104,7 +104,7 @@ function PrimaNotaInner() {
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, create, remove, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, fetchAllForExport } = usePrimaNota({
     fromDate,
     toDate,
     direction: direction || undefined,
@@ -124,31 +124,20 @@ function PrimaNotaInner() {
     return withBal.reverse();
   }, [entries]);
 
-  // Monthly chart data (last 6 months) — single O(n) pass
+  // Grafico ultimi 6 mesi: alimentato dalla query dedicata `monthlyChart` (tutte
+  // le registrazioni degli ultimi 6 mesi), NON dalla lista paginata/filtrata —
+  // prima mostrava solo il mese corrente perché leggeva `entries`.
   const chartData = useMemo(() => {
-    const buckets = new Map<string, { month: string; entrate: number; uscite: number }>();
     const now = new Date();
-
-    // Initialize 6 month buckets
+    const rows: { month: string; entrate: number; uscite: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = subMonths(now, i);
       const key = format(d, "yyyy-MM");
-      const label = format(d, "MMM yy", { locale: it });
-      buckets.set(key, { month: label, entrate: 0, uscite: 0 });
+      const b = monthlyChart?.[key];
+      rows.push({ month: format(d, "MMM yy", { locale: it }), entrate: b?.entrate ?? 0, uscite: b?.uscite ?? 0 });
     }
-
-    // Single O(n) pass
-    for (const e of entries) {
-      const key = e.entry_date.slice(0, 7); // "yyyy-MM"
-      const bucket = buckets.get(key);
-      if (bucket) {
-        if (e.direction === "entrata") bucket.entrate += e.amount;
-        else bucket.uscite += e.amount;
-      }
-    }
-
-    return Array.from(buckets.values());
-  }, [entries]);
+    return rows;
+  }, [monthlyChart]);
 
   // Esporta TUTTE le righe filtrate (non solo la pagina visibile): prima il CSV
   // conteneva solo i 50 movimenti della pagina corrente → export incompleto.
@@ -394,7 +383,7 @@ function PrimaNotaInner() {
                 <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
                 <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-right p-3 font-medium hidden md:table-cell">Saldo</th>
+                <th className="text-right p-3 font-medium hidden md:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
                 <th className="text-left p-3 font-medium hidden md:table-cell">Metodo</th>
                 <th className="p-3 w-10"></th>
               </tr>
