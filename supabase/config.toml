@@ -7,6 +7,11 @@ verify_jwt = false
 [functions.bank-eb-cron]
 verify_jwt = false
 
+# Fleet-wide cron (itera tutte le aziende): auth via x-cron-secret in-code, quindi
+# verify_jwt=false. Vedi gate INTERNAL_CRON_SECRET nella funzione (fix audit tesoreria).
+[functions.ai-cashflow-forecast-builder]
+verify_jwt = false
+
 # Check giornaliero scadenze documenti personale (HR). Auth via x-cron-secret.
 [functions.hr-check-scadenze]
 verify_jwt = false

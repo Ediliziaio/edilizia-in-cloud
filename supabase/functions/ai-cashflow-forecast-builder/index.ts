@@ -17,6 +17,17 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // SICUREZZA (P1): funzione fleet-wide (itera TUTTE le aziende, calcola forecast
+  // pesanti e scrive notifiche). Deve girare solo da cron con il segreto interno,
+  // altrimenti chiunque su internet può innescare compute-DoS + notifiche a tappeto.
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  if (!cronSecret || req.headers.get("x-cron-secret") !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

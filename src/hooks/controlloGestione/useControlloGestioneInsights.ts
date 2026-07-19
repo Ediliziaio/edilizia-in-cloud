@@ -131,8 +131,10 @@ export function useControlloGestioneInsights(anno: number) {
       .map((r) => ({
         id: r.id,
         nome: r.order_code ? `${r.order_code} ${r.description}` : r.description,
-        margine_pct: r.margine_atteso_perc ?? (r.margine_perc || null),
-        margine_eur: r.margine_atteso ?? (r.margine || null),
+        // `?? null` (non `|| null`): un margine di ESATTAMENTE 0% è il cantiere
+        // più critico e NON deve essere scartato dall'alert "in perdita".
+        margine_pct: r.margine_atteso_perc ?? r.margine_perc ?? null,
+        margine_eur: r.margine_atteso ?? r.margine ?? null,
       }));
 
     const snapshot: Snapshot = {

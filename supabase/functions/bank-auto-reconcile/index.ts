@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 /**
  * bank-auto-reconcile: Riconciliazione automatica batch
@@ -125,6 +126,12 @@ Deno.serve(async (req) => {
         const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
         companyId = profile?.company_id;
       }
+      // SICUREZZA (P0): verifica che l'utente possa operare su questa azienda.
+      // Senza questo, chiunque con un JWT poteva riconciliare/pagare fatture di
+      // un'ALTRA azienda passando company_id nel body (qui si usa il service-role,
+      // che bypassa la RLS). requireCompanyAccess lancia 403 se non autorizzato e
+      // impedisce anche il ramo "processa tutte le aziende" a un utente normale.
+      await requireCompanyAccess(supabase, user.id, companyId as string, getCorsHeaders(req));
     }
 
     // Se non c'è company_id, processa tutte le company con connessioni attive
@@ -259,6 +266,15 @@ Deno.serve(async (req) => {
               reference: recRow?.id ? `recon:${recRow.id}` : tx.external_transaction_id,
               notes: `Auto-riconciliato (score: ${bestMatch.score}/100)`,
             });
+
+            // Simmetria col ramo DEBIT (che imposta linked_scadenza_id): marca la
+            // transazione come riconciliata così le viste/idempotenza la riconoscono
+            // (prima gli auto-match CREDIT restavano "non riconciliati" per le viste).
+            await supabase.from("bank_transactions").update({
+              linked_invoice_id: bestMatch.invoice.id,
+              reconciliation_status: "reconciled",
+              reconciled_at: new Date().toISOString(),
+            }).eq("id", tx.id);
 
             // paid_amount è ricalcolato dai trigger su invoice_payments → NON
             // sovrascriverlo a mano (doppia scrittura = importi incoerenti).
@@ -413,6 +429,7 @@ Deno.serve(async (req) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (e) {
+    if (e instanceof Response) return e; // requireCompanyAccess lancia una Response 403
     const message = e instanceof Error ? e.message : String(e);
     console.error("bank-auto-reconcile error:", message);
     return errorResponse(message, 500);
