@@ -288,21 +288,21 @@ export default function AdminWhatsappLocaleInbox() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <MessageCircle className="h-6 w-6" /> WhatsApp Locale
+            <MessageCircle className="h-6 w-6 shrink-0" /> WhatsApp Locale
           </h1>
           <p className="text-muted-foreground">
             Conversazioni del canale non-ufficiale. Le risposte arrivano in tempo reale.
           </p>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
+        <Button className="shrink-0 self-start sm:self-auto" onClick={() => setNewOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Nuovo messaggio
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[320px_1fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
         {/* Lista thread */}
         <Card className="h-[70vh] overflow-y-auto">
           {messagesQuery.isLoading ? (
