@@ -30,7 +30,7 @@ ON CONFLICT (id) DO NOTHING;
 DROP POLICY IF EXISTS "openwa_media_super_read" ON storage.objects;
 CREATE POLICY "openwa_media_super_read" ON storage.objects
   FOR SELECT TO authenticated
-  USING (bucket_id = 'openwa-media' AND public.is_super_admin());
+  USING (bucket_id = 'openwa-media' AND public.is_super_admin(auth.uid()));
 
 DROP POLICY IF EXISTS "openwa_media_service_all" ON storage.objects;
 CREATE POLICY "openwa_media_service_all" ON storage.objects

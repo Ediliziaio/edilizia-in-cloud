@@ -42,7 +42,7 @@ CREATE TRIGGER trg_openwa_rules_updated BEFORE UPDATE ON public.openwa_rules
 ALTER TABLE public.openwa_rules ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS openwa_rules_super ON public.openwa_rules;
 CREATE POLICY openwa_rules_super ON public.openwa_rules
-  FOR ALL TO authenticated USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+  FOR ALL TO authenticated USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()));
 DROP POLICY IF EXISTS openwa_rules_service ON public.openwa_rules;
 CREATE POLICY openwa_rules_service ON public.openwa_rules
   FOR ALL TO service_role USING (true) WITH CHECK (true);

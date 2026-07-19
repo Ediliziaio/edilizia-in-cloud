@@ -81,7 +81,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['openwa_numbers','openwa_messages'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS %1$s_super ON public.%1$s', t);
-    EXECUTE format('CREATE POLICY %1$s_super ON public.%1$s FOR ALL TO authenticated USING (public.is_super_admin()) WITH CHECK (public.is_super_admin())', t);
+    EXECUTE format('CREATE POLICY %1$s_super ON public.%1$s FOR ALL TO authenticated USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()))', t);
     EXECUTE format('DROP POLICY IF EXISTS %1$s_service ON public.%1$s', t);
     EXECUTE format('CREATE POLICY %1$s_service ON public.%1$s FOR ALL TO service_role USING (true) WITH CHECK (true)', t);
   END LOOP;
