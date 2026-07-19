@@ -1393,29 +1393,35 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
     toast.success("Template corso creato come bozza.");
   };
 
+  // Aggiunta modulo a 1 clic: crea un modulo con titolo default e lo accoda —
+  // titolo e descrizione si modificano poi in-place nella card (updateModule).
   const addModule = () => {
-    if (!selectedCourse) return;
-    if (!moduleDraft.title.trim()) {
-      toast.error("Inserisci il titolo del modulo.");
-      return;
-    }
-
-    const lessons = Math.max(0, Number.parseInt(moduleDraft.lessons, 10) || 0);
+    if (!selectedCourse || selectedCourse.sourceType === "platform") return;
     const module: PortalModule = {
       id: createId("module"),
-      title: moduleDraft.title.trim(),
-      description: moduleDraft.description.trim() || "Modulo pronto per lezioni, materiale e verifica.",
-      lessons,
-      duration: moduleDraft.duration.trim() || "Da definire",
+      title: "Nuovo modulo",
+      description: "Aggiungi lezioni, materiali e verifica.",
+      lessons: 0,
+      duration: "Da definire",
       completedRate: 0,
     };
 
     const nextCourse = { ...selectedCourse, modules: [...selectedCourse.modules, module], updatedAt: "Aggiornato ora" };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
-    setModuleDialogOpen(false);
-    setModuleDraft({ title: "", description: "", duration: "", lessons: "1" });
-    toast.success("Modulo aggiunto al percorso.");
+    toast.success("Modulo aggiunto — dagli titolo e contenuti qui sotto.");
+  };
+
+  // Patch inline di un modulo (titolo/descrizione). persistCourse è debounced.
+  const updateModule = (moduleId: string, patch: Partial<PortalModule>) => {
+    if (!selectedCourse || selectedCourse.sourceType === "platform") return;
+    const nextCourse: PortalCourse = {
+      ...selectedCourse,
+      modules: selectedCourse.modules.map((m) => (m.id === moduleId ? { ...m, ...patch } : m)),
+      updatedAt: "Modificato ora",
+    };
+    setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
+    persistCourse(nextCourse);
   };
 
   const addAsset = async () => {
@@ -2127,7 +2133,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
           <CourseBuilder
             course={selectedCourse}
             onAddAsset={() => setAssetDialogOpen(true)}
-            onAddModule={() => setModuleDialogOpen(true)}
+            onAddModule={addModule}
             onPublish={togglePublish}
             onMoveModule={moveModule}
             onRemoveModule={removeModule}
@@ -2136,6 +2142,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
             onUpdateTitle={(title) => updateCourseMeta({ title })}
             onOpenSettings={openCourseSettings}
             onCreateCourse={createCourseQuick}
+            onUpdateModule={updateModule}
           />
         </TabsContent>
 
@@ -2766,6 +2773,7 @@ function CourseBuilder({
   onUpdateTitle,
   onOpenSettings,
   onCreateCourse,
+  onUpdateModule,
 }: {
   course?: PortalCourse;
   onAddAsset: () => void;
@@ -2778,6 +2786,7 @@ function CourseBuilder({
   onUpdateTitle?: (title: string) => void;
   onOpenSettings?: () => void;
   onCreateCourse?: () => void;
+  onUpdateModule?: (moduleId: string, patch: Partial<PortalModule>) => void;
 }) {
   // Empty-state chiaro: prima mostrava il vuoto (return null) se nessun corso
   // era selezionato — l'utente non capiva cosa fare.
@@ -2896,8 +2905,29 @@ function CourseBuilder({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Modulo {index + 1}</p>
-                  <h3 className="mt-1 text-lg font-bold text-slate-950">{module.title}</h3>
-                  <p className="mt-1 text-sm text-slate-600">{module.description}</p>
+                  {isPlatform ? (
+                    <>
+                      <h3 className="mt-1 text-lg font-bold text-slate-950">{module.title}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{module.description}</p>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        value={module.title}
+                        onChange={(event) => onUpdateModule?.(module.id, { title: event.target.value })}
+                        placeholder="Titolo del modulo"
+                        aria-label={`Titolo modulo ${index + 1}`}
+                        className="mt-1 -ml-1 w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-lg font-bold text-slate-950 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
+                      />
+                      <input
+                        value={module.description}
+                        onChange={(event) => onUpdateModule?.(module.id, { description: event.target.value })}
+                        placeholder="Descrizione breve del modulo"
+                        aria-label={`Descrizione modulo ${index + 1}`}
+                        className="mt-1 -ml-1 w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-600 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
+                      />
+                    </>
+                  )}
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
                     <BuilderStep icon={Video} label={`${module.lessons} lezioni`} />
                     <BuilderStep icon={Clock3} label={module.duration} />
