@@ -1698,9 +1698,11 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
   return (
     <div className="space-y-6">
-      {/* Hero header — nascosto in admin context perché AdminPortalePage ha
-          già il suo AdminHeroHeader e la barra distribution. Mostriamo solo
-          le action buttons + le stat cards. */}
+      {/* Hero header + stat cards + azioni authoring — SOLO gestione (Crea corsi
+          / admin). Nel Portale (library) NON si mostra: il Portale È la Pagina
+          utente e le metriche di gestione (corsi pubblicati, iscrizioni team…)
+          non c'entrano con l'esperienza di fruizione. */}
+      {mode !== "library" && (
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 p-5 lg:grid-cols-[1.4fr_0.8fr] lg:p-6">
           <div className="flex flex-col justify-between gap-5">
@@ -2043,6 +2045,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           </div>
         </div>
       </section>
+      )}
 
       <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
         {mode !== "library" && (
