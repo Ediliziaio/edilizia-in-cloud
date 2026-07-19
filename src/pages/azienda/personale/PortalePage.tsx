@@ -5405,20 +5405,20 @@ function LearnerCourseOverview({
                         toggleExpanded();
                       }
                     }}
-                    className="grid w-full cursor-pointer gap-3 rounded-3xl p-4 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:grid-cols-[64px_minmax(0,1fr)_auto]"
+                    className="grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 rounded-3xl p-3 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:p-4"
                   >
                     <div
                       className={cn(
-                        "flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold",
+                        "flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold sm:h-14 sm:w-14 sm:text-lg",
                         moduleCompletion >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
                       )}
                     >
-                      {moduleCompletion >= 100 ? <CheckCircle2 className="h-6 w-6" /> : index + 1}
+                      {moduleCompletion >= 100 ? <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6" /> : index + 1}
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-lg font-bold text-slate-950">{module.title}</h4>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h4 className="text-base font-bold text-slate-950 sm:text-lg">{module.title}</h4>
                         <Badge
                           variant="outline"
                           className={cn(
@@ -5438,29 +5438,28 @@ function LearnerCourseOverview({
                           {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
                         </Badge>
                       </div>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{module.description}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <Progress value={moduleCompletion} className="h-2 flex-1" />
-                        <span className="w-10 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
+                      <p className="mt-1.5 hidden line-clamp-2 text-sm leading-6 text-slate-600 sm:block">{module.description}</p>
+                      <div className="mt-2 flex items-center gap-2 sm:mt-3">
+                        <Progress value={moduleCompletion} className="h-1.5 flex-1 sm:h-2" />
+                        <span className="w-9 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 md:flex-col md:items-end md:justify-center">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenLesson(module.id);
-                        }}
-                        className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700"
-                      >
-                        Apri
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
-                        {isExpanded ? "Nascondi" : "Lezioni"}
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
-                      </span>
+                      <div className="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenLesson(module.id);
+                          }}
+                          className="inline-flex h-9 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700 sm:h-10"
+                        >
+                          Apri
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
+                          {isExpanded ? "Nascondi" : "Lezioni"}
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                        </span>
+                      </div>
                     </div>
                   </div>
 
