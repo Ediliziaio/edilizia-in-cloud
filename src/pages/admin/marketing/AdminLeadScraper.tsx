@@ -1759,7 +1759,7 @@ export default function AdminLeadScraper() {
           {/* KPI + barra azioni */}
           {currentSearchId && (
             <>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   { label: "Lead", value: kpi.total, icon: Building2 },
                   { label: "Telefono", value: kpi.withPhone, icon: Phone },
