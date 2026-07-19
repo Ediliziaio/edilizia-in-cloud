@@ -4603,7 +4603,7 @@ function PortalPreview({
     });
     toast.success(
       willCompleteCourse
-        ? "Corso completato nella preview utente."
+        ? "Corso completato."
         : nextModule
           ? "Lezione completata. Puoi passare al modulo successivo."
           : "Lezione completata. Restano moduli precedenti da chiudere.",
@@ -5038,15 +5038,6 @@ function PortalPreview({
                   onOpenAsset={onOpenAsset}
                 />
 
-                <LearnerLessonGuidance
-                  module={activeModule}
-                  activeAsset={activePreviewAsset}
-                  moduleAssets={moduleAssets}
-                  hasQuizStep={courseHasQuizStep}
-                  isCompleted={isActiveModuleCompleted}
-                  onOpenMaterials={openLearnerMaterials}
-                />
-
                 <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -5120,7 +5111,7 @@ function PortalPreview({
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        onClick={() => toast.info("Nota salvata nella preview del corso.")}
+                        onClick={() => toast.info("Nota salvata.")}
                       >
                         <FileText className="h-4 w-4" />
                         Aggiungi nota
@@ -5128,7 +5119,7 @@ function PortalPreview({
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        onClick={() => toast.info("Richiesta chiarimento inviata al responsabile nella preview.")}
+                        onClick={() => toast.info("Richiesta di chiarimento inviata al responsabile.")}
                       >
                         <UserRoundCheck className="h-4 w-4" />
                         Chiedi chiarimento
@@ -5176,7 +5167,7 @@ function PortalPreview({
                       className="mt-4 h-10 w-full border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100"
                       onClick={() =>
                         isPreviewCourseCompleted
-                          ? toast.success("Attestato interno disponibile nella preview.")
+                          ? toast.success("Attestato interno disponibile.")
                           : toast.info("Completa tutti i moduli per sbloccare l'attestato.")
                       }
                     >
