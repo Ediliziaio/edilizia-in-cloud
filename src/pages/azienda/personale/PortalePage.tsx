@@ -5253,46 +5253,6 @@ function LearnerCourseOverview({
   const lessonsTotal = course.modules.reduce((sum, module) => sum + module.lessons, 0);
   const firstOpenModule = course.modules.find((module) => getModuleCompletion(module) < 100) ?? course.modules[0];
   const featuredAssets = courseAssets.slice(0, 4);
-  const openableMaterials = materialAssets.filter(hasAssetResource).length;
-  const journeySteps: Array<{
-    title: string;
-    description: string;
-    action: string;
-    icon: typeof Video;
-    onClick: () => void;
-    disabled?: boolean;
-    tone: "blue" | "emerald" | "orange";
-  }> = [
-    {
-      title: "1. Apri la lezione",
-      description: "Video, testo o procedura occupano lo spazio principale, senza distrazioni laterali.",
-      action: hasModules ? "Vai alla lezione" : "Modulo mancante",
-      icon: PlayCircle,
-      onClick: () => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? ""),
-      disabled: !hasModules,
-      tone: "blue",
-    },
-    {
-      title: "2. Consulta materiali",
-      description: `${openableMaterials} risorse apribili: PDF, procedure, video o allegati collegati ai moduli.`,
-      action: "Vedi materiali",
-      icon: FileArchive,
-      onClick: onOpenMaterials,
-      tone: "emerald",
-    },
-    {
-      title: "3. Conferma e traccia",
-      description: hasQuizStep
-        ? `${Math.max(quizAssets.length, 1)} verifica prevista prima di chiudere il percorso.`
-        : "Presa visione, note e attestato interno restano tracciati nel portale.",
-      action: hasModules ? (hasQuizStep ? "Apri verifica" : "Vedi stato") : "Modulo mancante",
-      icon: ClipboardCheck,
-      onClick: () => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? ""),
-      disabled: !hasModules,
-      tone: "orange",
-    },
-  ];
-
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="min-w-0 space-y-5">
@@ -5301,10 +5261,6 @@ function LearnerCourseOverview({
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Pagina corso utente</p>
               <h3 className="mt-1 text-2xl font-bold text-slate-950">Cosa trovi in questo percorso</h3>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                L'utente vede prima la struttura completa del corso, poi entra nella singola lezione quando vuole
-                guardare video, leggere materiali o completare quiz.
-              </p>
             </div>
             <Button
               className="h-11 shrink-0 gap-2 bg-blue-600 hover:bg-blue-700"
@@ -5321,57 +5277,6 @@ function LearnerCourseOverview({
             <InfoTile label="Lezioni" value={String(lessonsTotal)} icon={Video} />
             <InfoTile label="Completati" value={String(completedModules)} icon={CheckCircle2} />
             <InfoTile label="Materiali" value={String(materialAssets.length)} icon={FileArchive} />
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Esperienza utente finale</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-950">Come verra usato il corso</h3>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                La panoramica resta una pagina di ingresso; la lezione apre una vista ampia con programma a sinistra,
-                contenuto grande e risorse sotto.
-              </p>
-            </div>
-            <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-              {hasQuizStep ? "Quiz previsto" : "Percorso tracciato"}
-            </Badge>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-3">
-            {journeySteps.map((step) => (
-              <button
-                key={step.title}
-                type="button"
-                onClick={step.onClick}
-                disabled={step.disabled}
-                className={cn(
-                  "group rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                  step.tone === "blue" && "border-blue-100 bg-blue-50/60 hover:border-blue-300",
-                  step.tone === "emerald" && "border-emerald-100 bg-emerald-50/60 hover:border-emerald-300",
-                  step.tone === "orange" && "border-orange-100 bg-orange-50/60 hover:border-orange-300",
-                  step.disabled && "cursor-not-allowed opacity-60 hover:translate-y-0 hover:shadow-none",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm",
-                    step.tone === "blue" && "text-blue-700",
-                    step.tone === "emerald" && "text-emerald-700",
-                    step.tone === "orange" && "text-orange-700",
-                  )}
-                >
-                  <step.icon className="h-5 w-5" />
-                </div>
-                <h4 className="mt-4 text-base font-bold text-slate-950">{step.title}</h4>
-                <p className="mt-2 min-h-[60px] text-sm leading-6 text-slate-600">{step.description}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-blue-700">
-                  {step.action}
-                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                </span>
-              </button>
-            ))}
           </div>
         </section>
 
@@ -5524,15 +5429,6 @@ function LearnerCourseOverview({
           </Button>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-blue-600" />
-            <h3 className="font-bold text-slate-950">Accesso e attestato</h3>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            L'utente vede solo i corsi sbloccati. Attestato e presa visione restano legati al completamento.
-          </p>
-        </section>
       </aside>
     </div>
   );
