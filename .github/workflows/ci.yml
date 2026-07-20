@@ -63,9 +63,16 @@ jobs:
         with:
           fetch-depth: 2   # need HEAD~1 to diff
 
+      # Versione PINNATA: `version: latest` faceva una API call anonima a GitHub
+      # per risolvere l'ultima release → rate-limit (60 req/h per IP) sui runner
+      # condivisi → job rosso random ("Failed to resolve latest Supabase CLI
+      # release: rate limit exceeded"). Con una versione fissa non serve nessuna
+      # chiamata. Il GITHUB_TOKEN autentica eventuali download (limiti più alti).
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       # Detect which function slugs changed.
       # Excludes _shared / _customer_os_shared (library dirs, not deployable).
