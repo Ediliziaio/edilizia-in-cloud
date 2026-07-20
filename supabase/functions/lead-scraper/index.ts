@@ -576,6 +576,49 @@ async function visengineStatus(token: string, sandbox: boolean, id: string) {
   return openapiCall(`https://${visengineBase(sandbox)}/richiesta/${encodeURIComponent(id)}`, token);
 }
 
+/**
+ * Scarica il documento pronto dall'endpoint autenticato openapi e lo archivia nel
+ * bucket privato `openapi-docs`. Ritorna path + signed URL (7 giorni) + mime.
+ * Gestisce sia risposta binaria (PDF/XML/ZIP) sia envelope JSON con url o base64.
+ */
+async function openapiDownloadAndStore(
+  supabaseAdmin: any, provider: string, requestId: string, url: string, token: string,
+): Promise<{ ok: true; file_path: string; file_url: string | null; mime: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetchWithTimeout(url, { timeoutMs: 30000, headers: { Authorization: `Bearer ${token}`, Accept: "*/*" } });
+    if (!res.ok) return { ok: false, error: `download HTTP ${res.status}` };
+    const ct = (res.headers.get("content-type") || "application/octet-stream").split(";")[0].trim();
+    let bytes: Uint8Array;
+    let mime = ct;
+    if (ct.includes("application/json")) {
+      const j = await res.json().catch(() => null);
+      const inner = j?.data?.url || j?.url || j?.data?.download_url || j?.data?.file;
+      const b64 = j?.data?.base64 || j?.base64 || j?.data?.content;
+      if (inner) {
+        const r2 = await fetchWithTimeout(String(inner), { timeoutMs: 30000 });
+        bytes = new Uint8Array(await r2.arrayBuffer());
+        mime = (r2.headers.get("content-type") || "application/pdf").split(";")[0].trim();
+      } else if (b64) {
+        bytes = Uint8Array.from(atob(String(b64).replace(/^data:[^,]+,/, "")), (c) => c.charCodeAt(0));
+        mime = "application/pdf";
+      } else {
+        bytes = new TextEncoder().encode(JSON.stringify(j));
+        mime = "application/json";
+      }
+    } else {
+      bytes = new Uint8Array(await res.arrayBuffer());
+    }
+    const ext = mime.includes("pdf") ? "pdf" : mime.includes("xml") ? "xml" : mime.includes("zip") ? "zip" : mime.includes("json") ? "json" : "bin";
+    const path = `${provider}/${requestId}.${ext}`;
+    const up = await supabaseAdmin.storage.from("openapi-docs").upload(path, bytes, { contentType: mime, upsert: true });
+    if (up.error) return { ok: false, error: `storage: ${up.error.message}` };
+    const signed = await supabaseAdmin.storage.from("openapi-docs").createSignedUrl(path, 60 * 60 * 24 * 7);
+    return { ok: true, file_path: path, file_url: signed.data?.signedUrl ?? null, mime };
+  } catch (e) {
+    return { ok: false, error: `download/store: ${(e as Error).message}` };
+  }
+}
+
 async function fetchFirmografici(piva: string, token: string, base = "company.openapi.com"): Promise<Firmografici | null> {
   const num = piva.replace(/\D/g, "");
   if (num.length !== 11) return null;
@@ -2272,7 +2315,14 @@ Deno.serve(async (req) => {
         const r = await docuengineRequest(openapiToken, sandbox, payload);
         if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
         const rec = r.data?.data ?? r.data;
-        return jsonResponse({ ok: true, request: rec, request_id: rec?.id ?? rec?._id ?? null, state: rec?.state ?? null }, 200, corsH);
+        const reqId = rec?.id ?? rec?._id ?? null;
+        const { data: row } = await supabaseAdmin.from("openapi_document_requests").insert({
+          provider: "docuengine", document_id: documentId,
+          document_name: typeof body.documentName === "string" ? body.documentName : null,
+          subject: (payload.search as any)?.value ?? (payload.search as any)?.vatCode ?? (payload.search as any)?.taxCode ?? null,
+          request_id: reqId ? String(reqId) : null, state: rec?.state ?? "pending", raw: rec, created_by: userId,
+        }).select("id").single();
+        return jsonResponse({ ok: true, id: row?.id ?? null, request: rec, request_id: reqId, state: rec?.state ?? null }, 200, corsH);
       }
       if (action === "docuengine_status") {
         const id = typeof body.request_id === "string" ? body.request_id : null;
@@ -2281,10 +2331,18 @@ Deno.serve(async (req) => {
         if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
         const rec = r.data?.data ?? r.data;
         const done = String(rec?.state ?? "").toUpperCase() === "DONE" || !!rec?.filename || !!rec?.documents;
-        return jsonResponse({
-          ok: true, request: rec, state: rec?.state ?? null, done,
-          download_url: done ? `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download` : null,
-        }, 200, corsH);
+        let stored: { file_path: string; file_url: string | null; mime: string } | null = null;
+        if (done) {
+          const dl = await openapiDownloadAndStore(supabaseAdmin, "docuengine", id, `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download`, openapiToken);
+          if (dl.ok) stored = dl;
+          await supabaseAdmin.from("openapi_document_requests").update({
+            state: "done", raw: rec, updated_at: new Date().toISOString(),
+            ...(stored ? { file_path: stored.file_path, file_url: stored.file_url, mime: stored.mime } : {}),
+          }).eq("request_id", id).eq("provider", "docuengine");
+        } else {
+          await supabaseAdmin.from("openapi_document_requests").update({ state: rec?.state ?? "pending", raw: rec, updated_at: new Date().toISOString() }).eq("request_id", id).eq("provider", "docuengine");
+        }
+        return jsonResponse({ ok: true, request: rec, state: rec?.state ?? null, done, stored, download_url: stored?.file_url ?? null }, 200, corsH);
       }
 
       // ── Visengine / Visure Camerali ──
@@ -2310,7 +2368,14 @@ Deno.serve(async (req) => {
         const r = await visengineRequest(openapiToken, sandbox, payload);
         if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `Visengine: ${r.error}` }, 200, corsH);
         const rec = r.data?.data ?? r.data;
-        return jsonResponse({ ok: true, request: rec, request_id: rec?._id ?? rec?.id ?? null, state: rec?.stato ?? rec?.state ?? null }, 200, corsH);
+        const reqId = rec?._id ?? rec?.id ?? null;
+        const { data: row } = await supabaseAdmin.from("openapi_document_requests").insert({
+          provider: "visengine", document_id: typeof body.hash === "string" ? body.hash : null,
+          document_name: typeof body.documentName === "string" ? body.documentName : null,
+          subject: (payload.ricerca as any)?.piva ?? (payload.ricerca as any)?.cf ?? (payload.ricerca as any)?.denominazione ?? null,
+          request_id: reqId ? String(reqId) : null, state: rec?.stato ?? rec?.state ?? "pending", raw: rec, created_by: userId,
+        }).select("id").single();
+        return jsonResponse({ ok: true, id: row?.id ?? null, request: rec, request_id: reqId, state: rec?.stato ?? rec?.state ?? null }, 200, corsH);
       }
       if (action === "visengine_status") {
         const id = typeof body.request_id === "string" ? body.request_id : null;
@@ -2320,10 +2385,18 @@ Deno.serve(async (req) => {
         const rec = r.data?.data ?? r.data;
         const stato = String(rec?.stato ?? rec?.state ?? "").toLowerCase();
         const done = stato.includes("evasa") || stato.includes("done") || stato.includes("completat") || !!rec?.documento;
-        return jsonResponse({
-          ok: true, request: rec, state: rec?.stato ?? rec?.state ?? null, done,
-          download_url: done ? `https://${visengineBase(sandbox)}/documento/${encodeURIComponent(id)}` : null,
-        }, 200, corsH);
+        let stored: { file_path: string; file_url: string | null; mime: string } | null = null;
+        if (done) {
+          const dl = await openapiDownloadAndStore(supabaseAdmin, "visengine", id, `https://${visengineBase(sandbox)}/documento/${encodeURIComponent(id)}`, openapiToken);
+          if (dl.ok) stored = dl;
+          await supabaseAdmin.from("openapi_document_requests").update({
+            state: "done", raw: rec, updated_at: new Date().toISOString(),
+            ...(stored ? { file_path: stored.file_path, file_url: stored.file_url, mime: stored.mime } : {}),
+          }).eq("request_id", id).eq("provider", "visengine");
+        } else {
+          await supabaseAdmin.from("openapi_document_requests").update({ state: rec?.stato ?? rec?.state ?? "pending", raw: rec, updated_at: new Date().toISOString() }).eq("request_id", id).eq("provider", "visengine");
+        }
+        return jsonResponse({ ok: true, request: rec, state: rec?.stato ?? rec?.state ?? null, done, stored, download_url: stored?.file_url ?? null }, 200, corsH);
       }
     }
 
