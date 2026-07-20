@@ -578,12 +578,14 @@ async function visengineStatus(token: string, sandbox: boolean, id: string) {
 
 /**
  * Scarica il documento pronto dall'endpoint autenticato openapi e lo archivia nel
- * bucket privato `openapi-docs`. Ritorna path + signed URL (7 giorni) + mime.
+ * bucket `marketing-attachments` (lo stesso dei documenti CRM), così può essere
+ * referenziato in Contatti e Opportunità dal MarketingDocumentsPanel esistente
+ * (che crea i signed URL al volo su quel bucket). Ritorna path relativo + size + mime.
  * Gestisce sia risposta binaria (PDF/XML/ZIP) sia envelope JSON con url o base64.
  */
 async function openapiDownloadAndStore(
   supabaseAdmin: any, provider: string, requestId: string, url: string, token: string,
-): Promise<{ ok: true; file_path: string; file_url: string | null; mime: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; file_path: string; mime: string; size: number } | { ok: false; error: string }> {
   try {
     const res = await fetchWithTimeout(url, { timeoutMs: 30000, headers: { Authorization: `Bearer ${token}`, Accept: "*/*" } });
     if (!res.ok) return { ok: false, error: `download HTTP ${res.status}` };
@@ -609,14 +611,46 @@ async function openapiDownloadAndStore(
       bytes = new Uint8Array(await res.arrayBuffer());
     }
     const ext = mime.includes("pdf") ? "pdf" : mime.includes("xml") ? "xml" : mime.includes("zip") ? "zip" : mime.includes("json") ? "json" : "bin";
-    const path = `${provider}/${requestId}.${ext}`;
-    const up = await supabaseAdmin.storage.from("openapi-docs").upload(path, bytes, { contentType: mime, upsert: true });
+    const path = `openapi/${provider}/${requestId}.${ext}`;
+    const up = await supabaseAdmin.storage.from("marketing-attachments").upload(path, bytes, { contentType: mime, upsert: true });
     if (up.error) return { ok: false, error: `storage: ${up.error.message}` };
-    const signed = await supabaseAdmin.storage.from("openapi-docs").createSignedUrl(path, 60 * 60 * 24 * 7);
-    return { ok: true, file_path: path, file_url: signed.data?.signedUrl ?? null, mime };
+    return { ok: true, file_path: path, mime, size: bytes.byteLength };
   } catch (e) {
     return { ok: false, error: `download/store: ${(e as Error).message}` };
   }
+}
+
+/**
+ * Collega un documento openapi scaricato al CRM: crea UNA riga marketing_documents
+ * con contact_id E opportunity_id (entrambi) così lo stesso file compare sia nel
+ * Contatto sia nell'Opportunità (nessun duplicato). Idempotente: se già collegato
+ * (openapi_document_requests.marketing_document_id valorizzato) non re-inserisce.
+ */
+async function linkOpenapiDocToCrm(
+  supabaseAdmin: any, reqRow: any, filePath: string, mime: string, size: number, userId: string,
+): Promise<string | null> {
+  try {
+    if (reqRow?.marketing_document_id) return reqRow.marketing_document_id;
+    if (!reqRow?.contact_id && !reqRow?.opportunity_id) return null;
+    // company_id: da contatto/opportunità; fallback platform-admin
+    let companyId = reqRow?.company_id || PLATFORM_ADMIN_COMPANY_ID;
+    if (reqRow?.contact_id) {
+      const { data: c } = await supabaseAdmin.from("marketing_contacts").select("company_id").eq("id", reqRow.contact_id).maybeSingle();
+      if (c?.company_id) companyId = c.company_id;
+    }
+    const name = `${reqRow?.document_name || reqRow?.provider || "documento"}${reqRow?.subject ? " " + reqRow.subject : ""}.${mime.includes("pdf") ? "pdf" : mime.includes("xml") ? "xml" : "bin"}`;
+    const { data: md } = await supabaseAdmin.from("marketing_documents").insert({
+      contact_id: reqRow?.contact_id ?? null,
+      opportunity_id: reqRow?.opportunity_id ?? null,
+      company_id: companyId,
+      file_name: name,
+      file_url: filePath,      // path nel bucket marketing-attachments (il panel crea il signed URL)
+      file_type: mime,
+      file_size: size,
+      uploaded_by: userId,
+    }).select("id").single();
+    return md?.id ?? null;
+  } catch { return null; }
 }
 
 async function fetchFirmografici(piva: string, token: string, base = "company.openapi.com"): Promise<Firmografici | null> {
@@ -2320,6 +2354,9 @@ Deno.serve(async (req) => {
           provider: "docuengine", document_id: documentId,
           document_name: typeof body.documentName === "string" ? body.documentName : null,
           subject: (payload.search as any)?.value ?? (payload.search as any)?.vatCode ?? (payload.search as any)?.taxCode ?? null,
+          contact_id: typeof body.contact_id === "string" ? body.contact_id : null,
+          opportunity_id: typeof body.opportunity_id === "string" ? body.opportunity_id : null,
+          company_id: typeof body.company_id === "string" ? body.company_id : PLATFORM_ADMIN_COMPANY_ID,
           request_id: reqId ? String(reqId) : null, state: rec?.state ?? "pending", raw: rec, created_by: userId,
         }).select("id").single();
         return jsonResponse({ ok: true, id: row?.id ?? null, request: rec, request_id: reqId, state: rec?.state ?? null }, 200, corsH);
@@ -2331,18 +2368,24 @@ Deno.serve(async (req) => {
         if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
         const rec = r.data?.data ?? r.data;
         const done = String(rec?.state ?? "").toUpperCase() === "DONE" || !!rec?.filename || !!rec?.documents;
-        let stored: { file_path: string; file_url: string | null; mime: string } | null = null;
+        const { data: reqRow } = await supabaseAdmin.from("openapi_document_requests").select("*").eq("request_id", id).eq("provider", "docuengine").maybeSingle();
+        let stored: { file_path: string; mime: string; size: number } | null = null;
+        let marketing_document_id: string | null = reqRow?.marketing_document_id ?? null;
         if (done) {
           const dl = await openapiDownloadAndStore(supabaseAdmin, "docuengine", id, `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download`, openapiToken);
-          if (dl.ok) stored = dl;
+          if (dl.ok) {
+            stored = dl;
+            marketing_document_id = (await linkOpenapiDocToCrm(supabaseAdmin, reqRow, dl.file_path, dl.mime, dl.size, userId)) ?? marketing_document_id;
+          }
           await supabaseAdmin.from("openapi_document_requests").update({
             state: "done", raw: rec, updated_at: new Date().toISOString(),
-            ...(stored ? { file_path: stored.file_path, file_url: stored.file_url, mime: stored.mime } : {}),
+            ...(stored ? { file_path: stored.file_path, mime: stored.mime } : {}),
+            ...(marketing_document_id ? { marketing_document_id } : {}),
           }).eq("request_id", id).eq("provider", "docuengine");
         } else {
           await supabaseAdmin.from("openapi_document_requests").update({ state: rec?.state ?? "pending", raw: rec, updated_at: new Date().toISOString() }).eq("request_id", id).eq("provider", "docuengine");
         }
-        return jsonResponse({ ok: true, request: rec, state: rec?.state ?? null, done, stored, download_url: stored?.file_url ?? null }, 200, corsH);
+        return jsonResponse({ ok: true, request: rec, state: rec?.state ?? null, done, stored, marketing_document_id }, 200, corsH);
       }
 
       // ── Visengine / Visure Camerali ──
@@ -2373,6 +2416,9 @@ Deno.serve(async (req) => {
           provider: "visengine", document_id: typeof body.hash === "string" ? body.hash : null,
           document_name: typeof body.documentName === "string" ? body.documentName : null,
           subject: (payload.ricerca as any)?.piva ?? (payload.ricerca as any)?.cf ?? (payload.ricerca as any)?.denominazione ?? null,
+          contact_id: typeof body.contact_id === "string" ? body.contact_id : null,
+          opportunity_id: typeof body.opportunity_id === "string" ? body.opportunity_id : null,
+          company_id: typeof body.company_id === "string" ? body.company_id : PLATFORM_ADMIN_COMPANY_ID,
           request_id: reqId ? String(reqId) : null, state: rec?.stato ?? rec?.state ?? "pending", raw: rec, created_by: userId,
         }).select("id").single();
         return jsonResponse({ ok: true, id: row?.id ?? null, request: rec, request_id: reqId, state: rec?.stato ?? rec?.state ?? null }, 200, corsH);
@@ -2385,18 +2431,24 @@ Deno.serve(async (req) => {
         const rec = r.data?.data ?? r.data;
         const stato = String(rec?.stato ?? rec?.state ?? "").toLowerCase();
         const done = stato.includes("evasa") || stato.includes("done") || stato.includes("completat") || !!rec?.documento;
-        let stored: { file_path: string; file_url: string | null; mime: string } | null = null;
+        const { data: reqRow } = await supabaseAdmin.from("openapi_document_requests").select("*").eq("request_id", id).eq("provider", "visengine").maybeSingle();
+        let stored: { file_path: string; mime: string; size: number } | null = null;
+        let marketing_document_id: string | null = reqRow?.marketing_document_id ?? null;
         if (done) {
           const dl = await openapiDownloadAndStore(supabaseAdmin, "visengine", id, `https://${visengineBase(sandbox)}/documento/${encodeURIComponent(id)}`, openapiToken);
-          if (dl.ok) stored = dl;
+          if (dl.ok) {
+            stored = dl;
+            marketing_document_id = (await linkOpenapiDocToCrm(supabaseAdmin, reqRow, dl.file_path, dl.mime, dl.size, userId)) ?? marketing_document_id;
+          }
           await supabaseAdmin.from("openapi_document_requests").update({
             state: "done", raw: rec, updated_at: new Date().toISOString(),
-            ...(stored ? { file_path: stored.file_path, file_url: stored.file_url, mime: stored.mime } : {}),
+            ...(stored ? { file_path: stored.file_path, mime: stored.mime } : {}),
+            ...(marketing_document_id ? { marketing_document_id } : {}),
           }).eq("request_id", id).eq("provider", "visengine");
         } else {
           await supabaseAdmin.from("openapi_document_requests").update({ state: rec?.stato ?? rec?.state ?? "pending", raw: rec, updated_at: new Date().toISOString() }).eq("request_id", id).eq("provider", "visengine");
         }
-        return jsonResponse({ ok: true, request: rec, state: rec?.stato ?? rec?.state ?? null, done, stored, download_url: stored?.file_url ?? null }, 200, corsH);
+        return jsonResponse({ ok: true, request: rec, state: rec?.stato ?? rec?.state ?? null, done, stored, marketing_document_id }, 200, corsH);
       }
     }
 
