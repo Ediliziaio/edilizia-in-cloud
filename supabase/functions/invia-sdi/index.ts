@@ -64,9 +64,22 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { documento_id } = await req.json();
+    const { documento_id, sandbox: sandboxReq } = await req.json();
     if (!documento_id) {
       return new Response(JSON.stringify({ error: "documento_id obbligatorio" }), { status: 400, headers: getCorsHeaders(req) });
+    }
+
+    // Modalità sandbox (collaudo SDI di prova): SOLO super_admin. Usa il canale
+    // openapi di test (test.invoice.openapi.com) + token dedicato e salta il gate
+    // pagamento — l'invio di prova è gratuito e NON deve poter bypassare il gate
+    // reale delle aziende. Se un non-super_admin passa sandbox:true viene ignorato
+    // e si procede in modalità normale (prod + gate attivo).
+    let isSandbox = false;
+    if (sandboxReq === true) {
+      const { data: saRole } = await supabase
+        .from("user_roles").select("role")
+        .eq("user_id", userId).eq("role", "super_admin").maybeSingle();
+      isSandbox = !!saRole;
     }
 
     // Load document
@@ -84,12 +97,15 @@ Deno.serve(async (req) => {
     }
 
     // Gate "carta obbligatoria": l'invio della fattura elettronica a SDI ha un costo per documento.
-    const pmCheck = await checkPaymentMethod(supabase, doc.company_id);
-    if (!pmCheck.allowed) {
-      return new Response(
-        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
-        { status: 402, headers: getCorsHeaders(req) },
-      );
+    // In sandbox (collaudo super_admin) l'invio è gratuito → gate saltato.
+    if (!isSandbox) {
+      const pmCheck = await checkPaymentMethod(supabase, doc.company_id);
+      if (!pmCheck.allowed) {
+        return new Response(
+          JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+          { status: 402, headers: getCorsHeaders(req) },
+        );
+      }
     }
 
     // Verify stato — pre-check con messaggi chiari. La VERA guardia anti doppio
@@ -421,14 +437,17 @@ Deno.serve(async (req) => {
       // XML FatturaPA GREZZO (Content-Type application/xml). openapi valida lo
       // schema, firma e trasmette allo SDI. Token + ambiente da platform_settings
       // (riusa l'integrazione openapi_it_token / openapi_env già presente).
-      const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_it_token").maybeSingle();
+      const tokKey = isSandbox ? "openapi_it_token_sandbox" : "openapi_it_token";
+      const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", tokKey).maybeSingle();
       const { data: envRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_env").maybeSingle();
-      const token = (tokRow?.value || Deno.env.get("OPENAPI_IT_TOKEN") || "").trim();
+      const token = (tokRow?.value || Deno.env.get(isSandbox ? "OPENAPI_IT_TOKEN_SANDBOX" : "OPENAPI_IT_TOKEN") || "").trim();
       const env = (envRow?.value || "prod").toLowerCase();
-      const invBase = (env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
+      const invBase = (isSandbox || env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
       const invEndpoint = `https://${invBase}/IT-invoices`;
       if (!token) {
-        sdiErrors = [{ provider: "openapi", message: "openapi_it_token non configurato. Imposta il token openapi.it (scope SDI Electronic Invoicing)." }];
+        sdiErrors = [{ provider: "openapi", message: isSandbox
+          ? "openapi_it_token_sandbox non configurato. Imposta il token openapi.it SANDBOX (scope Fatturazione/Invoice) in platform_settings."
+          : "openapi_it_token non configurato. Imposta il token openapi.it (scope SDI Electronic Invoicing)." }];
       } else {
         // Invia l'XML grezzo: openapi valida, firma (CAdES p7m) e trasmette allo SDI.
         const sendOnce = async () => {

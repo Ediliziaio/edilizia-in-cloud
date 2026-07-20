@@ -596,12 +596,18 @@ async function openapiDownloadAndStore(
     let mime = ct;
     if (ct.includes("application/json")) {
       const j = await res.json().catch(() => null);
-      const inner = j?.data?.url || j?.url || j?.data?.download_url || j?.data?.file;
-      const b64 = j?.data?.base64 || j?.base64 || j?.data?.content;
+      // openapi (DocuEngine) risponde con { data: [ { downloadUrl, mimeType, fileName } ] }
+      // (array + camelCase); altre volte { data: { url } }. Normalizza entrambi. Il
+      // downloadUrl è un link firmato Google Cloud Storage (senza auth, scade ~24h).
+      const first = Array.isArray(j?.data) ? j.data[0] : j?.data;
+      const inner = first?.downloadUrl || first?.url || first?.download_url || first?.file
+        || j?.data?.url || j?.url || j?.data?.download_url || j?.data?.file;
+      const b64 = first?.base64 || first?.content || j?.data?.base64 || j?.base64 || j?.data?.content;
+      const mimeHint = (first?.mimeType || first?.mime || j?.data?.mimeType || "").split(";")[0].trim();
       if (inner) {
         const r2 = await fetchWithTimeout(String(inner), { timeoutMs: 30000 });
         bytes = new Uint8Array(await r2.arrayBuffer());
-        mime = (r2.headers.get("content-type") || "application/pdf").split(";")[0].trim();
+        mime = (r2.headers.get("content-type") || mimeHint || "application/pdf").split(";")[0].trim();
       } else if (b64) {
         bytes = Uint8Array.from(atob(String(b64).replace(/^data:[^,]+,/, "")), (c) => c.charCodeAt(0));
         mime = "application/pdf";
@@ -2374,7 +2380,17 @@ Deno.serve(async (req) => {
         let stored: { file_path: string; mime: string; size: number } | null = null;
         let marketing_document_id: string | null = reqRow?.marketing_document_id ?? null;
         if (done) {
-          const dl = await openapiDownloadAndStore(supabaseAdmin, "docuengine", id, `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download`, openapiToken);
+          // I documenti DocuEngine risiedono su Google Cloud Storage: si legge il nome
+          // file da rec.documents[], poi GET /requests/{id}/documents/{file} restituisce
+          // { data:[{ downloadUrl, mimeType }] } (link GCS firmato). L'endpoint /download
+          // NON serve il file (torna solo il JSON dell'ordine): era il bug.
+          const docs: string[] = Array.isArray(rec?.documents)
+            ? rec.documents.filter((x: unknown): x is string => typeof x === "string") : [];
+          const fileName = docs[0];
+          const dlUrl = fileName
+            ? `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/documents/${encodeURIComponent(fileName)}`
+            : `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download`;
+          const dl = await openapiDownloadAndStore(supabaseAdmin, "docuengine", id, dlUrl, openapiToken);
           if (dl.ok) {
             stored = dl;
             marketing_document_id = (await linkOpenapiDocToCrm(supabaseAdmin, reqRow, dl.file_path, dl.mime, dl.size, userId)) ?? marketing_document_id;
