@@ -1,11 +1,12 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Upload, Download, Trash2, File, Image, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { Upload, Download, Trash2, File, Image, FileSpreadsheet, FileText, Loader2, Landmark } from "lucide-react";
+import { OpenapiDocRequestDialog } from "./OpenapiDocRequestDialog";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -37,6 +38,17 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [openapiOpen, setOpenapiOpen] = useState(false);
+
+  // P.IVA del contatto per precompilare la richiesta documento ufficiale
+  const { data: contactVat } = useQuery({
+    queryKey: ["marketing_contact_vat", contactId],
+    enabled: !!contactId,
+    queryFn: async () => {
+      const { data } = await supabase.from("marketing_contacts").select("vat_number").eq("id", contactId).maybeSingle();
+      return (data?.vat_number as string | null) ?? null;
+    },
+  });
 
   const queryKey = opportunityId
     ? ["marketing_documents", contactId, opportunityId]
@@ -152,16 +164,36 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
         onChange={handleFileChange}
       />
 
-      <Button
-        variant="outline"
-        size="sm"
-        className={`w-full gap-1.5 ${compact ? "h-7 text-[11px]" : "h-8 text-xs"}`}
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploadMutation.isPending}
-      >
-        {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-        Carica documento
-      </Button>
+      <div className="grid grid-cols-2 gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          className={`w-full gap-1.5 ${compact ? "h-7 text-[11px]" : "h-8 text-xs"}`}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadMutation.isPending}
+        >
+          {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          Carica
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`w-full gap-1.5 ${compact ? "h-7 text-[11px]" : "h-8 text-xs"}`}
+          onClick={() => setOpenapiOpen(true)}
+        >
+          <Landmark className="h-3.5 w-3.5" />
+          Documento ufficiale
+        </Button>
+      </div>
+
+      <OpenapiDocRequestDialog
+        open={openapiOpen}
+        onOpenChange={setOpenapiOpen}
+        contactId={contactId}
+        opportunityId={opportunityId}
+        companyId={companyId}
+        defaultVat={contactVat ?? undefined}
+      />
 
       {isLoading ? (
         <p className={`${textSize} text-muted-foreground text-center py-4`}>Caricamento...</p>
