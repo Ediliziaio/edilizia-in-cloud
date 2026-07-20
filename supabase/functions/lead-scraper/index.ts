@@ -541,12 +541,14 @@ async function openapiCall(
 async function docuengineDocuments(token: string, sandbox: boolean) {
   return openapiCall(`https://${docuengineBase(sandbox)}/documents`, token, { timeoutMs: 15000 });
 }
-/** Ordina un documento. body: { documentId, search?, selectedOptions?, notifyEmail?, callback? }. */
+/** Ordina un documento. body: { documentId, search:{field0,field1,…}, selectedOptions?, notifyEmail? }.
+ *  NB: NON passare state:"NEW" (lascerebbe la transazione aperta senza processarla);
+ *  omesso → openapi chiude e genera il documento (poi poll dello stato). */
 async function docuengineRequest(token: string, sandbox: boolean, payload: Record<string, unknown>) {
   return openapiCall(`https://${docuengineBase(sandbox)}/requests`, token, {
     method: "POST",
-    body: { state: "NEW", ...payload },
-    timeoutMs: 20000,
+    body: payload,
+    timeoutMs: 25000,
   });
 }
 /** Stato/dettaglio di una richiesta (poll). */

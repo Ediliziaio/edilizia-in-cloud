@@ -19,8 +19,22 @@ import { toast } from "sonner";
 
 type Provider = "docuengine" | "visengine";
 
-interface DocuDoc { id: string; name?: string; nameIT?: string; category?: string; price?: number; isSync?: boolean; }
+interface DocuField { key: string; name: string; nameIT?: string; type?: string; required?: boolean; help?: string; }
+interface DocuDoc { id: string; name?: string; nameIT?: string; category?: string; price?: number; isSync?: boolean; fields: DocuField[]; }
 interface VisuraDoc { hash_visura: string; nome_visura: string; nome_categoria?: string; }
+
+/** I campi di un documento DocuEngine (requestStructure.fields = {field0:{…},field1:{…}}). */
+function parseDocuFields(requestStructure: any): DocuField[] {
+  const f = requestStructure?.fields;
+  if (!f || typeof f !== "object") return [];
+  return Object.entries(f).map(([key, v]: [string, any]) => ({
+    key, name: v?.name ?? key, nameIT: v?.nameIT, type: v?.type, required: v?.required, help: v?.help,
+  }));
+}
+function isIdentifierField(type?: string) {
+  const t = (type ?? "").toLowerCase();
+  return t.includes("taxcode") || t.includes("vat") || t.includes("piva") || t.includes("cf") || t.includes("fiscal");
+}
 
 async function invoke<T = any>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke("lead-scraper", { body: { action, ...extra } });
@@ -48,8 +62,19 @@ export function OpenapiDocRequestDialog({
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [vat, setVat] = useState(defaultVat ?? "");
+  const [fieldVals, setFieldVals] = useState<Record<string, string>>({});
   const [ordering, setOrdering] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
+
+  const selectedDocu = provider === "docuengine" ? docuDocs.find((d) => d.id === selected) : undefined;
+
+  // Alla selezione di un documento DocuEngine, precompila i campi identificativi (P.IVA/CF)
+  function selectDocuDoc(d: DocuDoc) {
+    setSelected(d.id);
+    const init: Record<string, string> = {};
+    for (const f of d.fields) init[f.key] = isIdentifierField(f.type) ? (defaultVat ?? "") : "";
+    setFieldVals(init);
+  }
 
   // Carica il catalogo alla prima apertura per provider
   useEffect(() => {
@@ -63,7 +88,7 @@ export function OpenapiDocRequestDialog({
         if (provider === "docuengine") {
           if (docuDocs.length) return;
           const r = await invoke<{ documents: any[] }>("docuengine_documents");
-          if (active) setDocuDocs((r.documents ?? []).map((d) => ({ id: d.id, name: d.name ?? d.nameIT, nameIT: d.nameIT, category: d.category, price: d.price, isSync: d.isSync })));
+          if (active) setDocuDocs((r.documents ?? []).map((d) => ({ id: d.id, name: d.name ?? d.nameIT, nameIT: d.nameIT, category: d.category, price: d.price, isSync: d.isSync, fields: parseDocuFields(d.requestStructure) })));
         } else {
           if (visure.length) return;
           const r = await invoke<{ visure: any[] }>("visengine_catalog");
@@ -82,21 +107,28 @@ export function OpenapiDocRequestDialog({
 
   async function order() {
     if (!selected) { toast.error("Seleziona un documento"); return; }
-    const idc = vat.replace(/\s/g, "");
-    if (!idc) { toast.error("Inserisci P.IVA o Codice Fiscale"); return; }
     setOrdering(true);
     setPhase("Invio ordine…");
     try {
       let requestId: string | null = null;
       if (provider === "docuengine") {
+        // search keyed by field id (field0/field1/…) come richiesto da DocuEngine
+        const search: Record<string, string> = {};
+        for (const f of selectedDocu?.fields ?? []) {
+          const val = (fieldVals[f.key] ?? "").trim();
+          if (f.required && !val) { toast.error(`Compila "${f.nameIT ?? f.name}"`); setOrdering(false); setPhase(null); return; }
+          if (val) search[f.key] = val;
+        }
         const r = await invoke<{ request_id: string }>("docuengine_request", {
           documentId: selected,
-          documentName: docuDocs.find((d) => d.id === selected)?.name,
-          search: { taxCode: idc, vatCode: idc, value: idc },
+          documentName: selectedDocu?.name,
+          search,
           contact_id: contactId, opportunity_id: opportunityId, company_id: companyId,
         });
         requestId = r.request_id;
       } else {
+        const idc = vat.replace(/\s/g, "");
+        if (!idc) { toast.error("Inserisci P.IVA o Codice Fiscale"); setOrdering(false); setPhase(null); return; }
         const v = visure.find((x) => x.hash_visura === selected);
         const r = await invoke<{ request_id: string }>("visengine_request", {
           hash: selected, documentName: v?.nome_visura,
@@ -166,7 +198,7 @@ export function OpenapiDocRequestDialog({
             ) : (
               <TabsContent value="docuengine" className="m-0">
                 {docuFiltered.map((d) => (
-                  <button key={d.id} onClick={() => setSelected(d.id)}
+                  <button key={d.id} onClick={() => selectDocuDoc(d)}
                     className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 border-b last:border-0 hover:bg-muted/40 ${selected === d.id ? "bg-orange-50" : ""}`}>
                     <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="flex-1 truncate">{d.name}</span>
@@ -192,10 +224,33 @@ export function OpenapiDocRequestDialog({
           </div>
         </Tabs>
 
-        <div className="mt-1">
-          <Label className="text-xs">P.IVA / Codice Fiscale dell'azienda *</Label>
-          <Input value={vat} onChange={(e) => setVat(e.target.value)} placeholder="es. 12345678901" inputMode="numeric" />
-        </div>
+        {provider === "docuengine" ? (
+          selectedDocu ? (
+            <div className="mt-1 space-y-2">
+              {selectedDocu.fields.length === 0 && (
+                <p className="text-xs text-muted-foreground">Questo documento non richiede parametri.</p>
+              )}
+              {selectedDocu.fields.map((f) => (
+                <div key={f.key}>
+                  <Label className="text-xs">{f.nameIT ?? f.name}{f.required ? " *" : ""}</Label>
+                  <Input
+                    value={fieldVals[f.key] ?? ""}
+                    onChange={(e) => setFieldVals((s) => ({ ...s, [f.key]: e.target.value }))}
+                    placeholder={f.help ?? f.name}
+                    inputMode={isIdentifierField(f.type) ? "numeric" : "text"}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Seleziona un documento per compilare i dati richiesti.</p>
+          )
+        ) : (
+          <div className="mt-1">
+            <Label className="text-xs">P.IVA / Codice Fiscale dell'azienda *</Label>
+            <Input value={vat} onChange={(e) => setVat(e.target.value)} placeholder="es. 12345678901" inputMode="numeric" />
+          </div>
+        )}
 
         {phase && (
           <div className="flex items-center gap-2 text-sm text-orange-700 bg-orange-50 rounded-md px-3 py-2">
