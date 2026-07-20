@@ -486,6 +486,96 @@ async function openapiBase(): Promise<string> {
   return v;
 }
 
+// ── openapi.it — Documenti ufficiali: DocuEngine + Visengine (Visure Camerali) ─
+// Prodotti openapi SEPARATI dal Company: danno documenti ufficiali (visure CCIAA,
+// Registro Imprese, Agenzia Entrate, INPS, catasto) con flusso ASINCRONO:
+//   ordina (POST) → poll stato (GET) → scarica (GET /download|/documento).
+// Stesso token openapi_it_token (deve avere gli scope DocuEngine + Visure Camerali).
+// Host prod|sandbox:
+//   DocuEngine  → docuengine.openapi.com | test.docuengine.openapi.com
+//   Visengine   → visengine2.altravia.com | test.visengine2.altravia.com
+async function openapiIsSandbox(): Promise<boolean> {
+  const env = ((await getPlatformSetting("openapi_env", "OPENAPI_ENV")) || "prod").toLowerCase();
+  return env === "sandbox" || env === "test";
+}
+function docuengineBase(sandbox: boolean): string {
+  return sandbox ? "test.docuengine.openapi.com" : "docuengine.openapi.com";
+}
+function visengineBase(sandbox: boolean): string {
+  return sandbox ? "test.visengine2.altravia.com" : "visengine2.altravia.com";
+}
+
+/** Chiamata autenticata generica a openapi (Bearer) con parsing JSON + errore leggibile. */
+async function openapiCall(
+  url: string,
+  token: string,
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+): Promise<{ ok: boolean; status: number; data: any; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(url, {
+      timeoutMs: init.timeoutMs ?? 15000,
+      method: init.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    });
+    const text = await res.text().catch(() => "");
+    let data: any = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) {
+      const msg = (data && (data.message || data.error)) ||
+        (typeof data === "string" && data ? data.slice(0, 200) : `HTTP ${res.status}`);
+      return { ok: false, status: res.status, data, error: String(msg) };
+    }
+    return { ok: true, status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: `Rete openapi: ${(e as Error).message}` };
+  }
+}
+
+// ── DocuEngine (docuengine.openapi.com) ────────────────────────────────────────
+/** Catalogo documenti ordinabili: id, nome, categoria, prezzo, isSync, requestStructure. */
+async function docuengineDocuments(token: string, sandbox: boolean) {
+  return openapiCall(`https://${docuengineBase(sandbox)}/documents`, token, { timeoutMs: 15000 });
+}
+/** Ordina un documento. body: { documentId, search?, selectedOptions?, notifyEmail?, callback? }. */
+async function docuengineRequest(token: string, sandbox: boolean, payload: Record<string, unknown>) {
+  return openapiCall(`https://${docuengineBase(sandbox)}/requests`, token, {
+    method: "POST",
+    body: { state: "NEW", ...payload },
+    timeoutMs: 20000,
+  });
+}
+/** Stato/dettaglio di una richiesta (poll). */
+async function docuengineStatus(token: string, sandbox: boolean, id: string) {
+  return openapiCall(`https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}`, token);
+}
+
+// ── Visengine / Visure Camerali (visengine2.altravia.com) ──────────────────────
+/** Catalogo visure/pratiche: hash, nome, costo. GET /visure (nessun parametro). */
+async function visengineCatalog(token: string, sandbox: boolean) {
+  return openapiCall(`https://${visengineBase(sandbox)}/visure`, token, { timeoutMs: 15000 });
+}
+/** Info/costo/parametri di una specifica visura per hash. GET /visure/{hash}. */
+async function visengineVisuraInfo(token: string, sandbox: boolean, hash: string) {
+  return openapiCall(`https://${visengineBase(sandbox)}/visure/${encodeURIComponent(hash)}`, token);
+}
+/** Ordina una visura. body tipico: { hash_visura, ricerca:{...} } (dipende dalla visura). */
+async function visengineRequest(token: string, sandbox: boolean, payload: Record<string, unknown>) {
+  return openapiCall(`https://${visengineBase(sandbox)}/richiesta`, token, {
+    method: "POST",
+    body: payload,
+    timeoutMs: 20000,
+  });
+}
+/** Stato/dettaglio di una richiesta visura (poll). GET /richiesta/{id}. */
+async function visengineStatus(token: string, sandbox: boolean, id: string) {
+  return openapiCall(`https://${visengineBase(sandbox)}/richiesta/${encodeURIComponent(id)}`, token);
+}
+
 async function fetchFirmografici(piva: string, token: string, base = "company.openapi.com"): Promise<Firmografici | null> {
   const num = piva.replace(/\D/g, "");
   if (num.length !== 11) return null;
@@ -2151,6 +2241,90 @@ Deno.serve(async (req) => {
         }
       }
       return jsonResponse({ ok: true, partita_iva: piva, fields: f, contact_updated }, 200, corsH);
+    }
+
+    // ══════════ DOCUMENTI UFFICIALI: DocuEngine + Visengine (Visure Camerali) ══════════
+    // Prodotti openapi.it separati dal Company. Flusso: catalogo → richiesta → poll stato.
+    // Tutti gated dietro openapi_it_token (deve avere gli scope DocuEngine + Visure Camerali).
+    if (
+      action === "docuengine_documents" || action === "docuengine_request" || action === "docuengine_status" ||
+      action === "visengine_catalog" || action === "visengine_info" || action === "visengine_request" || action === "visengine_status"
+    ) {
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      if (!openapiToken) {
+        return jsonResponse({ ok: false, error: "openapi.it non configurato: imposta openapi_it_token (con scope DocuEngine e Visure Camerali)." }, 200, corsH);
+      }
+      const sandbox = await openapiIsSandbox();
+
+      // ── DocuEngine ──
+      if (action === "docuengine_documents") {
+        const r = await docuengineDocuments(openapiToken, sandbox);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
+        return jsonResponse({ ok: true, documents: r.data?.data ?? r.data }, 200, corsH);
+      }
+      if (action === "docuengine_request") {
+        const documentId = typeof body.documentId === "string" ? body.documentId : null;
+        if (!documentId) return jsonResponse({ ok: false, error: "documentId richiesto (vedi docuengine_documents)." }, 200, corsH);
+        const payload: Record<string, unknown> = { documentId };
+        if (body.search && typeof body.search === "object") payload.search = body.search;
+        if (Array.isArray(body.selectedOptions)) payload.selectedOptions = body.selectedOptions;
+        if (typeof body.notifyEmail === "string") payload.notifyEmail = body.notifyEmail;
+        const r = await docuengineRequest(openapiToken, sandbox, payload);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
+        const rec = r.data?.data ?? r.data;
+        return jsonResponse({ ok: true, request: rec, request_id: rec?.id ?? rec?._id ?? null, state: rec?.state ?? null }, 200, corsH);
+      }
+      if (action === "docuengine_status") {
+        const id = typeof body.request_id === "string" ? body.request_id : null;
+        if (!id) return jsonResponse({ ok: false, error: "request_id richiesto." }, 200, corsH);
+        const r = await docuengineStatus(openapiToken, sandbox, id);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `DocuEngine: ${r.error}` }, 200, corsH);
+        const rec = r.data?.data ?? r.data;
+        const done = String(rec?.state ?? "").toUpperCase() === "DONE" || !!rec?.filename || !!rec?.documents;
+        return jsonResponse({
+          ok: true, request: rec, state: rec?.state ?? null, done,
+          download_url: done ? `https://${docuengineBase(sandbox)}/requests/${encodeURIComponent(id)}/download` : null,
+        }, 200, corsH);
+      }
+
+      // ── Visengine / Visure Camerali ──
+      if (action === "visengine_catalog") {
+        const r = await visengineCatalog(openapiToken, sandbox);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `Visengine: ${r.error}` }, 200, corsH);
+        return jsonResponse({ ok: true, visure: r.data?.data ?? r.data }, 200, corsH);
+      }
+      if (action === "visengine_info") {
+        const hash = typeof body.hash === "string" ? body.hash : null;
+        if (!hash) return jsonResponse({ ok: false, error: "hash richiesto (vedi visengine_catalog)." }, 200, corsH);
+        const r = await visengineVisuraInfo(openapiToken, sandbox, hash);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `Visengine: ${r.error}` }, 200, corsH);
+        return jsonResponse({ ok: true, info: r.data?.data ?? r.data }, 200, corsH);
+      }
+      if (action === "visengine_request") {
+        // payload flessibile: hash_visura + i campi di ricerca richiesti dalla visura scelta
+        const payload: Record<string, unknown> = {};
+        if (typeof body.hash === "string") payload.hash_visura = body.hash;
+        if (body.ricerca && typeof body.ricerca === "object") payload.ricerca = body.ricerca;
+        if (body.payload && typeof body.payload === "object") Object.assign(payload, body.payload);
+        if (!payload.hash_visura && !body.payload) return jsonResponse({ ok: false, error: "hash (o payload) richiesto per la visura." }, 200, corsH);
+        const r = await visengineRequest(openapiToken, sandbox, payload);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `Visengine: ${r.error}` }, 200, corsH);
+        const rec = r.data?.data ?? r.data;
+        return jsonResponse({ ok: true, request: rec, request_id: rec?._id ?? rec?.id ?? null, state: rec?.stato ?? rec?.state ?? null }, 200, corsH);
+      }
+      if (action === "visengine_status") {
+        const id = typeof body.request_id === "string" ? body.request_id : null;
+        if (!id) return jsonResponse({ ok: false, error: "request_id richiesto." }, 200, corsH);
+        const r = await visengineStatus(openapiToken, sandbox, id);
+        if (!r.ok) return jsonResponse({ ok: false, status: r.status, error: `Visengine: ${r.error}` }, 200, corsH);
+        const rec = r.data?.data ?? r.data;
+        const stato = String(rec?.stato ?? rec?.state ?? "").toLowerCase();
+        const done = stato.includes("evasa") || stato.includes("done") || stato.includes("completat") || !!rec?.documento;
+        return jsonResponse({
+          ok: true, request: rec, state: rec?.stato ?? rec?.state ?? null, done,
+          download_url: done ? `https://${visengineBase(sandbox)}/documento/${encodeURIComponent(id)}` : null,
+        }, 200, corsH);
+      }
     }
 
     // ════════════════════ FIND EMAIL (pattern + MX, gratis) ════════════════════
