@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useElettricoPDF } from "@/hooks/useElettricoPDF";
 import { ElettricoTemplatePreviewDialog } from "@/components/elettrico/ElettricoTemplatePreviewDialog";
+import { ElettricoLivePreviewPanel } from "@/components/elettrico/ElettricoLivePreviewPanel";
 import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
 import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
 import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
@@ -710,7 +711,7 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
         </aside>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="col-span-12 md:col-span-9 space-y-4 min-w-0">
+        <div className="col-span-12 md:col-span-9 xl:col-span-5 space-y-4 min-w-0">
           {/* Branding */}
           {activeSection === "brand" && (
             <>
@@ -1709,6 +1710,12 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
             </div>
           </div>
         </div>
+
+        <aside className="col-span-12 xl:col-span-4 min-w-0">
+          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+            <ElettricoLivePreviewPanel template={previewTemplate} companyId={companyId} />
+          </div>
+        </aside>
       </div>
       <ElettricoTemplatePreviewDialog
         open={livePreviewOpen}

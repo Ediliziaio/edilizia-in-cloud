@@ -53,6 +53,7 @@ import { COVER_PRESETS as COVER_LAYOUT_PRESETS, detectActiveCoverPreset } from "
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "@/components/bagni/coverStockImages";
 import { useBagniPDF } from "@/hooks/useBagniPDF";
 import { BagniTemplatePreviewDialog } from "@/components/bagni/BagniTemplatePreviewDialog";
+import { BagniLivePreviewPanel } from "@/components/bagni/BagniLivePreviewPanel";
 import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
 import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
 import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
@@ -638,7 +639,7 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
         </aside>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="col-span-12 md:col-span-9 space-y-4 min-w-0">
+        <div className="col-span-12 md:col-span-9 xl:col-span-5 space-y-4 min-w-0">
           {/* Branding */}
           {activeSection === "brand" && (
             <>
@@ -1635,6 +1636,12 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
             </div>
           </div>
         </div>
+
+        <aside className="col-span-12 xl:col-span-4 min-w-0">
+          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+            <BagniLivePreviewPanel template={previewTemplate} companyId={companyId} />
+          </div>
+        </aside>
       </div>
       <BagniTemplatePreviewDialog
         open={livePreviewOpen}

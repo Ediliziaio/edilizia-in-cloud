@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useRistrutturazionePDF } from "@/hooks/useRistrutturazionePDF";
 import { RistrutturazioneTemplatePreviewDialog } from "@/components/ristrutturazione/RistrutturazioneTemplatePreviewDialog";
+import { RistrutturazioneLivePreviewPanel } from "@/components/ristrutturazione/RistrutturazioneLivePreviewPanel";
 import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
 import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
 import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
@@ -661,7 +662,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         </aside>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="col-span-12 md:col-span-9 space-y-4 min-w-0">
+        <div className="col-span-12 md:col-span-9 xl:col-span-5 space-y-4 min-w-0">
           {/* Branding */}
           {activeSection === "brand" && (
             <>
@@ -1421,6 +1422,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
             </div>
           </div>
         </div>
+
+        {/* ── ANTEPRIMA LIVE PDF — colonna persistente (desktop xl) ── */}
+        <aside className="col-span-12 xl:col-span-4 min-w-0">
+          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+            <RistrutturazioneLivePreviewPanel template={previewTemplate} companyId={companyId} />
+          </div>
+        </aside>
       </div>
       <RistrutturazioneTemplatePreviewDialog
         open={livePreviewOpen}
