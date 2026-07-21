@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /**
  * Toggle "Area privata clienti".
@@ -24,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 export function CustomerPortalToggle() {
   const { effectiveCompany, refreshAuth } = useAuth();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const initial = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled !== false;
@@ -33,6 +35,29 @@ export function CustomerPortalToggle() {
 
   const handleToggle = async (next: boolean) => {
     if (!effectiveCompany?.id) return;
+
+    // ATTIVAZIONE → doppia conferma. Aprire l'area privata è un'azione sensibile:
+    // da quel momento ogni nuovo cliente riceve un account con credenziali di
+    // accesso (password + email). Richiediamo DUE conferme esplicite. Se una
+    // delle due viene annullata, l'interruttore resta com'era (controllato da
+    // `enabled`, che non tocchiamo finché entrambe non sono confermate).
+    if (next) {
+      const first = await confirm({
+        title: "Attivare l'area privata clienti?",
+        description:
+          "I nuovi clienti riceveranno un account con email e password per accedere al portale privato. Vuoi procedere?",
+        confirmLabel: "Sì, continua",
+      });
+      if (!first) return;
+      const second = await confirm({
+        title: "Confermi l'attivazione?",
+        description:
+          "Seconda conferma. Attivando l'area privata, ogni nuovo cliente creato potrà accedere con le proprie credenziali. Confermi definitivamente?",
+        confirmLabel: "Attiva area privata",
+      });
+      if (!second) return;
+    }
+
     setIsSaving(true);
     const previous = enabled;
     setEnabled(next); // ottimistic update
