@@ -2071,10 +2071,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
               <div className="col-span-12 md:col-span-7 md:order-1 space-y-3">
                 {/* ══ Card: Sfondo copertina ══ */}
-                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
-                  Sfondo copertina
-                </div>
+                <SrCard title="Sfondo copertina" icon={<ImageIcon className="h-4 w-4" />}>
+                <div className="space-y-3">
                 {/* Immagine di sfondo */}
                 <div>
                   <Label className="text-xs mb-1 block">
@@ -2287,13 +2285,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                 )}
 
-                </div>{/* ══ fine Card: Sfondo copertina ══ */}
+                </div>
+                </SrCard>{/* ══ fine Card: Sfondo copertina ══ */}
 
                 {/* ══ Card: Testi copertina ══ */}
-                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
-                  Testi copertina
-                </div>
+                <SrCard title="Testi copertina" icon={<Quote className="h-4 w-4" />}>
+                <div className="space-y-3">
                 {/* Eyebrow */}
                 <div>
                   <Label className="text-xs mb-1 block">
@@ -2374,14 +2371,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     verrà sostituito nel PDF.
                   </p>
                 </div>
-                </div>{/* ══ fine Card: Testi copertina ══ */}
+                </div>
+                </SrCard>{/* ══ fine Card: Testi copertina ══ */}
 
-            {/* ══ Card: Logo, tipografia & layout — ora DENTRO la colonna sinistra
-                così l'anteprima sticky resta visibile anche mentre modifichi qui ══ */}
-            <div className="mt-2 rounded-lg border bg-muted/20 p-3 space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
-                Logo, tipografia &amp; layout
-              </div>
+            {/* ══ Card: Logo, tipografia & layout — dentro la colonna sinistra così
+                l'anteprima sticky resta visibile anche mentre modifichi qui ══ */}
+            <SrCard title="Logo, tipografia & layout" icon={<Sparkles className="h-4 w-4" />} className="mt-2">
               <div className="grid grid-cols-12 gap-3">
                 {/* Font size + colore — Eyebrow */}
                 <div className="col-span-12 md:col-span-4">
@@ -2826,27 +2821,27 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </Button>
                 </div>
               </div>
-            </div>
+            </SrCard>
               </div>{/* ══ fine colonna sinistra controlli ══ */}
             </div>{/* ══ fine griglia cover: anteprima sticky + controlli ══ */}
           </TabsContent>
 
           {/* ═══ CHI SIAMO ═══════════════════════════════════════════════════ */}
-          <TabsContent value="chi-siamo" className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-                Pagina "Chi siamo" (opzionale, dopo cover)
-              </div>
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+          <TabsContent value="chi-siamo" className="mt-4 space-y-3">
+            <SrCard
+              title={'Pagina "Chi siamo"'}
+              description="Pagina opzionale mostrata subito dopo la copertina."
+              icon={<Building2 className="h-4 w-4" />}
+            >
+              <label className="flex items-center gap-2 cursor-pointer text-xs mb-3 pb-3 border-b">
                 <input
                   type="checkbox"
                   checked={!!form.chi_siamo_attivo}
                   onChange={(e) => update("chi_siamo_attivo", e.target.checked)}
-                  className="h-3.5 w-3.5"
+                  className="h-4 w-4"
                 />
-                Attiva
+                <span className="font-medium">Attiva questa pagina nel PDF</span>
               </label>
-            </div>
             {form.chi_siamo_attivo && (
               <div className="grid grid-cols-12 gap-3">
                 {/* Foto azienda — upload diretto (no più URL incollato) */}
@@ -2940,13 +2935,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             )}
+            </SrCard>
           </TabsContent>
 
           {/* ═══ CONSULENTE ══════════════════════════════════════════════════ */}
-          <TabsContent value="consulente" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-              Sezione "La tua consulenza"
-            </div>
+          <TabsContent value="consulente" className="mt-4 space-y-3">
+            <SrCard
+              title={'Sezione "La tua consulenza"'}
+              description="Frase personale mostrata sotto nome e ruolo del consulente."
+              icon={<MessageCircle className="h-4 w-4" />}
+            >
             <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
             <RichTextEditor
               value={form.consulente_descrizione_default ?? ""}
@@ -2959,6 +2957,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               vengono presi automaticamente dal profilo dell'utente che fa il preventivo
               (Impostazioni → Mio profilo → Foto).
             </p>
+            </SrCard>
           </TabsContent>
 
           {/* ═══ RECENSIONI ══════════════════════════════════════════════════ */}
@@ -3100,10 +3099,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </TabsContent>
 
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
-          <TabsContent value="render" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-              Disclaimer Render AI
-            </div>
+          <TabsContent value="render" className="mt-4 space-y-3">
+            <SrCard
+              title="Disclaimer Render AI"
+              description="Testo legale mostrato sotto i render generati con l'AI."
+              icon={<Sparkles className="h-4 w-4" />}
+            >
             <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
             <RichTextEditor
               value={form.render_disclaimer ?? ""}
@@ -3111,13 +3112,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               placeholder="Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità."
               minHeight={120}
             />
+            </SrCard>
           </TabsContent>
 
           {/* ═══ CTA FINALE ══════════════════════════════════════════════════ */}
-          <TabsContent value="cta" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
-              Box CTA finale "Cosa fare adesso"
-            </div>
+          <TabsContent value="cta" className="mt-4 space-y-3">
+            <SrCard
+              title={'Box CTA finale "Cosa fare adesso"'}
+              description="Chiusura del preventivo con i prossimi passi per il cliente."
+              icon={<ListChecks className="h-4 w-4" />}
+            >
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-12">
                 <Label className="text-xs">Titolo del box</Label>
@@ -3151,6 +3155,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </p>
               </div>
             </div>
+            </SrCard>
           </TabsContent>
 
           {/* ═══ PERCORSO CLIENTE ═══════════════════════════════════════════ */}
