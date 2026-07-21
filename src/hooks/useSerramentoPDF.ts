@@ -77,6 +77,7 @@ export interface SerramentoPdfEnriched {
     email?: string | null;
     partita_iva?: string | null;
     logo_url?: string | null;
+    brand_logo_dark_url?: string | null;
     website?: string | null;
   } | null;
   consulente: SerramentoPdfConsulente | null;

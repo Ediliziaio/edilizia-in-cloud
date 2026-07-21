@@ -14,6 +14,8 @@ export interface BrandSettings {
   brand_login_bg_url: string | null;
   brand_hide_powered_by: boolean;
   logo_url: string | null;
+  /** Versione chiara del logo (per sfondi scuri, es. copertine preventivi). */
+  brand_logo_dark_url: string | null;
 }
 
 export interface EffectiveBrand {
@@ -47,7 +49,7 @@ export function useBrandSettings(companyId?: string) {
       const { data, error } = await supabase
         .from("companies")
         .select(
-          "white_label_enabled, brand_primary_color, brand_secondary_color, brand_accent_color, brand_text_on_primary, brand_platform_name, brand_favicon_url, brand_login_bg_url, brand_hide_powered_by, logo_url"
+          "white_label_enabled, brand_primary_color, brand_secondary_color, brand_accent_color, brand_text_on_primary, brand_platform_name, brand_favicon_url, brand_login_bg_url, brand_hide_powered_by, logo_url, brand_logo_dark_url"
         )
         .eq("id", id!)
         .single();

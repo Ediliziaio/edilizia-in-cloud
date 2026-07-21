@@ -656,6 +656,34 @@ export default function SettingsBranding() {
                 </CardContent>
               </Card>
 
+              {/* Logo versione chiara — per copertine/sfondi scuri dei preventivi.
+                  Vive qui (Brand & Azienda), non più dentro i singoli template. */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Logo — versione chiara (sfondo scuro)</CardTitle>
+                  <CardDescription className="text-xs">
+                    Versione bianca/chiara del logo, usata sulle copertine dei preventivi con sfondo scuro.
+                    Se vuota, viene usato il logo principale.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="h-16 w-32 rounded border bg-slate-900 flex items-center justify-center p-2">
+                    {brand?.brand_logo_dark_url ? (
+                      <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="text-[9px] text-slate-400 text-center leading-tight px-1">Nessuno · usa il logo principale</span>
+                    )}
+                  </div>
+                  <FileUploadButton
+                    label={brand?.brand_logo_dark_url ? "Cambia logo chiaro" : "Carica logo chiaro"}
+                    isUploading={uploading === "brand_logo_dark_url"}
+                    onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
+                    accept="image/png,image/svg+xml,image/webp"
+                    disabled={!canEdit}
+                  />
+                </CardContent>
+              </Card>
+
               {/* Favicon + Login BG: grid 2-col */}
               <div className="grid gap-6 sm:grid-cols-2">
                 <Card>

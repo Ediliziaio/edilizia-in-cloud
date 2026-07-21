@@ -51,6 +51,7 @@ import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -431,6 +432,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
   // Usato dagli upload handler: punta all'azienda impersonata se super_admin.
   const companyId = useEffectiveCompanyId();
+  // Logo "versione chiara" (per copertine su sfondo scuro) ora si gestisce in
+  // Brand & Azienda: la copertina lo eredita, non lo carica più qui.
+  const { brand } = useBrandSettings(companyId ?? undefined);
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
@@ -1976,7 +1980,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       >
                         {(() => {
                           const sz = Math.round(28 * ((form.pdf_cover_logo_size ?? 100) / 100));
-                          const coverLogo = form.pdf_cover_logo_url ?? form.logo_url;
+                          const coverLogo = form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url;
                           return coverLogo ? (
                             <img
                               loading="lazy"
@@ -2510,9 +2514,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                 </div>
 
-                {/* Logo copertina (versione chiara per sfondo scuro) */}
+                {/* Logo copertina — REDESIGN: la versione chiara del logo (per sfondo
+                    scuro) si gestisce ora in Brand & Azienda, un unico posto per tutti
+                    i template. La copertina la EREDITA. Resta un override facoltativo
+                    solo-per-questo-template per i casi particolari. */}
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Logo copertina (sfondo scuro)</Label>
+                  <Label className="text-[11px] mb-1 block">Logo copertina</Label>
                   <input
                     ref={coverLogoInputRef}
                     type="file"
@@ -2520,45 +2527,59 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     className="hidden"
                     onChange={(e) => e.target.files?.[0] && handleCoverLogoUpload(e.target.files[0])}
                   />
-                  <div
-                    className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
-                    onClick={() => !uploadingCoverLogo && coverLogoInputRef.current?.click()}
-                  >
-                    {form.pdf_cover_logo_url ? (
-                      <img loading="lazy" src={form.pdf_cover_logo_url} alt="" className="w-full h-full object-contain p-2" />
-                    ) : (
-                      <div className="text-center p-3">
-                        <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
-                        <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-11 w-11 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1 relative">
+                        {(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ? (
+                          <img
+                            loading="lazy"
+                            src={(form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url) ?? ""}
+                            alt="Logo copertina"
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-slate-500" />
+                        )}
+                        {uploadingCoverLogo && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-white" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {uploadingCoverLogo && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                        <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-1 mt-1">
-                    <Button
-                      size="sm" variant="outline"
-                      onClick={() => coverLogoInputRef.current?.click()}
-                      disabled={uploadingCoverLogo}
-                      className="flex-1 h-7 text-[11px]"
-                    >
-                      <Upload className="h-3 w-3 mr-1" />
-                      {form.pdf_cover_logo_url ? "Cambia" : "Carica"}
-                    </Button>
-                    {form.pdf_cover_logo_url && (
-                      <Button
-                        size="sm" variant="outline"
-                        onClick={() => update("pdf_cover_logo_url", null)}
-                        className="h-7 text-[11px] text-rose-600"
+                      <p className="text-[10px] text-blue-900 dark:text-blue-200 leading-snug flex-1 min-w-0">
+                        Il logo e la sua <strong>versione chiara</strong> (per sfondo scuro) si impostano in{" "}
+                        <strong>Brand&nbsp;&amp;&nbsp;Azienda</strong>. La copertina li eredita.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to="/azienda/impostazioni/branding"
+                        className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 hover:underline"
                       >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                        Gestisci in Brand &amp; Azienda →
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => coverLogoInputRef.current?.click()}
+                        disabled={uploadingCoverLogo}
+                        className="ml-auto text-[10px] text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+                      >
+                        Logo solo qui
+                      </button>
+                    </div>
+                    {form.pdf_cover_logo_url && (
+                      <div className="flex items-center justify-between gap-1 pt-1 border-t border-blue-200/60 dark:border-blue-900/40">
+                        <span className="text-[9px] text-amber-700 dark:text-amber-400">Override specifico attivo</span>
+                        <button
+                          type="button"
+                          onClick={() => update("pdf_cover_logo_url", null)}
+                          className="text-[10px] text-rose-600 hover:underline"
+                        >
+                          Rimuovi override
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale.</p>
                 </div>
 
                 {/* M17 · Posizione logo cover */}
@@ -3697,6 +3718,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             template={form}
             companyName={form.ragione_sociale}
             companyLogoUrl={form.logo_url}
+            companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
             companyIndirizzo={form.indirizzo_completo}
           />
         </Suspense>

@@ -54,7 +54,7 @@ export function StepPdf({ progettoId, detail }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url, brand_logo_dark_url")
         .eq("id", companyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -72,6 +72,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         email: data.email,
         partita_iva: data.vat_number,
         logo_url: data.logo_url,
+        brand_logo_dark_url: (data as { brand_logo_dark_url?: string | null }).brand_logo_dark_url ?? null,
       };
     },
   });

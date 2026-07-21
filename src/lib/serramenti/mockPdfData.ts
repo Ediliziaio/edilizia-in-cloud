@@ -39,6 +39,8 @@ export async function buildMockPdfData(opts: {
   template: Partial<SrTemplatePdfRow> | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  /** Logo versione chiara (Brand & Azienda) per la copertina su sfondo scuro. */
+  companyLogoDarkUrl?: string | null;
   companyIndirizzo?: string | null;
   consulenteNome?: string | null;
   consulenteFoto?: string | null;
@@ -341,11 +343,13 @@ export async function buildMockPdfData(opts: {
     inlinedLogo,
     inlinedChiSiamoFoto,
     inlinedCoverImage,
+    inlinedLogoDark,
   ] = await Promise.all([
     toDataUrl(tpl?.logo_url ?? opts.companyLogoUrl ?? null),
     toDataUrl(tpl?.chi_siamo_foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
+    toDataUrl(opts.companyLogoDarkUrl ?? null),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
@@ -366,6 +370,7 @@ export async function buildMockPdfData(opts: {
       email: "info@example.com",
       partita_iva: "01234567890",
       logo_url: inlinedLogo ?? opts.companyLogoUrl ?? null,
+      brand_logo_dark_url: inlinedLogoDark ?? opts.companyLogoDarkUrl ?? null,
       website: "www.example.com",
     },
     consulente,

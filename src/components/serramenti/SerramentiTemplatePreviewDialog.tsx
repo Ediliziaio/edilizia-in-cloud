@@ -39,6 +39,8 @@ interface Props {
   /** Nome azienda visualizzato come default in cover. */
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  /** Logo versione chiara (Brand & Azienda) per la copertina su sfondo scuro. */
+  companyLogoDarkUrl?: string | null;
   companyIndirizzo?: string | null;
 }
 
@@ -54,7 +56,7 @@ const STORAGE_KEY_PREVIEW_PROGETTO = "sr-template-preview-progetto-id";
 
 export function SerramentiTemplatePreviewDialog({
   open, onOpenChange, template,
-  companyName, companyLogoUrl, companyIndirizzo,
+  companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo,
 }: Props) {
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,7 +117,7 @@ export function SerramentiTemplatePreviewDialog({
             detail,
             template: template as SrTemplatePdfRow | null,
             company: companyName
-              ? { name: companyName, ragione_sociale: companyName, logo_url: companyLogoUrl ?? null, indirizzo: companyIndirizzo ?? null }
+              ? { name: companyName, ragione_sociale: companyName, logo_url: companyLogoUrl ?? null, brand_logo_dark_url: companyLogoDarkUrl ?? null, indirizzo: companyIndirizzo ?? null }
               : null,
           });
         } catch (realErr) {
@@ -123,13 +125,14 @@ export function SerramentiTemplatePreviewDialog({
           // cancellato), fallback al mock con toast non bloccante.
           console.warn("[template-preview] real-data fetch failed, fallback to mock:", realErr);
           toast.warning("Anteprima con dati reali non disponibile · uso demo");
-          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyIndirizzo });
+          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyLogoDarkUrl, companyIndirizzo });
         }
       } else {
         enriched = await buildMockPdfData({
           template,
           companyName,
           companyLogoUrl,
+          companyLogoDarkUrl,
           companyIndirizzo,
         });
       }
