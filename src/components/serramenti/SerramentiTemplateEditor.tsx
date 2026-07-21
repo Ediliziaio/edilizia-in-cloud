@@ -1864,8 +1864,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   REDESIGN pilota: pannello a DESTRA e STICKY (segue lo scroll dei
                   campi, sempre visibile mentre modifichi); larghezza ridotta a col-4
                   per dare più spazio alla parte di creazione (campi a col-8). */}
-              <div className="col-span-12 md:col-span-4 md:order-2 self-start md:sticky md:top-[84px] z-10">
-                <Label className="text-xs mb-1.5 block">Anteprima cover</Label>
+              <div className="col-span-12 md:col-span-5 md:order-2 self-start md:sticky md:top-[84px] z-10">
+                <Label className="text-xs mb-1.5 block flex items-center gap-1.5">
+                  <Eye className="h-3.5 w-3.5 text-orange-500" /> Anteprima live · si aggiorna mentre modifichi
+                </Label>
                 <div
                   className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
                   style={{
@@ -2067,7 +2069,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
               {/* CONTROLLI EDITOR — REDESIGN slice 3: raggruppati in card leggibili
                   (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
-              <div className="col-span-12 md:col-span-8 md:order-1 space-y-3">
+              <div className="col-span-12 md:col-span-7 md:order-1 space-y-3">
                 {/* ══ Card: Sfondo copertina ══ */}
                 <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
@@ -2373,10 +2375,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </p>
                 </div>
                 </div>{/* ══ fine Card: Testi copertina ══ */}
-              </div>
-            </div>
 
-            {/* ─── Tipografia & layout cover ────────────────────────────── */}
+            {/* ══ Card: Logo, tipografia & layout — ora DENTRO la colonna sinistra
+                così l'anteprima sticky resta visibile anche mentre modifichi qui ══ */}
             <div className="mt-2 rounded-lg border bg-muted/20 p-3 space-y-3">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
                 Logo, tipografia &amp; layout
@@ -2826,6 +2827,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             </div>
+              </div>{/* ══ fine colonna sinistra controlli ══ */}
+            </div>{/* ══ fine griglia cover: anteprima sticky + controlli ══ */}
           </TabsContent>
 
           {/* ═══ CHI SIAMO ═══════════════════════════════════════════════════ */}
