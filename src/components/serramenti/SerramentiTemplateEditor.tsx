@@ -2065,8 +2065,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </p>
               </div>
 
-              {/* CONTROLLI EDITOR */}
+              {/* CONTROLLI EDITOR — REDESIGN slice 3: raggruppati in card leggibili
+                  (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
               <div className="col-span-12 md:col-span-8 md:order-1 space-y-3">
+                {/* ══ Card: Sfondo copertina ══ */}
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
+                  Sfondo copertina
+                </div>
                 {/* Immagine di sfondo */}
                 <div>
                   <Label className="text-xs mb-1 block">
@@ -2279,6 +2285,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                 )}
 
+                </div>{/* ══ fine Card: Sfondo copertina ══ */}
+
+                {/* ══ Card: Testi copertina ══ */}
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
+                  Testi copertina
+                </div>
                 {/* Eyebrow */}
                 <div>
                   <Label className="text-xs mb-1 block">
@@ -2359,13 +2372,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     verrà sostituito nel PDF.
                   </p>
                 </div>
+                </div>{/* ══ fine Card: Testi copertina ══ */}
               </div>
             </div>
 
             {/* ─── Tipografia & layout cover ────────────────────────────── */}
             <div className="mt-2 rounded-lg border bg-muted/20 p-3 space-y-3">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
-                Tipografia &amp; layout
+                Logo, tipografia &amp; layout
               </div>
               <div className="grid grid-cols-12 gap-3">
                 {/* Font size + colore — Eyebrow */}
