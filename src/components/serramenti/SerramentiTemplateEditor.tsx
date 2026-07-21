@@ -1855,9 +1855,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               )}
             </div>
 
-            <div className="grid grid-cols-12 gap-4">
-              {/* PREVIEW LIVE — formato A4 portrait scalato */}
-              <div className="col-span-12 md:col-span-5">
+            <div className="grid grid-cols-12 gap-4 md:items-start">
+              {/* PREVIEW LIVE — formato A4 portrait scalato.
+                  REDESIGN pilota: pannello a DESTRA e STICKY (segue lo scroll dei
+                  campi, sempre visibile mentre modifichi); larghezza ridotta a col-4
+                  per dare più spazio alla parte di creazione (campi a col-8). */}
+              <div className="col-span-12 md:col-span-4 md:order-2 self-start md:sticky md:top-[84px] z-10">
                 <Label className="text-xs mb-1.5 block">Anteprima cover</Label>
                 <div
                   className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
@@ -2059,7 +2062,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </div>
 
               {/* CONTROLLI EDITOR */}
-              <div className="col-span-12 md:col-span-7 space-y-3">
+              <div className="col-span-12 md:col-span-8 md:order-1 space-y-3">
                 {/* Immagine di sfondo */}
                 <div>
                   <Label className="text-xs mb-1 block">
