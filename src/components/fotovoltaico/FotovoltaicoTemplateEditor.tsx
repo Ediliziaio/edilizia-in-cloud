@@ -65,6 +65,8 @@ import {
 
 // Anteprima PDF completa (lazy: trascina renderFvPdfHtml ~1700 righe fuori dal chunk iniziale)
 const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
+// Pannello anteprima live persistente (lazy per lo stesso motivo: usa renderFvPdfHtml).
+const FvLivePreviewPanel = lazy(() => import("./FvLivePreviewPanel").then((m) => ({ default: m.FvLivePreviewPanel })));
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -811,6 +813,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   }, []);
   // Detection live del preset attivo (evidenzia la card). null = personalizzato.
   const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
+  // Preset stili copertina: collassati di default (occupavano troppo spazio).
+  const [showPresets, setShowPresets] = useState(false);
 
   // ─── Galleria immagini stock cover (parità Serramenti) ───────────────────
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
@@ -1340,7 +1344,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </nav>
         </aside>
 
-        <div className="col-span-12 min-w-0 space-y-4 md:col-span-9">
+        <div className="col-span-12 min-w-0 space-y-4 md:col-span-9 xl:col-span-5">
 
       {activeSection === "page_cover" && (
         <>
@@ -1367,6 +1371,15 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 </span>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => setShowPresets((v) => !v)}
+              className="w-full flex items-center justify-between rounded-md border border-sky-200 bg-white hover:bg-sky-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors"
+            >
+              <span>{showPresets ? "Nascondi preset stili" : "Scegli un preset pronto (1 click)"}</span>
+              <span className="text-slate-400 text-[10px]">{showPresets ? "▲ chiudi" : "▼ apri"}</span>
+            </button>
+            {showPresets && (<>
             {(["solid", "photo"] as const).map((cat) => {
               const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
               if (presetsInCat.length === 0) return null;
@@ -1436,8 +1449,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
               </p>
             )}
+            </>)}
           </div>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          {/* Colonna singola: l'anteprima è ora nel pannello live globale a destra. */}
+          <div className="grid gap-4">
             <FvSettingsCard
               title="Testi e stile copertina"
               description="Il sottotitolo dinamico usa i dati del preventivo senza rendere statici prodotti o componenti."
@@ -3139,6 +3154,21 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       )}
 
         </div>
+
+        {/* ── ANTEPRIMA LIVE preventivo FV — colonna persistente (desktop xl), sotto
+            su tablet. HTML vero completo, scrollabile, si aggiorna mentre editi. ── */}
+        <aside className="col-span-12 xl:col-span-4 min-w-0">
+          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+            <Suspense fallback={<div className="h-full rounded-lg border bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">Carico anteprima…</div>}>
+              <FvLivePreviewPanel
+                form={form as unknown as Record<string, unknown>}
+                companyName={(form.ragione_sociale as string | null) ?? null}
+                logoUrl={(form.logo_url as string | null) ?? null}
+                activeSection={activeSection}
+              />
+            </Suspense>
+          </div>
+        </aside>
       </div>
 
       {/* Save sticky bottom */}
