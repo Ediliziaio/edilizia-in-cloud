@@ -1695,24 +1695,20 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                  🎨 Solid (4) e 📷 Photo (4). Click → applica in batch.
                  Le card mostrano una mini-anteprima A4 con bg, accent,
                  posizione testo e indicatore di tipo (solid vs photo). */}
-            <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-orange-700">
-                    ✨ Preset stili — anteprima reale 1-click
-                  </Label>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Configurazione completa (colori, font, layout) in un click.
-                    L'immagine di sfondo non viene modificata.
-                  </p>
-                </div>
-                {activeCoverPresetId && (
-                  <Badge variant="outline" className="bg-orange-100 border-orange-300 text-orange-800 gap-1 text-[10px] h-5">
+            <SrCard
+              title="Preset stili — 1 click"
+              description="Configurazione completa (colori, font, layout) in un click. L'immagine di sfondo non viene modificata."
+              icon={<Sparkles className="h-4 w-4" />}
+            >
+            <div className="space-y-3">
+              {activeCoverPresetId && (
+                <div className="flex justify-end">
+                  <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 gap-1 text-[10px] h-5">
                     <span className="text-sm leading-none">{COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.emoji}</span>
                     Attivo: {COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.nome}
                   </Badge>
-                )}
-              </div>
+                </div>
+              )}
               {/* Helper per render di una singola card preset (riusato da entrambi i gruppi). */}
               {(["solid", "photo"] as const).map((cat) => {
                 const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
@@ -1858,6 +1854,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </p>
               )}
             </div>
+            </SrCard>
 
             <div className="grid grid-cols-12 gap-4 md:items-start">
               {/* PREVIEW LIVE — formato A4 portrait scalato.
