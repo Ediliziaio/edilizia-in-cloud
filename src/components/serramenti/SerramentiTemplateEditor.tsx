@@ -52,6 +52,7 @@ import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDi
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { SerramentiLivePreviewPanel } from "@/components/serramenti/SerramentiLivePreviewPanel";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -438,6 +439,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
+  // Preset stili copertina: collassati di default (occupavano troppo spazio in cima).
+  const [showPresets, setShowPresets] = useState(false);
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
   // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
   useBeforeUnload(dirty);
@@ -1231,7 +1234,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </aside>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="md:col-span-9 col-span-12 space-y-4 min-w-0">
+        <div className="md:col-span-9 xl:col-span-5 col-span-12 space-y-4 min-w-0">
 
       {/* === SEZIONE: BRAND === */}
       {activeSection === "brand" && (<>
@@ -1709,6 +1712,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </Badge>
                 </div>
               )}
+              {/* Toggle: i preset sono collassati di default per non occupare tutta la cima */}
+              <button
+                type="button"
+                onClick={() => setShowPresets((v) => !v)}
+                className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-white hover:bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors"
+              >
+                <span>{showPresets ? "Nascondi preset stili" : "Scegli un preset pronto (8 stili · 1 click)"}</span>
+                <span className="text-slate-400 text-[10px]">{showPresets ? "▲ chiudi" : "▼ apri"}</span>
+              </button>
+              {showPresets && (<>
               {/* Helper per render di una singola card preset (riusato da entrambi i gruppi). */}
               {(["solid", "photo"] as const).map((cat) => {
                 const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
@@ -1853,6 +1866,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
                 </p>
               )}
+              </>)}
             </div>
             </SrCard>
 
@@ -1861,7 +1875,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   REDESIGN pilota: pannello a DESTRA e STICKY (segue lo scroll dei
                   campi, sempre visibile mentre modifichi); larghezza ridotta a col-4
                   per dare più spazio alla parte di creazione (campi a col-8). */}
-              <div className="col-span-12 md:col-span-5 md:order-2 self-start md:sticky md:top-[84px] z-10">
+              {/* Anteprima HTML interna copertina: NASCOSTA — sostituita dal
+                  pannello globale "Anteprima live PDF" a destra (mostra tutte le pagine). */}
+              <div className="hidden">
                 <Label className="text-xs mb-1.5 block flex items-center gap-1.5">
                   <Eye className="h-3.5 w-3.5 text-orange-500" /> Anteprima live · si aggiorna mentre modifichi
                 </Label>
@@ -2066,7 +2082,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
               {/* CONTROLLI EDITOR — REDESIGN slice 3: raggruppati in card leggibili
                   (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
-              <div className="col-span-12 md:col-span-7 md:order-1 space-y-3">
+              <div className="col-span-12 md:order-1 space-y-3">
                 {/* ══ Card: Sfondo copertina ══ */}
                 <SrCard title="Sfondo copertina" icon={<ImageIcon className="h-4 w-4" />}>
                 <div className="space-y-3">
@@ -3707,6 +3723,22 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       </>)}{/* === END SEZIONE DEFAULT === */}
 
         </div>{/* /content-panel */}
+
+        {/* ── ANTEPRIMA LIVE PDF — colonna persistente (desktop xl), sotto su tablet.
+            Mostra il PDF vero completo (tutte le pagine) e si aggiorna ~1s dopo
+            ogni modifica, così l'utente vede il risultato mentre lavora. ── */}
+        <aside className="col-span-12 xl:col-span-4 min-w-0">
+          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+            <SerramentiLivePreviewPanel
+              template={form}
+              companyName={form.ragione_sociale}
+              companyLogoUrl={form.logo_url}
+              companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
+              companyIndirizzo={form.indirizzo_completo}
+              activeSection={sectionToPdfTab(activeSection) ?? undefined}
+            />
+          </div>
+        </aside>
       </div>{/* /grid */}
 
       {/* Sticky footer: mantiene solo il salvataggio sempre raggiungibile.
