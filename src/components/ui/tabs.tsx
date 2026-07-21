@@ -43,6 +43,13 @@ const TabsContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
+    // tabIndex={-1} sovrascrive lo `0` di Radix (che spreada `...contentProps`
+    // DOPO il suo tabIndex). Motivo: il tabpanel focusabile veniva eletto a
+    // "punto di partenza" del focus all'attivazione/click su area non-interattiva
+    // → il browser lo portava in vista scrollando la pagina in basso (bug segnalato:
+    // cambio tab / click = scroll automatico). Con -1 esce dal tab-order del
+    // contenitore; gli elementi interattivi interni restano raggiungibili da tastiera.
+    tabIndex={-1}
     className={cn(
       // Fade leggero al cambio tab (composited, niente layout-thrash): il cambio non è più uno scatto secco
       "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200",
