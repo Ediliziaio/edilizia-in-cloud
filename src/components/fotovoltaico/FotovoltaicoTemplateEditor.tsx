@@ -1896,54 +1896,22 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG, max 5 MB. Sfondo trasparente consigliato.</p>
           </div>
 
+          {/* Logo copertina: UNIFORMATO — la copertina usa automaticamente il logo
+              principale (il PDF FV usa sempre logo_url). Niente secondo upload. */}
           <div className="col-span-12 md:col-span-3">
-            <Label className="text-xs mb-1 block">Logo copertina (sfondo scuro)</Label>
-            <input
-              ref={coverLogoInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleCoverLogoUpload(e.target.files[0])}
-            />
-            <div
-              className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-sky-300 hover:bg-sky-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
-              onClick={() => !uploadingCoverLogo && coverLogoInputRef.current?.click()}
-            >
-              {form.pdf_cover_logo_url ? (
-                <img loading="lazy" src={form.pdf_cover_logo_url} alt="Logo copertina" className="w-full h-full object-contain p-2" />
-              ) : (
-                <div className="text-center p-3">
-                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
-                </div>
-              )}
-              {uploadingCoverLogo && (
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
-                </div>
-              )}
+            <Label className="text-xs mb-1 block">Logo copertina</Label>
+            <div className="rounded-md border border-sky-200 bg-sky-50/50 p-2.5 flex items-center gap-2 dark:border-sky-900/40 dark:bg-sky-950/30">
+              <div className="h-10 w-10 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0 p-1">
+                {form.logo_url ? (
+                  <img loading="lazy" src={form.logo_url as string} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <ImageIcon className="h-4 w-4 text-slate-500" />
+                )}
+              </div>
+              <p className="text-[10px] text-sky-900 dark:text-sky-200 leading-snug">
+                Usa automaticamente il <strong>logo principale</strong>. Nessun secondo logo da caricare.
+              </p>
             </div>
-            <div className="flex gap-1 mt-1">
-              <Button
-                size="sm" variant="outline"
-                onClick={() => coverLogoInputRef.current?.click()}
-                disabled={uploadingCoverLogo}
-                className="flex-1 h-7 text-[11px]"
-              >
-                <Upload className="h-3 w-3 mr-1" />
-                {form.pdf_cover_logo_url ? "Cambia" : "Carica"}
-              </Button>
-              {form.pdf_cover_logo_url && (
-                <Button
-                  size="sm" variant="outline"
-                  onClick={() => update("pdf_cover_logo_url", null)}
-                  className="h-7 text-[11px] text-rose-600"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale.</p>
           </div>
 
           <div className="col-span-12 md:col-span-6 grid grid-cols-12 gap-3">

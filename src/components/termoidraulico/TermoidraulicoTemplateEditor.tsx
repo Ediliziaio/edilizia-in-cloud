@@ -893,7 +893,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                 </div>
                 <div>
                   <ImageUploadField
-                    label="Logo copertina (sfondo scuro)"
+                    label="Logo copertina — opzionale (default: logo principale)"
                     hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
                     value={form.cover_logo_url}
                     companyId={companyId}
