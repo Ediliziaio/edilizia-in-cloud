@@ -1,17 +1,13 @@
 /**
- * coverStockImages.ts — M16 · Galleria immagini stock per cover PDF.
+ * coverStockImages.ts — Galleria immagini stock per la cover del PDF (Serramenti).
  *
- * 18 immagini suddivise in 5 categorie. Tutte da Unsplash (licenza free,
- * uso commerciale OK senza attribuzione obbligatoria — vedi
- * https://unsplash.com/license).
+ * Immagini PROPRIETARIE EiC (non più Unsplash), servite come asset statici da
+ * `public/cover-stock/serramenti/`. JPEG ad alta qualità ottimizzati per il PDF;
+ * thumbnail più leggere per la griglia dell'editor.
  *
- * URL fissati a w=1600 q=80 fmt=auto → bilanciamento qualità/peso PDF.
- * I thumbnail in editor sono w=300 (più leggeri).
- *
- * No upload backend richiesto: setta direttamente `pdf_cover_image_url`
- * con l'URL Unsplash. react-pdf scarica l'immagine alla generazione del PDF.
+ * `pdf_cover_image_url` viene settato con l'URL full; react-pdf lo carica alla
+ * generazione del PDF.
  */
-
 export interface CoverStockImage {
   id: string;
   /** URL full-resolution (per pdf_cover_image_url). */
@@ -21,51 +17,23 @@ export interface CoverStockImage {
   /** Etichetta breve mostrata sotto la thumb in hover. */
   label: string;
   /** Categoria di appartenenza (per filtro tab). */
-  categoria: "residenziale" | "cantiere" | "dettaglio" | "texture" | "architettura";
+  categoria: string;
 }
 
-// Funzione helper per generare URL Unsplash con dimensioni controllate.
-// `id` è la parte finale dell'URL canonico /photos/<id>.
-const ufy = (id: string) => ({
-  url: `https://images.unsplash.com/photo-${id}?w=1600&q=80&auto=format&fit=crop`,
-  thumb: `https://images.unsplash.com/photo-${id}?w=300&q=70&auto=format&fit=crop`,
+const BASE = "/cover-stock/serramenti";
+const COUNT = 10;
+
+export const COVER_STOCK_IMAGES: CoverStockImage[] = Array.from({ length: COUNT }, (_, i) => {
+  const n = i + 1;
+  return {
+    id: `sr-cover-${n}`,
+    url: `${BASE}/${n}.jpg`,
+    thumb: `${BASE}/${n}-thumb.jpg`,
+    label: `Serramenti · copertina ${n}`,
+    categoria: "serramenti",
+  };
 });
 
-export const COVER_STOCK_IMAGES: CoverStockImage[] = [
-  // ─── Residenziale (4) ────────────────────────────────────────────────
-  { id: "res-1", ...ufy("1502672260266-1c1ef2d93688"), label: "Casa moderna",        categoria: "residenziale" },
-  { id: "res-2", ...ufy("1568605114967-8130f3a36994"), label: "Villa contemporanea", categoria: "residenziale" },
-  { id: "res-3", ...ufy("1564013799919-ab600027ffc6"), label: "Casa al tramonto",    categoria: "residenziale" },
-  { id: "res-4", ...ufy("1600585154340-be6161a56a0c"), label: "Soggiorno luminoso",  categoria: "residenziale" },
-
-  // ─── Cantiere (4) ────────────────────────────────────────────────────
-  { id: "can-1", ...ufy("1503387762-cf4d2c5e4dca"),     label: "Cantiere infisso",     categoria: "cantiere" },
-  { id: "can-2", ...ufy("1581094794329-c8112a89af12"),  label: "Installazione finestra", categoria: "cantiere" },
-  { id: "can-3", ...ufy("1504307651254-35680f356dfd"),  label: "Operai al lavoro",     categoria: "cantiere" },
-  { id: "can-4", ...ufy("1486406146926-c627a92ad1ab"),  label: "Sopralluogo tecnico",  categoria: "cantiere" },
-
-  // ─── Dettaglio finestra (4) ──────────────────────────────────────────
-  { id: "det-1", ...ufy("1493663284031-b7e3aefcae8e"),  label: "Finestra moderna",     categoria: "dettaglio" },
-  { id: "det-2", ...ufy("1517022812141-23620dba5c23"),  label: "Vista interna finestra", categoria: "dettaglio" },
-  { id: "det-3", ...ufy("1565182999561-18d7dc61c393"),  label: "Profilo PVC bianco",   categoria: "dettaglio" },
-  { id: "det-4", ...ufy("1560448204-e02f11c3d0e2"),     label: "Maniglia infisso",     categoria: "dettaglio" },
-
-  // ─── Texture neutra (3) ──────────────────────────────────────────────
-  { id: "tex-1", ...ufy("1557683316-973673baf926"),     label: "Pattern minimal blu",  categoria: "texture" },
-  { id: "tex-2", ...ufy("1557683304-673a23048d34"),     label: "Gradient sobrio",      categoria: "texture" },
-  { id: "tex-3", ...ufy("1558618666-fcd25c85cd64"),     label: "Texture geometrica",   categoria: "texture" },
-
-  // ─── Architettura (3) ────────────────────────────────────────────────
-  { id: "arc-1", ...ufy("1486325212027-8081e485255e"),  label: "Skyline urbano",       categoria: "architettura" },
-  { id: "arc-2", ...ufy("1545324418-cc1a3fa10c00"),     label: "Facciata moderna",     categoria: "architettura" },
-  { id: "arc-3", ...ufy("1487958449943-2429e8be8625"),  label: "Architettura pulita",  categoria: "architettura" },
-];
-
 export const COVER_STOCK_CATEGORIE: Array<{ value: CoverStockImage["categoria"] | "all"; label: string; emoji: string }> = [
-  { value: "all",           label: "Tutte",        emoji: "✨" },
-  { value: "residenziale",  label: "Residenziale", emoji: "🏠" },
-  { value: "cantiere",      label: "Cantiere",     emoji: "🏗️" },
-  { value: "dettaglio",     label: "Dettaglio",    emoji: "🪟" },
-  { value: "texture",       label: "Texture",      emoji: "🎨" },
-  { value: "architettura",  label: "Architettura", emoji: "🏙️" },
+  { value: "all", label: "Tutte", emoji: "✨" },
 ];
