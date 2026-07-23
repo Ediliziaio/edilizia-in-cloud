@@ -59,13 +59,15 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
       let rpcErrMsg = "";
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const rpc = supabase.rpc as unknown as (
-            fn: string,
-            args: Record<string, string>,
-          ) => Promise<RpcResult>;
-          const { data, error } = await rpc("get_company_customers", {
-            p_company_id: companyId,
-          });
+          // IMPORTANTE: chiamare `supabase.rpc(...)` DIRETTAMENTE (bound al client).
+          // NON estrarlo in `const rpc = supabase.rpc` e poi chiamarlo: così si
+          // perde il `this` e dentro supabase-js fallisce con
+          // "Cannot read properties of undefined (reading 'rest')" → la RPC non
+          // parte mai e si cade nel fallback (che per un superadmin in
+          // impersonation è bloccato dalla RLS → lista clienti vuota).
+          const { data, error } = await (supabase as unknown as {
+            rpc: (fn: string, args: Record<string, unknown>) => Promise<RpcResult>;
+          }).rpc("get_company_customers", { p_company_id: companyId });
 
           if (!error && Array.isArray(data)) {
             // eslint-disable-next-line no-console
