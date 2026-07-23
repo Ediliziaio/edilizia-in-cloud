@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
 import { applyPlaybookToOrder } from "@/lib/orderPlaybook";
-import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -361,6 +361,25 @@ function CreateOrderInner() {
   }, [clearDraft, reset]);
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
+
+  // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene
+  // invalidata/rifetchata dopo la creazione; se quel refetch dovesse per qualsiasi
+  // race non contenere ancora il nuovo cliente, lo perderemmo dal picker (bug reale:
+  // "l'ho creato ma non lo vedo, e non voglio ricaricare"). Teniamo qui i nuovi
+  // clienti in stato locale e li FONDIAMO nella lista renderizzata → il cliente
+  // selezionato è SEMPRE visibile e selezionabile, a prescindere dalla cache.
+  const [extraCustomers, setExtraCustomers] = useState<CompanyCustomer[]>([]);
+  const customerOptions = useMemo(() => {
+    const byId = new Map<string, CompanyCustomer>();
+    for (const c of customers) byId.set(c.id, c);
+    for (const c of extraCustomers) if (!byId.has(c.id)) byId.set(c.id, c);
+    return Array.from(byId.values()).sort((a, b) => {
+      const al = (a.last_name ?? "").toLowerCase(), bl = (b.last_name ?? "").toLowerCase();
+      if (al !== bl) return al < bl ? -1 : 1;
+      const af = (a.first_name ?? "").toLowerCase(), bf = (b.first_name ?? "").toLowerCase();
+      return af < bf ? -1 : af > bf ? 1 : 0;
+    });
+  }, [customers, extraCustomers]);
 
   // ── Codice Commessa progressivo ────────────────────────────────────────────
   // Suggerimento auto-generato lato DB (prossimo_numero_commessa: {prefix}-{NNNN}
@@ -704,8 +723,19 @@ function CreateOrderInner() {
     }
   };
 
-  const handleCustomerCreated = (newCustomerId: string) => {
-    setValue("customer_id", newCustomerId);
+  const handleCustomerCreated = (newCustomerId: string, _customerName?: string, customer?: CompanyCustomer) => {
+    // Fonde il cliente appena creato nella lista locale (garantisce visibilità
+    // immediata anche se il refetch della cache è ancora in volo o stale).
+    if (customer) {
+      setExtraCustomers((prev) => (prev.some((c) => c.id === customer.id) ? prev : [...prev, customer]));
+    } else {
+      setExtraCustomers((prev) =>
+        prev.some((c) => c.id === newCustomerId)
+          ? prev
+          : [...prev, { id: newCustomerId, first_name: _customerName ?? "Nuovo cliente", last_name: null, email: null }],
+      );
+    }
+    setValue("customer_id", newCustomerId, { shouldValidate: true });
   };
 
   // ── Date picker helper ──────────────────────────────────────
@@ -919,9 +949,9 @@ function CreateOrderInner() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
-                          {customers.map((customer) => (
+                          {customerOptions.map((customer) => (
                             <SelectItem key={customer.id} value={customer.id}>
-                              {customer.first_name} {customer.last_name} ({customer.email})
+                              {customer.first_name} {customer.last_name}{customer.email ? ` (${customer.email})` : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>

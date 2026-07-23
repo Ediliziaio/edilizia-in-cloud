@@ -52,7 +52,7 @@ function splitFullName(full: string): { first: string; last: string } {
 interface CreateCustomerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCustomerCreated: (customerId: string, customerName: string) => void;
+  onCustomerCreated: (customerId: string, customerName: string, customer?: CompanyCustomer) => void;
   /** Precompila i campi all'apertura (es. dal contatto di un preventivo). */
   initialValues?: {
     /** Nome completo / ragione sociale — diviso in automatico in nome/cognome. */
@@ -340,7 +340,7 @@ export function CreateCustomerDialog({
       // non serve mostrare lo step password — seleziona subito il cliente.
       if (!data.portal_account_created) {
         const customerName = `${firstName.trim()} ${lastName.trim()}`;
-        onCustomerCreated(newCustomerId, customerName);
+        onCustomerCreated(newCustomerId, customerName, optimisticCustomer);
         handleClose();
         toast.success("Cliente creato", {
           description: `${customerName} (solo anagrafica) è stato selezionato per la commessa.`,
@@ -372,7 +372,12 @@ export function CreateCustomerDialog({
 
   const handleConfirm = () => {
     const customerName = `${firstName.trim()} ${lastName.trim()}`;
-    onCustomerCreated(createdCustomerId, customerName);
+    onCustomerCreated(createdCustomerId, customerName, {
+      id: createdCustomerId,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.trim() || null,
+    });
     handleClose();
     toast.success("Cliente creato", {
       description: `${customerName} è stato selezionato per la commessa.`,

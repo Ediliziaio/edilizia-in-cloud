@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,6 +143,10 @@ function EditOrderInner() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  // Clienti appena creati dal dialog inline: tenuti in stato locale e fusi nella
+  // lista, così il nuovo cliente è subito selezionabile anche se il refetch della
+  // cache è ancora in volo (stesso fix di CreateOrder).
+  const [extraCustomers, setExtraCustomers] = useState<CompanyCustomer[]>([]);
 
   const [salespersonId, setSalespersonId] = useState("");
   const [salespersonData, setSalespersonData] = useState<{
@@ -454,10 +458,15 @@ function EditOrderInner() {
   });
 
   const allCustomers = (() => {
-    if (orderCustomer && !customers.find(c => c.id === orderCustomer.id)) {
-      return [orderCustomer, ...customers];
+    const seen = new Set(customers.map((c) => c.id));
+    const head: CompanyCustomer[] = [];
+    // Il cliente attuale della commessa + i clienti appena creati vanno in testa,
+    // così sono sempre selezionabili anche se non ancora nella lista dalla RPC.
+    if (orderCustomer && !seen.has(orderCustomer.id)) { head.push(orderCustomer); seen.add(orderCustomer.id); }
+    for (const c of extraCustomers) {
+      if (!seen.has(c.id)) { head.push(c); seen.add(c.id); }
     }
-    return customers;
+    return head.length > 0 ? [...head, ...customers] : customers;
   })();
 
   // Update order mutation
@@ -755,7 +764,11 @@ function EditOrderInner() {
     updateOrderMutation.mutate({ customerId: effectiveCustomerId });
   };
 
-  const handleCustomerCreated = (newCustomerId: string) => {
+  const handleCustomerCreated = (newCustomerId: string, customerName?: string, customer?: CompanyCustomer) => {
+    const record: CompanyCustomer = customer
+      ? { id: customer.id, first_name: customer.first_name, last_name: customer.last_name, email: customer.email ?? null }
+      : { id: newCustomerId, first_name: customerName ?? "Nuovo cliente", last_name: null, email: null };
+    setExtraCustomers((prev) => (prev.some((c) => c.id === record.id) ? prev : [...prev, record]));
     setCustomerId(newCustomerId);
   };
 
