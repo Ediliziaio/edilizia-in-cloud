@@ -22,6 +22,13 @@ function runInBackground(p: Promise<unknown>): void {
 
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
+// Messaggio azionabile quando l'email appartiene già a un utente reale (di
+// un'altra azienda): "Nuovo Utente" crea un account NUOVO, quindi qui fallisce.
+// Per dare a un utente ESISTENTE l'accesso a questa azienda (multi-azienda) si
+// usa la sezione "Accessi azienda", non "Nuovo Utente".
+const EXISTS_MSG =
+  "Questo utente esiste già (è registrato in un'altra azienda). Per dargli accesso a QUESTA azienda usa «Accessi azienda» (Impostazioni → Persone & Accessi → Accessi azienda), non «Nuovo Utente».";
+
 // Trova l'id auth di un'email scorrendo le pagine (supabase-js non espone una
 // getUserByEmail). Serve a recuperare gli ORFANI: auth user creati da un
 // tentativo precedente fallito a metà (profilo/ruolo mancanti) che lasciano
@@ -160,26 +167,26 @@ Deno.serve(async (req) => {
       // reale → errore legittimo.
       const existingId = await findAuthUserIdByEmail(supabaseAdmin, email);
       if (!existingId) {
-        return errorResponse("Un utente con questa email esiste già");
+        return errorResponse(EXISTS_MSG);
       }
       const { data: existingProfile } = await supabaseAdmin
         .from("profiles").select("id").eq("id", existingId).maybeSingle();
       if (existingProfile) {
-        return errorResponse("Un utente con questa email esiste già");
+        return errorResponse(EXISTS_MSG);
       }
       // Orfano confermato: pulizia + retry
       await supabaseAdmin.from("user_roles").delete().eq("user_id", existingId);
       const { error: delOrphanErr } = await supabaseAdmin.auth.admin.deleteUser(existingId);
       if (delOrphanErr) {
         console.error("Cleanup orfano fallito:", delOrphanErr);
-        return errorResponse("Un utente con questa email esiste già");
+        return errorResponse(EXISTS_MSG);
       }
       const retry = await supabaseAdmin.auth.admin.createUser({
         email, password: temporaryPassword, email_confirm: true,
       });
       if (retry.error || !retry.data?.user) {
         console.error("Retry createUser dopo recupero orfano fallito:", retry.error);
-        return errorResponse("Un utente con questa email esiste già");
+        return errorResponse(EXISTS_MSG);
       }
       userId = retry.data.user.id;
     } else if (!newUser?.user) {
