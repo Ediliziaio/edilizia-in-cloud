@@ -13,7 +13,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ComuneAutocomplete } from "@/components/shared/ComuneAutocomplete";
+import {
+  CustomerAddressFields,
+  type CustomerAddresses,
+  makeEmptyCustomerAddresses,
+  billingToProfileFields,
+  siteToProfileFields,
+} from "@/components/customers/CustomerAddressFields";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -88,14 +94,7 @@ export default function CreateCustomer() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fiscalCode, setFiscalCode] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [province, setProvince] = useState("");
-  const [siteAddress, setSiteAddress] = useState("");
-  const [siteCity, setSiteCity] = useState("");
-  const [sitePostalCode, setSitePostalCode] = useState("");
-  const [siteProvince, setSiteProvince] = useState("");
+  const [custAddresses, setCustAddresses] = useState<CustomerAddresses>(makeEmptyCustomerAddresses());
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
 
@@ -251,17 +250,12 @@ export default function CreateCustomer() {
           last_name: lastName.trim(),
           email: email.trim().toLowerCase() || null,
           phone: cleanPhone,
-          address: address.trim() || null,
-          city: city.trim() || null,
-          postal_code: postalCode.trim() || null,
-          province: province.trim().toUpperCase() || null,
-          country: "IT",
           company_id: effectiveCompany.id,
           fiscal_code: fiscalCode.trim() || null,
-          site_address: siteAddress.trim() || null,
-          site_city: siteCity.trim() || null,
-          site_postal_code: sitePostalCode.trim() || null,
-          site_province: siteProvince.trim().toUpperCase() || null,
+          // Indirizzo fatturazione (via/città/CAP/provincia + coordinate)
+          ...billingToProfileFields(custAddresses.billing),
+          // Indirizzo cantiere (site_*)
+          ...siteToProfileFields(custAddresses.site),
           notes: notes.trim() || null,
           create_portal_account: shouldCreatePortal,
           send_welcome_email: shouldCreatePortal && sendWelcomeEmail,
@@ -617,104 +611,10 @@ export default function CreateCustomer() {
                   {isBusiness ? "Sede legale e indirizzo del cantiere" : "Residenza e indirizzo del cantiere"}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-5">
-                {/* Indirizzo residenza / sede legale */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {isBusiness ? "Sede legale" : "Residenza"}
-                  </Label>
-                  <Input
-                    id="address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Via Roma, 1"
-                    maxLength={200}
-                  />
-                  <div className="grid grid-cols-6 gap-2">
-                    <ComuneAutocomplete
-                      className="col-span-2"
-                      mode="cap"
-                      value={postalCode}
-                      onValueChange={setPostalCode}
-                      onSelect={(c) => {
-                        setPostalCode(c.cap);
-                        setCity(c.comune);
-                        setProvince(c.provinciaSigla);
-                      }}
-                      placeholder="CAP"
-                    />
-                    <ComuneAutocomplete
-                      className="col-span-3"
-                      value={city}
-                      onValueChange={setCity}
-                      onSelect={(c) => {
-                        setCity(c.comune);
-                        setProvince(c.provinciaSigla);
-                        if (!postalCode.trim()) setPostalCode(c.cap);
-                      }}
-                      placeholder="Città"
-                    />
-                    <Input
-                      className="col-span-1"
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value.toUpperCase())}
-                      placeholder="PR"
-                      maxLength={2}
-                      aria-label="Provincia"
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Indirizzo cantiere */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-                    <HardHat className="h-3.5 w-3.5" />
-                    Indirizzo cantiere (opzionale)
-                  </Label>
-                  <Input
-                    id="siteAddress"
-                    value={siteAddress}
-                    onChange={(e) => setSiteAddress(e.target.value)}
-                    placeholder="Via del Cantiere, 5"
-                    maxLength={200}
-                  />
-                  <div className="grid grid-cols-6 gap-2">
-                    <ComuneAutocomplete
-                      className="col-span-2"
-                      mode="cap"
-                      value={sitePostalCode}
-                      onValueChange={setSitePostalCode}
-                      onSelect={(c) => {
-                        setSitePostalCode(c.cap);
-                        setSiteCity(c.comune);
-                        setSiteProvince(c.provinciaSigla);
-                      }}
-                      placeholder="CAP"
-                    />
-                    <ComuneAutocomplete
-                      className="col-span-3"
-                      value={siteCity}
-                      onValueChange={setSiteCity}
-                      onSelect={(c) => {
-                        setSiteCity(c.comune);
-                        setSiteProvince(c.provinciaSigla);
-                        if (!sitePostalCode.trim()) setSitePostalCode(c.cap);
-                      }}
-                      placeholder="Città"
-                    />
-                    <Input
-                      className="col-span-1"
-                      value={siteProvince}
-                      onChange={(e) => setSiteProvince(e.target.value.toUpperCase())}
-                      placeholder="PR"
-                      maxLength={2}
-                      aria-label="Provincia cantiere"
-                    />
-                  </div>
-                </div>
+              <CardContent>
+                {/* Ricerca indirizzo con autocompletamento (via/città/CAP/provincia)
+                    per fatturazione e cantiere. Stesso componente del dialog inline. */}
+                <CustomerAddressFields value={custAddresses} onChange={setCustAddresses} />
               </CardContent>
             </Card>
 

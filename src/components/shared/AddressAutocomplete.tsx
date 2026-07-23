@@ -35,6 +35,10 @@ const emptyAddress: AddressData = {
 interface Props {
   value: AddressData;
   onChange: (data: AddressData) => void;
+  /** Etichetta della sezione (default "Luogo"). */
+  label?: string;
+  /** Placeholder del campo di ricerca. */
+  searchPlaceholder?: string;
 }
 
 interface Prediction {
@@ -42,7 +46,7 @@ interface Prediction {
   description: string;
 }
 
-export default function AddressAutocomplete({ value, onChange }: Props) {
+export default function AddressAutocomplete({ value, onChange, label = "Luogo", searchPlaceholder = "Cerca indirizzo..." }: Props) {
   const [query, setQuery] = useState("");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -129,7 +133,7 @@ export default function AddressAutocomplete({ value, onChange }: Props) {
     <div className="space-y-2" ref={wrapperRef}>
       <Label className="text-sm font-semibold flex items-center gap-1.5">
         <MapPin className="h-3.5 w-3.5" />
-        Luogo
+        {label}
       </Label>
 
       {hasAddress ? (
@@ -145,7 +149,7 @@ export default function AddressAutocomplete({ value, onChange }: Props) {
       ) : (
         <div className="relative">
           <Input
-            placeholder="Cerca indirizzo..."
+            placeholder={searchPlaceholder}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => predictions.length > 0 && setShowDropdown(true)}

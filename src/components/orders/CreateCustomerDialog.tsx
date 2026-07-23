@@ -7,6 +7,14 @@ import { logger } from "@/utils/logger";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { companyCustomersKeys, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import {
+  CustomerAddressFields,
+  type CustomerAddresses,
+  makeEmptyCustomerAddresses,
+  billingToProfileFields,
+  siteToProfileFields,
+  hasAnyAddress,
+} from "@/components/customers/CustomerAddressFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,9 +99,15 @@ export function CreateCustomerDialog({
   const [lastName, setLastName] = useState(initialValues?.lastName ?? _initialSplit.last);
   const [email, setEmail] = useState(initialValues?.email ?? "");
   const [phone, setPhone] = useState(initialValues?.phone ?? "");
-  const [address, setAddress] = useState(initialValues?.address ?? "");
+  const [custAddresses, setCustAddresses] = useState<CustomerAddresses>(() => {
+    const base = makeEmptyCustomerAddresses();
+    if (initialValues?.address) {
+      base.billing.address_line = initialValues.address;
+      base.billing.formatted_address = initialValues.address;
+    }
+    return base;
+  });
   const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
-  const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
@@ -180,9 +194,8 @@ export function CreateCustomerDialog({
     setLastName("");
     setEmail("");
     setPhone("");
-    setAddress("");
+    setCustAddresses(makeEmptyCustomerAddresses());
     setFiscalCode("");
-    setSiteAddress("");
     setNotes("");
     setCustomerDocuments({});
     setCreatePortalAccount(defaultCreatePortalAccount ?? companyPortalEnabled);
@@ -198,8 +211,8 @@ export function CreateCustomerDialog({
   const isDirty =
     !showSuccessStep &&
     (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
-     phone.trim() !== "" || address.trim() !== "" || fiscalCode.trim() !== "" ||
-     siteAddress.trim() !== "" || notes.trim() !== "" || selectedDocumentCount > 0);
+     phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" ||
+     hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0);
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
   const handleClose = () => {
@@ -250,17 +263,21 @@ export function CreateCustomerDialog({
     try {
       const cleanPhone = phone.replace(PHONE_CLEAN_REGEX, "").replace(/\s+/g, " ").trim() || null;
 
+      const billingFields = billingToProfileFields(custAddresses.billing);
+      const siteFields = siteToProfileFields(custAddresses.site);
       const { data, error } = await supabase.functions.invoke("create-customer", {
         body: {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email.trim().toLowerCase() || null,
           phone: cleanPhone,
-          address: address.trim() || null,
           fiscal_code: fiscalCode.trim() || null,
-          site_address: siteAddress.trim() || null,
           notes: notes.trim() || null,
           company_id: effectiveCompany.id,
+          // Indirizzo di fatturazione (via/città/CAP/provincia + coordinate)
+          ...billingFields,
+          // Indirizzo cantiere (site_*)
+          ...siteFields,
           create_portal_account: shouldCreatePortal,
           send_welcome_email: shouldCreatePortal && sendWelcomeEmail,
         },
@@ -485,17 +502,8 @@ export function CreateCustomerDialog({
                 {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dialog-address">Indirizzo</Label>
-                <Textarea
-                  id="dialog-address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Via Roma 1, 00100 Roma"
-                  rows={2}
-                  maxLength={200}
-                />
-              </div>
+              {/* Indirizzi cliente: fatturazione + cantiere, con ricerca/autocompletamento */}
+              <CustomerAddressFields value={custAddresses} onChange={setCustAddresses} />
 
               <div className="space-y-2">
                 <Label htmlFor="dialog-fiscalCode">CF / P.IVA</Label>
@@ -570,18 +578,6 @@ export function CreateCustomerDialog({
                     );
                   })}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dialog-siteAddress">Indirizzo Cantiere</Label>
-                <Textarea
-                  id="dialog-siteAddress"
-                  value={siteAddress}
-                  onChange={(e) => setSiteAddress(e.target.value)}
-                  placeholder="Via del Cantiere 5, 00100 Roma"
-                  rows={2}
-                  maxLength={200}
-                />
               </div>
 
               <div className="space-y-2">
