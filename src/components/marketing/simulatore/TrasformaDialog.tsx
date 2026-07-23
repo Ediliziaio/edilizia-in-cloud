@@ -257,7 +257,7 @@ export function TrasformaDialog({
         financingCost: stimaCostoFinanziamento(doc, risultato),
       });
 
-      const createOrderAtomic = supabase.rpc as unknown as (
+      const createOrderAtomic = supabase.rpc.bind(supabase) as unknown as (
         fn: "create_order_atomic",
         args: Record<string, unknown>,
       ) => Promise<{ data: { id: string } | null; error: { message: string } | null }>;

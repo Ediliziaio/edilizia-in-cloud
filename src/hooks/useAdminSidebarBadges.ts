@@ -37,7 +37,7 @@ export function useAdminSidebarBadges() {
       const now = new Date();
       const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000).toISOString();
       const todayIso = now.toISOString().slice(0, 10);
-      const chatSidebarRpc = supabase.rpc as unknown as (
+      const chatSidebarRpc = supabase.rpc.bind(supabase) as unknown as (
         fn: "get_internal_chat_sidebar_state",
         args: { p_company_id: string; p_user_id: string }
       ) => Promise<{ data: Array<{ unread_count: number | null }> | null; error: unknown }>;

@@ -40,7 +40,7 @@ export interface ConversazioneMessaggio {
 // tipato per evitare `any` mantenendo i risultati type-safe.
 type RpcResult<T> = { data: T | null; error: { message: string } | null };
 function callRpc<T>(fn: string, args: Record<string, unknown>): Promise<RpcResult<T>> {
-  const rpc = supabase.rpc as unknown as (
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
     f: string,
     a: Record<string, unknown>,
   ) => Promise<RpcResult<T>>;

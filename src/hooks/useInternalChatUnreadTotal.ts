@@ -34,7 +34,7 @@ export function useInternalChatUnreadTotal() {
     refetchInterval: 60_000, // safety net se realtime fallisce
     queryFn: async () => {
       // Cast tipato per evitare l'errore TS sui custom RPC non in types.ts
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, string>,
       ) => Promise<{ data: SidebarRow[] | null; error: unknown }>;

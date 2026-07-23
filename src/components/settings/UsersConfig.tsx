@@ -419,7 +419,7 @@ export function UsersConfig() {
     queryKey: ["company-users", effectiveCompanyId, profile?.id, role],
     queryFn: async () => {
       const warnings: string[] = [];
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, string>,
       ) => Promise<{ data: unknown; error: unknown }>;

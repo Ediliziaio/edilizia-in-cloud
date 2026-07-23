@@ -93,7 +93,7 @@ export function useCompanyStaffUsers(
       if (!companyId) return [];
 
       const rolesFilter = new Set<string>(scope === "sales" ? SALES_ROLES : STAFF_ROLES);
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, string>
       ) => Promise<RpcResult>;
