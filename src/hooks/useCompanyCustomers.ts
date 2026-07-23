@@ -52,25 +52,32 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
     queryFn: async (): Promise<CompanyCustomer[]> => {
       if (!companyId) return [];
 
-      // ── Strategia 1: RPC canonica server-side ─────────────────────────
-      try {
-        const rpc = supabase.rpc as unknown as (
-          fn: string,
-          args: Record<string, string>,
-        ) => Promise<RpcResult>;
-        const { data, error } = await rpc("get_company_customers", {
-          p_company_id: companyId,
-        });
+      // ── Strategia 1: RPC canonica server-side (con 1 retry) ───────────
+      // Retry perché dopo una migration la cache schema di PostgREST può essere
+      // momentaneamente stantia su una delle istanze (PGRST202) → un secondo
+      // tentativo colpisce spesso un'istanza già ricaricata.
+      let rpcErrMsg = "";
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const rpc = supabase.rpc as unknown as (
+            fn: string,
+            args: Record<string, string>,
+          ) => Promise<RpcResult>;
+          const { data, error } = await rpc("get_company_customers", {
+            p_company_id: companyId,
+          });
 
-        if (!error && Array.isArray(data)) {
-          return data as CompanyCustomer[];
+          if (!error && Array.isArray(data)) {
+            // eslint-disable-next-line no-console
+            console.info(`[EIC picker] clienti azienda ${companyId}: ${data.length} (via RPC)`);
+            return data as CompanyCustomer[];
+          }
+          rpcErrMsg = error?.message ?? "rpc_unknown_error";
+          logger.warn(`[useCompanyCustomers] RPC get_company_customers failed (tentativo ${attempt + 1}): ${rpcErrMsg}`);
+        } catch (rpcErr) {
+          rpcErrMsg = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+          logger.warn(`[useCompanyCustomers] RPC get_company_customers threw (tentativo ${attempt + 1}):`, rpcErr);
         }
-
-        // RPC ha risposto con errore — log + fallthrough al fallback
-        const errMsg = error?.message ?? "rpc_unknown_error";
-        logger.warn(`[useCompanyCustomers] RPC get_company_customers failed: ${errMsg}, fallback to profiles direct query`);
-      } catch (rpcErr) {
-        logger.warn("[useCompanyCustomers] RPC get_company_customers threw:", rpcErr);
       }
 
       // ── Strategia 2: profiles + user_roles join (se RLS permette) ──────
@@ -92,6 +99,8 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
         // (mostrerebbe operai/dipendenti/collaboratori come "clienti" — bug reale
         // nella Nuova Commessa: es. commessa intestata a un dipendente).
         if (!joinErr && Array.isArray(joinedData)) {
+          // eslint-disable-next-line no-console
+          console.info(`[EIC picker] clienti azienda ${companyId}: ${joinedData.length} (via fallback profiles+user_roles). RPC aveva fallito: ${rpcErrMsg || "n/d"}`);
           return (joinedData as Array<{
             id: string;
             first_name: string | null;
@@ -113,7 +122,8 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
       // ── Strategia 3: lista vuota (graceful) ────────────────────────────
       // Non lanciamo errore: l'utente vede dropdown vuoto MA può sempre
       // cliccare "+" per crearne uno nuovo. Più resiliente del throw originale.
-      logger.error("[useCompanyCustomers] all strategies failed — returning empty list");
+      // eslint-disable-next-line no-console
+      console.warn(`[EIC picker] NESSUN cliente mostrato per azienda ${companyId}. Sia la RPC sia il fallback hanno fallito. Ultimo errore RPC: ${rpcErrMsg || "n/d"}`);
       return [];
     },
   });
