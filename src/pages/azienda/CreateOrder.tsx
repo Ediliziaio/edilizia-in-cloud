@@ -895,11 +895,11 @@ function CreateOrderInner() {
                     <Input
                       id="orderCode"
                       {...field}
-                      placeholder={suggestedOrderCode ? `Automatico: ${suggestedOrderCode}` : "Automatico se lasci vuoto"}
+                      placeholder={suggestedOrderCode || "es. O-0001"}
                       maxLength={50}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Lascia vuoto per il progressivo automatico{suggestedOrderCode ? ` (${suggestedOrderCode})` : ""}, oppure scrivi un codice tuo.
+                      Precompilato col prossimo progressivo{suggestedOrderCode ? ` (${suggestedOrderCode})` : ""}. Modificalo o scrivi il tuo codice.
                     </p>
                   </div>
                 )}
