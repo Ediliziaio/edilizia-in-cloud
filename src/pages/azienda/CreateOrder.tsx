@@ -362,6 +362,39 @@ function CreateOrderInner() {
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
+  // ── Codice Commessa progressivo ────────────────────────────────────────────
+  // Suggerimento auto-generato lato DB (prossimo_numero_commessa: {prefix}-{NNNN}
+  // per azienda). Il campo resta editabile: se il commerciale scrive un codice
+  // vince il manuale; se lo lascia vuoto, parte il progressivo.
+  const { data: suggestedOrderCode } = useQuery({
+    queryKey: ["prossimo-numero-commessa", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id && !createdOrderId,
+    staleTime: 0,
+    queryFn: async (): Promise<string | null> => {
+      if (!effectiveCompany?.id) return null;
+      const { data, error } = await supabase.rpc(
+        "prossimo_numero_commessa" as never,
+        { p_company_id: effectiveCompany.id } as never,
+      );
+      if (error) return null;
+      return (data as string | null) ?? null;
+    },
+  });
+
+  // Pre-compila UNA volta il codice quando è una commessa nuova e il campo è vuoto.
+  // La RPC è asincrona → risolve DOPO l'eventuale ripristino bozza (sincrono al
+  // mount): così rispetta un codice già presente (bozza o digitato) e non lo tocca.
+  const orderCodePrefilledRef = useRef(false);
+  useEffect(() => {
+    if (orderCodePrefilledRef.current || createdOrderId || !suggestedOrderCode) return;
+    if ((getValues("order_code") || "").trim() !== "") {
+      orderCodePrefilledRef.current = true;
+      return;
+    }
+    orderCodePrefilledRef.current = true;
+    setValue("order_code", suggestedOrderCode, { shouldDirty: false });
+  }, [suggestedOrderCode, createdOrderId, getValues, setValue]);
+
   // Fetch order statuses for the company
   const { data: statuses = [] } = useQuery({
     queryKey: ["order-statuses", effectiveCompany?.id],
@@ -862,9 +895,12 @@ function CreateOrderInner() {
                     <Input
                       id="orderCode"
                       {...field}
-                      placeholder="es. ORD-2026-001"
+                      placeholder={suggestedOrderCode ? `Automatico: ${suggestedOrderCode}` : "Automatico se lasci vuoto"}
                       maxLength={50}
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Lascia vuoto per il progressivo automatico{suggestedOrderCode ? ` (${suggestedOrderCode})` : ""}, oppure scrivi un codice tuo.
+                    </p>
                   </div>
                 )}
               />

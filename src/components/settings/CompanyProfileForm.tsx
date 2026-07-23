@@ -47,6 +47,25 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
   const [operationalProvince, setOperationalProvince] = useState("");
   const [operationalPostalCode, setOperationalPostalCode] = useState("");
   const [notes, setNotes] = useState("");
+  const [orderCodePrefix, setOrderCodePrefix] = useState("O");
+
+  // Prefisso codice commessa: letto direttamente dal DB (può non essere nel
+  // context auth se la sessione è precedente alla colonna).
+  useEffect(() => {
+    if (!company?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("companies")
+        .select("order_code_prefix")
+        .eq("id", company.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setOrderCodePrefix(((data as { order_code_prefix?: string } | null)?.order_code_prefix) || "O");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [company?.id]);
 
   useEffect(() => {
     if (company) {
@@ -129,7 +148,8 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
             ? { operational_lat: operationalCoords.lat, operational_lng: operationalCoords.lng }
             : {}),
           notes: notes.trim() || null,
-        })
+          order_code_prefix: (orderCodePrefix.trim() || "O"),
+        } as never)
         .eq("id", company.id);
 
       if (error) throw error;
@@ -171,6 +191,13 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
           <div className="space-y-2">
             <Label>Settore</Label>
             <Input value={sectorLabels[company.sector] || company.sector} disabled className="bg-muted" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="orderCodePrefix">Prefisso Codice Commessa</Label>
+            <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} />
+            <p className="text-[11px] text-muted-foreground">
+              Usato per il codice commessa progressivo automatico: es. <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
+            </p>
           </div>
         </div>
       </div>
