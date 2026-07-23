@@ -30,19 +30,18 @@ export const companyCustomersKeys = {
  *   vuoto senza fallback → impossibile selezionare clienti esistenti, nemmeno
  *   creare nuovi (perché il newly-created non appariva subito).
  *
- *   Ora: 3 livelli di defense-in-depth:
- *   1) RPC `get_company_customers` (canonica, server-side join user_roles)
- *   2) Fallback: query diretta `profiles` filtrata per company_id +
- *      `portal_disabled IS NOT NULL` (solo customer creati con/senza portale).
- *      Il filtro `portal_disabled` distingue customer (TRUE/FALSE) da staff
- *      (NULL — la colonna è popolata solo da create-customer).
- *   3) Se anche profiles fallisce: ritorna lista vuota MA non lancia errore
- *      visibile (l'utente può sempre cliccare "+" per crearne uno nuovo).
+ *   Ora: SOLO strategie che filtrano DAVVERO per ruolo 'customer' —
+ *   1) RPC `get_company_customers` (canonica, SECURITY DEFINER, role='customer')
+ *   2) Fallback: `profiles` + `user_roles!inner(role='customer')` (quando la RLS
+ *      permette la join). Ritorna anche VUOTO: "0 clienti" è una risposta valida.
+ *   3) Se tutto fallisce: lista vuota (l'utente crea col pulsante "+").
  *
- *   Side benefit: con fallback profile-direct, anche aziende su produzioni
- *   "vecchie" senza la RPC vedono i clienti correttamente.
- *
- *   La RLS di profiles permette SELECT su righe con company_id matching → safe.
+ *   ⚠️ 2026-07-16 (bug "vedo operai/dipendenti come clienti nella Nuova Commessa"):
+ *   RIMOSSA la vecchia strategia "profiles-only senza filtro ruolo", che dumpava
+ *   TUTTI i profili dell'azienda → staff/operai/collaboratori comparivano come
+ *   clienti. Non esiste una colonna su `profiles` che distingua cliente da staff
+ *   (portal_disabled=false anche per lo staff), quindi il filtro ruolo DEVE
+ *   passare da RPC / user_roles. Meglio picker vuoto (+ crea) che dati sbagliati.
  */
 export function useCompanyCustomers(companyId: string | null | undefined, enabled = true) {
   return useQuery({
@@ -88,7 +87,11 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
           .order("first_name", { ascending: true, nullsFirst: false })
           .limit(500);
 
-        if (!joinErr && Array.isArray(joinedData) && joinedData.length > 0) {
+        // Ritorna il risultato role-filtered ANCHE se VUOTO: "0 clienti" è una
+        // risposta valida. NON si deve mai ricadere su un dump di tutti i profili
+        // (mostrerebbe operai/dipendenti/collaboratori come "clienti" — bug reale
+        // nella Nuova Commessa: es. commessa intestata a un dipendente).
+        if (!joinErr && Array.isArray(joinedData)) {
           return (joinedData as Array<{
             id: string;
             first_name: string | null;
@@ -102,43 +105,12 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
           }));
         }
 
-        logger.warn("[useCompanyCustomers] profiles+user_roles join failed or empty:", joinErr);
+        logger.warn("[useCompanyCustomers] profiles+user_roles join failed:", joinErr);
       } catch (joinErr) {
         logger.warn("[useCompanyCustomers] profiles+user_roles join threw:", joinErr);
       }
 
-      // ── Strategia 3: profiles only — last resort, mostra TUTTI i profili
-      // della company. Può includere anche staff, ma è meglio del dropdown
-      // vuoto. L'utente riconoscerà i suoi clienti dai nomi/email.
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: profilesData, error: profilesErr } = await (supabase.from("profiles") as any)
-          .select("id, first_name, last_name, email")
-          .eq("company_id", companyId)
-          .order("last_name", { ascending: true, nullsFirst: false })
-          .order("first_name", { ascending: true, nullsFirst: false })
-          .limit(500);
-
-        if (!profilesErr && Array.isArray(profilesData)) {
-          return (profilesData as Array<{
-            id: string;
-            first_name: string | null;
-            last_name: string | null;
-            email: string | null;
-          }>).map((p) => ({
-            id: p.id,
-            first_name: p.first_name,
-            last_name: p.last_name,
-            email: p.email,
-          }));
-        }
-
-        logger.warn("[useCompanyCustomers] profiles-only fallback failed:", profilesErr);
-      } catch (directErr) {
-        logger.warn("[useCompanyCustomers] profiles-only fallback threw:", directErr);
-      }
-
-      // ── Strategia 4: lista vuota (graceful) ────────────────────────────
+      // ── Strategia 3: lista vuota (graceful) ────────────────────────────
       // Non lanciamo errore: l'utente vede dropdown vuoto MA può sempre
       // cliccare "+" per crearne uno nuovo. Più resiliente del throw originale.
       logger.error("[useCompanyCustomers] all strategies failed — returning empty list");

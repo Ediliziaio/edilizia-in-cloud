@@ -555,7 +555,7 @@ export function FinancialSummary({
                   <SelectContent>
                     {[0, 1, 2, 3, 4, 5].map(n => (
                       <SelectItem key={n} value={n.toString()}>
-                        {n === 0 ? 'Nessun acconto' : `${n} Accont${n === 1 ? 'o' : 'i'}`}
+                        {n === 0 ? 'Nessun acconto' : `${n} Accont${n === 1 ? 'o' : 'i'} bonifico`}
                       </SelectItem>
                     ))}
                   </SelectContent>

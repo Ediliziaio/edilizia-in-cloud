@@ -38,7 +38,9 @@ export function createDefaultInstallments(paymentType: PaymentType, numInstallme
     for (let i = 0; i < numDeposits; i++) {
       installments.push({
         position: i,
-        label: numDeposits === 1 ? 'Acconto' : `Acconto ${i + 1}`,
+        // In finanziamento gli acconti sono versati per BONIFICO (a differenza
+        // della quota finanziata): etichetta esplicita per non creare confusione.
+        label: `${i + 1}° Acconto Bonifico`,
         type: 'deposit',
         amount: 0,
         is_paid: false,
@@ -138,7 +140,7 @@ export function buildInstallmentsFromLegacy(order: {
     if ((order.deposit_amount || 0) > 0) {
       installments.push({
         position: 0,
-        label: 'Acconto',
+        label: '1° Acconto Bonifico',
         type: 'deposit',
         amount: order.deposit_amount || 0,
         is_paid: order.deposit_paid || false,
