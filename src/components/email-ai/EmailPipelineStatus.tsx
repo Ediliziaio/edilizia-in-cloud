@@ -129,7 +129,7 @@ function useOpsHealth(enabled: boolean) {
     enabled,
     staleTime: 120_000,
     queryFn: async (): Promise<OpsHealth> => {
-      const { data, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)(
+      const { data, error } = await (supabase.rpc.bind(supabase) as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)(
         "silvio_ops_health"
       );
       if (error) throw error;

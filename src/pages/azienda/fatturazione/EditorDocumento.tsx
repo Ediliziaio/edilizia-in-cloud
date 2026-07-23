@@ -263,7 +263,7 @@ export default function EditorDocumento() {
     if (releaseInFlightRef.current.has(docId)) return;
     releaseInFlightRef.current.add(docId);
     try {
-      const { error } = await (supabase.rpc as unknown as (
+      const { error } = await (supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, unknown>,
       ) => Promise<{ error: { code?: string; message: string } | null }>)(

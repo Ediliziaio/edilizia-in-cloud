@@ -402,7 +402,7 @@ export default function CompanyCustomerDetail() {
     enabled: !!id,
     staleTime: 60_000,
     queryFn: async () => {
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         f: string,
         a: Record<string, unknown>,
       ) => Promise<{ data: unknown; error: { message: string } | null }>;

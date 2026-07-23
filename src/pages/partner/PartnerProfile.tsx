@@ -23,7 +23,7 @@ import {
   getReferralPayoutDetails,
 } from "@/lib/referralCompliance";
 
-const partnerSubmitPayoutDetails = supabase.rpc as unknown as (
+const partnerSubmitPayoutDetails = supabase.rpc.bind(supabase) as unknown as (
   fn: "partner_submit_referral_payout_details",
   args: {
     p_name: string;
@@ -37,7 +37,7 @@ const partnerSubmitPayoutDetails = supabase.rpc as unknown as (
   },
 ) => ReturnType<typeof supabase.rpc>;
 
-const partnerSignContract = supabase.rpc as unknown as (
+const partnerSignContract = supabase.rpc.bind(supabase) as unknown as (
   fn: "partner_sign_referral_contract",
   args: {
     p_signed_name: string;

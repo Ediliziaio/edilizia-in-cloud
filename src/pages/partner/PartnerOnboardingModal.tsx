@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
-const partnerSignContract = supabase.rpc as unknown as (
+const partnerSignContract = supabase.rpc.bind(supabase) as unknown as (
   fn: "partner_sign_referral_contract",
   args: {
     p_signed_name: string;

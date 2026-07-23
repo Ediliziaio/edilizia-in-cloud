@@ -134,7 +134,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
     enabled: !isPreview && !!referrer?.id,
     staleTime: 60000,
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as unknown as (fn: string) => PromiseLike<{ data: number | null; error: unknown }>)(
+      const { data, error } = await (supabase.rpc.bind(supabase) as unknown as (fn: string) => PromiseLike<{ data: number | null; error: unknown }>)(
         "get_my_referral_fraud_count",
       );
       if (error) return 0;

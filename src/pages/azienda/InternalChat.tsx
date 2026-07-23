@@ -409,7 +409,7 @@ function useInternalChat(companyIdOverride?: string) {
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, string>
       ) => Promise<InternalChatProfilesRpc>;
@@ -504,7 +504,7 @@ function useInternalChat(companyIdOverride?: string) {
     enabled: !!companyId && channelIds.length > 0,
     queryFn: async () => {
       const visibleChannelIds = new Set(channelIds);
-      const rpc = supabase.rpc as unknown as (
+      const rpc = supabase.rpc.bind(supabase) as unknown as (
         fn: string,
         args: Record<string, string>
       ) => Promise<InternalChatSidebarRpc>;
