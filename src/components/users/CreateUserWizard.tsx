@@ -39,10 +39,11 @@ export interface WizardUserFormData {
   role_type: StaffRoleType;
   permissions?: StaffPermissions;
   commission_percentage?: number;
-  /** Stipendio lordo mensile (€). Per dipendenti (Operaio/Tecnico) e venditori assunti. */
+  /** Stipendio lordo mensile (€) — OPZIONALE. Per Operaio/Tecnico o per chi ha il flag "è anche dipendente". */
   gross_salary?: number;
-  /** Solo per venditori: "assunto" (dipendente con stipendio) vs "p_iva" (solo provvigione). */
-  salesperson_type?: "assunto" | "p_iva";
+  /** Flag "è anche un dipendente in organico" (per Operatore/Amministratore/Venditore).
+   *  Se true si crea anche la scheda Dipendente collegata. Per il Venditore, true = assunto, false = P.IVA a provvigione. */
+  also_employee?: boolean;
 }
 
 interface CreateUserWizardProps {
@@ -177,7 +178,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [commissionPercentage, setCommissionPercentage] = useState<string>("");
-  const [salespersonType, setSalespersonType] = useState<"assunto" | "p_iva">("p_iva");
+  const [alsoEmployee, setAlsoEmployee] = useState<boolean>(false);
   const [grossSalary, setGrossSalary] = useState<string>("");
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
@@ -191,7 +192,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
-    setShowConfirmClose(false); setCommissionPercentage(""); setSalespersonType("p_iva"); setGrossSalary("");
+    setShowConfirmClose(false); setCommissionPercentage(""); setAlsoEmployee(false); setGrossSalary("");
   };
 
   // Considera "in corso" ogni stato con dati inseriti o step > 1 (tranne success).
@@ -281,8 +282,11 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
       const commission = roleType === "salesperson" && commissionPercentage
         ? parseFloat(commissionPercentage)
         : undefined;
-      // Stipendio rilevante per dipendenti (Operaio/Tecnico) e venditori ASSUNTI.
-      const salaryRelevant = roleType === "employee" || (roleType === "salesperson" && salespersonType === "assunto");
+      // "È anche un dipendente": per Operatore/Amministratore/Venditore col flag ON;
+      // l'Operaio/Tecnico è sempre un dipendente. Lo stipendio è OPZIONALE.
+      const rolesWithEmployeeFlag = roleType === "company_staff" || roleType === "company_admin" || roleType === "salesperson";
+      const alsoEmp = rolesWithEmployeeFlag ? alsoEmployee : false;
+      const salaryRelevant = roleType === "employee" || alsoEmp;
       const grossSalaryNum = salaryRelevant && grossSalary.trim()
         ? parseFloat(grossSalary.replace(",", "."))
         : undefined;
@@ -295,7 +299,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         permissions: finalPerms,
         commission_percentage: commission,
         gross_salary: Number.isFinite(grossSalaryNum) ? grossSalaryNum : undefined,
-        salesperson_type: roleType === "salesperson" ? salespersonType : undefined,
+        also_employee: alsoEmp,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -470,65 +474,70 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 </p>
               </div>
 
-              {/* Venditore: tipo (assunto/P.IVA) + provvigione + stipendio se assunto */}
+              {/* Venditore: solo % provvigione (il "assunto vs P.IVA" è il flag sotto) */}
               {roleType === "salesperson" && (
-                <div className="space-y-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
+                <div className="space-y-1.5 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-emerald-600" />
-                    <Label className="font-medium">Tipo venditore</Label>
+                    <Label htmlFor="wiz-commission" className="font-medium">Provvigione %</Label>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSalespersonType("assunto")}
-                      className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${salespersonType === "assunto" ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/30" : "border-border hover:bg-muted/50"}`}
-                    >
-                      <p className="font-medium">Assunto</p>
-                      <p className="text-xs text-muted-foreground">Dipendente con stipendio (+ eventuale provvigione)</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSalespersonType("p_iva")}
-                      className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${salespersonType === "p_iva" ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/30" : "border-border hover:bg-muted/50"}`}
-                    >
-                      <p className="font-medium">P.IVA a provvigione</p>
-                      <p className="text-xs text-muted-foreground">Esterno, solo provvigione (niente stipendio)</p>
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="wiz-commission" className="font-medium text-sm">Provvigione %</Label>
-                    <Input
-                      id="wiz-commission"
-                      type="number" min="0" max="100" step="0.5"
-                      value={commissionPercentage}
-                      onChange={(e) => setCommissionPercentage(e.target.value)}
-                      placeholder="Es. 5"
-                      className="max-w-[120px]"
-                    />
-                  </div>
-                  {salespersonType === "assunto" && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="wiz-salary-sp" className="font-medium text-sm">Stipendio lordo mensile (€)</Label>
+                  <Input
+                    id="wiz-commission"
+                    type="number" min="0" max="100" step="0.5"
+                    value={commissionPercentage}
+                    onChange={(e) => setCommissionPercentage(e.target.value)}
+                    placeholder="Es. 5"
+                    className="max-w-[120px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Percentuale sulle vendite chiuse. Se è in P.IVA a provvigione, lascia disattivato il flag "è anche un dipendente" qui sotto.
+                  </p>
+                </div>
+              )}
+
+              {/* Flag "è anche un dipendente" — Operatore / Amministratore / Venditore.
+                  Se attivo compare lo stipendio (OPZIONALE) e si crea la scheda Dipendente.
+                  L'Operaio/Tecnico è già un dipendente → blocco dedicato sotto. */}
+              {(roleType === "company_staff" || roleType === "company_admin" || roleType === "salesperson") && (
+                <div className="space-y-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <Checkbox checked={alsoEmployee} onCheckedChange={(v) => setAlsoEmployee(v === true)} className="mt-0.5" />
+                    <span className="text-sm">
+                      <span className="font-medium">È anche un dipendente</span> (in organico)
+                      <span className="block text-xs text-muted-foreground">
+                        {roleType === "salesperson"
+                          ? "Venditore assunto → crea anche la scheda Dipendente. Se è P.IVA a provvigione, lascialo disattivato."
+                          : "Crea anche la scheda Dipendente collegata (stipendio, ore, ferie)."}
+                      </span>
+                    </span>
+                  </label>
+                  {alsoEmployee && (
+                    <div className="space-y-1.5 pl-7">
+                      <Label htmlFor="wiz-salary-also" className="font-medium text-sm">
+                        Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">— opzionale</span>
+                      </Label>
                       <Input
-                        id="wiz-salary-sp"
+                        id="wiz-salary-also"
                         type="number" min="0" step="50"
                         value={grossSalary}
                         onChange={(e) => setGrossSalary(e.target.value)}
                         placeholder="Es. 1800"
                         className="max-w-[160px]"
                       />
-                      <p className="text-xs text-muted-foreground">Verrà creata anche la scheda Dipendente collegata.</p>
+                      <p className="text-xs text-muted-foreground">Puoi lasciarlo vuoto e compilarlo dopo dal tab Dipendenti.</p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Stipendio per dipendenti (Operaio / Tecnico) */}
+              {/* Operaio / Tecnico: è già un dipendente → stipendio (OPZIONALE) */}
               {roleType === "employee" && (
                 <div className="space-y-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
                   <div className="flex items-center gap-2">
                     <HardHat className="h-4 w-4 text-amber-600" />
-                    <Label htmlFor="wiz-salary" className="font-medium">Stipendio lordo mensile (€)</Label>
+                    <Label htmlFor="wiz-salary" className="font-medium">
+                      Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">— opzionale</span>
+                    </Label>
                   </div>
                   <Input
                     id="wiz-salary"
@@ -539,7 +548,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                     className="max-w-[160px]"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Finisce nella scheda Dipendente (poi modificabile dal tab Dipendenti). Lascia vuoto se non lo gestisci qui.
+                    Finisce nella scheda Dipendente. Puoi lasciarlo vuoto e compilarlo dopo dal tab Dipendenti.
                   </p>
                 </div>
               )}

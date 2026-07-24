@@ -793,9 +793,13 @@ export function UsersConfig() {
             .eq("company_id", effectiveCompanyId);
           if (salErr) { logger.error("update stipendio dipendente:", salErr); toast.warning("Utente creato, stipendio non salvato"); }
         }
-        // Venditore ASSUNTO = anche dipendente: crea la scheda Dipendente collegata
-        // (con stipendio se indicato). Per "P.IVA a provvigione" non si crea nulla.
-        if (data.role_type === "salesperson" && data.salesperson_type === "assunto") {
+        // Flag "è anche un dipendente" (Operatore/Amministratore/Venditore) → crea la
+        // scheda Dipendente collegata (stipendio opzionale). Per il Venditore, flag ON
+        // = assunto; flag OFF = P.IVA a provvigione (nessuna scheda dipendente).
+        const alsoEmployeeRoles =
+          data.role_type === "company_staff" || data.role_type === "company_admin" || data.role_type === "salesperson";
+        if (alsoEmployeeRoles && data.also_employee) {
+          const empRoleType = data.role_type === "salesperson" ? "venditore" : "impiegato";
           const { data: existingEmp } = await supabase
             .from("employees").select("id")
             .eq("user_id", createdUserId).eq("company_id", effectiveCompanyId).maybeSingle();
@@ -806,11 +810,11 @@ export function UsersConfig() {
               first_name: data.first_name,
               last_name: data.last_name,
               email: normalizedEmail,
-              role_type: "venditore",
+              role_type: empRoleType,
               gross_salary: data.gross_salary ?? null,
               is_active: true,
             });
-            if (empErr) { logger.error("insert scheda dipendente (venditore assunto):", empErr); toast.warning("Venditore creato, scheda Dipendente non creata"); }
+            if (empErr) { logger.error("insert scheda dipendente (flag anche-dipendente):", empErr); toast.warning("Utente creato, scheda Dipendente non creata"); }
           } else if (data.gross_salary != null) {
             await supabase.from("employees").update({ gross_salary: data.gross_salary }).eq("id", existingEmp.id);
           }
