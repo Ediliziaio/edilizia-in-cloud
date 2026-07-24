@@ -39,6 +39,10 @@ export interface WizardUserFormData {
   role_type: StaffRoleType;
   permissions?: StaffPermissions;
   commission_percentage?: number;
+  /** Stipendio lordo mensile (€). Per dipendenti (Operaio/Tecnico) e venditori assunti. */
+  gross_salary?: number;
+  /** Solo per venditori: "assunto" (dipendente con stipendio) vs "p_iva" (solo provvigione). */
+  salesperson_type?: "assunto" | "p_iva";
 }
 
 interface CreateUserWizardProps {
@@ -173,6 +177,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [commissionPercentage, setCommissionPercentage] = useState<string>("");
+  const [salespersonType, setSalespersonType] = useState<"assunto" | "p_iva">("p_iva");
+  const [grossSalary, setGrossSalary] = useState<string>("");
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
   const totalSteps = showPermissions ? 4 : 3;
@@ -185,7 +191,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
-    setShowConfirmClose(false); setCommissionPercentage("");
+    setShowConfirmClose(false); setCommissionPercentage(""); setSalespersonType("p_iva"); setGrossSalary("");
   };
 
   // Considera "in corso" ogni stato con dati inseriti o step > 1 (tranne success).
@@ -275,6 +281,11 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
       const commission = roleType === "salesperson" && commissionPercentage
         ? parseFloat(commissionPercentage)
         : undefined;
+      // Stipendio rilevante per dipendenti (Operaio/Tecnico) e venditori ASSUNTI.
+      const salaryRelevant = roleType === "employee" || (roleType === "salesperson" && salespersonType === "assunto");
+      const grossSalaryNum = salaryRelevant && grossSalary.trim()
+        ? parseFloat(grossSalary.replace(",", "."))
+        : undefined;
       const result = await onSubmit({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -283,6 +294,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         role_type: roleType,
         permissions: finalPerms,
         commission_percentage: commission,
+        gross_salary: Number.isFinite(grossSalaryNum) ? grossSalaryNum : undefined,
+        salesperson_type: roleType === "salesperson" ? salespersonType : undefined,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -457,26 +470,76 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 </p>
               </div>
 
-              {/* Commission % for salespeople */}
+              {/* Venditore: tipo (assunto/P.IVA) + provvigione + stipendio se assunto */}
               {roleType === "salesperson" && (
-                <div className="space-y-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
+                <div className="space-y-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-emerald-600" />
-                    <Label htmlFor="wiz-commission" className="font-medium">Provvigione %</Label>
+                    <Label className="font-medium">Tipo venditore</Label>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSalespersonType("assunto")}
+                      className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${salespersonType === "assunto" ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/30" : "border-border hover:bg-muted/50"}`}
+                    >
+                      <p className="font-medium">Assunto</p>
+                      <p className="text-xs text-muted-foreground">Dipendente con stipendio (+ eventuale provvigione)</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalespersonType("p_iva")}
+                      className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${salespersonType === "p_iva" ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/30" : "border-border hover:bg-muted/50"}`}
+                    >
+                      <p className="font-medium">P.IVA a provvigione</p>
+                      <p className="text-xs text-muted-foreground">Esterno, solo provvigione (niente stipendio)</p>
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wiz-commission" className="font-medium text-sm">Provvigione %</Label>
+                    <Input
+                      id="wiz-commission"
+                      type="number" min="0" max="100" step="0.5"
+                      value={commissionPercentage}
+                      onChange={(e) => setCommissionPercentage(e.target.value)}
+                      placeholder="Es. 5"
+                      className="max-w-[120px]"
+                    />
+                  </div>
+                  {salespersonType === "assunto" && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wiz-salary-sp" className="font-medium text-sm">Stipendio lordo mensile (€)</Label>
+                      <Input
+                        id="wiz-salary-sp"
+                        type="number" min="0" step="50"
+                        value={grossSalary}
+                        onChange={(e) => setGrossSalary(e.target.value)}
+                        placeholder="Es. 1800"
+                        className="max-w-[160px]"
+                      />
+                      <p className="text-xs text-muted-foreground">Verrà creata anche la scheda Dipendente collegata.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Stipendio per dipendenti (Operaio / Tecnico) */}
+              {roleType === "employee" && (
+                <div className="space-y-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <HardHat className="h-4 w-4 text-amber-600" />
+                    <Label htmlFor="wiz-salary" className="font-medium">Stipendio lordo mensile (€)</Label>
                   </div>
                   <Input
-                    id="wiz-commission"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={commissionPercentage}
-                    onChange={(e) => setCommissionPercentage(e.target.value)}
-                    placeholder="Es. 5"
-                    className="max-w-[120px]"
+                    id="wiz-salary"
+                    type="number" min="0" step="50"
+                    value={grossSalary}
+                    onChange={(e) => setGrossSalary(e.target.value)}
+                    placeholder="Es. 1600"
+                    className="max-w-[160px]"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Percentuale di provvigione sulle vendite chiuse. Puoi modificarla in seguito dal profilo utente.
+                    Finisce nella scheda Dipendente (poi modificabile dal tab Dipendenti). Lascia vuoto se non lo gestisci qui.
                   </p>
                 </div>
               )}

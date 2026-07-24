@@ -779,6 +779,44 @@ export function UsersConfig() {
         }
       }
 
+      // MVP "persona": stipendio dipendente + venditore ASSUNTO → scheda Dipendente.
+      // Scritture follow-up (l'edge crea login + eventuale scheda venditore/operaio;
+      // qui aggiungiamo stipendio e, per il venditore assunto, la scheda Dipendente).
+      const createdUserId = response.data?.user_id;
+      if (createdUserId && effectiveCompanyId) {
+        // Operaio/Tecnico: imposta lo stipendio sulla scheda dipendente creata dall'edge.
+        if (data.role_type === "employee" && data.gross_salary != null) {
+          const { error: salErr } = await supabase
+            .from("employees")
+            .update({ gross_salary: data.gross_salary })
+            .eq("user_id", createdUserId)
+            .eq("company_id", effectiveCompanyId);
+          if (salErr) { logger.error("update stipendio dipendente:", salErr); toast.warning("Utente creato, stipendio non salvato"); }
+        }
+        // Venditore ASSUNTO = anche dipendente: crea la scheda Dipendente collegata
+        // (con stipendio se indicato). Per "P.IVA a provvigione" non si crea nulla.
+        if (data.role_type === "salesperson" && data.salesperson_type === "assunto") {
+          const { data: existingEmp } = await supabase
+            .from("employees").select("id")
+            .eq("user_id", createdUserId).eq("company_id", effectiveCompanyId).maybeSingle();
+          if (!existingEmp?.id) {
+            const { error: empErr } = await supabase.from("employees").insert({
+              company_id: effectiveCompanyId,
+              user_id: createdUserId,
+              first_name: data.first_name,
+              last_name: data.last_name,
+              email: normalizedEmail,
+              role_type: "venditore",
+              gross_salary: data.gross_salary ?? null,
+              is_active: true,
+            });
+            if (empErr) { logger.error("insert scheda dipendente (venditore assunto):", empErr); toast.warning("Venditore creato, scheda Dipendente non creata"); }
+          } else if (data.gross_salary != null) {
+            await supabase.from("employees").update({ gross_salary: data.gross_salary }).eq("id", existingEmp.id);
+          }
+        }
+      }
+
       // Audit log (non bloccante: se fallisce logghiamo ma non interrompiamo il flusso)
       if (effectiveCompanyId) {
         const { error: auditErr } = await supabase.from("user_audit_log").insert({
