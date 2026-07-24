@@ -358,6 +358,9 @@ function CreateOrderInner() {
     setInstallments(createDefaultInstallments('standard', 2));
     setNumInstallments(2);
     setOrderItems([]);
+    setCantiereAddress("");
+    cantiereTouchedRef.current = false;
+    lastCantiereCustomerRef.current = null;
   }, [clearDraft, reset]);
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
@@ -380,6 +383,56 @@ function CreateOrderInner() {
       return af < bf ? -1 : af > bf ? 1 : 0;
     });
   }, [customers, extraCustomers]);
+
+  // ── Indirizzo cantiere (luogo dei lavori) precompilato dal cliente ──────────
+  // Quando si seleziona un cliente, precompiliamo l'indirizzo del cantiere dalla
+  // sua scheda: `site_address` (indirizzo cantiere) con fallback all'indirizzo di
+  // fatturazione. Resta editabile (se il cantiere è altrove il commerciale lo
+  // corregge). Alla creazione viene scritto su orders.indirizzo_lavori/work_address
+  // con un UPDATE follow-up (la RPC atomica non ha queste colonne in whitelist).
+  const { data: selectedCustomerAddr } = useQuery({
+    queryKey: ["order-customer-address", customerId, effectiveCompany?.id],
+    enabled: !!customerId && !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("address, city, postal_code, province, site_address, site_city, site_postal_code, site_province, site_lat, site_lng")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (error) return null;
+      return data as {
+        address: string | null; city: string | null; postal_code: string | null; province: string | null;
+        site_address: string | null; site_city: string | null; site_postal_code: string | null; site_province: string | null;
+        site_lat: number | null; site_lng: number | null;
+      } | null;
+    },
+  });
+  const suggestedCantiere = useMemo(() => {
+    const a = selectedCustomerAddr;
+    if (!a) return "";
+    const line = (street: string | null, cap: string | null, city: string | null, prov: string | null) =>
+      [street, [cap, city].map((x) => (x ?? "").trim()).filter(Boolean).join(" "), prov]
+        .map((x) => (x ?? "").trim())
+        .filter(Boolean)
+        .join(", ");
+    const site = line(a.site_address, a.site_postal_code, a.site_city, a.site_province);
+    return site || line(a.address, a.postal_code, a.city, a.province);
+  }, [selectedCustomerAddr]);
+  const [cantiereAddress, setCantiereAddress] = useState("");
+  const cantiereTouchedRef = useRef(false);
+  const lastCantiereCustomerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!customerId) return;
+    // Cambio cliente → riparte l'auto-compilazione (azzera il "toccato a mano").
+    if (lastCantiereCustomerRef.current !== customerId) {
+      cantiereTouchedRef.current = false;
+      lastCantiereCustomerRef.current = customerId;
+    }
+    if (!cantiereTouchedRef.current && suggestedCantiere) {
+      setCantiereAddress(suggestedCantiere);
+    }
+  }, [customerId, suggestedCantiere]);
 
   // ── Codice Commessa progressivo ────────────────────────────────────────────
   // Suggerimento auto-generato lato DB (prossimo_numero_commessa: {prefix}-{NNNN}
@@ -581,6 +634,20 @@ function CreateOrderInner() {
         if (sedeErr) {
           console.warn("[CreateOrder] update sede_id fallito (ordine creato comunque):", sedeErr.message);
         }
+      }
+
+      // Indirizzo cantiere → orders.indirizzo_lavori + work_address (best-effort,
+      // non blocca l'ordine). La RPC atomica non ha queste colonne in whitelist.
+      const cantiere = cantiereAddress.trim();
+      if (cantiere && result.id) {
+        const patch: Record<string, unknown> = { indirizzo_lavori: cantiere, work_address: cantiere };
+        if (selectedCustomerAddr?.site_lat != null && selectedCustomerAddr?.site_lng != null) {
+          patch.work_lat = selectedCustomerAddr.site_lat;
+          patch.work_lng = selectedCustomerAddr.site_lng;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: cantErr } = await (supabase as any).from("orders").update(patch).eq("id", result.id);
+        if (cantErr) console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message);
       }
 
       return result;
@@ -971,6 +1038,24 @@ function CreateOrderInner() {
                 {errors.customer_id && (
                   <p className="text-sm text-destructive">{errors.customer_id.message}</p>
                 )}
+              </div>
+
+              {/* Indirizzo cantiere (luogo dei lavori) — precompilato dal cliente */}
+              <div className="space-y-2">
+                <Label htmlFor="cantiere-address">Indirizzo cantiere / luogo dei lavori</Label>
+                <Textarea
+                  id="cantiere-address"
+                  value={cantiereAddress}
+                  onChange={(e) => { cantiereTouchedRef.current = true; setCantiereAddress(e.target.value); }}
+                  placeholder="Via del cantiere, CAP Città (PR)"
+                  rows={2}
+                  maxLength={300}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {customerId
+                    ? "Precompilato dall'indirizzo cantiere del cliente (o fatturazione). Modificalo se i lavori sono altrove."
+                    : "Seleziona un cliente per precompilarlo, oppure scrivilo a mano."}
+                </p>
               </div>
 
               {/* Description */}
