@@ -372,26 +372,14 @@
           cookie_flags: 'SameSite=None;Secure'
         });
 
-        var gaLoaded = false;
-        function loadGA() {
-          if (gaLoaded) return;
-          gaLoaded = true;
-          var s = document.createElement('script');
-          s.async = true;
-          s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-          document.head.appendChild(s);
-        }
-        // No 'mousemove': su desktop scatta al primo pixel di movimento e
-        // vanifica il defer. Fallback: DOPO l'evento load (mai in gara con
-        // l'LCP su rete lenta — prima il timer 3.5s partiva durante il
-        // caricamento critico), +1.5s di margine.
-        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
-        function onInteract() {
-          EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
-          loadGA();
-        }
-        EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
-        window.addEventListener('load', function(){ setTimeout(loadGA, 1500); }, { once: true });
+        // NIENTE caricamento diretto di gtag/js: la libreria per G-0JZP5N2VW5
+        // è già caricata dal contenitore GTM (GTM-PGLNPBW9, script sotto).
+        // Prima veniva scaricata DUE volte (162KB duplicati su mobile, eventi
+        // a rischio doppio conteggio). Lo stub window.gtag + la config qui
+        // sopra restano: spingono sul dataLayer condiviso che gtag.js (via
+        // GTM) processa al load. ATTENZIONE: se il tag Google/GA4 viene
+        // rimosso dal contenitore GTM, Analytics smette di ricevere dati —
+        // in quel caso ripristinare qui il loader diretto di gtag/js.
       })();
     </script>
 
