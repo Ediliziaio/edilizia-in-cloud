@@ -647,11 +647,18 @@
         <div style="position:fixed;bottom:25%;right:10%;width:260px;height:260px;border-radius:50%;background:rgba(249,116,21,0.05);filter:blur(70px);pointer-events:none"></div>
       </div>
     </div>
-    <div id="eic-boot-guard" style="position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
+    <!-- Boot-guard: NASCOSTO di default (display:none). Prima era visibile da
+         t=0 (overlay bianco + rotellina sopra TUTTO) e copriva sia l'HTML
+         prerenderizzato delle pagine marketing sia lo skeleton scuro di #root
+         finché React non montava → su mobile = secondi di schermata bianca.
+         Ora resta nel DOM solo come ancora per la recovery UI: la sua presenza
+         segnala "React non ancora montato" ai watchdog, e showBootstrapFallback
+         lo rende visibile SOLO quando il boot è davvero bloccato. -->
+    <div id="eic-boot-guard" style="position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
       <div style="max-width:420px">
         <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#f97316;border-radius:999px;margin:0 auto 16px;animation:eic-spin .8s linear infinite"></div>
         <p style="margin:0;font-size:15px;font-weight:700">Apro Edilizia in Cloud...</p>
-        <p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#6b7280">Se il caricamento locale si blocca, qui comparirà il recupero invece della schermata bianca.</p>
+        <p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#6b7280">Se il caricamento si blocca, qui comparirà il recupero invece della schermata bianca.</p>
       </div>
     </div>
     <style>@keyframes eic-spin{to{transform:rotate(360deg)}}</style>
@@ -797,6 +804,9 @@
           var bootGuard = document.getElementById('eic-boot-guard');
           var target = bootGuard || root;
           if (!target) return;
+          // Il guard nasce display:none (v14): va reso visibile SOLO ora che
+          // dobbiamo mostrare la recovery UI, mai durante il boot normale.
+          if (bootGuard) bootGuard.style.display = 'flex';
           target.innerHTML = [
             '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;padding:24px;text-align:center">',
               '<div style="max-width:420px">',
