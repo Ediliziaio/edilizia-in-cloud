@@ -28,6 +28,10 @@ export const OWA_PATHS = {
   sendImage: (id: string) => `/api/sessions/${encodeURIComponent(id)}/messages/send-image`,
   sendDocument: (id: string) => `/api/sessions/${encodeURIComponent(id)}/messages/send-document`,
   typing: (id: string) => `/api/sessions/${encodeURIComponent(id)}/chats/typing`,
+  // Valida un numero prima dell'invio: ritorna { number, exists, whatsappId }.
+  // Serve per i numeri "freddi" (chatId numero@c.us non canonico → falliscono).
+  checkNumber: (id: string, number: string) =>
+    `/api/sessions/${encodeURIComponent(id)}/contacts/check/${encodeURIComponent(number)}`,
 };
 
 // ── Anti-ban helpers ────────────────────────────────────────────────────────
@@ -98,12 +102,31 @@ export async function getOwaConfig(): Promise<OwaConfig> {
 export interface OwaFetchResult { ok: boolean; status: number; json: any; text: string; }
 
 export async function owaFetch(
-  cfg: OwaConfig, path: string, init?: RequestInit,
+  cfg: OwaConfig, path: string, init?: RequestInit, timeoutMs = 20000,
 ): Promise<OwaFetchResult> {
-  const res = await fetch(`${cfg.baseUrl}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey, ...(init?.headers ?? {}) },
-  });
+  // Timeout DURO: il gateway gira dietro un tunnel che, se l'origine è giù,
+  // tiene la connessione aperta a lungo → senza AbortController la function
+  // resta appesa fino al kill del worker. Scaduto → errore chiaro.
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}${path}`, {
+      ...init,
+      signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", "X-API-Key": cfg.apiKey, ...(init?.headers ?? {}) },
+    });
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === "AbortError";
+    return {
+      ok: false,
+      status: 0,
+      json: null,
+      text: aborted ? `timeout dopo ${timeoutMs / 1000}s (gateway non raggiungibile)` : String(e),
+    };
+  } finally {
+    clearTimeout(t);
+  }
   const text = await res.text();
   let json: any = null;
   try { json = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
@@ -217,11 +240,29 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   const cfg = await getOwaConfig();
 
+  // Valida/risolve il numero prima dell'invio: i contatti "freddi" (mai in chat
+  // col mittente) falliscono o non consegnano se si invia a `numero@c.us`
+  // costruito a mano. contacts/check ritorna { exists, whatsappId } (id
+  // canonico). Se il numero non è su WhatsApp → errore chiaro invece di un
+  // fallimento silenzioso. Difensivo: se il check non risponde in modo utile
+  // (endpoint assente/irraggiungibile) si prosegue col chatId ingenuo.
+  let sendChatId = chatId;
+  {
+    const digits = digitsOnly(phone);
+    const chk = await owaFetch(cfg, OWA_PATHS.checkNumber(chosen.session_id, digits), { method: "GET" }, 8000);
+    if (chk.ok && chk.json && typeof chk.json.exists === "boolean") {
+      if (!chk.json.exists) {
+        return { ok: false, error: `Il numero ${digits} non risulta su WhatsApp.`, status: 400, numberId: chosen.id, chatId };
+      }
+      if (typeof chk.json.whatsappId === "string" && chk.json.whatsappId) sendChatId = chk.json.whatsappId;
+    }
+  }
+
   // Anti-ban #4: presenza "sta scrivendo…" + ritardo umano proporzionale.
   if (params.simulateTyping !== false) {
     await owaFetch(cfg, OWA_PATHS.typing(chosen.session_id), {
       method: "POST",
-      body: JSON.stringify({ chatId, state: "typing" }),
+      body: JSON.stringify({ chatId: sendChatId, state: "typing" }),
     }).catch(() => null);
     await sleep(humanDelayMs(text.length));
   }
@@ -240,12 +281,12 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
       : OWA_PATHS.sendImage(chosen.session_id);
     r = await owaFetch(cfg, mpath, {
       method: "POST",
-      body: JSON.stringify({ chatId, url: mediaUrl, caption: text || undefined, filename: params.mediaFilename }),
+      body: JSON.stringify({ chatId: sendChatId, url: mediaUrl, caption: text || undefined, filename: params.mediaFilename }),
     });
   } else {
     r = await owaFetch(cfg, OWA_PATHS.sendText(chosen.session_id), {
       method: "POST",
-      body: JSON.stringify({ chatId, text }),
+      body: JSON.stringify({ chatId: sendChatId, text }),
     });
   }
 
