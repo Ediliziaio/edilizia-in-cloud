@@ -34,7 +34,8 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/come-scegliere-software-gestionale-edilizia.jpg",
+    coverImage:
+      "/blog/covers/edilizia-in-cloud-vs-teamsystem-construction.jpg",
     content: [
       {
         type: "intro",
@@ -243,7 +244,8 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/gestione-cantieri-digitale.jpg",
+    coverImage:
+      "/blog/covers/edilizia-in-cloud-vs-planradar.jpg",
     content: [
       {
         type: "intro",
@@ -448,7 +450,8 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/software-gestionale-vs-excel.jpg",
+    coverImage:
+      "/blog/covers/edilizia-in-cloud-vs-dylog-edilizia.jpg",
     content: [
       {
         type: "intro",
@@ -657,7 +660,8 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/come-scegliere-gestionale-ai-impresa-edile.jpg",
+    coverImage:
+      "/blog/covers/edilizia-in-cloud-vs-pillar.jpg",
     content: [
       {
         type: "intro",

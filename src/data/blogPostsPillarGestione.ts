@@ -30,7 +30,8 @@ export const blogPostsPillarGestione: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 13,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/contabilita-di-cantiere-guida.jpg",
+    coverImage:
+      "/blog/covers/chi-gestisce-i-numeri-impresa-edile.jpg",
     content: [
       {
         type: "intro",
@@ -248,7 +249,8 @@ export const blogPostsPillarGestione: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 12,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/software-gestionale-vs-excel.jpg",
+    coverImage:
+      "/blog/covers/excel-whatsapp-carta-gestione-impresa-edile.jpg",
     content: [
       {
         type: "intro",
