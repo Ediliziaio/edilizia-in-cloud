@@ -11,12 +11,17 @@ export interface BlogPost {
   author: { name: string; role: string; avatar?: string };
   coverImage: string;
   content: Array<{
-    type: "intro" | "section" | "quote" | "list" | "cta";
+    type: "intro" | "section" | "quote" | "list" | "cta" | "table";
     heading?: string;
+    /** Nei body: "\n\n" separa i paragrafi; [testo](https://…) crea un link
+     *  esterno (nofollow, nuova tab), [testo](/percorso) un link interno. */
     body?: string;
     items?: string[];
     quote?: string;
     author?: string;
+    /** Solo per type "table": intestazioni colonne + righe. */
+    headers?: string[];
+    rows?: string[][];
   }>;
   /** FAQ redazionali: risposte estraibili dai motori AI + FAQPage schema. */
   faqs?: Array<{ q: string; a: string }>;

@@ -232,7 +232,7 @@ export default function BlogPost() {
   const colorClass = categoryColors[post.category] ?? "bg-gray-100 text-gray-700";
 
   const sectionHeadings = post.content
-    .filter((c) => c.type === "section" || c.type === "list")
+    .filter((c) => c.type === "section" || c.type === "list" || c.type === "table")
     .map((c) => c.heading!)
     .filter(Boolean);
 
@@ -324,6 +324,46 @@ export default function BlogPost() {
   const linkify = (text: string | undefined) =>
     linkifyInternal(text, internalCtx, (part) => linkifyNormative(part, seenNorms));
 
+  // Link markdown [testo](url) nei body: esterni = nofollow + nuova tab
+  // (siti dei competitor citati nei confronti), interni = <Link>. Il resto
+  // del testo passa dall'auto-link interno/normativo come sempre.
+  const renderRichText = (text: string) => {
+    const parts = text.split(/(\[[^\]]+\]\((?:https?:\/\/|\/)[^\s)]+\))/g);
+    return parts.map((part, i) => {
+      const m = part.match(/^\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)$/);
+      if (!m) return <span key={i}>{linkify(part)}</span>;
+      const [, label, url] = m;
+      if (url.startsWith("http"))
+        return (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="nofollow noopener noreferrer"
+            className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+          >
+            {label}
+          </a>
+        );
+      return (
+        <Link key={i} to={url} className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]">
+          {label}
+        </Link>
+      );
+    });
+  };
+
+  // "\n\n" nei body = paragrafi separati: mai più muri di testo.
+  const renderBody = (body: string, cls: string) =>
+    body
+      .split(/\n\n+/)
+      .filter((p) => p.trim().length > 0)
+      .map((p, i) => (
+        <p key={i} className={cls}>
+          {renderRichText(p)}
+        </p>
+      ));
+
   return (
     <div className="min-h-screen bg-white">
       <ProgressBar />
@@ -412,12 +452,12 @@ export default function BlogPost() {
               switch (section.type) {
                 case "intro":
                   return (
-                    <p
+                    <div
                       key={i}
-                      className="text-xl text-gray-700 leading-relaxed mb-10 font-light border-l-4 border-[#F97415] pl-6"
+                      className="mb-10 border-l-4 border-[#F97415] pl-6"
                     >
-                      {linkify(section.body)}
-                    </p>
+                      {renderBody(section.body ?? "", "text-xl text-gray-700 leading-relaxed font-light mb-4 last:mb-0")}
+                    </div>
                   );
 
                 case "section": {
@@ -432,11 +472,56 @@ export default function BlogPost() {
                           {section.heading}
                         </h2>
                       )}
-                      {section.body && (
-                        <p className="text-gray-600 leading-relaxed text-[1.05rem]">
-                          {linkify(section.body)}
-                        </p>
+                      {section.body &&
+                        renderBody(section.body, "text-gray-600 leading-relaxed text-[1.05rem] mb-4 last:mb-0")}
+                    </div>
+                  );
+                }
+
+                case "table": {
+                  const id = section.heading ? slugifyHeading(section.heading) : undefined;
+                  return (
+                    <div key={i} className="mb-10">
+                      {section.heading && (
+                        <h2
+                          id={id}
+                          className="text-2xl font-bold text-[#111111] mt-10 mb-4 scroll-mt-28"
+                        >
+                          {section.heading}
+                        </h2>
                       )}
+                      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                        <table className="w-full text-sm">
+                          {section.headers && (
+                            <thead>
+                              <tr className="bg-[#111111] text-white">
+                                {section.headers.map((h, j) => (
+                                  <th
+                                    key={j}
+                                    className={`px-4 py-3 font-semibold ${j === 0 ? "text-left" : "text-center"} ${j > 0 && section.headers![j]?.includes("Edilizia in Cloud") ? "text-[#F97415]" : ""}`}
+                                  >
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                          )}
+                          <tbody>
+                            {section.rows?.map((row, r) => (
+                              <tr key={r} className={r % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                                {row.map((cell, c) => (
+                                  <td
+                                    key={c}
+                                    className={`px-4 py-3 align-top ${c === 0 ? "font-medium text-[#111111] text-left" : "text-gray-600 text-center"}`}
+                                  >
+                                    {renderRichText(cell)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   );
                 }
