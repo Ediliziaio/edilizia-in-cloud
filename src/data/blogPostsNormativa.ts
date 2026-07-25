@@ -429,6 +429,23 @@ export const blogPostsNormativa: BlogPost[] = [
         body: "Non esiste una dimensione obbligatoria a livello nazionale: la fissano, quando lo fanno, i regolamenti comunali. Nella pratica professionale il formato minimo consigliato è 70×100 cm, con 100×140 cm per i cantieri su strada dove il cartello deve essere leggibile a distanza. Materiali: PVC o forex per durare, banner in PVC teso per i ponteggi; evita la carta plastificata che dopo due piogge diventa illeggibile — un cartello illeggibile equivale a un cartello assente. Posizionamento: all'ingresso del cantiere o sulla recinzione, visibile dalla pubblica via, senza ostacolare la segnaletica di sicurezza. Un'abitudine che costa zero: quando aggiorni il cartello, registra la modifica anche nel giornale dei lavori — così la storia documentale del cantiere resta coerente.",
       },
       {
+        type: "section",
+        heading: "Modello di testo: cosa scrivere esattamente sul cartello",
+        body: "Un cartello di cantiere completo riporta, nell'ordine: oggetto dei lavori (es. \"Ristrutturazione edilizia con ampliamento\"), estremi del titolo abilitativo (tipo, numero di protocollo e data della CILA, SCIA o permesso di costruire), nome del committente, impresa esecutrice con ragione sociale completa e i riferimenti del responsabile di cantiere, progettista e direttore dei lavori con relativi ordini professionali, coordinatore per la sicurezza in fase di esecuzione quando nominato, data di inizio lavori e durata presunta. Molti Comuni chiedono anche l'indicazione delle imprese subappaltatrici principali: verifica sempre il regolamento edilizio locale, perché il contenuto minimo del cartello di cantiere lo fissa il Comune, non una norma nazionale unica. Un formato che funziona in pratica: pannello da almeno 100×70 cm, testo nero su fondo bianco, caratteri leggibili da 10 metri, posizionato all'ingresso del cantiere in posizione visibile dalla strada pubblica.",
+      },
+      {
+        type: "list",
+        heading: "Checklist rapida prima di appendere il cartello",
+        items: [
+          "Estremi del titolo abilitativo ricopiati ESATTAMENTE dal documento (protocollo e data: è il primo controllo che fa il vigile)",
+          "Nominativi e recapiti di progettista, DL e coordinatore sicurezza aggiornati — se cambia il DL a metà lavori, il cartello va aggiornato",
+          "Ragione sociale completa dell'impresa, non il nome commerciale",
+          "Data inizio lavori coerente con la comunicazione di inizio lavori depositata",
+          "Materiale resistente alle intemperie: un cartello illeggibile equivale a un cartello assente",
+          "Foto del cartello installato salvata nel fascicolo di cantiere: in caso di contestazione hai la prova della data di posa",
+        ],
+      },
+      {
         type: "cta",
         heading: "Tutti i documenti del cantiere in un posto solo",
         body: "Titoli edilizi, notifica preliminare, DURC delle imprese, verbali e foto del cartello: con Edilizia in Cloud ogni commessa ha il suo fascicolo digitale sempre a portata di telefono, anche davanti a un ispettore. Prova gratis per 31 giorni.",
