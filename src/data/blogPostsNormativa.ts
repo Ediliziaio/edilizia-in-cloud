@@ -19,7 +19,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["reverse charge", "IVA edilizia", "subappalto", "fatturazione edilizia"],
     publishedAt: "2026-07-25",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/reverse-charge-edilizia.jpg",
     content: [
@@ -124,7 +124,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["presenze cantiere", "tessera di riconoscimento", "congruità manodopera", "D.Lgs 81/08"],
     publishedAt: "2026-07-25",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/registro-presenze-cantiere-obbligatorio.jpg",
     content: [
@@ -208,7 +208,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["POS", "sicurezza cantiere", "D.Lgs 81/08", "Allegato XV"],
     publishedAt: "2026-07-25",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/pos-piano-operativo-sicurezza-fac-simile.jpg",
     content: [
@@ -300,7 +300,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["prezzario regionale", "computo metrico", "preventivi", "appalti pubblici"],
     publishedAt: "2026-07-25",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/prezzario-regionale-edilizia.jpg",
     content: [
@@ -390,7 +390,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["cartello di cantiere", "DPR 380/2001", "permesso di costruire", "adempimenti cantiere"],
     publishedAt: "2026-07-25",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/cartello-di-cantiere-obbligatorio.jpg",
     content: [
@@ -489,7 +489,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["notifica preliminare", "art. 99 D.Lgs 81/08", "apertura cantiere", "adempimenti cantiere"],
     publishedAt: "2026-07-25",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/notifica-preliminare-cantiere.jpg",
     content: [
@@ -580,7 +580,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["libretto delle misure", "contabilità lavori", "SAL", "direzione lavori"],
     publishedAt: "2026-07-25",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/libretto-delle-misure.jpg",
     content: [
@@ -661,7 +661,7 @@ export const blogPostsNormativa: BlogPost[] = [
     tags: ["split payment", "IVA edilizia", "appalti pubblici", "liquidità"],
     publishedAt: "2026-07-25",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/split-payment-lavori-pubblici.jpg",
     content: [

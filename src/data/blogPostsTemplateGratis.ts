@@ -20,7 +20,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["modello preventivo edile", "fac simile preventivo", "preventivi edilizia", "documenti impresa edile"],
     publishedAt: "2026-07-25",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/modello-preventivo-edile.jpg",
     faqs: [
@@ -106,7 +106,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["contratto subappalto edile", "fac simile subappalto", "subappalto edilizia", "clausole contratto appalto"],
     publishedAt: "2026-07-25",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/contratto-subappalto-edile-fac-simile.jpg",
     faqs: [
@@ -199,7 +199,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["software gestione cantieri gratis", "gestionale edilizia gratuito", "excel cantieri", "strumenti gratuiti edilizia"],
     publishedAt: "2026-07-25",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/software-gestione-cantieri-gratis.jpg",
     faqs: [
@@ -269,7 +269,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["app gestione cantieri gratis", "app cantiere", "app edilizia gratuita", "gestione cantiere da smartphone"],
     publishedAt: "2026-07-25",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/app-gestione-cantieri-gratis.jpg",
     faqs: [
@@ -334,7 +334,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["computo metrico gratis", "prezzari regionali", "template computo metrico", "computo metrico excel"],
     publishedAt: "2026-07-25",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/computo-metrico-gratis.jpg",
     faqs: [
@@ -403,7 +403,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["gestionale edilizia opinioni", "recensioni gestionale edile", "scegliere gestionale edilizia", "software edilizia recensioni"],
     publishedAt: "2026-07-25",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/gestionale-edilizia-opinioni.jpg",
     faqs: [
@@ -473,7 +473,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     tags: ["incentivi digitalizzazione edilizia", "transizione 5.0 edilizia", "voucher digitalizzazione", "bandi imprese edili 2026"],
     publishedAt: "2026-07-25",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/incentivi-digitalizzazione-edilizia-2026.jpg",
     faqs: [

@@ -66,7 +66,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-07-31",
     updatedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/ridurre-costi-cantieri-edili.jpg",
     content: [
@@ -136,7 +136,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-08-10",
     updatedAt: "2026-07-10",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/gestione-cantieri-digitale.jpg",
     content: [
@@ -213,7 +213,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-08-20",
     updatedAt: "2026-02-20",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/preventivi-edilizia-guida.jpg",
     content: [
@@ -282,7 +282,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-08-30",
     updatedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/hr-edilizia-presenze-buste-paga.jpg",
     content: [
@@ -350,7 +350,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-09-09",
     updatedAt: "2026-07-10",
     readTime: 11,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/analisi-margini-imprese-edili.jpg",
     content: [
@@ -431,7 +431,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-09-19",
     updatedAt: "2026-01-15",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/marketing-digitale-imprese-edili.jpg",
     content: [
@@ -499,7 +499,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-09-29",
     updatedAt: "2026-07-10",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/software-gestionale-vs-excel.jpg",
     content: [
@@ -569,7 +569,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-10-09",
     updatedAt: "2026-01-28",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/digitalizzare-impresa-edile.jpg",
     content: [
@@ -661,7 +661,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-10-19",
     updatedAt: "2026-07-10",
     readTime: 12,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/come-organizzare-cantiere-edile.jpg",
     content: [
@@ -764,7 +764,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-10-29",
     updatedAt: "2026-07-10",
     readTime: 11,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/documentazione-obbligatoria-cantiere-2025.jpg",
     content: [
@@ -877,7 +877,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-11-08",
     updatedAt: "2026-07-10",
     readTime: 11,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/come-fare-preventivo-edilizia.jpg",
     content: [
@@ -974,7 +974,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-11-18",
     updatedAt: "2026-07-10",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/alternativa-excel-cantieri.jpg",
     content: [
@@ -1074,7 +1074,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-11-28",
     updatedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/sal-cantiere-come-funziona.jpg",
     content: [
@@ -1166,7 +1166,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-12-08",
     updatedAt: "2026-07-10",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/durc-edilizia-guida-completa.jpg",
     content: [
@@ -1269,7 +1269,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-12-18",
     updatedAt: "2026-07-10",
     readTime: 6,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/giornale-dei-lavori-cantiere.jpg",
     content: [
@@ -1345,7 +1345,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2025-12-28",
     updatedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/subappalto-edilizia-guida.jpg",
     content: [
@@ -1429,7 +1429,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-06",
     updatedAt: "2026-04-08",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/acquisire-clienti-impresa-edile.jpg",
     content: [
@@ -1488,7 +1488,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-09",
     updatedAt: "2026-07-10",
     readTime: 7,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/gestione-operai-cantiere-presenze-ore.jpg",
     content: [
@@ -1549,7 +1549,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-12",
     updatedAt: "2026-04-08",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/sito-web-impresa-edile-guida.jpg",
     content: [
@@ -1606,7 +1606,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-15",
     updatedAt: "2026-04-08",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/digitalizzazione-impresa-edile-passo-passo.jpg",
     content: [
@@ -2035,7 +2035,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-01-30",
     updatedAt: "2026-07-04",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/sicurezza-cantieri-dlgs-81.jpg",
     content: [
@@ -2118,7 +2118,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-02",
     updatedAt: "2026-07-10",
     readTime: 11,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/ccnl-edilizia-guida.jpg",
     content: [
@@ -2182,7 +2182,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-05",
     updatedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/attestazione-soa-imprese-edili.jpg",
     content: [
@@ -2251,7 +2251,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-08",
     updatedAt: "2026-07-10",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/superbonus-imprese-edili-2026.jpg",
     content: [
@@ -2314,7 +2314,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-11",
     updatedAt: "2026-07-10",
     readTime: 13,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/gestione-liquidita-impresa-edile.jpg",
     content: [
       {
@@ -2419,7 +2419,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-14",
     updatedAt: "2026-07-10",
     readTime: 12,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/pnrr-edilizia-imprese-2026.jpg",
     content: [
       {
@@ -2519,7 +2519,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-17",
     updatedAt: "2026-07-10",
     readTime: 12,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-scegliere-software-gestionale-edilizia.jpg",
     content: [
       {
@@ -2622,7 +2622,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-20",
     updatedAt: "2026-07-10",
     readTime: 11,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/gestione-subappaltatori-impresa-edile.jpg",
     content: [
       {
@@ -2726,7 +2726,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-23",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/cassa-impresa-edile-non-torna.jpg",
     content: [
       {
@@ -2821,7 +2821,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-02-26",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/trovare-operai-edili-qualificati.jpg",
     content: [
       {
@@ -2916,7 +2916,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-01",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/passaparola-impresa-edile-non-basta.jpg",
     content: [
       {
@@ -3011,7 +3011,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-04",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/gestire-piu-cantieri-contemporaneamente.jpg",
     content: [
       {
@@ -3106,7 +3106,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-07",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/burocrazia-impresa-edile-scadenze-documenti.jpg",
     content: [
       {
@@ -3201,7 +3201,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-10",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/delegare-impresa-edile-senza-perdere-controllo.jpg",
     content: [
       {
@@ -3296,7 +3296,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-13",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/preventivi-edili-non-si-chiudono.jpg",
     content: [
       {
@@ -3393,7 +3393,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-16",
     updatedAt: "2026-04-28",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/segnali-crisi-impresa-edile.jpg",
     content: [
       {
@@ -3490,7 +3490,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-19",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-trovare-clienti-impresa-edile-marketing.jpg",
     content: [
       {
@@ -3617,7 +3617,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-22",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/aumentare-vendite-impresa-edile.jpg",
     content: [
       {
@@ -3744,7 +3744,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-25",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/lead-serramenti-come-generare-richieste-qualificate.jpg",
     content: [
       {
@@ -3872,7 +3872,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-28",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/richieste-preventivo-ristrutturazione-online.jpg",
     content: [
       {
@@ -4000,7 +4000,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-03-31",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/google-ads-impresa-edile-errori-budget.jpg",
     content: [
       {
@@ -4128,7 +4128,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-03",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/crm-edilizia-gestire-lead-preventivi-follow-up.jpg",
     content: [
       {
@@ -4256,7 +4256,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-06",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-trovare-clienti-serramentisti.jpg",
     content: [
       {
@@ -4358,7 +4358,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-09",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-trovare-clienti-rifacimento-tetti.jpg",
     content: [
       {
@@ -4455,7 +4455,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-12",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-trovare-clienti-fotovoltaico.jpg",
     content: [
       {
@@ -4552,7 +4552,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-15",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/sistema-fatturazione-aziende-edili.jpg",
     content: [
       {
@@ -4649,7 +4649,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-18",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/fattura-corretta-serramentisti.jpg",
     content: [
       {
@@ -4746,7 +4746,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-21",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/preventivo-rifacimento-tetto-come-farlo.jpg",
     content: [
       {
@@ -4843,7 +4843,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-24",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/seo-locale-impresa-edile.jpg",
     content: [
       {
@@ -4940,7 +4940,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-04-27",
     updatedAt: "2026-04-28",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/recupero-crediti-impresa-edile-fatture-scadute.jpg",
     content: [
       {
@@ -5034,7 +5034,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-05-22",
     updatedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/intelligenza-artificiale-edilizia-2026.jpg",
     content: [
       {
@@ -5110,7 +5110,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-05-22",
     updatedAt: "2026-05-22",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/ai-analisi-margini-cantiere.jpg",
     content: [
       {
@@ -5172,7 +5172,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-05-22",
     updatedAt: "2026-05-22",
     readTime: 10,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/come-scegliere-gestionale-ai-impresa-edile.jpg",
     content: [
       {
@@ -5246,7 +5246,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-06-11",
     updatedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/miglior-gestionale-edilizia-guida-scelta.jpg",
     content: [
@@ -5318,7 +5318,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-06-11",
     updatedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/quanto-costa-gestionale-impresa-edile.jpg",
     content: [
@@ -5378,7 +5378,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-06-11",
     updatedAt: "2026-07-04",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/patente-a-crediti-edilizia-guida.jpg",
     content: [
@@ -5461,7 +5461,7 @@ export const blogPosts: BlogPost[] = [
     publishedAt: "2026-06-11",
     updatedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/durc-congruita-manodopera-soglie.jpg",
     content: [
@@ -5521,7 +5521,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["CILA", "SCIA", "permesso di costruire", "titoli abilitativi", "normativa edilizia"],
     publishedAt: "2026-07-10",
     readTime: 9,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/cila-scia-permesso-di-costruire-differenze.jpg",
     content: [
@@ -5588,7 +5588,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["contabilità di cantiere", "contabilità industriale", "SAL", "controllo costi", "commessa"],
     publishedAt: "2026-07-10",
     readTime: 12,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/contabilita-di-cantiere-guida.jpg",
     content: [
@@ -5661,7 +5661,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["ritenuta di garanzia", "appalti", "SAL", "pagamenti", "collaudo"],
     publishedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/ritenuta-di-garanzia-appalti-come-funziona.jpg",
     content: [
@@ -5721,7 +5721,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["report avanzamento cantiere", "avanzamento lavori", "rapportini", "controllo cantiere"],
     publishedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/report-avanzamento-cantiere-guida.jpg",
     content: [
@@ -5780,7 +5780,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["nota di credito", "fatturazione", "IVA", "SAL", "contabilità"],
     publishedAt: "2026-07-10",
     readTime: 8,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/nota-di-credito-edilizia-quando-come.jpg",
     content: [

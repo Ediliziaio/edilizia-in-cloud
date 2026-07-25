@@ -29,7 +29,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
     ],
     publishedAt: "2026-07-25",
     readTime: 14,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/miglior-gestionale-edilizia-guida-scelta.jpg",
     content: [
       {

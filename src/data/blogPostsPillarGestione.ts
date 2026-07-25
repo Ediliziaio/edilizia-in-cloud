@@ -29,7 +29,7 @@ export const blogPostsPillarGestione: BlogPost[] = [
     ],
     publishedAt: "2026-07-25",
     readTime: 13,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/contabilita-di-cantiere-guida.jpg",
     content: [
       {
@@ -247,7 +247,7 @@ export const blogPostsPillarGestione: BlogPost[] = [
     ],
     publishedAt: "2026-07-25",
     readTime: 12,
-    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/software-gestionale-vs-excel.jpg",
     content: [
       {
