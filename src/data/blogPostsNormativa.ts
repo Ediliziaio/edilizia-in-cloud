@@ -20,7 +20,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/sistema-fatturazione-aziende-edili.jpg",
+    coverImage:
+      "/blog/covers/reverse-charge-edilizia.jpg",
     content: [
       {
         type: "intro",
@@ -124,7 +125,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/gestione-operai-cantiere-presenze-ore.jpg",
+    coverImage:
+      "/blog/covers/registro-presenze-cantiere-obbligatorio.jpg",
     content: [
       {
         type: "intro",
@@ -207,7 +209,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/sicurezza-cantieri-dlgs-81.jpg",
+    coverImage:
+      "/blog/covers/pos-piano-operativo-sicurezza-fac-simile.jpg",
     content: [
       {
         type: "intro",
@@ -298,7 +301,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/computo-metrico-estimativo-guida.jpg",
+    coverImage:
+      "/blog/covers/prezzario-regionale-edilizia.jpg",
     content: [
       {
         type: "intro",
@@ -387,7 +391,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/documentazione-obbligatoria-cantiere-2025.jpg",
+    coverImage:
+      "/blog/covers/cartello-di-cantiere-obbligatorio.jpg",
     content: [
       {
         type: "intro",
@@ -485,7 +490,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/burocrazia-impresa-edile-scadenze-documenti.jpg",
+    coverImage:
+      "/blog/covers/notifica-preliminare-cantiere.jpg",
     content: [
       {
         type: "intro",
@@ -575,7 +581,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/contabilita-di-cantiere-guida.jpg",
+    coverImage:
+      "/blog/covers/libretto-delle-misure.jpg",
     content: [
       {
         type: "intro",
@@ -655,7 +662,8 @@ export const blogPostsNormativa: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/appalti-pubblici-edilizia-guida.jpg",
+    coverImage:
+      "/blog/covers/split-payment-lavori-pubblici.jpg",
     content: [
       {
         type: "intro",

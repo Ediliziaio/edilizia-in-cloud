@@ -21,7 +21,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/come-fare-preventivo-edilizia.jpg",
+    coverImage:
+      "/blog/covers/modello-preventivo-edile.jpg",
     faqs: [
       { q: "Cosa deve contenere un preventivo edile per essere completo?", a: "Otto sezioni: intestazione con dati di impresa e cliente, descrizione dei lavori, elenco voci con quantità e prezzi unitari, esclusioni esplicite, tempi di esecuzione, condizioni di pagamento, validità dell'offerta e spazio per la firma di accettazione. Se manca una di queste otto, il documento è esposto a contestazioni." },
       { q: "Il preventivo firmato vale come contratto?", a: "Sì: un preventivo accettato per iscritto dal cliente è a tutti gli effetti un accordo vincolante tra le parti. Per questo le esclusioni e le condizioni di pagamento vanno scritte prima della firma, non discusse a lavori iniziati. Per lavori sopra i 30.000 euro conviene comunque affiancare un contratto di appalto vero e proprio." },
@@ -106,7 +107,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/subappalto-edilizia-guida.jpg",
+    coverImage:
+      "/blog/covers/contratto-subappalto-edile-fac-simile.jpg",
     faqs: [
       { q: "Il subappalto va sempre autorizzato dal committente?", a: "Nei lavori privati sì: l'art. 1656 del Codice Civile vieta all'appaltatore di subappaltare senza autorizzazione del committente. Negli appalti pubblici il subappalto va dichiarato in offerta e autorizzato dalla stazione appaltante secondo l'art. 119 del D.Lgs 36/2023. Un subappalto non autorizzato è causa di risoluzione del contratto principale." },
       { q: "Cosa rischio se il subappaltatore non paga i suoi operai?", a: "La responsabilità solidale: in base all'art. 29 del D.Lgs 276/2003 il committente e l'appaltatore rispondono in solido, entro due anni dalla fine dell'appalto, di retribuzioni e contributi non versati dal subappaltatore. Per questo nel contratto vanno previsti DURC a ogni pagamento e facoltà di pagamento diretto dei lavoratori con rivalsa." },
@@ -198,7 +200,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/come-scegliere-software-gestionale-edilizia.jpg",
+    coverImage:
+      "/blog/covers/software-gestione-cantieri-gratis.jpg",
     faqs: [
       { q: "Esiste un software di gestione cantieri completamente gratis?", a: "Un gestionale completo per l'edilizia gratis per sempre non esiste: esistono strumenti generici gratuiti (Excel, Google Sheets, Trello, Drive) adattabili al cantiere, e versioni di prova dei gestionali verticali. Gli strumenti generici coprono singoli pezzi — un elenco, una tabella, un archivio — ma non collegano ore, costi, preventivi e fatture tra loro." },
       { q: "Fino a che punto posso gestire i cantieri con Excel?", a: "Con 1-2 cantieri e una squadra piccola, Excel regge: un foglio per il preventivo, uno per le ore, uno per i costi. I problemi iniziano con più cantieri in parallelo: file duplicati, versioni diverse tra ufficio e cantiere, formule rotte, nessun dato in tempo reale. Il limite non è il numero di righe, è il numero di persone e cantieri che devono aggiornare gli stessi dati." },
@@ -265,7 +268,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 6,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/gestione-cantieri-digitale.jpg",
+    coverImage:
+      "/blog/covers/app-gestione-cantieri-gratis.jpg",
     faqs: [
       { q: "Quali app gratuite si usano di più in cantiere?", a: "WhatsApp per comunicazioni e foto, Google Foto o Drive per l'archivio immagini, Google Keep o Notes per gli appunti, Trello per le liste attività, Google Calendar per la pianificazione e fogli Google per le ore. Coprono comunicazione e memoria, ma nessuna collega quello che registri ai costi o alla fatturazione della commessa." },
       { q: "Posso rilevare le presenze della squadra con un'app gratuita?", a: "Puoi farti mandare un messaggio a inizio e fine turno, o usare un foglio condiviso. Funziona con 2-3 persone; con squadre più grandi diventa un lavoro di trascrizione: qualcuno deve trasformare i messaggi in ore per cantiere ogni settimana. Le app di timbratura vere con GPS e ore già assegnate alla commessa sono quasi sempre a pagamento, nell'ordine di pochi euro a dipendente al mese." },
@@ -329,7 +333,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/computo-metrico-estimativo-guida.jpg",
+    coverImage:
+      "/blog/covers/computo-metrico-gratis.jpg",
     faqs: [
       { q: "Posso fare un computo metrico serio con Excel o Google Sheets?", a: "Sì, per lavori semplici: imposti colonne per codice voce, descrizione, unità di misura, parti uguali, dimensioni, quantità, prezzo unitario e totale, con le somme per categoria. Per una ristrutturazione da 50-100 voci funziona. I limiti arrivano con le revisioni: ogni modifica di quantità o prezzo va propagata a mano e una formula rotta falsa il totale senza avvisarti." },
       { q: "Dove trovo prezzari gratuiti per il computo metrico?", a: "Quasi tutte le Regioni pubblicano gratuitamente il proprio prezzario delle opere pubbliche, aggiornato di norma ogni anno: lo scarichi in PDF o Excel dal sito regionale. È la base di prezzo più difendibile davanti a un committente o un direttore lavori. Ricorda però che sono prezzi medi: vanno confrontati con i tuoi costi reali di manodopera e fornitura." },
@@ -397,7 +402,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/miglior-gestionale-edilizia-guida-scelta.jpg",
+    coverImage:
+      "/blog/covers/gestionale-edilizia-opinioni.jpg",
     faqs: [
       { q: "Cosa apprezzano di più le imprese edili nei gestionali?", a: "Tre cose tornano in quasi tutte le opinioni positive: il tempo amministrativo recuperato (tipicamente 4-8 ore a settimana tra ore, documenti e fatturazione), la visibilità sui margini di commessa mentre il cantiere è aperto e non a lavori finiti, e la fine dei dati sparsi tra chat, fogli e carta. Quando un titolare è contento, quasi sempre cita almeno una di queste tre." },
       { q: "Qual è la lamentela più frequente sui gestionali edilizia?", a: "La curva di apprendimento: le prime 2-4 settimane richiedono disciplina, perché la squadra deve cambiare abitudini e i dati vanno caricati. La seconda è l'assistenza lenta o solo via ticket. La terza riguarda i gestionali generici adattati all'edilizia: mancano SAL, subappalti, Cassa Edile, e l'impresa si ritrova a pagare per qualcosa che copre metà del lavoro." },
@@ -466,7 +472,8 @@ export const blogPostsTemplateGratis: BlogPost[] = [
     publishedAt: "2026-07-25",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
-    coverImage: "/blog/covers/digitalizzare-impresa-edile.jpg",
+    coverImage:
+      "/blog/covers/incentivi-digitalizzazione-edilizia-2026.jpg",
     faqs: [
       { q: "Quali incentivi può usare un'impresa edile per digitalizzarsi nel 2026?", a: "Le famiglie principali sono cinque: i crediti d'imposta nazionali per beni strumentali e digitali (Transizione 5.0 e le misure che la Legge di Bilancio conferma anno per anno), la Nuova Sabatini per l'acquisto di beni anche digitali, i voucher digitali delle Camere di Commercio, i bandi regionali per la digitalizzazione delle PMI e i fondi per la formazione del personale. Percentuali e scadenze cambiano: vanno verificate sul bando specifico." },
       { q: "Il software gestionale rientra negli incentivi per la digitalizzazione?", a: "In molti casi sì: i voucher camerali e diversi bandi regionali includono espressamente software gestionali cloud, consulenza e formazione collegata tra le spese ammissibili. Nelle misure nazionali sui beni immateriali l'ammissibilità dipende dai requisiti tecnici richiesti dalla singola misura. Prima di acquistare, verifica sul testo del bando che la voce di spesa sia inclusa e che l'acquisto sia successivo alla domanda, se richiesto." },
