@@ -42,20 +42,21 @@ function Cell({ type, text, highlight = false }: { type: CellType; text?: string
 }
 
 const rows: TableRow[] = [
-  { feature: "Specifico per edilizia", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Gestione cantieri real-time", eic: { type: "check" }, competitor: { type: "partial", text: "Modulo aggiuntivo €€€" } },
+  { feature: "Specifico per edilizia", eic: { type: "check" }, competitor: { type: "partial", text: "Divisione Construction dedicata" } },
+  { feature: "Gestione cantieri real-time", eic: { type: "check" }, competitor: { type: "partial", text: "Con modulo CPM + Cantieri App" } },
   { feature: "Margini commessa real-time", eic: { type: "check" }, competitor: { type: "partial", text: "Con BI separata" } },
   { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "partial", text: "App generica" } },
+  { feature: "Contabilità lavori appalti pubblici", eic: { type: "check" }, competitor: { type: "check" } },
+  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "partial", text: "Cantieri App, collegata a CPM" } },
   { feature: "CRM e gestione clienti", eic: { type: "check" }, competitor: { type: "check" } },
   { feature: "HR e presenze operai", eic: { type: "check" }, competitor: { type: "check" } },
   { feature: "WhatsApp marketing", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Previsione liquidità cantieri", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Dashboard AI edilizia", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "cross", text: "4-12 settimane" } },
+  { feature: "Dashboard AI edilizia", eic: { type: "check" }, competitor: { type: "partial", text: "Con moduli analytics" } },
+  { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "partial", text: "Nei moduli computo" } },
+  { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "cross", text: "Progetto con consulenti" } },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "da €250-400/mese" } },
+  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Su preventivo" } },
 ];
 
 const otherVsLinks = [
@@ -66,9 +67,9 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "TeamSystem Construction è un ERP potente, ma costa €250-400/mese e richiede 4-12 settimane di implementazione.",
-  "Edilizia in Cloud è cloud-nativo, parte da €127/mese all-inclusive e ti rende operativo in 48 ore garantite.",
-  "AI per analisi margini in tempo reale inclusa: su TeamSystem servono moduli BI aggiuntivi a pagamento.",
+  "TeamSystem Construction è la divisione edile di uno dei maggiori gruppi software italiani: suite ampia e solida, ma il listino non è pubblico — il prezzo lo scopri in trattativa — e l'avvio passa da un progetto di implementazione con consulenti.",
+  "Edilizia in Cloud ha un prezzo pubblico (da €127/mese, €99 con piano annuale, utenti illimitati) e ti rende operativo in 48 ore, senza consulenti.",
+  "Margini di commessa in tempo reale inclusi nel piano: su TeamSystem l'analisi passa da moduli BI e analytics separati.",
 ];
 
 const switchTestimonials = [
@@ -85,15 +86,40 @@ const relatedLinks = [
   { to: "/prezzi", label: "Prezzi" },
 ];
 
+const faqItems = [
+  {
+    q: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
+    a: "TeamSystem Construction è la suite edile di un grande gruppo software: più prodotti (gestione imprese, CPM, BIM, CDE) che si attivano con un progetto di implementazione seguito da consulenti. Edilizia in Cloud è un unico gestionale cloud verticale per l'impresa edile: si attiva in 48 ore e si gestisce in autonomia, anche dal telefono in cantiere.",
+  },
+  {
+    q: "Quanto costa TeamSystem Construction? I prezzi sono pubblici?",
+    a: "A luglio 2026 il listino di TeamSystem Construction non è pubblicato sul sito: il prezzo dipende da moduli, utenti e implementazione, e si definisce in trattativa commerciale. Edilizia in Cloud ha un prezzo pubblico: da 127€/mese, 99€/mese con piano annuale, utenti illimitati e nessun costo di setup.",
+  },
+  {
+    q: "Esiste un'alternativa a TeamSystem Construction per le PMI edili?",
+    a: "Sì. Per le imprese da 1 a 50 dipendenti senza reparto IT, Edilizia in Cloud copre cantieri, margini in tempo reale, fatturazione SDI, presenze e CRM in un'unica piattaforma cloud, con attivazione in 48 ore e migrazione dei dati inclusa nel prezzo.",
+  },
+  {
+    q: "Cosa dicono le opinioni su TeamSystem per l'edilizia?",
+    a: "Le opinioni ricorrenti riconoscono a TeamSystem la solidità del gruppo e l'ampiezza della suite; le critiche più frequenti riguardano i tempi di avvio, la dipendenza dai consulenti per le modifiche e il fatto che il costo totale si conosce solo a trattativa conclusa. Il consiglio pratico: fatti mettere per iscritto il preventivo completo di implementazione e confrontalo con un prezzo di listino pubblico.",
+  },
+  {
+    q: "Posso migrare da TeamSystem a Edilizia in Cloud?",
+    a: "Sì. La migrazione di anagrafiche, cantieri e storico è inclusa nel prezzo: il team di Edilizia in Cloud ti rende operativo in 48 ore.",
+  },
+];
+
 const vsRelatedSlugs = ["software-gestionale-vs-excel", "analisi-margini-imprese-edili", "appalti-pubblici-edilizia-guida"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsTeamSystem() {
   useSEO({
-    title: "Edilizia in Cloud vs TeamSystem: Confronto 2026",
+    title: "Alternativa a TeamSystem Construction: Confronto 2026",
     description:
-      "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. Prezzo, funzionalità, semplicità d'uso e assistenza a confronto.",
+      "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto. Aggiornato a luglio 2026.",
     canonical: "/confronto/vs-teamsystem",
+    keywords:
+      "alternativa a teamsystem construction, teamsystem construction prezzi, teamsystem edilizia opinioni, edilizia in cloud vs teamsystem, gestionale edilizia cloud",
   });
 
   return (
@@ -103,12 +129,12 @@ export default function VsTeamSystem() {
         data={{
           "@context": "https://schema.org",
           "@type": "Article",
-          headline: "Edilizia in Cloud vs TeamSystem: quale scegliere per la tua impresa edile?",
+          headline: "Edilizia in Cloud vs TeamSystem: per chi ha senso l'uno e per chi l'altro",
           description:
-            "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. Prezzo, funzionalità, semplicità d'uso e assistenza a confronto.",
+            "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto. Aggiornato a luglio 2026.",
           url: "https://www.ediliziaincloud.com/confronto/vs-teamsystem",
           datePublished: "2026-01-01",
-          dateModified: "2026-04-08",
+          dateModified: "2026-07-25",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
           publisher: { "@type": "Organization", name: "Edilizia in Cloud" },
         }}
@@ -164,32 +190,11 @@ export default function VsTeamSystem() {
         data={{
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "TeamSystem Construction è un ERP potente ma generalista: costa tipicamente 250-400€/mese e richiede 4-12 settimane di implementazione con consulenti. Edilizia in Cloud è verticale per l'edilizia, si attiva in 48 ore e si gestisce in autonomia, senza consulenti.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Quanto costa Edilizia in Cloud rispetto a TeamSystem?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Edilizia in Cloud va da 127€ a 547€/mese con utenti illimitati e nessun costo di implementazione. TeamSystem Construction costa tipicamente 250-400€/mese, più i moduli aggiuntivi e i costi di implementazione e consulenza.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso migrare da TeamSystem a Edilizia in Cloud?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. La migrazione di anagrafiche, cantieri e storico è inclusa nel prezzo: il team di Edilizia in Cloud ti rende operativo in 48 ore.",
-              },
-            },
-          ],
+          mainEntity: faqItems.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
         }}
       />
       <JsonLd
@@ -222,9 +227,9 @@ export default function VsTeamSystem() {
             Edilizia in Cloud vs TeamSystem: quale scegliere per la tua impresa edile?
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato per le imprese
-            edili: più semplice, più economico e con funzionalità specifiche che TeamSystem non ha. Ecco il confronto
-            completo.
+            TeamSystem Construction è la suite edile di un grande gruppo software italiano: solida, ampia, pensata per
+            strutture organizzate. Edilizia in Cloud è nato per l'impresa che il gestionale lo usa in cantiere, dal
+            telefono. Confronto scritto da noi, aggiornato a luglio 2026: dove TeamSystem è più forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -270,7 +275,7 @@ export default function VsTeamSystem() {
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
             Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software.
+            software a luglio 2026. Il listino TeamSystem non è pubblico: dove serviva una cifra, lo abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -302,17 +307,62 @@ export default function VsTeamSystem() {
         </div>
       </section>
 
+      {/* ── DOVE TEAMSYSTEM È PIÙ FORTE ── */}
+      <section className="bg-white pb-4 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Dove TeamSystem è più forte
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un confronto serve se dice anche questo. Ecco dove TeamSystem, oggettivamente, ha più da offrire.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Solidità del gruppo",
+                d: "TeamSystem è uno dei maggiori gruppi software italiani: struttura, capitali, continuità. Se cerchi un fornitore che tra dieci anni ci sarà ancora, questo pesa.",
+              },
+              {
+                t: "Ampiezza della suite",
+                d: "Fiscale, paghe, contabilità generale, ERP: se vuoi un unico fornitore per tutto il software aziendale, oltre l'edilizia, TeamSystem copre più territorio di chiunque.",
+              },
+              {
+                t: "Contabilità lavori e BIM",
+                d: "Construction Project Management collega il modello 3D del progetto a tempi (4D) e costi (5D), con un CDE per le grandi commesse: sui cantieri pubblici complessi è attrezzato.",
+              },
+              {
+                t: "Rete sul territorio",
+                d: "Partner e consulenti in tutta Italia: se vuoi qualcuno che venga in sede a configurare e formare, la rete esiste da decenni.",
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Tutto vero. Il rovescio: quella struttura la paghi in tempi di avvio, listino su trattativa e consulente per
+            ogni modifica. Con Edilizia in Cloud il prezzo lo leggi sul sito e in 48 ore lavori.
+          </p>
+        </div>
+      </section>
+
       {/* ── QUANDO SCEGLIERE ── */}
       <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
+            Per chi ha senso TeamSystem e per chi Edilizia in Cloud
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
             <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Scegli TeamSystem se...</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso TeamSystem</h3>
             <ul className="mt-4 space-y-2">
               {[
-                "Sei un'impresa con più di 100 dipendenti con ERP già integrato",
-                "Hai già un reparto IT dedicato all'implementazione e manutenzione",
-                "Hai un budget superiore a €400/mese per un gestionale generico",
+                "Imprese strutturate, indicativamente sopra i 50-100 dipendenti, con ufficio acquisti e reparto IT",
+                "General contractor su appalti pubblici complessi dove BIM 4D/5D e CDE sono requisiti di gara",
+                "Aziende già clienti TeamSystem per fiscale e paghe che vogliono un unico fornitore",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
                   <span className="text-gray-400 mt-0.5">•</span>
@@ -323,12 +373,12 @@ export default function VsTeamSystem() {
           </div>
           <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
             <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Scegli Edilizia in Cloud se...</h3>
+            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <ul className="mt-4 space-y-2">
               {[
-                "Hai un'impresa edile con 1-50 dipendenti",
-                "Vuoi essere operativo in 48 ore senza mesi di implementazione",
-                "Vuoi una soluzione nativa per l'edilizia senza moduli extra a pagamento",
+                "Imprese edili da 1 a 50 dipendenti, con il titolare ancora operativo sui cantieri",
+                "Vuoi il margine di ogni commessa mentre il cantiere è aperto, non a bilancio chiuso",
+                "Vuoi partire in 48 ore con un prezzo pubblico, senza progetto di implementazione",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -336,6 +386,7 @@ export default function VsTeamSystem() {
                 </li>
               ))}
             </ul>
+          </div>
           </div>
         </div>
       </section>
@@ -367,20 +418,7 @@ export default function VsTeamSystem() {
             Domande frequenti
           </h2>
           <div className="space-y-6">
-            {[
-              {
-                q: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
-                a: "TeamSystem Construction è un ERP potente ma generalista: costa tipicamente 250-400€/mese e richiede 4-12 settimane di implementazione con consulenti. Edilizia in Cloud è verticale per l'edilizia, si attiva in 48 ore e si gestisce in autonomia, senza consulenti.",
-              },
-              {
-                q: "Quanto costa Edilizia in Cloud rispetto a TeamSystem?",
-                a: "Edilizia in Cloud va da 127€ a 547€/mese con utenti illimitati e nessun costo di implementazione. TeamSystem Construction costa tipicamente 250-400€/mese, più i moduli aggiuntivi e i costi di implementazione e consulenza.",
-              },
-              {
-                q: "Posso migrare da TeamSystem a Edilizia in Cloud?",
-                a: "Sì. La migrazione di anagrafiche, cantieri e storico è inclusa nel prezzo: il team di Edilizia in Cloud ti rende operativo in 48 ore.",
-              },
-            ].map((item) => (
+            {faqItems.map((item) => (
               <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
@@ -444,6 +482,33 @@ export default function VsTeamSystem() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LE DOMANDE GIUSTE ── */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Le domande giuste da farti prima di scegliere
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Qualunque gestionale sceglierai, prima rispondi a queste. Separano una buona scelta da un abbonamento che
+            nessuno userà.
+          </p>
+          <ul className="space-y-4">
+            {[
+              "Quanto conta vedere il margine di commessa mentre il cantiere è ancora aperto, non a consuntivo?",
+              "Chi userà il gestionale davvero: solo l'ufficio o anche il capocantiere dal telefono?",
+              "Quanto tempo può passare tra la firma e il primo giorno operativo senza che ti pesi?",
+              "Il prezzo finale lo conosci prima di firmare o lo scopri durante la trattativa?",
+              "Per ogni modifica futura ti servirà un consulente o la farai da solo dalle impostazioni?",
+            ].map((q, i) => (
+              <li key={q} className="flex items-start gap-3 bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
+                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

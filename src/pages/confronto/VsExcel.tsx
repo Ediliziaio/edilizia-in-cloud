@@ -43,21 +43,21 @@ function Cell({ type, text, highlight = false }: { type: CellType; text?: string
 
 const rows: TableRow[] = [
   { feature: "Aggiornamento dati real-time", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Accesso da smartphone in cantiere", eic: { type: "check" }, competitor: { type: "partial", text: "Solo con file condiviso" } },
-  { feature: "Collaborazione multi-utente", eic: { type: "check" }, competitor: { type: "partial", text: "Conflitti di versione" } },
+  { feature: "Accesso da smartphone in cantiere", eic: { type: "check" }, competitor: { type: "partial", text: "App Excel mobile, scomoda in cantiere" } },
+  { feature: "Collaborazione multi-utente", eic: { type: "check" }, competitor: { type: "partial", text: "Co-authoring su 365, senza ruoli" } },
   { feature: "Margini per cantiere automatici", eic: { type: "check" }, competitor: { type: "cross", text: "Calcoli manuali" } },
   { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Tracciamento presenze operai", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Preventivi con prezzari", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Alert margini a rischio", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Backup automatico", eic: { type: "check" }, competitor: { type: "cross", text: "File locale" } },
+  { feature: "Backup automatico", eic: { type: "check" }, competitor: { type: "partial", text: "Con OneDrive/365" } },
   { feature: "Zero errori di formula", eic: { type: "check" }, competitor: { type: "cross", text: "Errori frequenti" } },
-  { feature: "Storico modifiche", eic: { type: "check" }, competitor: { type: "partial", text: "Solo con versioning manuale" } },
+  { feature: "Storico modifiche", eic: { type: "check" }, competitor: { type: "partial", text: "Cronologia versioni su 365" } },
   { feature: "Supporto dedicato", eic: { type: "check" }, competitor: { type: "cross" } },
   {
     feature: "Costo mensile",
     eic: { type: "text", text: "da €127/mese (€99 annuale)" },
-    competitor: { type: "text", text: "€0 (ma costo reale: ~€2.000/mese in ore perse)" },
+    competitor: { type: "text", text: "€0 di licenza (con Microsoft 365)" },
   },
 ];
 
@@ -120,15 +120,40 @@ const relatedLinks = [
   { to: "/blog/alternativa-excel-cantieri", label: "Alternativa a Excel" },
 ];
 
+const faqItems = [
+  {
+    q: "Quanto costa davvero usare Excel per gestire i cantieri?",
+    a: "Il foglio Excel di contabilità cantiere parte gratis, ma il costo reale è stimato tra €1.500 e €3.000 al mese per un'impresa con 3-5 cantieri attivi, considerando le ore perse in aggiornamenti manuali, gli errori di calcolo non rilevati e le decisioni prese su dati obsoleti.",
+  },
+  {
+    q: "Quali sono i limiti di gestire i cantieri con Excel?",
+    a: "I limiti principali della gestione cantieri con Excel: dati aggiornati a mano (quindi già vecchi quando li leggi), nessun collegamento tra preventivo, costi e presenze, errori di formula difficili da scovare, versioni multiple dello stesso file e nessun alert quando un margine scende. Con 2 o più cantieri aperti, questi limiti diventano soldi.",
+  },
+  {
+    q: "Qual è l'alternativa a Excel per un'impresa edile?",
+    a: "Un gestionale edile cloud che sostituisce i fogli con dati collegati: il costo registrato in cantiere aggiorna il margine di commessa, le presenze finiscono da sole nel consuntivo e la fattura parte dallo stesso sistema. Edilizia in Cloud fa questo da €127/mese, con migrazione gratuita dei tuoi Excel in 48 ore.",
+  },
+  {
+    q: "Posso migrare i miei dati da Excel a Edilizia in Cloud?",
+    a: "Sì. Il team di Edilizia in Cloud migra gratuitamente tutti i tuoi dati da Excel: cantieri, clienti, fornitori e storico. Di solito bastano 48 ore per essere completamente operativi.",
+  },
+  {
+    q: "Edilizia in Cloud è difficile da usare rispetto a Excel?",
+    a: "Al contrario: Edilizia in Cloud è progettato per imprenditori edili, non per informatici. L'interfaccia è più semplice di Excel per i task quotidiani del cantiere, e il nostro team ti forma gratuitamente.",
+  },
+];
+
 const vsRelatedSlugs = ["alternativa-excel-cantieri", "ridurre-costi-cantieri-edili", "computo-metrico-estimativo-guida"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsExcel() {
   useSEO({
-    title: "Gestionale Edilizia vs Excel: Perché Smettere nel 2026",
+    title: "Gestione Cantieri con Excel: Limiti e Alternativa 2026",
     description:
-      "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
+      "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere. Aggiornato a luglio 2026.",
     canonical: "/confronto/vs-excel",
+    keywords:
+      "gestione cantieri con excel limiti, alternativa a excel per imprese edili, foglio excel contabilità cantiere, gestionale edilizia vs excel, software cantieri excel",
   });
 
   return (
@@ -141,10 +166,10 @@ export default function VsExcel() {
           headline:
             "Edilizia in Cloud vs Excel: il vero costo nascosto di gestire i cantieri con i fogli di calcolo",
           description:
-            "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
+            "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere. Aggiornato a luglio 2026.",
           url: "https://www.ediliziaincloud.com/confronto/vs-excel",
           datePublished: "2026-01-01",
-          dateModified: "2026-04-08",
+          dateModified: "2026-07-25",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
           publisher: { "@type": "Organization", name: "Edilizia in Cloud" },
         }}
@@ -217,32 +242,11 @@ export default function VsExcel() {
         data={{
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Quanto costa davvero usare Excel per gestire i cantieri?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Il costo diretto è zero, ma il costo reale è stimato tra €1.500 e €3.000 al mese per un'impresa con 3-5 cantieri attivi, considerando le ore perse in aggiornamenti manuali, gli errori di calcolo non rilevati e le decisioni prese su dati obsoleti.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso migrare i miei dati da Excel a Edilizia in Cloud?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Il team di Edilizia in Cloud migra gratuitamente tutti i tuoi dati da Excel: cantieri, clienti, fornitori e storico. Di solito bastano 48 ore per essere completamente operativi.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Edilizia in Cloud è difficile da usare rispetto a Excel?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Al contrario: Edilizia in Cloud è progettato per imprenditori edili, non per informatici. L'interfaccia è più semplice di Excel per i task quotidiani del cantiere, e il nostro team ti forma gratuitamente.",
-              },
-            },
-          ],
+          mainEntity: faqItems.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
         }}
       />
 
@@ -304,7 +308,8 @@ export default function VsExcel() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Un confronto diretto, senza sconti. Excel è uno strumento potente, ma non è nato per gestire cantieri edili.
+            Un confronto diretto, senza sconti, aggiornato a luglio 2026. Excel è uno strumento potente — e più sotto
+            scriviamo dove resta più forte — ma non è nato per gestire cantieri edili.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -360,12 +365,57 @@ export default function VsExcel() {
         </div>
       </section>
 
+      {/* ── DOVE EXCEL È PIÙ FORTE ── */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Dove Excel è più forte
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Confronto scritto da Edilizia in Cloud, aggiornato a luglio 2026: dove Excel è più forte lo scriviamo.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "È gratis, o già pagato",
+                d: "Nessun canone nuovo: con Microsoft 365 lo hai già in azienda, e per un calcolo una tantum resta imbattibile.",
+              },
+              {
+                t: "Lo conosci già",
+                d: "Zero formazione, zero onboarding: tu e il tuo geometra lo usate da vent'anni e nessuno deve imparare niente.",
+              },
+              {
+                t: "Flessibilità totale",
+                d: "Qualsiasi calcolo, qualsiasi struttura, qualsiasi analisi estemporanea: nessun gestionale ti lascia altrettanto libero.",
+              },
+              {
+                t: "Lo aprono tutti",
+                d: "Commercialista, banca, fornitori: un file .xlsx lo legge chiunque, senza account e senza software particolari.",
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Il problema non è quello che Excel sa fare: è quello che non farà mai da solo — accorgersi di un errore,
+            avvisarti di un margine che scende, dire al capocantiere cosa è cambiato. Per quello serve un gestionale.
+          </p>
+        </div>
+      </section>
+
       {/* ── QUANDO SCEGLIERE ── */}
       <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
+            Per chi ha senso Excel e per chi Edilizia in Cloud
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
             <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Quando Excel va ancora bene:</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso restare su Excel</h3>
             <ul className="mt-4 space-y-2">
               {[
                 "Hai 0-1 cantieri aperti in totale",
@@ -381,7 +431,7 @@ export default function VsExcel() {
           </div>
           <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
             <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Quando Edilizia in Cloud è la scelta giusta:</h3>
+            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <ul className="mt-4 space-y-2">
               {[
                 "Hai 2 o più cantieri aperti contemporaneamente",
@@ -394,6 +444,7 @@ export default function VsExcel() {
                 </li>
               ))}
             </ul>
+          </div>
           </div>
         </div>
       </section>
@@ -425,20 +476,7 @@ export default function VsExcel() {
             Domande frequenti
           </h2>
           <div className="space-y-6">
-            {[
-              {
-                q: "Quanto costa davvero usare Excel per gestire i cantieri?",
-                a: "Il costo diretto è zero, ma il costo reale è stimato tra €1.500 e €3.000 al mese per un'impresa con 3-5 cantieri attivi, considerando le ore perse in aggiornamenti manuali, gli errori di calcolo non rilevati e le decisioni prese su dati obsoleti.",
-              },
-              {
-                q: "Posso migrare i miei dati da Excel a Edilizia in Cloud?",
-                a: "Sì. Il team di Edilizia in Cloud migra gratuitamente tutti i tuoi dati da Excel: cantieri, clienti, fornitori e storico. Di solito bastano 48 ore per essere completamente operativi.",
-              },
-              {
-                q: "Edilizia in Cloud è difficile da usare rispetto a Excel?",
-                a: "Al contrario: Edilizia in Cloud è progettato per imprenditori edili, non per informatici. L'interfaccia è più semplice di Excel per i task quotidiani del cantiere, e il nostro team ti forma gratuitamente.",
-              },
-            ].map((item) => (
+            {faqItems.map((item) => (
               <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
@@ -502,6 +540,32 @@ export default function VsExcel() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LE DOMANDE GIUSTE ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Le domande giuste da farti prima di scegliere
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Che tu resti su Excel o passi a un gestionale, prima rispondi a queste.
+          </p>
+          <ul className="space-y-4">
+            {[
+              "Quante versioni dello stesso file girano oggi tra ufficio, geometra e cantiere?",
+              "Chi si accorgerebbe di una formula sbagliata prima che costi soldi veri?",
+              "Quanto conta sapere il margine di un cantiere mentre è aperto, non a fine lavori?",
+              "Quante ore a settimana se ne vanno a ricopiare dati da un foglio all'altro?",
+              "Il capocantiere può aggiornare i dati dal telefono o li detta per telefono a fine giornata?",
+            ].map((q, i) => (
+              <li key={q} className="flex items-start gap-3 bg-white rounded-2xl p-5 border border-gray-100">
+                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

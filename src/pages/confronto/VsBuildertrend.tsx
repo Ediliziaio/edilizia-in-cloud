@@ -54,8 +54,9 @@ const rows: TableRow[] = [
   { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Gestione SAL avanzamento lavori", eic: { type: "check" }, competitor: { type: "partial", text: "Schedule, non SAL italiano" } },
   { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Settimane di onboarding" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "da $399/mese (~€370/mese)" } },
+  { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Onboarding dedicato" } },
+  { feature: "Utenti e progetti illimitati", eic: { type: "check" }, competitor: { type: "check" } },
+  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Su preventivo (in dollari)" } },
 ];
 
 const otherVsLinks = [
@@ -66,9 +67,9 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "Buildertrend è ottimo per il mercato USA, ma non gestisce SDI, Cassa Edile, CCNL edilizia e DURC: per un'impresa italiana è un ostacolo legale, non solo un fastidio.",
-  "Edilizia in Cloud è in italiano, con supporto in italiano, e copre nativamente tutto il fiscale del settore costruzioni.",
-  "Prezzo: Buildertrend ~$399/mese (~€370/mese) in inglese vs Edilizia in Cloud da €127/mese all-inclusive in italiano.",
+  "Buildertrend è un software maturo per il mercato USA, ma non gestisce SDI, Cassa Edile, CCNL edilizia e DURC: per un'impresa italiana è un ostacolo legale, non solo un fastidio.",
+  "Edilizia in Cloud è in italiano, con supporto in italiano, e copre nativamente tutto il fiscale del settore costruzioni: fatturazione SDI inclusa.",
+  "Prezzo: il listino Buildertrend non è pubblico — preventivo personalizzato in dollari. Edilizia in Cloud ha un prezzo pubblico: da €127/mese all-inclusive, in italiano.",
 ];
 
 const switchTestimonials = [
@@ -85,6 +86,29 @@ const relatedLinks = [
   { to: "/prezzi", label: "Prezzi" },
 ];
 
+const faqItems = [
+  {
+    q: "Buildertrend funziona per le imprese edili italiane?",
+    a: "Solo in parte. A luglio 2026 Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
+  },
+  {
+    q: "Buildertrend esiste in italiano?",
+    a: "No: interfaccia, documentazione e supporto sono in inglese, con presenza dichiarata su USA, Canada, Australia, Nuova Zelanda e Regno Unito. Chi cerca Buildertrend in italiano di fatto cerca un'alternativa italiana: per un team di cantiere la lingua non è un dettaglio, è un limite quotidiano.",
+  },
+  {
+    q: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
+    a: "Il listino Buildertrend non è pubblico: si richiede un preventivo personalizzato, in dollari, con sconto del 10% sui piani annuali. Edilizia in Cloud ha un prezzo pubblico: da 127€/mese (99€ con piano annuale) con fatturazione SDI, Cassa Edile e supporto italiano inclusi.",
+  },
+  {
+    q: "Software edilizia americano o italiano: cosa cambia davvero?",
+    a: "Cambiano le fondamenta fiscali: un software edilizia americano nasce senza fatturazione SDI, Cassa Edile, CCNL edilizia e DURC, che in Italia sono obblighi di legge. Un'alternativa italiana a Buildertrend li gestisce nativamente, senza secondo software e senza doppi inserimenti.",
+  },
+  {
+    q: "Posso migrare da Buildertrend a Edilizia in Cloud?",
+    a: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
+  },
+];
+
 const vsRelatedSlugs = [
   "come-scegliere-software-gestionale-edilizia",
   "alternativa-excel-cantieri",
@@ -94,10 +118,12 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsBuildertrend() {
   useSEO({
-    title: "Edilizia in Cloud vs Buildertrend: Confronto 2026",
+    title: "Buildertrend in Italiano? L'Alternativa Italiana 2026",
     description:
-      "Confronto Edilizia in Cloud vs Buildertrend per imprese edili italiane. Buildertrend è americano, senza SDI, senza Cassa Edile, senza italiano.",
+      "Buildertrend in italiano non esiste: confronto tra il software edilizia americano e l'alternativa italiana con SDI e Cassa Edile nativi. Luglio 2026.",
     canonical: "/confronto/vs-buildertrend",
+    keywords:
+      "buildertrend in italiano, alternativa italiana a buildertrend, software edilizia americano vs italiano, edilizia in cloud vs buildertrend, gestionale edilizia sdi",
   });
 
   return (
@@ -112,7 +138,7 @@ export default function VsBuildertrend() {
             "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in italiano.",
           url: "https://www.ediliziaincloud.com/confronto/vs-buildertrend",
           datePublished: "2026-04-08",
-          dateModified: "2026-04-08",
+          dateModified: "2026-07-25",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
           publisher: { "@type": "Organization", name: "Edilizia in Cloud" },
         }}
@@ -168,32 +194,11 @@ export default function VsBuildertrend() {
         data={{
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Buildertrend funziona per le imprese edili italiane?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Solo in parte: Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Buildertrend costa circa 370€/mese ($399). Edilizia in Cloud parte da 127€/mese (99€ annuale) con fatturazione elettronica SDI, Cassa Edile e supporto italiano inclusi.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso migrare da Buildertrend a Edilizia in Cloud?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
-              },
-            },
-          ],
+          mainEntity: faqItems.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
         }}
       />
       <JsonLd
@@ -226,7 +231,9 @@ export default function VsBuildertrend() {
             Edilizia in Cloud vs Buildertrend: perché le imprese edili italiane scelgono il software italiano
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Buildertrend è un ottimo software per il mercato americano. Ma non fa fatturazione SDI, non gestisce la Cassa Edile, non parla italiano e costa circa €370 al mese ($399). Ecco il confronto completo per le imprese edili italiane.
+            Buildertrend è un software maturo, nato per i costruttori residenziali americani. Ma non fa fatturazione
+            SDI, non gestisce la Cassa Edile, non parla italiano e il listino è su preventivo. Confronto scritto da
+            noi, aggiornato a luglio 2026: dove Buildertrend è più forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -271,7 +278,8 @@ export default function VsBuildertrend() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due software.
+            Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
+            software a luglio 2026. Il listino Buildertrend non è pubblico: dove serviva una cifra, lo abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -300,6 +308,47 @@ export default function VsBuildertrend() {
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      {/* ── DOVE BUILDERTREND È PIÙ FORTE ── */}
+      <section className="bg-white pb-4 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Dove Buildertrend è più forte
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un confronto serve se dice anche questo. Ecco dove Buildertrend, oggettivamente, ha più da offrire.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Maturità internazionale",
+                d: "Due decenni di storia e oltre 20.000 imprese dichiarate tra USA, Canada, Australia, Nuova Zelanda e Regno Unito: è tra le piattaforme più consolidate del settore.",
+              },
+              {
+                t: "Project management residenziale",
+                d: "Portale cliente, daily logs, change orders, punch lists: sul flusso del costruttore residenziale ha una profondità costruita in vent'anni di mercato.",
+              },
+              {
+                t: "Utenti e progetti illimitati",
+                d: "Tutti i piani includono utenti e progetti senza limiti: per team numerosi è un punto concreto.",
+              },
+              {
+                t: "Base di recensioni enorme",
+                d: "4,5/5 su Capterra con oltre 5.000 recensioni: il giudizio del mercato anglosassone è misurabile, non aneddotico.",
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Tutto vero — per chi fattura in dollari. Per un'impresa italiana resta il punto duro: SDI, Cassa Edile,
+            CCNL e DURC non sono optional, sono legge. E lì Buildertrend non entra.
+          </p>
         </div>
       </section>
 
@@ -339,15 +388,19 @@ export default function VsBuildertrend() {
 
       {/* ── QUANDO SCEGLIERE ── */}
       <section className="bg-white py-20 px-4">
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
+            Per chi ha senso Buildertrend e per chi Edilizia in Cloud
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
             <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Scegli Buildertrend se...</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso Buildertrend</h3>
             <ul className="mt-4 space-y-2">
               {[
-              "Operi principalmente nel mercato americano o internazionale",
+                "Operi principalmente nel mercato americano o anglosassone",
                 "Non hai obblighi di fatturazione elettronica SDI italiana",
-                "Il tuo team lavora già in inglese e hai un budget di ~€370/mese ($399)",
+                "Il tuo team lavora già in inglese e segue il workflow residenziale USA",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
                   <span className="text-gray-400 mt-0.5">•</span>
@@ -358,12 +411,12 @@ export default function VsBuildertrend() {
           </div>
           <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
             <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Scegli Edilizia in Cloud se...</h3>
+            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <ul className="mt-4 space-y-2">
               {[
                 "Sei un'impresa edile italiana con obblighi SDI, Cassa Edile e CCNL",
                 "Vuoi un gestionale in italiano con supporto in italiano",
-                "Vuoi pagare da €127/mese invece di ~€370/mese per un software non localizzato per l'Italia",
+                "Vuoi un prezzo pubblico da €127/mese, senza trattativa in dollari",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -371,6 +424,7 @@ export default function VsBuildertrend() {
                 </li>
               ))}
             </ul>
+          </div>
           </div>
         </div>
       </section>
@@ -401,20 +455,7 @@ export default function VsBuildertrend() {
             Domande frequenti
           </h2>
           <div className="space-y-6">
-            {[
-              {
-                q: "Buildertrend funziona per le imprese edili italiane?",
-                a: "Solo in parte: Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
-              },
-              {
-                q: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
-                a: "Buildertrend costa circa 370€/mese ($399). Edilizia in Cloud parte da 127€/mese (99€ annuale) con fatturazione elettronica SDI, Cassa Edile e supporto italiano inclusi.",
-              },
-              {
-                q: "Posso migrare da Buildertrend a Edilizia in Cloud?",
-                a: "Sì. Il team importa cantieri, clienti e documenti e ti rende operativo in 48 ore, con formazione inclusa in italiano.",
-              },
-            ].map((item) => (
+            {faqItems.map((item) => (
               <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
@@ -478,6 +519,32 @@ export default function VsBuildertrend() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LE DOMANDE GIUSTE ── */}
+      <section className="bg-[#f8f9fa] py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Le domande giuste da farti prima di scegliere
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Americano o italiano, prima di firmare rispondi a queste.
+          </p>
+          <ul className="space-y-4">
+            {[
+              "La fattura elettronica SDI la emette il software o servirà un secondo programma?",
+              "Cassa Edile, CCNL e DURC: li conosce il gestionale o restano sulle tue spalle?",
+              "Il capocantiere può lavorare ogni giorno su un'app in inglese senza rallentare?",
+              "Quando qualcosa si blocca, il supporto risponde in italiano e nei tuoi orari?",
+              "Il prezzo lo leggi sul sito o lo scopri in una demo call in dollari?",
+            ].map((q, i) => (
+              <li key={q} className="flex items-start gap-3 bg-white rounded-2xl p-5 border border-gray-100">
+                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

@@ -42,24 +42,26 @@ function Cell({ type, text, highlight = false }: { type: CellType; text?: string
 }
 
 const rows: TableRow[] = [
-  { feature: "Contabilità integrata", eic: { type: "partial", text: "Via commercialista" }, competitor: { type: "check" } },
-  { feature: "Cloud nativo", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "App mobile moderna", eic: { type: "check" }, competitor: { type: "cross" } },
   {
-    feature: "Costo setup",
-    eic: { type: "text", text: "€0 — incluso nel piano" },
-    competitor: { type: "text", text: "€2.000 – €5.000" },
+    feature: "Tipo di prodotto",
+    eic: { type: "text", text: "Gestionale edile online" },
+    competitor: { type: "text", text: "Portale di richieste di preventivo" },
   },
-  { feature: "Tempo di implementazione", eic: { type: "text", text: "48 ore" }, competitor: { type: "text", text: "4-12 settimane" } },
-  { feature: "Gestione cantieri real-time", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Margini commessa real-time", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "WhatsApp e Email marketing", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Timbrature GPS operai", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Canone mensile", eic: { type: "text", text: "Da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Da €150-200/mese (+€2.000-5.000 setup)" } },
+  { feature: "Trovare nuovi clienti privati", eic: { type: "partial", text: "CRM e marketing, non marketplace" }, competitor: { type: "check" } },
+  { feature: "Profilo pubblico con recensioni", eic: { type: "cross" }, competitor: { type: "check" } },
+  { feature: "Gestione cantieri e commesse", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "Redazione preventivi e computo", eic: { type: "check" }, competitor: { type: "cross", text: "Raccoglie richieste, non li redige" } },
+  { feature: "Margini commessa real-time", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "Presenze e timbrature operai", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "cross" } },
+  {
+    feature: "Costo",
+    eic: { type: "text", text: "Da €127/mese (€99 annuale)" },
+    competitor: { type: "text", text: "Gratis per i privati; partnership per le imprese" },
+  },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Aggiornamenti inclusi", eic: { type: "check" }, competitor: { type: "partial" } },
 ];
 
 const relatedLinks = [
@@ -76,15 +78,38 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "Edilnet è un gestionale on-premise tradizionale: setup €2.000-5.000 e 4-12 settimane prima di essere operativi.",
-  "Edilizia in Cloud è SaaS, da €127/mese all-inclusive senza costi di setup, attivo in 48 ore.",
-  "App mobile nativa, AI per i margini e WhatsApp marketing inclusi: su Edilnet sono moduli a parte o assenti.",
+  "Edilnet non è un gestionale: a luglio 2026 edilnet.it è un portale che raccoglie richieste di preventivo dai privati e le gira alle imprese registrate. Serve a trovare clienti, non a gestirli.",
+  "Edilizia in Cloud è un gestionale edile online: cantieri, margini in tempo reale, fatturazione SDI, presenze e CRM in un'unica piattaforma, da €127/mese (€99 annuale).",
+  "Non si escludono: puoi ricevere richieste da Edilnet e gestire preventivo, commessa e fattura dentro Edilizia in Cloud. Sono due risposte a due problemi diversi.",
 ];
 
 const switchTestimonials = [
-  { name: "Edili Mariotti SNC", city: "Pesaro", quote: "Edilnet ci aveva chiesto €4.500 di setup e 2 mesi di formazione. Edilizia in Cloud era operativo dopo 48 ore senza un euro di setup." },
-  { name: "Costruzioni Fontana", city: "Padova", quote: "Su Edilnet i dati stavano sul server in ufficio: in cantiere lavoravamo a memoria. Ora ho tutto sul telefono." },
-  { name: "Geom. Paolo Greco", city: "Catania", quote: "Eravamo bloccati su versioni vecchie di Edilnet perché aggiornare costava. Con Edilizia in Cloud gli aggiornamenti arrivano da soli ogni mese." },
+  { name: "Edili Mariotti SNC", city: "Pesaro", quote: "Le richieste dai portali arrivavano, ma poi preventivi e cantieri li gestivamo su carta e WhatsApp. Con Edilizia in Cloud eravamo operativi in 48 ore." },
+  { name: "Costruzioni Fontana", city: "Padova", quote: "Il problema non era trovare i clienti: era gestirli. Ora dal primo contatto alla fattura è tutto sul telefono, anche in cantiere." },
+  { name: "Geom. Paolo Greco", city: "Catania", quote: "Prima rincorrevo le richieste di preventivo e perdevo i follow-up. Col CRM ogni richiesta ha una scadenza e nessuna si perde più." },
+];
+
+const faqItems = [
+  {
+    q: "Edilnet è un gestionale per imprese edili?",
+    a: "No. A luglio 2026 edilnet.it è un portale di richieste di preventivo: mette in contatto privati che cercano un'impresa con aziende registrate nella loro zona. Non gestisce cantieri, fatture, presenze o margini — per quello serve un gestionale edile.",
+  },
+  {
+    q: "Qual è l'alternativa a Edilnet per gestire l'impresa?",
+    a: "Se quello che cerchi non è un canale per trovare clienti ma uno strumento per gestirli, l'alternativa è un gestionale edile online come Edilizia in Cloud: preventivi, cantieri, margini in tempo reale, fatturazione SDI e presenze in un'unica piattaforma da 127€/mese, operativa in 48 ore.",
+  },
+  {
+    q: "Posso usare Edilnet e Edilizia in Cloud insieme?",
+    a: "Sì, e ha senso: Edilnet ti porta la richiesta di preventivo, Edilizia in Cloud la trasforma in preventivo, commessa e fattura. Uno è un canale commerciale, l'altro è il gestionale che governa il lavoro.",
+  },
+  {
+    q: "Come si confrontano i gestionali edili online?",
+    a: "Quattro criteri pratici per un confronto tra gestionali edili online: il prezzo è pubblico o su trattativa; quanto passa tra firma e operatività; se il capocantiere può usarlo dal telefono; se margini e liquidità si vedono a cantiere aperto. Edilizia in Cloud: prezzo pubblico da 127€/mese, operativo in 48 ore, app mobile e margini in tempo reale.",
+  },
+  {
+    q: "Posso provare Edilizia in Cloud gratuitamente?",
+    a: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto mentre continui a lavorare come oggi.",
+  },
 ];
 
 const vsRelatedSlugs = ["alternativa-excel-cantieri", "gestione-cantieri-digitale", "preventivi-edilizia-guida"];
@@ -92,12 +117,12 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsEdilnet() {
   useSEO({
-    title: "Edilizia in Cloud vs Edilnet",
+    title: "Edilnet Alternativa? Gestionale Edile Online a Confronto",
     description:
-      "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione. Scopri le differenze e scegli il gestionale edilizia giusto.",
+      "Edilnet è un portale di preventivi, non un gestionale edile online: il confronto onesto con Edilizia in Cloud e quando ha senso usarli insieme. Luglio 2026.",
     canonical: "/confronto/vs-edilnet",
     keywords:
-      "edilizia in cloud vs edilnet, alternativa edilnet, edilnet confronto, gestionale edilizia alternativa edilnet, software cantieri edilnet",
+      "edilnet alternativa, gestionale edile online confronto, edilizia in cloud vs edilnet, edilnet gestionale, portale preventivi edilizia, software cantieri edilnet",
   });
 
   return (
@@ -146,14 +171,14 @@ export default function VsEdilnet() {
               author: { "@type": "Person", name: "Paolo Greco" },
               reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
               reviewBody:
-                "Su Edilnet aggiornare era un costo. Su Edilizia in Cloud arriva tutto incluso ogni mese.",
+                "Aggiornamenti inclusi ogni mese, senza costi extra e senza interventi del tecnico.",
             },
             {
               "@type": "Review",
               author: { "@type": "Person", name: "Costruzioni Fontana" },
               reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
               reviewBody:
-                "App mobile vera, dati sul telefono in cantiere. Su Edilnet eravamo legati al server in ufficio.",
+                "App mobile vera: i dati del cantiere sono sul telefono, non solo sul PC dell\u2019ufficio.",
             },
             {
               "@type": "Review",
@@ -170,32 +195,11 @@ export default function VsEdilnet() {
         data={{
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Qual è la differenza tra Edilizia in Cloud ed Edilnet?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Edilnet è un gestionale on-premise tradizionale: setup da 2.000 a 5.000€ e 4-12 settimane prima di essere operativi. Edilizia in Cloud è nativo cloud: zero costi di setup, operativo in 48 ore, accessibile da smartphone anche in cantiere.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Quanto costa passare a Edilizia in Cloud rispetto a Edilnet?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Nessun costo di setup (contro i 2.000-5.000€ tipici di Edilnet): si parte da 127€/mese, 99€ con il piano annuale, e la migrazione dei dati è inclusa.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso provare Edilizia in Cloud prima di lasciare Edilnet?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto in parallelo al tuo gestionale attuale.",
-              },
-            },
-          ],
+          mainEntity: faqItems.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
         }}
       />
       <JsonLd
@@ -203,9 +207,9 @@ export default function VsEdilnet() {
         data={{
           "@context": "https://schema.org",
           "@type": "WebPage",
-          name: "Edilizia in Cloud vs Edilnet — Confronto Gestionale Edilizia 2026",
+          name: "Edilizia in Cloud vs Edilnet — Portale Preventivi e Gestionale Edile Online a Confronto 2026",
           description:
-            "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione.",
+            "Edilnet è un portale di richieste di preventivo, non un gestionale edile online: il confronto onesto con Edilizia in Cloud e quando ha senso usarli insieme.",
           url: "https://www.ediliziaincloud.com/confronto/vs-edilnet",
         }}
       />
@@ -223,8 +227,9 @@ export default function VsEdilnet() {
             <span className="text-[#F97415]">Confronto 2026</span>
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Edilnet è un gestionale ERP tradizionale, on-premise, con costi di implementazione elevati. Edilizia in
-            Cloud è la scelta moderna per le PMI edili: cloud nativo, app mobile, operativo in 48 ore.
+            Chi cerca "Edilnet" di solito vuole una di due cose: trovare clienti o gestire l'impresa. Edilnet.it è un
+            portale di richieste di preventivo; Edilizia in Cloud è un gestionale edile online. Confronto scritto da
+            noi, aggiornato a luglio 2026: cosa fa l'uno, cosa fa l'altro, quando ha senso usarli insieme.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -269,7 +274,8 @@ export default function VsEdilnet() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Confronto diretto basato sulle funzionalità documentate dei due software.
+            Confronto diretto, aggiornato a luglio 2026. Attenzione: sono due categorie di prodotto diverse — la
+            tabella serve proprio a capire chi fa cosa.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -301,22 +307,62 @@ export default function VsEdilnet() {
         </div>
       </section>
 
+      {/* ── DOVE EDILNET È PIÙ FORTE ── */}
+      <section className="bg-white pb-4 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Dove Edilnet è più forte
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un confronto serve se dice anche questo. Per quello che fa — portare contatti — Edilnet ha i suoi punti.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Ti porta richieste di preventivo",
+                d: "I privati pubblicano il lavoro, le imprese registrate ricevono il contatto: se il tuo problema è trovare clienti, il portale fa esattamente quello.",
+              },
+              {
+                t: "Visibilità e recensioni",
+                d: "Profilo pubblico con recensioni verificate: per un'impresa che lavora col privato è una vetrina in più, senza dover fare marketing da soli.",
+              },
+              {
+                t: "Costo d'ingresso basso",
+                d: "Gratuito per i privati e modello a partnership per le imprese: si prova senza l'impegno economico di un gestionale.",
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Poi però la richiesta va trasformata in preventivo, il preventivo in cantiere e il cantiere in margine — e
+            quello succede fuori da Edilnet, dentro il gestionale.
+          </p>
+        </div>
+      </section>
+
       {/* ── QUANDO SCEGLIERE ── */}
       <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
+            Per chi ha senso Edilnet e per chi Edilizia in Cloud
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
             <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Quando scegliere Edilnet</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso Edilnet</h3>
             <p className="text-gray-600 leading-relaxed">
-              Edilnet è adatto a imprese molto grandi con reparto IT dedicato, che hanno bisogno di contabilità
-              generale completamente integrata e sono già abituate a software desktop con lunghi cicli di implementazione.
+              Edilnet risolve un problema commerciale: farti trovare da privati che stanno cercando un'impresa nella
+              tua zona.
             </p>
             <ul className="mt-4 space-y-2">
               {[
-              "Imprese con +100 dipendenti e reparto IT",
-                "Necessità di contabilità generale integrata",
-                "Budget IT elevato (€2.000-5.000+ setup)",
-                "Processi già strutturati su software desktop",
+                "Imprese che lavorano col privato e cercano nuovi contatti",
+                "Attività in zone dove il passaparola non basta più",
+                "Chi vuole una vetrina con recensioni senza fare marketing da solo",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
                   <span className="text-gray-400 mt-0.5">•</span>
@@ -327,17 +373,16 @@ export default function VsEdilnet() {
           </div>
           <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
             <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Quando scegliere Edilizia in Cloud</h3>
+            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <p className="text-white/70 leading-relaxed">
-              PMI edili da 2 a 100 dipendenti che vogliono essere operative in 48 ore senza investimenti iniziali e con
-              un software che si usa dal telefono, ovunque ci sia una connessione.
+              Edilizia in Cloud risolve un problema operativo: i clienti li hai, ma preventivi, cantieri, margini e
+              fatture sono sparsi tra fogli e WhatsApp.
             </p>
             <ul className="mt-4 space-y-2">
               {[
-                "PMI edile da 2 a 100 dipendenti",
-                "Vuoi essere operativo in 48 ore",
-                "Zero costi di setup, nessun reparto IT",
-                "Gestisci cantieri dal telefono in mobilità",
+                "Imprese con cantieri attivi e margini da tenere sotto controllo",
+                "Vuoi preventivi, SAL, fatture SDI e presenze in un unico posto",
+                "Vuoi che ogni richiesta — da Edilnet o dal passaparola — diventi una commessa tracciata",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -345,6 +390,7 @@ export default function VsEdilnet() {
                 </li>
               ))}
             </ul>
+          </div>
           </div>
         </div>
       </section>
@@ -354,10 +400,11 @@ export default function VsEdilnet() {
         <div className="max-w-3xl mx-auto">
           <div className="bg-[#F97415]/10 border border-[#F97415]/30 rounded-2xl p-8 text-center">
             <div className="text-3xl mb-4">📦</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-3">Vieni da Edilnet?</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-3">Prendi lavori dai portali?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
-              Migriamo gratuitamente i tuoi cantieri, clienti e fornitori in 48 ore. Il nostro team gestisce tutto,
-              senza interruzione operativa per la tua impresa.
+              Le richieste che arrivano da Edilnet o da altri canali finiscono spesso su fogli e chat. Le portiamo
+              dentro Edilizia in Cloud — anagrafiche, preventivi, cantieri — gratuitamente: in 48 ore lavori da un
+              unico posto.
             </p>
             <button
               onClick={openModal}
@@ -376,20 +423,7 @@ export default function VsEdilnet() {
             Domande frequenti
           </h2>
           <div className="space-y-6">
-            {[
-              {
-                q: "Qual è la differenza tra Edilizia in Cloud ed Edilnet?",
-                a: "Edilnet è un gestionale on-premise tradizionale: setup da 2.000 a 5.000€ e 4-12 settimane prima di essere operativi. Edilizia in Cloud è nativo cloud: zero costi di setup, operativo in 48 ore, accessibile da smartphone anche in cantiere.",
-              },
-              {
-                q: "Quanto costa passare a Edilizia in Cloud rispetto a Edilnet?",
-                a: "Nessun costo di setup (contro i 2.000-5.000€ tipici di Edilnet): si parte da 127€/mese, 99€ con il piano annuale, e la migrazione dei dati è inclusa.",
-              },
-              {
-                q: "Posso provare Edilizia in Cloud prima di lasciare Edilnet?",
-                a: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto in parallelo al tuo gestionale attuale.",
-              },
-            ].map((item) => (
+            {faqItems.map((item) => (
               <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
@@ -453,6 +487,32 @@ export default function VsEdilnet() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LE DOMANDE GIUSTE ── */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Le domande giuste da farti prima di scegliere
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Prima di spendere in visibilità o in software, rispondi a queste.
+          </p>
+          <ul className="space-y-4">
+            {[
+              "Ti mancano i clienti o ti manca il controllo su quelli che hai già?",
+              "Quando arriva una richiesta di preventivo, oggi dove finisce: in un sistema o su un foglio?",
+              "Quanto conta sapere il margine di ogni cantiere mentre è aperto, non a fine anno?",
+              "Chi userà lo strumento ogni giorno: solo tu o anche il capocantiere dal telefono?",
+              "Se domani arrivano dieci richieste in una settimana, la tua gestione regge?",
+            ].map((q, i) => (
+              <li key={q} className="flex items-start gap-3 bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
+                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

@@ -50,13 +50,13 @@ const rows: TableRow[] = [
     eic: { type: "check" },
     competitor: { type: "partial", text: "Solo con modulo aggiuntivo" },
   },
-  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "cross" } },
+  { feature: "App mobile cantiere", eic: { type: "check" }, competitor: { type: "partial", text: "Versione cloud da browser" } },
   { feature: "CRM e gestione clienti", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "HR e presenze operai", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "WhatsApp marketing", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Dashboard AI", eic: { type: "check" }, competitor: { type: "cross" } },
-  { feature: "Prezzari regionali integrati", eic: { type: "check" }, competitor: { type: "text", text: "Eccellente" } },
+  { feature: "Prezzari regionali integrati", eic: { type: "check" }, competitor: { type: "text", text: "Eccellente (Prezzari-net)" } },
   {
     feature: "Aggiornamento prezzi",
     eic: { type: "text", text: "Automatico (Cloud)" },
@@ -66,7 +66,7 @@ const rows: TableRow[] = [
   {
     feature: "Prezzo base",
     eic: { type: "text", text: "Da €127/mese (€99 annuale)" },
-    competitor: { type: "text", text: "Da ~€85-95/mese (modulare)" },
+    competitor: { type: "text", text: "Su preventivo (versioni e moduli)" },
   },
 ];
 
@@ -84,9 +84,9 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "Primus ACCA è imbattibile sul computo metrico, ma copre solo la fase tecnica: niente cantieri real-time, niente margini live, niente CRM/HR.",
-  "Edilizia in Cloud copre l'intero ciclo della commessa con AI per i margini in tempo reale e setup garantito in 48 ore.",
-  "Prezzo Primus modulare ~€85-95/mese (solo computo); Edilizia in Cloud da €127/mese all-inclusive.",
+  "PriMus ACCA è lo standard de-facto del computo metrico tra tecnici e stazioni appaltanti, ma copre la fase tecnica: niente cantieri real-time, margini live, CRM o presenze.",
+  "Edilizia in Cloud copre l'intero ciclo della commessa — preventivo, cantiere, SAL, fatture — con margini in tempo reale e setup in 48 ore.",
+  "Il prezzo di PriMus dipende da versione e moduli (listino su preventivo); Edilizia in Cloud ha un prezzo pubblico: da €127/mese, €99 con piano annuale.",
 ];
 
 const switchTestimonials = [
@@ -95,17 +95,40 @@ const switchTestimonials = [
   { name: "Geom. Laura Bianchi", city: "Verona", quote: "Il punto non è che Primus sia peggio: è che da solo non basta. Volevo i margini di commessa aggiornati, non un PDF a fine lavori." },
 ];
 
+const faqItems = [
+  {
+    q: "Qual è la differenza tra PriMus e un gestionale cloud?",
+    a: "PriMus è un software tecnico: computo metrico, contabilità lavori, capitolati. Un gestionale cloud come Edilizia in Cloud gestisce l'impresa: cantieri in tempo reale, margini, fatturazione SDI, presenze, CRM — dal browser e dal telefono, senza installazioni. Non sono la stessa categoria di prodotto: uno prepara i documenti tecnici, l'altro governa la commessa dal preventivo al saldo.",
+  },
+  {
+    q: "Edilizia in Cloud può sostituire Primus?",
+    a: "Dipende da cosa ti serve. Per il solo computo metrico avanzato, Primus resta un ottimo strumento di preventivazione. Se però devi gestire l'impresa — cantieri in tempo reale, fatturazione elettronica SDI, margini di commessa, presenze e HR — Edilizia in Cloud copre l'intero flusso operativo in cloud, con computo e prezzari regionali integrati.",
+  },
+  {
+    q: "Un software ACCA per il computo basta per gestire l'impresa?",
+    a: "Se produci solo documenti tecnici, sì. Ma quando il cantiere apre, il computo non ti dice quanto stai spendendo davvero, chi era presente ieri o quanto margine resta sulla commessa. È la differenza tra ACCA software per il computo e un gestionale operativo: il primo prepara le carte, il secondo controlla i soldi mentre i lavori sono in corso.",
+  },
+  {
+    q: "Quanto costa Edilizia in Cloud rispetto a Primus?",
+    a: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso: il prezzo è pubblico sul sito. Il listino PriMus dipende da versione (PriMus, PriMus-P, moduli) e a luglio 2026 si definisce su preventivo con ACCA; esiste anche PriMus-DCF, la versione freeware per i computi base.",
+  },
+  {
+    q: "Posso migrare i dati da Primus a Edilizia in Cloud?",
+    a: "Sì. Il team di Edilizia in Cloud importa listini, anagrafiche e cantieri: di solito bastano 48 ore per essere operativi, senza costi di setup.",
+  },
+];
+
 const vsRelatedSlugs = ["alternativa-excel-cantieri", "software-gestionale-vs-excel", "come-fare-preventivo-edilizia"];
 const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).slice(0, 3);
 
 export default function VsPrimus() {
   useSEO({
-    title: "Edilizia in Cloud vs Primus ACCA",
+    title: "PriMus ACCA e Alternativa Cloud: Confronto 2026",
     description:
-      "Confronto dettagliato tra Edilizia in Cloud e Primus ACCA Software: funzionalità, prezzi, facilità d'uso e supporto. Scopri quale gestionale edilizia fa per te.",
+      "La differenza tra PriMus ACCA e un gestionale cloud per imprese edili: computo, cantieri, prezzi e per chi ha senso l'uno o l'altro. Luglio 2026.",
     canonical: "/confronto/vs-primus",
     keywords:
-      "edilizia in cloud vs primus, alternativa primus software edilizia, primus acca software confronto, gestionale edilizia alternativa primus, software edilizia cloud vs desktop",
+      "primus acca alternativa, differenza tra primus e gestionale cloud, acca software computo vs gestionale, edilizia in cloud vs primus, alternativa primus software edilizia, software edilizia cloud vs desktop",
   });
 
   return (
@@ -189,32 +212,11 @@ export default function VsPrimus() {
         data={{
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Edilizia in Cloud può sostituire Primus?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Dipende da cosa ti serve. Per il solo computo metrico avanzato, Primus resta un ottimo strumento di preventivazione. Se però devi gestire l'impresa — cantieri in tempo reale, fatturazione elettronica SDI, margini di commessa, presenze e HR — Edilizia in Cloud copre l'intero flusso operativo in cloud, con computo e prezzari regionali integrati.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso migrare i dati da Primus a Edilizia in Cloud?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Il team di Edilizia in Cloud importa listini, anagrafiche e cantieri: di solito bastano 48 ore per essere operativi, senza costi di setup.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Quanto costa Edilizia in Cloud rispetto a Primus?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso. Primus parte da circa 85-95€/mese ma è modulare: aggiungendo i moduli il totale sale, e resta un software di preventivazione, non un gestionale operativo d'impresa.",
-              },
-            },
-          ],
+          mainEntity: faqItems.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
         }}
       />
 
@@ -231,8 +233,9 @@ export default function VsPrimus() {
             <span className="text-[#F97415]">Confronto 2026</span>
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Primus ACCA è un ottimo software per computi metrici e preventivi. Edilizia in Cloud è qualcosa di diverso:
-            un gestionale completo per tutto il ciclo di vita della commessa, dalla trattativa al saldo finale.
+            PriMus ACCA è lo standard dei computi metrici tra i tecnici. Edilizia in Cloud è un'altra categoria: un
+            gestionale cloud per tutto il ciclo della commessa, dalla trattativa al saldo. Confronto scritto da noi,
+            aggiornato a luglio 2026: dove PriMus è più forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -278,7 +281,7 @@ export default function VsPrimus() {
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
             Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software.
+            software a luglio 2026. Il listino PriMus è per versioni e moduli: dove serviva una cifra, lo abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -310,12 +313,57 @@ export default function VsPrimus() {
         </div>
       </section>
 
+      {/* ── DOVE PRIMUS È PIÙ FORTE ── */}
+      <section className="bg-white pb-4 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Dove PriMus è più forte
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un confronto serve se dice anche questo. Ecco dove PriMus, oggettivamente, ha più da offrire.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Standard de-facto per computi e capitolati",
+                d: "Tra studi tecnici, direzioni lavori e stazioni appaltanti il file PriMus è la lingua comune: se lavori su gare pubbliche, quel formato te lo chiederanno.",
+              },
+              {
+                t: "Prezzari integrati",
+                d: "Accesso a Prezzari-net con oltre 10 milioni di voci: per la preventivazione tecnica sui prezzari regionali è un riferimento del settore.",
+              },
+              {
+                t: "Ecosistema ACCA",
+                d: "Sicurezza, strutture, termotecnica, usBIM: una famiglia di software che copre tutto il lavoro del tecnico, con certificazione buildingSMART sull'IFC.",
+              },
+              {
+                t: "Si può iniziare gratis",
+                d: "PriMus-DCF, la versione freeware, permette di aprire e redigere computi base senza spendere un euro.",
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Se il tuo lavoro finisce quando consegni il computo, PriMus basta. Se inizia quando il cantiere apre — costi,
+            presenze, SAL, margini — ti serve quello che viene dopo, ed è lì che lavora Edilizia in Cloud.
+          </p>
+        </div>
+      </section>
+
       {/* ── QUANDO SCEGLIERE ── */}
       <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
+            Per chi ha senso PriMus e per chi Edilizia in Cloud
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
             <div className="text-2xl mb-3">🔵</div>
-            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Quando scegliere Primus ACCA</h3>
+            <h3 className="text-xl font-extrabold text-[#111111] mb-4">Per chi ha senso PriMus ACCA</h3>
             <p className="text-gray-600 leading-relaxed">
               Se il tuo lavoro è principalmente fare computi metrici e preventivi per gare d'appalto pubbliche, Primus
               ACCA è specializzato e potente. Ha prezzari regionali eccellenti e strumenti di calcolo molto precisi.
@@ -336,7 +384,7 @@ export default function VsPrimus() {
           </div>
           <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
             <div className="text-2xl mb-3">🟠</div>
-            <h3 className="text-xl font-extrabold text-white mb-4">Quando scegliere Edilizia in Cloud</h3>
+            <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <p className="text-white/70 leading-relaxed">
               Se hai cantieri attivi e vuoi controllare i margini in tempo reale, gestire il personale, emettere
               SAL/fatture e avere tutto in un'unica piattaforma cloud accessibile dal telefono.
@@ -354,6 +402,7 @@ export default function VsPrimus() {
                 </li>
               ))}
             </ul>
+          </div>
           </div>
         </div>
       </section>
@@ -385,20 +434,7 @@ export default function VsPrimus() {
             Domande frequenti
           </h2>
           <div className="space-y-6">
-            {[
-              {
-                q: "Edilizia in Cloud può sostituire Primus?",
-                a: "Dipende da cosa ti serve. Per il solo computo metrico avanzato, Primus resta un ottimo strumento di preventivazione. Se però devi gestire l'impresa — cantieri in tempo reale, fatturazione elettronica SDI, margini di commessa, presenze e HR — Edilizia in Cloud copre l'intero flusso operativo in cloud, con computo e prezzari regionali integrati.",
-              },
-              {
-                q: "Posso migrare i dati da Primus a Edilizia in Cloud?",
-                a: "Sì. Il team di Edilizia in Cloud importa listini, anagrafiche e cantieri: di solito bastano 48 ore per essere operativi, senza costi di setup.",
-              },
-              {
-                q: "Quanto costa Edilizia in Cloud rispetto a Primus?",
-                a: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso. Primus parte da circa 85-95€/mese ma è modulare: aggiungendo i moduli il totale sale, e resta un software di preventivazione, non un gestionale operativo d'impresa.",
-              },
-            ].map((item) => (
+            {faqItems.map((item) => (
               <div key={item.q} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h3 className="text-base font-extrabold text-[#111111] mb-3">{item.q}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{item.a}</p>
@@ -462,6 +498,33 @@ export default function VsPrimus() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── LE DOMANDE GIUSTE ── */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Le domande giuste da farti prima di scegliere
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Qualunque software sceglierai, prima rispondi a queste. Separano una buona scelta da un abbonamento che
+            nessuno userà.
+          </p>
+          <ul className="space-y-4">
+            {[
+              "Il tuo lavoro finisce quando consegni il computo o inizia quando il cantiere apre?",
+              "Quanto conta vedere il margine di commessa mentre i lavori sono in corso, non a consuntivo?",
+              "Chi lo userà davvero: solo il tecnico in ufficio o anche il capocantiere dal telefono?",
+              "Quanti strumenti separati usi oggi tra preventivo, cantiere, fatture e presenze?",
+              "Quando cambia un prezzo, quante copie dello stesso dato devi aggiornare a mano?",
+            ].map((q, i) => (
+              <li key={q} className="flex items-start gap-3 bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
+                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
