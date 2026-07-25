@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-07-25 (v7 — 81 guide, +15 guide normativa/template/confronti, +6 verticali di mestiere)
+# Ultimo aggiornamento: 2026-07-25 (v8 — 86 guide, +15 guide normativa/template/confronti, +6 verticali di mestiere)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -111,6 +111,14 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - Gestionale edilizia: opinioni delle imprese: https://www.ediliziaincloud.com/blog/gestionale-edilizia-opinioni
 - Incentivi digitalizzazione edilizia 2026: https://www.ediliziaincloud.com/blog/incentivi-digitalizzazione-edilizia-2026
 
+## Confronti software gestionali edilizia (2026-07)
+
+- I migliori software gestionali per l'edilizia 2026 (confronto completo con pro e contro): https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto
+- Edilizia in Cloud vs TeamSystem Construction: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction
+- Edilizia in Cloud vs PlanRadar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar
+- Edilizia in Cloud vs Dylog Edilizia: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia
+- Edilizia in Cloud vs Pillar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar
+
 ## Nuove landing funzionalità (2026-07)
 
 - Gestione commesse edili (margini in tempo reale): https://www.ediliziaincloud.com/funzionalita/gestione-commesse
@@ -135,7 +143,7 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
 - **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
 
-## Guide del blog (81 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
+## Guide del blog (86 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
 - Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida
 - CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze

@@ -27,12 +27,16 @@ export interface BlogPost {
 import { FLO_AVATAR } from "./blogAuthor";
 import { blogPostsTemplateGratis } from "./blogPostsTemplateGratis";
 import { blogPostsNormativa } from "./blogPostsNormativa";
+import { blogPostsConfrontoMercato } from "./blogPostsConfrontoMercato";
+import { blogPostsConfrontoDiretti } from "./blogPostsConfrontoDiretti";
 
 export { FLO_AVATAR };
 
 export const blogPosts: BlogPost[] = [
   ...blogPostsTemplateGratis,
   ...blogPostsNormativa,
+  ...blogPostsConfrontoMercato,
+  ...blogPostsConfrontoDiretti,
   {
     id: "1",
     slug: "ridurre-costi-cantieri-edili",

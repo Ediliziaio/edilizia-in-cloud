@@ -194,6 +194,8 @@ function loadBlogSlugs() {
     "src/data/blogPosts.ts",
     "src/data/blogPostsNormativa.ts",
     "src/data/blogPostsTemplateGratis.ts",
+    "src/data/blogPostsConfrontoMercato.ts",
+    "src/data/blogPostsConfrontoDiretti.ts",
   ];
   const slugs = new Set();
   for (const rel of files) {
