@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-07-10 (v6 — 66 guide, FAQ estese su 33 articoli, 5 nuove guide normative/finanza)
+# Ultimo aggiornamento: 2026-07-25 (v7 — 81 guide, +15 guide normativa/template/confronti, +6 verticali di mestiere)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -93,13 +93,49 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - **Supporto:** info@ediliziaincloud.com
 - **Versione completa per AI:** https://www.ediliziaincloud.com/llms-full.txt
 
+## Guide normativa e template (cluster 2026-07)
+
+- Reverse charge in edilizia (quando si applica, come fatturare): https://www.ediliziaincloud.com/blog/reverse-charge-edilizia
+- Registro presenze in cantiere, quando è obbligatorio: https://www.ediliziaincloud.com/blog/registro-presenze-cantiere-obbligatorio
+- POS Piano Operativo di Sicurezza, struttura e fac simile: https://www.ediliziaincloud.com/blog/pos-piano-operativo-sicurezza-fac-simile
+- Prezzario regionale edilizia, come usarlo nei preventivi: https://www.ediliziaincloud.com/blog/prezzario-regionale-edilizia
+- Cartello di cantiere obbligatorio, contenuti e sanzioni: https://www.ediliziaincloud.com/blog/cartello-di-cantiere-obbligatorio
+- Notifica preliminare di cantiere (art. 99 D.Lgs 81/08): https://www.ediliziaincloud.com/blog/notifica-preliminare-cantiere
+- Libretto delle misure nella contabilità lavori: https://www.ediliziaincloud.com/blog/libretto-delle-misure
+- Split payment nei lavori pubblici: https://www.ediliziaincloud.com/blog/split-payment-lavori-pubblici
+- Modello preventivo edile, fac simile e compilazione: https://www.ediliziaincloud.com/blog/modello-preventivo-edile
+- Contratto di subappalto edile, clausole e fac simile: https://www.ediliziaincloud.com/blog/contratto-subappalto-edile-fac-simile
+- Software gestione cantieri gratis, cosa aspettarsi: https://www.ediliziaincloud.com/blog/software-gestione-cantieri-gratis
+- App gestione cantieri gratis vs verticale: https://www.ediliziaincloud.com/blog/app-gestione-cantieri-gratis
+- Computo metrico gratis, strumenti e limiti: https://www.ediliziaincloud.com/blog/computo-metrico-gratis
+- Gestionale edilizia: opinioni delle imprese: https://www.ediliziaincloud.com/blog/gestionale-edilizia-opinioni
+- Incentivi digitalizzazione edilizia 2026: https://www.ediliziaincloud.com/blog/incentivi-digitalizzazione-edilizia-2026
+
+## Nuove landing funzionalità (2026-07)
+
+- Gestione commesse edili (margini in tempo reale): https://www.ediliziaincloud.com/funzionalita/gestione-commesse
+- Contabilità lavori e SAL: https://www.ediliziaincloud.com/funzionalita/contabilita-lavori
+- Computo metrico (anche con AI da foto/testo): https://www.ediliziaincloud.com/funzionalita/computo-metrico
+- Rapportini di cantiere digitali con firma cliente: https://www.ediliziaincloud.com/funzionalita/rapportini-cantiere
+- Gestione mezzi e attrezzature di cantiere: https://www.ediliziaincloud.com/funzionalita/mezzi-attrezzature
+- Direzione lavori e cronoprogramma: https://www.ediliziaincloud.com/funzionalita/direzione-lavori
+
+## Verticali di mestiere (chi usa Edilizia in Cloud)
+
+- Geometri con impresa o più cantieri: https://www.ediliziaincloud.com/per/geometri
+- Imprese di muratura: https://www.ediliziaincloud.com/per/muratori
+- Installatori e manutentori: https://www.ediliziaincloud.com/per/installatori
+- Imprese di movimento terra e scavi: https://www.ediliziaincloud.com/per/movimento-terra
+- Cartongessisti e opere a secco: https://www.ediliziaincloud.com/per/cartongessisti
+- Carpenteria metallica (officina + posa): https://www.ediliziaincloud.com/per/carpenteria-metallica
+
 ## Guide del blog AI (cluster 2026-05)
 
 - **Intelligenza artificiale in edilizia 2026 — 8 use case reali con dati ROI**: https://www.ediliziaincloud.com/blog/intelligenza-artificiale-edilizia-2026/
 - **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
 - **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
 
-## Guide del blog (66 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
+## Guide del blog (81 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
 - Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida
 - CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze

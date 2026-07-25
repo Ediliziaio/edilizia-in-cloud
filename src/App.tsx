@@ -188,6 +188,12 @@ const Impiantisti = lazy(() => import("@/pages/per/Impiantisti"));
 const Ristrutturatori = lazy(() => import("@/pages/per/Ristrutturatori"));
 const Fotovoltaico = lazy(() => import("@/pages/per/Fotovoltaico"));
 const Serramentisti = lazy(() => import("@/pages/per/Serramentisti"));
+const Geometri = lazy(() => import("@/pages/per/Geometri"));
+const Muratori = lazy(() => import("@/pages/per/Muratori"));
+const Installatori = lazy(() => import("@/pages/per/Installatori"));
+const MovimentoTerra = lazy(() => import("@/pages/per/MovimentoTerra"));
+const Cartongessisti = lazy(() => import("@/pages/per/Cartongessisti"));
+const CarpenteriaMetallica = lazy(() => import("@/pages/per/CarpenteriaMetallica"));
 const PiccoleImprese   = lazy(() => import("@/pages/per/PiccoleImprese"));
 const MedieImprese     = lazy(() => import("@/pages/per/MedieImprese"));
 const GrandiImprese    = lazy(() => import("@/pages/per/GrandiImprese"));
@@ -234,6 +240,12 @@ const Automazioni            = lazy(() => import("@/pages/funzionalita/Automazio
 const CrmEdilizia            = lazy(() => import("@/pages/funzionalita/CrmEdilizia"));
 const CruscottoAziendale     = lazy(() => import("@/pages/funzionalita/CruscottoAziendale"));
 const GiornaleLavori         = lazy(() => import("@/pages/funzionalita/GiornaleLavori"));
+const GestioneCommesse = lazy(() => import("@/pages/funzionalita/GestioneCommesse"));
+const ContabilitaLavori = lazy(() => import("@/pages/funzionalita/ContabilitaLavori"));
+const ComputoMetrico = lazy(() => import("@/pages/funzionalita/ComputoMetrico"));
+const RapportiniCantiere = lazy(() => import("@/pages/funzionalita/RapportiniCantiere"));
+const MezziAttrezzature = lazy(() => import("@/pages/funzionalita/MezziAttrezzature"));
+const DirezioneLavori = lazy(() => import("@/pages/funzionalita/DirezioneLavori"));
 const SicurezzaCantiere      = lazy(() => import("@/pages/funzionalita/SicurezzaCantiere"));
 const FotoCantiere           = lazy(() => import("@/pages/funzionalita/FotoCantiere"));
 
@@ -578,6 +590,12 @@ const App = () => (
               <Route path="/per/ristrutturatori" element={<Ristrutturatori />} />
               <Route path="/per/fotovoltaico" element={<Fotovoltaico />} />
               <Route path="/per/serramentisti" element={<Serramentisti />} />
+              <Route path="/per/geometri" element={<Geometri />} />
+              <Route path="/per/muratori" element={<Muratori />} />
+              <Route path="/per/installatori" element={<Installatori />} />
+              <Route path="/per/movimento-terra" element={<MovimentoTerra />} />
+              <Route path="/per/cartongessisti" element={<Cartongessisti />} />
+              <Route path="/per/carpenteria-metallica" element={<CarpenteriaMetallica />} />
               <Route path="/per/piccole-imprese" element={<PiccoleImprese />} />
               <Route path="/per/medie-imprese" element={<MedieImprese />} />
               <Route path="/per/grandi-imprese" element={<GrandiImprese />} />
@@ -607,6 +625,12 @@ const App = () => (
               <Route path="/funzionalita/crm-edilizia" element={<CrmEdilizia />} />
               <Route path="/funzionalita/cruscotto-aziendale" element={<CruscottoAziendale />} />
               <Route path="/funzionalita/giornale-lavori" element={<GiornaleLavori />} />
+              <Route path="/funzionalita/gestione-commesse" element={<GestioneCommesse />} />
+              <Route path="/funzionalita/contabilita-lavori" element={<ContabilitaLavori />} />
+              <Route path="/funzionalita/computo-metrico" element={<ComputoMetrico />} />
+              <Route path="/funzionalita/rapportini-cantiere" element={<RapportiniCantiere />} />
+              <Route path="/funzionalita/mezzi-attrezzature" element={<MezziAttrezzature />} />
+              <Route path="/funzionalita/direzione-lavori" element={<DirezioneLavori />} />
               <Route path="/funzionalita/sicurezza-cantiere" element={<SicurezzaCantiere />} />
               <Route path="/funzionalita/foto-cantiere" element={<FotoCantiere />} />
 

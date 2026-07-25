@@ -82,6 +82,12 @@ const STATIC_ROUTES = [
   "/funzionalita/gestione-cantieri",
   "/funzionalita/gestione-subappalti",
   "/funzionalita/giornale-lavori",
+  "/funzionalita/gestione-commesse",
+  "/funzionalita/contabilita-lavori",
+  "/funzionalita/computo-metrico",
+  "/funzionalita/rapportini-cantiere",
+  "/funzionalita/mezzi-attrezzature",
+  "/funzionalita/direzione-lavori",
   "/funzionalita/hr-personale",
   "/funzionalita/lead-form-facebook",
   "/funzionalita/magazzino-cantiere",
@@ -122,6 +128,12 @@ const STATIC_ROUTES = [
   "/per/piccole-imprese",
   "/per/ristrutturatori",
   "/per/serramentisti",
+  "/per/geometri",
+  "/per/muratori",
+  "/per/installatori",
+  "/per/movimento-terra",
+  "/per/cartongessisti",
+  "/per/carpenteria-metallica",
   "/pianifica-migrazione",
   "/prezzi",
   "/privacy-policy",
@@ -176,15 +188,24 @@ const STATIC_ROUTES = [
 
 /** Estrae gli slug dei blog post leggendo il file sorgente con regex. */
 function loadBlogSlugs() {
-  const file = join(ROOT, "src/data/blogPosts.ts");
-  if (!existsSync(file)) return [];
-  const src = readFileSync(file, "utf-8");
-  const re = /\bslug:\s*"([^"]+)"/g;
+  // blogPosts.ts + i file batch importati con spread (i loro slug non
+  // comparirebbero leggendo solo il file principale).
+  const files = [
+    "src/data/blogPosts.ts",
+    "src/data/blogPostsNormativa.ts",
+    "src/data/blogPostsTemplateGratis.ts",
+  ];
   const slugs = new Set();
-  let m;
-  while ((m = re.exec(src)) !== null) {
-    // Skip the type definition `slug: string;`
-    if (m[1] && m[1] !== "string") slugs.add(m[1]);
+  for (const rel of files) {
+    const file = join(ROOT, rel);
+    if (!existsSync(file)) continue;
+    const src = readFileSync(file, "utf-8");
+    const re = /\bslug:\s*"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      // Skip the type definition `slug: string;`
+      if (m[1] && m[1] !== "string") slugs.add(m[1]);
+    }
   }
   return [...slugs];
 }
