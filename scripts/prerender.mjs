@@ -183,6 +183,7 @@ const STATIC_ROUTES = [
   "/software-gestionale-edilizia-treviso",
   "/software-gestionale-edilizia-latina",
   "/software-gestionale-edilizia-pisa",
+  "/strumenti/calcolatore-margine-commessa",
   "/termini-e-condizioni",
 ];
 
@@ -196,6 +197,7 @@ function loadBlogSlugs() {
     "src/data/blogPostsTemplateGratis.ts",
     "src/data/blogPostsConfrontoMercato.ts",
     "src/data/blogPostsConfrontoDiretti.ts",
+    "src/data/blogPostsPillarGestione.ts",
   ];
   const slugs = new Set();
   for (const rel of files) {

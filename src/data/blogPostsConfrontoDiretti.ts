@@ -38,7 +38,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "[TeamSystem Construction](https://www.teamsystem.com/construction/) è la suite del gruppo TeamSystem per imprese edili e impiantistiche: contabilità lavori, BIM e appalti pubblici, con prezzi su preventivo.\n\nEdilizia in Cloud è il gestionale di cantiere per PMI edili italiane: app mobile per gli operai, preventivi con AI, fatturazione SDI inclusa e listino pubblico da 127 €/mese.\n\nChi cerca un'alternativa a TeamSystem per l'edilizia trova qui il confronto area per area, con i punti di forza loro scritti nero su bianco.",
+        body: "[TeamSystem Construction](https://www.teamsystem.com/construction/) è la suite del gruppo TeamSystem per imprese edili e impiantistiche: contabilità lavori, BIM e appalti pubblici, con prezzi su preventivo.\n\nEdilizia in Cloud è il gestionale di cantiere per PMI edili italiane: app mobile per gli operai, preventivi con AI, fatturazione SDI inclusa, un piano gratuito per sempre con cui partire e 31 giorni di prova completa sui piani superiori.\n\nChi cerca un'alternativa a TeamSystem per l'edilizia trova qui il confronto area per area, con i punti di forza loro scritti nero su bianco.",
       },
       {
         type: "section",
@@ -58,7 +58,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           [
             "Prezzo",
             "Su preventivo, dopo demo e offerta personalizzata",
-            "Listino pubblico: da 127 a 547 €/mese (da 99 € con formula annuale)",
+            "Piano gratuito per sempre + 31 giorni di prova; piani superiori su preventivo",
           ],
           [
             "Attivazione",
@@ -92,7 +92,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           ],
           [
             "AI",
-            "Non al centro dell'offerta verticale (sito a luglio 2026)",
+            "Non al centro dell'offerta verticale dichiarata sul sito",
             "Preventivi da foto, lettura automatica dei DDT",
           ],
           [
@@ -100,12 +100,17 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
             "Imprese strutturate con ufficio tecnico e appalti pubblici",
             "PMI edili da 3 a 50 persone, lavori privati e subappalti",
           ],
+          [
+            "Cosa c'è oltre al software",
+            "Assistenza strutturata e rete di partner e rivenditori sul territorio",
+            "Consulenti dedicati per area, formazione e percorsi su numeri, vendita e marketing",
+          ],
         ],
       },
       {
         type: "section",
         heading: "Chi sono i due contendenti",
-        body: "TeamSystem Construction, a luglio 2026, è una suite composta da più prodotti: Gestione Imprese per contratti, contabilizzazione dei lavori edili e adempimenti fiscali; Project Management (CPM) per preventivi, costi di commessa, pianificazione, direzione lavori e gestione cantiere, con funzioni BIM che collegano il modello 3D a tempi (4D) e costi (5D); e CDE, l'ambiente dati condiviso su tecnologia Microsoft Azure per la collaborazione sui progetti BIM.\n\nDietro c'è il gruppo TeamSystem, uno dei più grandi produttori italiani di software gestionale: la solidità e la copertura di una suite di quel livello non si discutono.\n\nEdilizia in Cloud è un'altra cosa: un unico gestionale verticale, nato in cloud, che copre il flusso completo della PMI edile — preventivo edile, commessa, cantiere, fattura — con dentro CRM, magazzino, personale e AI. Non serviamo le grandi general contractor da appalto autostradale: serviamo l'impresa da 3 a 50 persone che oggi gestisce i cantieri tra Excel, WhatsApp e blocchetti di carta.\n\nDue prodotti pensati per pubblici diversi, e tutto questo confronto serve a capire in quale dei due pubblici stai tu.",
+        body: "TeamSystem Construction è una suite composta da più prodotti: Gestione Imprese per contratti, contabilizzazione dei lavori edili e adempimenti fiscali; Project Management (CPM) per preventivi, costi di commessa, pianificazione, direzione lavori e gestione cantiere, con funzioni BIM che collegano il modello 3D a tempi (4D) e costi (5D); e CDE, l'ambiente dati condiviso su tecnologia Microsoft Azure per la collaborazione sui progetti BIM.\n\nDietro c'è il gruppo TeamSystem, uno dei più grandi produttori italiani di software gestionale: la solidità e la copertura di una suite di quel livello non si discutono.\n\nEdilizia in Cloud è un'altra cosa: un unico gestionale verticale, nato in cloud, che copre il flusso completo della PMI edile — preventivo edile, commessa, cantiere, fattura — con dentro CRM, magazzino, personale e AI. Non serviamo le grandi general contractor da appalto autostradale: serviamo l'impresa da 3 a 50 persone che oggi gestisce i cantieri tra Excel, WhatsApp e blocchetti di carta.\n\nDue prodotti pensati per pubblici diversi, e tutto questo confronto serve a capire in quale dei due pubblici stai tu.",
       },
       {
         type: "section",
@@ -143,22 +148,22 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "AI: preventivi da foto e documenti che si leggono da soli",
-        body: "Qui il confronto è tra due velocità. A luglio 2026 la pagina ufficiale della suite TeamSystem Construction non mette l'intelligenza artificiale al centro dell'offerta per le imprese edili; il gruppo investe in tecnologia, ma sul prodotto verticale il tema resta defilato.\n\nIn Edilizia in Cloud l'AI è già dentro il lavoro di ogni giorno, e si vede in scene precise: torni dal sopralluogo, carichi le foto, e la bozza di preventivo edile esce con le voci agganciate al tuo listino e ai tuoi prezzi reali — la controlli, la firmi tu, ma la serata al computer non c'è più. Arriva un DDT, lo fotografi, le righe si caricano a magazzino da sole. I documenti si leggono da soli invece di essere ricopiati a mano.\n\nValutazione nostra, dichiarata come tale: nei prossimi anni la differenza tra gestionali non la faranno i moduli, che prima o poi hanno tutti, ma quanto lavoro manuale l'AI toglie all'impresa — ed è l'area dove il divario tra un prodotto cloud-nativo con rilasci continui e una suite ampia da coordinare si allarga a ogni rilascio.",
+        body: "Qui il confronto è tra due velocità. La pagina ufficiale della suite TeamSystem Construction non mette l'intelligenza artificiale al centro dell'offerta per le imprese edili; il gruppo investe in tecnologia, ma sul prodotto verticale il tema resta defilato.\n\nIn Edilizia in Cloud l'AI è già dentro il lavoro di ogni giorno, e si vede in scene precise: torni dal sopralluogo, carichi le foto, e la bozza di preventivo edile esce con le voci agganciate al tuo listino e ai tuoi prezzi reali — la controlli, la firmi tu, ma la serata al computer non c'è più. Arriva un DDT, lo fotografi, le righe si caricano a magazzino da sole. I documenti si leggono da soli invece di essere ricopiati a mano.\n\nNei prossimi anni la differenza tra gestionali non la faranno i moduli, che prima o poi hanno tutti, ma quanto lavoro manuale l'AI toglie all'impresa — ed è l'area dove il divario tra un prodotto cloud-nativo con rilasci continui e una suite ampia da coordinare si allarga a ogni rilascio.",
       },
       {
         type: "section",
-        heading: "Prezzi: listino pubblico contro preventivo",
-        body: "A luglio 2026 TeamSystem Construction non pubblica prezzi: sul sito ufficiale trovi il form per richiedere informazioni, poi demo e offerta personalizzata in base a moduli, utenti e implementazione. È il modello commerciale coerente con una suite configurabile, e va descritto per quello che comporta in pratica: per sapere quanto spendi serve una trattativa, e i costi di avviamento e consulenza si sommano al canone.\n\nEdilizia in Cloud fa la scelta opposta: listino pubblico sul sito, da 127 € a 547 € al mese secondo il piano (con la formula annuale si parte da 99 €), utenti illimitati inclusi — gli operai in più non costano — e nessun costo di implementazione.\n\nLa differenza di filosofia conta quanto la differenza di cifra: il prezzo pubblico ti permette di fare i conti stasera, confrontare il canone con quello che spendi oggi tra software separati e ore d'ufficio, e decidere con calma. La tabella completa voce per voce, con domande e risposte, la trovi nella [pagina di confronto dedicata](/confronto/vs-teamsystem).",
+        heading: "Prezzi: prova prima di decidere o preventivo a fine trattativa",
+        body: "TeamSystem Construction definisce il prezzo su preventivo: sul sito ufficiale trovi il form per richiedere informazioni, poi demo e offerta personalizzata in base a moduli, utenti e implementazione. È il modello commerciale coerente con una suite configurabile, e va descritto per quello che comporta in pratica: i costi di avviamento e consulenza si sommano al canone, e il totale si conosce a valle del progetto.\n\nAnche Edilizia in Cloud definisce il preventivo dei piani superiori in una consulenza gratuita, quindi su questo la differenza non è chi espone la cifra: è come ci arrivi. C'è un piano gratuito per sempre — il piano Scopri, con cui gestisci fino a 3 commesse attive — per partire oggi senza parlare con nessuno, e 31 giorni di prova completa sui piani superiori, con setup e migrazione dei dati inclusi, nessun addebito automatico e disdetta quando vuoi. Gli utenti sono illimitati: gli operai in più non costano, e non c'è un progetto di implementazione da mettere a budget.\n\nLa differenza pratica sta nel momento in cui decidi: puoi provare il software sul tuo cantiere vero, con i tuoi dati già migrati, e solo dopo ragionare sulla cifra. La tabella completa voce per voce, con domande e risposte, la trovi nella [pagina di confronto dedicata](/confronto/vs-teamsystem).",
       },
       {
         type: "list",
         heading: "Dove TeamSystem Construction mostra i limiti per una PMI edile",
         items: [
-          "Il listino non è pubblico: canone, moduli e costi di avviamento si conoscono solo a valle di demo e offerta",
+          "Non c'è un piano gratuito né una prova che puoi attivare da solo: il percorso d'ingresso passa da demo e offerta personalizzata",
           "L'implementazione è un progetto: analisi, configurazione e formazione con consulenti richiedono settimane e persone dedicate",
           "La suite è composta da più prodotti (Gestione Imprese, CPM, CDE): più copertura, ma anche più ambienti da governare",
           "L'impianto presuppone un ufficio tecnico: se le commesse le segue il titolare, molte funzioni restano chiuse ma nel perimetro d'offerta",
-          "L'AI non compare al centro dell'offerta verticale edilizia, stando alla pagina ufficiale a luglio 2026",
+          "L'AI non compare al centro dell'offerta verticale edilizia, stando alla pagina ufficiale",
           "Il costo totale del primo anno (canone + moduli + implementazione + formazione) va ricostruito voce per voce prima di firmare",
         ],
       },
@@ -170,7 +175,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Per chi ha senso l'uno e per chi l'altro",
-        body: "TeamSystem Construction ha senso per l'impresa strutturata che vive di appalti pubblici e contabilità lavori formale, ha un ufficio tecnico che lavora su BIM e pianificazione di commessa, e mette in conto un progetto di implementazione con consulenti: in quel perimetro parliamo di una suite seria di un grande gruppo, costruita esattamente per quel mestiere.\n\nEdilizia in Cloud ha senso per la PMI edile da 3 a 50 persone che lavora con privati, condomini e subappalti, vuole i margini di commessa mentre i cantieri sono ancora aperti, ha bisogno che siano gli operai — non un impiegato — a far nascere il dato con timbrature e rapportini dal telefono, e preferisce leggere il prezzo sul sito prima di parlare con chiunque.\n\nNel mezzo c'è la zona grigia: l'impresa media che fa qualche gara pubblica ma vive di lavori privati. Lì il criterio pratico è partire dal flusso che genera il fatturato di tutti i giorni e coprire l'eccezione con gli strumenti del proprio studio tecnico, perché il software che usi ogni giorno pesa sul conto economico molto più di quello che apri due volte l'anno.",
+        body: "TeamSystem Construction ha senso per l'impresa strutturata che vive di appalti pubblici e contabilità lavori formale, ha un ufficio tecnico che lavora su BIM e pianificazione di commessa, e mette in conto un progetto di implementazione con consulenti: in quel perimetro parliamo di una suite seria di un grande gruppo, costruita esattamente per quel mestiere.\n\nEdilizia in Cloud ha senso per la PMI edile da 3 a 50 persone che lavora con privati, condomini e subappalti, vuole i margini di commessa mentre i cantieri sono ancora aperti, ha bisogno che siano gli operai — non un impiegato — a far nascere il dato con timbrature e rapportini dal telefono, e preferisce provare il software sul campo prima di parlare con chiunque.\n\nNel mezzo c'è la zona grigia: l'impresa media che fa qualche gara pubblica ma vive di lavori privati. Lì il criterio pratico è partire dal flusso che genera il fatturato di tutti i giorni e coprire l'eccezione con gli strumenti del proprio studio tecnico, perché il software che usi ogni giorno pesa sul conto economico molto più di quello che apri due volte l'anno.",
+      },
+      {
+        type: "section",
+        heading: "Quello che un confronto tra software non misura",
+        body: "Fin qui abbiamo confrontato funzioni, prezzi e tempi. Ma c'è una parte che nessuna tabella misura, e che pesa più di metà delle righe scritte sopra.\n\nUn gestionale nuovo non raddrizza un'impresa che non sa leggere i propri numeri. Non insegna a chiudere una trattativa. Non fa entrare richieste che oggi non entrano. Il software mette ordine; a far guadagnare sono le competenze di chi lo usa. Ci sono imprese che hanno cambiato tre programmi in quattro anni e sono rimaste dov'erano, perché il problema non era il programma.\n\nPer questo attorno a Edilizia in Cloud non c'è solo il prodotto: c'è l'accesso a un ecosistema di servizi e di persone. Consulenti dedicati per area, formazione e webinar, assistenza in italiano fatta da chi il cantiere lo conosce. E ci sono i percorsi collegati: [Numeri in Edilizia](https://numerinedilizia.com/) per il controllo di gestione, che insegna al titolare a leggere margini, commesse e utile e parte da un'analisi gratuita; [VENDITA EDILE®](https://venditaedile.it/) per il metodo commerciale, un affiancamento all'imprenditore su come si vende, non un altro programma da installare; [Marketing Edile®](https://www.marketingedile.com/) per il flusso di richieste in ingresso, che porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite — sul loro sito dichiarano 47 aziende seguite e oltre 60 milioni di euro generati. Cosa entri nel tuo perimetro, e in che forma, si definisce in consulenza: dipende da dove sei tu, non da un pacchetto uguale per tutti.\n\nOra la parte onesta, perché su questo non siamo gli unici. TeamSystem ha rivenditori e assistenza sul territorio in tutta Italia, e un consulente che viene in sede a configurarti la contabilità è un valore vero: quella rete fisica noi non ce l'abbiamo. La differenza non è che loro ti lasciano solo. È il tipo di affiancamento. Il loro lavora sul software: moduli, configurazioni, procedure. Il nostro entra anche in quello che sta prima e dopo il software: come leggi i margini, come vendi, come ti arrivano le richieste.\n\nQuindi, prima di firmare con chiunque, la domanda vera è questa: il tuo problema è che il software non ti basta, o che nessuno ti ha mai insegnato a leggere i margini?",
       },
       {
         type: "list",
@@ -180,7 +190,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Quanto mi serve vedere il margine di commessa mentre il cantiere è ancora aperto, invece che a consuntivo?",
           "Chi farà nascere il dato ogni giorno: un ufficio tecnico alla scrivania o il capo squadra col telefono in tasca?",
           "Ho tempo e budget per un progetto di implementazione, o devo essere operativo entro il mese?",
-          "Il prezzo voglio leggerlo sul sito stasera o ricostruirlo a valle di una trattativa?",
+          "Voglio poter provare il software da solo prima di decidere, o mi va bene partire da una demo commerciale?",
           "Tra 30 giorni la mia squadra starà già lavorando nel sistema nuovo?",
         ],
       },
@@ -193,15 +203,15 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     faqs: [
       {
         q: "Che cos'è TeamSystem Construction?",
-        a: "TeamSystem Construction è la suite del gruppo TeamSystem dedicata a imprese edili e impiantistiche. A luglio 2026 comprende Gestione Imprese (contratti, contabilizzazione lavori, adempimenti fiscali), Project Management/CPM (preventivi, costi di commessa, pianificazione, direzione lavori, BIM 4D e 5D) e CDE, l'ambiente dati condiviso in cloud su Microsoft Azure. I prezzi non sono pubblici: si richiedono tramite form.",
+        a: "TeamSystem Construction è la suite del gruppo TeamSystem dedicata a imprese edili e impiantistiche. Comprende Gestione Imprese (contratti, contabilizzazione lavori, adempimenti fiscali), Project Management/CPM (preventivi, costi di commessa, pianificazione, direzione lavori, BIM 4D e 5D) e CDE, l'ambiente dati condiviso in cloud su Microsoft Azure. Il prezzo si definisce su preventivo, tramite form di contatto.",
       },
       {
         q: "Qual è la differenza principale tra Edilizia in Cloud e TeamSystem Construction?",
-        a: "Il pubblico e il perimetro. TeamSystem Construction è una suite strutturata, profonda su contabilità lavori, appalti pubblici e BIM, con implementazione assistita e prezzi su preventivo. Edilizia in Cloud è un unico gestionale verticale per PMI edili da 3 a 50 persone: app cantiere per operai, preventivi con AI, fatturazione elettronica SDI inclusa, attivazione in 48 ore e listino pubblico da 127 €/mese.",
+        a: "Il pubblico e il perimetro. TeamSystem Construction è una suite strutturata, profonda su contabilità lavori, appalti pubblici e BIM, con implementazione assistita e prezzi su preventivo. Edilizia in Cloud è un unico gestionale verticale per PMI edili da 3 a 50 persone: app cantiere per operai, preventivi con AI, fatturazione elettronica SDI inclusa, attivazione in 48 ore, un piano gratuito per sempre con cui partire e 31 giorni di prova completa sui piani superiori.",
       },
       {
         q: "Quanto costa TeamSystem Construction rispetto a Edilizia in Cloud?",
-        a: "A luglio 2026 TeamSystem Construction non pubblica prezzi: canone e costi di implementazione emergono con demo e offerta personalizzata. Edilizia in Cloud pubblica il listino sul sito: da 127 € a 547 € al mese in base al piano (da 99 € con formula annuale), utenti illimitati inclusi e nessun costo di avviamento. Per confrontare davvero conviene ricostruire il costo totale del primo anno di entrambe le opzioni.",
+        a: "TeamSystem Construction definisce canone e costi di implementazione su preventivo, con demo e offerta personalizzata. Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive); per i piani superiori il preventivo si definisce in una consulenza gratuita, dopo 31 giorni di prova completa con setup e migrazione dati inclusi, utenti illimitati e nessun costo di avviamento. Per confrontare davvero conviene ricostruire il costo totale del primo anno di entrambe le opzioni.",
       },
       {
         q: "Per gli appalti pubblici è meglio TeamSystem o Edilizia in Cloud?",
@@ -213,7 +223,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       },
       {
         q: "Esiste un'alternativa a TeamSystem per una piccola impresa edile?",
-        a: "Sì. Per una PMI edile che lavora con privati, condomini e subappalti, Edilizia in Cloud copre preventivi, commesse con margini in tempo reale, app cantiere con timbrature e rapportini fotografici, magazzino e fatturazione SDI in un unico canone pubblico da 127 €/mese, senza progetto di implementazione. TeamSystem resta coerente con imprese strutturate su appalti pubblici e BIM: la scelta segue il profilo dell'impresa, non una classifica.",
+        a: "Sì. Per una PMI edile che lavora con privati, condomini e subappalti, Edilizia in Cloud copre preventivi, commesse con margini in tempo reale, app cantiere con timbrature e rapportini fotografici, magazzino e fatturazione SDI in un unico gestionale, con un piano gratuito per partire e 31 giorni di prova completa, senza progetto di implementazione. TeamSystem resta coerente con imprese strutturate su appalti pubblici e BIM: la scelta segue il profilo dell'impresa, non una classifica.",
       },
     ],
   },
@@ -256,8 +266,8 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           ],
           [
             "Prezzo",
-            "Listino non pubblicato: si definisce con la rete commerciale",
-            "Listino pubblico: da 127 a 547 €/mese (da 99 € con formula annuale)",
+            "Su preventivo: si definisce con la rete commerciale",
+            "Piano gratuito per sempre + 31 giorni di prova; piani superiori su preventivo",
           ],
           [
             "Prova gratuita",
@@ -299,6 +309,11 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
             "Direzione lavori, general contractor, studi tecnici",
             "PMI edile italiana che gestisce l'intera impresa",
           ],
+          [
+            "Cosa c'è oltre al software",
+            "Assistenza sul prodotto e rete commerciale internazionale",
+            "Consulenti dedicati per area, formazione e percorsi su numeri, vendita e marketing",
+          ],
         ],
       },
       {
@@ -309,7 +324,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Dove PlanRadar eccelle davvero",
-        body: "Riconosciamolo senza mezze misure: sul suo terreno PlanRadar è un riferimento europeo. La gestione dei difetti è il suo pezzo forte — apri un ticket sulla planimetria, lo assegni all'impresa o al subappaltatore responsabile, alleghi foto, segui lo stato fino alla chiusura — e per collaudi, consegne e riserve di fine lavori è uno strumento che riduce i contenziosi.\n\nLa documentazione fotografica è di livello: a luglio 2026 il sito ufficiale presenta anche SiteView, la cattura a 360 gradi che permette di rivedere lo stato del cantiere in qualsiasi momento passato, una specie di macchina del tempo per le contestazioni. Aggiungi la gestione delle versioni di planimetrie e modelli BIM, i report in tempo reale e l'accesso illimitato per i subappaltatori, che sui progetti grandi con decine di imprese coinvolte è un vantaggio concreto.\n\nPer un direttore lavori, un general contractor o uno studio tecnico che coordina e documenta, questa è specializzazione vera. Il punto di questo confronto però è un altro: quel mestiere è la documentazione del progetto, non la gestione dell'impresa — e la tua azienda campa della seconda.",
+        body: "Riconosciamolo senza mezze misure: sul suo terreno PlanRadar è un riferimento europeo. La gestione dei difetti è il suo pezzo forte — apri un ticket sulla planimetria, lo assegni all'impresa o al subappaltatore responsabile, alleghi foto, segui lo stato fino alla chiusura — e per collaudi, consegne e riserve di fine lavori è uno strumento che riduce i contenziosi.\n\nLa documentazione fotografica è di livello: il sito ufficiale presenta anche SiteView, la cattura a 360 gradi che permette di rivedere lo stato del cantiere in qualsiasi momento passato, una specie di macchina del tempo per le contestazioni. Aggiungi la gestione delle versioni di planimetrie e modelli BIM, i report in tempo reale e l'accesso illimitato per i subappaltatori, che sui progetti grandi con decine di imprese coinvolte è un vantaggio concreto.\n\nPer un direttore lavori, un general contractor o uno studio tecnico che coordina e documenta, questa è specializzazione vera. Il punto di questo confronto però è un altro: quel mestiere è la documentazione del progetto, non la gestione dell'impresa — e la tua azienda campa della seconda.",
       },
       {
         type: "list",
@@ -327,12 +342,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Quello che PlanRadar non fa (e non promette di fare)",
-        body: "Qui arriva la differenza di categoria, e non è un'accusa: è il perimetro dichiarato del prodotto. PlanRadar non emette fatture elettroniche verso lo SDI, non fa preventivi con listino prezzi, non gestisce SAL con importi maturati e fatturazione di avanzamento, non tiene prima nota, scadenzario o incassi, non calcola il costo della manodopera per commessa, non gestisce magazzino e DDT.\n\nSono trasparenti anche loro: nella loro stessa pagina comparativa sui migliori software per l'edilizia in Italia, a luglio 2026, indicano tra i propri contro le minori funzionalità di gestione finanziaria rispetto ad altri software.\n\nPer una PMI edile italiana la conseguenza è concreta: con il solo PlanRadar hai un cantiere documentato benissimo e un'impresa che continua a girare su Excel, WhatsApp e sul gestionale del commercialista. Le domande da imprenditore — quanto margine sto facendo su questa commessa, chi mi deve pagare, quante ore ha assorbito quel bagno — restano fuori dal suo perimetro, perché non è il mestiere per cui è stato costruito.\n\nDocumentare il lavoro e gestire l'impresa sono due lavori diversi, e il secondo è quello che ti tiene aperto.",
+        body: "Qui arriva la differenza di categoria, e non è un'accusa: è il perimetro dichiarato del prodotto. PlanRadar non emette fatture elettroniche verso lo SDI, non fa preventivi con listino prezzi, non gestisce SAL con importi maturati e fatturazione di avanzamento, non tiene prima nota, scadenzario o incassi, non calcola il costo della manodopera per commessa, non gestisce magazzino e DDT.\n\nSono trasparenti anche loro: nella loro stessa pagina comparativa sui migliori software per l'edilizia in Italia indicano tra i propri contro le minori funzionalità di gestione finanziaria rispetto ad altri software.\n\nPer una PMI edile italiana la conseguenza è concreta: con il solo PlanRadar hai un cantiere documentato benissimo e un'impresa che continua a girare su Excel, WhatsApp e sul gestionale del commercialista. Le domande da imprenditore — quanto margine sto facendo su questa commessa, chi mi deve pagare, quante ore ha assorbito quel bagno — restano fuori dal suo perimetro, perché non è il mestiere per cui è stato costruito.\n\nDocumentare il lavoro e gestire l'impresa sono due lavori diversi, e il secondo è quello che ti tiene aperto.",
       },
       {
         type: "section",
         heading: "Il flusso completo: dal preventivo alla fattura senza cambiare programma",
-        body: "Edilizia in Cloud nasce per coprire il flusso che PlanRadar dichiaratamente non copre, e anche qui la cosa migliore è guardare la scena. Lunedì fai il sopralluogo, carichi le foto e l'AI ti prepara la bozza di preventivo edile con le voci del tuo listino e i tuoi prezzi: la sistemi in mezz'ora e la mandi. Il cliente accetta, firma dal telefono, e il preventivo diventa commessa: budget, squadra assegnata, cronoprogramma, documenti.\n\nDa martedì la squadra lavora dall'app: timbratura digitale geolocalizzata, rapportino di fine giornata con foto, materiali scaricati sulla commessa. In ufficio il titolare vede lo stato avanzamento lavori e il margine in tempo reale: ore vere dagli operai, costi veri dai DDT, non stime a sensazione.\n\nE si chiude dove si incassa: fatturazione elettronica SDI inclusa, acconti e fatture di SAL generate dalla commessa, reverse charge e split payment impostati una volta sola, scadenzario che dice chi deve pagare. Tutto in un canone pubblico, da 127 € al mese, utenti illimitati.\n\nIl punto non è avere «tante funzioni»: è che ogni passaggio alimenta il successivo senza ricopiare niente, perché ricopiare è il posto dove nascono gli errori e muoiono le serate.",
+        body: "Edilizia in Cloud nasce per coprire il flusso che PlanRadar dichiaratamente non copre, e anche qui la cosa migliore è guardare la scena. Lunedì fai il sopralluogo, carichi le foto e l'AI ti prepara la bozza di preventivo edile con le voci del tuo listino e i tuoi prezzi: la sistemi in mezz'ora e la mandi. Il cliente accetta, firma dal telefono, e il preventivo diventa commessa: budget, squadra assegnata, cronoprogramma, documenti.\n\nDa martedì la squadra lavora dall'app: timbratura digitale geolocalizzata, rapportino di fine giornata con foto, materiali scaricati sulla commessa. In ufficio il titolare vede lo stato avanzamento lavori e il margine in tempo reale: ore vere dagli operai, costi veri dai DDT, non stime a sensazione.\n\nE si chiude dove si incassa: fatturazione elettronica SDI inclusa, acconti e fatture di SAL generate dalla commessa, reverse charge e split payment impostati una volta sola, scadenzario che dice chi deve pagare. Tutto in un unico canone, con utenti illimitati.\n\nIl punto non è avere «tante funzioni»: è che ogni passaggio alimenta il successivo senza ricopiare niente, perché ricopiare è il posto dove nascono gli errori e muoiono le serate.",
       },
       {
         type: "section",
@@ -355,7 +370,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Prezzi e attivazione",
-        body: "Sui prezzi la differenza è di trasparenza più che di cifra. A luglio 2026 la pagina comparativa di PlanRadar non pubblica il listino: l'ingresso è la prova gratuita di 30 giorni, poi il piano si definisce in base a utenti e funzioni con la loro rete commerciale. Sull'avvio va riconosciuto che PlanRadar è rapido per il suo perimetro: creare un progetto e caricare le planimetrie non richiede un progetto di implementazione, ed è un merito della sua impostazione cloud.\n\nEdilizia in Cloud pubblica il listino sul sito: da 127 € a 547 € al mese in base al piano, da 99 € con la formula annuale, e utenti illimitati inclusi — dettaglio non piccolo, perché nei software a licenza per utente ogni operaio in più è un costo, e la tentazione di non dare l'accesso alla squadra ammazza proprio la raccolta dati dal campo che giustifica il software.\n\nL'attivazione segue la stessa logica: 48 ore per partire, import di listino e anagrafiche, app installata agli operai, e 31 giorni di prova per verificare sul tuo cantiere vero, con il conto già chiaro prima di iniziare.",
+        body: "Sui prezzi i due prodotti seguono lo stesso schema: si entra dalla prova e la cifra si definisce parlandosi. In PlanRadar l'ingresso è la prova gratuita di 30 giorni, poi il piano si definisce in base a utenti e funzioni con la loro rete commerciale. Sull'avvio va riconosciuto che PlanRadar è rapido per il suo perimetro: creare un progetto e caricare le planimetrie non richiede un progetto di implementazione, ed è un merito della sua impostazione cloud.\n\nEdilizia in Cloud aggiunge due cose davanti alla trattativa: un piano gratuito per sempre — il piano Scopri, fino a 3 commesse attive — con cui una piccola impresa può partire subito, e 31 giorni di prova completa sui piani superiori, con setup e migrazione dei dati inclusi. Poi c'è il tema utenti: gli operai sono illimitati e non costano, dettaglio non piccolo, perché nei software a licenza per utente ogni operaio in più è un costo, e la tentazione di non dare l'accesso alla squadra ammazza proprio la raccolta dati dal campo che giustifica il software.\n\nL'attivazione segue la stessa logica: 48 ore per partire, import di listino e anagrafiche, app installata agli operai, e un mese pieno per verificare sul tuo cantiere vero prima di ragionare sulla cifra.",
       },
       {
         type: "section",
@@ -366,6 +381,11 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         type: "section",
         heading: "Per chi ha senso l'uno e per chi l'altro",
         body: "PlanRadar ha senso per chi vive di coordinamento e documentazione: direttori lavori, studi tecnici, general contractor e imprese grandi che gestiscono ispezioni, collaudi e difetti su progetti con molte figure coinvolte. In quel perimetro è specializzazione pura, e la prova di 30 giorni permette di verificarlo in fretta.\n\nEdilizia in Cloud ha senso per la PMI edile italiana che deve mandare avanti l'impresa: preventivi che escono in giornata, commesse con margini veri mentre il cantiere è aperto, squadra che timbra e rapporta dall'app, fatture SDI e scadenzario nello stesso posto. L'impresa strutturata con cantieri complessi può ragionare sulla coesistenza: PlanRadar sul progetto, Edilizia in Cloud sull'azienda.\n\nL'unica trappola vera è di categoria: adottare una piattaforma di documentazione credendo di aver digitalizzato la gestione, e ritrovarsi con un cantiere fotografato benissimo mentre i margini si scoprono ancora a fine anno dal commercialista. La categoria giusta prima del marchio giusto: è la regola che salva un anno di lavoro e qualche migliaio di euro.",
+      },
+      {
+        type: "section",
+        heading: "Il software è metà del lavoro",
+        body: "Chiudiamo con la parte che non entra in nessuna tabella comparativa, né qui né altrove.\n\nQualunque software tu scelga — questo, quello, tutti e due o nessuno — non risolve tre cose. Non ti insegna a leggere i tuoi numeri. Non ti dà un metodo per vendere. Non ti porta richieste se oggi il telefono suona poco. Il software mette in ordine il lavoro che c'è; il lavoro che non c'è non lo inventa, e i margini li fa chi sa dove guardare.\n\nAttorno a Edilizia in Cloud, oltre al prodotto, c'è l'accesso a un ecosistema di servizi e di persone: consulenti dedicati per area, formazione e webinar, assistenza in italiano. E percorsi collegati, ognuno con il suo mestiere: [Numeri in Edilizia](https://numerinedilizia.com/) per il controllo di gestione — imparare a leggere margini, commesse e utile, partendo da un'analisi gratuita; [VENDITA EDILE®](https://venditaedile.it/) per il metodo commerciale, affiancamento all'imprenditore edile su come si vende; [Marketing Edile®](https://www.marketingedile.com/) per il flusso di clienti, che segue imprese edili e serramentisti lavorando solo a percentuale sulle vendite e dichiara sul sito 47 aziende seguite e oltre 60 milioni di euro generati. Quali di questi servano a te, e in che forma, si definisce in consulenza.\n\nDetto con onestà: non siamo gli unici ad avere persone attorno al software. PlanRadar è un'azienda europea strutturata, con assistenza e rete commerciale in molti Paesi; i gruppi storici italiani hanno rivenditori, formazione e consulenti di zona da decenni. La differenza non è che gli altri ti lasciano da solo: è su cosa ti affiancano. Lì l'affiancamento è tecnico, sull'uso della piattaforma. Qui, oltre a quello, si parla di numeri, di vendita e di come far entrare richieste — cioè delle tre cose che decidono se l'impresa guadagna.\n\nLa domanda per te è secca: ti manca uno strumento, o ti manca qualcuno che ti insegni a leggere i margini e a vendere il lavoro?",
       },
       {
         type: "list",
@@ -396,11 +416,11 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       },
       {
         q: "Esiste un'alternativa italiana a PlanRadar?",
-        a: "Dipende dal bisogno. Se cerchi la stessa specialità di PlanRadar — gestione difetti e ispezioni su planimetria — l'alternativa va cercata tra i software di field management. Se invece, come la maggior parte delle PMI edili, cerchi un sistema che gestisca preventivi, cantieri, ore, fatture SDI e incassi in italiano e a norma italiana, la categoria giusta è il gestionale completo: Edilizia in Cloud lo fa con listino pubblico da 127 €/mese.",
+        a: "Dipende dal bisogno. Se cerchi la stessa specialità di PlanRadar — gestione difetti e ispezioni su planimetria — l'alternativa va cercata tra i software di field management. Se invece, come la maggior parte delle PMI edili, cerchi un sistema che gestisca preventivi, cantieri, ore, fatture SDI e incassi in italiano e a norma italiana, la categoria giusta è il gestionale completo: Edilizia in Cloud lo fa con un piano gratuito per partire e 31 giorni di prova completa sui piani superiori.",
       },
       {
         q: "PlanRadar fa la fatturazione elettronica verso lo SDI?",
-        a: "No. A luglio 2026 PlanRadar non gestisce la fatturazione elettronica italiana verso il Sistema di Interscambio, né preventivi, SAL con importi o scadenzario: nella loro stessa pagina comparativa indicano le minori funzioni di gestione finanziaria tra i propri contro. Chi usa solo PlanRadar deve quindi fatturare con un altro strumento. In Edilizia in Cloud la fatturazione SDI è inclusa e collegata a commesse e SAL.",
+        a: "No. PlanRadar non gestisce la fatturazione elettronica italiana verso il Sistema di Interscambio, né preventivi, SAL con importi o scadenzario: nella loro stessa pagina comparativa indicano le minori funzioni di gestione finanziaria tra i propri contro. Chi usa solo PlanRadar deve quindi fatturare con un altro strumento. In Edilizia in Cloud la fatturazione SDI è inclusa e collegata a commesse e SAL.",
       },
       {
         q: "PlanRadar ed Edilizia in Cloud possono essere usati insieme?",
@@ -408,7 +428,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       },
       {
         q: "Quanto costano PlanRadar ed Edilizia in Cloud?",
-        a: "A luglio 2026 la pagina comparativa di PlanRadar non pubblica prezzi: offre una prova gratuita di 30 giorni e il piano si definisce con la rete commerciale. Edilizia in Cloud pubblica il listino: da 127 € a 547 € al mese secondo il piano, da 99 € con formula annuale, utenti illimitati e prova gratuita di 31 giorni. Il costo va valutato sul perimetro: uno copre la documentazione di progetto, l'altro l'intera gestione d'impresa.",
+        a: "Entrambi definiscono il prezzo parlandosi. PlanRadar offre una prova gratuita di 30 giorni e poi il piano si definisce con la rete commerciale. Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive) e offre 31 giorni di prova completa con setup e migrazione dati inclusi, utenti illimitati e nessun addebito automatico; per i piani superiori il preventivo si definisce in una consulenza gratuita. Il costo va valutato sul perimetro: uno copre la documentazione di progetto, l'altro l'intera gestione d'impresa.",
       },
     ],
   },
@@ -432,7 +452,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Chi valuta un'alternativa cloud a Dylog per l'edilizia sta confrontando due generazioni di software: [Dylog](https://www.dylog.it/) è l'ERP storico torinese, con oltre 40 anni di mestiere su contabilità e fisco, disponibile in cloud e on-premise, prezzi su preventivo.\n\nEdilizia in Cloud è il gestionale di cantiere cloud-nativo per PMI edili: mobile-first, AI sui preventivi, CRM integrato e listino pubblico da 127 €/mese. Questo confronto per aree ti dice quando ha senso l'uno e quando l'altro.",
+        body: "Chi valuta un'alternativa cloud a Dylog per l'edilizia sta confrontando due generazioni di software: [Dylog](https://www.dylog.it/) è l'ERP storico torinese, con oltre 40 anni di mestiere su contabilità e fisco, disponibile in cloud e on-premise, prezzi su preventivo.\n\nEdilizia in Cloud è il gestionale di cantiere cloud-nativo per PMI edili: mobile-first, AI sui preventivi, CRM integrato, un piano gratuito per sempre con cui partire e 31 giorni di prova completa sui piani superiori. Questo confronto per aree ti dice quando ha senso l'uno e quando l'altro.",
       },
       {
         type: "section",
@@ -452,7 +472,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           [
             "Prezzo",
             "Su preventivo, tramite rete commerciale",
-            "Listino pubblico: da 127 a 547 €/mese (da 99 € con formula annuale)",
+            "Piano gratuito per sempre + 31 giorni di prova; piani superiori su preventivo",
           ],
           [
             "Attivazione",
@@ -481,7 +501,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           ],
           [
             "AI",
-            "Nessuna funzione AI dichiarata sull'offerta edilizia (luglio 2026)",
+            "Nessuna funzione AI dichiarata sull'offerta edilizia",
             "Preventivi da foto, lettura automatica dei DDT",
           ],
           [
@@ -494,12 +514,17 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
             "Imprese con amministrazione interna e partner di zona",
             "PMI che vive in cantiere e delega il fisco allo studio",
           ],
+          [
+            "Cosa c'è oltre al software",
+            "Assistenza telefonica specializzata, formazione e partner qualificati sul territorio",
+            "Consulenti dedicati per area, formazione e percorsi su numeri, vendita e marketing",
+          ],
         ],
       },
       {
         type: "section",
         heading: "Chi è Dylog (e perché merita rispetto)",
-        body: "Dylog Italia è una casa software torinese che sviluppa gestionali da oltre 40 anni, come dichiara il sito ufficiale a luglio 2026: una delle realtà storiche dell'informatica gestionale italiana, con un catalogo che va dagli studi commercialisti ai consulenti del lavoro, dagli hotel alla ristorazione. Per l'edilizia propone un ERP costruito sulla piattaforma Manager Up, che il sito presenta come collaudata e adottata da migliaia di aziende, con centinaia di imprese edili tra i clienti.\n\nIl perimetro dichiarato è ampio: area amministrativa completa fino ai dichiarativi, articolabile per filiale, cantiere o commessa; redditività per commessa; magazzino con giacenze per cantiere; rapportini e interventi di manutenzione; DDT, distinta base e contabilità industriale; fatturazione elettronica verso privati e PA, con Peppol e Nodo Smistamento Ordini; conservazione sostitutiva; disponibilità in cloud e on-premise, con assistenza telefonica e partner sul territorio.\n\nÈ l'identikit dell'ERP tradizionale: profondo sull'amministrazione, radicato sul territorio, pensato per durare. La domanda di questo confronto, però, non è se Dylog abbia storia — ce l'ha — ma dove nasce il dato nella tua impresa: in ufficio, a posteriori, o in cantiere, mentre succede.",
+        body: "Dylog Italia è una casa software torinese che sviluppa gestionali da oltre 40 anni, come dichiara il sito ufficiale: una delle realtà storiche dell'informatica gestionale italiana, con un catalogo che va dagli studi commercialisti ai consulenti del lavoro, dagli hotel alla ristorazione. Per l'edilizia propone un ERP costruito sulla piattaforma Manager Up, che il sito presenta come collaudata e adottata da migliaia di aziende, con centinaia di imprese edili tra i clienti.\n\nIl perimetro dichiarato è ampio: area amministrativa completa fino ai dichiarativi, articolabile per filiale, cantiere o commessa; redditività per commessa; magazzino con giacenze per cantiere; rapportini e interventi di manutenzione; DDT, distinta base e contabilità industriale; fatturazione elettronica verso privati e PA, con Peppol e Nodo Smistamento Ordini; conservazione sostitutiva; disponibilità in cloud e on-premise, con assistenza telefonica e partner sul territorio.\n\nÈ l'identikit dell'ERP tradizionale: profondo sull'amministrazione, radicato sul territorio, pensato per durare. La domanda di questo confronto, però, non è se Dylog abbia storia — ce l'ha — ma dove nasce il dato nella tua impresa: in ufficio, a posteriori, o in cantiere, mentre succede.",
       },
       {
         type: "section",
@@ -527,12 +552,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Cantiere e mobile: dove si vede la generazione",
-        body: "Il cantiere è l'area dove la distanza generazionale si vede di più. La pagina edilizia di Dylog, a luglio 2026, parla di rapportini, gestione degli interventi di manutenzione, moduli web e movimentazioni di magazzino con terminali barcode: strumenti concreti, con il baricentro in ufficio, dove i dati vengono registrati.\n\nEdilizia in Cloud ha il baricentro opposto, e si racconta meglio con una giornata che con un elenco: alle 7 il capo squadra timbra dall'app, geolocalizzato sul cantiere, e le ore della squadra sono già costi di quella commessa; a metà mattina fotografa il DDT del fornitore e le righe entrano da sole; alle 17 tre foto e due righe dettate, e il rapportino con foto parte come PDF al cliente prima di salire in furgone; a fine lavori la firma si raccoglie sul telefono, davanti al cancello.\n\nLa differenza pratica sta tutta in una domanda: quante volte lo stesso dato viene toccato prima di diventare un numero utile? Nel flusso con baricentro in ufficio le ore passano dal foglio al telefono all'ufficio al gestionale; nel flusso mobile-first entrano una volta sola, dal campo, e il margine di commessa si aggiorna da solo. Ogni passaggio risparmiato è un errore in meno e una serata restituita.",
+        body: "Il cantiere è l'area dove la distanza generazionale si vede di più. La pagina edilizia di Dylog parla di rapportini, gestione degli interventi di manutenzione, moduli web e movimentazioni di magazzino con terminali barcode: strumenti concreti, con il baricentro in ufficio, dove i dati vengono registrati.\n\nEdilizia in Cloud ha il baricentro opposto, e si racconta meglio con una giornata che con un elenco: alle 7 il capo squadra timbra dall'app, geolocalizzato sul cantiere, e le ore della squadra sono già costi di quella commessa; a metà mattina fotografa il DDT del fornitore e le righe entrano da sole; alle 17 tre foto e due righe dettate, e il rapportino con foto parte come PDF al cliente prima di salire in furgone; a fine lavori la firma si raccoglie sul telefono, davanti al cancello.\n\nLa differenza pratica sta tutta in una domanda: quante volte lo stesso dato viene toccato prima di diventare un numero utile? Nel flusso con baricentro in ufficio le ore passano dal foglio al telefono all'ufficio al gestionale; nel flusso mobile-first entrano una volta sola, dal campo, e il margine di commessa si aggiorna da solo. Ogni passaggio risparmiato è un errore in meno e una serata restituita.",
       },
       {
         type: "section",
         heading: "AI: la differenza che si allarga ogni mese",
-        body: "Sull'intelligenza artificiale il confronto è rapido: la pagina edilizia di Dylog, a luglio 2026, non presenta funzioni AI per le imprese edili — l'offerta ruota su ERP, contabilità e moduli gestionali classici.\n\nIn Edilizia in Cloud l'AI è già nel lavoro quotidiano: dalle foto del sopralluogo esce la bozza di preventivo edile con le voci agganciate al tuo listino e ai tuoi prezzi; dalla foto di un DDT escono le righe caricate a magazzino; i documenti si leggono da soli invece di essere ricopiati.\n\nQui serve una precisazione onesta: l'AI non è magia e non sostituisce il preventivista — la bozza la controlli e la firmi tu. Ma il tempo cambia: un preventivo che richiedeva una serata esce in mezz'ora, e l'impresa che risponde per prima al cliente è quasi sempre quella che prende il lavoro.\n\nValutazione nostra, dichiarata come tale: questa è l'area dove il divario tra software di generazioni diverse crescerà più in fretta, perché integrare l'AI in profondità è molto più semplice per un prodotto cloud-nativo con una base di codice recente che per una piattaforma con decenni di storia da mantenere compatibile.",
+        body: "Sull'intelligenza artificiale il confronto è rapido: la pagina edilizia di Dylog non presenta funzioni AI per le imprese edili — l'offerta ruota su ERP, contabilità e moduli gestionali classici.\n\nIn Edilizia in Cloud l'AI è già nel lavoro quotidiano: dalle foto del sopralluogo esce la bozza di preventivo edile con le voci agganciate al tuo listino e ai tuoi prezzi; dalla foto di un DDT escono le righe caricate a magazzino; i documenti si leggono da soli invece di essere ricopiati.\n\nQui serve una precisazione onesta: l'AI non è magia e non sostituisce il preventivista — la bozza la controlli e la firmi tu. Ma il tempo cambia: un preventivo che richiedeva una serata esce in mezz'ora, e l'impresa che risponde per prima al cliente è quasi sempre quella che prende il lavoro.\n\nQuesta è l'area dove il divario tra software di generazioni diverse crescerà più in fretta, perché integrare l'AI in profondità è molto più semplice per un prodotto cloud-nativo con una base di codice recente che per una piattaforma con decenni di storia da mantenere compatibile.",
       },
       {
         type: "section",
@@ -548,23 +573,28 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         type: "list",
         heading: "Dove Dylog mostra i limiti per una PMI edile che vive in cantiere",
         items: [
-          "Il listino non è pubblico: canone e avviamento si conoscono con demo e preventivo del commerciale",
+          "Non c'è un piano gratuito né una prova che puoi attivare da solo: si passa da demo e preventivo del commerciale",
           "Il baricentro è in ufficio: il dato di cantiere viene registrato a posteriori, non nasce dal telefono di chi lavora",
           "La pagina edilizia non dichiara un'app di cantiere con timbrature geolocalizzate e rapportini fotografici degli operai",
-          "Nessuna funzione AI dichiarata sull'offerta edilizia a luglio 2026: preventivi e documenti restano lavoro manuale",
+          "Nessuna funzione AI dichiarata sull'offerta edilizia: preventivi e documenti restano lavoro manuale",
           "L'impianto da ERP include profondità amministrativa che, senza ufficio contabile interno, resta nel canone ma fuori dall'uso",
           "Il percorso di avviamento passa da partner e formazione: collaudato, con tempi diversi dalle 48 ore di un cloud-nativo",
         ],
       },
       {
         type: "section",
-        heading: "Prezzi: su preventivo contro listino pubblico",
-        body: "A luglio 2026 Dylog non pubblica prezzi per l'offerta edilizia: sul sito trovi il form «contattaci per info, demo o preventivo», e il costo finale dipende da moduli, utenti, installazione cloud o on-premise e servizi del partner. Non è una scorrettezza, è il modello commerciale dell'ERP configurabile: ogni installazione è diversa, quindi ogni prezzo è diverso. In pratica, però, significa che per sapere quanto spendi serve una trattativa.\n\nEdilizia in Cloud pubblica il listino: da 127 € a 547 € al mese secondo il piano, da 99 € con la formula annuale, utenti illimitati — la squadra intera dentro senza costi per operaio — fatturazione elettronica inclusa e zero costi di avviamento.\n\nIl consiglio pratico vale per qualunque confronto tu faccia: prima di firmare, fatti dare il costo totale del primo anno — canone, moduli, avviamento, formazione, assistenza — e dividilo per 12. È l'unico numero confrontabile davvero, e metterlo nero su bianco è anche un buon test del fornitore: chi pubblica il listino quel test lo ha già superato in partenza.",
+        heading: "Prezzi: due preventivi, due modi di arrivarci",
+        body: "Dylog definisce il prezzo dell'offerta edilizia su preventivo: sul sito trovi il form «contattaci per info, demo o preventivo», e il costo finale dipende da moduli, utenti, installazione cloud o on-premise e servizi del partner. È il modello commerciale dell'ERP configurabile: ogni installazione è diversa, quindi ogni prezzo è diverso.\n\nAnche in Edilizia in Cloud il preventivo dei piani superiori si definisce in una consulenza gratuita, quindi la differenza non è chi espone la cifra. È che prima della cifra c'è un piano gratuito per sempre — il piano Scopri, fino a 3 commesse attive — e 31 giorni di prova completa con setup e migrazione dei dati inclusi, disdetta quando vuoi e nessun addebito automatico. Dentro ci sono utenti illimitati — la squadra intera senza costi per operaio — fatturazione elettronica inclusa e zero costi di avviamento.\n\nIl consiglio pratico vale per qualunque confronto tu faccia: prima di firmare, fatti dare il costo totale del primo anno — canone, moduli, avviamento, formazione, assistenza — e dividilo per 12. È l'unico numero confrontabile davvero, e la domanda che lo rende concreto è una sola: prima di quel numero, ho potuto provare il software sul mio cantiere o no?",
       },
       {
         type: "section",
         heading: "Per chi ha senso l'uno e per chi l'altro",
-        body: "Dylog ha senso per l'impresa con un'amministrazione interna strutturata che vuole profondità contabile fino ai dichiarativi, magari più filiali, magazzini complessi con criteri di valorizzazione multipli, e per chi dà valore al rapporto con un partner informatico di zona o all'opzione on-premise con i dati sul proprio server: in quel perimetro parliamo di un ERP collaudato di una casa storica, e cambiarlo per moda non è una strategia.\n\nEdilizia in Cloud ha senso per la PMI edile che vive in cantiere e delega il fisco al commercialista: la squadra che timbra e rapporta dal telefono, i preventivi che escono in fretta con l'AI, il margine di commessa visibile mentre il cantiere è aperto, il CRM che non fa perdere lavori per mancato richiamo, e un prezzo pubblico da valutare da soli, stasera.\n\nIl criterio più onesto per decidere è guardare dove l'impresa perde soldi oggi: se li perde in amministrazione disordinata, la profondità contabile pesa di più; se li perde in ore non tracciate, preventivi lenti e margini scoperti a fine anno, il problema da risolvere sta in cantiere — e va risolto con lo strumento che in cantiere ci vive.",
+        body: "Dylog ha senso per l'impresa con un'amministrazione interna strutturata che vuole profondità contabile fino ai dichiarativi, magari più filiali, magazzini complessi con criteri di valorizzazione multipli, e per chi dà valore al rapporto con un partner informatico di zona o all'opzione on-premise con i dati sul proprio server: in quel perimetro parliamo di un ERP collaudato di una casa storica, e cambiarlo per moda non è una strategia.\n\nEdilizia in Cloud ha senso per la PMI edile che vive in cantiere e delega il fisco al commercialista: la squadra che timbra e rapporta dal telefono, i preventivi che escono in fretta con l'AI, il margine di commessa visibile mentre il cantiere è aperto, il CRM che non fa perdere lavori per mancato richiamo, e la possibilità di provare tutto da soli prima di decidere.\n\nIl criterio più onesto per decidere è guardare dove l'impresa perde soldi oggi: se li perde in amministrazione disordinata, la profondità contabile pesa di più; se li perde in ore non tracciate, preventivi lenti e margini scoperti a fine anno, il problema da risolvere sta in cantiere — e va risolto con lo strumento che in cantiere ci vive.",
+      },
+      {
+        type: "section",
+        heading: "Quello che nessuna tabella di confronto misura",
+        body: "Fin qui abbiamo confrontato due generazioni di software. Adesso la parte che nel confronto non compare mai, e che decide più di tutte le altre.\n\nUn gestionale nuovo non sistema un'impresa che non sa leggere i propri numeri. Non le dà un metodo di vendita. Non le porta richieste che oggi non arrivano. Il software organizza il lavoro; a far guadagnare sono le competenze del titolare e della squadra. È il motivo per cui due imprese con lo stesso programma chiudono l'anno con margini diversi.\n\nPer questo attorno a Edilizia in Cloud, oltre al prodotto, c'è l'accesso a un ecosistema di servizi e di persone: consulenti dedicati per area, formazione e webinar, assistenza in italiano. E i percorsi collegati: [Numeri in Edilizia](https://numerinedilizia.com/), metodo di controllo di gestione per imprese edili che insegna al titolare a leggere margini, commesse e utile, con un'analisi gratuita per partire; [VENDITA EDILE®](https://venditaedile.it/), affiancamento commerciale sul metodo di vendita; [Marketing Edile®](https://www.marketingedile.com/), che porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite, dichiarando 47 aziende seguite e oltre 60 milioni di euro generati. Il perimetro — cosa serve a te e in che forma — si definisce in consulenza.\n\nQui va detta una cosa che gioca a nostro sfavore: sull'affiancamento Dylog non è scoperta. Dichiara assistenza telefonica specializzata, formazione continua e partner qualificati sul territorio, e chi ha quarant'anni di mestiere ha costruito una rete di persone che noi non abbiamo. La differenza è di materia, non di presenza: quel supporto lavora sul software e sull'amministrazione — installazione, moduli, contabilità. Il nostro entra anche in quello che il software non fa da solo: leggere i numeri, vendere, riempire il calendario dei cantieri.\n\nLa domanda utile, prima di cambiare gestionale: il tuo problema è che il software non ti basta più, o che nessuno ti ha mai insegnato a leggere i margini?",
       },
       {
         type: "list",
@@ -587,15 +617,15 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     faqs: [
       {
         q: "Che software offre Dylog per le imprese edili?",
-        a: "A luglio 2026 Dylog propone per l'edilizia un ERP basato sulla piattaforma Manager Up: area amministrativa fino ai dichiarativi, redditività per commessa, magazzino con giacenze per cantiere e 13 criteri di valorizzazione, DDT, contabilità industriale, fatturazione elettronica B2B e PA con conservazione sostitutiva, più un profilo CRM in cloud. È disponibile in cloud e on-premise, con prezzi su preventivo tramite la rete commerciale.",
+        a: "Dylog propone per l'edilizia un ERP basato sulla piattaforma Manager Up: area amministrativa fino ai dichiarativi, redditività per commessa, magazzino con giacenze per cantiere e 13 criteri di valorizzazione, DDT, contabilità industriale, fatturazione elettronica B2B e PA con conservazione sostitutiva, più un profilo CRM in cloud. È disponibile in cloud e on-premise, con prezzi su preventivo tramite la rete commerciale.",
       },
       {
         q: "Qual è la differenza principale tra Dylog ed Edilizia in Cloud?",
-        a: "La generazione e il baricentro. Dylog è un ERP tradizionale con oltre 40 anni di storia, profondo su contabilità e fisco, con avviamento tramite partner e opzione on-premise. Edilizia in Cloud è cloud-nativo e mobile-first: il dato nasce in cantiere dal telefono degli operai (timbrature, rapportini con foto), l'AI prepara i preventivi dalle foto del sopralluogo e il listino è pubblico, da 127 €/mese con utenti illimitati.",
+        a: "La generazione e il baricentro. Dylog è un ERP tradizionale con oltre 40 anni di storia, profondo su contabilità e fisco, con avviamento tramite partner e opzione on-premise. Edilizia in Cloud è cloud-nativo e mobile-first: il dato nasce in cantiere dal telefono degli operai (timbrature, rapportini con foto), l'AI prepara i preventivi dalle foto del sopralluogo, si parte da un piano gratuito per sempre e si prova tutto per 31 giorni con utenti illimitati.",
       },
       {
         q: "Esiste un'alternativa cloud a Dylog per l'edilizia?",
-        a: "Sì. Per la PMI edile che vuole un sistema interamente in cloud, senza server né installazioni, Edilizia in Cloud copre preventivi con AI, commesse con margini in tempo reale, app di cantiere con timbratura digitale e rapportini fotografici, magazzino, CRM e fatturazione elettronica SDI in un unico canone pubblico da 127 € a 547 €/mese, attivabile in 48 ore con prova gratuita di 31 giorni.",
+        a: "Sì. Per la PMI edile che vuole un sistema interamente in cloud, senza server né installazioni, Edilizia in Cloud copre preventivi con AI, commesse con margini in tempo reale, app di cantiere con timbratura digitale e rapportini fotografici, magazzino, CRM e fatturazione elettronica SDI in un unico gestionale, attivabile in 48 ore, con un piano gratuito per sempre per partire e 31 giorni di prova completa sui piani superiori.",
       },
       {
         q: "Dylog è meglio di Edilizia in Cloud per la contabilità?",
@@ -603,7 +633,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       },
       {
         q: "Quanto costa Dylog per l'edilizia?",
-        a: "A luglio 2026 Dylog non pubblica prezzi per l'offerta edilizia: il costo si definisce con demo e preventivo in base a moduli, utenti, installazione cloud o on-premise e servizi del partner di zona. Per confrontare offerte così strutturate conviene farsi mettere per iscritto il costo totale del primo anno (canone, avviamento, formazione, assistenza) e dividerlo per 12: è l'unico numero paragonabile a un listino pubblico come quello di Edilizia in Cloud.",
+        a: "Dylog definisce il costo dell'offerta edilizia con demo e preventivo, in base a moduli, utenti, installazione cloud o on-premise e servizi del partner di zona. Anche Edilizia in Cloud definisce il preventivo dei piani superiori in una consulenza gratuita, ma ci si arriva dopo: c'è un piano gratuito per sempre per partire e 31 giorni di prova completa con setup e migrazione dati inclusi. Per confrontare offerte così strutturate conviene farsi mettere per iscritto il costo totale del primo anno (canone, avviamento, formazione, assistenza) e dividerlo per 12: è l'unico numero davvero paragonabile.",
       },
       {
         q: "Un'impresa edile che usa Dylog da anni dovrebbe passare al cloud?",
@@ -631,7 +661,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "[Pillar](https://www.pillar.it/) è un software per l'edilizia 100% italiano che punta sull'AI per dare alle PMI edili margine e controllo sui cantieri; chi lo valuta cerca spesso anche un'alternativa da confrontare, ed Edilizia in Cloud è quella più vicina per categoria: gestionale di cantiere italiano, AI integrata, ma con app operai, fatturazione elettronica SDI e listino pubblico da 127 €/mese.\n\nQuesto confronto per aree mette in fila cosa dichiara ciascuno dei due, a luglio 2026, e le domande per scegliere.",
+        body: "[Pillar](https://www.pillar.it/) è un software per l'edilizia 100% italiano che punta sull'AI per dare alle PMI edili margine e controllo sui cantieri; chi lo valuta cerca spesso anche un'alternativa da confrontare, ed Edilizia in Cloud è quella più vicina per categoria: gestionale di cantiere italiano, AI integrata, ma con app operai, fatturazione elettronica SDI, un piano gratuito per sempre con cui partire e 31 giorni di prova completa sui piani superiori.\n\nQuesto confronto per aree mette in fila cosa dichiara ciascuno dei due e le domande per scegliere.",
       },
       {
         type: "section",
@@ -651,7 +681,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           [
             "Prezzo",
             "Su preventivo: si definisce in videocall dimostrativa",
-            "Listino pubblico: da 127 a 547 €/mese (da 99 € con formula annuale)",
+            "Piano gratuito per sempre + 31 giorni di prova; piani superiori su preventivo",
           ],
           [
             "Attivazione",
@@ -670,12 +700,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           ],
           [
             "Fatturazione SDI",
-            "Emissione e ricezione SDI non dichiarate sul sito (luglio 2026)",
+            "Emissione e ricezione SDI non dichiarate sul sito",
             "Inclusa: acconti, fatture di SAL, reverse charge e split payment",
           ],
           [
             "Stato avanzamento lavori",
-            "Non menzionato sulla pagina a luglio 2026",
+            "Non dichiarato sul sito",
             "SAL con percentuali, importi maturati e fatture di avanzamento",
           ],
           [
@@ -693,12 +723,17 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
             "Impresa che vuole visibilità sui numeri con minime nuove abitudini",
             "Impresa che vuole chiudere l'intero giro in un posto solo",
           ],
+          [
+            "Cosa c'è oltre al software",
+            "Assistenza sul prodotto; percorsi su numeri, vendita e marketing non dichiarati sul sito",
+            "Consulenti dedicati per area, formazione e percorsi su numeri, vendita e marketing",
+          ],
         ],
       },
       {
         type: "section",
         heading: "Chi è Pillar",
-        body: "Pillar è un software di gestione per piccole e medie imprese edili, 100% italiano, costruito attorno a un'idea chiara: «più margine e controllo sui cantieri con l'AI». A luglio 2026 il sito ufficiale dichiara oltre 700 aziende attive, più di 2.000 progetti gestiti, una valutazione media di 4.8 su 5 e un risparmio medio dichiarato di 14 ore a settimana.\n\nIl cuore del prodotto è Pillar AI, presentata come «l'AI che conosce la tua azienda»: un assistente conversazionale a cui chiedere la situazione finanziaria, le ore lavorate, i numeri dei cantieri.\n\nAttorno ci sono il monitoraggio di margini, costi e manodopera per cantiere in tempo reale, i preventivi generati da computi metrici o direttamente in conversazione con l'AI, la gestione di fatture attive e passive con le scadenze, i flussi di cassa con le previsioni, il procurement con fornitori e ordini, la verifica documentale per la sicurezza e un archivio digitale dove bolle, rapportini, fatture e foto arrivano via WhatsApp, parlando con l'assistente virtuale.\n\nÈ una proposta moderna e coerente, e i numeri di crescita dichiarati raccontano un prodotto che il mercato sta ascoltando. Il confronto utile, allora, non è «chi ha l'AI» — ce l'abbiamo entrambi — ma dove lavora l'AI e cosa c'è intorno.",
+        body: "Pillar è un software di gestione per piccole e medie imprese edili, 100% italiano, costruito attorno a un'idea chiara: «più margine e controllo sui cantieri con l'AI». Il sito ufficiale dichiara oltre 700 aziende attive, più di 2.000 progetti gestiti, una valutazione media di 4.8 su 5 e un risparmio medio dichiarato di 14 ore a settimana.\n\nIl cuore del prodotto è Pillar AI, presentata come «l'AI che conosce la tua azienda»: un assistente conversazionale a cui chiedere la situazione finanziaria, le ore lavorate, i numeri dei cantieri.\n\nAttorno ci sono il monitoraggio di margini, costi e manodopera per cantiere in tempo reale, i preventivi generati da computi metrici o direttamente in conversazione con l'AI, la gestione di fatture attive e passive con le scadenze, i flussi di cassa con le previsioni, il procurement con fornitori e ordini, la verifica documentale per la sicurezza e un archivio digitale dove bolle, rapportini, fatture e foto arrivano via WhatsApp, parlando con l'assistente virtuale.\n\nÈ una proposta moderna e coerente, e i numeri di crescita dichiarati raccontano un prodotto che il mercato sta ascoltando. Il confronto utile, allora, non è «chi ha l'AI» — ce l'abbiamo entrambi — ma dove lavora l'AI e cosa c'è intorno.",
       },
       {
         type: "section",
@@ -715,37 +750,37 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Preventivi generati da computi metrici o in conversazione con l'AI, dichiarati «pronti in pochi minuti»",
           "Flussi di cassa con previsioni, gestione di fatture attive e passive con scadenze",
           "Procurement (fornitori e ordini) e verifica documentale per la sicurezza di cantiere",
-          "Prodotto 100% italiano in crescita: oltre 700 aziende attive e 4.8/5 di valutazione media dichiarate a luglio 2026",
+          "Prodotto 100% italiano in crescita: oltre 700 aziende attive e 4.8/5 di valutazione media dichiarate sul sito",
         ],
       },
       {
         type: "section",
         heading: "Il flusso dei documenti: WhatsApp contro app di cantiere",
-        body: "Sulla raccolta dei dati dal campo i due prodotti hanno fatto scelte opposte, entrambe con una logica. Pillar usa WhatsApp: la squadra manda bolle, rapportini e foto all'assistente virtuale, e tutto finisce nell'archivio digitale. Il pregio dichiarato è la frizione zero — nessuna app nuova da far installare, si usa lo strumento che gli operai hanno già in mano.\n\nEdilizia in Cloud ha scelto l'app di cantiere, e la scelta si spiega con quello che succede alle 7 del mattino: il capo squadra timbra, geolocalizzato sul cantiere giusto, e le ore sue e della squadra sono già costi di quella commessa — nessun messaggio da mandare, nessuno che li smista. Il rapportino di fine giornata è strutturato: foto, lavorazioni, note, e diventa un PDF ordinato che parte al cliente; la firma di fine lavori si raccoglie sul telefono; ferie e permessi passano dallo stesso posto.\n\nLa differenza sta nel tipo di dato che arriva: un messaggio in chat è un documento da interpretare e agganciare; una timbratura geolocalizzata o un rapportino compilato nascono già agganciati a commessa, persona e giornata. A luglio 2026 la pagina di Pillar non dichiara timbrature geolocalizzate né un'app dedicata agli operai: se il costo orario per commessa è il numero che vuoi preciso, questo è il punto da verificare in demo.",
+        body: "Sulla raccolta dei dati dal campo i due prodotti hanno fatto scelte opposte, entrambe con una logica. Pillar usa WhatsApp: la squadra manda bolle, rapportini e foto all'assistente virtuale, e tutto finisce nell'archivio digitale. Il pregio dichiarato è la frizione zero — nessuna app nuova da far installare, si usa lo strumento che gli operai hanno già in mano.\n\nEdilizia in Cloud ha scelto l'app di cantiere, e la scelta si spiega con quello che succede alle 7 del mattino: il capo squadra timbra, geolocalizzato sul cantiere giusto, e le ore sue e della squadra sono già costi di quella commessa — nessun messaggio da mandare, nessuno che li smista. Il rapportino di fine giornata è strutturato: foto, lavorazioni, note, e diventa un PDF ordinato che parte al cliente; la firma di fine lavori si raccoglie sul telefono; ferie e permessi passano dallo stesso posto.\n\nLa differenza sta nel tipo di dato che arriva: un messaggio in chat è un documento da interpretare e agganciare; una timbratura geolocalizzata o un rapportino compilato nascono già agganciati a commessa, persona e giornata. La pagina di Pillar non dichiara timbrature geolocalizzate né un'app dedicata agli operai: se il costo orario per commessa è il numero che vuoi preciso, questo è il punto da verificare in demo.",
       },
       {
         type: "section",
         heading: "Fatturazione: monitorare le fatture o emetterle verso lo SDI",
-        body: "Sulla parte fiscale serve precisione, perché le parole si somigliano ma il lavoro è diverso. Pillar dichiara la gestione delle fatture attive e passive con le scadenze — «fatture da pagare, scadute e da emettere tutte in un unico posto» — e i flussi di cassa con le previsioni: è il presidio del monitoraggio, e per il controllo di gestione è un tassello sensato.\n\nQuello che la pagina ufficiale, a luglio 2026, non dichiara è l'emissione e la ricezione delle fatture elettroniche verso il Sistema di Interscambio: se il flusso SDI passa da un altro strumento, ogni fattura vive in due posti — dove la emetti e dove la monitori.\n\nIn Edilizia in Cloud la fatturazione elettronica è il capolinea naturale del flusso: dal preventivo accettato esce la fattura di acconto, dai SAL le fatture di avanzamento, reverse charge e split payment si impostano una volta sola su cliente o commessa, natura IVA e diciture escono giuste, lo scadenzario si aggiorna con gli incassi e l'incasso aggiorna la commessa.\n\nPer un'impresa edile la fattura non è un documento amministrativo qualsiasi: è il punto dove il cantiere diventa cassa, e ogni passaggio tra strumenti diversi su quel percorso è un punto dove qualcosa si perde.",
+        body: "Sulla parte fiscale serve precisione, perché le parole si somigliano ma il lavoro è diverso. Pillar dichiara la gestione delle fatture attive e passive con le scadenze — «fatture da pagare, scadute e da emettere tutte in un unico posto» — e i flussi di cassa con le previsioni: è il presidio del monitoraggio, e per il controllo di gestione è un tassello sensato.\n\nQuello che la pagina ufficiale non dichiara è l'emissione e la ricezione delle fatture elettroniche verso il Sistema di Interscambio: se il flusso SDI passa da un altro strumento, ogni fattura vive in due posti — dove la emetti e dove la monitori.\n\nIn Edilizia in Cloud la fatturazione elettronica è il capolinea naturale del flusso: dal preventivo accettato esce la fattura di acconto, dai SAL le fatture di avanzamento, reverse charge e split payment si impostano una volta sola su cliente o commessa, natura IVA e diciture escono giuste, lo scadenzario si aggiorna con gli incassi e l'incasso aggiorna la commessa.\n\nPer un'impresa edile la fattura non è un documento amministrativo qualsiasi: è il punto dove il cantiere diventa cassa, e ogni passaggio tra strumenti diversi su quel percorso è un punto dove qualcosa si perde.",
       },
       {
         type: "section",
         heading: "Preventivi, firma e stato avanzamento lavori",
-        body: "Sui preventivi i due prodotti si assomigliano nel punto di partenza e si separano dopo. Pillar dichiara preventivi pronti in pochi minuti, generati da computi metrici o in conversazione con l'AI: è la stessa scommessa che abbiamo fatto noi, ed è quella giusta — il preventivo edile veloce è la prima arma commerciale di una PMI, perché chi risponde prima prende il lavoro.\n\nLa differenza sta in quello che succede dopo che il preventivo è pronto. In Edilizia in Cloud il preventivo ha un ciclo di vita: uno stato, una scadenza, i promemoria per il richiamo dentro il CRM, la firma elettronica del cliente raccolta da remoto o sul telefono, e la trasformazione in commessa senza ricopiare una riga.\n\nPoi, a cantiere aperto, arriva la parte che la pagina di Pillar a luglio 2026 non menziona: lo stato avanzamento lavori. I SAL con percentuali e importi maturati, e le fatture di avanzamento generate da lì, sono il modo in cui un'impresa edile incassa mentre lavora invece di anticipare tutto e sperare a fine cantiere. Se i tuoi lavori durano tre settimane, forse non ti serve; se durano tre mesi, il SAL è la differenza tra una commessa che si autofinanzia e una che finanzi tu.",
+        body: "Sui preventivi i due prodotti si assomigliano nel punto di partenza e si separano dopo. Pillar dichiara preventivi pronti in pochi minuti, generati da computi metrici o in conversazione con l'AI: è la stessa scommessa che abbiamo fatto noi, ed è quella giusta — il preventivo edile veloce è la prima arma commerciale di una PMI, perché chi risponde prima prende il lavoro.\n\nLa differenza sta in quello che succede dopo che il preventivo è pronto. In Edilizia in Cloud il preventivo ha un ciclo di vita: uno stato, una scadenza, i promemoria per il richiamo dentro il CRM, la firma elettronica del cliente raccolta da remoto o sul telefono, e la trasformazione in commessa senza ricopiare una riga.\n\nPoi, a cantiere aperto, arriva la parte che la pagina di Pillar non menziona: lo stato avanzamento lavori. I SAL con percentuali e importi maturati, e le fatture di avanzamento generate da lì, sono il modo in cui un'impresa edile incassa mentre lavora invece di anticipare tutto e sperare a fine cantiere. Se i tuoi lavori durano tre settimane, forse non ti serve; se durano tre mesi, il SAL è la differenza tra una commessa che si autofinanzia e una che finanzi tu.",
       },
       {
         type: "section",
         heading: "Perimetro: cosa c'è intorno al controllo di gestione",
-        body: "Allargando lo sguardo, i due prodotti disegnano perimetri diversi. Pillar concentra la proposta su controllo economico e finanziario dei cantieri, documenti, procurement e sicurezza: un perimetro coerente con la sua promessa di margine e controllo.\n\nEdilizia in Cloud copre il ciclo operativo per intero, e la differenza si vede nelle aree che sulla pagina di Pillar, a luglio 2026, non compaiono: il magazzino con giacenze, carichi da DDT fotografato e scarichi sulle commesse; il personale con timbrature, presenze, ferie e documenti dei dipendenti con le scadenze; il CRM con i lead che diventano preventivi e i promemoria di richiamo; la firma elettronica sui documenti; i rapportini strutturati che diventano PDF per il cliente.\n\nSono aree che non fanno notizia finché non servono: il giorno che l'ispettore chiede i documenti del dipendente, il giorno che il materiale sparisce tra due cantieri, il giorno che il cliente vuole nero su bianco cosa è stato fatto. La domanda da farti non è quale elenco è più lungo, ma quali di queste aree oggi gestisci con fogli, chat e raccoglitori — perché quelle resteranno lì anche dopo aver adottato un software, se il software non le copre.",
+        body: "Allargando lo sguardo, i due prodotti disegnano perimetri diversi. Pillar concentra la proposta su controllo economico e finanziario dei cantieri, documenti, procurement e sicurezza: un perimetro coerente con la sua promessa di margine e controllo.\n\nEdilizia in Cloud copre il ciclo operativo per intero, e la differenza si vede nelle aree che sulla pagina di Pillar non compaiono: il magazzino con giacenze, carichi da DDT fotografato e scarichi sulle commesse; il personale con timbrature, presenze, ferie e documenti dei dipendenti con le scadenze; il CRM con i lead che diventano preventivi e i promemoria di richiamo; la firma elettronica sui documenti; i rapportini strutturati che diventano PDF per il cliente.\n\nSono aree che non fanno notizia finché non servono: il giorno che l'ispettore chiede i documenti del dipendente, il giorno che il materiale sparisce tra due cantieri, il giorno che il cliente vuole nero su bianco cosa è stato fatto. La domanda da farti non è quale elenco è più lungo, ma quali di queste aree oggi gestisci con fogli, chat e raccoglitori — perché quelle resteranno lì anche dopo aver adottato un software, se il software non le copre.",
       },
       {
         type: "list",
         heading: "Dove Pillar mostra i limiti per una PMI edile, stando alla pagina ufficiale",
         items: [
-          "Il listino non è pubblico: il costo si definisce in videocall dimostrativa, quindi per sapere quanto spendi serve un appuntamento",
+          "Non è dichiarato un piano gratuito né una prova che puoi attivare da solo: per vedere il prodotto serve un appuntamento in videocall",
           "L'emissione e la ricezione delle fatture elettroniche verso lo SDI non sono dichiarate: il flusso fiscale va verificato in demo",
           "Non è dichiarata un'app operai con timbrature geolocalizzate: i dati dal campo viaggiano via WhatsApp come messaggi e documenti",
-          "Lo stato avanzamento lavori con SAL e fatture di avanzamento non è menzionato sulla pagina a luglio 2026",
+          "Lo stato avanzamento lavori con SAL e fatture di avanzamento non è menzionato sulla pagina",
           "La firma elettronica dei preventivi non è dichiarata: il passaggio da preventivo a contratto resta da chiarire",
           "Magazzino con giacenze e movimenti non dichiarato in modo completo: bolle e rapportini sono citati come documenti d'archivio",
         ],
@@ -753,7 +788,7 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
       {
         type: "section",
         heading: "Prezzi e attivazione",
-        body: "A luglio 2026 Pillar non pubblica prezzi: il percorso d'ingresso è la videocall dimostrativa, dove il costo viene definito in base alle esigenze. È una scelta commerciale legittima e diffusa, con una conseguenza pratica: il confronto economico lo puoi fare solo dopo l'appuntamento, e il costo totale va ricostruito caso per caso.\n\nEdilizia in Cloud pubblica il listino sul sito: da 127 € a 547 € al mese secondo il piano, da 99 € con la formula annuale, utenti illimitati inclusi — la squadra intera dentro, senza costi per operaio aggiunto — fatturazione elettronica compresa e zero costi di avviamento. L'attivazione richiede 48 ore: import di listino e anagrafiche, modelli di preventivo configurati, app installata alla squadra, e 31 giorni di prova gratuita per verificare sul tuo cantiere vero.\n\nIl consiglio che diamo sempre, e che vale anche a nostro sfavore se non lo rispettassimo: qualunque fornitore tu stia valutando, fatti mettere per iscritto il costo totale del primo anno e dividilo per 12. È l'unico numero che permette un confronto vero — e con un listino pubblico quel numero lo calcoli da solo, stasera, senza chiedere il permesso a nessuno.",
+        body: "Pillar definisce il prezzo in videocall dimostrativa, in base alle esigenze dell'impresa. Anche Edilizia in Cloud definisce il preventivo dei piani superiori in una consulenza gratuita, quindi su questo punto siamo sullo stesso schema e sarebbe scorretto farne una critica.\n\nLa differenza sta in cosa puoi fare prima di quell'appuntamento. In Edilizia in Cloud c'è un piano gratuito per sempre — il piano Scopri, con cui gestisci fino a 3 commesse attive — e 31 giorni di prova completa sui piani superiori, con setup e migrazione dei dati inclusi, nessun addebito automatico e disdetta quando vuoi. Dentro ci sono utenti illimitati — la squadra intera, senza costi per operaio aggiunto — fatturazione elettronica compresa e zero costi di avviamento. L'attivazione richiede 48 ore: import di listino e anagrafiche, modelli di preventivo configurati, app installata alla squadra.\n\nIl consiglio che diamo sempre, e che vale anche a nostro sfavore se non lo rispettassimo: qualunque fornitore tu stia valutando, fatti mettere per iscritto il costo totale del primo anno e dividilo per 12. È l'unico numero che permette un confronto vero — e il momento migliore per leggerlo è dopo aver usato il software su una commessa vera, non prima.",
       },
       {
         type: "section",
@@ -766,6 +801,11 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
         body: "Pillar ha senso per l'impresa che cerca soprattutto controllo economico e finanziario dei cantieri con il minimo cambiamento di abitudini: l'AI a cui chiedere i numeri, i documenti che arrivano via WhatsApp senza far installare niente alla squadra, i flussi di cassa sotto controllo. Se il tuo problema numero uno è la visibilità sui margini e la squadra è refrattaria a qualsiasi app, quella impostazione ha una sua coerenza, e i numeri di crescita dichiarati dicono che funziona per molti.\n\nEdilizia in Cloud ha senso per l'impresa che vuole chiudere l'intero giro in un posto solo: il preventivo edile firmato che diventa commessa, la timbratura digitale che trasforma le ore in costi da sola, il SAL che diventa fattura di avanzamento, la fattura SDI che aggiorna lo scadenzario, il magazzino e il personale nello stesso sistema.\n\nLa distinzione più onesta è questa: uno mette l'intelligenza sopra i dati che gli arrivano, l'altro presidia anche il modo in cui i dati nascono e il punto in cui diventano incasso. Quale dei due serve a te dipende da dove l'impresa perde di più oggi: se in visibilità, o se nei passaggi a mano tra un pezzo di carta e l'altro.",
       },
       {
+        type: "section",
+        heading: "Il software è metà del lavoro",
+        body: "Resta un'ultima area di confronto, e non è una funzione.\n\nDue imprese possono comprare lo stesso gestionale — il nostro, il loro, uno qualsiasi — e chiudere l'anno con margini opposti. Perché il software organizza, ma non insegna a leggere i numeri, non dà un metodo per vendere, non fa entrare richieste che oggi non entrano. Quelle sono competenze: si imparano, non si installano.\n\nAttorno a Edilizia in Cloud, oltre al prodotto, c'è l'accesso a un ecosistema di servizi e di persone: consulenti dedicati per area, formazione e webinar, assistenza in italiano. Poi i percorsi collegati, ognuno con il suo mestiere: [Numeri in Edilizia](https://numerinedilizia.com/) per il controllo di gestione, che insegna al titolare a leggere margini, commesse e utile e parte da un'analisi gratuita; [VENDITA EDILE®](https://venditaedile.it/) per il metodo commerciale, affiancamento all'imprenditore edile su come si vende; [Marketing Edile®](https://www.marketingedile.com/) per il flusso di richieste, che segue imprese edili e serramentisti lavorando solo a percentuale sulle vendite e dichiara 47 aziende seguite e oltre 60 milioni di euro generati. Cosa rientri nel tuo perimetro, e in che forma, si definisce in consulenza.\n\nRestiamo al metodo di questo confronto: cosa ci sia attorno a Pillar oltre al software la pagina ufficiale non lo dichiara, quindi non lo scriviamo noi — è una domanda da fare in videocall, e merita una risposta seria. Vale anche per il resto del mercato: i gruppi storici hanno reti di rivenditori, assistenza territoriale e formazione da decenni, e su quel fronte sono più coperti di noi. La differenza da guardare non è chi ha qualcuno dietro, è su cosa ti affianca: solo sul software, o anche sui numeri, sulla vendita e sui clienti in ingresso.\n\nPrima di scegliere, chiediti questo: ti manca il software, o ti manca qualcuno che ti abbia insegnato a leggere i margini e a vendere il lavoro?",
+      },
+      {
         type: "list",
         heading: "Come scegliere: le domande giuste da farti",
         items: [
@@ -774,35 +814,35 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Le ore degli operai entrano con una timbratura geolocalizzata o le manda qualcuno in chat a fine giornata?",
           "Quando il cliente accetta il preventivo, la firma la raccolgo nel software o resto sulla carta?",
           "Sui lavori lunghi, lo stato avanzamento lavori lo fatturo dal gestionale o lo ricostruisco a mano?",
-          "Il prezzo voglio leggerlo sul sito stasera o fissare una videocall per conoscerlo?",
+          "Prima di decidere voglio poter usare il software sul mio cantiere, o mi basta vederlo in videocall?",
         ],
       },
       {
         type: "cta",
         heading: "Confrontali sul campo, non sulle homepage",
-        body: "Il test che consigliamo è lo stesso per entrambi: una commessa vera, la squadra che manda i dati per una settimana, un preventivo fatto con l'AI, una fattura emessa. Edilizia in Cloud lo puoi provare gratis per 31 giorni, da solo, con il listino già sotto gli occhi: se poi la videocall con Pillar ti convince di più, avrai scelto conoscendo entrambi. Nessuna carta di credito richiesta.",
+        body: "Il test che consigliamo è lo stesso per entrambi: una commessa vera, la squadra che manda i dati per una settimana, un preventivo fatto con l'AI, una fattura emessa. Edilizia in Cloud lo puoi provare gratis per 31 giorni, da solo, con setup e migrazione dei dati inclusi: se poi la videocall con Pillar ti convince di più, avrai scelto conoscendo entrambi. Nessuna carta di credito richiesta.",
       },
     ],
     faqs: [
       {
         q: "Che cos'è Pillar per l'edilizia?",
-        a: "Pillar è un software di gestione 100% italiano per piccole e medie imprese edili, costruito attorno a un assistente AI conversazionale che risponde su finanze, ore e cantieri. A luglio 2026 il sito dichiara oltre 700 aziende attive, monitoraggio di margini e costi per cantiere, preventivi da computi o via AI, fatture attive e passive con scadenze, flussi di cassa, procurement e raccolta documenti via WhatsApp. I prezzi si definiscono in videocall dimostrativa.",
+        a: "Pillar è un software di gestione 100% italiano per piccole e medie imprese edili, costruito attorno a un assistente AI conversazionale che risponde su finanze, ore e cantieri. Il sito dichiara oltre 700 aziende attive, monitoraggio di margini e costi per cantiere, preventivi da computi o via AI, fatture attive e passive con scadenze, flussi di cassa, procurement e raccolta documenti via WhatsApp. I prezzi si definiscono in videocall dimostrativa.",
       },
       {
         q: "Qual è la differenza tra Pillar ed Edilizia in Cloud?",
-        a: "Entrambi sono italiani, per PMI edili e con AI, ma con perimetri diversi. Pillar concentra la proposta su controllo economico, AI conversazionale e documenti raccolti via WhatsApp. Edilizia in Cloud copre l'intero ciclo operativo: app operai con timbrature geolocalizzate, rapportini strutturati con foto, preventivi con firma elettronica, SAL con fatture di avanzamento, magazzino, personale, CRM e fatturazione elettronica SDI inclusa, con listino pubblico da 127 €/mese.",
+        a: "Entrambi sono italiani, per PMI edili e con AI, ma con perimetri diversi. Pillar concentra la proposta su controllo economico, AI conversazionale e documenti raccolti via WhatsApp. Edilizia in Cloud copre l'intero ciclo operativo: app operai con timbrature geolocalizzate, rapportini strutturati con foto, preventivi con firma elettronica, SAL con fatture di avanzamento, magazzino, personale, CRM e fatturazione elettronica SDI inclusa, con un piano gratuito per sempre per partire e 31 giorni di prova completa sui piani superiori.",
       },
       {
         q: "Pillar fa la fatturazione elettronica verso lo SDI?",
-        a: "A luglio 2026 la pagina ufficiale di Pillar dichiara la gestione delle fatture attive e passive con le scadenze — da pagare, scadute e da emettere in un unico posto — ma non dichiara l'emissione e la ricezione delle fatture elettroniche verso il Sistema di Interscambio: è un punto da verificare in demo. In Edilizia in Cloud la fatturazione SDI è inclusa nel canone e collegata a preventivi, SAL, scadenzario e incassi.",
+        a: "La pagina ufficiale di Pillar dichiara la gestione delle fatture attive e passive con le scadenze — da pagare, scadute e da emettere in un unico posto — ma non dichiara l'emissione e la ricezione delle fatture elettroniche verso il Sistema di Interscambio: è un punto da verificare in demo. In Edilizia in Cloud la fatturazione SDI è inclusa nel canone e collegata a preventivi, SAL, scadenzario e incassi.",
       },
       {
         q: "Pillar ha un'app per gli operai con le timbrature?",
-        a: "A luglio 2026 la pagina ufficiale di Pillar non dichiara un'app dedicata agli operai né timbrature geolocalizzate: la raccolta dei dati dal cantiere avviene via WhatsApp, mandando bolle, rapportini e foto all'assistente virtuale. Edilizia in Cloud usa invece un'app di cantiere: timbratura digitale geolocalizzata che trasforma le ore in costi di commessa in automatico, rapportini strutturati con foto e firma del cliente a fine lavori.",
+        a: "La pagina ufficiale di Pillar non dichiara un'app dedicata agli operai né timbrature geolocalizzate: la raccolta dei dati dal cantiere avviene via WhatsApp, mandando bolle, rapportini e foto all'assistente virtuale. Edilizia in Cloud usa invece un'app di cantiere: timbratura digitale geolocalizzata che trasforma le ore in costi di commessa in automatico, rapportini strutturati con foto e firma del cliente a fine lavori.",
       },
       {
         q: "Quanto costa Pillar rispetto a Edilizia in Cloud?",
-        a: "A luglio 2026 Pillar non pubblica prezzi: il costo viene definito durante una videocall dimostrativa in base alle esigenze dell'impresa. Edilizia in Cloud pubblica il listino sul sito: da 127 € a 547 € al mese secondo il piano, da 99 € con formula annuale, utenti illimitati, fatturazione elettronica inclusa e nessun costo di avviamento, con prova gratuita di 31 giorni. Per confrontare conviene ricostruire il costo totale del primo anno di entrambi.",
+        a: "Pillar definisce il costo durante una videocall dimostrativa, in base alle esigenze dell'impresa. Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive); per i piani superiori il preventivo si definisce in una consulenza gratuita, dopo 31 giorni di prova completa con setup e migrazione dati inclusi, utenti illimitati, fatturazione elettronica inclusa e nessun costo di avviamento. Per confrontare conviene ricostruire il costo totale del primo anno di entrambi.",
       },
       {
         q: "Esiste un'alternativa a Pillar per imprese edili?",

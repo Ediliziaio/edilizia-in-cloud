@@ -56,7 +56,7 @@ const rows: TableRow[] = [
   { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Onboarding dedicato" } },
   { feature: "Utenti e progetti illimitati", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Su preventivo (in dollari)" } },
+  { feature: "Prezzo", eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" }, competitor: { type: "text", text: "Su preventivo (in dollari)" } },
 ];
 
 const otherVsLinks = [
@@ -69,7 +69,7 @@ const otherVsLinks = [
 const tldrPoints = [
   "Buildertrend è un software maturo per il mercato USA, ma non gestisce SDI, Cassa Edile, CCNL edilizia e DURC: per un'impresa italiana è un ostacolo legale, non solo un fastidio.",
   "Edilizia in Cloud è in italiano, con supporto in italiano, e copre nativamente tutto il fiscale del settore costruzioni: fatturazione SDI inclusa.",
-  "Prezzo: il listino Buildertrend non è pubblico — preventivo personalizzato in dollari. Edilizia in Cloud ha un prezzo pubblico: da €127/mese all-inclusive, in italiano.",
+  "Prezzo: Buildertrend fa un preventivo personalizzato in dollari. Edilizia in Cloud parte da un piano gratuito per sempre, con 31 giorni di prova completa sui piani superiori e preventivo in euro, in italiano.",
 ];
 
 const switchTestimonials = [
@@ -89,7 +89,7 @@ const relatedLinks = [
 const faqItems = [
   {
     q: "Buildertrend funziona per le imprese edili italiane?",
-    a: "Solo in parte. A luglio 2026 Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
+    a: "Solo in parte. Buildertrend non emette fatture elettroniche SDI, non gestisce Cassa Edile e MUT e l'interfaccia è in inglese. Per operare in Italia servono comunque strumenti aggiuntivi, mentre Edilizia in Cloud è nato sulla normativa italiana.",
   },
   {
     q: "Buildertrend esiste in italiano?",
@@ -97,7 +97,7 @@ const faqItems = [
   },
   {
     q: "Qual è la differenza di prezzo tra Edilizia in Cloud e Buildertrend?",
-    a: "Il listino Buildertrend non è pubblico: si richiede un preventivo personalizzato, in dollari, con sconto del 10% sui piani annuali. Edilizia in Cloud ha un prezzo pubblico: da 127€/mese (99€ con piano annuale) con fatturazione SDI, Cassa Edile e supporto italiano inclusi.",
+    a: "Buildertrend definisce un preventivo personalizzato, in dollari, con sconto del 10% sui piani annuali. Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive); i piani superiori si provano per 31 giorni con setup e migrazione dati inclusi e il preventivo si definisce in una consulenza gratuita, in euro, con fatturazione SDI, Cassa Edile e supporto italiano inclusi.",
   },
   {
     q: "Software edilizia americano o italiano: cosa cambia davvero?",
@@ -153,9 +153,10 @@ export default function VsBuildertrend() {
           operatingSystem: "Web, iOS, Android",
           offers: {
             "@type": "Offer",
-            price: "127",
+            price: "0",
             priceCurrency: "EUR",
-            priceValidUntil: "2026-12-31",
+            description:
+              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -232,8 +233,8 @@ export default function VsBuildertrend() {
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             Buildertrend è un software maturo, nato per i costruttori residenziali americani. Ma non fa fatturazione
-            SDI, non gestisce la Cassa Edile, non parla italiano e il listino è su preventivo. Confronto scritto da
-            noi, aggiornato a luglio 2026: dove Buildertrend è più forte lo scriviamo.
+            SDI, non gestisce la Cassa Edile e non parla italiano. Confronto scritto da noi: dove Buildertrend è più
+            forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -279,7 +280,8 @@ export default function VsBuildertrend() {
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
             Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software a luglio 2026. Il listino Buildertrend non è pubblico: dove serviva una cifra, lo abbiamo scritto.
+            software, verificate a luglio 2026. Entrambi definiscono il prezzo dei piani su preventivo: dove serviva
+            una cifra, lo abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -416,7 +418,7 @@ export default function VsBuildertrend() {
               {[
                 "Sei un'impresa edile italiana con obblighi SDI, Cassa Edile e CCNL",
                 "Vuoi un gestionale in italiano con supporto in italiano",
-                "Vuoi un prezzo pubblico da €127/mese, senza trattativa in dollari",
+                "Vuoi partire da un piano gratuito e un preventivo in euro, senza trattativa in dollari",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -522,6 +524,95 @@ export default function VsBuildertrend() {
         </div>
       </section>
 
+      {/* ── OLTRE AL SOFTWARE ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Il software è metà del lavoro
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Nessun gestionale, italiano o americano, raddrizza un'impresa che non sa leggere i propri numeri, non ha un
+            metodo di vendita e aspetta che il telefono suoni. Il software organizza: i margini li fanno le competenze.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Consulenti dedicati, formazione e webinar",
+                d: (
+                  <>
+                    Con Edilizia in Cloud accedi a un ecosistema di servizi e di persone: consulenti dedicati per area,
+                    formazione e webinar, assistenza in italiano — con chi lavora nei cantieri italiani, non a fuso
+                    orario invertito. Il perimetro si definisce in consulenza.
+                  </>
+                ),
+              },
+              {
+                t: "Numeri in Edilizia — leggere margini e commesse",
+                d: (
+                  <>
+                    <a
+                      href="https://numerinedilizia.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Numeri in Edilizia
+                    </a>{" "}
+                    è il metodo di controllo di gestione per imprese edili: insegna al titolare a leggere margini,
+                    commesse e utile. Si parte da un'analisi gratuita.
+                  </>
+                ),
+              },
+              {
+                t: "VENDITA EDILE® — il metodo commerciale",
+                d: (
+                  <>
+                    <a
+                      href="https://venditaedile.it/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      VENDITA EDILE®
+                    </a>{" "}
+                    è l'affiancamento commerciale all'imprenditore edile: un metodo di vendita tarato sul cliente
+                    italiano, privati e condomini compresi.
+                  </>
+                ),
+              },
+              {
+                t: "Marketing Edile® — il flusso di richieste",
+                d: (
+                  <>
+                    <a
+                      href="https://www.marketingedile.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Marketing Edile®
+                    </a>{" "}
+                    porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite:
+                    sul sito dichiara 47 aziende seguite e oltre 60 milioni di euro generati.
+                  </>
+                ),
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Onestà: Buildertrend ha vent'anni di mercato, assistenza e documentazione costruite in tutto quel tempo — in
+            inglese e per il mercato americano. La differenza non è chi ti affianca, è su cosa e in che lingua: lì si
+            lavora sul software, qui anche su numeri, vendita e clienti in ingresso. Il tuo problema è che il software
+            non ti basta, o che nessuno ti ha insegnato a leggere i margini?
+          </p>
+        </div>
+      </section>
+
       {/* ── LE DOMANDE GIUSTE ── */}
       <section className="bg-[#f8f9fa] py-20 px-4">
         <div className="max-w-3xl mx-auto">
@@ -537,7 +628,7 @@ export default function VsBuildertrend() {
               "Cassa Edile, CCNL e DURC: li conosce il gestionale o restano sulle tue spalle?",
               "Il capocantiere può lavorare ogni giorno su un'app in inglese senza rallentare?",
               "Quando qualcosa si blocca, il supporto risponde in italiano e nei tuoi orari?",
-              "Il prezzo lo leggi sul sito o lo scopri in una demo call in dollari?",
+              "Puoi provarlo da solo prima di parlare con un commerciale, o serve per forza una demo call in dollari?",
             ].map((q, i) => (
               <li key={q} className="flex items-start gap-3 bg-white rounded-2xl p-5 border border-gray-100">
                 <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>

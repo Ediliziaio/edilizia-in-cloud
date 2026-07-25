@@ -58,7 +58,7 @@ const rows: TableRow[] = [
   { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "cross" } },
   {
     feature: "Costo",
-    eic: { type: "text", text: "Da €127/mese (€99 annuale)" },
+    eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" },
     competitor: { type: "text", text: "Gratis per i privati; partnership per le imprese" },
   },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
@@ -78,8 +78,8 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "Edilnet non è un gestionale: a luglio 2026 edilnet.it è un portale che raccoglie richieste di preventivo dai privati e le gira alle imprese registrate. Serve a trovare clienti, non a gestirli.",
-  "Edilizia in Cloud è un gestionale edile online: cantieri, margini in tempo reale, fatturazione SDI, presenze e CRM in un'unica piattaforma, da €127/mese (€99 annuale).",
+  "Edilnet non è un gestionale: edilnet.it è un portale che raccoglie richieste di preventivo dai privati e le gira alle imprese registrate. Serve a trovare clienti, non a gestirli.",
+  "Edilizia in Cloud è un gestionale edile online: cantieri, margini in tempo reale, fatturazione SDI, presenze e CRM in un'unica piattaforma, con un piano gratuito per partire e 31 giorni di prova completa sui piani superiori.",
   "Non si escludono: puoi ricevere richieste da Edilnet e gestire preventivo, commessa e fattura dentro Edilizia in Cloud. Sono due risposte a due problemi diversi.",
 ];
 
@@ -92,11 +92,11 @@ const switchTestimonials = [
 const faqItems = [
   {
     q: "Edilnet è un gestionale per imprese edili?",
-    a: "No. A luglio 2026 edilnet.it è un portale di richieste di preventivo: mette in contatto privati che cercano un'impresa con aziende registrate nella loro zona. Non gestisce cantieri, fatture, presenze o margini — per quello serve un gestionale edile.",
+    a: "No. Edilnet.it è un portale di richieste di preventivo: mette in contatto privati che cercano un'impresa con aziende registrate nella loro zona. Non gestisce cantieri, fatture, presenze o margini — per quello serve un gestionale edile.",
   },
   {
     q: "Qual è l'alternativa a Edilnet per gestire l'impresa?",
-    a: "Se quello che cerchi non è un canale per trovare clienti ma uno strumento per gestirli, l'alternativa è un gestionale edile online come Edilizia in Cloud: preventivi, cantieri, margini in tempo reale, fatturazione SDI e presenze in un'unica piattaforma da 127€/mese, operativa in 48 ore.",
+    a: "Se quello che cerchi non è un canale per trovare clienti ma uno strumento per gestirli, l'alternativa è un gestionale edile online come Edilizia in Cloud: preventivi, cantieri, margini in tempo reale, fatturazione SDI e presenze in un'unica piattaforma, con un piano gratuito per partire e 31 giorni di prova completa, operativa in 48 ore.",
   },
   {
     q: "Posso usare Edilnet e Edilizia in Cloud insieme?",
@@ -104,11 +104,11 @@ const faqItems = [
   },
   {
     q: "Come si confrontano i gestionali edili online?",
-    a: "Quattro criteri pratici per un confronto tra gestionali edili online: il prezzo è pubblico o su trattativa; quanto passa tra firma e operatività; se il capocantiere può usarlo dal telefono; se margini e liquidità si vedono a cantiere aperto. Edilizia in Cloud: prezzo pubblico da 127€/mese, operativo in 48 ore, app mobile e margini in tempo reale.",
+    a: "Quattro criteri pratici per un confronto tra gestionali edili online: se puoi provarlo da solo prima di firmare o devi passare per forza da una trattativa; quanto passa tra firma e operatività; se il capocantiere può usarlo dal telefono; se margini e liquidità si vedono a cantiere aperto. Edilizia in Cloud: piano gratuito per partire e 31 giorni di prova completa con setup incluso, operativo in 48 ore, app mobile e margini in tempo reale.",
   },
   {
     q: "Posso provare Edilizia in Cloud gratuitamente?",
-    a: "Sì. Hai 31 giorni di prova gratuita con accesso completo al piano Professionista, senza carta di credito e senza vincoli: puoi verificare tutto mentre continui a lavorare come oggi.",
+    a: "Sì, in due modi. C'è un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive) e ci sono 31 giorni di prova con accesso completo al piano, con setup e migrazione dati inclusi, senza carta di credito e senza addebito automatico: puoi verificare tutto mentre continui a lavorare come oggi.",
   },
 ];
 
@@ -154,9 +154,10 @@ export default function VsEdilnet() {
           operatingSystem: "Web, iOS, Android",
           offers: {
             "@type": "Offer",
-            price: "127",
+            price: "0",
             priceCurrency: "EUR",
-            priceValidUntil: "2026-12-31",
+            description:
+              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -229,7 +230,7 @@ export default function VsEdilnet() {
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             Chi cerca "Edilnet" di solito vuole una di due cose: trovare clienti o gestire l'impresa. Edilnet.it è un
             portale di richieste di preventivo; Edilizia in Cloud è un gestionale edile online. Confronto scritto da
-            noi, aggiornato a luglio 2026: cosa fa l'uno, cosa fa l'altro, quando ha senso usarli insieme.
+            noi: cosa fa l'uno, cosa fa l'altro, quando ha senso usarli insieme.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -274,8 +275,8 @@ export default function VsEdilnet() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Confronto diretto, aggiornato a luglio 2026. Attenzione: sono due categorie di prodotto diverse — la
-            tabella serve proprio a capire chi fa cosa.
+            Confronto diretto, con dati dai siti ufficiali verificati a luglio 2026. Attenzione: sono due categorie di
+            prodotto diverse — la tabella serve proprio a capire chi fa cosa.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -487,6 +488,95 @@ export default function VsEdilnet() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── OLTRE AL SOFTWARE ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Quello che un confronto non misura
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Né un portale né un gestionale sistemano un'impresa che non sa leggere i propri numeri e non ha un metodo
+            per vendere. Un contatto è solo un contatto: il software organizza, i margini li fanno le competenze.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Consulenti dedicati, formazione e webinar",
+                d: (
+                  <>
+                    Attorno a Edilizia in Cloud c'è l'accesso a un ecosistema di servizi e di persone: consulenti
+                    dedicati per area, formazione e webinar, assistenza in italiano. Cosa serva a te, e in che forma, si
+                    definisce in consulenza.
+                  </>
+                ),
+              },
+              {
+                t: "Numeri in Edilizia — leggere margini e commesse",
+                d: (
+                  <>
+                    <a
+                      href="https://numerinedilizia.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Numeri in Edilizia
+                    </a>{" "}
+                    è il metodo di controllo di gestione per imprese edili: insegna al titolare a leggere margini,
+                    commesse e utile. Si parte da un'analisi gratuita.
+                  </>
+                ),
+              },
+              {
+                t: "VENDITA EDILE® — il metodo commerciale",
+                d: (
+                  <>
+                    <a
+                      href="https://venditaedile.it/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      VENDITA EDILE®
+                    </a>{" "}
+                    è l'affiancamento commerciale all'imprenditore edile: trasformare una richiesta in un lavoro firmato
+                    è un metodo, non fortuna.
+                  </>
+                ),
+              },
+              {
+                t: "Marketing Edile® — il flusso di richieste",
+                d: (
+                  <>
+                    <a
+                      href="https://www.marketingedile.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Marketing Edile®
+                    </a>{" "}
+                    porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite:
+                    sul sito dichiara 47 aziende seguite e oltre 60 milioni di euro generati.
+                  </>
+                ),
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Detto senza sconti: Edilnet il suo pezzo lo fa, e ti porta richieste; i grandi gestionali hanno rivenditori
+            e assistenza in tutta Italia, rete che noi non abbiamo. La differenza è su cosa ti affiancano: sul portale o
+            sul software, oppure anche su numeri, vendita e clienti in ingresso. Il tuo problema è che ti mancano i
+            contatti, o che nessuno ti ha insegnato a leggere i margini e a chiudere i preventivi?
+          </p>
         </div>
       </section>
 

@@ -232,7 +232,7 @@ export default function BlogPost() {
   const colorClass = categoryColors[post.category] ?? "bg-gray-100 text-gray-700";
 
   const sectionHeadings = post.content
-    .filter((c) => c.type === "section" || c.type === "list" || c.type === "table")
+    .filter((c) => c.type === "section" || c.type === "list" || c.type === "table" || c.type === "callout")
     .map((c) => c.heading!)
     .filter(Boolean);
 
@@ -475,6 +475,55 @@ export default function BlogPost() {
                       {section.body &&
                         renderBody(section.body, "text-gray-600 leading-relaxed text-[1.05rem] mb-4 last:mb-0")}
                     </div>
+                  );
+                }
+
+                case "image":
+                  return (
+                    <figure key={i} className="my-10">
+                      <img
+                        src={section.src}
+                        alt={section.alt ?? ""}
+                        loading="lazy"
+                        decoding="async"
+                        width={1200}
+                        height={675}
+                        className="w-full h-auto rounded-xl border border-gray-200 shadow-sm bg-gray-50"
+                      />
+                      {section.caption && (
+                        <figcaption className="mt-3 text-sm text-gray-500 text-center italic">
+                          {section.caption}
+                        </figcaption>
+                      )}
+                    </figure>
+                  );
+
+                case "callout": {
+                  const tone =
+                    section.variant === "warning"
+                      ? { box: "border-amber-300 bg-amber-50", title: "text-amber-900", body: "text-amber-800" }
+                      : section.variant === "success"
+                        ? { box: "border-emerald-300 bg-emerald-50", title: "text-emerald-900", body: "text-emerald-800" }
+                        : { box: "border-[#F97415]/30 bg-[#F97415]/5", title: "text-[#111111]", body: "text-gray-700" };
+                  return (
+                    <aside key={i} className={`my-10 rounded-xl border-l-4 p-5 ${tone.box}`}>
+                      {section.heading && (
+                        <p className={`mb-2 text-sm font-black uppercase tracking-wide ${tone.title}`}>
+                          {section.heading}
+                        </p>
+                      )}
+                      {section.body && renderBody(section.body, `${tone.body} leading-relaxed mb-3 last:mb-0`)}
+                      {section.items && (
+                        <ul className="mt-2 space-y-1.5">
+                          {section.items.map((item, j) => (
+                            <li key={j} className={`flex items-start gap-2 ${tone.body}`}>
+                              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
+                              <span>{renderRichText(item)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </aside>
                   );
                 }
 

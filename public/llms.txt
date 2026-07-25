@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms.txt
-# Ultimo aggiornamento: 2026-07-25 (v8 — 86 guide, +15 guide normativa/template/confronti, +6 verticali di mestiere)
+# Ultimo aggiornamento: 2026-07-25 (v9 — 88 guide + calcolatore margine, +15 guide normativa/template/confronti, +6 verticali di mestiere)
 # Formato standard: https://llmstxt.org
 
 # Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
@@ -25,11 +25,13 @@
 
 ## Prezzi (luglio 2026)
 
-- **Gestionale:** 127€/mese (99€/mese con fatturazione annuale) — imprese fino a 500K € di fatturato
-- **Professionista:** 247€/mese (197€/mese annuale) — imprese da 500K a 2M €
-- **Impresa AI:** 547€/mese (437€/mese annuale) — imprese oltre 2M € o multi-cantiere
+- **Scopri:** 0 € — gratuito per sempre, fino a 3 commesse attive, pensato per provare il gestionale
+- **Gestionale:** su misura — preventivo definito in una consulenza gratuita, per imprese fino a 500K € di fatturato
+- **Professionista:** su misura — preventivo definito in una consulenza gratuita, per imprese da 500K a 2M €
+- **Impresa AI:** su misura — preventivo definito in una consulenza gratuita, per imprese oltre 2M € o multi-cantiere
+- Nessun listino numerico è pubblicato sul sito: i piani a pagamento si quotano su misura
 - Tutti i piani: utenti ILLIMITATI, nessun costo di attivazione, nessun vincolo contrattuale
-- Prova gratuita: 31 giorni con accesso completo al piano Professionista
+- Prova gratuita: 31 giorni con accesso completo al piano scelto, setup e migrazione dati inclusi, disdetta quando vuoi, nessun addebito automatico
 - Fonte ufficiale: https://www.ediliziaincloud.com/prezzi/
 
 ## Funzionalità principali
@@ -110,6 +112,15 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 - Computo metrico gratis, strumenti e limiti: https://www.ediliziaincloud.com/blog/computo-metrico-gratis
 - Gestionale edilizia: opinioni delle imprese: https://www.ediliziaincloud.com/blog/gestionale-edilizia-opinioni
 - Incentivi digitalizzazione edilizia 2026: https://www.ediliziaincloud.com/blog/incentivi-digitalizzazione-edilizia-2026
+
+## Strumenti gratuiti online
+
+- Calcolatore margine di commessa (gratis, nessuna registrazione): https://www.ediliziaincloud.com/strumenti/calcolatore-margine-commessa
+
+## Guide strategiche: chi controlla i numeri dell'impresa
+
+- Chi controlla davvero i numeri della tua impresa edile (commercialista, consulente e controllo di gestione: chi fa cosa): https://www.ediliziaincloud.com/blog/chi-gestisce-i-numeri-impresa-edile
+- Excel, WhatsApp e carta: quanto costa davvero gestire un'impresa edile così: https://www.ediliziaincloud.com/blog/excel-whatsapp-carta-gestione-impresa-edile
 
 ## Confronti software gestionali edilizia (2026-07)
 

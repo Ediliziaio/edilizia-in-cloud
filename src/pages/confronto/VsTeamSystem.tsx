@@ -56,7 +56,7 @@ const rows: TableRow[] = [
   { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "partial", text: "Nei moduli computo" } },
   { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "cross", text: "Progetto con consulenti" } },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Su preventivo" } },
+  { feature: "Prezzo", eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" }, competitor: { type: "text", text: "Su preventivo" } },
 ];
 
 const otherVsLinks = [
@@ -67,8 +67,8 @@ const otherVsLinks = [
 ];
 
 const tldrPoints = [
-  "TeamSystem Construction è la divisione edile di uno dei maggiori gruppi software italiani: suite ampia e solida, ma il listino non è pubblico — il prezzo lo scopri in trattativa — e l'avvio passa da un progetto di implementazione con consulenti.",
-  "Edilizia in Cloud ha un prezzo pubblico (da €127/mese, €99 con piano annuale, utenti illimitati) e ti rende operativo in 48 ore, senza consulenti.",
+  "TeamSystem Construction è la divisione edile di uno dei maggiori gruppi software italiani: suite ampia e solida, ma l'avvio passa da un progetto di implementazione con consulenti e il costo totale si compone in trattativa.",
+  "Edilizia in Cloud parte da un piano gratuito per sempre e 31 giorni di prova completa con setup e migrazione inclusi (utenti illimitati): ti rende operativo in 48 ore, senza consulenti, e il preventivo dei piani superiori si definisce dopo, in una consulenza gratuita.",
   "Margini di commessa in tempo reale inclusi nel piano: su TeamSystem l'analisi passa da moduli BI e analytics separati.",
 ];
 
@@ -92,8 +92,8 @@ const faqItems = [
     a: "TeamSystem Construction è la suite edile di un grande gruppo software: più prodotti (gestione imprese, CPM, BIM, CDE) che si attivano con un progetto di implementazione seguito da consulenti. Edilizia in Cloud è un unico gestionale cloud verticale per l'impresa edile: si attiva in 48 ore e si gestisce in autonomia, anche dal telefono in cantiere.",
   },
   {
-    q: "Quanto costa TeamSystem Construction? I prezzi sono pubblici?",
-    a: "A luglio 2026 il listino di TeamSystem Construction non è pubblicato sul sito: il prezzo dipende da moduli, utenti e implementazione, e si definisce in trattativa commerciale. Edilizia in Cloud ha un prezzo pubblico: da 127€/mese, 99€/mese con piano annuale, utenti illimitati e nessun costo di setup.",
+    q: "Quanto costa TeamSystem Construction rispetto a Edilizia in Cloud?",
+    a: "Il prezzo di TeamSystem Construction dipende da moduli, utenti e implementazione, e si definisce in trattativa commerciale. Anche Edilizia in Cloud definisce il preventivo dei piani superiori in una consulenza gratuita, ma ci si arriva dopo: c'è un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive) e 31 giorni di prova completa con setup e migrazione dati inclusi, utenti illimitati e nessun costo di avviamento.",
   },
   {
     q: "Esiste un'alternativa a TeamSystem Construction per le PMI edili?",
@@ -101,7 +101,7 @@ const faqItems = [
   },
   {
     q: "Cosa dicono le opinioni su TeamSystem per l'edilizia?",
-    a: "Le opinioni ricorrenti riconoscono a TeamSystem la solidità del gruppo e l'ampiezza della suite; le critiche più frequenti riguardano i tempi di avvio, la dipendenza dai consulenti per le modifiche e il fatto che il costo totale si conosce solo a trattativa conclusa. Il consiglio pratico: fatti mettere per iscritto il preventivo completo di implementazione e confrontalo con un prezzo di listino pubblico.",
+    a: "Le opinioni ricorrenti riconoscono a TeamSystem la solidità del gruppo e l'ampiezza della suite; le critiche più frequenti riguardano i tempi di avvio, la dipendenza dai consulenti per le modifiche e il fatto che il costo totale si conosce solo a trattativa conclusa. Il consiglio pratico: fatti mettere per iscritto il preventivo completo di implementazione, dividilo per 12 e confrontalo con il costo di una soluzione che puoi provare prima di firmare.",
   },
   {
     q: "Posso migrare da TeamSystem a Edilizia in Cloud?",
@@ -116,7 +116,7 @@ export default function VsTeamSystem() {
   useSEO({
     title: "Alternativa a TeamSystem Construction: Confronto 2026",
     description:
-      "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto. Aggiornato a luglio 2026.",
+      "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto.",
     canonical: "/confronto/vs-teamsystem",
     keywords:
       "alternativa a teamsystem construction, teamsystem construction prezzi, teamsystem edilizia opinioni, edilizia in cloud vs teamsystem, gestionale edilizia cloud",
@@ -131,7 +131,7 @@ export default function VsTeamSystem() {
           "@type": "Article",
           headline: "Edilizia in Cloud vs TeamSystem: per chi ha senso l'uno e per chi l'altro",
           description:
-            "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto. Aggiornato a luglio 2026.",
+            "Alternativa a TeamSystem Construction per imprese edili: prezzi (listino su preventivo), funzionalità e opinioni a confronto.",
           url: "https://www.ediliziaincloud.com/confronto/vs-teamsystem",
           datePublished: "2026-01-01",
           dateModified: "2026-07-25",
@@ -149,9 +149,10 @@ export default function VsTeamSystem() {
           operatingSystem: "Web, iOS, Android",
           offers: {
             "@type": "Offer",
-            price: "127",
+            price: "0",
             priceCurrency: "EUR",
-            priceValidUntil: "2026-12-31",
+            description:
+              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -229,7 +230,7 @@ export default function VsTeamSystem() {
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             TeamSystem Construction è la suite edile di un grande gruppo software italiano: solida, ampia, pensata per
             strutture organizzate. Edilizia in Cloud è nato per l'impresa che il gestionale lo usa in cantiere, dal
-            telefono. Confronto scritto da noi, aggiornato a luglio 2026: dove TeamSystem è più forte lo scriviamo.
+            telefono. Confronto scritto da noi: dove TeamSystem è più forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -275,7 +276,8 @@ export default function VsTeamSystem() {
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
             Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software a luglio 2026. Il listino TeamSystem non è pubblico: dove serviva una cifra, lo abbiamo scritto.
+            software, verificate a luglio 2026. Entrambi definiscono il prezzo dei piani su preventivo: dove serviva una
+            cifra, lo abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -342,8 +344,8 @@ export default function VsTeamSystem() {
             ))}
           </div>
           <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
-            Tutto vero. Il rovescio: quella struttura la paghi in tempi di avvio, listino su trattativa e consulente per
-            ogni modifica. Con Edilizia in Cloud il prezzo lo leggi sul sito e in 48 ore lavori.
+            Tutto vero. Il rovescio: quella struttura la paghi in tempi di avvio e in un consulente per ogni modifica.
+            Con Edilizia in Cloud parti da un piano gratuito, provi tutto per 31 giorni e in 48 ore lavori.
           </p>
         </div>
       </section>
@@ -378,7 +380,7 @@ export default function VsTeamSystem() {
               {[
                 "Imprese edili da 1 a 50 dipendenti, con il titolare ancora operativo sui cantieri",
                 "Vuoi il margine di ogni commessa mentre il cantiere è aperto, non a bilancio chiuso",
-                "Vuoi partire in 48 ore con un prezzo pubblico, senza progetto di implementazione",
+                "Vuoi partire in 48 ore provando il software da solo, senza progetto di implementazione",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -482,6 +484,95 @@ export default function VsTeamSystem() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── OLTRE AL SOFTWARE ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Il software è metà del lavoro
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un gestionale nuovo non raddrizza un'impresa che non sa leggere i propri numeri, non le dà un metodo di
+            vendita e non le porta richieste. Il software mette ordine: a far guadagnare sono le competenze.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Consulenti dedicati, formazione e webinar",
+                d: (
+                  <>
+                    Con Edilizia in Cloud non compri solo un programma: accedi a un ecosistema di servizi e di persone —
+                    consulenti dedicati per area, formazione e webinar, assistenza in italiano. Il perimetro si
+                    definisce in consulenza.
+                  </>
+                ),
+              },
+              {
+                t: "Numeri in Edilizia — leggere margini e commesse",
+                d: (
+                  <>
+                    <a
+                      href="https://numerinedilizia.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Numeri in Edilizia
+                    </a>{" "}
+                    è il metodo di controllo di gestione per imprese edili: insegna al titolare a leggere margini,
+                    commesse e utile. Si parte da un'analisi gratuita.
+                  </>
+                ),
+              },
+              {
+                t: "VENDITA EDILE® — il metodo commerciale",
+                d: (
+                  <>
+                    <a
+                      href="https://venditaedile.it/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      VENDITA EDILE®
+                    </a>{" "}
+                    è un percorso di affiancamento per imprenditori edili sul metodo di vendita: non un altro software,
+                    ma come si porta a casa il lavoro.
+                  </>
+                ),
+              },
+              {
+                t: "Marketing Edile® — il flusso di richieste",
+                d: (
+                  <>
+                    <a
+                      href="https://www.marketingedile.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Marketing Edile®
+                    </a>{" "}
+                    porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite:
+                    sul sito dichiara 47 aziende seguite e oltre 60 milioni di euro generati.
+                  </>
+                ),
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Onestà: anche TeamSystem ha gente attorno al prodotto — rivenditori e assistenza sul territorio in tutta
+            Italia, e quella rete fisica noi non ce l'abbiamo. La differenza non è chi ti affianca, è su cosa: lì si
+            lavora sul software, qui anche su numeri, vendita e clienti in ingresso. Il tuo problema è che il software
+            non ti basta, o che nessuno ti ha insegnato a leggere i margini?
+          </p>
         </div>
       </section>
 

@@ -281,6 +281,9 @@ const ContabilitaFiscale     = lazy(() => import("@/pages/funzionalita/Contabili
 const CalendarioLavori       = lazy(() => import("@/pages/funzionalita/CalendarioLavori"));
 const ReportFatturazione     = lazy(() => import("@/pages/funzionalita/ReportFatturazione"));
 
+// Strumenti pubblici (lead magnet interattivi)
+const CalcolatoreMargineCommessa = lazy(() => import("@/pages/strumenti/CalcolatoreMargineCommessa"));
+
 // Confronto sub-pages
 const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
 const VsEdilnet     = lazy(() => import("@/pages/confronto/VsEdilnet"));
@@ -665,6 +668,10 @@ const App = () => (
               <Route path="/funzionalita/contabilita-fiscale" element={<ContabilitaFiscale />} />
               <Route path="/funzionalita/calendario-lavori" element={<CalendarioLavori />} />
               <Route path="/funzionalita/report-fatturazione" element={<ReportFatturazione />} />
+
+              {/* Strumenti pubblici — calcolatori interattivi (lead magnet) */}
+              <Route path="/strumenti/calcolatore-margine-commessa" element={<CalcolatoreMargineCommessa />} />
+
               <Route path="/confronto/vs-primus" element={<VsPrimus />} />
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />

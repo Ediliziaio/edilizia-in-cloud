@@ -19,7 +19,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
     slug: "migliori-software-gestionali-edilizia-confronto",
     title: "I migliori software gestionali per l'edilizia nel 2026",
     excerpt:
-      "Pro, contro e prezzi reali di 7 software gestionali per l'edilizia: EiC, TeamSystem, PlanRadar, Dylog, Pillar e altri. Guida per scegliere bene.",
+      "Pro, contro e modelli di prezzo di 7 software gestionali per l'edilizia: EiC, TeamSystem, PlanRadar, Dylog, Pillar e altri. Guida per scegliere bene.",
     category: "Digitalizzazione",
     tags: [
       "software gestionale edilizia",
@@ -45,7 +45,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
             "Edilizia in Cloud",
             "Margine di commessa in tempo reale, AI nei flussi, CRM e marketing inclusi",
             "Giovane rispetto ai big, niente BIM",
-            "Da 127 €/mese, listino pubblico (prova 31 giorni)",
+            "Piano gratuito + 31 giorni di prova; piani superiori su preventivo",
           ],
           [
             "[TeamSystem Construction](https://www.teamsystem.com/construction/)",
@@ -80,7 +80,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           [
             "[Pillar](https://www.pillar.it/)",
             "Verticale italiano con AI conversazionale",
-            "Prezzi non pubblici; CRM e marketing non dichiarati",
+            "Nessuna prova attivabile da soli; CRM e marketing non dichiarati",
             "Su preventivo (videocall dimostrativa)",
           ],
         ],
@@ -98,7 +98,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
       {
         type: "section",
         heading: "1. Edilizia in Cloud — il gestionale AI-native per la PMI edile italiana",
-        body: "Edilizia in Cloud è il nostro prodotto: gestionale cloud costruito da zero per le imprese edili italiane da 1 a 50 dipendenti, con l'AI dentro il flusso di lavoro e non appiccicata sopra.\n\nIl cuore è la commessa: ogni cantiere ha il suo margine calcolato in tempo reale — ore degli operai, materiali, subappalti, varianti — così scopri che stai perdendo soldi mentre puoi ancora rimediare, non a consuntivo.\n\nIl preventivo edile si prepara dal listino o da una foto, con l'AI che propone voci e prezzi dal tuo catalogo. L'app di cantiere copre rapportini con foto, presenze, DDT e stato avanzamento lavori dal telefono; la fatturazione elettronica verso SDI è integrata, senza doppi inserimenti su un software esterno.\n\nE c'è una cosa che nessun altro in questa lista offre: CRM e marketing integrati, per trasformare le richieste in preventivi e i preventivi in cantieri. I prezzi sono pubblici sul sito: si parte da 127 € al mese con utenti illimitati e tutte le funzioni incluse, e la prova gratuita dura 31 giorni senza carta di credito.",
+        body: "Edilizia in Cloud è il nostro prodotto: gestionale cloud costruito da zero per le imprese edili italiane da 1 a 50 dipendenti, con l'AI dentro il flusso di lavoro e non appiccicata sopra.\n\nIl cuore è la commessa: ogni cantiere ha il suo margine calcolato in tempo reale — ore degli operai, materiali, subappalti, varianti — così scopri che stai perdendo soldi mentre puoi ancora rimediare, non a consuntivo.\n\nIl preventivo edile si prepara dal listino o da una foto, con l'AI che propone voci e prezzi dal tuo catalogo. L'app di cantiere copre rapportini con foto, presenze, DDT e stato avanzamento lavori dal telefono; la fatturazione elettronica verso SDI è integrata, senza doppi inserimenti su un software esterno.\n\nE c'è una cosa che nessun altro in questa lista offre: CRM e marketing integrati, per trasformare le richieste in preventivi e i preventivi in cantieri. Sul fronte commerciale c'è un piano gratuito per sempre — il piano Scopri, fino a 3 commesse attive — per partire senza parlare con nessuno; i piani superiori si provano per 31 giorni con setup e migrazione dati inclusi, senza carta di credito e senza addebito automatico, e il preventivo si definisce poi in una consulenza gratuita. Gli utenti sono illimitati e tutte le funzioni sono incluse.",
       },
       {
         type: "list",
@@ -109,7 +109,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           "Fatturazione elettronica SDI integrata, con regimi IVA edili (reverse charge, split payment) gestiti alla fonte",
           "App cantiere completa: rapportini fotografici, presenze geolocalizzate, firma del cliente a fine lavori",
           "CRM e marketing inclusi: richieste, trattative, follow-up automatici — unico della lista a coprirli",
-          "Prezzi pubblici e utenti illimitati: da 127 €/mese, prova gratuita di 31 giorni senza vincoli",
+          "Piano gratuito per sempre e utenti illimitati: si parte senza spendere, con 31 giorni di prova completa sui piani superiori e setup incluso",
         ],
       },
       {
@@ -124,7 +124,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
       {
         type: "section",
         heading: "2. TeamSystem Construction — la suite enterprise per chi fa appalti pubblici",
-        body: "TeamSystem è uno dei giganti del software gestionale italiano e la divisione [Construction](https://www.teamsystem.com/construction/) è, per una grande impresa di costruzioni, il riferimento più naturale.\n\nDal sito ufficiale, a luglio 2026, l'offerta si articola su più prodotti: Gestione Imprese per contratti e contabilizzazione dei lavori edili, Construction Project Management per preventivi, costi di commessa, pianificazione e direzione lavori, un modulo BIM che collega il modello 3D a tempi (4D) e costi (5D) con computo metrico e capitolati, e un CDE per la collaborazione documentale sui progetti.\n\nÈ una copertura che nessun verticale per PMI può eguagliare: se partecipi a gare pubbliche con contabilità lavori regolamentata, SAL formali e capitolati BIM obbligatori, questa profondità serve davvero.\n\nIl rovescio della medaglia, per una PMI, secondo noi è triplo: i prezzi non sono pubblici (tutto su preventivo, tipicamente con progetto di implementazione), l'avviamento richiede tempo e consulenza, e l'impostazione resta più vicina all'ufficio amministrativo che al capocantiere con il telefono in mano. Il confronto punto per punto è nella [pagina di confronto dedicata](/confronto/vs-teamsystem).",
+        body: "TeamSystem è uno dei giganti del software gestionale italiano e la divisione [Construction](https://www.teamsystem.com/construction/) è, per una grande impresa di costruzioni, il riferimento più naturale.\n\nDal sito ufficiale, l'offerta si articola su più prodotti: Gestione Imprese per contratti e contabilizzazione dei lavori edili, Construction Project Management per preventivi, costi di commessa, pianificazione e direzione lavori, un modulo BIM che collega il modello 3D a tempi (4D) e costi (5D) con computo metrico e capitolati, e un CDE per la collaborazione documentale sui progetti.\n\nÈ una copertura che nessun verticale per PMI può eguagliare: se partecipi a gare pubbliche con contabilità lavori regolamentata, SAL formali e capitolati BIM obbligatori, questa profondità serve davvero.\n\nIl rovescio della medaglia, per una PMI, secondo noi è triplo: i prezzi non sono pubblici (tutto su preventivo, tipicamente con progetto di implementazione), l'avviamento richiede tempo e consulenza, e l'impostazione resta più vicina all'ufficio amministrativo che al capocantiere con il telefono in mano. Il confronto punto per punto è nella [pagina di confronto dedicata](/confronto/vs-teamsystem).",
       },
       {
         type: "list",
@@ -133,7 +133,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           "Pro — Suite più ampia del mercato italiano: gestione imprese, project management, BIM 4D/5D, ambiente di condivisione documenti",
           "Pro — Contabilità lavori e appalti pubblici: profondità normativa che i verticali per PMI non hanno",
           "Pro — Solidità del gruppo: azienda storica, assistenza strutturata, rete di partner su tutto il territorio",
-          "Contro — Prezzi non pubblici e costo complessivo: licenze più implementazione e formazione, su preventivo",
+          "Contro — Costo complessivo da ricostruire: al canone si sommano implementazione e formazione, e non c'è una prova che puoi attivare da solo",
           "Contro — Complessità: implementazioni lunghe e curva di apprendimento importante per una squadra piccola",
           "Contro — Impostazione da ufficio più che da cantiere: per una PMI di 10 operai rischia di essere un vestito troppo largo",
         ],
@@ -158,7 +158,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
       {
         type: "section",
         heading: "4. Dylog Edilizia — lo storico italiano di contabilità e fisco",
-        body: "[Dylog](https://www.dylog.it/) è uno dei nomi storici del software gestionale italiano: decenni di attività, radici profonde in contabilità, paghe e adempimenti fiscali, una base installata enorme tra aziende e studi professionali. Per l'edilizia propone una linea dedicata alle imprese edili all'interno della propria offerta gestionale.\n\nVa detto con onestà: a luglio 2026 la pagina ufficiale dedicata all'edilizia è avara di dettagli — rimanda al numero verde e alla rete commerciale più che elencare funzioni, e non pubblica prezzi. La forza storica del gruppo sta nella parte amministrativa, contabile e fiscale.\n\nIl limite, per come la vediamo noi, è l'impostazione: prodotti nati in epoca desktop e cresciuti per l'ufficio, con un'esperienza mobile e di cantiere che non è il centro del progetto.\n\nSe il tuo problema principale è la contabilità ordinaria fatta bene da un fornitore che esiste da quarant'anni, Dylog è una scelta razionale; se il tuo problema è sapere stasera quanto margine ha fatto il cantiere di via Roma, non è lì che eccelle.",
+        body: "[Dylog](https://www.dylog.it/) è uno dei nomi storici del software gestionale italiano: decenni di attività, radici profonde in contabilità, paghe e adempimenti fiscali, una base installata enorme tra aziende e studi professionali. Per l'edilizia propone una linea dedicata alle imprese edili all'interno della propria offerta gestionale.\n\nVa detto con onestà: la pagina ufficiale dedicata all'edilizia è avara di dettagli — rimanda al numero verde e alla rete commerciale più che elencare funzioni, quindi il perimetro reale si scopre in demo. La forza storica del gruppo sta nella parte amministrativa, contabile e fiscale.\n\nIl limite, per come la vediamo noi, è l'impostazione: prodotti nati in epoca desktop e cresciuti per l'ufficio, con un'esperienza mobile e di cantiere che non è il centro del progetto.\n\nSe il tuo problema principale è la contabilità ordinaria fatta bene da un fornitore che esiste da quarant'anni, Dylog è una scelta razionale; se il tuo problema è sapere stasera quanto margine ha fatto il cantiere di via Roma, non è lì che eccelle.",
       },
       {
         type: "list",
@@ -167,14 +167,14 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           "Pro — Solidità storica: gruppo italiano attivo da decenni, con assistenza e rete commerciale radicate sul territorio",
           "Pro — Contabilità e fisco: la parte amministrativa e gli adempimenti sono il terreno di casa",
           "Contro — Impostazione tradizionale: esperienza pensata per l'ufficio più che per il telefono del capocantiere",
-          "Contro — Poca trasparenza online: a luglio 2026 la pagina edilizia dice poco su funzioni e nulla sui prezzi (su preventivo, via rete commerciale)",
+          "Contro — La pagina edilizia dice poco sulle funzioni: il perimetro reale si scopre in demo con la rete commerciale, così come il prezzo",
           "Contro — Non mobile-first: la gestione operativa di cantiere non è il cuore del prodotto",
         ],
       },
       {
         type: "section",
         heading: "5. CantieriCloud — il verticale cloud concentrato sul cantiere",
-        body: "[CantieriCloud](https://cantiericloud.com/) è un concorrente diretto nostro e di Pillar: gestionale cloud italiano per imprese edili, con un perimetro dichiarato che dal sito ufficiale, a luglio 2026, copre preventivi e computo metrico, gestione cantieri, controllo di costi e margini, rapportini digitali, fatturazione elettronica verso SDI, gestione documentale e un'app mobile per il cantiere, con funzioni di intelligenza artificiale per automatizzare alcune attività.\n\nÈ la formula giusta: una piattaforma unica che centralizza cantieri, preventivi e amministrazione, invece del solito puzzle di Excel, WhatsApp e software di fatturazione separato. I prezzi non li citiamo perché non li abbiamo verificati: il sito rimanda a una pagina piani dedicata.\n\nRispetto a Edilizia in Cloud, per come leggiamo l'offerta pubblica, il perimetro funzionale è più ristretto: non risultano CRM e marketing integrati, né la profondità su magazzino, tesoreria e personale. Se cerchi un verticale essenziale concentrato sull'operatività di cantiere, merita un posto nella tua rosa.",
+        body: "[CantieriCloud](https://cantiericloud.com/) è un concorrente diretto nostro e di Pillar: gestionale cloud italiano per imprese edili, con un perimetro dichiarato che dal sito ufficiale copre preventivi e computo metrico, gestione cantieri, controllo di costi e margini, rapportini digitali, fatturazione elettronica verso SDI, gestione documentale e un'app mobile per il cantiere, con funzioni di intelligenza artificiale per automatizzare alcune attività.\n\nÈ la formula giusta: una piattaforma unica che centralizza cantieri, preventivi e amministrazione, invece del solito puzzle di Excel, WhatsApp e software di fatturazione separato. I prezzi non li citiamo perché non li abbiamo verificati: il sito rimanda a una pagina piani dedicata.\n\nRispetto a Edilizia in Cloud, per come leggiamo l'offerta pubblica, il perimetro funzionale è più ristretto: non risultano CRM e marketing integrati, né la profondità su magazzino, tesoreria e personale. Se cerchi un verticale essenziale concentrato sull'operatività di cantiere, merita un posto nella tua rosa.",
       },
       {
         type: "list",
@@ -190,7 +190,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
       {
         type: "section",
         heading: "6. Factorial — l'HR generalista che incrocia il cantiere",
-        body: "[Factorial](https://factorial.it/) è un software di gestione del personale, non un gestionale edile, e lo dice apertamente: si presenta come piattaforma aziendale generalista per le risorse umane.\n\nDal sito ufficiale, a luglio 2026, le funzioni che toccano il mondo del cantiere sono la timbratura geolocalizzata, la gestione dei turni con calendario condiviso, ferie e permessi da app, l'archiviazione dei documenti dei dipendenti, la rilevazione delle spese e un monitoraggio di progetti e commesse con tracciamento dei costi del personale.\n\nPer un'impresa edile che ha già risolto preventivi e fatturazione ma annega nella gestione di presenze, turni e scadenze dei documenti del personale, Factorial fa quel pezzo di lavoro bene e con un'interfaccia moderna.\n\nQuello che non fa è tutto il resto del mestiere: niente SAL, niente computo metrico, niente DDT, niente preventivo edile, niente fatturazione elettronica di commessa, niente contabilità di cantiere. La domanda da farti è semplice: il tuo collo di bottiglia è l'HR o è la commessa? Se è la commessa, un HR generalista — per quanto ben fatto — non te lo risolve.",
+        body: "[Factorial](https://factorial.it/) è un software di gestione del personale, non un gestionale edile, e lo dice apertamente: si presenta come piattaforma aziendale generalista per le risorse umane.\n\nDal sito ufficiale, le funzioni che toccano il mondo del cantiere sono la timbratura geolocalizzata, la gestione dei turni con calendario condiviso, ferie e permessi da app, l'archiviazione dei documenti dei dipendenti, la rilevazione delle spese e un monitoraggio di progetti e commesse con tracciamento dei costi del personale.\n\nPer un'impresa edile che ha già risolto preventivi e fatturazione ma annega nella gestione di presenze, turni e scadenze dei documenti del personale, Factorial fa quel pezzo di lavoro bene e con un'interfaccia moderna.\n\nQuello che non fa è tutto il resto del mestiere: niente SAL, niente computo metrico, niente DDT, niente preventivo edile, niente fatturazione elettronica di commessa, niente contabilità di cantiere. La domanda da farti è semplice: il tuo collo di bottiglia è l'HR o è la commessa? Se è la commessa, un HR generalista — per quanto ben fatto — non te lo risolve.",
       },
       {
         type: "list",
@@ -201,13 +201,13 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           "Pro — Interfaccia curata e adozione facile per i dipendenti",
           "Contro — Non è un verticale edilizia: niente SAL, computi, DDT, preventivi o fatturazione di commessa",
           "Contro — Il costo del lavoro non parla con i margini di cantiere: serve comunque un gestionale a fianco",
-          "Contro — Prezzi non pubblicati nell'articolo di confronto sul loro stesso blog: da verificare su preventivo",
+          "Contro — Il prezzo si definisce su preventivo, in base a moduli attivati e numero di dipendenti",
         ],
       },
       {
         type: "section",
         heading: "7. Pillar — il rivale diretto: verticale italiano con AI",
-        body: "[Pillar](https://www.pillar.it/) è probabilmente il concorrente più simile a noi in questa lista, e proprio per questo lo trattiamo con il massimo rispetto.\n\nDal sito ufficiale, a luglio 2026: piattaforma cloud 100% italiana per PMI edili che gestiscono più cantieri, con un assistente conversazionale (Pillar AI) che risponde a domande sui dati aziendali, preventivazione e computo metrico, gestione dei flussi di cassa con previsioni, fatturazione attiva e passiva, contabilità di cantiere con margini e manodopera, bolle e rapportini, ordini e fornitori, scadenze di sicurezza e formazione, archivio documentale con un'integrazione WhatsApp per caricare i documenti.\n\nIl sito dichiara oltre 700 aziende attive, una valutazione media di 4,8/5 e un risparmio di 14 ore a settimana. Sono numeri loro, che non possiamo verificare, ma il prodotto è serio e il progetto — finanziato anche tramite NextGenerationEU — è credibile.\n\nLe differenze rispetto a Edilizia in Cloud, guardando le offerte pubbliche: i prezzi di Pillar non sono pubblicati (si definiscono in una videocall dimostrativa, su preventivo), mentre i nostri sono in chiaro sul sito; e nel loro perimetro dichiarato non risultano CRM e marketing per acquisire clienti, che per noi sono metà della partita.\n\nIl consiglio: provali entrambi sugli stessi dati e scegli dove la tua squadra lavora meglio dopo una settimana.",
+        body: "[Pillar](https://www.pillar.it/) è probabilmente il concorrente più simile a noi in questa lista, e proprio per questo lo trattiamo con il massimo rispetto.\n\nDal sito ufficiale: piattaforma cloud 100% italiana per PMI edili che gestiscono più cantieri, con un assistente conversazionale (Pillar AI) che risponde a domande sui dati aziendali, preventivazione e computo metrico, gestione dei flussi di cassa con previsioni, fatturazione attiva e passiva, contabilità di cantiere con margini e manodopera, bolle e rapportini, ordini e fornitori, scadenze di sicurezza e formazione, archivio documentale con un'integrazione WhatsApp per caricare i documenti.\n\nIl sito dichiara oltre 700 aziende attive, una valutazione media di 4,8/5 e un risparmio di 14 ore a settimana. Sono numeri loro, che non possiamo verificare, ma il prodotto è serio e il progetto — finanziato anche tramite NextGenerationEU — è credibile.\n\nLe differenze rispetto a Edilizia in Cloud, guardando le offerte pubbliche: i prezzi di Pillar non sono pubblicati (si definiscono in una videocall dimostrativa, su preventivo), e nemmeno i nostri piani a pagamento hanno un listino pubblico, quindi su questo siamo pari; e nel loro perimetro dichiarato non risultano CRM e marketing per acquisire clienti, che per noi sono metà della partita.\n\nIl consiglio: provali entrambi sugli stessi dati e scegli dove la tua squadra lavora meglio dopo una settimana.",
       },
       {
         type: "list",
@@ -216,7 +216,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
           "Pro — Verticale italiano completo: preventivi, computo metrico, contabilità di cantiere, flussi di cassa, bolle e rapportini",
           "Pro — Pillar AI: assistente conversazionale sui dati dell'impresa, più integrazione WhatsApp per i documenti",
           "Pro — Trazione dichiarata: oltre 700 aziende attive e valutazione 4,8/5 secondo il sito ufficiale",
-          "Contro — Prezzi non pubblici: si scoprono solo in videocall dimostrativa, su preventivo",
+          "Contro — Nessun piano gratuito né prova attivabile da soli: il percorso d'ingresso passa dalla videocall dimostrativa",
           "Contro — Dall'offerta pubblica non risultano CRM e marketing integrati: copre la gestione, non l'acquisizione clienti",
           "Contro — Come noi, è giovane rispetto ai gruppi storici: niente rete di rivenditori capillare",
         ],
@@ -241,6 +241,23 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
       },
       {
         type: "section",
+        heading: "Quello che nessun confronto tra software misura",
+        body: "Abbiamo messo in fila sette prodotti. Adesso la riga che manca in ogni tabella, compresa la nostra.\n\nNessuno di questi software raddrizza un'impresa che non sa leggere i propri numeri. Nessuno insegna a chiudere una trattativa. Nessuno fa entrare richieste che oggi non entrano. Il software mette ordine nel lavoro che c'è; il resto lo fanno le competenze di chi lo usa. È il motivo per cui due imprese con lo stesso gestionale chiudono l'anno con margini diversi.\n\nAttorno a Edilizia in Cloud, oltre al prodotto, c'è l'accesso a un ecosistema di servizi e di persone: consulenti dedicati per area, formazione e webinar, assistenza in italiano. E tre percorsi collegati, ognuno con il suo mestiere: [Numeri in Edilizia](https://numerinedilizia.com/) per il controllo di gestione — leggere margini, commesse e utile, partendo da un'analisi gratuita; [VENDITA EDILE®](https://venditaedile.it/) per il metodo commerciale, affiancamento all'imprenditore edile sulla vendita; [Marketing Edile®](https://www.marketingedile.com/) per il flusso di richieste, che porta clienti qualificati a imprese edili e serramentisti lavorando solo a percentuale sulle vendite e dichiara sul sito 47 aziende seguite e oltre 60 milioni di euro generati. Cosa serva a te, e in che forma, si definisce in consulenza.\n\nLa parte onesta: non siamo gli unici ad avere persone attorno al prodotto, e qui i grandi partono avanti. TeamSystem ha rivenditori e assistenza territoriale in tutta Italia, Dylog ha partner di zona e formazione da decenni: quella rete fisica noi non ce l'abbiamo. La differenza non è chi ti affianca, è su cosa. Lì il supporto lavora sul software — installazione, moduli, procedure. Da noi si parla anche di numeri, di vendita e di clienti in ingresso.\n\nLa domanda con cui chiudere la tua rosa di fornitori è questa: il tuo problema è che il software non ti basta, o che nessuno ti ha insegnato a leggere i margini e a vendere il lavoro?",
+      },
+      {
+        type: "table",
+        heading: "Cosa c'è oltre al software: la riga che manca in ogni tabella",
+        headers: ["Area", "I software di questa lista", "Edilizia in Cloud"],
+        rows: [
+          [
+            "Cosa c'è oltre al software",
+            "Assistenza sul prodotto; nei gruppi storici anche rete di partner e rivenditori sul territorio",
+            "Consulenti dedicati per area, formazione e webinar, più percorsi collegati su numeri, vendita e marketing",
+          ],
+        ],
+      },
+      {
+        type: "section",
         heading: "L'errore da non fare: scegliere il software dal listino funzioni",
         body: "Un'ultima cosa, imparata sulla nostra pelle e su quella di centinaia di imprese migrate da un software all'altro. Il gestionale non fallisce quasi mai per una funzione mancante: fallisce perché la squadra non lo usa.\n\nIl capocantiere che non compila il rapportino, l'amministrativa che tiene il suo Excel parallelo «per sicurezza», il titolare che guarda i numeri una volta al mese.\n\nPer questo i criteri che contano davvero sono tre, in quest'ordine: quanto è semplice per chi sta in cantiere (se serve un corso di due giorni per un rapportino, hai già perso), quanto è trasparente il fornitore su prezzi e condizioni, e quanto velocemente vedi il primo risultato utile — il primo margine calcolato, il primo stato avanzamento lavori fatturato. Tutto il resto, BIM compreso, viene dopo.\n\nE se il confronto ti sembra ancora troppo teorico, il metodo pratico resta quello detto sopra: stessi dati, stessa settimana, due software in prova, e vince quello che la tua squadra usa senza che tu debba rincorrerla.",
       },
@@ -253,11 +270,11 @@ export const blogPostsConfrontoMercato: BlogPost[] = [
     faqs: [
       {
         q: "Qual è il miglior gestionale per una piccola impresa edile?",
-        a: "Per una piccola impresa edile italiana (1-50 dipendenti) i candidati più adatti sono i gestionali verticali cloud: Edilizia in Cloud (da 127 €/mese con utenti illimitati, prova di 31 giorni), Pillar e CantieriCloud. Coprono preventivi, commesse con margini, app di cantiere e fatturazione elettronica SDI senza la complessità delle suite enterprise. Il criterio decisivo è provarli con i propri dati reali: vince quello che la squadra usa davvero dopo una settimana.",
+        a: "Per una piccola impresa edile italiana (1-50 dipendenti) i candidati più adatti sono i gestionali verticali cloud: Edilizia in Cloud (piano gratuito per partire, utenti illimitati e 31 giorni di prova completa sui piani superiori), Pillar e CantieriCloud. Coprono preventivi, commesse con margini, app di cantiere e fatturazione elettronica SDI senza la complessità delle suite enterprise. Il criterio decisivo è provarli con i propri dati reali: vince quello che la squadra usa davvero dopo una settimana.",
       },
       {
         q: "Quanto costa un software gestionale per l'edilizia nel 2026?",
-        a: "Dipende dalla famiglia di prodotto. I gestionali verticali cloud per PMI vanno indicativamente da 100 a 550 € al mese: Edilizia in Cloud, ad esempio, pubblica i prezzi sul sito e parte da 127 €/mese con utenti illimitati. Le suite enterprise come TeamSystem Construction e i prodotti Dylog non pubblicano listini: il costo è su preventivo e include tipicamente licenze, implementazione e formazione. Pillar definisce il prezzo in videocall dimostrativa. Diffida dei costi che scopri solo a trattativa avanzata.",
+        a: "Dipende dalla famiglia di prodotto, e quasi tutti i produttori definiscono la cifra su preventivo. Edilizia in Cloud parte da un piano gratuito per sempre (fino a 3 commesse attive) con utenti illimitati, offre 31 giorni di prova completa con setup e migrazione dati inclusi, e definisce il preventivo dei piani superiori in una consulenza gratuita. Le suite enterprise come TeamSystem Construction e i prodotti Dylog definiscono il costo su preventivo, includendo tipicamente licenze, implementazione e formazione. Pillar definisce il prezzo in videocall dimostrativa. Il criterio pratico non è chi espone la cifra prima, ma cosa puoi verificare da solo prima di firmare: fatti sempre mettere per iscritto il costo totale del primo anno.",
       },
       {
         q: "Che differenza c'è tra un gestionale edile e un software come PlanRadar?",

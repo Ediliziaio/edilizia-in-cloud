@@ -64,8 +64,8 @@ const rows: TableRow[] = [
   },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
   {
-    feature: "Prezzo base",
-    eic: { type: "text", text: "Da €127/mese (€99 annuale)" },
+    feature: "Prezzo",
+    eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" },
     competitor: { type: "text", text: "Su preventivo (versioni e moduli)" },
   },
 ];
@@ -86,7 +86,7 @@ const otherVsLinks = [
 const tldrPoints = [
   "PriMus ACCA è lo standard de-facto del computo metrico tra tecnici e stazioni appaltanti, ma copre la fase tecnica: niente cantieri real-time, margini live, CRM o presenze.",
   "Edilizia in Cloud copre l'intero ciclo della commessa — preventivo, cantiere, SAL, fatture — con margini in tempo reale e setup in 48 ore.",
-  "Il prezzo di PriMus dipende da versione e moduli (listino su preventivo); Edilizia in Cloud ha un prezzo pubblico: da €127/mese, €99 con piano annuale.",
+  "Il prezzo di PriMus dipende da versione e moduli (su preventivo); Edilizia in Cloud parte da un piano gratuito per sempre, con 31 giorni di prova completa sui piani superiori.",
 ];
 
 const switchTestimonials = [
@@ -110,7 +110,7 @@ const faqItems = [
   },
   {
     q: "Quanto costa Edilizia in Cloud rispetto a Primus?",
-    a: "Edilizia in Cloud parte da 127€/mese (99€ con piano annuale) con utenti illimitati e tutto incluso: il prezzo è pubblico sul sito. Il listino PriMus dipende da versione (PriMus, PriMus-P, moduli) e a luglio 2026 si definisce su preventivo con ACCA; esiste anche PriMus-DCF, la versione freeware per i computi base.",
+    a: "Edilizia in Cloud parte da un piano gratuito per sempre (piano Scopri, fino a 3 commesse attive) con utenti illimitati; i piani superiori si provano per 31 giorni con setup e migrazione dati inclusi, e il preventivo si definisce poi in una consulenza gratuita. Il prezzo di PriMus dipende da versione (PriMus, PriMus-P, moduli) e si definisce su preventivo con ACCA; esiste anche PriMus-DCF, la versione freeware per i computi base.",
   },
   {
     q: "Posso migrare i dati da Primus a Edilizia in Cloud?",
@@ -171,9 +171,10 @@ export default function VsPrimus() {
           operatingSystem: "Web, iOS, Android",
           offers: {
             "@type": "Offer",
-            price: "127",
+            price: "0",
             priceCurrency: "EUR",
-            priceValidUntil: "2026-12-31",
+            description:
+              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -234,8 +235,8 @@ export default function VsPrimus() {
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
             PriMus ACCA è lo standard dei computi metrici tra i tecnici. Edilizia in Cloud è un'altra categoria: un
-            gestionale cloud per tutto il ciclo della commessa, dalla trattativa al saldo. Confronto scritto da noi,
-            aggiornato a luglio 2026: dove PriMus è più forte lo scriviamo.
+            gestionale cloud per tutto il ciclo della commessa, dalla trattativa al saldo. Confronto scritto da noi:
+            dove PriMus è più forte lo scriviamo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -281,7 +282,8 @@ export default function VsPrimus() {
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
             Un confronto diretto, senza sconti. I dati sono basati sulle funzionalità pubblicamente documentate dai due
-            software a luglio 2026. Il listino PriMus è per versioni e moduli: dove serviva una cifra, lo abbiamo scritto.
+            software, verificate a luglio 2026. Il prezzo di PriMus è per versioni e moduli: dove serviva una cifra, lo
+            abbiamo scritto.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
             <table className="w-full text-sm">
@@ -498,6 +500,95 @@ export default function VsPrimus() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── OLTRE AL SOFTWARE ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Quello che un confronto tra software non misura
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Un computo preciso non fa guadagnare un'impresa che non sa leggere i propri numeri, non ha un metodo di
+            vendita e aspetta che il telefono suoni. Il software organizza il lavoro: i margini li fanno le competenze.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Consulenti dedicati, formazione e webinar",
+                d: (
+                  <>
+                    Attorno a Edilizia in Cloud c'è l'accesso a un ecosistema di servizi e di persone: consulenti
+                    dedicati per area, formazione e webinar, assistenza in italiano. Cosa serva a te, e in che forma, si
+                    definisce in consulenza.
+                  </>
+                ),
+              },
+              {
+                t: "Numeri in Edilizia — leggere margini e commesse",
+                d: (
+                  <>
+                    <a
+                      href="https://numerinedilizia.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Numeri in Edilizia
+                    </a>{" "}
+                    è il metodo di controllo di gestione per imprese edili: il titolare impara a leggere margini,
+                    commesse e utile. Si parte da un'analisi gratuita.
+                  </>
+                ),
+              },
+              {
+                t: "VENDITA EDILE® — il metodo commerciale",
+                d: (
+                  <>
+                    <a
+                      href="https://venditaedile.it/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      VENDITA EDILE®
+                    </a>{" "}
+                    è l'affiancamento commerciale all'imprenditore edile: come si presenta un preventivo e come si
+                    chiude, che è un mestiere diverso dal computarlo.
+                  </>
+                ),
+              },
+              {
+                t: "Marketing Edile® — il flusso di richieste",
+                d: (
+                  <>
+                    <a
+                      href="https://www.marketingedile.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Marketing Edile®
+                    </a>{" "}
+                    porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite:
+                    sul sito dichiara 47 aziende seguite e oltre 60 milioni di euro generati.
+                  </>
+                ),
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Da dire fino in fondo: neanche ACCA ti lascia solo — attorno a PriMus ci sono formazione, corsi e una
+            famiglia di software per il tecnico. La differenza è la materia dell'affiancamento: lì si lavora sul
+            prodotto e sulla tecnica, qui anche su numeri, vendita e clienti in ingresso. Il tuo problema è che il
+            software non ti basta, o che nessuno ti ha insegnato a leggere i margini?
+          </p>
         </div>
       </section>
 

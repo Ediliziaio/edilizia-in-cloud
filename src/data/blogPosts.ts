@@ -11,7 +11,7 @@ export interface BlogPost {
   author: { name: string; role: string; avatar?: string };
   coverImage: string;
   content: Array<{
-    type: "intro" | "section" | "quote" | "list" | "cta" | "table";
+    type: "intro" | "section" | "quote" | "list" | "cta" | "table" | "image" | "callout";
     heading?: string;
     /** Nei body: "\n\n" separa i paragrafi; [testo](https://…) crea un link
      *  esterno (nofollow, nuova tab), [testo](/percorso) un link interno. */
@@ -22,6 +22,12 @@ export interface BlogPost {
     /** Solo per type "table": intestazioni colonne + righe. */
     headers?: string[];
     rows?: string[][];
+    /** Solo per type "image": path in public/, alt SEO e didascalia. */
+    src?: string;
+    alt?: string;
+    caption?: string;
+    /** Solo per type "callout": tono del box (default "info"). */
+    variant?: "info" | "warning" | "success";
   }>;
   /** FAQ redazionali: risposte estraibili dai motori AI + FAQPage schema. */
   faqs?: Array<{ q: string; a: string }>;
@@ -34,6 +40,7 @@ import { blogPostsTemplateGratis } from "./blogPostsTemplateGratis";
 import { blogPostsNormativa } from "./blogPostsNormativa";
 import { blogPostsConfrontoMercato } from "./blogPostsConfrontoMercato";
 import { blogPostsConfrontoDiretti } from "./blogPostsConfrontoDiretti";
+import { blogPostsPillarGestione } from "./blogPostsPillarGestione";
 
 export { FLO_AVATAR };
 
@@ -42,6 +49,7 @@ export const blogPosts: BlogPost[] = [
   ...blogPostsNormativa,
   ...blogPostsConfrontoMercato,
   ...blogPostsConfrontoDiretti,
+  ...blogPostsPillarGestione,
   {
     id: "1",
     slug: "ridurre-costi-cantieri-edili",
@@ -189,6 +197,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "3",
     slug: "preventivi-edilizia-guida",
+    faqs: [
+      { q: "Cosa deve contenere un preventivo edile professionale?", a: "Un preventivo edile professionale contiene sette elementi: copertina con logo, dati cliente, numero e data; un executive summary di 3-4 righe sul progetto; il computo metrico con descrizioni e unità di misura esplicite; le esclusioni e le ipotesi; le condizioni di pagamento con il piano SAL; la validità dell'offerta; la firma digitale con una call to action chiara." },
+      { q: "Come si calcola il margine corretto in un preventivo edile?", a: "Il calcolo corretto parte dal costo totale diretto di manodopera e materiali, aggiunge il 15-20% di costi indiretti, poi un risk premium del 5-10% legato alla complessità della commessa e solo alla fine il margine di profitto desiderato. Sommare i costi diretti e applicare una percentuale fissa ignora coordinamento, spostamenti e overhead aziendale." },
+      { q: "Perché i preventivi edili non vengono accettati?", a: "I preventivi vengono rifiutati per tre famiglie di errori: contenuto (voci mancanti, descrizioni generiche, nessuna esclusione esplicita), forma (layout poco professionale, niente logo o numero di riferimento) e strategia (prezzo senza contesto, nessuna urgenza, nessun passo successivo proposto). Correggerli porta il tasso di accettazione dal 35% tipico del settore al 55-60%." },
+      { q: "Ogni quanto devo fare follow-up dopo aver inviato un preventivo?", a: "Il follow-up efficace prevede quattro contatti: una chiamata di conferma ricezione a 24 ore, una mail di approfondimento a 5 giorni, una proposta di sopralluogo a 10 giorni e una comunicazione di scadenza a 25 giorni. Il 60% delle decisioni di acquisto avviene dopo il terzo contatto, quindi chi si ferma al primo invio perde lavori già vinti a metà." },
+      { q: "Quanto deve durare la validità di un preventivo edile?", a: "La validità di un preventivo edile non deve superare i 30 giorni. Oltre quella soglia i prezzi dei materiali cambiano, la disponibilità delle squadre non è più garantita e l'offerta perde qualsiasi senso di urgenza per il cliente. Indicare una data di scadenza esplicita è anche il pretesto naturale per l'ultimo follow-up commerciale." },
+      { q: "Come si presenta il prezzo per aumentare le probabilità di chiusura?", a: "Il prezzo va presentato dopo il valore, mai da solo. Le tecniche che funzionano sono quattro: mostrare il risultato prima del costo, proporre sempre tre opzioni (base, standard, premium) per creare un ancoraggio, suddividere l'importo in un piano SAL chiaro e dichiarare esplicitamente la garanzia, cioè cosa succede se qualcosa va storto." },
+    ],
     title: "Preventivi Vincenti in Edilizia",
     excerpt:
       "Il 74% delle imprese edili usa ancora preventivi in Word o Excel. Come strutturare preventivi professionali che vincono i lavori e proteggono i margini.",
@@ -394,6 +410,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "6",
     slug: "marketing-digitale-imprese-edili",
+    faqs: [
+      { q: "Quanto conta Google per trovare clienti come impresa edile?", a: "Google è il primo canale: il 78% dei proprietari di casa che cerca un'impresa edile inizia online e il 91% di chi fa una ricerca locale clicca uno dei tre risultati della mappa, il Local Pack. Le ricerche del tipo impresa edile più città o preventivo ristrutturazione sono cresciute del 34% in un anno, quasi sempre da mobile." },
+      { q: "Come si ottimizza il profilo Google Business di un'impresa edile?", a: "Un profilo ottimizzato ha nome, indirizzo e telefono coerenti con il sito, la categoria principale Impresa di Costruzioni più categorie secondarie specifiche, almeno 20 foto di lavori caricate con regolarità, una risposta a ogni recensione entro 24 ore e una descrizione con keyword locali. Le imprese con profilo completo ricevono il 520% di chiamate in più." },
+      { q: "Quanto budget serve per una campagna Google Ads locale in edilizia?", a: "Con 500-1.000€ al mese un'impresa edile ben configurata riceve 15-30 richieste di preventivo mensili da clienti qualificati. La configurazione conta più del budget: targeting geografico ristretto all'area di operatività, keyword specifiche come impresa edile Milano o ristrutturazione bagno Monza e landing page dedicate con modulo e numero di telefono ben visibili." },
+      { q: "Quanti contenuti social deve pubblicare un'impresa edile?", a: "Tre post a settimana bastano: due di cantiere, con foto e una breve descrizione, e uno di expertise, cioè un consiglio tecnico, un aggiornamento normativo o un caso studio. Instagram funziona per il portfolio e le storie di cantiere, LinkedIn per raggiungere progettisti, studi di architettura e developer immobiliari. La costanza conta più della perfezione." },
+      { q: "Serve un CRM se sto già facendo marketing digitale?", a: "Sì, perché senza CRM il lead acquisito si perde prima di diventare cliente. Le imprese edili con un CRM attivo convertono il 28% dei contatti in clienti, contro il 12% di chi gestisce tutto a mano. Il CRM serve a non perdere nessun contatto, a inviare follow-up automatici dopo il preventivo e a capire quale fonte porta i clienti più redditizi." },
+      { q: "Cosa deve avere il sito di un'impresa edile per generare contatti?", a: "Il sito deve avere un portfolio con foto before/after di ogni cantiere, una sezione Aree di intervento con una pagina per ogni comune servito, un modulo preventivo con risposta garantita entro 48 ore, una pagina Chi Siamo con le foto del team, almeno 15 testimonianze verificate e lo schema markup per imprese locali. Le pagine con volti reali convertono il 40% in più." },
+    ],
     title: "Marketing Digitale per Imprese Edili",
     excerpt:
       "Il 78% di chi cerca un'impresa edile parte da Google. Scopri le strategie di marketing digitale per l'edilizia: Google My Business, recensioni e campagne.",
@@ -524,6 +548,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "8",
     slug: "digitalizzare-impresa-edile",
+    faqs: [
+      { q: "Quanto tempo serve per digitalizzare un'impresa edile?", a: "Trenta giorni bastano per digitalizzare i processi chiave, se procedi per fasi: audit dei processi nella prima settimana, setup degli strumenti nella seconda, formazione del team nella terza e go-live completo nella quarta. Questa roadmap arriva dall'esperienza di oltre 200 imprese edili italiane che hanno completato il percorso senza fermare i cantieri." },
+      { q: "Da dove si comincia a digitalizzare un'impresa edile?", a: "Si comincia dall'audit, non dal software. Nella prima settimana mappi come gestisci oggi presenze, ordini, commesse e fatturazione, individui i tre punti dove si perde più tempo, calcoli il costo attuale moltiplicando le ore per il costo orario, definisci i KPI che vuoi migliorare e presenti il progetto al team per raccoglierne il consenso." },
+      { q: "Perché i progetti di digitalizzazione falliscono nelle imprese edili?", a: "Falliscono per due motivi. Il primo è l'approccio tutto e subito: si compra un software complesso, si prova a implementare ogni cosa insieme, il team non regge e si torna alle vecchie abitudini. Il secondo è la scelta di strumenti generici: un imprenditore edile non ha tempo di configurare un CRM nato per altri settori." },
+      { q: "Quanta formazione serve al team per passare al digitale?", a: "Servono due sessioni da due ore nella terza settimana: una con i capicantiere su timbrature e avanzamento, una con l'ufficio su preventivi, commesse e fatturazione. Aggiungi un gruppo WhatsApp per le domande immediate e nomina un digital champion interno che aiuta i colleghi. Dopo la prima settimana di uso reale raccogli feedback e correggi." },
+      { q: "Posso tenere il vecchio sistema in parallelo durante il passaggio?", a: "No, ed è l'errore che manda a monte il go-live. Dalla quarta settimana tutte le presenze, tutti gli ordini e tutti i SAL devono passare dal gestionale. Qualche resistenza o dimenticanza è normale, ma tenere carta ed Excel in parallelo riporta il team alle vecchie abitudini e rende i dati del nuovo sistema inutilizzabili." },
+      { q: "Cosa devo pretendere dal fornitore del gestionale?", a: "Devi pretendere onboarding guidato, formazione inclusa e supporto dedicato nei primi mesi, oltre alla specializzazione sull'edilizia. Scegliere il fornitore solo in base al prezzo è uno degli errori più cari: senza accompagnamento il team abbandona al primo ostacolo e il gestionale resta pagato ma non usato." },
+    ],
     title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni",
     excerpt:
       "Roadmap testata per portare la tua impresa edile dal cartaceo al digitale in 30 giorni: cosa fare settimana per settimana, senza bloccare il lavoro.",
@@ -1381,6 +1413,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "17",
     slug: "acquisire-clienti-impresa-edile",
+    faqs: [
+      { q: "Come trova nuovi clienti un'impresa edile oltre al passaparola?", a: "Le leve che funzionano sono sette: Google Business Profile ottimizzato, preventivi inviati in fretta e curati, richiesta sistematica di recensioni Google, partnership con le agenzie immobiliari della zona, portfolio digitale dei cantieri eseguiti, follow-up sui preventivi non chiusi e un referral program per i clienti già acquisiti. Il 68% delle ricerche locali parte da Google Maps." },
+      { q: "Entro quanto devo inviare un preventivo per non perdere il cliente?", a: "Entro 24 ore. Un preventivo inviato il giorno dopo il sopralluogo converte tre volte di più di uno inviato dopo una settimana. Il cliente sta quasi sempre confrontando più imprese e interpreta la lentezza della risposta come un'anticipazione di come lavorerai in cantiere: chi arriva primo parte già in vantaggio sul prezzo." },
+      { q: "Come si chiedono le recensioni Google ai clienti?", a: "A fine cantiere manda un messaggio WhatsApp con il link diretto alla pagina di recensione Google. Il tasso di risposta è 5-10 volte superiore rispetto a una richiesta generica fatta a voce o via email. Le recensioni sono il passaparola digitale: dieci recensioni da cinque stelle pesano più di qualsiasi pubblicità sulla decisione di chi non ti conosce." },
+      { q: "Vale la pena richiamare i preventivi che non si sono chiusi?", a: "Sì: il 40% dei preventivi non chiusi in prima battuta si chiude entro tre mesi con un follow-up corretto. Il cliente spesso non ha detto no, ha solo rimandato la decisione per budget, tempi o confronto con altre imprese. Chi resta presente senza insistere raccoglie lavori che i concorrenti hanno già archiviato come persi." },
+      { q: "Le agenzie immobiliari possono portare lavoro a un'impresa edile?", a: "Sì, e sono uno dei canali più sottovalutati. Gli agenti immobiliari lavorano ogni giorno con clienti che comprano casa da ristrutturare e vengono cercati proprio nel momento in cui quel bisogno nasce. Costruire un rapporto stabile con due o tre agenzie locali vale più di molte campagne pubblicitarie generiche." },
+      { q: "Perché dipendere solo dal passaparola è rischioso?", a: "Perché quando il passaparola si ferma, si fermano i cantieri. Il 73% delle imprese edili italiane trova clienti quasi esclusivamente così: è il segnale di una buona reputazione, ma anche di una fonte di lavoro che non controlli e che non puoi accelerare quando l'agenda si svuota. La diversificazione dei canali è quello che rende prevedibile il fatturato." },
+    ],
     title: "Come Acquisire Clienti per Impresa Edile",
     excerpt:
       "Il 73% delle imprese edili trova clienti solo col passaparola. 7 strategie per acquisirne di nuovi: recensioni Google, preventivi, partnership.",
@@ -1493,6 +1533,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "19",
     slug: "sito-web-impresa-edile-guida",
+    faqs: [
+      { q: "Serve davvero un sito web a un'impresa edile?", a: "Sì: l'87% dei committenti cerca online l'impresa edile prima di contattarla. Il sito è il biglietto da visita digitale e viene consultato anche da chi ti è stato consigliato da un conoscente, per verificare che tu esista, che tu abbia lavori documentati e che tu lavori nella sua zona. Un sito datato o assente rimette in discussione anche il passaparola." },
+      { q: "Cosa deve contenere il sito di un'impresa edile?", a: "Servono sette blocchi: una homepage che in cinque secondi dica chi sei, cosa fai e dove lavori; il portfolio con foto prima/dopo; una pagina dedicata per ogni tipologia di lavoro; almeno dieci recensioni reali; un form di richiesta preventivo; contatti con telefono, WhatsApp e comuni serviti; un blog con guide utili ai tuoi clienti." },
+      { q: "Quanto tempo serve per arrivare in prima pagina su Google?", a: "Per le ricerche locali del tuo settore servono dai 6 ai 12 mesi di lavoro costante. Non è un risultato immediato, ma una volta raggiunto porta richieste senza costo per clic. Nel frattempo il profilo Google Business e le recensioni danno visibilità molto più in fretta e vanno curati fin dal primo giorno." },
+      { q: "Come si ottimizza il sito per le ricerche locali?", a: "Il committente cerca impresa edile Milano ristrutturazioni, non impresa edile. Devi inserire città e provincia nei titoli di tutte le pagine, creare una pagina dedicata per ogni comune in cui operi davvero, ottimizzare il profilo Google Business e raccogliere recensioni. La parola chiave decisiva è sempre quella geografica, non quella di servizio." },
+      { q: "Come si costruisce un portfolio che fa vendere?", a: "Il portfolio deve rispondere alla domanda che ogni committente si fa: saranno capaci? Per ogni cantiere mostra lo stato iniziale, i lavori in corso e il risultato finale, con una descrizione breve di tipo di intervento, materiali usati e tempi rispettati. Investire in fotografie professionali sui lavori migliori è l'elemento più persuasivo dell'intero sito." },
+      { q: "Il modulo di preventivo online porta davvero contatti?", a: "Sì, perché abbassa la barriera per chi non è ancora pronto a telefonare. Un form semplice, con pochi campi e una promessa di risposta entro 48 ore, intercetta anche le richieste serali o di chi sta solo iniziando a informarsi. Quel contatto va però qualificato e richiamato in fretta, altrimenti il vantaggio si perde." },
+    ],
     title: "Sito Web per Impresa Edile",
     excerpt:
       "L'87% dei committenti cerca online l'impresa prima di chiamarla. Guida per creare un sito web edile efficace: cosa contenere, SEO e come generare contatti.",
@@ -1542,6 +1590,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "20",
     slug: "digitalizzazione-impresa-edile-passo-passo",
+    faqs: [
+      { q: "Quali sono le fasi della digitalizzazione di un'impresa edile?", a: "Le fasi sono cinque: audit di tutti i processi attuali per capire dove perdi tempo e denaro; scelta della priorità, cioè il problema più costoso; adozione di uno strumento unico invece di cinque software separati; onboarding graduale partendo da una o due funzioni; misurazione dei risultati dopo tre mesi. Saltare l'audit è la causa più comune di acquisti sbagliati." },
+      { q: "Quale processo conviene digitalizzare per primo?", a: "Conviene partire dal problema che ti costa di più, che nella maggior parte delle imprese edili è il controllo dei margini di cantiere o la fatturazione. Digitalizzare prima le aree marginali dà risultati poco visibili e fa perdere la fiducia del team: il primo intervento deve produrre un risparmio che il titolare riesce a misurare in poche settimane." },
+      { q: "Meglio un gestionale unico o software separati per ogni funzione?", a: "Meglio un gestionale unico che copra preventivi, cantieri, fatture e personale. Comprare un software per i preventivi, uno per la fatturazione, uno per le presenze ed Excel per i cantieri produce caos e doppi inserimenti: gli stessi dati vengono riscritti più volte e nessuno dei sistemi restituisce il quadro completo della commessa." },
+      { q: "Quanto tempo passa prima che il team usi davvero il nuovo sistema?", a: "Servono due o tre mesi perché il nuovo modo di lavorare diventi un'abitudine. Aspettarsi risultati immediati è uno degli errori più frequenti: nelle prime settimane il team è più lento, non più veloce. Chi molla in quella fase torna alla carta e ha buttato sia i soldi del software sia il tempo della formazione." },
+      { q: "Come convinco capocantiere e operai a usare l'app?", a: "Mostrando il beneficio concreto per loro, non per l'ufficio: con l'app non devono più chiamarti per ogni aggiornamento e non devono più ricostruire le ore a fine mese. Parti dai più curiosi e falli diventare i riferimenti interni: quando gli altri vedono che funziona e che riduce telefonate, la resistenza cala da sola." },
+      { q: "Come capisco se la digitalizzazione sta funzionando?", a: "Dopo tre mesi misuri due cose: i margini di cantiere e le ore risparmiate. Se nessuno dei due numeri si è mosso, il problema è nello strumento scelto, nella formazione o nel processo, e va corretto subito. Un titolare che ha completato il percorso riferisce dieci ore recuperate a settimana e margini saliti del 18%." },
+    ],
     title: "Digitalizzare l'Impresa Edile nel 2026",
     excerpt:
       "Come digitalizzare un'impresa edile in modo ordinato e senza buttare soldi: da dove iniziare, quali strumenti scegliere e come formare il team.",
@@ -2655,6 +2711,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "33",
     slug: "cassa-impresa-edile-non-torna",
+    faqs: [
+      { q: "Perché ho fatturato bene ma non ho soldi sul conto?", a: "Perché fatturato, incassi e costi anticipati non hanno gli stessi tempi. In cantiere anticipi i materiali, paghi operai e fornitori, poi aspetti il SAL e rincorri il cliente: il ricavo esiste sulla carta molto prima che i soldi arrivino in banca. Il problema non si risolve lavorando di più, ma sapendo in anticipo quando entra e quando esce la cassa." },
+      { q: "Quali numeri devo controllare ogni settimana sulla cassa?", a: "Cinque: quanta liquidità reale hai oggi tolti i pagamenti già promessi, quali SAL puoi emettere e quali sono in ritardo, quale cantiere sta consumando più margine del preventivato, quali fornitori vanno pagati subito e quali puoi pianificare, e che cassa avrai tra 30, 60 e 90 giorni se non entra nessun lavoro nuovo." },
+      { q: "Come capisco se un nuovo cantiere è rischioso per la liquidità?", a: "Prima di firmare controlla sei voci: anticipo richiesto e copertura reale dei materiali iniziali, tempi di emissione dei SAL e probabilità di incasso puntuale, costo della manodopera nelle prime quattro settimane, fornitori critici e condizioni negoziate, margine minimo sotto il quale il lavoro non vale il rischio e impatto sulla cassa a 30, 60 e 90 giorni." },
+      { q: "Quali sono i segnali che la cassa sta peggiorando?", a: "Il primo segnale non è il conto in rosso: è iniziare a decidere i pagamenti a sensazione. Rinviare un fornitore, anticipare materiali con soldi tuoi, usare l'acconto di un cliente per coprire un cantiere vecchio o accettare un lavoro grande solo per respirare sono tutti sintomi di una cassa non governata, non di un problema temporaneo." },
+      { q: "Come miglioro la liquidità nel giro di poche settimane?", a: "Emetti i SAL maturati e rimasti fermi, chiedi acconti sui lavori in partenza, sollecita le fatture scadute e blocca i lavori sotto il margine minimo. In quattordici giorni, raccogliendo fatture scadute, SAL maturati, fornitori da pagare e costi fissi, capisci se il problema è incasso lento, preventivi bassi, costi fuori controllo o lavori accettati senza anticipo." },
+      { q: "Basta il commercialista per tenere sotto controllo la cassa?", a: "No. Il commercialista ti dice cosa è successo, mentre la cassa si difende sapendo cosa sta per succedere. Lavori firmati, SAL maturati, fatture scadute, fornitori da pagare e costi fissi del mese sono contabilità se arrivano dopo e sono controllo se arrivano prima: il titolare ha bisogno di una previsione settimanale, non di un bilancio a consuntivo." },
+    ],
     title: "Ho Fatturato ma Non Ho Soldi",
     excerpt: "Cantieri aperti e fatture emesse, ma il conto resta in tensione? Perché ricavi e liquidità non coincidono e come riprendere il controllo della cassa.",
     category: "Finanza",
@@ -2742,6 +2806,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "34",
     slug: "trovare-operai-edili-qualificati",
+    faqs: [
+      { q: "Dove si trovano operai edili qualificati oggi?", a: "Il passaparola tra operai funziona ancora ma non basta. Servono una pagina Lavora con noi, annunci locali chiari, collaborazioni con le scuole professionali e contatti con subappaltatori affidabili. Nell'annuncio indica tipo di cantieri, zona, orari, strumenti, sicurezza e possibilità di crescita: un operaio bravo valuta anche l'organizzazione, e se l'annuncio è confuso parti già male." },
+      { q: "Quanto costa davvero un operaio edile?", a: "Il costo reale è il costo pieno orario, non lo stipendio base: comprende oneri, straordinari, trasferte, malattie, rimborsi e tempi morti. Guardare solo la busta paga porta a considerare economico un operaio che in realtà erode margine. Senza ore registrate per cantiere e avanzamento prodotto non sai chi crea valore e chi costa più di quanto rende." },
+      { q: "Cosa devo tracciare per ogni lavoratore?", a: "Cinque dati: ore lavorate per cantiere e non solo ore totali del mese, avanzamento prodotto rispetto alle ore pianificate, costo pieno orario con oneri e assenze, scadenze della formazione con DPI consegnati e documenti obbligatori, ferie e permessi collegati al calendario dei cantieri attivi. Senza questi numeri il movimento in cantiere inganna." },
+      { q: "Come capisco se una nuova risorsa sta funzionando?", a: "Nei primi quindici giorni assegna un responsabile e mansioni semplici, poi confronta le ore registrate per cantiere con l'avanzamento reale. Valuta puntualità, autonomia, uso dei DPI e rispetto delle istruzioni, raccogli il feedback del capocantiere a fine settimana e metti il costo pieno accanto al valore prodotto. Conta anche la compatibilità con la squadra, non solo la capacità tecnica." },
+      { q: "Come trattengo gli operai migliori?", a: "Gli operai bravi restano dove l'organizzazione è chiara. Turni, ferie, rimborsi, DPI e istruzioni di cantiere gestiti bene riducono discussioni e improvvisazioni. Formazione e sicurezza ordinate non sono solo obblighi: comunicano un'azienda solida. Un'impresa organizzata non trova per magia più personale, ma perde meno persone valide e usa meglio quelle che ha già." },
+      { q: "Qual è l'errore da evitare quando assumi in emergenza?", a: "Assumere senza periodo di prova, senza mansioni definite e senza controllo della produttività. Nell'urgenza si salta il colloquio strutturato, si dà per scontata l'esperienza dichiarata e si scopre dopo due mesi che la persona rallenta la squadra. Un colloquio con criteri uguali per tutti e una checklist di inserimento costano poche ore e prevengono danni molto più cari." },
+    ],
     title: "Come Trovare Operai Edili Qualificati e Affidabili",
     excerpt: "La manodopera manca, ma il problema non è solo assumere: è misurare produttività, presenze, formazione, costi reali e affidabilità di ogni operaio.",
     category: "HR & Personale",
@@ -2829,6 +2901,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "35",
     slug: "passaparola-impresa-edile-non-basta",
+    faqs: [
+      { q: "Il passaparola basta ancora per riempire i cantieri?", a: "No. Il passaparola resta utile ma non è prevedibile: arriva quando vuole lui e si ferma senza preavviso. Oggi i clienti cercano online, confrontano recensioni, chiedono più preventivi e premiano chi risponde prima e con più chiarezza. Il passaparola va trasformato in recensioni, referenze e richieste tracciate, altrimenti resta invisibile e non misurabile." },
+      { q: "Da quale canale conviene partire per acquisire clienti edili?", a: "Da Google Business Profile e dalle pagine servizio locali, perché intercettano domanda già attiva: persone che stanno cercando proprio quel lavoro nella tua zona. Solo dopo ha senso lavorare su campagne a pagamento e remarketing. Presidiare prima i canali dove il cliente arriva già deciso costa meno e produce richieste più mature." },
+      { q: "Qual è la differenza tra un contatto e un'opportunità?", a: "Un contatto è una persona che ha scritto o chiamato. Un'opportunità è un contatto qualificato: zona servita, lavoro compatibile con quello che sai fare, budget possibile, tempi realistici e decisione non troppo lontana. Trattare tutti i contatti allo stesso modo spreca energie: il marketing porta richieste, il commerciale deve trasformarle in opportunità vere." },
+      { q: "Come evito di perdere le richieste che arrivano?", a: "Servono cinque cose: una pagina che spiega cosa fai e raccoglie richieste chiare, un gestionale contatti con provenienza, stato e valore stimato, una risposta entro poche ore e non dopo tre giorni, un follow-up automatico sui preventivi a 3, 7 e 14 giorni e la richiesta di recensione automatica a fine cantiere." },
+      { q: "Cosa devo misurare del processo commerciale?", a: "Cinque numeri: fonte di ogni richiesta, sopralluoghi effettuati, preventivi inviati, lavori chiusi e margine prodotto. Senza la fonte non sai quale canale porta lavori veri e continui a pagare pubblicità al buio. Il passaggio da richieste a sopralluoghi e da sopralluoghi a preventivi mostra esattamente dove il processo perde pezzi." },
+      { q: "Perché le recensioni fanno parte del lavoro commerciale?", a: "Perché molti clienti scelgono l'impresa prima ancora di chiamare, guardando recensioni, foto e presenza online. Se hai cantieri ben riusciti ma non raccogli prove, il vantaggio va ai concorrenti più organizzati. Ogni fine cantiere dovrebbe produrre foto, testimonianza, recensione e un breve caso studio: non è vanità, è carburante commerciale." },
+    ],
     title: "Il Passaparola Non Basta Più",
     excerpt: "Se i clienti arrivano solo da conoscenze, non hai un sistema commerciale. Come rendere prevedibili contatti, preventivi e cantieri.",
     category: "Marketing",
@@ -2916,6 +2996,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "36",
     slug: "gestire-piu-cantieri-contemporaneamente",
+    faqs: [
+      { q: "Quanti cantieri si riescono a gestire senza un gestionale?", a: "Dipende dalla squadra, ma oltre due o tre cantieri contemporanei il rischio cresce in fretta. Un cantiere si controlla anche andando di persona, tre no: quando aumentano squadre, fornitori, varianti e telefonate, la memoria del titolare diventa il primo collo di bottiglia dell'impresa e le informazioni iniziano a perdersi." },
+      { q: "Cosa devo vedere ogni mattina su ogni cantiere?", a: "Cinque informazioni: percentuale di avanzamento, squadra assegnata con ore lavorate rispetto al piano, materiali in arrivo con consegne in ritardo e ordini aperti, foto e diario lavori aggiornati da smartphone, varianti da approvare e SAL da emettere. Se per sapere queste cose devi telefonare al capocantiere, stai già perdendo tempo." },
+      { q: "Chi deve aggiornare i dati di cantiere?", a: "Il capocantiere o il responsabile operativo, non il titolare. Serve una routine minima: a fine giornata aggiorna avanzamento, ore, foto e problemi direttamente dal telefono. Il giorno dopo il titolare vede la situazione e decide. Questa sola abitudine riduce telefonate, dimenticanze e discussioni a fine lavoro, senza riempire il gestionale di burocrazia inutile." },
+      { q: "Qual è il rischio più grande quando i cantieri aumentano?", a: "Che ore, materiali e varianti finiscano sulla commessa sbagliata o non vengano registrati affatto. Foto su WhatsApp, DDT nel furgone, note vocali, ordini via email, ore su fogli diversi e varianti dette a voce: a fine mese nessuno ricorda cosa è successo davvero e il margine si perde in ricostruzioni approssimative." },
+      { q: "Cosa deve arrivare al titolare e cosa no?", a: "Al titolare devono arrivare solo le eccezioni: ritardo sopra soglia, costo fuori budget, materiale bloccato, cliente insoddisfatto, variante non firmata. Leggere ogni dettaglio di ogni cantiere è impossibile e inutile. Vedere solo dove serve una decisione cambia la giornata: meno inseguimento delle emergenze e più gestione per priorità." },
+      { q: "Cosa mettere all'ordine del giorno della riunione cantieri?", a: "Sei punti: cantieri in ritardo con il motivo preciso, materiali mancanti o consegne critiche, ore lavorate contro ore previste, varianti da approvare e lavori extra non ancora valorizzati, SAL o fatture da preparare, problemi di sicurezza, qualità o rapporto con il cliente. Una riunione settimanale con questa agenda vale più di dieci giri in macchina." },
+    ],
     title: "Come Gestire Più Cantieri Contemporaneamente",
     excerpt: "Tre cantieri aperti, materiali in ritardo, squadre da coordinare e clienti che chiamano: il caos nasce quando tutto vive nella testa del titolare.",
     category: "Gestione Cantieri",
@@ -3003,6 +3091,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "37",
     slug: "burocrazia-impresa-edile-scadenze-documenti",
+    faqs: [
+      { q: "Quali documenti scadono e vanno controllati in un'impresa edile?", a: "Cinque famiglie di documenti hanno una scadenza: DURC dell'impresa e dei subappaltatori, POS e documenti di sicurezza aggiornati per cantiere, formazione obbligatoria e DPI per lavoratore, polizze assicurative e coperture per tipologia di lavoro, titoli abilitativi, pratiche bonus, documenti fiscali e contratti. Ognuno deve avere una data e un responsabile assegnato." },
+      { q: "Qual è il documento che si dimentica più spesso?", a: "Il DURC dei subappaltatori, insieme a varianti firmate, rapportini e DDT non collegati al cantiere. Sono documenti che nessuno cerca finché tutto va bene: poi arriva una verifica, una stazione appaltante o un cliente che chiede la documentazione, e ricostruirli richiede ore che dovevi impiegare in cantiere." },
+      { q: "Come si evita di far scadere un documento?", a: "Ogni file deve avere una data di scadenza, un proprietario e un collegamento al cantiere o al fornitore, con un avviso automatico prima della scadenza. Caricare i documenti senza data non è gestione documentale, è archivio morto. Serve un semaforo che dica cosa è regolare, cosa scade tra trenta giorni e cosa blocca l'avvio dei lavori." },
+      { q: "Cosa serve avere pronto in caso di controllo in cantiere?", a: "Servono documenti di sicurezza (POS, PSC, DUVRI, attestati di formazione e DPI consegnati), contratti e capitolato, DURC dell'impresa e dei subappaltatori, polizze, verbali, foto e rapportini. Se sono sparsi tra mail, cartelle e desktop perdi ore e aumenti il rischio; se sono collegati al cantiere, recuperarli è questione di secondi." },
+      { q: "Cosa deve contenere l'archivio di una commessa edile?", a: "Sei blocchi: contratto, preventivo firmato, capitolato e varianti approvate; documenti di sicurezza come POS, PSC, DUVRI, attestati e DPI; DURC, visure e polizze di impresa e subappaltatori; foto prima, durante e dopo le lavorazioni; DDT, ordini materiali, fatture fornitori e rapportini; SAL, fatture emesse, incassi e solleciti." },
+      { q: "Perché i documenti mancanti fanno perdere margine?", a: "Perché ogni buco documentale diventa un costo. Una variante non firmata diventa una discussione a fine lavori, un DDT perso diventa un costo mai imputato alla commessa, un rapporto giornaliero mancante rende impossibile contestare un ritardo. Tenere i documenti in ordine non serve solo a evitare sanzioni: protegge tempo, cassa e reputazione." },
+    ],
     title: "Burocrazia Edile: Non Dimenticare DURC, POS e Scadenze",
     excerpt: "La burocrazia non fa rumore finché blocca un cantiere. Scopri quali scadenze controllare e come trasformarle in un processo automatico.",
     category: "Normativa",
@@ -3090,6 +3186,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "38",
     slug: "delegare-impresa-edile-senza-perdere-controllo",
+    faqs: [
+      { q: "Cosa conviene delegare per primo in un'impresa edile?", a: "Le decisioni ripetitive a rischio basso: ordini di materiali sotto una soglia già approvata, aggiornamento del diario lavori e delle foto giornaliere, richiesta dei documenti standard a fornitori e subappaltatori, programmazione di ferie e sostituzioni, gestione dei piccoli imprevisti entro un budget definito e follow-up dei preventivi secondo uno script commerciale." },
+      { q: "Come controllo il lavoro se non sono sempre in cantiere?", a: "Con tre strumenti: una dashboard che mostra avanzamento, margini, ore e anomalie aggiornate, soglie di escalation che coinvolgono il titolare solo sui problemi fuori limite e una riunione settimanale con verbale e attività assegnate. Delegare non significa sparire: significa costruire limiti chiari entro cui gli altri possono decidere da soli." },
+      { q: "Perché la delega fallisce nelle imprese edili?", a: "Perché mancano procedure scritte, criteri chiari, responsabilità definite e controlli oggettivi. Molti titolari non delegano dicendo che gli altri non lo fanno come loro, e spesso hanno ragione: senza checklist per avvio cantiere, varianti, acquisti e qualità, delegare significa sperare. E sperare in cantiere costa caro." },
+      { q: "Quali numeri deve continuare a guardare il titolare?", a: "Sette: avanzamento, ore, costi, varianti, scadenze, qualità e incassi. Se questi dati sono visibili e aggiornati, puoi lasciare autonomia senza perdere il governo dell'azienda. Il titolare smette di essere operativo su tutto e diventa il responsabile del sistema, intervenendo dove i numeri escono dai limiti concordati." },
+      { q: "A chi si delega per primo in un'impresa edile?", a: "Di solito al capocantiere per le decisioni operative di cantiere, all'amministrazione per scadenze, documenti e pagamenti, al commerciale per il follow-up dei preventivi. Ogni area deve avere un responsabile unico con un limite di spesa dichiarato: la delega su aree precise funziona molto meglio della delega generica a chi sembra più sveglio." },
+      { q: "Quanto tempo serve per capire se una delega funziona?", a: "Trenta giorni. Scegli tre attività da delegare, scrivi per ognuna regola, limite e controllo, poi per un mese verifica risultati, errori e tempi risparmiati. Se funziona allarghi il perimetro. La delega in edilizia cresce per procedure ripetibili e numeri visibili, non per fiducia cieca o discorsi motivazionali." },
+    ],
     title: "Come Delegare in un'Impresa Edile Senza Perdere il Controllo",
     excerpt: "Se ogni decisione passa da te, non hai un'azienda: hai un lavoro molto pesante. La delega funziona solo con procedure, ruoli e numeri visibili.",
     category: "Digitalizzazione",
@@ -3177,6 +3281,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "39",
     slug: "preventivi-edili-non-si-chiudono",
+    faqs: [
+      { q: "Perché il cliente sparisce dopo aver ricevuto il preventivo?", a: "Perché nessuno lo segue. Quando il preventivo parte via email e poi resta lì, non sai se il cliente lo ha aperto, cosa non ha capito, quale alternativa sta valutando e quando richiamarlo. Il lavoro commerciale fatto durante il sopralluogo viene buttato via nel momento più delicato, cioè quello in cui il cliente decide." },
+      { q: "Quando devo richiamare il cliente dopo l'invio del preventivo?", a: "Entro tre giorni dall'invio, poi con follow-up programmati a 7 e 14 giorni. Il primo richiamo serve a verificare che il documento sia arrivato e a sciogliere i dubbi ancora freschi. Lasciare passare due settimane in silenzio equivale a consegnare la decisione al concorrente che invece si è fatto sentire." },
+      { q: "Cosa rispondo se il cliente dice che il preventivo è troppo alto?", a: "Confronta inclusioni ed esclusioni, qualità dei materiali, tempi, garanzie e rischi coperti, invece di ridurre subito il prezzo. Molti clienti non sanno leggere un preventivo edile e vedono solo l'importo finale: se non spieghi cosa c'è dentro, sei tu a metterti da solo nella guerra del prezzo con offerte non equivalenti." },
+      { q: "Meglio un solo prezzo o più opzioni nel preventivo?", a: "Meglio più opzioni. Un preventivo con un prezzo secco lascia al cliente solo due scelte, accettare o rifiutare. Proporre alternative gli permette di valutare livelli diversi di materiali, tempi e garanzie e sposta il confronto dal prezzo al valore, senza che tu debba scontare per restare nella trattativa." },
+      { q: "Quando abbassare il prezzo è la scelta sbagliata?", a: "Quando non conosci margine minimo, costi certi, rischi probabili e capacità produttiva. In edilizia ogni punto di margine perso può esplodere con imprevisti, ritardi o varianti non pagate: uno sconto deciso al volo per chiudere può trasformare un lavoro in perdita. A volte è meglio perdere un lavoro che vincerlo male." },
+      { q: "Come capisco perché perdo i preventivi?", a: "Registrando il motivo reale di ogni perdita: tempi, fiducia, confronto poco chiaro, mancanza di prove, condizioni di pagamento, concorrente più veloce. Scrivere prezzo alto non basta. Prendi gli ultimi venti preventivi, classificali in vinti, persi, fermi e senza risposta e segna fonte, importo e margine: lo schema emerge in pochi giorni." },
+    ],
     title: "Perché i Preventivi Edili Non Si Chiudono",
     excerpt: "Fai sopralluoghi, calcoli, invii preventivi e poi il cliente sparisce? Il problema spesso non è il prezzo, ma processo, valore e follow-up.",
     category: "Commerciale",
@@ -3266,6 +3378,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "40",
     slug: "segnali-crisi-impresa-edile",
+    faqs: [
+      { q: "Quali sono i segnali di crisi di un'impresa edile?", a: "Sette: margine medio per cantiere in calo per due mesi consecutivi, crediti oltre 60 o 90 giorni senza azioni di recupero, oltre il 50% del fatturato legato a uno o due clienti, costi fissi cresciuti senza aumento dei margini, cassa prevista a 90 giorni sotto la soglia di sicurezza, cantieri grandi accettati senza analisi del rischio e fornitori pagati in ritardo." },
+      { q: "Qual è il primo segnale che qualcosa non va?", a: "Il margine medio per cantiere che scende mentre il lavoro sembra tanto. Un'impresa può essere piena di cantieri e allo stesso tempo fragile: il conto corrente mostra la crisi quando è già avanzata, mentre i margini la annunciano settimane prima. Per questo il fatturato da solo non dice nulla sulla salute dell'azienda." },
+      { q: "Quando la concentrazione dei clienti diventa pericolosa?", a: "Quando uno o due clienti superano il 50% del fatturato. A quel punto un ritardo di pagamento, una contestazione o la semplice fine di quel rapporto mette in discussione l'intera impresa. La concentrazione va monitorata insieme ai crediti scaduti: un cliente grande che paga tardi è due rischi sovrapposti, non uno." },
+      { q: "Cosa fare nei primi 30 giorni di allarme?", a: "Sei azioni: bloccare i nuovi lavori sotto il margine minimo, rivedere tutti i crediti scaduti assegnando i solleciti, emettere i SAL e le fatture rimaste ferme, rinegoziare i fornitori critici prima che blocchino le forniture, tagliare le spese non collegate a cantieri o vendite e rivedere la pipeline commerciale con i lavori in partenza." },
+      { q: "Accettare un lavoro grande aiuta a uscire dalla crisi?", a: "Quasi mai. Un cantiere importante con margine basso e molto anticipo di materiali assorbe liquidità prima di produrne, quindi peggiora la crisi invece di risolverla. Prima di firmare devi sapere quanta cassa consuma, quando incassi e cosa succede se il cliente paga in ritardo: la tentazione di accettare tutto è il comportamento da evitare." },
+      { q: "Cosa serve guardare ogni settimana per prevenire la crisi?", a: "Pochi indicatori ma giusti: cassa futura, margini, crediti, concentrazione clienti, costi fissi, rischio dei cantieri aperti e avanzamento commerciale. Serve anche la pipeline: se tra due mesi non hai cantieri pronti, oggi sembra tutto normale ma il rischio è già nato. Non serve finanza complicata, serve un semaforo settimanale." },
+    ],
     title: "Segnali di Crisi in un'Impresa Edile",
     excerpt: "La crisi non arriva all'improvviso: lascia segnali su margini, cassa, clienti, costi fissi e crediti scaduti. Il punto è vederli in tempo.",
     category: "Finanza",
@@ -3355,6 +3475,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "41",
     slug: "come-trovare-clienti-impresa-edile-marketing",
+    faqs: [
+      { q: "Quanto tempo serve per vedere risultati dal marketing edile?", a: "Con la SEO servono mesi, con campagne ben tracciate le prime richieste arrivano in pochi giorni. La qualità però si misura sui lavori chiusi, non sui contatti ricevuti: un mese di campagna dice quanti lead arrivano, tre mesi dicono quanti diventano cantieri e con che margine. Solo il secondo numero serve a decidere quanto investire." },
+      { q: "Meglio Google o i social per trovare clienti edili?", a: "Google intercetta domanda calda, cioè persone che stanno già cercando ristrutturazione, rifacimento tetto, cappotto o serramenti nella loro zona. Meta e Instagram creano domanda e funzionano con prima/dopo, cantieri finiti e testimonianze. La scelta dipende dal tipo di lavoro e dalla zona: per lavori urgenti vince Google, per lavori valutati con calma i social costruiscono fiducia." },
+      { q: "Devo guardare il costo per lead o il costo per cliente?", a: "Il costo per lavoro chiuso e il margine che lascia. Un lead da 20 euro che non compra vale zero, un lead da 120 euro che genera una ristrutturazione profittevole è un ottimo investimento. Per arrivarci marketing, preventivi e margini devono stare nello stesso sistema, altrimenti confronti costi pubblicitari con ricavi che non sai attribuire." },
+      { q: "Come qualifico un cliente prima di fare il sopralluogo gratuito?", a: "Prima di muovere un tecnico chiedi tipo di lavoro, zona, tempi, budget indicativo, stato della decisione e se ha già altri preventivi. Non è freddezza, è rispetto del tuo tempo: un cliente che non vuole rispondere a nessuna domanda spesso non è pronto, mentre chi manda foto, misure e obiettivi merita la priorità in agenda." },
+      { q: "Quando conviene aumentare il budget marketing?", a: "Solo quando il processo regge. Se ricevi venti lead e ne richiami otto, comprare altri contatti non serve: il problema è la gestione. Se fai sopralluoghi ma i preventivi partono in ritardo, il marketing non c'entra. Quando conosci fonte, costo, tasso di chiusura e margine, allora puoi investire di più con criterio." },
+      { q: "Devo pubblicare i prezzi sul sito?", a: "Meglio pubblicare range e spiegare le variabili, invece di prezzi buttati a caso o di nessuna indicazione. Un articolo sui costi fatto bene filtra i curiosi, prepara il cliente e aumenta la fiducia: chi arriva al sopralluogo è già consapevole dell'ordine di grandezza e fa domande migliori invece di reagire male al primo numero." },
+    ],
     title: "Come Trovare Clienti per un'Impresa Edile",
     excerpt: "Vuoi più clienti per lavori edili e ristrutturazioni? Un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.",
     category: "Marketing",
@@ -3474,6 +3602,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "42",
     slug: "aumentare-vendite-impresa-edile",
+    faqs: [
+      { q: "Come aumento le vendite senza fare sconti?", a: "Con cinque leve: rispondere ai nuovi contatti entro la stessa giornata, qualificare budget, urgenza e decisore prima del sopralluogo, presentare preventivi con opzioni base, consigliata e premium, mostrare foto, recensioni e cantieri simili, e programmare il follow-up a 3, 7 e 14 giorni. Sono tutte azioni a costo zero che alzano il tasso di chiusura." },
+      { q: "Perché il cliente confronta solo il prezzo?", a: "Perché il preventivo non gli mostra altro. Se non vede materiali, tempi, garanzie, metodo di lavoro, prove di cantieri simili e condizioni, valuta il tuo lavoro come un prodotto qualunque e vince chi costa meno. Il cliente edile in realtà compra sicurezza: teme ritardi, lavori fatti male, extra non previsti e materiali diversi da quelli promessi." },
+      { q: "Quali opzioni mettere in un preventivo edile?", a: "Tre livelli: essenziale, consigliata e premium. Con un solo prezzo il cliente confronta te contro un concorrente, con tre opzioni valuta livelli diversi di qualità, tempi e garanzie. Spesso non sceglie la più economica ma quella spiegata meglio, e il valore medio dell'ordine sale senza che tu debba forzare la trattativa." },
+      { q: "Cosa rispondo quando il cliente dice ci penso?", a: "Programma subito una chiamata di chiarimento con data e ora, invece di lasciare la decisione nel vuoto. Ci penso quasi sempre nasconde un dubbio preciso: materiali, tempi, pagamento o confronto con un'altra offerta. Chiedere quale sia il punto aperto e fissare il richiamo trasforma un rinvio generico in un passaggio commerciale con una scadenza." },
+      { q: "Quale numero devo guardare per capire se vendo bene?", a: "Il tasso di chiusura dei preventivi per servizio, non il fatturato totale. Insieme vanno letti valore medio, margine medio e tempo che passa tra richiesta e firma. Potresti chiudere bene i bagni e male le ristrutturazioni complete, o ricevere molte richieste di serramenti e pochi ordini perché il follow-up è lento: senza il dettaglio per servizio non lo sai." },
+      { q: "Vendere di più può danneggiare l'impresa?", a: "Sì, se chiudi più lavori di quanti puoi gestire: peggiorano qualità, tempi e reputazione. Ogni trattativa va collegata alla capacità produttiva reale, cioè squadre disponibili, fornitori, tempi dei materiali, capocantiere e cassa necessaria per partire. Vendere bene significa anche scegliere quando dire no o quando rimandare l'avvio di un cantiere." },
+    ],
     title: "Come Aumentare le Vendite di un'Impresa Edile",
     excerpt: "Più vendite non significa fare più sconti. Scopri come aumentare il tasso di chiusura con preventivi migliori, follow-up e controllo del margine.",
     category: "Commerciale",
@@ -3593,6 +3729,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "43",
     slug: "lead-serramenti-come-generare-richieste-qualificate",
+    faqs: [
+      { q: "Cosa deve chiedere il modulo per un lead serramenti?", a: "Cinque informazioni: numero indicativo di finestre, porte finestre o persiane, comune e provincia per verificare la copertura, foto o misure indicative degli infissi esistenti, tipo di richiesta tra sostituzione, nuova installazione, bonus o urgenza, e periodo desiderato per sopralluogo o installazione. Senza questi dati il commerciale lavora al buio." },
+      { q: "Meglio lead economici o lead qualificati nel serramento?", a: "Meglio qualificati. Un lead economico che non compra consuma tempo commerciale, che nel serramento è la risorsa più scarsa: ogni richiesta generica del tipo quanto costa cambiare le finestre richiede una telefonata, spesso un sopralluogo e un preventivo che non si chiuderà mai. Il costo per lead qualificato è la metrica giusta, non il costo per contatto." },
+      { q: "Entro quanto va richiamato un lead serramenti?", a: "Entro poche ore, idealmente due. Chi cerca serramenti sta quasi sempre confrontando più fornitori nello stesso momento: se aspetti due giorni ha già parlato con altri e fissato un sopralluogo. La percentuale di lead richiamati entro due ore è uno degli indicatori che spiega meglio le differenze di fatturato tra aziende con lo stesso budget pubblicitario." },
+      { q: "Quali pagine deve avere il sito di un'azienda di serramenti?", a: "Servono pagine separate per infissi in PVC, alluminio e legno-alluminio, sostituzione finestre con posa certificata, porte interne, portoncini blindati, persiane e tapparelle, guide sui bonus e sulla documentazione, pagine locali per le province dove lavori davvero e casi studio con foto prima/dopo e tempi di installazione. Una sola pagina generica sugli infissi non basta." },
+      { q: "Quali numeri controllare sui lead serramenti?", a: "Sei: costo per lead qualificato, percentuale di lead richiamati entro due ore, tasso da lead a sopralluogo, tasso da sopralluogo a preventivo inviato, tasso da preventivo a ordine firmato e margine medio per installazione chiusa. Guardare solo il numero di contatti ricevuti nasconde esattamente il punto in cui la pipeline si blocca." },
+      { q: "Come riduco le richieste fuori target?", a: "Con moduli guidati che chiedono comune, numero di infissi e tipo di intervento, indicando un range di investimento e spiegando materiali, posa, garanzie e zone servite. Filtrare non riduce il business, riduce il tempo perso: se vendi prodotti di qualità devi allontanare chi cerca solo il prezzo più basso prima che occupi un'agenda di sopralluoghi." },
+    ],
     title: "Lead Serramenti: Come Generare Richieste Qualificate",
     excerpt: "Chi vende serramenti ha bisogno di lead con misure, zona e budget. Come evitare contatti inutili e trasformare le richieste in preventivi.",
     category: "Marketing",
@@ -3713,6 +3857,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "44",
     slug: "richieste-preventivo-ristrutturazione-online",
+    faqs: [
+      { q: "Devo dare subito un prezzo a chi chiede quanto costa ristrutturare?", a: "Meglio dare un range e spiegare quali dati servono per un preventivo serio. Chi scrive online spesso non ha ancora metri quadri, stato degli impianti, finiture, permessi e tempi: rispondere con una cifra secca ti fa entrare nella guerra del prezzo. Guidare la conversazione con due o tre domande costruisce fiducia e qualifica la richiesta." },
+      { q: "Quali domande fare prima di fissare il sopralluogo?", a: "Sei: l'immobile è abitato, vuoto o ancora da acquistare, serve una ristrutturazione completa o solo alcune stanze, esistono già progetto, computo o tecnico coinvolto, il budget è realistico o il cliente sta ancora esplorando, qual è la scadenza tra trasloco, vendita, affitto o consegna chiavi, e quante imprese sta valutando." },
+      { q: "Il sopralluogo per una ristrutturazione deve essere gratuito?", a: "Può esserlo, ma va qualificato prima. Un sopralluogo gratuito fatto per chiunque diventa una perdita enorme di ore tecniche: le richieste di ristrutturazione valgono molto ma sono raramente semplici e il cliente può essere all'inizio del percorso, senza progetto e senza budget definito. La qualifica al telefono costa dieci minuti e ne salva otto ore." },
+      { q: "Cosa cerca davvero chi chiede un preventivo di ristrutturazione?", a: "Vuole capire costo, tempi, rischi, affidabilità e cosa succede se emergono imprevisti. Chiede un prezzo ma compra la sensazione che il cantiere non gli esploda in mano. Per questo ordine, pulizia, comunicazione e rispetto dei tempi vanno raccontati nel marketing quanto le lavorazioni: sono gli elementi che distinguono un'impresa organizzata da una che compete solo sul prezzo." },
+      { q: "Come si gestiscono le varianti in una ristrutturazione?", a: "Ogni variante deve avere descrizione, importo, approvazione e impatto sui tempi, registrata prima dell'esecuzione. Le ristrutturazioni generano quasi sempre modifiche: materiali diversi, imprevisti sugli impianti, richieste del cliente in corso d'opera. Se non le tracci diventano discussioni a fine lavori, e un cliente che ha vissuto un cantiere disordinato non ti porterà mai referenze." },
+      { q: "Parlare di costi sul sito allontana i clienti?", a: "No, li prepara. Una guida sui costi fatta bene non promette un prezzo fisso: spiega le variabili, le fasce indicative, cosa incide sul budget e perché due preventivi possono essere molto diversi. Chi legge arriva più consapevole, fa domande migliori e smette di considerare equivalenti offerte che includono lavorazioni completamente diverse." },
+    ],
     title: "Richieste di Preventivo Ristrutturazione",
     excerpt: "Le richieste online per ristrutturazioni sono preziose solo se vengono qualificate, seguite e trasformate in sopralluoghi con un processo chiaro.",
     category: "Marketing",
@@ -3833,6 +3985,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "45",
     slug: "google-ads-impresa-edile-errori-budget",
+    faqs: [
+      { q: "Google Ads funziona davvero per un'impresa edile?", a: "Funziona quando intercetta ricerche con intenzione chiara: preventivo ristrutturazione, impresa edile vicino a me, rifacimento tetto, posa cappotto, sostituzione serramenti, manutenzione condominio. Funziona molto meno con traffico generico o quando l'annuncio promette un servizio e la pagina di atterraggio parla d'altro. L'annuncio promette, la pagina deve confermare." },
+      { q: "Quali errori bruciano più budget nelle campagne edili?", a: "Cinque: usare parole chiave troppo generiche come edilizia o lavori casa, mandare tutto il traffico sulla home invece che su landing specifiche, non escludere le zone che non servi, non richiamare i lead entro poche ore e non calcolare il costo per cliente acquisito. Ogni euro speso fuori zona è margine perso." },
+      { q: "Come deve essere strutturata una campagna Google Ads edile?", a: "Con una campagna per area geografica reale, gruppi di annunci separati per servizio (ristrutturazione, serramenti, tetti, facciate), parole chiave negative per escludere fai da te, corsi e materiali, una landing coerente con la keyword, il tracciamento di chiamate, form, WhatsApp e preventivi generati, e un report finale sui lavori chiusi." },
+      { q: "Quali parole chiave negative servono a un'impresa edile?", a: "Vanno escluse le ricerche di lavoro e corsi, il fai da te, i materiali singoli e tutte le zone che non servi. Sono click che sembrano pertinenti al sistema pubblicitario ma non produrranno mai un cantiere. Senza una lista di negative il budget viene consumato da studenti, curiosi e persone che cercano un impiego, non un'impresa." },
+      { q: "Come capisco se una campagna sta funzionando?", a: "Dopo un mese non guardare solo il costo per lead: conta quanti lead sono stati contattati, quanti sopralluoghi sono stati fissati, quanti preventivi inviati, quanti lavori chiusi e con quale margine previsto. Se i lead arrivano ma il commerciale non richiama, il problema non è la campagna; se i lead sono buoni ma i preventivi non si chiudono, il problema è l'offerta." },
+      { q: "Quando devo spegnere una campagna?", a: "Quando genera traffico fuori zona, richieste troppo piccole, lead non contattabili o lavori con margine basso. Prima di spegnerla però verifica se il problema è l'annuncio, la pagina, il modulo o il follow-up: molte campagne sembrano non funzionare solo perché nessuno richiama in tempo o perché i preventivi restano fermi per giorni." },
+    ],
     title: "Google Ads per Imprese Edili",
     excerpt: "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.",
     category: "Marketing",
@@ -3953,6 +4113,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "46",
     slug: "crm-edilizia-gestire-lead-preventivi-follow-up",
+    faqs: [
+      { q: "Cos'è un CRM per l'edilizia e a cosa serve?", a: "Un CRM per l'edilizia è il sistema che tiene traccia di stato, valore e prossima azione di ogni richiesta, dal primo contatto fino alla firma. Non è un'agenda elegante: serve a impedire che i clienti si perdano tra telefonate, WhatsApp, sopralluoghi e richiami mai fatti. Ogni contatto non gestito è un possibile cantiere regalato a un concorrente." },
+      { q: "Serve un CRM anche a un'impresa edile piccola?", a: "Sì, perché il valore medio di una trattativa edile è alto e perderne una pesa molto. Anche venti contatti al mese diventano ingestibili se restano divisi tra telefono, WhatsApp e memoria del titolare: basta una giornata piena in cantiere per dimenticare un preventivo da richiamare e perdere un lavoro già quasi chiuso." },
+      { q: "Quali stati deve avere la pipeline di un'impresa edile?", a: "Cinque bastano: nuovo lead con la fonte (sito, telefono, Google Ads, Meta, passaparola), lead qualificato con zona, lavoro, budget e urgenza, sopralluogo fissato e assegnato, preventivo in preparazione o inviato, follow-up programmato con esito vinto, perso o rimandato. Una pipeline complicata non viene usata da nessuno." },
+      { q: "Perché un CRM generico non basta in edilizia?", a: "Perché l'edilizia ha passaggi che un CRM generico non conosce: sopralluogo, computo, preventivo tecnico, varianti, SAL, documenti, squadre e apertura commessa. Se il CRM non comunica con preventivi e cantieri, il commerciale chiude un lavoro e qualcuno deve riscrivere tutto altrove: è lì che nascono errori, promesse dimenticate e condizioni di pagamento diverse da quelle concordate." },
+      { q: "Quali automazioni servono davvero in un CRM edile?", a: "Sei: notifica immediata quando entra un lead dal sito, promemoria se nessuno richiama entro poche ore, task automatico dopo il sopralluogo per preparare il preventivo, follow-up a 3, 7 e 14 giorni dall'invio dell'offerta, richiesta di recensione alla chiusura del cantiere e alert al titolare sui preventivi di valore alto ancora aperti." },
+      { q: "Cosa succede ai dati dopo la firma del contratto?", a: "Devono passare a commessa, cantiere, documenti e fatturazione senza essere riscritti. Promesse commerciali, tempi concordati, materiali scelti, varianti e condizioni di pagamento sono le informazioni che si perdono più spesso nel passaggio da vendita a produzione, e ogni perdita diventa una discussione con il cliente durante i lavori." },
+    ],
     title: "CRM per Edilizia: Gestire Lead, Preventivi e Follow-up",
     excerpt: "Un CRM per edilizia serve a non perdere contatti, sopralluoghi e preventivi. Ecco il flusso che ogni impresa edile dovrebbe avere.",
     category: "Commerciale",
@@ -4073,6 +4241,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "47",
     slug: "come-trovare-clienti-serramentisti",
+    faqs: [
+      { q: "Perché il cliente sceglie spesso il serramentista più economico?", a: "Perché confronta preventivi che non sono confrontabili: PVC economico contro alluminio, posa base contro posa certificata, garanzie diverse, smaltimento incluso o escluso, accessori non indicati. Se la tua comunicazione non spiega queste differenze, perdi contro chi costa meno anche quando offri un lavoro tecnicamente migliore e più duraturo." },
+      { q: "Meglio SEO o Google Ads per un serramentista?", a: "La SEO costruisce richieste nel tempo e non si spegne quando smetti di pagare, mentre Google Ads accelera su zone e prodotti specifici e dà risultati in pochi giorni. Le due leve si completano: le campagne coprono i mesi in cui l'agenda si svuota, le pagine posizionate riducono nel tempo la dipendenza dal budget pubblicitario." },
+      { q: "Quali ricerche deve intercettare un'azienda di serramenti?", a: "Sei famiglie: serramentista più città o provincia, preventivo infissi in PVC, alluminio o legno-alluminio, sostituzione finestre con posa certificata, porte interne, portoncini blindati, persiane e tapparelle, infissi per il risparmio energetico e bonus casa, riparazione o pronto intervento serramenti se offri quel servizio. Ogni famiglia ha un intento diverso e merita una pagina dedicata." },
+      { q: "Come si costruisce un piano commerciale di 90 giorni?", a: "Nei primi 30 giorni sistema Google Business Profile, recensioni, foto delle installazioni e la pagina principale sui serramenti. Nei 30 successivi crea le pagine per infissi PVC, alluminio, portoncini, persiane e per le zone servite. Negli ultimi 30 collega ogni richiesta a CRM, preventivo, sopralluogo e margine, così smetti di misurare visibilità e inizi a misurare ordini." },
+      { q: "Quali metriche controllare ogni mese?", a: "Sei: lead ricevuti per fonte tra SEO, Google Ads, social e referral, lead qualificati sul totale dei contatti, sopralluoghi fissati e sopralluoghi realmente completati, preventivi inviati entro 48 ore, tasso di chiusura e margine medio per ordine, motivi di perdita divisi tra prezzo, tempi, concorrenza, fiducia e prodotto." },
+      { q: "Cosa deve spiegare il preventivo per non essere confrontato solo sul prezzo?", a: "Deve spiegare posa, smaltimento del vecchio serramento, tempi di consegna, garanzie, eventuali opere murarie, gestione dei documenti e condizioni di pagamento, non solo l'elenco dei pezzi. Il cliente deve capire perché un'offerta apparentemente più alta è più sicura e conveniente nel tempo, altrimenti la mette accanto a preventivi che coprono metà del lavoro." },
+    ],
     title: "Come Trovare Clienti per Serramentisti",
     excerpt: "Una guida pratica per aziende di serramenti che vogliono più richieste qualificate, meno preventivi persi e una pipeline commerciale misurabile.",
     category: "Marketing",
@@ -4167,6 +4343,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "48",
     slug: "come-trovare-clienti-rifacimento-tetti",
+    faqs: [
+      { q: "Cosa cerca chi vuole rifare il tetto?", a: "Cerca chi risolve un problema urgente o accompagna un investimento importante: infiltrazioni, tegole rotte, isolamento scarso, obblighi condominiali o la preparazione del tetto per il fotovoltaico. Ha paura di ponteggi, sicurezza, costi extra, autorizzazioni, ritardi e danni interni: il marketing deve mostrare competenza tecnica, cantieri reali, procedure di sicurezza e garanzie." },
+      { q: "Quali pagine servono a un'azienda di coperture?", a: "Sei: rifacimento tetto più città o provincia, costo rifacimento tetto al metro quadro, impermeabilizzazione copertura e infiltrazioni, tetto ventilato con isolamento e cappotto in copertura, lattoneria, grondaie, linea vita e manutenzione, rifacimento tetto condominio con le pratiche amministrative. Una sola pagina generica su tutte le coperture non intercetta nessuna di queste ricerche." },
+      { q: "Come qualifico una richiesta per un rifacimento tetto?", a: "Prima del sopralluogo chiedi zona, tipologia di immobile, metri quadri stimati, problema principale, foto, accessibilità, presenza di condominio e urgenza. Un cliente con infiltrazioni attive ha una priorità diversa da chi sta valutando isolamento e fotovoltaico fra sei mesi: la pipeline deve tenere separate urgenze, lavori programmabili e preventivi solo esplorativi." },
+      { q: "Come si gestiscono le richieste condominiali?", a: "Con una pipeline più lunga e note dedicate su assemblee, amministratore e scadenze. Un preventivo condominiale può restare fermo per mesi in attesa di una delibera, quindi va seguito con date precise e non archiviato come perso. Chi non traccia le assemblee scopre troppo tardi che la decisione è stata presa senza la sua offerta sul tavolo." },
+      { q: "Devo parlare di costi nelle pagine sui tetti?", a: "Sì, spiegando range e variabili: materiali, ponteggi, sicurezza, accessibilità, smaltimento e stato della struttura esistente. Il cliente vede il tetto come una superficie e ragiona al metro quadro; se non gli spieghi cosa cambia il prezzo, metterà il tuo preventivo accanto a offerte che escludono ponteggi, smaltimento o linea vita." },
+      { q: "Quando conviene pubblicare contenuti sui tetti?", a: "Prima dell'emergenza. Le ricerche sui tetti crescono dopo piogge, grandine e infiltrazioni o prima degli interventi di efficientamento energetico: quando il problema esplode il cliente cerca subito chi appare affidabile e sceglie tra i primi risultati. Pubblicare in anticipo guide su infiltrazioni, costi, isolamento e manutenzione grondaie ti mette lì nel momento giusto." },
+    ],
     title: "Come Trovare Clienti per il Rifacimento Tetti",
     excerpt: "Strategia SEO e commerciale per imprese che fanno tetti, coperture, lattoneria, isolamento e impermeabilizzazioni.",
     category: "Marketing",
@@ -4256,6 +4440,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "49",
     slug: "come-trovare-clienti-fotovoltaico",
+    faqs: [
+      { q: "Cosa vuole capire chi valuta un impianto fotovoltaico?", a: "Vuole capire se conviene davvero, con numeri. Non basta dire che risparmia in bolletta: servono analisi dei consumi, esposizione del tetto, potenza consigliata, valutazione dell'accumulo, tempi di rientro, manutenzione, pratiche e garanzie. La vendita diventa consultiva e il cliente firma quando comprende il ritorno e si fida dell'installatore, non quando riceve il preventivo più basso." },
+      { q: "Quali dati deve avere un lead fotovoltaico per essere utile?", a: "Otto: comune, tipologia di immobile, consumo annuo, importo indicativo della bolletta, superficie disponibile, orientamento della copertura, interesse per l'accumulo e tempi di decisione. Senza questi dati il commerciale rischia di fare consulenze lunghe a persone non pronte o fuori target, bruciando le ore che servivano ai clienti realmente decisi." },
+      { q: "I lead fotovoltaici comprati funzionano?", a: "Funzionano solo se sono esclusivi, qualificati e seguiti velocemente. Un lead rivenduto a cinque installatori diventa una gara al ribasso in cui vince chi telefona per primo con il prezzo più basso. Prima di comprare contatti verifica esclusività, presenza dei dati di consumo e tempi di consegna del lead: senza queste tre condizioni stai comprando telefonate." },
+      { q: "Quali ricerche deve presidiare un installatore fotovoltaico?", a: "Sei: installazione fotovoltaico più città, costo impianto fotovoltaico 6 kW con accumulo, fotovoltaico per aziende e capannoni, fotovoltaico condominio e comunità energetiche, pannelli solari su tetto, copertura o pensilina, detrazioni e pratiche per impianto fotovoltaico. Sono ricerche informative che vanno trasformate in consulenze, non contatti già pronti a firmare." },
+      { q: "Meglio puntare su clienti privati o su aziende?", a: "Dipende da capacità tecnica, ticket medio, pratiche e tempi commerciali. Gli impianti aziendali hanno importi più alti ma decisioni lente e pratiche più complesse, i privati decidono prima ma richiedono più consulenza per capire i numeri. Scegliere significa anche organizzare in modo diverso squadre, magazzino e follow-up: fare entrambi senza distinguere i processi crea confusione." },
+      { q: "Qual è il rischio più grande nel vendere fotovoltaico?", a: "Vendere un impianto senza dati di consumo e senza aspettative realistiche. Il cliente scopre dopo mesi che il risparmio è diverso da quello immaginato e la recensione negativa pesa più di dieci installazioni riuscite. Anche il post-vendita conta: ordini materiali, pratiche, collaudo, documenti e fatturazione devono essere ordinati quanto la fase commerciale." },
+    ],
     title: "Come Trovare Clienti per Aziende Fotovoltaiche",
     excerpt: "Per installatori fotovoltaici: come generare richieste qualificate, spiegare il ritorno economico e trasformare lead in contratti firmati.",
     category: "Marketing",
@@ -4345,6 +4537,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "50",
     slug: "sistema-fatturazione-aziende-edili",
+    faqs: [
+      { q: "Perché la fatturazione edile è diversa dalle altre?", a: "Perché non è la semplice emissione di un PDF: ci sono acconti, SAL, stati avanzamento, varianti, ritenute, reverse charge, IVA agevolata, subappalti, materiali, manodopera e pagamenti dilazionati. Un sistema generico spesso non basta perché non conosce la logica della commessa e non sa collegare ogni importo al cantiere che lo ha generato." },
+      { q: "Quando si emette un SAL?", a: "Appena l'avanzamento previsto dal contratto è maturato ed è documentabile, non a fine mese per comodità amministrativa. Il SAL è uno strumento di cassa: se il gestionale non segnala che un avanzamento è maturato, il titolare deve ricordarselo da solo e finisce per recuperare settimane dopo liquidità che poteva incassare subito." },
+      { q: "Quali funzioni deve avere un sistema di fatturazione edile?", a: "Sei: fatture elettroniche collegate a clienti e cantieri, gestione di acconti, SAL, saldo finale e pagamenti rateali, collegamento tra preventivo, varianti e fattura, scadenziario incassi con solleciti automatici, costi e ricavi per commessa, gestione di IVA, reverse charge e aliquote agevolate dove previste." },
+      { q: "Come evito che le varianti restino non fatturate?", a: "Ogni extra deve diventare una voce approvata prima dell'esecuzione, con descrizione, importo, impatto sui tempi e collegamento alla fattura. La variante è il punto più delicato della commessa: se il cliente chiede modifiche e l'impresa non le formalizza, il margine sparisce. I lavori extra non devono restare nelle chat o nella memoria del capocantiere." },
+      { q: "Excel basta per fatturare in edilizia?", a: "Basta finché hai pochi lavori e poche fatture. Quando aumentano cantieri, SAL, acconti, varianti, scadenze e fornitori, il rischio di errore cresce in fretta. Il problema non è il foglio in sé: è che non avvisa quando una scadenza si avvicina, non collega automaticamente i documenti e non mostra in tempo reale cosa resta da incassare." },
+      { q: "Il fatturato basta per capire se l'impresa va bene?", a: "No. Servono il margine per cantiere e la cassa disponibile. Un'impresa può fatturare molto e restare in tensione finanziaria perché fattura tardi, dimentica varianti e acconti e non collega gli incassi alle commesse. Gli errori più frequenti sono fatturare senza collegare il documento alla commessa e non distinguere acconto, SAL e saldo." },
+    ],
     title: "Sistema di Fatturazione per Aziende Edili",
     excerpt: "Come scegliere e organizzare un sistema di fatturazione per imprese edili, serramentisti, installatori e aziende di ristrutturazione.",
     category: "Finanza",
@@ -4434,6 +4634,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "51",
     slug: "fattura-corretta-serramentisti",
+    faqs: [
+      { q: "Cosa deve contenere la fattura di un serramentista?", a: "Sei elementi collegati: il preventivo firmato nella versione approvata dal cliente, l'acconto ricevuto con il saldo previsto, l'elenco di prodotti, accessori e posa, le eventuali opere extra o varianti, DDT, ordine fornitore e data di installazione, l'aliquota IVA e i riferimenti fiscali verificati con il consulente. Ogni voce assente diventa una contestazione possibile." },
+      { q: "Come si gestiscono gli acconti nel serramento?", a: "Collegandoli sempre all'ordine e al saldo finale. Molti serramentisti lavorano con acconto all'ordine, un eventuale pagamento prima della posa e il saldo a fine installazione: il sistema deve mostrare in ogni momento cosa è stato incassato e cosa manca. Se acconti e saldo restano su fogli separati rischi di installare senza avere la copertura di cassa necessaria." },
+      { q: "Devo separare materiali e posa in fattura?", a: "Sul piano fiscale dipende dal caso specifico e va verificato con il consulente; sul piano gestionale conviene sempre distinguerli. Separare prodotto e posa permette di capire dove si genera il margine, di confrontare i listini fornitori con i costi reali di installazione e di spiegare al cliente perché il tuo preventivo non è paragonabile a un'offerta di soli materiali." },
+      { q: "Cosa faccio se aggiungo accessori dopo il rilievo?", a: "Devono diventare una variante o una revisione del preventivo, approvata dal cliente prima dell'installazione. Coprifili, cassonetti, tapparelle, zanzariere e ripristini murari individuati in fase di rilievo sono lavorazioni reali: se restano fuori dal documento, l'azienda le esegue gratis e il cliente si sente autorizzato a chiedere altro." },
+      { q: "Quando sollecitare il saldo di un'installazione?", a: "Subito dopo l'installazione o secondo le condizioni firmate, senza lasciar passare settimane. Il momento in cui il cliente è più disponibile a pagare è quello in cui vede il lavoro finito e funzionante: rimandare il sollecito per non disturbare fa perdere quella finestra e allunga i tempi di incasso su tutta la commessa." },
+      { q: "Qual è l'errore che costa più margine a un serramentista?", a: "Regalare extra perché non sono stati approvati e fatturati. Trasporto, smaltimento, opere murarie, accessori aggiunti in fase di rilievo e piccoli ripristini sembrano dettagli, ma sommati erodono il margine di ordini venduti bene. Il secondo errore più caro è l'acconto registrato ma non scalato correttamente in fattura." },
+    ],
     title: "Fattura Corretta per Serramentisti",
     excerpt: "Guida pratica per serramentisti: come organizzare fatture, acconti, saldo, posa in opera, varianti e documentazione senza perdere margine.",
     category: "Finanza",
@@ -4523,6 +4731,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "52",
     slug: "preventivo-rifacimento-tetto-come-farlo",
+    faqs: [
+      { q: "Cosa deve contenere un preventivo per il rifacimento del tetto?", a: "Sei blocchi di voci: allestimento cantiere, ponteggi e sicurezza; rimozione della copertura esistente e smaltimento; stratigrafia con isolamento, impermeabilizzazione e ventilazione; manto di copertura e materiali scelti; lattoneria, grondaie, scossaline e linea vita; tempi, condizioni meteo, SAL e pagamenti. Una cifra al metro quadro mandata via email non è un preventivo." },
+      { q: "Quali dati deve produrre il sopralluogo su un tetto?", a: "Misure, accessibilità, stato della copertura, pendenze, infiltrazioni, presenza di amianto, condizioni del sottotetto, vincoli condominiali, necessità di linea vita, ponteggio e possibili interferenze. Se il sopralluogo resta solo nella testa del tecnico, il preventivo nasce fragile e ogni imprevisto diventa una discussione con il cliente a lavori iniziati." },
+      { q: "Posso indicare un prezzo al metro quadro per il tetto?", a: "Puoi usarlo come riferimento, ma va sempre spiegato con le variabili. Il cliente vede il tetto come una superficie, mentre il prezzo cambia per accessibilità, sicurezza, materiali, isolamento, smaltimento, ponteggi e dettagli tecnici. Un preventivo che spiega queste differenze riduce il confronto con offerte incomplete e aumenta la percezione di affidabilità." },
+      { q: "Come si gestiscono gli imprevisti in un rifacimento tetto?", a: "Il preventivo deve indicare cosa è incluso e come verranno gestite le lavorazioni extra, con approvazione scritta prima dell'esecuzione. Nei tetti gli imprevisti sono frequenti: legno deteriorato, infiltrazioni nascoste, lattoneria da sostituire, problemi strutturali. Discuterli a fine cantiere significa quasi sempre eseguirli gratis o litigare con il cliente." },
+      { q: "Quando chiedere l'acconto per un rifacimento tetto?", a: "Prima di impegnare materiali, ponteggi e squadra. Un cantiere di copertura assorbe cassa fin dal primo giorno tra noleggio ponteggio, ordine del manto e allestimento della sicurezza: partire senza acconto significa finanziare il cliente con i propri soldi. Vanno controllati anche margine stimato, ore squadra previste, tempi di consegna dei materiali e rischio meteo." },
+      { q: "Come si fa follow-up su un preventivo per un tetto?", a: "Con un richiamo tecnico, non con una telefonata generica. I preventivi per tetti hanno importi importanti e tempi di decisione lunghi: chiedi se restano dubbi su materiali, sicurezza, tempi, pagamento o confronto con altre offerte. Ogni risposta va registrata, perché è l'unico modo per migliorare le offerte successive." },
+    ],
     title: "Preventivo Rifacimento Tetto",
     excerpt: "Cosa deve contenere un preventivo per rifacimento tetto: sopralluogo, materiali, sicurezza, ponteggi, varianti e SAL.",
     category: "Commerciale",
@@ -4612,6 +4828,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "53",
     slug: "seo-locale-impresa-edile",
+    faqs: [
+      { q: "Cos'è la SEO locale per un'impresa edile?", a: "La SEO locale è il lavoro che ti fa comparire quando un cliente cerca il tuo servizio nella tua zona, per esempio rifacimento bagno Torino o serramenti Monza. Un'impresa edile vende quasi sempre su un territorio preciso: essere visibile in tutta Italia non serve, essere il primo risultato nella propria provincia cambia il fatturato." },
+      { q: "Quante pagine città servono davvero?", a: "Solo quelle per le aree che servi realmente e con contenuto utile. Creare decine di pagine identiche cambiando il nome della città è uno degli errori più penalizzanti, e promettere interventi dove non hai squadre genera richieste che non puoi servire, peggiorando la reputazione invece di migliorarla." },
+      { q: "Cosa deve contenere una pagina locale per essere utile?", a: "Deve rispondere a bisogni concreti: che lavori fai in quella zona, quali comuni copri, con che tempi, quali esempi di cantieri puoi mostrare e quali problemi tipici incontri lì. Scrivere che siete leader in una città non aiuta nessuno; mostrare cantieri, materiali, recensioni e processo rende la pagina utile a chi legge e a Google." },
+      { q: "Quali sono le basi della SEO locale in edilizia?", a: "Sei: Google Business Profile aggiornato con foto reali, recensioni recenti e dettagliate per tipo di lavoro, pagine servizio più città con casi reali e zone coperte, NAP coerente (nome, indirizzo e telefono identici su sito e directory), foto dei cantieri con descrizioni e contesto locale, FAQ su tempi, permessi, sopralluoghi e preventivi nella zona." },
+      { q: "Come si misura il ritorno della SEO locale?", a: "Non con le visite, ma con richieste, chiamate, sopralluoghi, preventivi e lavori chiusi generati da ogni pagina. Solo collegando il traffico alla pipeline capisci se conviene scrivere altri contenuti, migliorare le recensioni o investire in campagne a pagamento su una zona specifica. Le visite senza contatti sono un numero che non paga stipendi." },
+      { q: "Quali errori SEO fanno più danni a un sito edile?", a: "Sei: pagine città tutte uguali, foto e recensioni mai aggiornate, testi che parlano dell'azienda invece dei problemi del cliente, chiamate e form non tracciati, lead SEO non collegati a preventivi e lavori chiusi, assenza di pagine specifiche per serramenti, tetti, bagni e facciate. Sono errori che rendono invisibile anche un'impresa molto brava tecnicamente." },
+    ],
     title: "SEO Locale per Imprese Edili",
     excerpt: "Guida SEO locale per imprese edili, serramentisti, tetti, impiantisti e ristrutturatori che lavorano su province e città specifiche.",
     category: "Marketing",
@@ -4701,6 +4925,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "54",
     slug: "recupero-crediti-impresa-edile-fatture-scadute",
+    faqs: [
+      { q: "Quando si inizia a sollecitare una fattura?", a: "Prima della scadenza, con un promemoria, e poi subito dopo il ritardo. Molte imprese aspettano per non rovinare il rapporto con il cliente, ma il silenzio crea abitudine: se la scadenza non viene ricordata e il saldo non viene chiesto subito dopo la consegna, il cliente percepisce che non c'è urgenza e paga per ultimo." },
+      { q: "Come si previene una fattura scaduta?", a: "Con sei accorgimenti presi prima di iniziare i lavori: condizioni di pagamento chiare nel preventivo, acconto prima dell'avvio o dell'ordine materiali, SAL legati ad avanzamenti verificabili, scadenze e modalità di pagamento firmate, varianti approvate prima dell'esecuzione, documenti e consegne collegati alla commessa. Il recupero crediti inizia dal preventivo, non dal ritardo." },
+      { q: "Quali sono i passaggi di una procedura di sollecito?", a: "Cinque, sempre uguali per tutti i clienti: promemoria prima della scadenza, primo sollecito gentile pochi giorni dopo, secondo sollecito più formale, telefonata se non arriva risposta, PEC e valutazione legale quando il ritardo cresce. Se ogni cliente viene gestito in modo diverso, il titolare perde tempo e il team non sa mai quando intervenire." },
+      { q: "Meglio sollecitare per email o al telefono?", a: "Entrambi: l'email lascia traccia scritta, il telefono sblocca la situazione molto più in fretta. Un sollecito professionale non è aggressivo, è puntuale, documentato e progressivo. La chiarezza protegge il rapporto commerciale più del silenzio: i clienti seri apprezzano chi gestisce gli incassi con lo stesso ordine con cui gestisce il cantiere." },
+      { q: "Quali indicatori guardare sui crediti ogni settimana?", a: "Sei: fatture scadute per fascia 0-30, 31-60, 61-90 e oltre 90 giorni, crediti per cliente e per cantiere, incassi previsti nei prossimi 30 giorni, SAL maturati ma non ancora fatturati, clienti ricorrenti con ritardi frequenti e impatto dei ritardi sulla cassa futura. Sono i numeri che dicono quali telefonate fare oggi." },
+      { q: "Perché una fattura scaduta è più grave in edilizia?", a: "Perché blocca fornitori, stipendi, materiali e nuovi cantieri, non solo l'amministrazione. Un'impresa edile anticipa costi importanti prima di incassare: un ritardo di 90 giorni su una commessa media può fermare l'avvio di due cantieri già firmati. Incassare in modo ordinato permette di pianificare, negoziare meglio e scegliere i lavori con più lucidità." },
+    ],
     title: "Recupero Crediti per Imprese Edili",
     excerpt: "Come prevenire e gestire fatture scadute in edilizia: scadenziario, solleciti, SAL, condizioni di pagamento e controllo cassa.",
     category: "Finanza",
@@ -4863,6 +5095,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "56",
     slug: "ai-analisi-margini-cantiere",
+    faqs: [
+      { q: "Perché il margine reale si scopre solo a cantiere chiuso?", a: "Perché i dati arrivano in momenti diversi: in un cantiere da 150.000€ i materiali vengono ordinati in 7-12 momenti, le ore squadra confluiscono in busta paga a fine mese, i subappalti fatturano dopo 30-90 giorni e le varianti si formalizzano solo alla fine. Il quadro completo arriva 8-14 settimane dopo la chiusura, quando non puoi più correggere nulla." },
+      { q: "Come fa l'AI a calcolare il margine di cantiere in tempo reale?", a: "In quattro passaggi: acquisisce dati granulari da cinque fonti (timbrature, DDT, fatture, SAL, spese cassa), riconosce le anomalie confrontandole con i pattern storici, prevede il margine finale in tre scenari (best case, most likely, worst case) e invia un alert quando uno scenario scende sotto la soglia critica." },
+      { q: "Cosa serve per attivare il monitoraggio dei margini?", a: "Quattro cose: timbrature digitali per cantiere e per lavorazione tramite app con GPS, OCR delle fatture passive e dei DDT così che i documenti fornitori entrino al ricevimento e non a fine mese, SAL aggiornato ogni 15-30 giorni per confrontare ricavi maturati e costi sostenuti, preventivo strutturato per voci di capitolato." },
+      { q: "Quanto si recupera intercettando in tempo la deriva di margine?", a: "In un caso reale, 18.400€. Impresa di Monza, cantiere da 285.000€ con margine previsto al 22%: alla settimana 4 la dashboard segnala una proiezione al 14,1% per ore squadra cresciute del 32% sulla demolizione dei tramezzi. Il titolare concorda con il cliente una variante da 14.800€ e chiude al 20,8% sul nuovo importo." },
+      { q: "Quali errori rendono inutile un sistema di monitoraggio margini?", a: "Tre: tenere una parte dei cantieri fuori dal sistema, perché il calcolo funziona solo se vede il 100% del flusso; far timbrare i dipendenti senza scegliere cantiere e lavorazione, cosa che inquina i dati; ignorare gli alert convinti di sapere già come va il cantiere. Nel 2025 il 92% degli alert generati si è rivelato corretto." },
+      { q: "Quando conviene rinegoziare con il cliente?", a: "Appena la proiezione di margine scende sotto la soglia, non a fine cantiere. Una variante proposta in settimana 4, con i dati delle ore e dei materiali in mano, è una conversazione tecnica; la stessa richiesta fatta a lavori finiti diventa una contestazione che quasi sempre perdi. Il vantaggio del monitoraggio è il tempo, non il calcolo." },
+    ],
     title: "AI per Margini di Cantiere: Smetti di Perdere Soldi",
     excerpt: "L'80% delle imprese edili scopre i margini reali a cantiere chiuso. L'AI li calcola in tempo reale. Caso studio: -18.400€ salvati in 8 settimane.",
     category: "Digitalizzazione",
@@ -4917,6 +5157,14 @@ export const blogPosts: BlogPost[] = [
   {
     id: "57",
     slug: "come-scegliere-gestionale-ai-impresa-edile",
+    faqs: [
+      { q: "Come capisco se un gestionale ha davvero l'AI?", a: "Controlla le tre forme più comuni di AI-washing: OCR di base venduto come AI per la lettura delle fatture, che è tecnologia del 1995; template di preventivo predefiniti spacciati per AI parametrica, che è un database; notifiche programmate presentate come AI predittiva, che è uno scheduler. Se il vendor non sa dirti quali modelli usa, la risposta è già chiara." },
+      { q: "Quali criteri tecnici usare per scegliere un gestionale AI edile?", a: "Sette: AI verticale sull'edilizia che conosce CCNL, capitolato e prezzari regionali; integrazione con CCNL Edilizia e Cassa Edile; SDI, FatturaPA ed EDI nativi con reverse charge automatico; app cloud-native con sincronizzazione offline per il cantiere; AI che impara dai tuoi dati storici; trasparenza su modelli usati, hosting e privacy; supporto in italiano con community attiva." },
+      { q: "Quanto costa sbagliare la scelta del gestionale?", a: "In media 10.500€ all'anno, senza contare i costi di migrazione quando finalmente si cambia. Le voci che compongono il danno sono licenze non usate (3.600-8.400€), ore staff perse (18.000-32.000€), errori contabili (1.200-4.800€), consulenti esterni (6.000-22.000€) e migrazione dati (4.500-12.000€), per un totale annuo tra 33.000 e 79.000€." },
+      { q: "Quali sono gli errori più costosi nella scelta?", a: "Cinque: comprare il piano top perché magari servirà, quando il 64% delle imprese usa meno del 35% delle funzioni; scegliere un brand generalista per notorietà, con 22.000-58.000€ annui di personalizzazioni; pagare la migrazione dati, che deve essere inclusa; saltare la fase pilota; ignorare la qualità del supporto in italiano." },
+      { q: "Quanto deve durare la prova prima di firmare?", a: "Almeno 21 giorni di pilota con dati reali, non una demo guidata dal venditore. Carica tre cantieri veri, coinvolgi il capocantiere e prepara preventivi nuovi: solo così vedi se l'app funziona in cantiere, se le timbrature vengono usate davvero e se il supporto risponde quando qualcosa si rompe di venerdì sera." },
+      { q: "Quali domande fare al vendor prima di firmare?", a: "Chiedi quali modelli AI usano per OCR e analisi margini, dove sono fisicamente ospitati i dati, chi risponde legalmente se l'AI sbaglia su una fattura, come esportare i dati e in che formato, cosa succede ai dati alla chiusura del contratto, se esiste un piano di disaster recovery con RPO e RTO documentati, quanti clienti edili italiani hanno e se puoi parlarne con due." },
+    ],
     title: "Gestionale AI per Edilizia: 7 Criteri per Sceglierlo Bene",
     excerpt: "Scegliere il gestionale AI sbagliato per la tua impresa edile costa 10.000€/anno. 7 criteri tecnici, 5 errori da evitare, domande chiave al vendor.",
     category: "Digitalizzazione",
@@ -5031,7 +5279,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Quanto costano le alternative nel 2026",
-        body: "Gli ERP generalisti partono da 200-500€/mese a cui vanno aggiunti setup, formazione e spesso canoni per modulo. I software desktop prevedono licenze una tantum di centinaia o migliaia di euro più aggiornamenti annuali. I gestionali cloud verticali vanno dai 50€ ai 550€/mese in base alla dimensione dell'impresa: Edilizia in Cloud, ad esempio, parte da 127€/mese con utenti illimitati e tutte le funzionalità incluse, senza costi di attivazione.",
+        body: "Gli ERP generalisti partono da 200-500€/mese a cui vanno aggiunti setup, formazione e spesso canoni per modulo. I software desktop prevedono licenze una tantum di centinaia o migliaia di euro più aggiornamenti annuali. I gestionali cloud verticali vanno dai 50€ ai 550€/mese in base alla dimensione dell'impresa: Edilizia in Cloud, ad esempio, ha un piano gratuito per sempre con cui partire e quota i piani superiori su misura in una consulenza gratuita, sempre con utenti illimitati, tutte le funzionalità incluse e nessun costo di attivazione.",
       },
       {
         type: "section",
@@ -5081,7 +5329,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "I range di prezzo per categoria nel 2026",
-        body: "ERP generalisti (TeamSystem, Zucchetti e simili): canoni tipicamente da 200 a 500€/mese, più costi di implementazione che spesso superano i 3.000-10.000€ una tantum tra consulenza, configurazione e formazione. Software tecnici desktop (Primus, STR Vision): licenze una tantum da alcune centinaia a diverse migliaia di euro, più aggiornamenti annuali; Primus in versione cloud parte da circa 85€/mese. Gestionali cloud verticali per l'edilizia: da 50 a 550€/mese tutto incluso in base alla dimensione dell'impresa, senza costi di attivazione. Edilizia in Cloud, per trasparenza totale: piano Gestionale 127€/mese (imprese fino a 500K € di fatturato), Professionista 247€/mese (500K-2M €), Impresa AI 547€/mese (oltre 2M €), sempre con utenti illimitati.",
+        body: "ERP generalisti (TeamSystem, Zucchetti e simili): canoni tipicamente da 200 a 500€/mese, più costi di implementazione che spesso superano i 3.000-10.000€ una tantum tra consulenza, configurazione e formazione. Software tecnici desktop (Primus, STR Vision): licenze una tantum da alcune centinaia a diverse migliaia di euro, più aggiornamenti annuali; Primus in versione cloud parte da circa 85€/mese. Gestionali cloud verticali per l'edilizia: da 50 a 550€/mese tutto incluso in base alla dimensione dell'impresa, senza costi di attivazione. Edilizia in Cloud: piano Scopri gratuito per sempre (fino a 3 commesse attive), poi Gestionale (imprese fino a 500K € di fatturato), Professionista (500K-2M €) e Impresa AI (oltre 2M €) quotati su misura in una consulenza gratuita, dopo 31 giorni di prova completa con setup e migrazione dati inclusi, sempre con utenti illimitati.",
       },
       {
         type: "section",
@@ -5110,7 +5358,7 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "quote",
-        quote: "Pagavamo 800€/mese per un ERP che non capiva l'edilizia. Oggi spendiamo 247€/mese e finalmente sappiamo quanto guadagniamo su ogni cantiere.",
+        quote: "Pagavamo 800€/mese per un ERP che non capiva l'edilizia. Oggi spendiamo molto meno e finalmente sappiamo quanto guadagniamo su ogni cantiere.",
         author: "Impresa di ristrutturazioni, Campania",
       },
       {

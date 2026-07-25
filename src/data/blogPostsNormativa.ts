@@ -15,7 +15,7 @@ export const blogPostsNormativa: BlogPost[] = [
     title: "Reverse charge edilizia: quando si applica e come fatturare",
     excerpt:
       "Fattura di subappalto con IVA esposta? Sanzioni da 250 € al 90% dell'imposta. Quando scatta il reverse charge, le diciture esatte, gli errori da evitare.",
-    category: "Fisco e Fatturazione",
+    category: "Finanza",
     tags: ["reverse charge", "IVA edilizia", "subappalto", "fatturazione edilizia"],
     publishedAt: "2026-07-25",
     readTime: 10,
@@ -657,7 +657,7 @@ export const blogPostsNormativa: BlogPost[] = [
     title: "Split payment lavori pubblici: guida per imprese edili",
     excerpt:
       "Con lo split payment incassi solo l'imponibile: la PA versa l'IVA all'Erario. Quando si applica, quando prevale il reverse charge, come difendere la cassa.",
-    category: "Fisco e Fatturazione",
+    category: "Finanza",
     tags: ["split payment", "IVA edilizia", "appalti pubblici", "liquidità"],
     publishedAt: "2026-07-25",
     readTime: 8,

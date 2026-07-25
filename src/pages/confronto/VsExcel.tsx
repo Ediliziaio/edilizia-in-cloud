@@ -55,8 +55,8 @@ const rows: TableRow[] = [
   { feature: "Storico modifiche", eic: { type: "check" }, competitor: { type: "partial", text: "Cronologia versioni su 365" } },
   { feature: "Supporto dedicato", eic: { type: "check" }, competitor: { type: "cross" } },
   {
-    feature: "Costo mensile",
-    eic: { type: "text", text: "da €127/mese (€99 annuale)" },
+    feature: "Costo",
+    eic: { type: "text", text: "Piano gratuito + 31 giorni di prova; piani superiori su preventivo" },
     competitor: { type: "text", text: "€0 di licenza (con Microsoft 365)" },
   },
 ];
@@ -70,7 +70,7 @@ const otherVsLinks = [
 
 const tldrPoints = [
   "Excel è gratis solo in apparenza: il costo nascosto stimato è ~€2.000/mese in ore amministrative perse e decisioni su dati obsoleti.",
-  "Edilizia in Cloud (da €127/mese) elimina formule sbagliate, file in 12 versioni e calcoli manuali con dati real-time e alert margini.",
+  "Edilizia in Cloud elimina formule sbagliate, file in 12 versioni e calcoli manuali con dati real-time e alert margini: si parte da un piano gratuito per sempre.",
   "Migrazione gratuita da Excel in 48 ore, AI per analisi margini in tempo reale e SDI nativo: tutto incluso.",
 ];
 
@@ -131,7 +131,7 @@ const faqItems = [
   },
   {
     q: "Qual è l'alternativa a Excel per un'impresa edile?",
-    a: "Un gestionale edile cloud che sostituisce i fogli con dati collegati: il costo registrato in cantiere aggiorna il margine di commessa, le presenze finiscono da sole nel consuntivo e la fattura parte dallo stesso sistema. Edilizia in Cloud fa questo da €127/mese, con migrazione gratuita dei tuoi Excel in 48 ore.",
+    a: "Un gestionale edile cloud che sostituisce i fogli con dati collegati: il costo registrato in cantiere aggiorna il margine di commessa, le presenze finiscono da sole nel consuntivo e la fattura parte dallo stesso sistema. Edilizia in Cloud fa questo con un piano gratuito per partire e 31 giorni di prova completa sui piani superiori, con migrazione gratuita dei tuoi Excel in 48 ore.",
   },
   {
     q: "Posso migrare i miei dati da Excel a Edilizia in Cloud?",
@@ -150,7 +150,7 @@ export default function VsExcel() {
   useSEO({
     title: "Gestione Cantieri con Excel: Limiti e Alternativa 2026",
     description:
-      "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere. Aggiornato a luglio 2026.",
+      "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere.",
     canonical: "/confronto/vs-excel",
     keywords:
       "gestione cantieri con excel limiti, alternativa a excel per imprese edili, foglio excel contabilità cantiere, gestionale edilizia vs excel, software cantieri excel",
@@ -166,7 +166,7 @@ export default function VsExcel() {
           headline:
             "Edilizia in Cloud vs Excel: il vero costo nascosto di gestire i cantieri con i fogli di calcolo",
           description:
-            "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere. Aggiornato a luglio 2026.",
+            "I limiti di gestire i cantieri con Excel e l'alternativa per imprese edili: cosa costa davvero il foglio di contabilità cantiere.",
           url: "https://www.ediliziaincloud.com/confronto/vs-excel",
           datePublished: "2026-01-01",
           dateModified: "2026-07-25",
@@ -184,9 +184,10 @@ export default function VsExcel() {
           operatingSystem: "Web, iOS, Android",
           offers: {
             "@type": "Offer",
-            price: "127",
+            price: "0",
             priceCurrency: "EUR",
-            priceValidUntil: "2026-12-31",
+            description:
+              "Piano Scopri gratuito per sempre; piani superiori su preventivo, con 31 giorni di prova completa e setup incluso",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -308,7 +309,7 @@ export default function VsExcel() {
             Confronto funzionalità
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Un confronto diretto, senza sconti, aggiornato a luglio 2026. Excel è uno strumento potente — e più sotto
+            Un confronto diretto, senza sconti, con dati verificati a luglio 2026. Excel è uno strumento potente — e più sotto
             scriviamo dove resta più forte — ma non è nato per gestire cantieri edili.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
@@ -372,7 +373,7 @@ export default function VsExcel() {
             Dove Excel è più forte
           </h2>
           <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
-            Confronto scritto da Edilizia in Cloud, aggiornato a luglio 2026: dove Excel è più forte lo scriviamo.
+            Confronto scritto da Edilizia in Cloud: dove Excel è più forte lo scriviamo.
           </p>
           <div className="space-y-4">
             {[
@@ -540,6 +541,96 @@ export default function VsExcel() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── OLTRE AL SOFTWARE ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
+            Il software è metà del lavoro
+          </h2>
+          <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
+            Uscire da Excel mette ordine, ma non basta. Un file o un gestionale non insegnano a leggere i numeri, non
+            danno un metodo di vendita e non fanno entrare richieste. Quelle sono competenze.
+          </p>
+          <div className="space-y-4">
+            {[
+              {
+                t: "Consulenti dedicati, formazione e webinar",
+                d: (
+                  <>
+                    Con Edilizia in Cloud accedi a un ecosistema di servizi e di persone: consulenti dedicati per area,
+                    formazione e webinar, assistenza in italiano. Il perimetro si definisce in consulenza.
+                  </>
+                ),
+              },
+              {
+                t: "Numeri in Edilizia — leggere margini e commesse",
+                d: (
+                  <>
+                    <a
+                      href="https://numerinedilizia.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Numeri in Edilizia
+                    </a>{" "}
+                    è il metodo di controllo di gestione per imprese edili: insegna al titolare a leggere margini,
+                    commesse e utile, cioè quello che nessuna formula in un foglio fa al posto tuo. Parte da un'analisi
+                    gratuita.
+                  </>
+                ),
+              },
+              {
+                t: "VENDITA EDILE® — il metodo commerciale",
+                d: (
+                  <>
+                    <a
+                      href="https://venditaedile.it/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      VENDITA EDILE®
+                    </a>{" "}
+                    è il percorso di affiancamento commerciale per imprenditori edili: come si vende un lavoro, non come
+                    si formatta un preventivo.
+                  </>
+                ),
+              },
+              {
+                t: "Marketing Edile® — il flusso di richieste",
+                d: (
+                  <>
+                    <a
+                      href="https://www.marketingedile.com/"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                    >
+                      Marketing Edile®
+                    </a>{" "}
+                    porta clienti qualificati a imprese edili e serramentisti e lavora solo a percentuale sulle vendite:
+                    sul sito dichiara 47 aziende seguite e oltre 60 milioni di euro generati.
+                  </>
+                ),
+              },
+            ].map((item) => (
+              <div key={item.t} className="bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100">
+                <h3 className="font-extrabold text-[#111111] mb-1">{item.t}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-[#111111] font-semibold mt-8 max-w-2xl mx-auto">
+            Onestà anche qui: attorno a Excel di gente competente ce n'è ovunque — consulenti che ti costruiscono il
+            file su misura, corsi, il tuo commercialista. E i grandi gestionali hanno rivenditori e assistenza sul
+            territorio. La differenza è su cosa ti affiancano: sul foglio o sul software, oppure anche su numeri,
+            vendita e clienti in ingresso. Il tuo problema è che Excel non ti basta più, o che nessuno ti ha insegnato a
+            leggere i margini?
+          </p>
         </div>
       </section>
 
