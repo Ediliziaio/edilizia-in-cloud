@@ -15,12 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Piccole Imprese di Muratura",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per muratori: preventivi veloci, ore contate, fatture fatte.</span>{" "}
-      <span className="text-[#F97415]">Senza passare le serate sulle carte.</span>
+      <span className="text-white">Gestionale per muratori: il preventivo non si fa più la sera al tavolo.</span>{" "}
+      <span className="text-[#F97415]">Ore, cantieri e fatture in ordine, dal telefono.</span>
     </>
   ),
   heroSubtitle:
-    "Edilizia in Cloud è il gestionale per la piccola impresa di muratura: fai il preventivo in pochi minuti invece che la sera al tavolo, registri le ore della squadra con le timbrature GPS dal telefono, vedi il margine di ogni cantiere mentre lavori e mandi le fatture elettroniche da solo, senza aspettare il commercialista ogni volta.",
+    "Di giorno posi, la sera fai i conti: così il margine non lo vedi mai. Edilizia in Cloud è il gestionale per la piccola impresa di muratura: fai il preventivo in pochi minuti invece che la sera al tavolo, registri le ore della squadra con le timbrature GPS dal telefono, vedi il margine di ogni cantiere mentre lavori e mandi le fatture elettroniche da solo, senza aspettare il commercialista ogni volta.",
   heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof

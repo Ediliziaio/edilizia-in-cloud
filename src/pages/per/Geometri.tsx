@@ -15,12 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Geometri con Impresa o più Cantieri da Seguire",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per geometra: ogni cantiere sotto controllo.</span>{" "}
-      <span className="text-[#F97415]">Computi, SAL e documenti senza rincorrere nessuno.</span>
+      <span className="text-white">Gestionale per geometra: basta sere sui computi e telefonate alle imprese.</span>{" "}
+      <span className="text-[#F97415]">Cantieri, SAL e documenti in ordine — dal telefono.</span>
     </>
   ),
   heroSubtitle:
-    "Edilizia in Cloud è il gestionale per il geometra che segue più cantieri: preventivi e computi pronti in minuti, SAL e avanzamenti tracciati, documenti di commessa archiviati e condivisi con le imprese, margini reali visibili mentre i lavori vanno avanti. Tutto in un unico posto, anche dal telefono in cantiere.",
+    "Il computo rifatto tre volte, l'impresa che non manda gli avanzamenti, il committente che chiama te. Edilizia in Cloud è il gestionale per il geometra che segue più cantieri: preventivi e computi pronti in minuti, SAL e avanzamenti tracciati, documenti di commessa archiviati e condivisi con le imprese, margini reali visibili mentre i lavori vanno avanti. Tutto in un unico posto, anche dal telefono in cantiere.",
   heroImage: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof

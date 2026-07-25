@@ -38,11 +38,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Contabilità Lavori",
-  heroH1Lead: "SAL in pochi clic,",
-  heroH1Highlight: "fatture collegate all'avanzamento",
-  heroH1Tail: "senza Excel",
+  heroH1Lead: "Il SAL non può costarti",
+  heroH1Highlight: "un weekend su Excel.",
+  heroH1Tail: "Contabilità lavori e fatture in pochi clic",
   heroSubheadline:
-    "Con Edilizia in Cloud la contabilità lavori esce da Excel: gli stati avanzamento si emettono in pochi clic dalle voci della commessa, il libretto misure si compila con le quantità realmente eseguite, ogni SAL genera la sua fattura di acconto già collegata. Sai sempre quanto hai prodotto, quanto hai fatturato e quanto ti manca da incassare, cantiere per cantiere.",
+    "Libretto misure a mano, righe ricopiate, formule che saltano: ogni SAL è una serata persa. Con Edilizia in Cloud la contabilità lavori esce da Excel: gli stati avanzamento si emettono in pochi clic dalle voci della commessa, il libretto misure si compila con le quantità realmente eseguite, ogni SAL genera la sua fattura di acconto già collegata. Sai sempre quanto hai prodotto, quanto hai fatturato e quanto ti manca da incassare, cantiere per cantiere.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",

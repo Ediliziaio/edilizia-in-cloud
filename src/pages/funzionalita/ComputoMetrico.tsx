@@ -39,11 +39,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Computo Metrico",
-  heroH1Lead: "Il computo metrico estimativo",
-  heroH1Highlight: "che diventa preventivo e consuntivo",
-  heroH1Tail: "senza ricopiare niente",
+  heroH1Lead: "Ricopiare il computo tre volte:",
+  heroH1Highlight: "è lì che nascono gli errori.",
+  heroH1Tail: "Computo, preventivo e consuntivo in una volta sola",
   heroSubheadline:
-    "Con Edilizia in Cloud il computo metrico estimativo si costruisce online dalle voci del tuo listino e dei prezzari: quantità, prezzi unitari, totali per categoria. Le stesse voci diventano preventivo con un clic e consuntivo mentre il cantiere avanza. E l'AI ti dà una mano vera: descrivi il lavoro a parole o carichi le foto del sopralluogo, e le voci compilate te le trovi già pronte da controllare.",
+    "Un prezzo aggiornato nel computo ma non nel preventivo, e il margine sparisce. Con Edilizia in Cloud il computo metrico estimativo si costruisce online dalle voci del tuo listino e dei prezzari: quantità, prezzi unitari, totali per categoria. Le stesse voci diventano preventivo con un clic e consuntivo mentre il cantiere avanza. E l'AI ti dà una mano vera: descrivi il lavoro a parole o carichi le foto del sopralluogo, e le voci compilate te le trovi già pronte da controllare.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",

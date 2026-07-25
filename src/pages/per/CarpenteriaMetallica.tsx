@@ -15,12 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Carpenterie Metalliche e Strutture in Acciaio",
   heroTitle: (
     <>
-      <span className="text-white">Software per carpenteria metallica: la commessa sotto controllo</span>{" "}
-      <span className="text-[#F97415]">dall'officina fino al bullone montato in cantiere.</span>
+      <span className="text-white">Software per carpenteria metallica: officina e cantiere non si parlano.</span>{" "}
+      <span className="text-[#F97415]">Una commessa sola: distinte, DDT, posa e avanzamento.</span>
     </>
   ),
   heroSubtitle:
-    "Edilizia in Cloud è il software per carpenterie metalliche: ogni commessa tiene insieme produzione in officina e posa in cantiere, con distinte materiali collegate, DDT per le spedizioni, avanzamento documentato con foto e ore di officina e di posa separate. Il margine reale lo vedi mentre la commessa avanza — non quando l'acciaio è già montato e pagato.",
+    "In officina la produzione corre, in cantiere la posa aspetta — e nessuno sa a che punto siamo. Edilizia in Cloud è il software per carpenterie metalliche: ogni commessa tiene insieme produzione in officina e posa in cantiere, con distinte materiali collegate, DDT per le spedizioni, avanzamento documentato con foto e ore di officina e di posa separate. Il margine reale lo vedi mentre la commessa avanza — non quando l'acciaio è già montato e pagato.",
   heroImage: "https://images.unsplash.com/photo-1565043666747-69f6646db940?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof

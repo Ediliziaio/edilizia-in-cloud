@@ -38,11 +38,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Rapportini Cantiere",
-  heroH1Lead: "Il rapportino di cantiere",
-  heroH1Highlight: "si fa dal telefono",
-  heroH1Tail: "in 2 minuti",
+  heroH1Lead: "La giornata in cantiere non può",
+  heroH1Highlight: "finire con mezz'ora di scartoffie.",
+  heroH1Tail: "Rapportino dal telefono: foto, vocale, 2 minuti",
   heroSubheadline:
-    "Con Edilizia in Cloud il rapportino di cantiere si compila da smartphone a fine giornata: foto del lavoro fatto, nota vocale invece di scrivere, ore della squadra, materiali usati e mezzi impiegati. A fine lavori il cliente firma sul telefono e il sistema genera un PDF professionale con foto e firme. La giornata di cantiere resta documentata, le ore finiscono sulla commessa giusta, le contestazioni si chiudono con le prove.",
+    "Fogli compilati in furgone, foto sparse su WhatsApp, ore ricostruite a memoria il venerdì. Con Edilizia in Cloud il rapportino di cantiere si compila da smartphone a fine giornata: foto del lavoro fatto, nota vocale invece di scrivere, ore della squadra, materiali usati e mezzi impiegati. A fine lavori il cliente firma sul telefono e il sistema genera un PDF professionale con foto e firme. La giornata di cantiere resta documentata, le ore finiscono sulla commessa giusta, le contestazioni si chiudono con le prove.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",

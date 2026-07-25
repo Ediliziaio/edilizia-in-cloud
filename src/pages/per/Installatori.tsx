@@ -15,12 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Installatori e Tecnici in Campo",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per installatori: intervento chiuso, rapportino fatto, fattura partita.</span>{" "}
-      <span className="text-[#F97415]">Tutto dal telefono, prima di risalire sul furgone.</span>
+      <span className="text-white">Gestionale per installatori: dieci interventi al giorno, zero fogli in furgone.</span>{" "}
+      <span className="text-[#F97415]">Rapportino, materiale e fattura chiusi sul posto.</span>
     </>
   ),
   heroSubtitle:
-    "Edilizia in Cloud è il gestionale per installatori che fanno tanti interventi brevi: il rapportino con le foto si compila dal telefono in due minuti, il materiale usato si scala dal magazzino del furgone, e la fattura elettronica parte subito dopo l'intervento — non tre settimane dopo. Meno carta, meno giri a vuoto, incassi più veloci.",
+    "L'intervento è finito da ore, ma il rapportino e la fattura sono ancora da fare. Edilizia in Cloud è il gestionale per installatori che fanno tanti interventi brevi: il rapportino con le foto si compila dal telefono in due minuti, il materiale usato si scala dal magazzino del furgone, e la fattura elettronica parte subito dopo l'intervento — non tre settimane dopo. Meno carta, meno giri a vuoto, incassi più veloci.",
   heroImage: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof

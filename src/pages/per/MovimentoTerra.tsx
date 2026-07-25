@@ -15,12 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Imprese di Movimento Terra, Scavi e Demolizioni",
   heroTitle: (
     <>
-      <span className="text-white">Software per imprese di movimento terra: ogni ora macchina ha un costo.</span>{" "}
-      <span className="text-[#F97415]">E finalmente sai su quale cantiere finisce.</span>
+      <span className="text-white">Software per movimento terra: a fine mese le ore macchina non tornano mai.</span>{" "}
+      <span className="text-[#F97415]">Mezzi, gasolio e noli sulla commessa giusta.</span>
     </>
   ),
   heroSubtitle:
-    "Edilizia in Cloud è il software per le imprese di movimento terra: le ore macchina di ogni mezzo si registrano dal telefono con i rapportini di giornata, gasolio, manutenzioni e noli si caricano come costi sulla commessa giusta, e il margine di ogni cantiere si vede mentre scavi — non a fine anno. Con DDT e fattura elettronica compresi.",
+    "L'escavatore ha lavorato tutto il mese, ma su quali cantieri — e a che costo? Edilizia in Cloud è il software per le imprese di movimento terra: le ore macchina di ogni mezzo si registrano dal telefono con i rapportini di giornata, gasolio, manutenzioni e noli si caricano come costi sulla commessa giusta, e il margine di ogni cantiere si vede mentre scavi — non a fine anno. Con DDT e fattura elettronica compresi.",
   heroImage: "https://images.unsplash.com/photo-1506784365847-bbad939e9335?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof

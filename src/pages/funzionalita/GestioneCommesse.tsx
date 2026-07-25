@@ -38,11 +38,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Gestione Commesse",
-  heroH1Lead: "Ogni cantiere è una commessa",
-  heroH1Highlight: "con il margine in tempo reale",
-  heroH1Tail: "sotto gli occhi",
+  heroH1Lead: "Basta scoprire a fine anno",
+  heroH1Highlight: "quali cantieri ti hanno fatto perdere soldi.",
+  heroH1Tail: "Il margine di ogni commessa, in tempo reale",
   heroSubheadline:
-    "Con Edilizia in Cloud ogni cantiere diventa una commessa completa: preventivo, consuntivo, margine aggiornato in tempo reale, ordini d'acquisto, DDT e SAL collegati nello stesso posto. Quattro tab — Panoramica, Finanza, Cantiere, Documenti — e la commessa si legge in 30 secondi. Sai quanto stai guadagnando o perdendo su ogni lavoro mentre il lavoro è ancora aperto, non sei mesi dopo dal commercialista.",
+    "La fattura del ferramenta di quale cantiere era? Le ore sul blocchetto, il consuntivo \"a sensazione\". Con Edilizia in Cloud ogni cantiere diventa una commessa completa: preventivo, consuntivo, margine aggiornato in tempo reale, ordini d'acquisto, DDT e SAL collegati nello stesso posto. Quattro tab — Panoramica, Finanza, Cantiere, Documenti — e la commessa si legge in 30 secondi. Sai quanto stai guadagnando o perdendo su ogni lavoro mentre il lavoro è ancora aperto, non sei mesi dopo dal commercialista.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",

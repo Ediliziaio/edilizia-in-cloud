@@ -37,11 +37,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Mezzi e Attrezzature",
-  heroH1Lead: "Ogni mezzo e ogni attrezzo:",
-  heroH1Highlight: "sai dov'è, chi ce l'ha",
-  heroH1Tail: "e quando scade",
+  heroH1Lead: "Mezzi in giro, revisioni scadute,",
+  heroH1Highlight: "attrezzature che nessuno trova più.",
+  heroH1Tail: "Il parco mezzi torna sotto controllo",
   heroSubheadline:
-    "Con Edilizia in Cloud il parco mezzi e attrezzature dell'impresa edile è tutto in un registro solo: ogni mezzo e ogni attrezzatura assegnati a un cantiere o a una persona, scadenze di revisioni e assicurazioni con avvisi automatici, manutenzioni registrate con lo storico completo. Basta cercare il martello demolitore per tre cantieri e basta scoprire la revisione scaduta dal verbale della stradale.",
+    "\"Chi ha il flessibile grande?\" — e parte il giro di telefonate. Con Edilizia in Cloud il parco mezzi e attrezzature dell'impresa edile è tutto in un registro solo: ogni mezzo e ogni attrezzatura assegnati a un cantiere o a una persona, scadenze di revisioni e assicurazioni con avvisi automatici, manutenzioni registrate con lo storico completo. Basta cercare il martello demolitore per tre cantieri e basta scoprire la revisione scaduta dal verbale della stradale.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",

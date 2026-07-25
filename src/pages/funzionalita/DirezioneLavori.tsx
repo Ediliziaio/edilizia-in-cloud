@@ -38,11 +38,11 @@ const config: FunzionalitaPageConfig = {
   },
 
   heroBadge: "Funzionalità · Direzione Lavori",
-  heroH1Lead: "Cronoprogramma, giornale e documenti:",
-  heroH1Highlight: "la direzione lavori",
-  heroH1Tail: "in un posto solo",
+  heroH1Lead: "Il ritardo in cantiere lo scopri",
+  heroH1Highlight: "sempre quando è troppo tardi.",
+  heroH1Tail: "Cronoprogramma e giornale lavori aggiornati dal campo",
   heroSubheadline:
-    "Con Edilizia in Cloud la direzione lavori ha finalmente una casa: cronoprogramma delle fasi aggiornato con l'avanzamento reale, giornale lavori compilato dal cantiere, documenti DL raccolti sulla commessa, calendario lavori che segnala i conflitti quando due fasi o due squadre si pestano i piedi. Il quadro del cantiere si legge in una schermata, non si ricostruisce a telefonate.",
+    "Il cronoprogramma fatto a inizio lavori muore in un cassetto la settimana dopo. Con Edilizia in Cloud la direzione lavori ha finalmente una casa: cronoprogramma delle fasi aggiornato con l'avanzamento reale, giornale lavori compilato dal cantiere, documenti DL raccolti sulla commessa, calendario lavori che segnala i conflitti quando due fasi o due squadre si pestano i piedi. Il quadro del cantiere si legge in una schermata, non si ricostruisce a telefonate.",
   heroPrimaryCta: "Prova gratis 31 giorni",
   heroSecondaryCta: "Tutte le funzionalità",
   heroSecondaryCtaTo: "/funzionalita",
