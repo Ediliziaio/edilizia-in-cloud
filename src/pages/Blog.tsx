@@ -7,6 +7,7 @@ import { blogPosts, categories, BlogPost } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
+import { BlogCover } from "@/components/blog/BlogCover";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -53,13 +54,12 @@ function PostCard({ post, featured = false }: PostCardProps) {
         className="group col-span-full grid md:grid-cols-2 bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
       >
         <div className="relative overflow-hidden">
-          <img
+          <BlogCover
             src={post.coverImage}
             alt={post.title}
-            width={1200}
-            height={630}
             loading="eager"
-            decoding="async"
+            fetchPriority="high"
+            sizes="(max-width: 768px) 100vw, 600px"
             className="w-full h-72 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -107,13 +107,10 @@ function PostCard({ post, featured = false }: PostCardProps) {
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
     >
       <div className="relative overflow-hidden">
-        <img
+        <BlogCover
           src={post.coverImage}
           alt={post.title}
-          width={1200}
-          height={630}
-          loading="lazy"
-          decoding="async"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
           className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute top-3 left-3">

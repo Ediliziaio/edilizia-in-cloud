@@ -12,6 +12,7 @@ import {
 import { useState, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
+import { BlogCover } from "@/components/blog/BlogCover";
 
 // ── Catalogo settori per cross-linking ──────────────────────────────────────
 const ALL_SECTORS = [
@@ -921,13 +922,12 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                     to={`/blog/${post.slug}/`}
                     className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300"
                   >
-                    <img
+                    <BlogCover
                       src={post.coverImage}
                       alt={post.title}
                       width={600}
                       height={315}
-                      loading="lazy"
-                      decoding="async"
+                      sizes="(max-width: 640px) 100vw, 320px"
                       className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="p-5 flex flex-col flex-1">

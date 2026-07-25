@@ -8,6 +8,7 @@ import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { linkifyNormative } from "@/lib/blog/normativeLinks";
 import { linkifyInternal } from "@/lib/blog/internalLinks";
+import { BlogCover } from "@/components/blog/BlogCover";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -146,9 +147,12 @@ function RelatedPostCard({ post }: RelatedPostCardProps) {
       to={`/blog/${post.slug}/`}
       className="group flex gap-4 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors border border-gray-200"
     >
-      <img loading="lazy"
+      <BlogCover
         src={post.coverImage}
         alt={post.title}
+        sizes="80px"
+        width={80}
+        height={64}
         className="w-20 h-16 object-cover rounded-lg flex-shrink-0"
       />
       <div className="flex-1 min-w-0">
@@ -383,14 +387,12 @@ export default function BlogPost() {
 
       {/* Hero with cover image */}
       <div className="relative w-full" style={{ maxHeight: 480, overflow: "hidden" }}>
-        <img
+        <BlogCover
           src={post.coverImage}
           alt={post.title}
-          width={1200}
-          height={630}
-          fetchpriority="high"
+          fetchPriority="high"
           loading="eager"
-          decoding="async"
+          sizes="100vw"
           className="w-full object-cover"
           style={{ maxHeight: 480, minHeight: 320, width: "100%", objectFit: "cover" }}
         />
@@ -769,13 +771,10 @@ export default function BlogPost() {
                     className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
                   >
                     <div className="relative overflow-hidden">
-                      <img
+                      <BlogCover
                         src={rp.coverImage}
                         alt={rp.title}
-                        width={1200}
-                        height={630}
-                        loading="lazy"
-                        decoding="async"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
                         className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute top-3 left-3">

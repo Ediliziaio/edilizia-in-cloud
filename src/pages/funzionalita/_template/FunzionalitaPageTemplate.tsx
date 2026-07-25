@@ -17,6 +17,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
 import { blogPosts } from "@/data/blogPosts";
 import type { FunzionalitaPageConfig } from "./types";
+import { BlogCover } from "@/components/blog/BlogCover";
 
 const TRUST_BADGES = [
   { icon: ShieldCheck, label: "GDPR Compliant" },
@@ -1108,10 +1109,12 @@ export default function FunzionalitaPageTemplate({
                   to={`/blog/${p.slug}/`}
                   className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-4 transition-all hover:border-[#F97415]/40 hover:shadow-sm"
                 >
-                  <img
+                  <BlogCover
                     src={p.coverImage}
                     alt={p.title}
-                    loading="lazy"
+                    width={600}
+                    height={315}
+                    sizes="(max-width: 640px) 100vw, 280px"
                     className="h-28 w-full rounded-lg object-cover"
                   />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">

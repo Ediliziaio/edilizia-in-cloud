@@ -6,6 +6,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { BlogCover } from "@/components/blog/BlogCover";
 
 // ── Slug → categoria mapping ─────────────────────────────────────────────────
 type CategoryMeta = {
@@ -225,13 +226,12 @@ export default function BlogCategory() {
                 className="md:col-span-2 lg:col-span-3 group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col md:flex-row"
               >
                 <div className="md:w-1/2 relative overflow-hidden">
-                  <img
+                  <BlogCover
                     src={featured.coverImage}
                     alt={featured.title}
-                    width={1200}
-                    height={630}
                     loading="eager"
-                    decoding="async"
+                    fetchPriority="high"
+                    sizes="(max-width: 768px) 100vw, 600px"
                     className="w-full h-56 md:h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 </div>
@@ -268,13 +268,10 @@ export default function BlogCategory() {
                 className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col"
               >
                 <div className="relative overflow-hidden">
-                  <img
+                  <BlogCover
                     src={post.coverImage}
                     alt={post.title}
-                    width={1200}
-                    height={630}
-                    loading="lazy"
-                    decoding="async"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
                     className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 </div>
