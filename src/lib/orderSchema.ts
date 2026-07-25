@@ -1,4 +1,10 @@
 import { z } from "zod";
+// 2026-07-25: la validazione usava parseFloat mentre il salvataggio usa
+// parseDecimalIT → i due non erano d'accordo sullo stesso campo. Con
+// "1.500" il form validava 1,5 e salvava 1500; con ",50" bocciava (NaN)
+// un importo che il salvataggio avrebbe letto benissimo come 0,50.
+// Validazione e persistenza devono leggere la stringa allo stesso modo.
+import { parseDecimalIT } from "./parseDecimalIT";
 
 const baseOrderSchema = z.object({
   customer_id: z.string().min(1, "Seleziona un cliente"),
@@ -31,9 +37,16 @@ const baseOrderSchema = z.object({
   has_building_bonus: z.boolean().default(false),
 });
 
+/**
+ * `parseDecimalIT` assorbe il non numerico in 0 (giusto per i totali a
+ * schermo, che non devono mai stampare NaN). In validazione però "abc" e
+ * "0" sono errori diversi: teniamo separato il "non è proprio un numero".
+ */
+const contieneCifre = (v: string | undefined | null) => /\d/.test(v ?? "");
+
 export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
-  const total = parseFloat(data.total_amount);
-  if (!data.total_amount || isNaN(total)) {
+  const total = parseDecimalIT(data.total_amount);
+  if (!data.total_amount || !contieneCifre(data.total_amount)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "L'importo totale deve essere un numero valido",
@@ -47,8 +60,8 @@ export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
     });
   }
 
-  const vat = parseFloat(data.vat_rate);
-  if (!data.vat_rate || isNaN(vat) || vat < 0 || vat > 100) {
+  const vat = parseDecimalIT(data.vat_rate);
+  if (!data.vat_rate || !contieneCifre(data.vat_rate) || vat < 0 || vat > 100) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "L'IVA deve essere un valore tra 0 e 100",
@@ -57,8 +70,8 @@ export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
   }
 
   if (data.financing_cost) {
-    const financingCost = parseFloat(data.financing_cost);
-    if (isNaN(financingCost) || financingCost < 0) {
+    const financingCost = parseDecimalIT(data.financing_cost);
+    if (!contieneCifre(data.financing_cost) || financingCost < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Il costo finanziaria non può essere negativo",

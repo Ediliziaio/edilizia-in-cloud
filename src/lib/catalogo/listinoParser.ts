@@ -11,6 +11,7 @@
 import Papa from "papaparse";
 import type { CompanyCustomFieldDef, CatalogObjectType } from "@/hooks/useCompanyCustomFields";
 import { FIXED_COLUMNS } from "./listinoTemplate";
+import { normalizeDecimalSeparators } from "@/lib/parseDecimalIT";
 
 export interface ParsedRow {
   rowIndex: number;
@@ -97,25 +98,20 @@ function buildHeaderMap(
  * come NaN. Qui il punto seguito da gruppi di 3 cifre è separatore
  * delle migliaia (convenzione dei listini IT: i decimali usano la
  * virgola). Ritorna NaN per valori non numerici.
+ *
+ * 2026-07-25: la normalizzazione dei separatori è condivisa con
+ * `parseDecimalIT` (campi a mano del gestionale) — erano due copie
+ * divergenti e la stessa cifra valeva 1.5 se digitata e 1500 se
+ * importata. Qui resta solo il contratto specifico dell'import:
+ * `Number` (severo, "12,34,56" → NaN) e NaN sui non numerici, perché
+ * in un import l'errore va MOSTRATO, non assorbito in uno 0.
  */
 export function parseListinoNumber(vRaw: string): number {
   let s = (vRaw ?? "").trim().replace(/[\s€$£]|EUR/gi, "");
   if (!s) return NaN;
   const negative = s.startsWith("-");
   if (negative) s = s.slice(1);
-  const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
-  if (lastComma > -1 && lastDot > -1) {
-    if (lastComma > lastDot) {
-      s = s.replace(/\./g, "").replace(",", "."); // IT: 1.234,56
-    } else {
-      s = s.replace(/,/g, ""); // US: 1,234.56
-    }
-  } else if (lastComma > -1) {
-    s = s.replace(",", "."); // IT: 9,50
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    s = s.replace(/\./g, ""); // migliaia IT: 1.234 / 1.234.567
-  }
+  s = normalizeDecimalSeparators(s);
   const n = Number(s);
   return Number.isFinite(n) ? (negative ? -n : n) : NaN;
 }

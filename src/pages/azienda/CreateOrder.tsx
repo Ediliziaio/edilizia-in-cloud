@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
-import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
@@ -281,7 +281,9 @@ function CreateOrderInner() {
   const applyContractExtract = (ex: ContractExtract) => {
     if (ex.descrizione_lavori) setValue("description", ex.descrizione_lavori);
     const imp = contractImponibile(ex);
-    if (imp != null) setValue("total_amount", String(imp));
+    // Formato IT: l'imponibile arriva dall'estrazione AI del contratto e
+    // `String(1.234)` produrrebbe una stringa riletta poi come 1234.
+    if (imp != null) setValue("total_amount", formatDecimalIT(imp));
     if (ex.iva_pct != null) setValue("vat_rate", String(ex.iva_pct));
     if (ex.voci.length > 0) {
       setOrderItems(ex.voci.map((v, idx) => ({

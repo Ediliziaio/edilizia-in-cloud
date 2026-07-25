@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
@@ -82,6 +82,17 @@ export default function CreateLavoroAppaltatore() {
     createDefaultInstallments("standard", 1) // default: solo saldo
   );
 
+  /**
+   * Testo grezzo dei campi importo rata (2026-07-25).
+   *
+   * Prima il campo mostrava `String(inst.amount)` e parsava a ogni tasto:
+   * il numero riscritto nel campo cancellava il separatore appena digitato,
+   * quindi "1,5" diventava prima "1" e poi 15. Ora si digita libero e il
+   * parse avviene all'uscita dal campo, che restituisce a video il valore
+   * interpretato in formato italiano.
+   */
+  const [rawInstallmentAmounts, setRawInstallmentAmounts] = useState<Record<number, string>>({});
+
   // Sincronizza la struttura delle rate quando cambia mode/numero rate
   useEffect(() => {
     const target = paymentMode === "single" ? 1 : numInstallments;
@@ -114,6 +125,10 @@ export default function CreateLavoroAppaltatore() {
         return inst;
       });
     });
+    // Il testo grezzo è indicizzato per posizione: se la struttura cambia
+    // resterebbe appiccicato a una rata diversa (o a una azzerata). Si
+    // svuota e i campi tornano a leggere l'importo effettivo della rata.
+    setRawInstallmentAmounts({});
   }, [paymentMode, numInstallments]);
 
   // Helper update rata
@@ -121,6 +136,15 @@ export default function CreateLavoroAppaltatore() {
     setInstallments((prev) =>
       prev.map((i) => (i.position === position ? { ...i, ...patch } : i))
     );
+  };
+
+  const handleInstallmentAmountBlur = (position: number) => {
+    const v = parseDecimalIT(rawInstallmentAmounts[position] ?? "");
+    updateInstallment(position, { amount: v });
+    setRawInstallmentAmounts((prev) => ({
+      ...prev,
+      [position]: v > 0 ? formatDecimalIT(v) : "",
+    }));
   };
 
   // ── Lista appaltatori già censiti per la company corrente ─────
@@ -515,6 +539,12 @@ export default function CreateLavoroAppaltatore() {
                   inputMode="decimal"
                   value={totalAmount}
                   onChange={(e) => setTotalAmount(e.target.value)}
+                  // Eco al blur: chi scrive "1.500" deve vedere "1.500,00"
+                  // (millecinquecento) prima che l'importo entri nel lavoro.
+                  onBlur={() => {
+                    const v = parseDecimalIT(totalAmount);
+                    setTotalAmount(v > 0 ? formatDecimalIT(v) : "");
+                  }}
                   placeholder="0,00"
                 />
                 <p className="text-[11px] text-muted-foreground">
@@ -622,11 +652,22 @@ export default function CreateLavoroAppaltatore() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          value={isBalance ? (displayAmount > 0 ? displayAmount.toFixed(2) : "") : (inst.amount > 0 ? String(inst.amount) : "")}
+                          value={
+                            isBalance
+                              ? (displayAmount > 0 ? formatDecimalIT(displayAmount) : "")
+                              : (rawInstallmentAmounts[inst.position] ??
+                                 (inst.amount > 0 ? formatDecimalIT(inst.amount) : ""))
+                          }
                           onChange={(e) => {
                             if (isBalance) return; // saldo è calcolato
-                            const v = parseDecimalIT(e.target.value);
-                            updateInstallment(inst.position, { amount: v });
+                            setRawInstallmentAmounts((prev) => ({
+                              ...prev,
+                              [inst.position]: e.target.value,
+                            }));
+                          }}
+                          onBlur={() => {
+                            if (isBalance) return;
+                            handleInstallmentAmountBlur(inst.position);
                           }}
                           placeholder="0,00"
                           disabled={isBalance}

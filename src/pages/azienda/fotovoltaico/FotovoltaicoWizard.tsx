@@ -79,7 +79,7 @@ import {
 import { useDiscountRules } from "@/hooks/useDiscountRules";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
-import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import type {
   FvArchetipo,
   FvProfiloAutoconsumoCodice,
@@ -4130,9 +4130,14 @@ function Step5Configurazione({
                         inputMode="decimal"
                         defaultValue={ex.prezzo_vendita === 0 ? "" : ex.prezzo_vendita || ""}
                         disabled={readOnlyMode}
-                        onBlur={(e) =>
-                          aggiornaExtra(idx, { prezzo_vendita: Math.max(0, parseDecimalIT(e.target.value)) })
-                        }
+                        onBlur={(e) => {
+                          const v = Math.max(0, parseDecimalIT(e.target.value));
+                          aggiornaExtra(idx, { prezzo_vendita: v });
+                          // Campo non controllato: l'eco va scritta nel DOM,
+                          // altrimenti resta a video il testo digitato e chi
+                          // scrive "1.500" non vede mai cosa è stato capito.
+                          e.target.value = v > 0 ? formatDecimalIT(v) : "";
+                        }}
                         className="h-9 text-sm bg-white min-w-0"
                         placeholder={ex.prezzo_vendita === 0 ? "Gratis" : "0,00"}
                       />
@@ -4158,11 +4163,12 @@ function Step5Configurazione({
                       inputMode="decimal"
                       defaultValue={ex.prezzo_acquisto ?? ""}
                       disabled={readOnlyMode}
-                      onBlur={(e) =>
-                        aggiornaExtra(idx, {
-                          prezzo_acquisto: e.target.value.trim() === "" ? null : Math.max(0, parseDecimalIT(e.target.value)),
-                        })
-                      }
+                      onBlur={(e) => {
+                        const vuoto = e.target.value.trim() === "";
+                        const v = vuoto ? null : Math.max(0, parseDecimalIT(e.target.value));
+                        aggiornaExtra(idx, { prezzo_acquisto: v });
+                        e.target.value = v != null && v > 0 ? formatDecimalIT(v) : "";
+                      }}
                       className="h-9 text-sm bg-white"
                       placeholder="—"
                     />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { logger } from "@/utils/logger";
-import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
@@ -319,7 +319,9 @@ function EditOrderInner() {
     setCustomerId(order.customer_id);
     setOrderCode(order.order_code || "");
     setDescription(order.description);
-    setTotalAmount(order.total_amount.toString());
+    // Formato IT anche in ingresso: `String(1.234)` rimetterebbe nel campo
+    // una stringa ambigua, riletta come 1234 al primo blur (fix 2026-07-25).
+    setTotalAmount(formatDecimalIT(order.total_amount));
     setPaymentType((order.payment_type as PaymentType) || 'standard');
     setInternalNotes(order.internal_notes || "");
     setVatRate((order.vat_rate || 22).toString());
@@ -327,7 +329,7 @@ function EditOrderInner() {
     if (order.warehouse_arrival_date) setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
     if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
-    setFinancingCost((order.financing_cost || 0).toString());
+    setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
     setHasBuildingBonus(order.has_building_bonus || false);
     setAssignedTo(order.assigned_to || "");
     // Modulo Appaltatori
@@ -409,7 +411,7 @@ function EditOrderInner() {
       setCustomerId(order.customer_id);
       setOrderCode(order.order_code || "");
       setDescription(order.description);
-      setTotalAmount(order.total_amount.toString());
+      setTotalAmount(formatDecimalIT(order.total_amount));
       setPaymentType((order.payment_type as PaymentType) || 'standard');
       setInternalNotes(order.internal_notes || "");
       setVatRate((order.vat_rate || 22).toString());
@@ -417,7 +419,7 @@ function EditOrderInner() {
       setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
       setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
       setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
-      setFinancingCost((order.financing_cost || 0).toString());
+      setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
       setHasBuildingBonus(order.has_building_bonus || false);
       // Restore installments from DB or legacy
       if (dbInstallments.length > 0) {

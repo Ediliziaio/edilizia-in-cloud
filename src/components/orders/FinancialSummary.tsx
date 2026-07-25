@@ -4,7 +4,11 @@ import { formatCurrency } from "@/lib/formatters";
 // su iOS Safari il tasto virgola era bloccato da `type="number"` e
 // parseFloat tagliava il decimale italiano (es. "1.500,50" → 1.500).
 // Stesso pattern già applicato a CreateOrder/EditOrder/Cedolini/EditorRighe.
-import { parseDecimalIT } from "@/lib/parseDecimalIT";
+// 2026-07-25: al blur i campi importo rimandano a video il valore
+// interpretato (formatDecimalIT). Prima il campo continuava a mostrare il
+// testo digitato: chi scriveva "1.500" vedeva "1.500" e si portava a casa
+// 1,50 € nel totale, nel PDF e in fattura senza un solo segnale.
+import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -216,7 +220,7 @@ export function FinancialSummary({
   // Sync raw total input
   useEffect(() => {
     if (inputMode === 'gross') {
-      setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
+      setRawTotalInput(formatDecimalIT(totalWithVat > 0 ? totalWithVat : null));
     } else {
       setRawTotalInput(totalAmount);
     }
@@ -234,9 +238,12 @@ export function FinancialSummary({
       installments.forEach(i => {
         if (i.type !== 'balance') {
           // Keep existing raw value if position already exists, otherwise init from amount
+          // Seed in formato IT: `String(1.234)` avrebbe rimesso nel campo una
+          // stringa ambigua ("1.234") che al blur successivo verrebbe riletta
+          // come 1234. Il numero entra nel campo già disambiguato.
           newRaw[i.position] = prev[i.position] !== undefined
             ? prev[i.position]
-            : (i.amount > 0 ? i.amount.toString() : "");
+            : (i.amount > 0 ? formatDecimalIT(i.amount) : "");
         }
       });
       return newRaw;
@@ -262,9 +269,16 @@ export function FinancialSummary({
     if (inputMode === 'gross') {
       const grossAmount = parseDecimalIT(rawTotalInput) || 0;
       const netAmount = grossAmount / (1 + vat / 100);
-      onTotalAmountChange(netAmount > 0 ? netAmount.toFixed(2) : "");
+      onTotalAmountChange(formatDecimalIT(netAmount > 0 ? netAmount : null));
+      setRawTotalInput(formatDecimalIT(grossAmount > 0 ? grossAmount : null));
     } else {
-      onTotalAmountChange(rawTotalInput);
+      // L'eco passa dal valore PARSATO, non dal testo digitato: è l'unico
+      // punto in cui l'utente può accorgersi che "1.500" è stato letto come
+      // millecinquecento (o come 1,50) prima che finisca nel preventivo.
+      const netAmount = parseDecimalIT(rawTotalInput);
+      const echo = formatDecimalIT(netAmount > 0 ? netAmount : null);
+      onTotalAmountChange(echo);
+      setRawTotalInput(echo);
     }
   };
 
@@ -285,6 +299,12 @@ export function FinancialSummary({
       i.position === position ? { ...i, amount: val } : i
     );
     onInstallmentsChange(updated);
+    // Rimette nel campo il valore interpretato (vuoto se 0, per non
+    // sporcare di "0,00" le rate non ancora compilate).
+    setRawAmountInputs(prev => ({
+      ...prev,
+      [position]: val > 0 ? formatDecimalIT(val) : "",
+    }));
   };
 
   const handleInstallmentPaidChange = (position: number, paid: boolean) => {
@@ -585,7 +605,12 @@ export function FinancialSummary({
                   type="text" inputMode="decimal"
                   value={rawFinancingCostInput}
                   onChange={(e) => setRawFinancingCostInput(e.target.value)}
-                  onBlur={() => onFinancingCostChange?.(rawFinancingCostInput)}
+                  onBlur={() => {
+                    const val = parseDecimalIT(rawFinancingCostInput);
+                    const echo = val > 0 ? formatDecimalIT(val) : "";
+                    setRawFinancingCostInput(echo);
+                    onFinancingCostChange?.(echo);
+                  }}
                   className="pl-8" placeholder="0.00"
                   disabled={readOnly}
                 />
