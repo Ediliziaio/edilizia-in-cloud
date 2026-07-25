@@ -37,6 +37,15 @@ const DIST = join(ROOT, "dist");
 const PORT = 4173;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
+// Rimuove i due <link rel="preload" as="image"> dell'hero cantiere che stanno
+// in index.html. Servono alla sola home (sono l'LCP element lì); su ogni altra
+// pagina sono ~55KB scaricati a priorità alta e mai usati.
+const HERO_PRELOAD_RE =
+  /<link\s+rel="preload"\s+as="image"[^>]*?\/hero\/cantiere-[^>]*?>/gs;
+function stripHeroPreload(html) {
+  return html.replace(HERO_PRELOAD_RE, "");
+}
+
 // ── Lista rotte pubbliche ─────────────────────────────────────────────────────
 // Mantenuta in sync con src/App.tsx — esclude tutte le route auth-gated.
 // Convenzione: ordinare alfabeticamente per facilitare diff in PR.
@@ -398,6 +407,12 @@ async function main() {
         });
         // 2. Strip vendor-flow CSS (xyflow, 15KB, not used on marketing)
         html = html.replace(/<link\s+rel="stylesheet"[^>]*href="[^"]*vendor-flow[^"]*\.css"[^>]*>/g, "");
+        // 3. Il preload dell'hero (fetchpriority=high, ~55KB su mobile) serve
+        //    SOLO alla home: l'immagine sta nell'HeroSection e da nessun'altra
+        //    parte. Restando in index.html finiva in tutte le pagine
+        //    prerenderizzate E nello shell SPA (/login, /azienda/*), dove
+        //    rubava banda ai JS/CSS critici. Qui lo togliamo ovunque tranne "/".
+        if (route !== "/") html = stripHeroPreload(html);
 
         // ROOT CAUSE FIX: route "/" non deve più sovrascrivere dist/index.html
         // (lo SHELL Vite che funziona da SPA fallback per /* in _redirects).
@@ -440,6 +455,19 @@ async function main() {
       browser.close(),
       new Promise((r) => setTimeout(r, 10_000)),
     ]);
+
+    // Shell SPA: dist/index.html non passa dal loop (la home prerenderizzata
+    // finisce in dist/_home). È il file servito per /login e tutte le route
+    // dell'app: qui l'hero preload è puro spreco, si toglie a mano.
+    const shellPath = join(DIST, "index.html");
+    if (existsSync(shellPath)) {
+      const shell = readFileSync(shellPath, "utf-8");
+      const stripped = stripHeroPreload(shell);
+      if (stripped !== shell) {
+        writeFileSync(shellPath, stripped, "utf-8");
+        console.log(`✓ shell SPA: rimosso hero preload (-${shell.length - stripped.length} byte di HTML, -55KB di immagine)`);
+      }
+    }
 
     // Report finale
     console.log("\n────────────────────────────────────────");

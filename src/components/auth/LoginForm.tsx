@@ -341,18 +341,26 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full bg-[#F97415]/20 blur-[100px] pointer-events-none" />
 
         <div className="max-w-sm w-full text-center space-y-10 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 relative z-10">
-          {/* Logo */}
+          {/* Logo — è l'elemento LCP della pagina di accesso: niente lazy
+              (rimandava il download a dopo il layout, priorità Low) e
+              fetchpriority alto per farlo partire con gli altri critici. */}
           {loginLogoUrl ? (
-            <img loading="lazy"
+            <img
               src={loginLogoUrl}
               alt={platformName}
+              fetchPriority="high"
+              decoding="async"
               className="h-14 mx-auto object-contain"
             />
           ) : (
-            <img loading="lazy"
+            <img
               src={ediliziaLogo}
               alt="EdiliziaInCloud"
-              className="h-14 mx-auto brightness-0 invert"
+              fetchPriority="high"
+              decoding="async"
+              width={720}
+              height={174}
+              className="h-14 w-auto mx-auto brightness-0 invert"
             />
           )}
 
