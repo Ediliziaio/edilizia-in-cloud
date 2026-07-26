@@ -96,6 +96,11 @@ Deno.serve(async (req) => {
       skipped_optout: 0,
       skipped_suppressed: 0,
       skipped_already: 0,
+      // lock multi-brand
+      skipped_lock: 0,
+      skipped_senza_azienda: 0,
+      lock_non_applicato: 0,
+      lock_negato_per_motivo: {} as Record<string, number>,
       non_email_steps_skipped: nonEmailStepCount(steps),
     };
     if (contacts.length === 0) {
@@ -128,6 +133,55 @@ Deno.serve(async (req) => {
     if (eligible.length === 0) {
       return jsonResponse({ ...stats, note: "Nessun contatto idoneo (già iscritti / opt-out / in blocklist / senza email)." }, 200, corsH);
     }
+
+    // 4-bis. LOCK MULTI-BRAND — nessun contatto entra in sequenza senza.
+    //
+    // Quattro dei cinque brand AEDIX parlano alla stessa impresa edile: senza
+    // questo, Mario Rossi riceve nella stessa settimana una mail da Edilizia in
+    // Cloud, una da Numeri in Edilizia e una da Marketing Edile. Capisce che
+    // sono la stessa gente — o peggio, pensa di essere finito in una lista
+    // venduta — e marca spam tre volte. Tre domini bruciati con un contatto.
+    //
+    // Il lock e' per AZIENDA, non per contatto: due persone della stessa
+    // impresa non ricevono da brand diversi. Si acquisisce una volta per
+    // azienda e vale per tutti i suoi contatti.
+    const conLock: ContactRow[] = [];
+    if (!seq.brand_id) {
+      // Sequenza senza brand: il lock non ha su cosa agire. Non si blocca
+      // (retrocompatibilita'), ma lo si dichiara nel risultato invece di
+      // lasciarlo passare in silenzio.
+      conLock.push(...eligible);
+      stats.lock_non_applicato = eligible.length;
+    } else {
+      const esitoPerAzienda = new Map<string, boolean>();
+      for (const c of eligible) {
+        const { data: aziendaId } = await admin.rpc("outreach_ensure_prospect", { p_contact_id: c.id });
+        if (!aziendaId) { stats.skipped_senza_azienda++; continue; }
+        const chiave = String(aziendaId);
+
+        let ok = esitoPerAzienda.get(chiave);
+        if (ok === undefined) {
+          const { data: esito } = await admin.rpc("outreach_acquire_brand_lock", {
+            p_prospect_company_id: chiave,
+            p_brand_id: seq.brand_id,
+            p_durata_gg: 25,
+          });
+          const riga = Array.isArray(esito) ? esito[0] : esito;
+          ok = !!riga?.ok;
+          esitoPerAzienda.set(chiave, ok);
+          if (!ok) {
+            const motivo = String(riga?.motivo ?? "sconosciuto").split(":")[0];
+            stats.lock_negato_per_motivo[motivo] = (stats.lock_negato_per_motivo[motivo] ?? 0) + 1;
+          }
+        }
+        if (ok) conLock.push(c); else stats.skipped_lock++;
+      }
+    }
+    if (conLock.length === 0) {
+      return jsonResponse({ ...stats, note: "Tutti i contatti sono bloccati dal lock multi-brand: queste aziende sono già lavorate da un altro brand o in cooldown." }, 200, corsH);
+    }
+    eligible.length = 0;
+    eligible.push(...conLock);
 
     // 5. iscrivi + accoda il primo step (a blocchi)
     const now = new Date();
@@ -164,6 +218,14 @@ Deno.serve(async (req) => {
       if (queueRows.length) {
         const { error: qErr } = await admin.from("outreach_send_queue").insert(queueRows);
         if (qErr) throw qErr;
+      }
+      // Contact Lock (L1): da adesso questi contatti risultano in sequenza per
+      // questo brand, e un brand diverso li trovera' occupati.
+      if (seq.brand_id && enr?.length) {
+        await admin.rpc("outreach_marca_in_sequenza", {
+          p_contact_ids: enr.map((r: { contact_id: string }) => r.contact_id),
+          p_brand_id: seq.brand_id,
+        });
       }
       stats.enrolled += enr?.length ?? 0;
     }

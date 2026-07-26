@@ -36,6 +36,7 @@ import {
 import { channelForNodeType, planChannelSend, hasTemplate, orderTemplateParams, type OutreachChannel } from "../_shared/outreach-channel.ts";
 import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreachChannelSend.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
+import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -67,6 +68,40 @@ function isAccountLevelFailure(body: unknown): string | null {
   ];
   const hit = segnali.find((s) => txt.includes(s));
   return hit ? (typeof body === "string" ? body : JSON.stringify(body)).slice(0, 300) : null;
+}
+
+/**
+ * Gruppo MX del dominio destinatario, con cache su outreach_mx_map.
+ *
+ * Perche' serve: nel B2B edile italiano cinquanta domini destinatari diversi
+ * risolvono spesso sullo STESSO server. edilrossi.it, costruzionibianchi.it e
+ * impresaverdi.it stanno tutti su mx.aruba.it. Il nostro sistema crede di aver
+ * contattato cinquanta aziende; Aruba vede cinquanta messaggi dallo stesso IP
+ * in un'ora, cioe' esattamente il pattern di un attacco spam.
+ *
+ * Il limite quindi non va messo per dominio destinatario ma per SERVER di
+ * destinazione. La mappa si popola da sola al primo invio verso ogni dominio.
+ */
+async function mxGroupDi(supabase: any, dominio: string): Promise<string> {
+  try {
+    const { data } = await supabase.from("outreach_mx_map").select("mx_group").eq("email_domain", dominio).maybeSingle();
+    if (data?.mx_group) return String(data.mx_group);
+  } catch { /* prosegue con la risoluzione */ }
+
+  let host: string | null = null;
+  try {
+    const rec = await Deno.resolveDns(dominio, "MX");
+    host = rec.sort((a, b) => a.preference - b.preference)[0]?.exchange ?? null;
+  } catch { /* dominio senza MX o DNS irraggiungibile */ }
+
+  const { data: g } = await supabase.rpc("outreach_mx_group_of", { p_host: host });
+  const gruppo = String(g ?? "altro");
+  try {
+    await supabase.from("outreach_mx_map")
+      .upsert({ email_domain: dominio, mx_host: host, mx_group: gruppo, risolto_at: new Date().toISOString() },
+              { onConflict: "email_domain" });
+  } catch { /* la cache e' un'ottimizzazione, non un requisito */ }
+  return gruppo;
 }
 // Batch per tick: tenuto basso perché il loop invii è sequenziale e ogni item
 // costa più roundtrip DB (+ handshake SMTP per le caselle proprie). Con 100 e il
@@ -947,6 +982,44 @@ Deno.serve(async (req) => {
             mailboxOverride = { host: sender.smtp_host, port: sender.smtp_port, secure: sender.smtp_secure ?? true, username: sender.smtp_username ?? sender.email, password: pwd as string };
           }
         }
+        // THROTTLING PER SERVER DI DESTINAZIONE (non per dominio).
+        // Massimo 4 invii/ora dalla stessa casella verso lo stesso gruppo MX:
+        // e' cio' che evita di apparire come un attacco al server di Aruba,
+        // dove sta una fetta enorme delle caselle delle imprese edili.
+        const domDest = String(item.to_email).split("@")[1]?.toLowerCase() ?? "";
+        if (domDest) {
+          const gruppo = await mxGroupDi(supabase, domDest);
+          const { data: viaLibera } = await supabase.rpc("outreach_mx_try_consume", {
+            p_mx_group: gruppo, p_sender_key: sender.email, p_max_ora: 4,
+          });
+          if (viaLibera === false) {
+            // Non e' un errore: e' cadenza. La riga riparte al tick successivo.
+            await supabase.from("outreach_send_queue")
+              .update({ status: "queued", last_error: `rimandato: quota oraria ${gruppo} esaurita per ${sender.email}` })
+              .eq("id", item.id);
+            result.deferred++;
+            continue;
+          }
+        }
+
+        // GATE DI CONTENUTO. Le stesse regole che l'editor mostra mentre scrivi,
+        // qui applicate sul testo renderizzato: e' l'ultima rete prima che una
+        // parola bruciata o una frase da testo generato arrivi al destinatario.
+        const rilievi = lintEmail(
+          renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
+          text || htmlToPlainText(html || ""),
+          { touch: 1 },
+        );
+        if (!puoPartire(rilievi)) {
+          const motivi = rilievi.filter((r) => r.gravita === "blocco").map((r) => r.regola).join(", ");
+          await supabase.from("outreach_send_queue")
+            .update({ status: "skipped", sender_account_id: sender.id, last_error: `copy bloccata dal linter: ${motivi}` })
+            .eq("id", item.id);
+          console.error(`[outreach-dispatch] COPY BLOCCATA (${motivi}) — riga ${item.id}. Correggi il testo della sequenza.`);
+          result.skipped++;
+          continue;
+        }
+
         const res = await sendEmailUnified({
           companyId: PLATFORM_COMPANY,
           stream: "marketing",
