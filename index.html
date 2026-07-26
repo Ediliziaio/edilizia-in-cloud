@@ -227,17 +227,39 @@
          HeroSection: telefoni (≤640px) max 768w (~55KB, prima un display 3x
          precaricava la 1440w da 152KB ed era l'LCP element), desktop lista
          completa. Se questi srcset divergono dal <picture> si torna al
-         doppio download: tenerli sincronizzati. -->
-    <link rel="preload" as="image" fetchpriority="high"
-      media="(max-width: 640px)"
-      href="/hero/cantiere-768.webp"
-      imagesrcset="/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w"
-      imagesizes="100vw">
-    <link rel="preload" as="image" fetchpriority="high"
-      media="(min-width: 641px)"
-      href="/hero/cantiere-1024.webp"
-      imagesrcset="/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w,/hero/cantiere-1024.webp 1024w,/hero/cantiere-1440.webp 1440w,/hero/cantiere-1920.webp 1920w"
-      imagesizes="100vw">
+         doppio download: tenerli sincronizzati.
+
+         SOLO SULLA HOME. Questo file è anche lo shell SPA servito a /login,
+         /azienda/*, /admin/* e a ogni rotta non prerenderizzata: lì l'hero non
+         esiste e i 55KB ad alta priorità rubavano banda ai JS/CSS critici.
+         Erano due <link> statici; ora li inserisce questo script inline, che
+         gira prima del <body> (quindi il preload parte comunque presto) e si
+         auto-disattiva fuori da "/". Nelle pagine prerenderizzate lo snapshot
+         di Playwright conserva il comportamento giusto: i <link> finiscono
+         nell'HTML della sola home. -->
+    <script>
+      (function () {
+        var p = location.pathname;
+        if (p !== "/" && p !== "/index.html" && p !== "/_home/index.html") return;
+        var hero = [
+          ["(max-width: 640px)", "/hero/cantiere-768.webp",
+           "/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w"],
+          ["(min-width: 641px)", "/hero/cantiere-1024.webp",
+           "/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w,/hero/cantiere-1024.webp 1024w,/hero/cantiere-1440.webp 1440w,/hero/cantiere-1920.webp 1920w"]
+        ];
+        for (var i = 0; i < hero.length; i++) {
+          var l = document.createElement("link");
+          l.rel = "preload";
+          l.as = "image";
+          l.setAttribute("fetchpriority", "high");
+          l.media = hero[i][0];
+          l.href = hero[i][1];
+          l.setAttribute("imagesrcset", hero[i][2]);
+          l.setAttribute("imagesizes", "100vw");
+          document.head.appendChild(l);
+        }
+      })();
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Gestionale Edilizia Cloud | Software per Imprese Edili">
     <meta property="og:description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
@@ -262,9 +284,9 @@
     <meta name="application-name" content="Edilizia in Cloud">
     <meta name="msapplication-TileColor" content="#F97415">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=2">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png?v=2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2">
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
     <!-- AI / LLM context files — https://llmstxt.org -->
     <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
