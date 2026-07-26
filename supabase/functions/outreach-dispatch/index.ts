@@ -41,6 +41,33 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Distingue un guasto DELL'ACCOUNT da un rifiuto DEL DESTINATARIO.
+ *
+ * Perché esiste: il 25/07/2026 il piano Elastic Email è scaduto e il provider
+ * ha risposto "Your plan expired" a ogni invio. Il codice trattava quella
+ * risposta come un rifiuto del destinatario: 200 righe marcate 'skipped' e —
+ * molto peggio — 200 iscrizioni chiuse con stop_reason='send_rejected'.
+ * Rinnovare il piano non le avrebbe fatte ripartire: 200 prospect persi per
+ * un problema di fatturazione, in silenzio.
+ *
+ * Un guasto di account NON è colpa del contatto: la riga resta in coda,
+ * l'iscrizione resta viva, il tick si ferma (inutile bruciare le altre 199) e
+ * la casella va in connection_status='error', che il pannello Caselle mostra
+ * già in rosso con il messaggio del provider.
+ */
+function isAccountLevelFailure(body: unknown): string | null {
+  const txt = (typeof body === "string" ? body : JSON.stringify(body ?? "")).toLowerCase();
+  const segnali = [
+    "plan expired", "plan_expired", "renew your account", "subscription",
+    "insufficient credit", "not enough credit", "quota exceeded", "over quota",
+    "account disabled", "account suspended", "unauthorized", "invalid api key",
+    "authentication failed", "payment required", "billing",
+  ];
+  const hit = segnali.find((s) => txt.includes(s));
+  return hit ? (typeof body === "string" ? body : JSON.stringify(body)).slice(0, 300) : null;
+}
 // Batch per tick: tenuto basso perché il loop invii è sequenziale e ogni item
 // costa più roundtrip DB (+ handshake SMTP per le caselle proprie). Con 100 e il
 // time-budget sotto, un tick chiude sempre entro il limite 150s della edge.
@@ -613,7 +640,10 @@ Deno.serve(async (req) => {
   const now = new Date();
   const startedAt = Date.now();
   const today = now.toISOString().slice(0, 10);
-  const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, reaped: 0, budgetHit: false };
+  // providerBlocked: valorizzato SOLO da un guasto di account (piano scaduto,
+  // credenziali, quota). Serve a distinguere "non c'era niente da mandare" da
+  // "non si poteva mandare": il primo e' normale, il secondo va guardato subito.
+  const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, reaped: 0, budgetHit: false, providerBlocked: null as string | null };
 
   // finestra di invio configurabile (platform_settings.outreach_send_window);
   // default Lun-Ven 8-19 Europe/Rome. Niente cold di notte o nel weekend.
@@ -704,7 +734,7 @@ Deno.serve(async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     const senders = (sendersRaw || []) as any[];
@@ -910,6 +940,22 @@ Deno.serve(async (req) => {
           metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },
         });
         if (res && res.ok === false) {
+          const guastoAccount = isAccountLevelFailure(res.body);
+          if (guastoAccount) {
+            // Non è il destinatario: è l'account che non può spedire. La riga
+            // torna in coda intatta, l'iscrizione NON si tocca, e si ferma qui
+            // il tick — le altre righe fallirebbero identiche.
+            await supabase.from("outreach_send_queue")
+              .update({ status: "queued", sender_account_id: sender.id, last_error: `account: ${guastoAccount}` })
+              .eq("id", item.id);
+            await supabase.from("outreach_sender_accounts")
+              .update({ connection_status: "error", connection_error: guastoAccount, connection_checked_at: now.toISOString() })
+              .eq("id", sender.id);
+            console.error(`[outreach-dispatch] GUASTO ACCOUNT su ${sender.email}: ${guastoAccount} — tick interrotto, coda preservata`);
+            result.deferred++;
+            result.providerBlocked = `${sender.email}: ${guastoAccount}`;
+            break;
+          }
           // Recapito rifiutato a livello provider (tipicamente: soppresso, hard
           // fail): non ritentare E fermare l'iscrizione. Prima si faceva solo
           // 'skipped' + continue: l'enrollment restava 'active' con next_action_at
@@ -923,6 +969,12 @@ Deno.serve(async (req) => {
           }
           result.skipped++;
           continue;
+        }
+        // Invio riuscito: se la casella era in errore, si riabilita da sola.
+        if (sender.connection_status === "error") {
+          await supabase.from("outreach_sender_accounts")
+            .update({ connection_status: "ok", connection_error: null, connection_checked_at: now.toISOString() })
+            .eq("id", sender.id);
         }
         await supabase.from("outreach_send_queue")
           .update({ status: "sent", sent_at: now.toISOString(), sender_account_id: sender.id, variant_index: variantIndex })
