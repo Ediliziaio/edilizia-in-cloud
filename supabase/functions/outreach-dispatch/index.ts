@@ -734,7 +734,7 @@ Deno.serve(async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     const senders = (sendersRaw || []) as any[];
@@ -835,6 +835,25 @@ Deno.serve(async (req) => {
       const item = queueById.get(a.queueId);
       const sender = senderById.get(a.senderId);
       if (!item || !sender || !item.to_email) { result.skipped++; continue; }
+
+      // GUARDIA BRAND → DOMINIO → CASELLA.
+      // L'assegnazione raggruppa gia' per brand, ma una casella con brand
+      // corretto e nessun dominio collegato spedirebbe dal proprio dominio
+      // qualunque esso sia. Con 5 brand che devono sembrare 5 aziende diverse,
+      // una mail di Marketing Edile partita da un dominio di Edilizia in Cloud
+      // e' il danno peggiore possibile: il prospect capisce tutto.
+      if (item.brand_id) {
+        if (sender.brand_id !== item.brand_id || !sender.sending_domain_id) {
+          const perche = sender.brand_id !== item.brand_id
+            ? `casella del brand ${sender.brand_id ?? "nessuno"} per un invio del brand ${item.brand_id}`
+            : `casella ${sender.email} senza dominio di invio collegato`;
+          await supabase.from("outreach_send_queue")
+            .update({ status: "queued", last_error: `guardia brand: ${perche}` }).eq("id", item.id);
+          console.error(`[outreach-dispatch] GUARDIA BRAND — invio bloccato: ${perche}`);
+          result.deferred++;
+          continue;
+        }
+      }
 
       // gating iscrizione: pausa → resta in coda; terminata → annulla; opt-out → ferma
       const enr = item.enrollment_id ? enrollmentById.get(item.enrollment_id) : null;
