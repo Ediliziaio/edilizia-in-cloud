@@ -326,6 +326,28 @@
     }
     </script>
 
+    <!-- Structured Data: SoftwareApplication (sitewide) — riconciliazione entità.
+         Stesso @id dei nodi #software iniettati da Home/Funzionalità: i consumer
+         JSON-LD fondono i nodi con @id identico, qui teniamo solo i campi di
+         identità (nessun prezzo, nessun rating) per non entrare in conflitto.
+         sameAs → Wikidata Q140698655: è il segnale che lega il sito all'entità
+         registrata e rende il brand citabile dai motori generativi. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "@id": "https://www.ediliziaincloud.com/#software",
+      "name": "Edilizia in Cloud",
+      "url": "https://www.ediliziaincloud.com/",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Construction Management Software",
+      "operatingSystem": "Web, iOS, Android",
+      "inLanguage": "it-IT",
+      "sameAs": ["https://www.wikidata.org/wiki/Q140698655"],
+      "publisher": { "@id": "https://www.ediliziaincloud.com/#organization" }
+    }
+    </script>
+
     <!-- Structured Data: ItemList (Funzionalità Principali) -->
     <script type="application/ld+json">
     {

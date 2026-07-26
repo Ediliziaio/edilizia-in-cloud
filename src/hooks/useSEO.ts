@@ -25,6 +25,12 @@ const DEFAULT_DESC  = "Il software gestionale n°1 per imprese edili italiane. G
 const DEFAULT_IMAGE = "https://www.ediliziaincloud.com/og/og-default.png";
 export const SITE_URL = "https://www.ediliziaincloud.com";
 
+// Elemento Wikidata del prodotto "Edilizia in Cloud" (Q140698655).
+// Va dichiarato come sameAs sui nodi SoftwareApplication/Product/Brand — NON
+// su Organization, che rappresenta Domus Group S.r.l. e non il software.
+// Serve ai motori generativi per riconciliare il brand come entità nota.
+export const WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Q140698655";
+
 type MetaEntry = { attr: "name" | "property"; key: string; prev: string | null; created: boolean };
 
 function normalizeCanonicalUrl(value?: string) {

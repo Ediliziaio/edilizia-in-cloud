@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSEO, SITE_URL } from "@/hooks/useSEO";
+import { useSEO, SITE_URL, WIKIDATA_ENTITY } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
@@ -181,6 +181,7 @@ export default function Funzionalita() {
       "@id": `${SITE_URL}/#software`,
       name: "Edilizia in Cloud",
       url: SITE_URL,
+      sameAs: [WIKIDATA_ENTITY],
       applicationCategory: "BusinessApplication",
       applicationSubCategory: "Construction Management Software",
       operatingSystem: "Web, iOS, Android",

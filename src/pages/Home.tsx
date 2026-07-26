@@ -99,6 +99,7 @@ export default function Home() {
         },
         "softwareVersion": "2026.1",
         "inLanguage": "it-IT",
+        "sameAs": ["https://www.wikidata.org/wiki/Q140698655"],
         "publisher": {
           "@id": "https://www.ediliziaincloud.com/#organization"
         }
@@ -115,7 +116,8 @@ export default function Home() {
         ],
         "brand": {
           "@type": "Brand",
-          "name": "Edilizia in Cloud"
+          "name": "Edilizia in Cloud",
+          "sameAs": ["https://www.wikidata.org/wiki/Q140698655"]
         },
         "seller": {
           "@type": "Organization",
