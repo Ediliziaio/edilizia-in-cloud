@@ -9,6 +9,7 @@ import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCa
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
 import { OutreachWarmupDashboard } from "@/components/admin/outreach/OutreachWarmupDashboard";
 import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetupChecklist";
+import { OutreachLaunchReadiness } from "@/components/admin/outreach/OutreachLaunchReadiness";
 import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachDeliverabilityScore } from "@/components/admin/outreach/OutreachDeliverabilityScore";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
@@ -141,6 +142,7 @@ function OutreachCockpit() {
               live. A motore avviato il setup è un banner slim. */}
           <TabsContent value="oggi" className="mt-5 space-y-6">
             <OutreachSetupChecklist companyId={companyId} />
+            <OutreachLaunchReadiness companyId={companyId} />
 
             <Reveal className="space-y-3">
               <SectionLabel>Motore &amp; performance</SectionLabel>

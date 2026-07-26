@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Wand2, ArrowRight, Sparkles, Loader2, Send, ShieldCheck, AlertTriangle, ShieldAlert, Shuffle } from "lucide-react";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { spamScore } from "../../../../supabase/functions/_shared/outreach-spam-score";
+import { lintEmail, puoPartire } from "../../../../supabase/functions/_shared/outreach-linter";
 
 /**
  * Playground personalizzazione — prova oggetto, variabili e spintax su contatti
@@ -122,6 +123,16 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
 
   const score = useMemo(() => spamScore(renderedSubject, renderedBody, `${subject}\n${tpl}`), [renderedSubject, renderedBody, subject, tpl]);
   const bodyWords = renderedBody.trim() ? renderedBody.trim().split(/\s+/).length : 0;
+  // Verdetto del linter: lo spam-score dice QUANTO rischi, questo dice SE puoi
+  // partire. Si valuta il testo renderizzato (segnaposto risolti) perché è
+  // quello che vede davvero il destinatario.
+  const rilievi = useMemo(
+    () => lintEmail(renderedSubject, renderedBody, { touch: 1 }),
+    [renderedSubject, renderedBody],
+  );
+  const blocchi = rilievi.filter((r) => r.gravita === "blocco");
+  const avvisi = rilievi.filter((r) => r.gravita === "avviso");
+  const ok = puoPartire(rilievi);
   const level = LEVEL_META[score.level];
 
   function insertChip(chip: string) {
@@ -317,6 +328,33 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
               {score.signals.map((s, i) => (
                 <li key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${SEV_DOT[s.severity]}`} /> {s.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Verdetto pre-invio: regole italiane + firme da testo generato */}
+        <div className={`rounded-lg border p-3 ${ok ? "border-emerald-200 bg-emerald-50/50" : "border-red-200 bg-red-50/50"}`}>
+          <div className="mb-2 flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ok ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+              {ok ? "Può partire" : `${blocchi.length} da correggere`}
+            </span>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Controllo pre-invio</span>
+            {avvisi.length > 0 && (
+              <span className="ml-auto text-[11px] text-amber-700">{avvisi.length} da pesare</span>
+            )}
+          </div>
+          {rilievi.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              Niente parole bruciate, niente frasi da testo generato, forma a posto.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {[...blocchi, ...avvisi].map((r, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-[11px]">
+                  <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${r.gravita === "blocco" ? "bg-red-500" : "bg-amber-500"}`} />
+                  <span className={r.gravita === "blocco" ? "text-foreground" : "text-muted-foreground"}>{r.messaggio}</span>
                 </li>
               ))}
             </ul>
