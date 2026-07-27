@@ -189,7 +189,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
         className={cn(
-          "bg-background border rounded-lg p-2 md:p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-1.5 md:space-y-2 border-l-[3px]",
+          // Densità: padding e interlinea ridotti rispetto a p-3/space-y-2 per
+          // far stare più schede nella stessa altezza di schermo.
+          "bg-background border rounded-lg p-2 md:p-2.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-1 md:space-y-1.5 border-l-[3px]",
           opportunity.status === "open" && "border-l-blue-500",
           opportunity.status === "won" && "border-l-green-500",
           opportunity.status === "lost" && "border-l-red-500",
@@ -229,11 +231,11 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             <Tooltip>
               <TooltipTrigger asChild>
                 {assignedInitials ? (
-                  <span className="shrink-0 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold cursor-default">
+                  <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold cursor-default">
                     {assignedInitials}
                   </span>
                 ) : (
-                  <span className="shrink-0 h-6 w-6 rounded-full bg-muted flex items-center justify-center cursor-default">
+                  <span className="shrink-0 h-5 w-5 rounded-full bg-muted flex items-center justify-center cursor-default">
                     <UserCircle className="h-4 w-4 text-muted-foreground" />
                   </span>
                 )}
@@ -268,7 +270,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
         {/* Action bar */}
         {!isOverlay && (
-          <div className="flex items-center justify-between pt-1 border-t border-border/50">
+          <div className="flex items-center justify-between pt-0.5 border-t border-border/50">
             {actionIcons.map(({ icon: Icon, tooltip, action, badge, mobileVisible }, i) => (
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
@@ -369,7 +371,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout }: {
   if (rows.length === 0) return null;
 
   return (
-    <div className={cn("space-y-1", layout === "compact" && "space-y-0.5")}>
+    <div className={cn("space-y-0.5", layout === "compact" && "space-y-0")}>
       {rows.map((row) => (
         <p key={row.label} className={cn("leading-tight truncate", layout === "compact" ? "text-[10px]" : "text-[10px] md:text-[11px]")}>
           {layout !== "no-label" && (

@@ -41,7 +41,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   const virtualizer = useVirtualizer({
     count: opportunities.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => (layout === "mini" ? 52 : 180),
+    estimateSize: () => (layout === "mini" ? 48 : 158),
     overscan: 5,
     gap: 8,
   });
@@ -83,8 +83,10 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
     );
   }
 
+  // Colonne piu' strette (-10% circa): a parita' di larghezza schermo se ne
+  // vedono di piu' senza dover scorrere in orizzontale.
   return (
-    <div className={cn("flex flex-col shrink-0 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[200px] md:min-w-[220px] max-w-[240px] md:max-w-[260px]" : "min-w-[240px] md:min-w-[280px] max-w-[270px] md:max-w-[300px]")}>
+    <div className={cn("flex flex-col shrink-0 h-[calc(100svh-310px)] md:h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[184px] md:min-w-[200px] max-w-[216px] md:max-w-[234px]" : "min-w-[216px] md:min-w-[252px] max-w-[244px] md:max-w-[270px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -302,7 +304,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-3 p-1 min-w-max">
+          <div className="flex gap-2 p-1 min-w-max">
             {stages.map((stage) => (
               <StageColumn
                 key={stage.id}

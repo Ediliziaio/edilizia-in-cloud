@@ -538,9 +538,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "multi_company_user",
         "accountant",
         "referrer",
+        // company_admin PRIMA dei ruoli operativi: il titolare che vende in
+        // prima persona ha sia company_admin sia salesperson, e con
+        // salesperson piu' in alto veniva declassato a venditore — sidebar e
+        // impostazioni sparivano perche' senza riga in staff_permissions ogni
+        // permesso staff e' false. Chi amministra l'azienda resta admin anche
+        // se ha un ruolo operativo; il ruolo operativo resta in user_roles,
+        // quindi continua a comparire nelle liste di assegnazione.
+        "company_admin",
         "salesperson",
         "call_center",
-        "company_admin",
         "employee",       // operaio: employee + company_staff → effective = employee
         "subcontractor",  // subappaltatore: subcontractor + company_staff → effective = subcontractor
         "company_staff",  // dipendente ufficio: solo company_staff → effective = company_staff
