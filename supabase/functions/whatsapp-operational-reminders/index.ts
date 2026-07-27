@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { normalizeOperationalSettings } from "../whatsapp-ai-processor/settings.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 interface ReminderRunBody {
   force?: boolean;
@@ -96,13 +97,11 @@ Deno.serve(async (req) => {
 
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const authHeader = req.headers.get("Authorization") ?? "";
-  const cronSecret = req.headers.get("x-cron-secret") ?? "";
-  const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") || serviceKey;
   const roleClaim = extractJwtRole(authHeader);
   const authorized =
     authHeader === `Bearer ${serviceKey}` ||
     roleClaim === "service_role" ||
-    (cronSecret.length > 0 && cronSecret === internalSecret);
+    cronSecretValido(req);
 
   if (!authorized) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {

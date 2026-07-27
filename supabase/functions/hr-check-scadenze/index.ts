@@ -1,7 +1,7 @@
 // ============================================================================
 // hr-check-scadenze — controllo giornaliero scadenze documenti dipendenti (HR)
 // ============================================================================
-// Cron (pg_cron) con header x-cron-secret = INTERNAL_CRON_SECRET.
+// Cron (pg_cron) con header x-cron-secret (vedi _shared/cronAuth.ts).
 // Per ogni documento (hr_documenti) in scadenza entro `alert_giorni_prima` o
 // già scaduto, avvisa gli admin dell'azienda: notifica in campanella
 // (tabella notifications) + email best-effort. Anti-doppione: niente nuova
@@ -26,8 +26,7 @@ function fmtDate(d: string | null): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
-  const secret = req.headers.get("x-cron-secret");
-  if (!secret || secret !== Deno.env.get("INTERNAL_CRON_SECRET")) {
+  if (!cronSecretValido(req)) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { "Content-Type": "application/json" } });
   }
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });

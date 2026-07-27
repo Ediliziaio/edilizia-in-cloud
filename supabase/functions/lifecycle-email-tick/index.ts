@@ -20,6 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -415,8 +416,7 @@ Deno.serve(async (req) => {
   // stesso pattern di system-emails-tick). Blocca utenti generici.
   const authHeader = req.headers.get("authorization") ?? "";
   const providedToken = authHeader.replace(/^Bearer\s+/i, "");
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  const cronOk = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+  const cronOk = cronSecretValido(req);
   if (providedToken !== SERVICE_ROLE_KEY && !cronOk) {
     return new Response(
       JSON.stringify({ error: "Unauthorized: service_role required" }),

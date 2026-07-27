@@ -10,7 +10,7 @@
  *   - setup_incomplete (1.2): aziende create ~48h fa senza primo cantiere.
  *   - invite_reminder (3.2): inviti admin pendenti da ~48h, non accettati.
  *
- * Auth: x-cron-secret == INTERNAL_CRON_SECRET (scheduler) OPPURE JWT super_admin
+ * Auth: x-cron-secret (scheduler, vedi _shared/cronAuth.ts) OPPURE JWT super_admin
  * (trigger manuale dalla dashboard). Schedulare ogni ora.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -18,6 +18,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -29,8 +30,7 @@ Deno.serve(async (req) => {
 
   // ── Auth: cron secret oppure super_admin ───────────────────────────────────
   let authorized = false;
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (cronSecret && req.headers.get("x-cron-secret") === cronSecret) {
+  if (cronSecretValido(req)) {
     authorized = true;
   } else {
     const authHeader = req.headers.get("Authorization");
