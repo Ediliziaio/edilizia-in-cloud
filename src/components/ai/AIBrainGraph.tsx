@@ -30,7 +30,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
   DEMO_AI_PERSONAS,
   DEMO_MEMORIES,
@@ -1692,7 +1692,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const livePulseTimeoutRef = useRef<number | null>(null);
 
-  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(effectiveCompany?.id);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 

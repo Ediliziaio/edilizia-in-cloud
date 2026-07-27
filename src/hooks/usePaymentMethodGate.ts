@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { GIFTED_EXEMPT_METHODS } from "@/lib/paymentStatus";
 
 /**
@@ -49,7 +49,7 @@ export function usePaymentMethodGate(): PaymentMethodGateState {
   const status = String((effectiveCompany as { status?: string | null } | null)?.status ?? "").toLowerCase();
 
   const hasPaymentMethod = method !== "none" && VALID_PAYMENT_METHODS.has(method);
-  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(effectiveCompany?.id);
   // "comped" e sinonimi legacy (gift, complimentary, manual_free…) = regalata → esente.
   const isGifted = GIFTED_EXEMPT_METHODS.has(method);
   const isSubscriptionBlocked = BLOCKED_STATUSES.has(status);

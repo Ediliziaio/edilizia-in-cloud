@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { DEMO_COMPANY_ID, isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
   DEMO_AI_PERSONAS,
   DEMO_MEMORIES,
@@ -212,7 +212,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     [knownPersonaKeys, realMemories],
   );
 
-  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(effectiveCompany?.id);
 
   const demoPreviewMemories = useMemo<MemoryRow[]>(() => {
     if (!isDemoCompany || personasForMemory.length === 0) return [];

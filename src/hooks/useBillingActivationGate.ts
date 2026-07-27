@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { GIFTED_EXEMPT_METHODS } from "@/lib/paymentStatus";
 
 /**
@@ -63,7 +63,7 @@ export function useBillingActivationGate(): BillingActivationState {
   const hasPaymentMethod = UNLOCKING_METHODS.has(method);
   const billingComplete = isBillingDataComplete(company);
 
-  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(effectiveCompany?.id);
   const isGifted = GIFTED_EXEMPT_METHODS.has(method);
   const roleExempt = !!role && EXEMPT_ROLES.has(role);
 

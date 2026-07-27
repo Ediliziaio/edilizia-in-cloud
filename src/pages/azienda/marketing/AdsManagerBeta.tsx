@@ -65,7 +65,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
   buildMetaPublishRequest,
   draftToCampaignRow,
@@ -1442,7 +1442,7 @@ export default function AdsManagerBeta() {
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const companyName = effectiveCompany?.name ?? "La tua azienda";
-  const isDemoCompany = companyId === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(companyId);
   const isAdmin = role === "company_admin" || role === "super_admin";
   // Picker account pubblicitario: serve quando l'utente Meta (agenzia) ha più
   // account e bisogna scegliere quello dell'azienda. Solo admin (RLS enforced).

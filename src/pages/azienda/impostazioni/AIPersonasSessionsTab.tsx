@@ -27,7 +27,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
   DEMO_AI_PERSONAS,
   DEMO_MEMORIES,
@@ -437,7 +437,7 @@ export default function AIPersonasSessionsTab() {
     [allSessionsRaw, knownPersonaKeys],
   );
 
-  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(effectiveCompany?.id);
 
   const demoPreviewSessions = useMemo<SessionRow[]>(() => {
     if (!isDemoCompany || allSessions.length > 0 || personasForSessions.length === 0) return [];

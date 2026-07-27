@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTimeoutSignal } from "@/lib/query-timeout";
 import { queryKeys } from "@/lib/queryKeys";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useImpersonationClientView } from "@/hooks/useImpersonationView";
 
 const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
@@ -147,7 +147,7 @@ export function useFeatureAccess(
     isImpersonating &&
     !!impersonatedCompanyId &&
     !!impersonationToken;
-  const isDemoBaseline = companyId === DEMO_COMPANY_ID;
+  const isDemoBaseline = isDemoCompanyId(companyId);
   // "Vista cliente": in impersonation il super admin può rinunciare al bypass
   // per vedere le feature esattamente come il piano le dà al cliente.
   // Con viewAsRole ("loggato come <utente>") la vista cliente è FORZATA.

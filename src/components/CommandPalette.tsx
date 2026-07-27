@@ -12,7 +12,7 @@ import {
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
 interface AIPersonaLite {
@@ -143,7 +143,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
-  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 

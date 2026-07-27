@@ -17,7 +17,7 @@ import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useImpersonationClientView, setImpersonationClientView } from "@/hooks/useImpersonationView";
 import { 
   HeadphonesIcon,
@@ -1007,7 +1007,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così
   // la sidebar appare full-feature anche se il piano DB è parziale (è il caso
   // reference che support/onboarding usano come "come dovrebbe apparire").
-  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
 
   // "Piano full": fonte di verità è la colonna DB `subscription_plans.is_full_plan`.
   // Fallback su `FULL_PLAN_SLUGS` hardcoded se il campo DB non è popolato

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { createTimeoutSignal } from "@/lib/query-timeout";
 import { useImpersonationClientView } from "@/hooks/useImpersonationView";
 
@@ -86,7 +86,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
   // che scrive `sa_imp_company_id` in sessionStorage + cache profile con
   // role sbagliata potrebbe aprire tutte le feature prima della verifica async.
   const isSuperAdmin = role === "super_admin";
-  const isDemoBaseline = companyId === DEMO_COMPANY_ID;
+  const isDemoBaseline = isDemoCompanyId(companyId);
   // "Vista cliente" (default in impersonation): niente bypass, il super admin
   // vede i flag risolti come il cliente. Il toggle sta nel banner giallo.
   // Con viewAsRole ("loggato come <utente>") la vista cliente è FORZATA.

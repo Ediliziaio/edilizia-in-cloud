@@ -32,10 +32,14 @@ const GIFTED_EXEMPT_METHODS = new Set([
   "omaggio",
 ]);
 
-// Demo Azienda S.r.l. (company-vetrina interna) — sempre esente dal gate.
-// UUID centralizzato in src/lib/constants/demoCompany.ts; qui hardcoded perché Deno
-// non importa da src/ (stesso valore di AI_TEST_LAB_DEMO_COMPANY_ID negli edge).
-const DEMO_COMPANY_ID = "778a2c76-1253-49f2-a5e8-283363ac3e29";
+// Aziende-vetrina interne (Demo Azienda 1 e 2) — sempre esenti dal gate.
+// UUID centralizzati in src/lib/constants/demoCompany.ts; qui duplicati perché Deno
+// non importa da src/. NB: AI_TEST_LAB_DEMO_COMPANY_ID (aiRouter/silvio-chat) resta
+// la sola Demo 1 — quello è il banco di prova modelli, non una vetrina.
+const DEMO_COMPANY_IDS = new Set([
+  "778a2c76-1253-49f2-a5e8-283363ac3e29", // Demo Azienda S.r.l.
+  "d2000000-0000-4000-a000-000000000002", // Demo Azienda 2 S.r.l.
+]);
 
 export const PAYMENT_METHOD_REQUIRED_MESSAGE =
   "Registra una carta di pagamento aziendale per usare questo strumento (Impostazioni → Fatturazione).";
@@ -86,7 +90,7 @@ export async function checkPaymentMethod(
     return { allowed: false, paymentMethod: "none", message: PAYMENT_METHOD_REQUIRED_MESSAGE };
   }
   // Demo Azienda = vetrina: sempre consentito, nessun blocco.
-  if (companyId === DEMO_COMPANY_ID) {
+  if (DEMO_COMPANY_IDS.has(companyId)) {
     return { allowed: true, paymentMethod: "demo" };
   }
   try {

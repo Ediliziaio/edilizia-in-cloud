@@ -21,7 +21,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -246,7 +246,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const gatingLoading = limitsLoading || flagsLoading;
   const { role, effectiveCompany } = useAuth();
   const { notifications } = useNotifications();
-  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
+  const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
   const location = useLocation();
   const [search, setSearch] = useState("");
   const [recents, setRecents] = useState<string[]>(() => loadRecents());

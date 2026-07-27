@@ -59,7 +59,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { DEMO_COMPANY_ID, isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { cn } from "@/lib/utils";
 import { useAdsAi } from "@/hooks/useAdsAi";
 import { useAuthCompany } from "@/contexts/AuthContext";
@@ -4096,7 +4096,7 @@ export default function SocialManagerBeta() {
   // I contenuti demo (media, inbox, celle grid) si mostrano SOLO alla Demo
   // Azienda: un'azienda reale deve vedere esclusivamente i propri dati, non
   // 12 media finti e 4 messaggi mai ricevuti.
-  const isDemoCompany = companyId === DEMO_COMPANY_ID;
+  const isDemoCompany = isDemoCompanyId(companyId);
   const queryClient = useQueryClient();
   const socialData = useSocialManagerData(companyId);
   const {
