@@ -81783,6 +81783,14 @@ export type Database = {
         }
         Returns: string
       }
+      enroll_entities_in_flow: {
+        Args: {
+          p_entity_ids: string[]
+          p_entity_type?: string
+          p_flow_id: string
+        }
+        Returns: Json
+      }
       ensure_referral_link: {
         Args: { p_base_url?: string; p_referrer_id: string }
         Returns: string

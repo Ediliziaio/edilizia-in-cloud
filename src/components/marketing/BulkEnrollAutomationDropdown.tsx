@@ -60,53 +60,29 @@ export function BulkEnrollAutomationDropdown({ selectedIds }: BulkEnrollAutomati
       if (!flow || !companyId) throw new Error("Flusso non trovato");
       const contactIds = await getCompanyScopedContactIds(Array.from(selectedIds), companyId);
 
-      // Niente upsert con ON CONFLICT: automation_enrollments non ha un indice
-      // unico su (flow_id, entity_id) — l'upsert falliva sempre con 42P10 e il
-      // bottone era rotto per tutte le aziende. E l'indice non va aggiunto: il
-      // motore si aspetta piu' righe per contatto (una per passaggio nel
-      // flusso) e legge la lista completa proprio per non mascherare
-      // un'iscrizione attiva. Quindi filtriamo a mano chi e' gia' dentro.
-      const { data: existing, error: existingError } = await supabase
-        .from("automation_enrollments")
-        .select("entity_id")
-        .eq("company_id", companyId)
-        .eq("flow_id", flowId)
-        .in("entity_id", contactIds)
-        .in("status", ["active", "waiting"]);
-      if (existingError) throw existingError;
-
-      const alreadyEnrolled = new Set((existing ?? []).map((row) => row.entity_id));
-      const toEnroll = contactIds.filter((id) => !alreadyEnrolled.has(id));
-
-      if (toEnroll.length === 0) {
-        throw new Error("I contatti selezionati sono già iscritti a questa automazione");
-      }
-
-      const { error } = await supabase.from("automation_enrollments").insert(
-        toEnroll.map((contactId) => ({
-          company_id: companyId,
-          flow_id: flowId,
-          entity_id: contactId,
-          entity_type: "contact",
-          flow_version: flow.version,
-          status: "active",
-        })),
-      );
+      // Tutto server-side via RPC. Il vecchio codice client-side non poteva
+      // funzionare per tre motivi indipendenti:
+      //  1. upsert(onConflict:"flow_id,entity_id") -> 42P10, non esiste
+      //     l'indice unico (e non va aggiunto: il motore vuole piu' righe)
+      //  2. l'insert su automation_trigger_events e' vietato dalle RLS
+      //     (unica policy: service_role)
+      //  3. l'evento "manual_enrollment" non lo legge nessuno, e comunque a
+      //     far partire un flusso e' la riga in automation_queue, non
+      //     l'iscrizione
+      // La RPC inserisce iscrizione + coda dal primo nodo dopo il trigger.
+      const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
+        p_flow_id: flowId,
+        p_entity_ids: contactIds,
+        p_entity_type: "contact",
+      });
       if (error) throw error;
 
-      // Fire trigger events so the automation engine picks them up
-      const { error: eventError } = await supabase.from("automation_trigger_events").insert(
-        toEnroll.map((contactId) => ({
-          company_id: companyId,
-          trigger_event: "manual_enrollment",
-          entity_id: contactId,
-          entity_type: "contact",
-          payload: { flow_id: flowId, bulk: true },
-        })),
-      );
-      if (eventError) throw eventError;
-
-      return { enrolled: toEnroll.length, skipped: contactIds.length - toEnroll.length };
+      const result = (data ?? {}) as { enrolled?: number; skipped?: number };
+      const enrolled = result.enrolled ?? 0;
+      if (enrolled === 0) {
+        throw new Error("Nessun contatto iscritto: risultano già tutti in questa automazione");
+      }
+      return { enrolled, skipped: result.skipped ?? 0 };
     },
     onSuccess: ({ enrolled, skipped }) => {
       // Prima si annunciava selectedIds.size: contava anche chi non era stato
