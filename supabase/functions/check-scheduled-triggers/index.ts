@@ -113,7 +113,22 @@ async function enrollFlowDirect(supabase: any, flowId: string, companyId: string
     })
     .select("id")
     .single();
-  if (error || !enrollment) return null;
+  if (error || !enrollment) {
+    // Prima si tornava null in silenzio: e' cosi' che il CHECK su entity_type
+    // ('cron'/'manual' non ammessi) e il tipo di entity_id hanno tenuto morti
+    // per mesi i trigger cron e il pulsante "Esegui" senza lasciare traccia.
+    console.error("[enrollFlowDirect] iscrizione fallita", { flowId, companyId, entityId, entityType, error });
+    await supabase.from("automation_execution_log").insert({
+      flow_id: flowId,
+      company_id: companyId,
+      node_id: triggerNodeId,
+      node_type: "trigger",
+      status: "error",
+      input_json: { entity_id: entityId, entity_type: entityType, payload },
+      error_message: `Iscrizione fallita: ${error?.message ?? "nessuna riga creata"}`,
+    });
+    return null;
+  }
 
   const { data: conns } = await supabase
     .from("automation_connections")
@@ -145,8 +160,12 @@ async function enrollFlowDirect(supabase: any, flowId: string, companyId: string
       trigger_data: payload,
       status: "running",
     })
-    .then(() => {})
-    .catch(() => {});
+    .then(({ error: runErr }: { error: unknown }) => {
+      // Prima: .catch(() => {}) muto. Se il Registro non viene scritto,
+      // l'esecuzione esiste ma e' invisibile in Cronologia: va almeno loggato.
+      if (runErr) console.error("[enrollFlowDirect] registro non scritto", { flowId, runErr });
+    })
+    .catch((e: unknown) => console.error("[enrollFlowDirect] registro non scritto", { flowId, e }));
 
   return enrollment.id;
 }
@@ -161,16 +180,22 @@ const CRON_WEEKDAY: Record<string, number> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleCronTrigger(supabase: any, flow: any, node: any, ev: string, cfg: any): Promise<boolean> {
   const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
+  // Tutto in Europe/Rome, non in UTC: il motore usa gia' Europe/Rome per attese
+  // e scadenze. Con getUTCDay()/getUTCDate() "ogni lunedi" e "il 1o del mese"
+  // slittavano di un'ora fra estate e inverno e vicino a mezzanotte cadevano
+  // nel giorno sbagliato. Il mezzogiorno nel calcolo del weekday evita i bordi DST.
+  const todayStr = now.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+  const romeWeekday = new Date(`${todayStr}T12:00:00Z`).getUTCDay();
+  const romeDayOfMonth = parseInt(todayStr.slice(8, 10), 10);
   let shouldFire = false;
   if (ev === "cron_daily") {
     shouldFire = true;
   } else if (ev === "cron_weekly") {
     const want = CRON_WEEKDAY[String(cfg.giorno || "lunedi")] ?? 1;
-    shouldFire = now.getUTCDay() === want;
+    shouldFire = romeWeekday === want;
   } else if (ev === "cron_monthly") {
     const want = parseInt(cfg.giorno_mese) || 1;
-    shouldFire = now.getUTCDate() === want;
+    shouldFire = romeDayOfMonth === want;
   }
   if (!shouldFire) return false;
 

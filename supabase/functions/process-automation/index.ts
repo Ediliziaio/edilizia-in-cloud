@@ -2317,7 +2317,14 @@ Istruzione: ${aiPrompt}`;
     }
 
     default:
-      return { success: true, output: { action: actionType, skipped: true, reason: "Not implemented yet" } };
+      // Prima: success:true con "Not implemented yet". Un'azione sconosciuta
+      // veniva contata come riuscita, il flusso proseguiva e il Registro
+      // mostrava tutto verde: e' il meccanismo che ha tenuto nascosti per mesi
+      // i trigger che non arruolavano. Fallire e' l'unico modo per accorgersene.
+      return {
+        success: false,
+        error: `Azione "${actionType}" non riconosciuta dal motore: il nodo non e' stato eseguito.`,
+      };
   }
 }
 
