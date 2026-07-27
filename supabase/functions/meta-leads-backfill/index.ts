@@ -59,6 +59,7 @@ async function backfillPage(
   admin: ReturnType<typeof createClient>,
   integ: { id: string; company_id: string },
   pageId: string,
+  pageRowId: string,
   pageToken: string,
   days: number,
 ): Promise<number> {
@@ -82,12 +83,66 @@ async function backfillPage(
     console.warn(`meta-leads-backfill: elenco form ${pageId} errore rete:`, e);
   }
 
+  // ── Impostazioni per-modulo (meta_lead_forms) ──────────────────────────────
+  // Prima venivano completamente ignorate: status, sync_mode e since_date erano
+  // scritti dal wizard ma nessuno li leggeva, e last_pull_at restava NULL anche
+  // dopo import riusciti. Risultato: un modulo disattivato continuava comunque a
+  // riversare lead nel CRM.
+  // Le righe con page_asset_id NULL valgono per qualunque pagina dell'azienda:
+  // in produzione esistono e un join stretto le avrebbe escluse, fermando i lead.
+  const { data: formRows } = await admin
+    .from("meta_lead_forms")
+    .select("id, form_id, status, sync_mode, since_date, last_pull_at, page_asset_id")
+    .eq("company_id", integ.company_id);
+
+  const settingsByForm = new Map<string, {
+    id: string; status: string | null; sync_mode: string | null;
+    since_date: string | null; last_pull_at: string | null;
+  }>();
+  for (const row of formRows ?? []) {
+    const r = row as Record<string, unknown>;
+    const pa = r.page_asset_id as string | null;
+    if (pa && pa !== pageRowId) continue; // riga di un'altra pagina
+    settingsByForm.set(String(r.form_id), {
+      id: String(r.id),
+      status: (r.status as string) ?? null,
+      sync_mode: (r.sync_mode as string) ?? null,
+      since_date: (r.since_date as string) ?? null,
+      last_pull_at: (r.last_pull_at as string) ?? null,
+    });
+  }
+
   let imported = 0;
   for (const formId of formIds) {
+    const cfg = settingsByForm.get(formId);
+
+    // Modulo disattivato esplicitamente → non si importa.
+    // I moduli SENZA riga restano coperti (rete di sicurezza per le campagne
+    // nuove, vedi commento in testa al file), ma vengono segnalati nel log.
+    if (cfg && cfg.status !== "active") {
+      console.log(`meta-leads-backfill: modulo ${formId} saltato (status=${cfg.status})`);
+      continue;
+    }
+    if (!cfg) {
+      console.log(`meta-leads-backfill: modulo ${formId} non configurato in meta_lead_forms, importato come rete di sicurezza`);
+    }
+
+    // Limite temporale: il piu' RECENTE fra finestra di default, since_date
+    // (quando l'utente ha chiesto "solo i nuovi") e ultimo pull riuscito.
+    let effectiveSince = sinceTs;
+    if (cfg) {
+      if (cfg.sync_mode === "new_only" && cfg.since_date) {
+        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.since_date).getTime() / 1000));
+      }
+      if (cfg.last_pull_at) {
+        effectiveSince = Math.max(effectiveSince, Math.floor(new Date(cfg.last_pull_at).getTime() / 1000));
+      }
+    }
+
     let nextUrl: string | null =
       `https://graph.facebook.com/${apiVersion}/${formId}/leads` +
       `?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name` +
-      `&limit=50&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]` +
+      `&limit=50&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${effectiveSince}}]` +
       `&access_token=${pageToken}`;
     while (nextUrl) {
       const res = await fetch(nextUrl);
@@ -114,6 +169,15 @@ async function backfillPage(
         imported++;
       }
       nextUrl = data.paging?.next || null;
+    }
+
+    // Segnalibro: senza, ogni giro ripartiva dalla stessa finestra e rigenerava
+    // eventi "repeat_submission" per lead gia' importati.
+    if (cfg) {
+      await admin
+        .from("meta_lead_forms")
+        .update({ last_pull_at: new Date().toISOString() })
+        .eq("id", cfg.id);
     }
   }
   return imported;
@@ -155,7 +219,7 @@ Deno.serve(async (req) => {
       try {
         const { data: pages } = await admin
           .from("meta_assets")
-          .select("asset_id")
+          .select("id, asset_id")
           .eq("integration_id", integ.id)
           .eq("company_id", integ.company_id)
           .eq("asset_type", "page")
@@ -179,7 +243,7 @@ Deno.serve(async (req) => {
             console.warn(`meta-leads-backfill: token pagina ${page.asset_id} non decifrabile`);
             continue;
           }
-          const imported = await backfillPage(admin, integ, page.asset_id, pageToken, days);
+          const imported = await backfillPage(admin, integ, page.asset_id, page.id, pageToken, days);
           out.push({ company_id: integ.company_id, page_id: page.asset_id, imported });
         }
       } catch (e) {

@@ -9,6 +9,7 @@ import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { queryKeys } from "@/lib/queryKeys";
 import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
 import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
+import { computeEffectiveRole } from "@/lib/roleHierarchy";
 
 /**
  * Velocity Protocol — V1/V2
@@ -527,32 +528,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Determine effective role with priority: highest privilege first
-      const rolePriority: AppRole[] = [
-        "super_admin",
-        "platform_manager",
-        "platform_sales",
-        "platform_support",
-        "platform_marketing",
-        "platform_implementation",
-        "multi_company_user",
-        "accountant",
-        "referrer",
-        // company_admin PRIMA dei ruoli operativi: il titolare che vende in
-        // prima persona ha sia company_admin sia salesperson, e con
-        // salesperson piu' in alto veniva declassato a venditore — sidebar e
-        // impostazioni sparivano perche' senza riga in staff_permissions ogni
-        // permesso staff e' false. Chi amministra l'azienda resta admin anche
-        // se ha un ruolo operativo; il ruolo operativo resta in user_roles,
-        // quindi continua a comparire nelle liste di assegnazione.
-        "company_admin",
-        "salesperson",
-        "call_center",
-        "employee",       // operaio: employee + company_staff → effective = employee
-        "subcontractor",  // subappaltatore: subcontractor + company_staff → effective = subcontractor
-        "company_staff",  // dipendente ufficio: solo company_staff → effective = company_staff
-        "customer",
-      ];
+      // Ruolo effettivo: la classifica vive in @/lib/roleHierarchy, unica fonte
+      // condivisa con i test (era duplicata e le copie erano gia' divergenti).
       let userRoles = (rolesData || []).map(r => r.role as AppRole);
 
       // 🛡️  Defense-in-depth: il ruolo super_admin viene rifiutato se l'email dell'utente
@@ -573,7 +550,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRoles = userRoles.filter(r => r !== "super_admin");
       }
 
-      const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
+      const effectiveRole = computeEffectiveRole(userRoles);
 
       return {
         profile: profileData,
