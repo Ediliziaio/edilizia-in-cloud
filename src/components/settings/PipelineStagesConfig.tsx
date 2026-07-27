@@ -15,14 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const AUTO_STATUS_OPTIONS = [
-  { value: "none", label: "Nessuno" },
-  { value: "open", label: "Aperta" },
-  { value: "won", label: "Vinta" },
-  { value: "lost", label: "Persa" },
-  { value: "abandoned", label: "Abbandonata" },
-];
+import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Stage {
   id: string;
@@ -96,12 +89,17 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
           value={stage.auto_status || "none"}
           onValueChange={(v) => onAutoStatusChange(stage.id, v === "none" ? null : v)}
         >
-          <SelectTrigger className="h-8 text-xs w-[130px]">
+          <SelectTrigger
+            className="h-8 text-xs w-[130px]"
+            title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
+          >
             <SelectValue placeholder="Stato auto" />
           </SelectTrigger>
           <SelectContent>
+            {/* Il testo esteso sta nel title e non fra i children: shadcn passa
+                i children a ItemText, che finisce anche nel trigger stretto. */}
             {AUTO_STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              <SelectItem key={opt.value} value={opt.value} title={opt.hint}>{opt.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>

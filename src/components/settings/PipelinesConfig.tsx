@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PipelineStagesConfig } from "./PipelineStagesConfig";
+import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -24,28 +25,86 @@ type PipelineRow = {
   marketing_pipeline_stages?: { id: string; name: string; position: number }[] | null;
 };
 
-const AUTO_STATUS_OPTIONS = [
-  { value: "none", label: "Nessuno" },
-  { value: "open", label: "Aperta" },
-  { value: "won", label: "Vinta" },
-  { value: "lost", label: "Persa" },
-  { value: "abandoned", label: "Abbandonata" },
-];
-
-const DEFAULT_STAGES: CreateStage[] = [
-  { id: "s-0", name: "Nuovo Lead", auto_status: null },
-  { id: "s-1", name: "Contattato", auto_status: null },
-  { id: "s-2", name: "Qualificato", auto_status: null },
-  { id: "s-3", name: "Proposta", auto_status: null },
-  { id: "s-4", name: "Negoziazione", auto_status: null },
-  { id: "s-5", name: "Chiuso Vinto", auto_status: "won" },
-  { id: "s-6", name: "Chiuso Perso", auto_status: "lost" },
-];
-
 interface CreateStage {
   id: string;
   name: string;
   auto_status: string | null;
+}
+
+type PipelineTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  defaultName: string;
+  stages: { name: string; auto_status: string | null }[];
+};
+
+// Modelli di partenza per la creazione di una sequenza. Il primo e' quello
+// applicato all'apertura del dialog, quindi resta il comportamento storico.
+// Le fasi restano completamente modificabili dopo aver scelto il modello.
+//
+// Sui nomi: NON possono ripetersi dentro lo stesso modello, la create li
+// rifiuta (hasDuplicateNames). Sugli auto_status: "abandoned" e non "lost"
+// per le squalifiche (fuori zona, non qualificato) — sono lead che non sono
+// mai diventati trattative, contarli come persi sporca il tasso di chiusura.
+const PIPELINE_TEMPLATES: PipelineTemplate[] = [
+  {
+    id: "standard",
+    label: "Pipeline standard",
+    description: "Il percorso classico dal lead alla chiusura.",
+    defaultName: "Pipeline Vendita",
+    stages: [
+      { name: "Nuovo Lead", auto_status: null },
+      { name: "Contattato", auto_status: null },
+      { name: "Qualificato", auto_status: null },
+      { name: "Proposta", auto_status: null },
+      { name: "Negoziazione", auto_status: null },
+      { name: "Chiuso Vinto", auto_status: "won" },
+      { name: "Chiuso Perso", auto_status: "lost" },
+    ],
+  },
+  {
+    id: "vendita-edile",
+    label: "Vendita edile (completa)",
+    description: "Copre i casi reali del commerciale: mancate risposte, richiami, fuori zona.",
+    defaultName: "Vendita Edile",
+    stages: [
+      { name: "Da Contattare", auto_status: null },
+      { name: "Non Risponde", auto_status: null },
+      { name: "Da Richiamare più Avanti", auto_status: null },
+      { name: "Appuntamento Fissato", auto_status: null },
+      { name: "In Trattativa", auto_status: null },
+      { name: "Contratto Firmato", auto_status: "won" },
+      { name: "Contratto Perso", auto_status: "lost" },
+      { name: "Fuori Zona", auto_status: "abandoned" },
+      { name: "N° Sbagliato", auto_status: "abandoned" },
+      { name: "Non Qualificato", auto_status: "abandoned" },
+    ],
+  },
+  {
+    id: "sopralluogo-preventivo",
+    label: "Sopralluogo e preventivo",
+    description: "Per chi vende su misura: il preventivo parte solo dopo il sopralluogo.",
+    defaultName: "Sopralluoghi e Preventivi",
+    stages: [
+      { name: "Richiesta Ricevuta", auto_status: null },
+      { name: "Sopralluogo da Fissare", auto_status: null },
+      { name: "Sopralluogo Fissato", auto_status: null },
+      { name: "Preventivo da Inviare", auto_status: null },
+      { name: "Preventivo Inviato", auto_status: null },
+      { name: "Preventivo Accettato", auto_status: "won" },
+      { name: "Preventivo Rifiutato", auto_status: "lost" },
+    ],
+  },
+];
+
+function buildStagesFromTemplate(template: PipelineTemplate): CreateStage[] {
+  const stamp = Date.now();
+  return template.stages.map((stage, idx) => ({
+    id: `s-${idx}-${stamp}`,
+    name: stage.name,
+    auto_status: stage.auto_status,
+  }));
 }
 
 function getErrorMessage(error: unknown) {
@@ -85,12 +144,14 @@ export function PipelinesConfig() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [createStages, setCreateStages] = useState<CreateStage[]>([]);
+  const [templateId, setTemplateId] = useState(PIPELINE_TEMPLATES[0].id);
   const [editName, setEditName] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const validCreateStages = createStages.filter((stage) => normalizeName(stage.name));
   const createHasDuplicateStages = hasDuplicateNames(createStages.map((stage) => stage.name));
+  const activeTemplate = PIPELINE_TEMPLATES.find((t) => t.id === templateId);
 
   const { data: pipelines = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.pipelinesConfig.list(companyId),
@@ -108,9 +169,24 @@ export function PipelinesConfig() {
   });
 
   function openCreateDialog() {
+    setTemplateId(PIPELINE_TEMPLATES[0].id);
     setNewName("");
-    setCreateStages(DEFAULT_STAGES.map((s, i) => ({ ...s, id: `s-${i}-${Date.now()}` })));
+    setCreateStages(buildStagesFromTemplate(PIPELINE_TEMPLATES[0]));
     setCreateOpen(true);
+  }
+
+  function applyTemplate(id: string) {
+    const template = PIPELINE_TEMPLATES.find((t) => t.id === id);
+    if (!template) return;
+    setTemplateId(id);
+    setCreateStages(buildStagesFromTemplate(template));
+    // Il nome digitato dall'utente non va perso: lo sovrascrivo solo se e'
+    // vuoto o se e' ancora quello suggerito da un altro modello.
+    setNewName((prev) => {
+      const current = normalizeName(prev);
+      const isUntouched = !current || PIPELINE_TEMPLATES.some((t) => t.defaultName === current);
+      return isUntouched ? template.defaultName : prev;
+    });
   }
 
   function handleAddCreateStage() {
@@ -315,6 +391,22 @@ export function PipelinesConfig() {
           <DialogHeader><DialogTitle>Nuova Sequenza</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
+              <label className="text-sm font-medium">Parti da un modello</label>
+              <Select value={templateId} onValueChange={applyTemplate}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PIPELINE_TEMPLATES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {activeTemplate?.description} Puoi modificare, aggiungere o eliminare le fasi qui sotto.
+              </p>
+            </div>
+            <div>
               <label className="text-sm font-medium">Nome della sequenza</label>
               <Input
                 placeholder="Es: Pipeline Vendita"
@@ -346,12 +438,15 @@ export function PipelinesConfig() {
                       value={stage.auto_status || "none"}
                       onValueChange={(v) => setCreateStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, auto_status: v === "none" ? null : v } : s))}
                     >
-                      <SelectTrigger className="h-8 text-xs w-[120px]">
+                      <SelectTrigger
+                        className="h-8 text-xs w-[120px]"
+                        title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
+                      >
                         <SelectValue placeholder="Stato" />
                       </SelectTrigger>
                       <SelectContent>
                         {AUTO_STATUS_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          <SelectItem key={opt.value} value={opt.value} title={opt.hint}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -371,6 +466,24 @@ export function PipelinesConfig() {
                 {createStages.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-2">Nessuna fase. Aggiungi almeno una fase.</p>
                 )}
+                {createHasDuplicateStages && (
+                  <p className="text-xs text-destructive pt-1">
+                    Ci sono due fasi con lo stesso nome. Rinominane una per poter creare la sequenza.
+                  </p>
+                )}
+              </div>
+              <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground space-y-1">
+                <p>
+                  La tendina a destra decide lo stato dell'opportunità quando entra nella fase.
+                  Usa <span className="font-medium text-foreground">Persa</span> solo per le trattative
+                  fatte e perse, e <span className="font-medium text-foreground">Abbandonata</span> per
+                  chi non è mai diventato trattativa (numero sbagliato, fuori zona, non qualificato):
+                  così il tasso di chiusura resta reale.
+                </p>
+                <p>
+                  Per far partire un'automazione su una singola fase non serve lo stato: le regole
+                  scattano già sul cambio di fase.
+                </p>
               </div>
             </div>
           </div>

@@ -41,6 +41,44 @@ export const STATUS_OPTIONS = [
   { value: "abandoned", label: "Abbandonata" },
 ] as const;
 
+// Opzioni della colonna "stato automatico" di una fase pipeline: quando
+// un'opportunita' entra nella fase, il suo status diventa questo.
+// Unica fonte per PipelinesConfig (creazione) e PipelineStagesConfig (modifica):
+// prima erano due liste separate che potevano divergere.
+//
+// I 4 stati sono chiusi e non vanno estesi alla leggera: sono la matematica
+// dell'imbuto (forecast, tasso di chiusura, grafici) ed e' hardcodata in ~15
+// punti. Per distinguere i MOTIVI di uscita (numero sbagliato, fuori zona,
+// non qualificato) si usa il nome della fase: le automazioni sanno gia'
+// scattare per singola fase con opportunity_stage_changed + to_stage_id.
+export const AUTO_STATUS_OPTIONS = [
+  {
+    value: "none",
+    label: "Nessuno",
+    hint: "La fase non tocca lo stato dell'opportunità.",
+  },
+  {
+    value: "open",
+    label: "Aperta",
+    hint: "Trattativa viva, resta nel forecast.",
+  },
+  {
+    value: "won",
+    label: "Vinta",
+    hint: "Contratto chiuso: entra nel fatturato e alza il tasso di chiusura.",
+  },
+  {
+    value: "lost",
+    label: "Persa",
+    hint: "Trattativa fatta e persa: abbassa il tasso di chiusura.",
+  },
+  {
+    value: "abandoned",
+    label: "Abbandonata",
+    hint: "Mai diventata trattativa (numero sbagliato, fuori zona, non qualificato): esclusa dal tasso di chiusura.",
+  },
+] as const;
+
 export const STATUS_MAP: Record<string, { label: string; className: string }> = {
   open: { label: "Aperta", className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
   won: { label: "Vinta", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
