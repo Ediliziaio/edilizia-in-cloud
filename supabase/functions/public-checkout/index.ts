@@ -18,6 +18,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -219,6 +221,39 @@ Deno.serve(async (req) => {
     // ── Stripe: customer + Checkout Session (abbonamento) ──
     const appUrl = (await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const base = appUrl.replace(/\/$/, "");
+
+    // ── Email di benvenuto ──
+    // Chi si iscrive da solo e paga non riceveva NULLA: né conferma dell'account,
+    // né link all'app. Solo la ricevuta Stripe. La password se l'è scelta lui nel
+    // form, quindi la CTA porta al login; `?reset=1` resta la via d'uscita se non
+    // se la ricorda. Best-effort: un guasto email non deve fermare il checkout.
+    try {
+      const rendered = await renderEmailTemplate({
+        templateName: "welcome",
+        companyId,
+        platformBranding: true,
+        adminClient: admin,
+        props: {
+          recipientName: firstName || "Admin",
+          loginUrl: `${base}/login`,
+          roleLabel: "Amministratore",
+        },
+      });
+      await sendEmailUnified({
+        companyId,
+        stream: "transactional",
+        to: [email],
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        templateName: "welcome",
+        skipCredits: true,
+        platformSender: true,
+        adminClient: admin,
+      });
+    } catch (e) {
+      console.error("[public-checkout] invio email benvenuto fallito:", (e as Error)?.message);
+    }
 
     let checkoutUrl: string;
     try {

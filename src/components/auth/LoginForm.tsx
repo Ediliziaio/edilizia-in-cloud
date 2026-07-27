@@ -98,6 +98,16 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     return () => controller.abort();
   }, []);
 
+  // Benvenuto → "imposta la password". L'email di benvenuto NON porta un token
+  // (scadeva prima che l'utente cliccasse): porta qui, e il link di reset viene
+  // generato adesso, quando serve davvero.
+  useEffect(() => {
+    if (searchParams.get("reset") !== "1") return;
+    const mail = searchParams.get("email");
+    if (mail) setEmail(mail);
+    setView("forgot");
+  }, [searchParams]);
+
   // Capture referral code from URL
   useEffect(() => {
     const refCode = searchParams.get("ref");

@@ -43,9 +43,16 @@ export async function sendSystemEmail(admin: any, opts: {
       if (dup) return false;
     }
 
+    // IDENTITÀ: qui passa SOLO posta della piattaforma verso il cliente
+    // (benvenuto, ricevuta abbonamento, solleciti, avvisi di sicurezza).
+    // Il branding e il mittente devono quindi essere di EdiliziaInCloud.
+    // `companyId` resta valorizzato per log e attribuzione, ma non deve
+    // decidere chi firma: fino al 27/07/2026 lo faceva, e i clienti hanno
+    // ricevuto email intestate alla loro stessa azienda.
     const rendered = await renderEmailTemplate({
       templateName: opts.templateName as TemplateName,
       companyId: opts.companyId,
+      platformBranding: true,
       adminClient: admin,
       props: opts.props as any,
     });
@@ -59,6 +66,7 @@ export async function sendSystemEmail(admin: any, opts: {
       text: rendered.text,
       templateName: opts.templateName,
       skipCredits: true,
+      platformSender: true,
       adminClient: admin,
       metadata: { system_email: true, dedupe_key: opts.dedupeKey ?? null },
     });

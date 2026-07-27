@@ -62,6 +62,14 @@ export interface UnifiedEmailArgs {
    * delivery logging still apply. Does NOT require the EE apiKey to be set.
    */
   mailboxOverride?: { host: string; port: number; secure: boolean; username: string; password: string };
+  /**
+   * Email della PIATTAFORMA verso il cliente (benvenuto, ricevuta abbonamento,
+   * solleciti di sistema). `companyId` resta valorizzato per il log, ma il
+   * mittente NON deve essere quello del tenant: senza questo flag il cliente
+   * riceve da "<nome della sua stessa azienda> via EdiliziaInCloud", cioè da
+   * se stesso. Bug reale visto in produzione il 27/07/2026.
+   */
+  platformSender?: boolean;
 }
 
 export interface UnifiedEmailResult extends EmailSendResult {
@@ -287,7 +295,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     usingCustomDomain  = Boolean(args.senderOverride.usingCustomDomain);
     senderSource       = args.senderOverride.source ?? "override";
     effectiveReplyTo   = args.senderOverride.replyTo ?? effectiveReplyTo;
-  } else if (args.companyId) {
+  } else if (args.companyId && !args.platformSender) {
     try {
       const resolved = await resolveSender(args.companyId, args.stream, admin);
       fromAddress = resolved.from;

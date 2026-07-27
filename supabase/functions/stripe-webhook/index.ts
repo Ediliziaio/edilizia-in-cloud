@@ -613,6 +613,9 @@ async function handleInvoicePaid(
         dedupeKey: `invoice:${invoice.id}`,
         props: {
           recipientName: contact.firstName || "Admin",
+          // Senza questo l'oggetto usciva come "Pagamento ricevuto — fattura
+          // undefined": il template lo interpola, il webhook non lo passava.
+          invoiceNumber: invoice.number || invoice.id || "—",
           amountFormatted: typeof invoice.amount_paid === "number" ? formatEur(invoice.amount_paid / 100) : "—",
           paymentMethod: "Carta",
           last4,

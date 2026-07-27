@@ -296,23 +296,24 @@ Deno.serve(async (req) => {
         Deno.env.get("SITE_URL") ||
         "";
       const base = siteUrl.replace(/\/$/, "");
-      // CTA benvenuto: link recovery one-shot per far scegliere la password al
-      // nuovo admin (stesso pattern di reset-password-branded). Fallback /login
-      // se la generazione fallisce: la password iniziale dal form resta valida.
-      let loginUrl = base ? `${base}/login` : "";
-      try {
-        const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
-          type: "recovery",
-          email: trimmedAdminEmail,
-          options: { redirectTo: `${base}/reset-password` },
-        });
-        if (linkData?.properties?.action_link) loginUrl = linkData.properties.action_link;
-      } catch (linkErr) {
-        console.warn("[create-company] generateLink recovery fallito, fallback /login:", linkErr);
-      }
+      // CTA benvenuto: link ALLA PAGINA di accesso, non un token.
+      //
+      // Prima qui si generava un link recovery one-shot e lo si incollava
+      // nell'email. Ma quel token comincia a scadere quando l'email PARTE, non
+      // quando l'utente clicca: chi apriva il benvenuto il giorno dopo trovava
+      // "Email link is invalid or has expired" e restava fuori. Successo davvero
+      // (Best Infissi, 21/07: email alle 09:14, primo clic tre giorni dopo).
+      //
+      // Il token va creato quando l'utente lo chiede: `?reset=1` apre il
+      // recupero password già compilato e ne genera uno fresco, valido da
+      // quell'istante. La password iniziale scelta nel form resta comunque buona.
+      const loginUrl = base
+        ? `${base}/login?reset=1&email=${encodeURIComponent(trimmedAdminEmail)}`
+        : "";
       const rendered = await renderEmailTemplate({
         templateName: "welcome",
         companyId,
+        platformBranding: true,
         adminClient: supabaseAdmin,
         props: {
           recipientName: adminFirstName || "Admin",
@@ -329,6 +330,7 @@ Deno.serve(async (req) => {
         text: rendered.text,
         templateName: "welcome",
         skipCredits: true,
+        platformSender: true,
         adminClient: supabaseAdmin,
       });
     } catch (emailErr) {

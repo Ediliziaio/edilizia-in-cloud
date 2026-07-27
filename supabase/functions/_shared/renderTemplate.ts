@@ -185,6 +185,13 @@ export async function renderEmailTemplate(params: {
    * non matchata nel DB si ricade sul default.
    */
   roleVariant?: string | null;
+  /**
+   * Email della PIATTAFORMA verso il cliente: il branding dev'essere quello di
+   * EdiliziaInCloud, non del tenant. Senza, il template `welcome` saluta con
+   * "Benvenuto in <nome dell'azienda del destinatario>!" — cioè lo accoglie
+   * nella sua stessa azienda. `companyId` resta per log e override.
+   */
+  platformBranding?: boolean;
 }): Promise<RenderedTemplate> {
   const admin = params.adminClient ?? createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -206,9 +213,11 @@ export async function renderEmailTemplate(params: {
     );
   }
 
-  const baseBranding = await loadBranding(params.companyId, admin, {
-    unsubscribeUrl: params.unsubscribeUrl,
-  });
+  const baseBranding = await loadBranding(
+    params.platformBranding ? null : params.companyId,
+    admin,
+    { unsubscribeUrl: params.unsubscribeUrl },
+  );
 
   const branding: Branding = {
     ...baseBranding,
