@@ -5,6 +5,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
 import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
+import { notificaInterna } from "../_shared/notificaInterna.ts";
 
 const APP_BASE = "https://app.ediliziaincloud.com";
 
@@ -261,6 +262,35 @@ async function handleCheckoutCompleted(
 
     // Salva la carta come default del customer (pmId null → la funzione la recupera).
     await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, null);
+
+    // Avviso interno: NUOVO CLIENTE PAGANTE. È il fatto che il titolare vuole
+    // sapere subito, quindi non passa dal builder delle automazioni.
+    try {
+      const { data: az } = await supabase
+        .from("companies").select("name, business_name, vat_number").eq("id", companyId).maybeSingle();
+      const { data: piano } = planId
+        ? await supabase.from("subscription_plans").select("name").eq("id", planId).maybeSingle()
+        : { data: null };
+      const importo = typeof session.amount_total === "number" ? formatEur(session.amount_total / 100) : "—";
+      await notificaInterna(supabase, {
+        oggetto: `🎉 Nuovo cliente pagante: ${az?.name ?? "azienda"} — ${importo}`,
+        sommario: `${az?.business_name || az?.name || "Una nuova azienda"} ha completato l'iscrizione e il primo pagamento.`,
+        dettagli: [
+          ["Azienda", az?.business_name || az?.name || "—"],
+          ["P.IVA", az?.vat_number || "—"],
+          ["Piano", piano?.name || "—"],
+          ["Periodo", session.metadata?.billing_period === "yearly" ? "Annuale" : "Mensile"],
+          ["Importo", importo],
+          ["Metodo", "Stripe"],
+          ["Data", formatDateIt(new Date())],
+        ],
+        url: `${APP_BASE}/admin/aziende/${companyId}`,
+        urlLabel: "Apri la scheda azienda",
+        dedupeKey: `nuovo_cliente:${companyId}`,
+      });
+    } catch (e) {
+      console.warn("[stripe-webhook] avviso interno nuovo cliente fallito:", (e as Error)?.message);
+    }
     return;
   }
 
@@ -626,6 +656,26 @@ async function handleInvoicePaid(
     }
   } catch (e) {
     console.warn("[stripe-webhook] email payment_received fallita:", (e as Error)?.message);
+  }
+
+  // Avviso interno: OGNI incasso, anche i rinnovi. Stessa dedupe della ricevuta
+  // al cliente (invoice.id), così un riascolto dell'evento Stripe non duplica.
+  try {
+    await notificaInterna(supabase, {
+      oggetto: `💰 Incasso ${typeof invoice.amount_paid === "number" ? formatEur(invoice.amount_paid / 100) : ""} — ${company.name ?? "cliente"}`.trim(),
+      sommario: `Pagamento ricevuto da ${company.name ?? "un cliente"}.`,
+      dettagli: [
+        ["Azienda", company.name ?? "—"],
+        ["Importo", typeof invoice.amount_paid === "number" ? formatEur(invoice.amount_paid / 100) : "—"],
+        ["Fattura Stripe", invoice.number || invoice.id || "—"],
+        ["Data", formatDateIt(new Date())],
+      ],
+      url: invoice.hosted_invoice_url || `${APP_BASE}/admin/aziende/${company.id}`,
+      urlLabel: invoice.hosted_invoice_url ? "Vedi la fattura Stripe" : "Apri la scheda azienda",
+      dedupeKey: `incasso:${invoice.id}`,
+    });
+  } catch (e) {
+    console.warn("[stripe-webhook] avviso interno incasso fallito:", (e as Error)?.message);
   }
 
   // Trigger di PIATTAFORMA: pagamento abbonamento ricevuto (best-effort).
