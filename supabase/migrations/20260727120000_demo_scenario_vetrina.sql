@@ -14,6 +14,16 @@
 --   3. è recuperabile — se il cron resta fermo due settimane, la corsa successiva
 --      riallinea l'intero periodo scoperto invece di lasciare un buco.
 --
+-- COPERTURA: 635 eventi dal 30/07/2026 al 18/09/2027 — 36 commesse complete
+-- (acconto, due avanzamenti, chiusura, saldo), 9 delle quali con il saldo mai
+-- incassato perché la demo deve avere sempre uno scaduto da mostrare.
+--
+-- Il piano si estende OLTRE i 12 mesi (fino a settembre 2027) di proposito: la
+-- coda serve a chiudere le commesse aperte a luglio. Tagliare gli eventi a una
+-- data secca lascia cantieri che si aprono e non si chiudono mai — errore fatto
+-- nella prima stesura a 6 mesi e corretto con un controllo di integrità che
+-- verifica, per ogni commessa, la presenza dell'intera catena.
+--
 -- APPLICATA IN PRODUZIONE il 27/07/2026 via execute_sql (il repo NON è allineato
 -- al DB: 362 migration non applicate, mai usare `supabase db push`).
 -- Questo file è documentazione dello schema reale, non uno script da rieseguire.
