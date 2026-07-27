@@ -1,17 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-
-// Stesso destinatario e stessa scelta di public-lead-submit: hardcoded per
-// affidabilita'. Quando stava in un platform_setting, dimenticarsi di
-// configurarlo significava perdere lead in silenzio.
-const ADMIN_LEAD_NOTIFY_EMAIL = "flo.andriciuc@gmail.com";
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;"
-  );
-}
 
 async function hashIP(ip: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -179,7 +167,7 @@ Deno.serve(async (req) => {
     // Get form definition
     const { data: form, error: formError } = await supabase
       .from("lead_forms")
-      // name serve all'oggetto della notifica admin ("Nuovo lead da <form>")
+      // name serve al payload dell'evento automazione (form_name)
       .select("id, name, company_id, fields, settings, theme, is_published, is_active")
       .eq("id", form_id)
       .single();
@@ -385,61 +373,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Evento automazione + notifica admin ───────────────────────────────
-    // Mancavano entrambi: i form del Form Builder creavano il contatto e poi
-    // tacevano. Nessuna email a nessuno e nessun evento, quindi nemmeno le
-    // automazioni potevano reagire — mentre il modulo del sito EiC
-    // (public-lead-submit) faceva gia' tutte e due le cose.
-    // Best-effort: un errore qui non deve far perdere un lead gia' salvato.
-    if (contactId) {
-      try {
-        await supabase.from("automation_trigger_events").insert({
-          company_id: form.company_id,
-          trigger_event: "form_submitted",
-          entity_id: contactId,
-          entity_type: "contact",
-          payload: {
-            form_id,
-            form_name: form.name ?? null,
-            submission_id: submission?.id ?? null,
-            contact_id: contactId,
-            source: "form_builder",
-          },
-        });
-      } catch (evErr) {
-        console.warn("[form-submit] evento automazione non emesso:", evErr);
-      }
-    }
-
-    try {
-      const nomeLead = [cleanText(mappedFirstName), cleanText(mappedLastName)]
-        .filter(Boolean).join(" ") || validEmail || phone || "Lead";
-      const subjectLine = `🔔 Nuovo lead da ${form.name ?? "form"}: ${nomeLead}`;
-      const righe = Object.entries(formData)
-        .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== "")
-        .map(([k, v]) =>
-          `<tr><td style="padding:6px 0;color:#64748b">${escapeHtml(k)}</td><td style="padding:6px 0">${escapeHtml(String(v))}</td></tr>`)
-        .join("");
-
-      await sendEmailUnified({
-        companyId: null,
-        stream: "transactional",
-        to: ADMIN_LEAD_NOTIFY_EMAIL,
-        subject: subjectLine,
-        html: `
-          <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:auto">
-            <h2 style="margin:0 0 16px;font-size:18px">${escapeHtml(subjectLine)}</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:14px">${righe}</table>
-            <p style="margin-top:16px;color:#64748b;font-size:12px">Form: ${escapeHtml(form.name ?? form_id)}</p>
-          </div>`,
-        text: `${subjectLine}\n\n${Object.entries(formData).map(([k, v]) => `${k}: ${v}`).join("\n")}`,
-        templateName: "admin_new_lead_notification",
-        ...(validEmail ? { replyTo: validEmail } : {}),
-        metadata: { contact_id: contactId, form_id, submission_id: submission?.id ?? null },
-      });
-    } catch (notifyErr) {
-      console.warn("[form-submit] notifica admin non inviata:", notifyErr);
-    }
+    // Evento automazione e notifica NON stanno qui.
+    // Le emette il trigger DB fire_form_submission_automation su
+    // form_submissions (stesso schema delle altre 16 fire_*_automation), e la
+    // mail parte dai flussi "Notifica lead — <brand>", uno per form, filtrati
+    // su form_id. Duplicarli qui manderebbe due email per ogni richiesta.
 
     // Attach attribution if session_id exists
     if (session_id && contactId) {
