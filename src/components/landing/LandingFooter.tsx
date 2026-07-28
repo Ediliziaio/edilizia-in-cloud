@@ -139,7 +139,17 @@ export default function LandingFooter() {
         {/* Bottom bar */}
         <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-[#111111]/65 text-sm">
-            © 2026 Domus Group S.r.l. — Tutti i diritti riservati.
+            © 2026 Domus Group S.r.l. — Tutti i diritti riservati. Fondata da{" "}
+            {/* Anchor branded costante verso l'entità fondatore: consolida la persona
+                come entità unica del gruppo AEDIX agli occhi di Google e degli LLM. */}
+            <a
+              href="https://www.florinandriciuc.com/chi-sono"
+              rel="author"
+              className="font-medium text-[#111111] hover:text-[#F97415] transition-colors"
+            >
+              Florin Andriciuc
+            </a>
+            .
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#111111]/65 justify-center md:justify-end">
             <Link to="/privacy-policy/" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
