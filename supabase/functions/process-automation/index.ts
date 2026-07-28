@@ -1050,40 +1050,54 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const tags: string[] = (Array.isArray(ncfg.tags) ? ncfg.tags : [ncfg.tag_name])
         .filter((t: unknown): t is string => typeof t === "string" && t.trim() !== "");
       if (tags.length === 0) return { success: false, error: "No tag_name configured" };
-      const { data: contact } = await supabase
+      // Il contatto DEVE esistere: `.single()` con maybeSingle-like silenzioso
+      // faceva partire una update su zero righe e il nodo dichiarava comunque
+      // successo. Su Suntech i 7 lead risultavano taggati nel Registro e nel
+      // CRM avevano tags vuoti: un'azione che mente è peggio di una che fallisce.
+      const { data: contact, error: readErr } = await supabase
         .from("marketing_contacts")
         .select("tags")
         .eq("id", entityId)
         .eq("company_id", companyId)
-        .single();
+        .maybeSingle();
+      if (readErr) return { success: false, error: `Lettura contatto fallita: ${readErr.message}` };
+      if (!contact) return { success: false, error: "Contatto non trovato per questa azienda" };
       const currentTags: string[] = contact?.tags || [];
       const merged = [...new Set([...currentTags, ...tags])];
       if (merged.length !== currentTags.length) {
-        await supabase
+        const { data: righe, error: upErr } = await supabase
           .from("marketing_contacts")
           .update({ tags: merged })
           .eq("id", entityId)
-          .eq("company_id", companyId);
+          .eq("company_id", companyId)
+          .select("id");
+        if (upErr) return { success: false, error: `Tag non salvati: ${upErr.message}` };
+        if (!righe || righe.length === 0) {
+          return { success: false, error: "Tag non salvati: nessuna riga aggiornata" };
+        }
       }
-      return { success: true, output: { action: "add_tag", tags } };
+      return { success: true, output: { action: "add_tag", tags, applied: merged } };
     }
 
     case "remove_tag": {
       const tags: string[] = (Array.isArray(ncfg.tags) ? ncfg.tags : [ncfg.tag_name])
         .filter((t: unknown): t is string => typeof t === "string" && t.trim() !== "");
       if (tags.length === 0) return { success: false, error: "No tag_name configured" };
-      const { data: contact } = await supabase
+      const { data: contact, error: readErr } = await supabase
         .from("marketing_contacts")
         .select("tags")
         .eq("id", entityId)
         .eq("company_id", companyId)
-        .single();
+        .maybeSingle();
+      if (readErr) return { success: false, error: `Lettura contatto fallita: ${readErr.message}` };
+      if (!contact) return { success: false, error: "Contatto non trovato per questa azienda" };
       const currentTags: string[] = contact?.tags || [];
-      await supabase
+      const { error: upErr } = await supabase
         .from("marketing_contacts")
         .update({ tags: currentTags.filter((t: string) => !tags.includes(t)) })
         .eq("id", entityId)
         .eq("company_id", companyId);
+      if (upErr) return { success: false, error: `Tag non rimossi: ${upErr.message}` };
       return { success: true, output: { action: "remove_tag", tags } };
     }
 

@@ -34,7 +34,7 @@ import { WorkflowImpostazioni } from "./tabs/WorkflowImpostazioni";
 import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
-import { type CatalogItem } from "@/lib/flow-node-catalog";
+import { getCatalogItem, type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle, Wand2, Monitor } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -968,6 +968,31 @@ export function FlowBuilderPage() {
       // Action without type configured
       if (n.type === "action" && !n.data?.itemId && !n.data?.action_type) {
         errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Azione", tipo: "errore", messaggio: "Azione non configurata — apri il nodo e scegli il tipo di azione." });
+      }
+
+      // Campi obbligatori del catalogo non compilati.
+      // PRIMA mancava del tutto: si controllava che l'azione avesse un TIPO, mai
+      // che avesse i suoi campi required. Un nodo "Notifica interna" senza
+      // messaggio passava i controlli, si pubblicava, e poi il motore lo
+      // rifiutava a ogni contatto ("Nessun messaggio configurato") — 21 lead
+      // falliti su Suntech prima che ce ne accorgessimo. Vale per OGNI nodo.
+      const itemId = String(n.data?.itemId ?? n.data?.action_type ?? n.data?.trigger_event ?? "");
+      if (itemId) {
+        const mancanti = (getCatalogItem(itemId)?.configSchema ?? [])
+          .filter((f) => f.required)
+          .filter((f) => {
+            const v = (n.data as Record<string, unknown> | undefined)?.[f.id];
+            if (Array.isArray(v)) return v.length === 0;
+            return v == null || (typeof v === "string" && v.trim() === "");
+          });
+        if (mancanti.length > 0) {
+          errs.push({
+            nodeId: n.id,
+            nodeLabel: n.data?.label || "Nodo",
+            tipo: "errore",
+            messaggio: `Campi obbligatori non compilati: ${mancanti.map((f) => f.label).join(", ")}.`,
+          });
+        }
       }
 
       // Condition without field

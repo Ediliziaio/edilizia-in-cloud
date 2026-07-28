@@ -2,6 +2,11 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
+import {
+  NOTIFICATION_TEMPLATES,
+  templatePerTrigger,
+  variabiliNonRisolvibili,
+} from "@/lib/notification-templates";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -306,6 +311,18 @@ export function FlowBuilderConfigPanel({
             />
           )}
 
+          {/* Template pronti per i nodi che spediscono un messaggio.
+              Un riquadro vuoto è il motivo per cui un nodo "Notifica interna"
+              è finito in produzione senza testo: qui si parte da un modello. */}
+          {!isSpecialized && schema.some((f) => f.id === "messaggio") && (
+            <TemplateMessaggioPicker
+              config={nodeData}
+              onPatch={handlePatch}
+              triggerItemId={triggerItemId}
+              haOggetto={schema.some((f) => f.id === "oggetto")}
+            />
+          )}
+
           {/* Generic fields from configSchema (only if NOT specialized) */}
           {!isSpecialized && schema.map((field) => (
             <ConfigField
@@ -402,6 +419,78 @@ export function FlowBuilderConfigPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ── Template pronti per i messaggi di notifica ──
+//
+// Due lavori in uno: dare un punto di partenza scritto bene (un riquadro vuoto
+// resta vuoto, e a runtime il nodo fallisce) e avvisare quando il testo contiene
+// una variabile che il motore non sa risolvere — quella non dà errore, lascia
+// un buco nel messaggio e nessuno se ne accorge.
+function TemplateMessaggioPicker({
+  config,
+  onPatch,
+  triggerItemId,
+  haOggetto,
+}: {
+  config: Record<string, any>;
+  onPatch: (patch: Record<string, any>) => void;
+  triggerItemId?: string;
+  haOggetto: boolean;
+}) {
+  const templates = useMemo(() => templatePerTrigger(triggerItemId), [triggerItemId]);
+  const suggeriti = useMemo(
+    () => new Set(templates.filter((t) => t.triggerSuggeriti?.includes(triggerItemId ?? "")).map((t) => t.id)),
+    [templates, triggerItemId],
+  );
+  const buchi = useMemo(
+    () => variabiliNonRisolvibili(`${config.messaggio ?? ""} ${config.oggetto ?? ""}`),
+    [config.messaggio, config.oggetto],
+  );
+
+  const applica = (id: string) => {
+    const t = NOTIFICATION_TEMPLATES.find((x) => x.id === id);
+    if (!t) return;
+    onPatch(haOggetto ? { oggetto: t.oggetto, messaggio: t.messaggio } : { messaggio: t.messaggio });
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed bg-muted/40 p-3">
+      <Label className="text-xs font-medium">Parti da un modello</Label>
+      <Select value="" onValueChange={applica}>
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder="Scegli un modello…" />
+        </SelectTrigger>
+        <SelectContent>
+          {templates.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              <span className="flex flex-col items-start">
+                <span className="flex items-center gap-1.5">
+                  {t.label}
+                  {suggeriti.has(t.id) && (
+                    <span className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary">
+                      consigliato
+                    </span>
+                  )}
+                </span>
+                <span className="text-[11px] text-muted-foreground">{t.descrizione}</span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-[11px] text-muted-foreground">
+        Sovrascrive {haOggetto ? "oggetto e messaggio" : "il messaggio"}. Poi personalizzalo come vuoi.
+      </p>
+      {buchi.length > 0 && (
+        <p className="text-[11px] font-medium text-amber-600">
+          Attenzione: {buchi.map((b) => `{{contatto.${b}}}`).join(", ")}{" "}
+          {buchi.length === 1 ? "non esiste" : "non esistono"} e {buchi.length === 1 ? "verrà sostituita" : "verranno sostituite"} con
+          uno spazio vuoto nel messaggio inviato.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,0 +1,72 @@
+-- ============================================================================
+-- Demo Azienda 2 — copione vetrina esteso al 31/12/2027 e allargato a tutte le aree
+-- ============================================================================
+-- Applicato in produzione via execute_sql il 28/07/2026 (NON usare `supabase db push`:
+-- il repo non e' allineato al live, vedi memoria eic-migration-backlog).
+--
+-- COSA CAMBIA rispetto a 20260727120000_demo_scenario_vetrina.sql
+--
+-- 1. Il piano passa da 635 a 1293 eventi e da 6 a 13 tipi. Copertura 03/02/2026 →
+--    31/12/2027. Le commesse nuove partono al piu' tardi il 20/10/2027 perche' la
+--    catena completa (acconto → 2 avanzamenti → chiusura → saldo → incasso a +21gg)
+--    deve chiudersi entro il 31/12: nessuna commessa resta aperta a fine piano.
+--
+-- 2. Sei aree nuove, che prima restavano ferme o vuote: preventivi, post social
+--    PUBBLICATI, campagne email inviate, recensioni con risposta AI, messaggi
+--    WhatsApp dal cantiere, timbrature. Social e recensioni erano a ZERO righe:
+--    il piano parte da febbraio 2026 proprio per riempire anche lo storico.
+--
+-- 3. Le timbrature sono un batch SETTIMANALE (evento ogni venerdi, genera lun→ven
+--    di quella settimana per tutti gli hr_profili). A mese la pagina Presenze
+--    sarebbe rimasta indietro fino a 30 giorni.
+--
+-- TRAPPOLE INCONTRATE (ognuna faceva fallire l'intero blocco)
+--   * demo_scenario_eventi.tipo aveva una CHECK con i soli 6 tipi originali.
+--   * whatsapp_messages.ai_intent  ∈ rapportino|ddt|foto_cantiere|presenze|
+--     segnalazione|domanda|conferma|annulla|unknown
+--   * reputation_reviews: source ∈ Google|Facebook|Sito|Manuale,
+--     status ∈ pubblicata|da_rispondere|risposta|critica,
+--     sentiment ∈ positivo|neutro|critico
+--   * social_posts.status ∈ draft|scheduled|published|failed|review
+--   * hr_timbrature.data_evento/ora_evento sono GENERATED: si valorizza solo timestamp
+--   * quote_items.line_total e' GENERATED
+--   * quotes.created_by ed email_campaigns.created_by sono NOT NULL senza default
+--
+-- IL BUG STRUTTURALE CHIUSO QUI: demo_scenario_applica aveva una catena if/elsif
+-- senza ramo finale. Un tipo sconosciuto NON entrava in nessun ramo, ma usciva
+-- comunque marcato applicato_at=now(), esito='ok' — cioe' il piano avrebbe
+-- dichiarato di aver fatto 658 cose senza farne nessuna, in silenzio. Ora c'e' un
+-- `else` che delega a demo_scenario_applica_estensioni e ne propaga l'esito, e il
+-- conteggio usa `esito like 'ok%'` invece di `esito = 'ok'`.
+--
+-- COLLAUDO: applicazione dell'intero piano fino al 31/12/2027 dentro un blocco che
+-- termina con RAISE (quindi rollback) → applicati=1293, falliti=0, saltati=0.
+-- Poi applicazione reale fino a CURRENT_DATE → 70 eventi di storico.
+--
+-- Il cron `demo-scenario-vetrina-daily` (04:15) non e' stato toccato: chiama la
+-- stessa demo_scenario_applica, quindi eredita i nuovi tipi senza modifiche.
+-- ============================================================================
+
+alter table demo_scenario_eventi drop constraint if exists demo_scenario_eventi_tipo_check;
+alter table demo_scenario_eventi add constraint demo_scenario_eventi_tipo_check
+  check (tipo = any (array['commessa','avanzamento','chiusura','fattura','incasso','movimento','lead',
+                           'preventivo','social','campagna','recensione','whatsapp','timbrature']));
+
+-- Le sei aree nuove vivono in una funzione separata, cosi' l'applicatore storico
+-- resta leggibile e una nuova area si aggiunge qui senza rimetterci mano.
+-- Corpo completo: vedi produzione (pg_get_functiondef).
+--   demo_scenario_applica_estensioni(p_company_id, p_admin, p_tipo, p_data, p_payload, p_evento_id)
+--   → 'preventivo'  quotes + 3 quote_items (materiale/manodopera/servizio) con prezzo_acquisto,
+--                   date coerenti con l'esito (inviato/visto/accettato/rifiutato/scaduto)
+--   → 'social'      social_posts status='published' + publish_result, piattaforme da payload
+--   → 'campagna'    email_campaigns status='sent', destinatari = contatti esistenti a quella data
+--   → 'recensione'  reputation_reviews, risposta AI e sentiment derivati dal voto
+--   → 'whatsapp'    whatsapp_messages inbound gia' classificati
+--   → 'timbrature'  entrata+uscita lun→ven della settimana dell'evento, per ogni hr_profili
+
+-- In demo_scenario_applica, dopo il ramo 'movimento':
+--   else
+--     v_esito := demo_scenario_applica_estensioni(p_company_id, v_admin, e.tipo,
+--                                                 e.data_evento, e.payload, e.id);
+--   end if;
+-- e v_admin := primo profiles della company per created_at.

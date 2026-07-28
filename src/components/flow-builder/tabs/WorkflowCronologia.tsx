@@ -378,11 +378,18 @@ export function WorkflowCronologia({ flowId }: Props) {
         .select("status")
         .eq("flow_id", flowId!);
       const all = data ?? [];
+      // Gli stati ammessi da automation_enrollments_status_check sono:
+      // active | paused | completed | canceled | waiting | removed | failed.
+      // "error" NON esiste: contarlo teneva il riquadro Errori fisso a 0 mentre
+      // le righe sotto mostravano "failed" in rosso. Stessa storia per i
+      // contatti in attesa su un nodo ritardo, che sparivano da ogni riquadro.
+      const conta = (...stati: string[]) =>
+        all.filter((r: any) => stati.includes(r.status)).length;
       return {
         total: all.length,
-        active: all.filter((r: any) => r.status === "active").length,
-        completed: all.filter((r: any) => r.status === "completed").length,
-        error: all.filter((r: any) => r.status === "error").length,
+        active: conta("active", "waiting", "paused"),
+        completed: conta("completed"),
+        error: conta("failed"),
       };
     },
     enabled: !!flowId,
