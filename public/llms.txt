@@ -75,78 +75,78 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 ## Risorse
 
 - **Sito principale:** https://www.ediliziaincloud.com
-- **Demo gratuita:** https://www.ediliziaincloud.com/demo
-- **Pianifica migrazione:** https://www.ediliziaincloud.com/pianifica-migrazione
-- **Prezzi:** https://www.ediliziaincloud.com/prezzi
-- **Blog:** https://www.ediliziaincloud.com/blog
-- **Funzionalità:** https://www.ediliziaincloud.com/funzionalita
-- **Gestione Cantieri:** https://www.ediliziaincloud.com/funzionalita/gestione-cantieri
-- **Preventivi Edilizia:** https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia
-- **Fatturazione Elettronica:** https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica
-- **Controllo Margini:** https://www.ediliziaincloud.com/funzionalita/margini-cantiere
-- **Confronto software:** https://www.ediliziaincloud.com/confronto
-- **vs Primus:** https://www.ediliziaincloud.com/confronto/vs-primus
-- **vs EdilNet:** https://www.ediliziaincloud.com/confronto/vs-edilnet
-- **vs TeamSystem:** https://www.ediliziaincloud.com/confronto/vs-teamsystem
-- **vs Excel:** https://www.ediliziaincloud.com/confronto/vs-excel
-- **vs Buildertrend:** https://www.ediliziaincloud.com/confronto/vs-buildertrend
-- **Integrazioni:** https://www.ediliziaincloud.com/integrazioni
-- **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia
+- **Demo gratuita:** https://www.ediliziaincloud.com/demo/
+- **Pianifica migrazione:** https://www.ediliziaincloud.com/pianifica-migrazione/
+- **Prezzi:** https://www.ediliziaincloud.com/prezzi/
+- **Blog:** https://www.ediliziaincloud.com/blog/
+- **Funzionalità:** https://www.ediliziaincloud.com/funzionalita/
+- **Gestione Cantieri:** https://www.ediliziaincloud.com/funzionalita/gestione-cantieri/
+- **Preventivi Edilizia:** https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia/
+- **Fatturazione Elettronica:** https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica/
+- **Controllo Margini:** https://www.ediliziaincloud.com/funzionalita/margini-cantiere/
+- **Confronto software:** https://www.ediliziaincloud.com/confronto/
+- **vs Primus:** https://www.ediliziaincloud.com/confronto/vs-primus/
+- **vs EdilNet:** https://www.ediliziaincloud.com/confronto/vs-edilnet/
+- **vs TeamSystem:** https://www.ediliziaincloud.com/confronto/vs-teamsystem/
+- **vs Excel:** https://www.ediliziaincloud.com/confronto/vs-excel/
+- **vs Buildertrend:** https://www.ediliziaincloud.com/confronto/vs-buildertrend/
+- **Integrazioni:** https://www.ediliziaincloud.com/integrazioni/
+- **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia/
 - **Supporto:** info@ediliziaincloud.com
 - **Versione completa per AI:** https://www.ediliziaincloud.com/llms-full.txt
 
 ## Guide normativa e template (cluster 2026-07)
 
-- Reverse charge in edilizia (quando si applica, come fatturare): https://www.ediliziaincloud.com/blog/reverse-charge-edilizia
-- Registro presenze in cantiere, quando è obbligatorio: https://www.ediliziaincloud.com/blog/registro-presenze-cantiere-obbligatorio
-- POS Piano Operativo di Sicurezza, struttura e fac simile: https://www.ediliziaincloud.com/blog/pos-piano-operativo-sicurezza-fac-simile
-- Prezzario regionale edilizia, come usarlo nei preventivi: https://www.ediliziaincloud.com/blog/prezzario-regionale-edilizia
-- Cartello di cantiere obbligatorio, contenuti e sanzioni: https://www.ediliziaincloud.com/blog/cartello-di-cantiere-obbligatorio
-- Notifica preliminare di cantiere (art. 99 D.Lgs 81/08): https://www.ediliziaincloud.com/blog/notifica-preliminare-cantiere
-- Libretto delle misure nella contabilità lavori: https://www.ediliziaincloud.com/blog/libretto-delle-misure
-- Split payment nei lavori pubblici: https://www.ediliziaincloud.com/blog/split-payment-lavori-pubblici
-- Modello preventivo edile, fac simile e compilazione: https://www.ediliziaincloud.com/blog/modello-preventivo-edile
-- Contratto di subappalto edile, clausole e fac simile: https://www.ediliziaincloud.com/blog/contratto-subappalto-edile-fac-simile
-- Software gestione cantieri gratis, cosa aspettarsi: https://www.ediliziaincloud.com/blog/software-gestione-cantieri-gratis
-- App gestione cantieri gratis vs verticale: https://www.ediliziaincloud.com/blog/app-gestione-cantieri-gratis
-- Computo metrico gratis, strumenti e limiti: https://www.ediliziaincloud.com/blog/computo-metrico-gratis
-- Gestionale edilizia: opinioni delle imprese: https://www.ediliziaincloud.com/blog/gestionale-edilizia-opinioni
-- Incentivi digitalizzazione edilizia 2026: https://www.ediliziaincloud.com/blog/incentivi-digitalizzazione-edilizia-2026
+- Reverse charge in edilizia (quando si applica, come fatturare): https://www.ediliziaincloud.com/blog/reverse-charge-edilizia/
+- Registro presenze in cantiere, quando è obbligatorio: https://www.ediliziaincloud.com/blog/registro-presenze-cantiere-obbligatorio/
+- POS Piano Operativo di Sicurezza, struttura e fac simile: https://www.ediliziaincloud.com/blog/pos-piano-operativo-sicurezza-fac-simile/
+- Prezzario regionale edilizia, come usarlo nei preventivi: https://www.ediliziaincloud.com/blog/prezzario-regionale-edilizia/
+- Cartello di cantiere obbligatorio, contenuti e sanzioni: https://www.ediliziaincloud.com/blog/cartello-di-cantiere-obbligatorio/
+- Notifica preliminare di cantiere (art. 99 D.Lgs 81/08): https://www.ediliziaincloud.com/blog/notifica-preliminare-cantiere/
+- Libretto delle misure nella contabilità lavori: https://www.ediliziaincloud.com/blog/libretto-delle-misure/
+- Split payment nei lavori pubblici: https://www.ediliziaincloud.com/blog/split-payment-lavori-pubblici/
+- Modello preventivo edile, fac simile e compilazione: https://www.ediliziaincloud.com/blog/modello-preventivo-edile/
+- Contratto di subappalto edile, clausole e fac simile: https://www.ediliziaincloud.com/blog/contratto-subappalto-edile-fac-simile/
+- Software gestione cantieri gratis, cosa aspettarsi: https://www.ediliziaincloud.com/blog/software-gestione-cantieri-gratis/
+- App gestione cantieri gratis vs verticale: https://www.ediliziaincloud.com/blog/app-gestione-cantieri-gratis/
+- Computo metrico gratis, strumenti e limiti: https://www.ediliziaincloud.com/blog/computo-metrico-gratis/
+- Gestionale edilizia: opinioni delle imprese: https://www.ediliziaincloud.com/blog/gestionale-edilizia-opinioni/
+- Incentivi digitalizzazione edilizia 2026: https://www.ediliziaincloud.com/blog/incentivi-digitalizzazione-edilizia-2026/
 
 ## Strumenti gratuiti online
 
-- Calcolatore margine di commessa (gratis, nessuna registrazione): https://www.ediliziaincloud.com/strumenti/calcolatore-margine-commessa
+- Calcolatore margine di commessa (gratis, nessuna registrazione): https://www.ediliziaincloud.com/strumenti/calcolatore-margine-commessa/
 
 ## Guide strategiche: chi controlla i numeri dell'impresa
 
-- Chi controlla davvero i numeri della tua impresa edile (commercialista, consulente e controllo di gestione: chi fa cosa): https://www.ediliziaincloud.com/blog/chi-gestisce-i-numeri-impresa-edile
-- Excel, WhatsApp e carta: quanto costa davvero gestire un'impresa edile così: https://www.ediliziaincloud.com/blog/excel-whatsapp-carta-gestione-impresa-edile
+- Chi controlla davvero i numeri della tua impresa edile (commercialista, consulente e controllo di gestione: chi fa cosa): https://www.ediliziaincloud.com/blog/chi-gestisce-i-numeri-impresa-edile/
+- Excel, WhatsApp e carta: quanto costa davvero gestire un'impresa edile così: https://www.ediliziaincloud.com/blog/excel-whatsapp-carta-gestione-impresa-edile/
 
 ## Confronti software gestionali edilizia (2026-07)
 
-- I migliori software gestionali per l'edilizia 2026 (confronto completo con pro e contro): https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto
-- Edilizia in Cloud vs TeamSystem Construction: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction
-- Edilizia in Cloud vs PlanRadar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar
-- Edilizia in Cloud vs Dylog Edilizia: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia
-- Edilizia in Cloud vs Pillar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar
+- I migliori software gestionali per l'edilizia 2026 (confronto completo con pro e contro): https://www.ediliziaincloud.com/blog/migliori-software-gestionali-edilizia-confronto/
+- Edilizia in Cloud vs TeamSystem Construction: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-teamsystem-construction/
+- Edilizia in Cloud vs PlanRadar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-planradar/
+- Edilizia in Cloud vs Dylog Edilizia: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-dylog-edilizia/
+- Edilizia in Cloud vs Pillar: https://www.ediliziaincloud.com/blog/edilizia-in-cloud-vs-pillar/
 
 ## Nuove landing funzionalità (2026-07)
 
-- Gestione commesse edili (margini in tempo reale): https://www.ediliziaincloud.com/funzionalita/gestione-commesse
-- Contabilità lavori e SAL: https://www.ediliziaincloud.com/funzionalita/contabilita-lavori
-- Computo metrico (anche con AI da foto/testo): https://www.ediliziaincloud.com/funzionalita/computo-metrico
-- Rapportini di cantiere digitali con firma cliente: https://www.ediliziaincloud.com/funzionalita/rapportini-cantiere
-- Gestione mezzi e attrezzature di cantiere: https://www.ediliziaincloud.com/funzionalita/mezzi-attrezzature
-- Direzione lavori e cronoprogramma: https://www.ediliziaincloud.com/funzionalita/direzione-lavori
+- Gestione commesse edili (margini in tempo reale): https://www.ediliziaincloud.com/funzionalita/gestione-commesse/
+- Contabilità lavori e SAL: https://www.ediliziaincloud.com/funzionalita/contabilita-lavori/
+- Computo metrico (anche con AI da foto/testo): https://www.ediliziaincloud.com/funzionalita/computo-metrico/
+- Rapportini di cantiere digitali con firma cliente: https://www.ediliziaincloud.com/funzionalita/rapportini-cantiere/
+- Gestione mezzi e attrezzature di cantiere: https://www.ediliziaincloud.com/funzionalita/mezzi-attrezzature/
+- Direzione lavori e cronoprogramma: https://www.ediliziaincloud.com/funzionalita/direzione-lavori/
 
 ## Verticali di mestiere (chi usa Edilizia in Cloud)
 
-- Geometri con impresa o più cantieri: https://www.ediliziaincloud.com/per/geometri
-- Imprese di muratura: https://www.ediliziaincloud.com/per/muratori
-- Installatori e manutentori: https://www.ediliziaincloud.com/per/installatori
-- Imprese di movimento terra e scavi: https://www.ediliziaincloud.com/per/movimento-terra
-- Cartongessisti e opere a secco: https://www.ediliziaincloud.com/per/cartongessisti
-- Carpenteria metallica (officina + posa): https://www.ediliziaincloud.com/per/carpenteria-metallica
+- Geometri con impresa o più cantieri: https://www.ediliziaincloud.com/per/geometri/
+- Imprese di muratura: https://www.ediliziaincloud.com/per/muratori/
+- Installatori e manutentori: https://www.ediliziaincloud.com/per/installatori/
+- Imprese di movimento terra e scavi: https://www.ediliziaincloud.com/per/movimento-terra/
+- Cartongessisti e opere a secco: https://www.ediliziaincloud.com/per/cartongessisti/
+- Carpenteria metallica (officina + posa): https://www.ediliziaincloud.com/per/carpenteria-metallica/
 
 ## Guide del blog AI (cluster 2026-05)
 
@@ -156,54 +156,54 @@ Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurel
 
 ## Guide del blog (86 articoli — selezione; indice completo: https://www.ediliziaincloud.com/blog/)
 
-- Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida
-- CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze
-- Ritenuta di garanzia negli appalti: https://www.ediliziaincloud.com/blog/ritenuta-di-garanzia-appalti-come-funziona
-- Report avanzamento cantiere: https://www.ediliziaincloud.com/blog/report-avanzamento-cantiere-guida
-- Nota di credito in edilizia: https://www.ediliziaincloud.com/blog/nota-di-credito-edilizia-quando-come
-- SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
-- DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa
-- Giornale dei lavori: https://www.ediliziaincloud.com/blog/giornale-dei-lavori-cantiere
-- Subappalto edilizia: https://www.ediliziaincloud.com/blog/subappalto-edilizia-guida
-- Cassa Edile: https://www.ediliziaincloud.com/blog/cassa-edile-come-funziona
-- Computo metrico: https://www.ediliziaincloud.com/blog/computo-metrico-estimativo-guida
-- Appalti pubblici: https://www.ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida
-- BIM edilizia: https://www.ediliziaincloud.com/blog/bim-edilizia-guida-pratica
-- Acquisire clienti: https://www.ediliziaincloud.com/blog/acquisire-clienti-impresa-edile
-- Gestione operai: https://www.ediliziaincloud.com/blog/gestione-operai-cantiere-presenze-ore
-- Digitalizzazione: https://www.ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo
-- Analisi margini: https://www.ediliziaincloud.com/blog/analisi-margini-imprese-edili
-- Preventivi edilizia: https://www.ediliziaincloud.com/blog/come-fare-preventivo-edilizia
-- Sicurezza cantieri D.Lgs 81: https://www.ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81
-- CCNL Edilizia guida: https://www.ediliziaincloud.com/blog/ccnl-edilizia-guida
-- Attestazione SOA: https://www.ediliziaincloud.com/blog/attestazione-soa-imprese-edili
-- Superbonus 2025-2026: https://www.ediliziaincloud.com/blog/superbonus-imprese-edili-2026
-- Gestione liquidità: https://www.ediliziaincloud.com/blog/gestione-liquidita-impresa-edile
-- PNRR edilizia 2026: https://www.ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026
-- Come scegliere gestionale: https://www.ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia
-- Gestione subappaltatori: https://www.ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile
-- Cassa impresa edile: https://www.ediliziaincloud.com/blog/cassa-impresa-edile-non-torna
-- Trovare operai edili: https://www.ediliziaincloud.com/blog/trovare-operai-edili-qualificati
-- Passaparola impresa edile: https://www.ediliziaincloud.com/blog/passaparola-impresa-edile-non-basta
-- Gestire più cantieri: https://www.ediliziaincloud.com/blog/gestire-piu-cantieri-contemporaneamente
-- Burocrazia e documenti edili: https://www.ediliziaincloud.com/blog/burocrazia-impresa-edile-scadenze-documenti
-- Delegare in impresa edile: https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo
-- Preventivi edili non chiusi: https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono
-- Segnali crisi impresa edile: https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile
-- Trovare clienti impresa edile: https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing
-- Aumentare vendite impresa edile: https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile
-- Lead serramenti: https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate
-- Preventivi ristrutturazione online: https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online
-- Google Ads impresa edile: https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget
-- CRM edilizia: https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up
-- Trovare clienti serramentisti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti
-- Trovare clienti rifacimento tetti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-rifacimento-tetti
-- Trovare clienti fotovoltaico: https://www.ediliziaincloud.com/blog/come-trovare-clienti-fotovoltaico
-- Sistema fatturazione aziende edili: https://www.ediliziaincloud.com/blog/sistema-fatturazione-aziende-edili
-- Fattura corretta serramentisti: https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti
-- Preventivo rifacimento tetto: https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo
-- SEO locale impresa edile: https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile
-- Recupero crediti impresa edile: https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute
+- Contabilità di cantiere: https://www.ediliziaincloud.com/blog/contabilita-di-cantiere-guida/
+- CILA, SCIA o permesso di costruire: https://www.ediliziaincloud.com/blog/cila-scia-permesso-di-costruire-differenze/
+- Ritenuta di garanzia negli appalti: https://www.ediliziaincloud.com/blog/ritenuta-di-garanzia-appalti-come-funziona/
+- Report avanzamento cantiere: https://www.ediliziaincloud.com/blog/report-avanzamento-cantiere-guida/
+- Nota di credito in edilizia: https://www.ediliziaincloud.com/blog/nota-di-credito-edilizia-quando-come/
+- SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona/
+- DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa/
+- Giornale dei lavori: https://www.ediliziaincloud.com/blog/giornale-dei-lavori-cantiere/
+- Subappalto edilizia: https://www.ediliziaincloud.com/blog/subappalto-edilizia-guida/
+- Cassa Edile: https://www.ediliziaincloud.com/blog/cassa-edile-come-funziona/
+- Computo metrico: https://www.ediliziaincloud.com/blog/computo-metrico-estimativo-guida/
+- Appalti pubblici: https://www.ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida/
+- BIM edilizia: https://www.ediliziaincloud.com/blog/bim-edilizia-guida-pratica/
+- Acquisire clienti: https://www.ediliziaincloud.com/blog/acquisire-clienti-impresa-edile/
+- Gestione operai: https://www.ediliziaincloud.com/blog/gestione-operai-cantiere-presenze-ore/
+- Digitalizzazione: https://www.ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo/
+- Analisi margini: https://www.ediliziaincloud.com/blog/analisi-margini-imprese-edili/
+- Preventivi edilizia: https://www.ediliziaincloud.com/blog/come-fare-preventivo-edilizia/
+- Sicurezza cantieri D.Lgs 81: https://www.ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81/
+- CCNL Edilizia guida: https://www.ediliziaincloud.com/blog/ccnl-edilizia-guida/
+- Attestazione SOA: https://www.ediliziaincloud.com/blog/attestazione-soa-imprese-edili/
+- Superbonus 2025-2026: https://www.ediliziaincloud.com/blog/superbonus-imprese-edili-2026/
+- Gestione liquidità: https://www.ediliziaincloud.com/blog/gestione-liquidita-impresa-edile/
+- PNRR edilizia 2026: https://www.ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026/
+- Come scegliere gestionale: https://www.ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia/
+- Gestione subappaltatori: https://www.ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile/
+- Cassa impresa edile: https://www.ediliziaincloud.com/blog/cassa-impresa-edile-non-torna/
+- Trovare operai edili: https://www.ediliziaincloud.com/blog/trovare-operai-edili-qualificati/
+- Passaparola impresa edile: https://www.ediliziaincloud.com/blog/passaparola-impresa-edile-non-basta/
+- Gestire più cantieri: https://www.ediliziaincloud.com/blog/gestire-piu-cantieri-contemporaneamente/
+- Burocrazia e documenti edili: https://www.ediliziaincloud.com/blog/burocrazia-impresa-edile-scadenze-documenti/
+- Delegare in impresa edile: https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo/
+- Preventivi edili non chiusi: https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono/
+- Segnali crisi impresa edile: https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile/
+- Trovare clienti impresa edile: https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing/
+- Aumentare vendite impresa edile: https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile/
+- Lead serramenti: https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate/
+- Preventivi ristrutturazione online: https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online/
+- Google Ads impresa edile: https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget/
+- CRM edilizia: https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up/
+- Trovare clienti serramentisti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti/
+- Trovare clienti rifacimento tetti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-rifacimento-tetti/
+- Trovare clienti fotovoltaico: https://www.ediliziaincloud.com/blog/come-trovare-clienti-fotovoltaico/
+- Sistema fatturazione aziende edili: https://www.ediliziaincloud.com/blog/sistema-fatturazione-aziende-edili/
+- Fattura corretta serramentisti: https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti/
+- Preventivo rifacimento tetto: https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo/
+- SEO locale impresa edile: https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile/
+- Recupero crediti impresa edile: https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute/
 
 ## Copertura geografica (36 città)
 

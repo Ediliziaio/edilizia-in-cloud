@@ -386,6 +386,26 @@ async function main() {
           `  <meta name="x-prerendered" content="${new Date().toISOString()}">\n  </head>`,
         );
 
+        // ── Canonicalizzazione dei link interni ───────────────────────────
+        // Il canonico del sito e' www + https + BARRA FINALE, e il middleware
+        // Cloudflare fa 301 su tutto il resto. I <Link to="/prezzi"> di React
+        // Router pero' scrivono href SENZA barra: Googlebot li segue, prende un
+        // 301 e archivia l'URL come "Pagina con reindirizzamento".
+        // In Search Console erano 106 pagine, e la convalida falliva sempre
+        // perche' non c'era niente da correggere lato Google: il redirect e'
+        // voluto e permanente. La cura e' smettere di ESPORRE quegli URL.
+        // Qui, in un punto solo, invece che nei 221 punti dove nascono.
+        // Saltiamo: URL esterni, ancore, query, file con estensione, la radice.
+        html = html.replace(
+          /(<a\b[^>]*\shref=")(\/[^"#?]*)(")/gi,
+          (match, pre, href, post) => {
+            if (href === "/" || href.endsWith("/")) return match;
+            if (/\.[a-z0-9]{2,8}$/i.test(href)) return match;
+            if (href.startsWith("/cdn-cgi/")) return match;
+            return `${pre}${href}/${post}`;
+          },
+        );
+
         // ── Safe CSS optimizations (no JS deferral, no DOM mutation) ──
         // JS loads normally so React hydrates immediately → menu, animations,
         // buttons, chat all work as expected. Only strip CSS that is truly
