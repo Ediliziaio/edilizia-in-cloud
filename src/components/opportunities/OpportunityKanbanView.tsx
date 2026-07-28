@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, memo, forwardRef, useRef } from "react";
+import { useMemo, useState, useCallback, memo, forwardRef, useRef, useEffect } from "react";
 import {
   DndContext, pointerWithin, rectIntersection, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
@@ -102,7 +102,18 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
             <h3 className="text-sm font-bold text-foreground leading-snug truncate">{stage.name}</h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] font-semibold bg-muted rounded-full px-1.5 py-0.5 text-muted-foreground">{opportunities.length}</span>
+            {/* Conteggio della fase. Era 10px grigio su fondo grigio: c'era, ma
+                l'occhio non lo trovava. Ora prende il colore della fase — lo
+                stesso del bordo superiore — cosi' il numero si legge di colpo e
+                si capisce a quale colonna appartiene. tabular-nums perche' da
+                due cifre in su la pillola non balli. */}
+            <span
+              className="text-xs font-bold tabular-nums rounded-full px-2 py-0.5 text-white shadow-sm"
+              style={{ backgroundColor: hashColor(stage.name) }}
+              title={`${opportunities.length} opportunità in "${stage.name}"`}
+            >
+              {opportunities.length}
+            </span>
             {canEdit && onQuickAdd && (
               // Quick-add con fase pre-selezionata (standard kanban CRM):
               // prima l'unico "Aggiungi" era globale in header.
@@ -295,9 +306,87 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
     deleteOpp.mutate(id);
   }, [deleteOpp, canEdit]);
 
+  // ── Frecce per navigare tra le fasi ──
+  // Compaiono solo dal lato dove c'e' davvero altro da vedere: se le fasi ci
+  // stanno tutte non appare niente, e la vista resta pulita.
+  const contenitoreFasiRef = useRef<HTMLDivElement | null>(null);
+  const [frecceVisibili, setFrecceVisibili] = useState({ sinistra: false, destra: false });
+
+  const aggiornaFrecce = useCallback(() => {
+    const el = contenitoreFasiRef.current;
+    if (!el) return;
+    const restaADestra = el.scrollWidth - el.clientWidth - el.scrollLeft;
+    setFrecceVisibili((prec) => {
+      // 4px di tolleranza: gli arrotondamenti sub-pixel dello zoom browser
+      // facevano lampeggiare la freccia a fine corsa.
+      const succ = { sinistra: el.scrollLeft > 4, destra: restaADestra > 4 };
+      return prec.sinistra === succ.sinistra && prec.destra === succ.destra ? prec : succ;
+    });
+  }, []);
+
+  const scorriFasi = useCallback((direzione: 1 | -1) => {
+    const el = contenitoreFasiRef.current;
+    if (!el) return;
+    // Un "passo" e' l'80% della larghezza visibile: si avanza di quasi uno
+    // schermo lasciando una colonna di contesto, cosi' non si perde il filo.
+    el.scrollBy({ left: direzione * el.clientWidth * 0.8, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    aggiornaFrecce();
+    const el = contenitoreFasiRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    // Il ridimensionamento della finestra e il collasso di una colonna cambiano
+    // quanto resta da scorrere: senza observer le frecce restavano bloccate.
+    const ro = new ResizeObserver(aggiornaFrecce);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [aggiornaFrecce, stages.length, collapsedStages]);
+
   return (
     <>
-      <div className="w-full h-full overflow-x-auto overflow-y-hidden">
+      {/* Navigazione tra le fasi.
+          Prima ci si affidava alla sola scrollbar del sistema: su macOS e'
+          overlay, compare mentre scorri e svanisce, quindi con dieci fasi non
+          si capiva che le colonne continuavano oltre il bordo. Provato a
+          forzarla con ::-webkit-scrollbar: NON funziona piu', Chrome rispetta
+          l'impostazione di sistema e la barra resta a zero pixel (verificato).
+          Quindi niente scrollbar: due frecce vere, che compaiono solo dal lato
+          in cui c'e' altro da vedere. Un bottone da 32px si clicca, una barra
+          da 10px si insegue. Le regole ::-webkit-scrollbar restano perche' su
+          Windows e Linux la barra classica esiste e cosi' e' meno invadente. */}
+      <div className="relative w-full h-full">
+        {frecceVisibili.sinistra && (
+          <button
+            type="button"
+            aria-label="Fasi precedenti"
+            onClick={() => scorriFasi(-1)}
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-20 h-8 w-8 flex items-center justify-center rounded-full border bg-background/95 shadow-md backdrop-blur hover:bg-muted transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
+        {frecceVisibili.destra && (
+          <button
+            type="button"
+            aria-label="Fasi successive"
+            onClick={() => scorriFasi(1)}
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-20 h-8 w-8 flex items-center justify-center rounded-full border bg-background/95 shadow-md backdrop-blur hover:bg-muted transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
+      <div
+        ref={contenitoreFasiRef}
+        onScroll={aggiornaFrecce}
+        className={cn(
+        "w-full h-full overflow-x-auto overflow-y-hidden",
+        "[scrollbar-width:thin]",
+        "[&::-webkit-scrollbar]:h-2.5",
+        "[&::-webkit-scrollbar-track]:bg-muted/40 [&::-webkit-scrollbar-track]:rounded-full",
+        "[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 [&::-webkit-scrollbar-thumb]:rounded-full",
+        "hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60",
+      )}>
         <DndContext
           sensors={sensors}
           collisionDetection={collisionDetection}
@@ -333,6 +422,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
             ) : null}
           </DragOverlay>
         </DndContext>
+      </div>
       </div>
 
       <OpportunityDetailDialog
