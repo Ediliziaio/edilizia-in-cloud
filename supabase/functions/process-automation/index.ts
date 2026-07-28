@@ -1177,11 +1177,21 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       }
 
       if (!userId) return { success: false, error: "No assign_to_user_id configured" };
-      await supabase
+      // Stessa storia di add_tag: l'esito della scrittura non veniva letto e il
+      // nodo diceva "assegnato" comunque. E `assigned_to` era uno dei 13 campi
+      // che il trigger fire_marketing_automation rifiutava (fix db87a5a5d):
+      // ogni assegnazione automatica di un lead a un venditore falliva in
+      // silenzio, e nel CRM il lead restava senza titolare.
+      const { data: righeAss, error: assErr } = await supabase
         .from("marketing_contacts")
         .update({ assigned_to: userId })
         .eq("id", entityId)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id");
+      if (assErr) return { success: false, error: `Assegnazione non salvata: ${assErr.message}` };
+      if (!righeAss || righeAss.length === 0) {
+        return { success: false, error: "Assegnazione non salvata: contatto non trovato per questa azienda" };
+      }
       return { success: true, output: { action: "assign_user", userId, strategia } };
     }
 
