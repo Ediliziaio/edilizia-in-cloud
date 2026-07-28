@@ -10,6 +10,24 @@ import { linkifyNormative } from "@/lib/blog/normativeLinks";
 import { linkifyInternal } from "@/lib/blog/internalLinks";
 import { BlogCover } from "@/components/blog/BlogCover";
 
+/**
+ * Domini del nostro stesso gruppo: i link verso questi NON prendono nofollow.
+ * Mettere in nofollow una proprieta' nostra significa spendere un link e non
+ * passarne il valore. Aggiungere qui i brand nuovi, senza "www.".
+ */
+const OWN_BRAND_HOSTS = [
+  "numerinedilizia.com",
+  "aedix.it",
+  "edilizia.io",
+  "guidaedile.it",
+  "guidaserramenti.it",
+  "imprenditoredile.it",
+  "clientiedili.com",
+  "marketingedile.com",
+  "venditaedile.it",
+  "florinandriciuc.com",
+];
+
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
   "Finanza": "bg-emerald-100 text-emerald-700",
@@ -337,18 +355,31 @@ export default function BlogPost() {
       const m = part.match(/^\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)$/);
       if (!m) return <span key={i}>{linkify(part)}</span>;
       const [, label, url] = m;
-      if (url.startsWith("http"))
+      if (url.startsWith("http")) {
+        // I nostri stessi brand NON vanno in nofollow: sarebbe buttare via il
+        // segnale verso proprieta' nostre. E niente noreferrer, così il sito di
+        // destinazione vede da dove arriva il traffico nei suoi analytics.
+        // Per tutto il resto (competitor citati nei confronti) resta nofollow.
+        const isOwnBrand = OWN_BRAND_HOSTS.some((h) => {
+          try {
+            const host = new URL(url).hostname.replace(/^www\./, "");
+            return host === h || host.endsWith(`.${h}`);
+          } catch {
+            return false;
+          }
+        });
         return (
           <a
             key={i}
             href={url}
             target="_blank"
-            rel="nofollow noopener noreferrer"
+            rel={isOwnBrand ? "noopener" : "nofollow noopener noreferrer"}
             className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
           >
             {label}
           </a>
         );
+      }
       return (
         <Link key={i} to={url} className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]">
           {label}

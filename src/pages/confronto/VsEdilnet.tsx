@@ -518,9 +518,9 @@ export default function VsEdilnet() {
                 d: (
                   <>
                     <a
-                      href="https://numerinedilizia.com/"
+                      href="https://www.numerinedilizia.com/"
                       target="_blank"
-                      rel="nofollow noopener noreferrer"
+                      rel="noopener"
                       className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
                     >
                       Numeri in Edilizia

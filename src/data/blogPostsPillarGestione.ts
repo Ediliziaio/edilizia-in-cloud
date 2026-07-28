@@ -201,6 +201,11 @@ export const blogPostsPillarGestione: BlogPost[] = [
         body: "Nelle imprese da 5 a 30 persone la risposta è quasi sempre una sola: tu.\n\nNon perché sei il più bravo con i numeri. Perché sei l'unico che può decidere qualcosa dopo averli letti. Un impiegato può preparare i dati e tenerli in ordine. La decisione di fermare un cantiere che perde la prendi tu, e la prendi solo se hai guardato.\n\nQuando l'azienda cresce puoi passare la preparazione all'amministrazione. La lettura resta tua, sempre. Un titolare che non sa dire a memoria come sta andando la commessa più grossa non sta guidando l'azienda: la sta accompagnando dove vuole andare lei.\n\nE se ti sembra tempo tolto al cantiere, fai il conto al contrario. Quanto ti è costato l'ultimo lavoro andato male che hai scoperto troppo tardi? Quell'ora del lunedì costa molto meno.",
       },
       {
+        type: "section",
+        heading: "Se la risposta è nessuno",
+        body: "Nella maggior parte delle imprese edili i numeri li tiene il titolare, la sera, quando ha finito tutto il resto. Non è un problema di volontà: controllare la gestione è un lavoro pieno, e chi guida i cantieri quelle ore non ce le ha.\n\nAssumere un controller interno costa, e sotto una certa dimensione non si giustifica. La via di mezzo esiste: [Numeri in Edilizia](https://www.numerinedilizia.com/) porta il controllo di gestione dentro l'impresa come servizio, senza scaricartelo sulle spalle.",
+      },
+      {
         type: "cta",
         heading: "Vuoi vedere i tuoi margini mentre i cantieri sono ancora aperti?",
         body: "Edilizia in Cloud tiene insieme ore, costi, commesse e cassa, e ti mostra il margine di ogni cantiere aggiornato giorno per giorno. Puoi partire dal piano gratuito, provare tutto per 31 giorni e farti fare un preventivo su misura in una consulenza gratuita, dopo aver visto i tuoi numeri veri.",
@@ -398,6 +403,11 @@ export const blogPostsPillarGestione: BlogPost[] = [
         type: "section",
         heading: "Cosa cambia davvero il giorno dopo",
         body: "Non aspettarti la rivoluzione. Aspettati due cose concrete.\n\nLa prima: smetti di ricostruire. Il venerdì sera le ore ci sono già, con sopra il cantiere. Il lunedì non devi telefonare a nessuno per sapere a che punto sei.\n\nLa seconda: cominci a scoprire i problemi mentre puoi ancora risolverli. Un cantiere che va storto lo vedi alla terza settimana e non al saldo. È la differenza tra decidere e prendere atto.\n\nIl resto viene da sé. Quando i costi stanno tutti sotto la [commessa giusta](/funzionalita/gestione-commesse/), il preventivo successivo lo fai sui tuoi numeri veri e non su quelli che ti ricordi.\n\nC'è poi una terza cosa, e non è un numero. In ufficio smettono di chiamarti per ogni domanda. Se il dato sta scritto dove tutti lo vedono, la risposta non deve passare per forza da te.\n\nÈ il primo passo vero verso il delegare. Non puoi affidare un cantiere a qualcuno se le informazioni per governarlo stanno solo nella tua testa.\n\nNon è tecnologia. È solo smettere di far passare ogni informazione attraverso la tua memoria.",
+      },
+      {
+        type: "section",
+        heading: "Raccogliere i dati è metà del lavoro",
+        body: "Uscire da Excel e dai messaggi sparsi risolve la raccolta: i dati smettono di perdersi per strada. Resta aperta l'altra metà, cioè leggerli — capire quali commesse rendono davvero, dove finisce il margine, se la struttura di costi regge la crescita.\n\nQuella seconda metà è il controllo di gestione, e [Numeri in Edilizia](https://www.numerinedilizia.com/) lo porta nelle imprese edili come servizio continuativo.",
       },
       {
         type: "cta",

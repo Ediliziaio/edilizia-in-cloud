@@ -114,6 +114,11 @@ export const blogPosts: BlogPost[] = [
         body: "Il primo passo è fare un audit onesto dei propri processi: dove si perde più tempo? Dove ci sono i maggiori sprechi? Il secondo passo è scegliere uno strumento digitale specifico per l'edilizia — non un gestionale generico — che includa timbratura cantiere, gestione commesse e fatturazione integrata. Il terzo passo è formare il team in modo graduale, iniziando dai capicontiere e poi estendendo agli operai. Le imprese che seguono questo approccio raggiungono il 90% di adozione in meno di 30 giorni.",
       },
       {
+        type: "section",
+        heading: "Tagliare i costi senza sapere quali è il modo più veloce per peggiorare",
+        body: "La riduzione dei costi funziona quando sai quali costi stanno davvero erodendo il margine. Fatta a sentimento colpisce quasi sempre le voci sbagliate: si risparmia sui materiali e si perde in rilavorazioni, si taglia il coordinamento e si allungano i tempi.\n\nSe vuoi partire dai numeri invece che dalle impressioni, [Numeri in Edilizia](https://www.numerinedilizia.com/) è il servizio di controllo di gestione dedicato alle imprese edili.",
+      },
+      {
         type: "cta",
         heading: "Vuoi Ridurre i Tuoi Costi di Cantiere?",
         body: "Scopri come Edilizia in Cloud può aiutarti a implementare queste 7 strategie in modo semplice e immediato. Richiedi una demo gratuita e personalizzata per la tua impresa.",
@@ -399,6 +404,11 @@ export const blogPosts: BlogPost[] = [
         type: "section",
         heading: "Errori che Erodono i Margini Senza che Te ne Accorga",
         body: "I principali margine-killer nelle imprese edili sono: le varianti non formalizzate (lavori extra eseguiti senza ordine scritto che finiscono a carico dell'impresa), i ritardi di cantiere non imputabili al committente (che aumentano il costo del lavoro senza incremento del ricavo), i materiali sovraordinati (che rimangono a magazzino e generano perdite per obsolescenza), e la sottostima del tempo di coordinamento nei preventivi. Ogni uno di questi errori, se sistematico, può erodere 2-5 punti di margine netto.",
+      },
+      {
+        type: "section",
+        heading: "Quando conoscere i margini non basta più",
+        body: "Calcolare il margine per commessa è il primo passo, non l'ultimo. Il passo dopo è decidere cosa farci: quali lavori rifiutare, come ribaltare i costi indiretti, a che punto un cantiere va fermato invece che finito in perdita. Quello non è più analisi dei margini, è controllo di gestione, ed è un mestiere a sé.\n\nSe in azienda non c'è nessuno che se ne occupa stabilmente, [Numeri in Edilizia](https://www.numerinedilizia.com/) è il servizio che lo fa per le imprese edili: costruisce il sistema di controllo, lo tiene aggiornato e ti siede accanto quando i numeri vanno letti.",
       },
       {
         type: "cta",
@@ -2398,6 +2408,11 @@ export const blogPosts: BlogPost[] = [
         body: "Non puoi migliorare quello che non misuri. Ecco i KPI finanziari che ogni titolare di impresa edile dovrebbe controllare settimanalmente: Saldo di cassa attuale (saldo banca + cassa contante + carte aziendali). Days Sales Outstanding (DSO) — media dei giorni che passano dalla presentazione del SAL all'incasso: dovrebbe essere sotto 60 giorni. Days Payable Outstanding (DPO) — media dei giorni che passi prima di pagare i fornitori: idealmente sopra 45 giorni. Cash Conversion Cycle (DSO - DPO) — se è positivo, stai finanziando il ciclo con denaro tuo. Se è negativo, sei tu a essere finanziato dalla catena fornitori/clienti (ottimo). Rapporto tra crediti in scadenza e debiti in scadenza nei prossimi 30 giorni — deve sempre essere maggiore di 1. Saldo previsto a 30 e 60 giorni.",
       },
       {
+        type: "section",
+        heading: "Il piano di cassa da solo non basta",
+        body: "Un piano di cassa ti dice quando i soldi finiscono. Non ti dice perché, né quale commessa te li sta mangiando, né se il problema è strutturale o è solo un incasso in ritardo. Per saperlo devi legare la cassa ai margini per cantiere.\n\n[Numeri in Edilizia](https://www.numerinedilizia.com/) fa esattamente questo per le imprese edili: mette liquidità, redditività e previsione in un sistema unico.",
+      },
+      {
         type: "cta",
         heading: "Controlla la tua liquidità in tempo reale con Edilizia in Cloud",
         body: "Dashboard finanziaria con previsione a 90 giorni, tracciamento SAL e scadenzario fornitori integrato. Smetti di gestire le emergenze — inizia a pianificare. Prova gratis 31 giorni, cancella quando vuoi, nessun obbligo.",
@@ -2795,6 +2810,11 @@ export const blogPosts: BlogPost[] = [
         type: "section",
         heading: "Piano operativo in 14 giorni",
         body: "Raccogli fatture scadute, SAL maturati, fornitori da pagare, costi fissi e lavori in partenza. Poi crea una previsione semplice: cosa entra, cosa esce e quali cantieri assorbono cassa. In due settimane puoi già vedere se il problema è incasso lento, preventivi troppo bassi, costi fuori controllo o lavori accettati senza anticipo sufficiente.",
+      },
+      {
+        type: "section",
+        heading: "Fatturato e cassa sono due numeri diversi",
+        body: "Un anno può chiudersi con l'utile a bilancio e il conto in rosso: sono due misure che rispondono a domande diverse, e confonderle è la causa più comune delle crisi di liquidità nelle imprese edili che stanno crescendo.\n\nTenere insieme margini, cassa e previsione è esattamente il lavoro di [Numeri in Edilizia](https://www.numerinedilizia.com/), che porta il controllo di gestione nelle imprese edili senza chiedere loro di diventare uffici amministrativi.",
       },
       {
         type: "cta",
@@ -5148,6 +5168,11 @@ export const blogPosts: BlogPost[] = [
         body: "Errore 1: cantieri 'off-system' parzialmente — l'AI funziona solo se vede il 100% del flusso. Errore 2: dipendenti che timbrano 'global' senza scegliere cantiere — inquina i dati. Errore 3: ignorare gli alert 'perché tanto so io come va' — il 92% degli alert nel 2025 erano corretti.",
       },
       {
+        type: "section",
+        heading: "L'AI mostra i numeri, qualcuno deve deciderci sopra",
+        body: "Un sistema che segnala lo scostamento di margine mentre accade ti toglie il problema di accorgertene tardi. Non ti toglie quello di decidere: rinegoziare, tagliare, accettare la perdita per proteggere il rapporto col cliente. Quelle scelte hanno bisogno di un metodo, non di un altro cruscotto.\n\nÈ il lavoro che fa [Numeri in Edilizia](https://www.numerinedilizia.com/): controllo di gestione per imprese edili, costruito sui dati che già produci.",
+      },
+      {
         type: "cta",
         heading: "Vedi i margini del tuo prossimo cantiere in tempo reale",
         body: "Carica il preventivo di un cantiere attivo su Edilizia in Cloud e inizia a monitorare margine giorno per giorno. Primo alert arriva entro 3-5 giorni dal primo segnale di deriva.",
@@ -5637,6 +5662,11 @@ export const blogPosts: BlogPost[] = [
         type: "section",
         heading: "Errori Classici (e Come Evitarli)",
         body: "Valorizzare la manodopera alla paga base invece che al costo aziendale: sottostimi il costo del 60-90% e i margini sembrano belli finché non arriva il bilancio. Registrare i costi solo quando arriva la fattura: un subappalto da 40.000€ eseguito a giugno e fatturato a settembre ti fa credere per tre mesi che il cantiere vada bene. Non ribaltare mai i costi indiretti: tutte le commesse sembrano in utile, l'azienda no. Contare come ricavo la fattura d'acconto invece del maturato: stai misurando la cassa, non la produzione. E il più insidioso: tenere il sistema su fogli Excel separati che nessuno aggiorna — la contabilità industriale funziona solo se i dati entrano una volta sola, dal cantiere, mentre le cose succedono.",
+      },
+      {
+        type: "section",
+        heading: "Dalla contabilità di cantiere al controllo di gestione",
+        body: "La contabilità di cantiere registra quello che è successo. Il controllo di gestione serve a decidere quello che succederà: quali commesse accettare, con che margine minimo, quando l'azienda regge un cantiere in più e quando invece si sta indebitando per lavorare.\n\nSono due cose diverse, e la seconda quasi nessuna impresa edile la fa davvero. [Numeri in Edilizia](https://www.numerinedilizia.com/) nasce per questo.",
       },
       {
         type: "cta",
