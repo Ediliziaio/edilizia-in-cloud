@@ -1,0 +1,55 @@
+-- ============================================================================
+-- FIX CRITICO: fire_marketing_automation() rifiutava ogni modifica ai contatti
+-- ============================================================================
+-- Applicato in produzione via execute_sql il 28/07/2026.
+--
+-- IL BUG
+-- Il trigger costruiva l'elenco dei campi cambiati cosi':
+--
+--     _changed text[];
+--     _changed := _changed || 'email';
+--
+-- `_changed` e' text[] e 'email' e' una costante di tipo *unknown*. Postgres,
+-- dovendo scegliere fra `anyarray || anyelement` (append) e `anyarray ||
+-- anyarray` (concatenazione), risolve il secondo: prova a leggere 'email' come
+-- array letterale e solleva
+--
+--     ERROR: 22P02 malformed array literal: "email"
+--     DETAIL: Array value must start with "{" or dimension information.
+--
+-- Il trigger e' AFTER UPDATE, quindi l'eccezione ABORTISCE la transazione.
+--
+-- L'IMPATTO, che era molto piu' largo di come si presentava
+-- Qualunque UPDATE su marketing_contacts che cambiasse anche uno solo di questi
+-- 13 campi veniva rifiutato dal database, su TUTTI i tenant:
+--   email, phone, first_name, last_name, city, address, province, region,
+--   postal_code, source, assigned_to, tags, company_name
+-- Cioe': nessuno poteva correggere il telefono o l'indirizzo di un contatto dal
+-- CRM. Gli update che toccavano solo altri campi (lead_score, note...) passavano,
+-- ed e' per questo che il problema non saltava all'occhio.
+--
+-- COME E' VENUTO FUORI
+-- Da un sintomo minuscolo: su Suntech il nodo "Aggiungi tag" delle automazioni
+-- risultava eseguito con successo nel Registro, ma nel CRM i tag erano vuoti su
+-- tutti e 7 i lead. L'azione non controllava l'esito della scrittura e
+-- restituiva successo comunque (corretto nello stesso giro, commit 8afaadbd0).
+-- Tolta quella bugia, sotto c'era questo.
+--
+-- LA LEZIONE
+-- In PL/pgSQL non usare `array || 'letterale'` per appendere: o `array_append()`
+-- o almeno `|| 'letterale'::text`. Con una costante senza tipo la risoluzione
+-- dell'operatore non e' quella che sembra.
+--
+-- VERIFICA (con rollback, su un contatto della vetrina Demo 2)
+--   prima: update su phone  -> malformed array literal: "phone"
+--   dopo:  phone OK; tags OK; email+city+company_name OK; 3 eventi generati
+-- ============================================================================
+
+-- Il corpo completo e' identico all'originale tranne le 13 righe di append.
+-- Vedi produzione (pg_get_functiondef) per il sorgente vigente.
+--
+--   PRIMA:  IF NEW.email IS DISTINCT FROM OLD.email THEN _changed := _changed || 'email'; END IF;
+--   DOPO:   IF NEW.email IS DISTINCT FROM OLD.email THEN _changed := array_append(_changed, 'email'); END IF;
+--
+-- ...e cosi' per phone, first_name, last_name, city, address, province, region,
+-- postal_code, source, assigned_to, tags, company_name.
