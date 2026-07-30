@@ -161,6 +161,40 @@ export const ARUBA_STATUS_MAP: Record<string, ProviderStatusResult["internalStat
   "Decorrenza termini": "delivered", // 10 — DT (PA)
 };
 
+/**
+ * Traduce i messaggi di Aruba in qualcosa su cui l'utente possa agire.
+ * Aruba risponde con frasi come "Errore deleghe utente", corrette dal suo punto
+ * di vista e inutili dal nostro: chi le legge non sa se ha sbagliato password,
+ * se gli manca un servizio o se deve chiamare l'assistenza. Il messaggio
+ * originale resta in coda, serve quando si apre un ticket con loro.
+ */
+export function spiegaErroreAruba(e: unknown): string {
+  const raw = String(e instanceof Error ? e.message : e);
+  const t = raw.toLowerCase();
+  const coda = ` (messaggio di Aruba: "${raw.slice(0, 160)}")`;
+
+  if (t.includes("delegh")) {
+    return "Questa utenza non ha deleghe attive su nessuna azienda. Di solito significa che il servizio " +
+      "Fatturazione Elettronica non e' ancora attivo sull'account, oppure che l'utenza e' un sub-utente " +
+      "a cui non e' stata assegnata la delega sulla partita IVA. Si sistema dal pannello Aruba." + coda;
+  }
+  if (t.includes("credenziali non valide") || t.includes("invalid_grant") || t.includes("http 401")) {
+    return "Utenza o password non riconosciute. Attenzione: servono le credenziali del pannello " +
+      "Fatturazione Elettronica (nella forma XXXXXX_YYYY), non l'email e la password dell'area clienti Aruba." + coda;
+  }
+  if (t.includes("limite 1/min") || t.includes("429")) {
+    return "Aruba consente un solo tentativo di accesso al minuto. Aspetta sessanta secondi e riprova." + coda;
+  }
+  if (t.includes("http 403")) {
+    return "Aruba ha rifiutato la richiesta: l'accesso alle API non risulta abilitato su questa utenza. " +
+      "Va attivato dal pannello Aruba, nella sezione dedicata ai servizi web." + coda;
+  }
+  if (t.includes("http 5")) {
+    return "I server di Aruba hanno risposto con un errore momentaneo. Non dipende dai dati inseriti: riprova piu' tardi." + coda;
+  }
+  return raw;
+}
+
 export async function arubaSignin(username: string, password: string, demo = false): Promise<ArubaToken> {
   const r = await fetch(`${ARUBA_AUTH(demo)}/auth/signin`, {
     method: "POST",
@@ -265,14 +299,32 @@ export class ArubaAdapter implements BillingProviderAdapter {
   }
 
   async testConnection() {
+    // Il collegamento fa DUE passi e prima li confondeva in un errore solo: il
+    // cliente leggeva il messaggio grezzo di Aruba (es. "Errore deleghe utente")
+    // senza sapere se era colpa della password o della configurazione del suo
+    // account. Ora si sa sempre quale passo e' saltato, e i messaggi noti di
+    // Aruba diventano istruzioni.
+    let token: string;
     try {
       const t = await arubaSignin(this.username, this.password, this.demo);
       this.lastToken = t;
       this.cachedToken = t.access_token;
-      const list = await arubaFindByUsername(t.access_token, this.username, { size: 1, demo: this.demo });
+      token = t.access_token;
+    } catch (e) {
+      return { success: false, error: `Accesso ad Aruba non riuscito. ${spiegaErroreAruba(e)}` };
+    }
+    try {
+      const list = await arubaFindByUsername(token, this.username, { size: 1, demo: this.demo });
       const name = (list.content?.[0]?.sender as Record<string, unknown> | undefined)?.description as string | undefined;
       return { success: true, companyName: name || "Account Aruba" };
-    } catch (e) { return { success: false, error: String(e instanceof Error ? e.message : e) }; }
+    } catch (e) {
+      // Qui l'utenza e la password sono GIA' state accettate: il problema non
+      // sono le credenziali ma cosa quell'utenza e' autorizzata a fare.
+      return {
+        success: false,
+        error: `Credenziali corrette, ma l'utenza non riesce a leggere le fatture. ${spiegaErroreAruba(e)}`,
+      };
+    }
   }
 
   async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
