@@ -4361,6 +4361,138 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "operations",
   },
 
+  registra_rapportino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_rapportino",
+        description:
+          "Registra un RAPPORTINO di lavoro su una commessa (ore lavorate + descrizione lavori), come dal campo. " +
+          "Può registrarlo per l'utente stesso o — se chi scrive è titolare/ufficio — per un membro del team indicato per nome. " +
+          "FLUSSO: raccogli commessa, ore e cosa è stato fatto, mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. " +
+          "Le date in formato YYYY-MM-DD (converti tu 'oggi'/'ieri').",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            ore: { type: "number", description: "Ore lavorate (es. 8) — OBBLIGATORIE" },
+            descrizione_lavori: { type: "string", description: "Cosa è stato fatto (es. 'posato massetto piano terra')" },
+            data: { type: "string", description: "Data lavoro YYYY-MM-DD (default oggi)" },
+            straordinario: { type: "number", description: "Ore di straordinario oltre alle ordinarie (default 0)" },
+            percentuale_avanzamento: { type: "number", description: "Avanzamento complessivo lavori 0-100 (opzionale)" },
+            per_utente_nome: { type: "string", description: "Nome del membro del team per cui registrare (default: chi scrive)" },
+            meteo: { type: "string", description: "Meteo: soleggiato | nuvoloso | pioggia | neve | vento" },
+            registra_comunque: { type: "boolean", description: "true = registra anche se esiste già un rapportino stesso giorno/commessa/persona" },
+          },
+          required: ["commessa_codice", "ore"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      const ore = Math.round(Number(args?.ore) * 2) / 2;
+      if (!Number.isFinite(ore) || ore <= 0 || ore > 16) return { error: "Ore non valide (0,5–16)." };
+      const straord = Math.max(Math.round((Number(args?.straordinario) || 0) * 2) / 2, 0);
+      if (straord > 8) return { error: "Straordinario non valido (max 8 ore)." };
+      let data = String(args?.data ?? "").trim();
+      if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: "Data non valida: usa YYYY-MM-DD." };
+      if (!data) {
+        try { data = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { data = new Date().toISOString().slice(0, 10); }
+      }
+      const perc = args?.percentuale_avanzamento == null ? null : Math.round(Number(args.percentuale_avanzamento));
+      if (perc != null && (perc < 0 || perc > 100)) return { error: "Percentuale avanzamento fuori range (0-100)." };
+      const METEO = ["soleggiato", "nuvoloso", "pioggia", "neve", "vento"];
+      const meteo = String(args?.meteo ?? "").trim().toLowerCase() || null;
+      if (meteo && !METEO.includes(meteo)) return { error: `Meteo non valido. Valori: ${METEO.join(", ")}.` };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      // Per chi: l'utente della chat, oppure un membro del team per nome.
+      let userId = ctx.userId ?? null;
+      let perNome: string | null = null;
+      const perUtente = String(args?.per_utente_nome ?? "").trim();
+      if (perUtente) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(perUtente);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${perUtente}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${perUtente}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        userId = matches[0].id;
+        perNome = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+      if (!userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      // Anti-doppione: stesso giorno + commessa + persona.
+      if (!args?.registra_comunque) {
+        const { data: dup } = await ctx.supabase
+          .from("campo_rapportini").select("id, ore_lavorate")
+          .eq("company_id", ctx.companyId).eq("order_id", order.id)
+          .eq("user_id", userId).eq("data_lavoro", data)
+          .limit(1).maybeSingle();
+        if (dup?.id) {
+          return { error: `Esiste già un rapportino del ${data} su ${order.order_code}${perNome ? ` per ${perNome}` : ""} (${dup.ore_lavorate ?? "?"} ore). Se è un secondo turno reale, ripeti con registra_comunque=true.` };
+        }
+      }
+
+      // Stessa scrittura del flusso /campo (stato 'inviato'); source traccia il canale.
+      const { data: rap, error } = await ctx.supabase
+        .from("campo_rapportini")
+        .insert({
+          company_id: ctx.companyId,
+          order_id: order.id,
+          user_id: userId,
+          role_type: "employee",
+          data_lavoro: data,
+          ore_lavorate: ore,
+          ore_straordinario: straord,
+          descrizione_lavori: String(args?.descrizione_lavori ?? "").trim().slice(0, 1000) || null,
+          percentuale_avanzamento: perc,
+          meteo,
+          stato: "inviato",
+          source: ctx.channel === "whatsapp" ? "whatsapp" : "api",
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Registrazione rapportino fallita: ${error.message}` };
+
+      return {
+        rapportino_id: rap.id,
+        commessa: order.order_code,
+        registrato: `${ore} ore${straord > 0 ? ` + ${straord} straordinario` : ""} il ${data}${perNome ? ` per ${perNome}` : ""}`,
+        avanzamento: perc != null ? `${perc}%` : null,
+        link: `/azienda/ordini/${order.id}`,
+        nota: "Rapportino registrato (stato: inviato)." + (perc != null ? " Avanzamento aggiornato sul rapportino." : ""),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
