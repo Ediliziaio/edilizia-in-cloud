@@ -4051,6 +4051,171 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "calendar",
   },
 
+  registra_pagamento_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_pagamento_commessa",
+        description:
+          "Registra un INCASSO su una commessa: segna la rata come pagata (piano pagamenti) e crea la registrazione " +
+          "in Prima Nota (entrata, categoria 'incasso'). FLUSSO: identifica la commessa per codice, mostra il riepilogo " +
+          "(rata/importo/data/metodo) e chiedi conferma PRIMA di chiamare il tool. Se l'importo non corrisponde a nessuna " +
+          "rata da pagare, il tool elenca le rate aperte: puoi indicare rata_numero, oppure registra_comunque=true per " +
+          "registrare un incasso libero senza toccare il piano rate.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            importo: { type: "number", description: "Importo incassato in EURO. Se assente e c'è la rata, usa l'importo della rata" },
+            rata_numero: { type: "number", description: "Numero della rata da segnare pagata (1 = prima rata/acconto)" },
+            data_pagamento: { type: "string", description: "Data incasso YYYY-MM-DD (default oggi)" },
+            metodo: { type: "string", description: "Metodo: bonifico | contanti | assegno | pos | altro" },
+            registra_comunque: { type: "boolean", description: "true = registra l'incasso in Prima Nota anche senza rata corrispondente" },
+            note: { type: "string" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const importoArg = args?.importo == null ? null : Math.round(Number(args.importo) * 100) / 100;
+      if (importoArg != null && (!Number.isFinite(importoArg) || importoArg <= 0 || importoArg > 10_000_000)) {
+        return { error: "Importo non valido." };
+      }
+      let dataPag = String(args?.data_pagamento ?? "").trim();
+      if (dataPag && !/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) return { error: "Data non valida: usa YYYY-MM-DD." };
+      if (!dataPag) {
+        // Data italiana, non UTC (a notte fonda in Italia l'UTC è ancora ieri).
+        try {
+          dataPag = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+        } catch {
+          dataPag = new Date().toISOString().slice(0, 10);
+        }
+      }
+      const metodo = String(args?.metodo ?? "").trim().toLowerCase().slice(0, 30) || null;
+
+      const { data: ord } = await ctx.supabase
+        .from("orders").select("id, order_code, description")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ord || ord.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ord.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ord.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ord[0];
+
+      const { data: rate } = await ctx.supabase
+        .from("order_installments")
+        .select("id, position, label, type, amount, is_paid, paid_date")
+        .eq("order_id", order.id)
+        .order("position", { ascending: true });
+      const aperte = (rate ?? []).filter((r) => !r.is_paid);
+
+      // Selezione rata: per numero esplicito, oppure per importo combaciante.
+      let rata: (typeof aperte)[number] | null = null;
+      const rataNumero = args?.rata_numero == null ? null : Math.round(Number(args.rata_numero));
+      if (rataNumero != null) {
+        const found = (rate ?? []).find((r) => r.position === rataNumero) ?? (rate ?? [])[rataNumero - 1];
+        if (!found) return { error: `La commessa ${order.order_code} non ha una rata n. ${rataNumero}. Rate presenti: ${(rate ?? []).length}.` };
+        if (found.is_paid) return { error: `La rata n. ${rataNumero} (${found.label || found.type}) risulta GIÀ pagata il ${found.paid_date ?? "?"}. Nessuna modifica.` };
+        rata = found;
+      } else if (importoArg != null) {
+        const match = aperte.filter((r) => Math.abs(Number(r.amount) - importoArg) <= 0.01);
+        if (match.length === 1) rata = match[0];
+        else if (match.length > 1) {
+          return { error: `Più rate da pagare hanno importo ${importoArg.toFixed(2)}€ sulla ${order.order_code}: ${match.map((r) => `n.${r.position} ${r.label || r.type}`).join(", ")}. Indica rata_numero.` };
+        }
+      } else if (aperte.length === 1) {
+        rata = aperte[0];
+      }
+
+      if (!rata && !args?.registra_comunque) {
+        const lista = aperte.length
+          ? aperte.map((r) => `n.${r.position} ${r.label || r.type}: ${Number(r.amount).toFixed(2)}€`).join(" · ")
+          : "(nessuna: piano rate vuoto o tutto pagato — se il piano non è mai stato aperto nella pagina commessa, apri prima la sezione Pagamenti)";
+        return {
+          error: `Nessuna rata combacia${importoArg != null ? ` con ${importoArg.toFixed(2)}€` : ""} sulla ${order.order_code}. Rate da pagare: ${lista}. Indica rata_numero, oppure registra_comunque=true per un incasso libero.`,
+        };
+      }
+
+      const importo = importoArg ?? (rata ? Math.round(Number(rata.amount) * 100) / 100 : null);
+      if (importo == null || importo <= 0) return { error: "Importo mancante: indicalo esplicitamente." };
+
+      // Anti doppia registrazione: stesso ordine+importo+data già in Prima Nota.
+      const { data: dup } = await ctx.supabase
+        .from("prima_nota_entries").select("id")
+        .eq("company_id", ctx.companyId).eq("order_id", order.id)
+        .eq("direction", "entrata").eq("entry_date", dataPag).eq("amount", importo)
+        .limit(1).maybeSingle();
+      if (dup?.id) {
+        return { error: `Sembra già registrato: esiste un'entrata di ${importo.toFixed(2)}€ su ${order.order_code} in data ${dataPag} (Prima Nota). Se è un secondo incasso reale, cambia data o aggiungi una nota e ripeti.` };
+      }
+
+      // 1) Segna la rata pagata (stessa scrittura di OrderDetail).
+      if (rata) {
+        const { error: rataErr } = await ctx.supabase
+          .from("order_installments")
+          .update({ is_paid: true, paid_date: dataPag })
+          .eq("id", rata.id);
+        if (rataErr) return { error: `Aggiornamento rata fallito: ${rataErr.message}` };
+      }
+
+      // 2) Prima Nota: entrata categoria 'incasso' (is_auto=false → eliminabile
+      //    dall'utente dalla pagina Prima Nota se serve correggere).
+      const descr = `Incasso commessa ${order.order_code}${rata ? ` — ${rata.label || `rata ${rata.position}`}` : ""}`;
+      const { data: pn, error: pnErr } = await ctx.supabase
+        .from("prima_nota_entries")
+        .insert({
+          company_id: ctx.companyId,
+          direction: "entrata",
+          category: "incasso",
+          description: descr,
+          amount: importo,
+          entry_date: dataPag,
+          payment_method: metodo,
+          reference_number: rata ? `rata ${rata.position}` : null,
+          order_id: order.id,
+          account_label: metodo === "contanti" ? "cassa" : "banca",
+          notes: [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — "),
+          is_auto: false,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (pnErr) {
+        // Rollback del flag rata per non lasciare lo stato a metà.
+        if (rata) {
+          await ctx.supabase.from("order_installments").update({ is_paid: false, paid_date: null }).eq("id", rata.id);
+        }
+        return { error: `Registrazione Prima Nota fallita: ${pnErr.message}` };
+      }
+
+      const residuo = aperte
+        .filter((r) => !rata || r.id !== rata.id)
+        .reduce((s, r) => s + Number(r.amount || 0), 0);
+      const avviso = rata && importoArg != null && Math.abs(Number(rata.amount) - importoArg) > 0.01
+        ? `ATTENZIONE: importo registrato ${importo.toFixed(2)}€ ≠ importo rata ${Number(rata.amount).toFixed(2)}€.`
+        : null;
+
+      return {
+        commessa: order.order_code,
+        rata_segnata: rata ? `n.${rata.position} ${rata.label || rata.type} (${Number(rata.amount).toFixed(2)}€)` : null,
+        incasso_registrato: `${importo.toFixed(2)}€ il ${dataPag}${metodo ? ` (${metodo})` : ""}`,
+        prima_nota_id: pn.id,
+        residuo_da_incassare: `${residuo.toFixed(2)}€`,
+        avviso,
+        link: "/azienda/prima-nota",
+        nota: "Rata aggiornata e incasso registrato in Prima Nota." + (rata ? "" : " (incasso libero: nessuna rata toccata)"),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "finance",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
