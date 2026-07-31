@@ -5754,6 +5754,130 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "support",
   },
 
+  crea_articolo_magazzino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_articolo_magazzino",
+        description:
+          "Crea un nuovo ARTICOLO a magazzino (anagrafica + giacenza iniziale). " +
+          "Serve quando un materiale non è ancora in magazzino: per movimentare un articolo che esiste già " +
+          "si usa invece registra_movimento_magazzino. " +
+          "FLUSSO: mostra nome, quantità iniziale, costo e scorta minima, poi chiedi conferma PRIMA di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome dell'articolo — OBBLIGATORIO" },
+            quantita_iniziale: { type: "number", description: "Giacenza iniziale (default 0)" },
+            costo_unitario: { type: "number", description: "Costo unitario in EURO (default 0)" },
+            iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+            scorta_minima: { type: "number", description: "Soglia sotto la quale segnalare il riordino (default 0)" },
+            codice_interno: { type: "string", description: "Codice interno/SKU" },
+            fornitore_nome: { type: "string", description: "Nome del fornitore abituale" },
+            magazzino_nome: { type: "string", description: "Nome del magazzino (default: quello predefinito)" },
+            descrizione: { type: "string" },
+          },
+          required: ["nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 200);
+      if (!nome) return { error: "Nome articolo obbligatorio." };
+      const qta = Math.max(Math.round((Number(args?.quantita_iniziale) || 0) * 1000) / 1000, 0);
+      const costo = Math.max(Math.round((Number(args?.costo_unitario) || 0) * 100) / 100, 0);
+      if (costo > 1_000_000) return { error: "Costo unitario non plausibile." };
+      const iva = Number.isFinite(Number(args?.iva)) ? Math.min(Math.max(Number(args.iva), 0), 22) : 22;
+      const scorta = Math.max(Math.round((Number(args?.scorta_minima) || 0) * 1000) / 1000, 0);
+      const codice = String(args?.codice_interno ?? "").trim().slice(0, 60) || null;
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+      // Anti-duplicato: stesso nome (o stesso codice interno) già a magazzino.
+      const { data: esistenti } = await ctx.supabase
+        .from("warehouse_stock").select("id, name, quantity, internal_code")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const dupNome = (esistenti ?? []).find((a) => norm(a.name ?? "") === norm(nome));
+      if (dupNome) {
+        return { error: `"${dupNome.name}" è GIÀ a magazzino (giacenza ${dupNome.quantity}). Per caricarne altri usa registra_movimento_magazzino.` };
+      }
+      if (codice) {
+        const dupCod = (esistenti ?? []).find((a) => (a.internal_code ?? "").toLowerCase() === codice.toLowerCase());
+        if (dupCod) return { error: `Il codice interno "${codice}" è già usato dall'articolo "${dupCod.name}".` };
+      }
+
+      // Magazzino: per nome, altrimenti il predefinito (come resolveWarehouseId della UI).
+      const { data: magazzini } = await ctx.supabase
+        .from("warehouses").select("id, name, is_default")
+        .eq("company_id", ctx.companyId).eq("is_active", true)
+        .order("position", { ascending: true });
+      let warehouseId: string | null = null;
+      let warehouseName: string | null = null;
+      const magNome = String(args?.magazzino_nome ?? "").trim();
+      if (magNome) {
+        const mm = (magazzini ?? []).filter((w) => norm(w.name ?? "").includes(norm(magNome)));
+        if (mm.length === 0) return { error: `Nessun magazzino trovato con nome simile a "${magNome}". Disponibili: ${(magazzini ?? []).map((w) => w.name).join(", ") || "(nessuno)"}.` };
+        if (mm.length > 1) return { error: `Più magazzini corrispondono a "${magNome}": ${mm.map((w) => w.name).join(", ")}. Specifica meglio.` };
+        warehouseId = mm[0].id;
+        warehouseName = mm[0].name;
+      } else {
+        const def = (magazzini ?? []).find((w) => w.is_default) ?? (magazzini ?? [])[0];
+        warehouseId = def?.id ?? null;
+        warehouseName = def?.name ?? null;
+      }
+
+      // Fornitore abituale opzionale.
+      let supplierId: string | null = null;
+      let supplierName: string | null = null;
+      const fornNome = String(args?.fornitore_nome ?? "").trim();
+      if (fornNome) {
+        const { data: forn } = await ctx.supabase
+          .from("suppliers").select("id, name")
+          .eq("company_id", ctx.companyId).ilike("name", `%${fornNome}%`).limit(6);
+        if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornNome}".` };
+        if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        supplierId = forn[0].id;
+        supplierName = forn[0].name;
+      }
+
+      const { data: art, error } = await ctx.supabase
+        .from("warehouse_stock")
+        .insert({
+          company_id: ctx.companyId,
+          warehouse_id: warehouseId,
+          name: nome,
+          description: String(args?.descrizione ?? "").trim().slice(0, 1000) || null,
+          quantity: qta,
+          unit_cost: costo,
+          vat_rate: iva,
+          min_stock_level: scorta,
+          internal_code: codice,
+          supplier_id: supplierId,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione articolo fallita: ${error.message}` };
+
+      return {
+        articolo_id: art.id,
+        articolo: nome,
+        giacenza_iniziale: qta,
+        costo_unitario: `${costo.toFixed(2)}€`,
+        scorta_minima: scorta,
+        magazzino: warehouseName,
+        fornitore: supplierName,
+        codice_interno: codice,
+        link: "/azienda/magazzino",
+        nota: "Articolo creato a magazzino." + (qta > 0 ? " La giacenza iniziale è impostata (nessun movimento di carico registrato)." : ""),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "warehouse",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
