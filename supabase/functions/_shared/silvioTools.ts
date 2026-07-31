@@ -4860,6 +4860,157 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "sales",
   },
 
+  registra_pagamento_fornitore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_pagamento_fornitore",
+        description:
+          "Registra un PAGAMENTO a un fornitore: salda la scadenza dallo scadenzario (anche parzialmente) e scrive " +
+          "l'uscita in Prima Nota, in un colpo solo (stessa procedura dell'app). FLUSSO: identifica fornitore e importo, " +
+          "mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. Se l'importo non combacia con nessuna scadenza " +
+          "aperta il tool le elenca: puoi indicare scadenza_data, oppure registra_comunque=true per un'uscita libera senza scadenzario.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitore_nome: { type: "string", description: "Nome del fornitore — OBBLIGATORIO" },
+            importo: { type: "number", description: "Importo pagato in EURO — OBBLIGATORIO" },
+            scadenza_data: { type: "string", description: "Data scadenza YYYY-MM-DD della rata da saldare (per disambiguare)" },
+            data_pagamento: { type: "string", description: "Data pagamento YYYY-MM-DD (default oggi)" },
+            metodo: { type: "string", description: "Metodo: bonifico | contanti | assegno | riba | altro (default bonifico)" },
+            registra_comunque: { type: "boolean", description: "true = uscita libera in Prima Nota anche senza scadenza corrispondente" },
+            note: { type: "string" },
+          },
+          required: ["fornitore_nome", "importo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const fornitoreNome = String(args?.fornitore_nome ?? "").trim();
+      if (!fornitoreNome) return { error: "Nome fornitore obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const importo = Math.round(Number(args?.importo) * 100) / 100;
+      if (!Number.isFinite(importo) || importo <= 0 || importo > 10_000_000) return { error: "Importo non valido." };
+      let dataPag = String(args?.data_pagamento ?? "").trim();
+      if (dataPag && !/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) return { error: "Data pagamento non valida: usa YYYY-MM-DD." };
+      if (!dataPag) {
+        try { dataPag = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { dataPag = new Date().toISOString().slice(0, 10); }
+      }
+      const scadData = String(args?.scadenza_data ?? "").trim();
+      if (scadData && !/^\d{4}-\d{2}-\d{2}$/.test(scadData)) return { error: "scadenza_data non valida: usa YYYY-MM-DD." };
+      const metodo = (String(args?.metodo ?? "").trim().toLowerCase() || "bonifico").slice(0, 30);
+
+      const { data: forn } = await ctx.supabase
+        .from("suppliers").select("id, name")
+        .eq("company_id", ctx.companyId).ilike("name", `%${fornitoreNome}%`)
+        .limit(6);
+      if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}".` };
+      if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      const fornitore = forn[0];
+
+      // Scadenze aperte del fornitore.
+      let query = ctx.supabase
+        .from("scadenze")
+        .select("id, description, amount, paid_amount, due_date, status")
+        .eq("company_id", ctx.companyId).eq("supplier_id", fornitore.id)
+        .eq("tipo", "pagamento_fornitore").in("status", ["da_pagare", "parziale"])
+        .order("due_date", { ascending: true });
+      if (scadData) query = query.eq("due_date", scadData);
+      const { data: aperte } = await query.limit(30);
+      const conResiduo = (aperte ?? []).map((s) => ({ ...s, residuo: Math.round((Number(s.amount) - Number(s.paid_amount || 0)) * 100) / 100 }));
+      const match = conResiduo.filter((s) => Math.abs(s.residuo - importo) <= 0.01);
+
+      let scadenza: (typeof conResiduo)[number] | null = null;
+      if (match.length === 1) scadenza = match[0];
+      else if (match.length > 1) {
+        return { error: `Più scadenze aperte di ${fornitore.name} hanno residuo ${importo.toFixed(2)}€: ${match.map((s) => `${s.description} (scad. ${s.due_date})`).join(" · ")}. Indica scadenza_data.` };
+      } else if (scadData && conResiduo.length === 1) {
+        // Data indicata esplicitamente: pagamento (anche parziale) su quella scadenza.
+        scadenza = conResiduo[0];
+        if (importo > scadenza.residuo + 0.01) {
+          return { error: `L'importo ${importo.toFixed(2)}€ supera il residuo ${scadenza.residuo.toFixed(2)}€ della scadenza del ${scadenza.due_date}. Verifica.` };
+        }
+      }
+
+      if (!scadenza && !args?.registra_comunque) {
+        const lista = conResiduo.length
+          ? conResiduo.map((s) => `${s.description}: residuo ${s.residuo.toFixed(2)}€ (scad. ${s.due_date})`).join(" · ")
+          : "(nessuna scadenza aperta per questo fornitore)";
+        return { error: `Nessuna scadenza combacia con ${importo.toFixed(2)}€ per ${fornitore.name}. Aperte: ${lista}. Indica scadenza_data per un pagamento (anche parziale), oppure registra_comunque=true per un'uscita libera.` };
+      }
+
+      const note = [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — ");
+
+      if (scadenza) {
+        // Stessa RPC dell'app (mark_scadenza_paid): scadenza + Prima Nota atomiche.
+        const { data: res, error } = await ctx.supabase.rpc("mark_scadenza_paid", {
+          p_scadenza_id: scadenza.id,
+          p_amount: importo,
+          p_payment_method: metodo,
+          p_payment_date: dataPag,
+          p_notes: note,
+          p_account_label: metodo === "contanti" ? "cassa" : "banca",
+        });
+        if (error) return { error: `Registrazione pagamento fallita: ${error.message}` };
+        const r = res as Record<string, unknown> | null;
+        if (r?.error) return { error: `Registrazione pagamento fallita: ${String(r.error)}` };
+        const saldata = importo >= scadenza.residuo - 0.01;
+        return {
+          fornitore: fornitore.name,
+          scadenza: `${scadenza.description} (scad. ${scadenza.due_date})`,
+          pagato: `${importo.toFixed(2)}€ il ${dataPag} (${metodo})`,
+          esito_scadenza: saldata ? "SALDATA" : `parziale — residuo ${(scadenza.residuo - importo).toFixed(2)}€`,
+          link: "/azienda/prima-nota",
+          nota: "Scadenza aggiornata e uscita registrata in Prima Nota.",
+        };
+      }
+
+      // Uscita libera (nessuna scadenza): anti-doppione + insert diretto in Prima Nota.
+      const { data: dup } = await ctx.supabase
+        .from("prima_nota_entries").select("id")
+        .eq("company_id", ctx.companyId).eq("supplier_id", fornitore.id)
+        .eq("direction", "uscita").eq("entry_date", dataPag).eq("amount", importo)
+        .limit(1).maybeSingle();
+      if (dup?.id) {
+        return { error: `Sembra già registrato: esiste un'uscita di ${importo.toFixed(2)}€ verso ${fornitore.name} in data ${dataPag}. Se è un secondo pagamento reale, cambia data o aggiungi una nota.` };
+      }
+      const { data: pn, error: pnErr } = await ctx.supabase
+        .from("prima_nota_entries")
+        .insert({
+          company_id: ctx.companyId,
+          direction: "uscita",
+          category: "fornitore",
+          description: `Pagamento fornitore ${fornitore.name}`,
+          amount: importo,
+          entry_date: dataPag,
+          payment_method: metodo,
+          supplier_id: fornitore.id,
+          account_label: metodo === "contanti" ? "cassa" : "banca",
+          notes: note,
+          is_auto: false,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (pnErr) return { error: `Registrazione Prima Nota fallita: ${pnErr.message}` };
+
+      return {
+        fornitore: fornitore.name,
+        pagato: `${importo.toFixed(2)}€ il ${dataPag} (${metodo})`,
+        prima_nota_id: pn.id,
+        esito_scadenza: "nessuna scadenza toccata (uscita libera)",
+        link: "/azienda/prima-nota",
+        nota: "Uscita registrata in Prima Nota (eliminabile dalla pagina se serve correggere).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "finance",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
