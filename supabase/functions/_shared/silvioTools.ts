@@ -4568,6 +4568,117 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  crea_task: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_task",
+        description:
+          "Crea un'ATTIVITÀ/task per il team (es. 'chiamare il geometra entro venerdì'). " +
+          "Può avere scadenza, assegnatario (per nome) e commessa collegata (per codice). " +
+          "FLUSSO: conferma col riepilogo prima di chiamare il tool. Date in YYYY-MM-DD (converti tu 'domani'/'venerdì').",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo del task — OBBLIGATORIO" },
+            scadenza: { type: "string", description: "Data scadenza YYYY-MM-DD" },
+            assegna_a: { type: "string", description: "Nome del membro del team (default: chi scrive)" },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            priorita: { type: "string", description: "bassa | normale | alta | urgente (default normale)" },
+          },
+          required: ["titolo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titolo = String(args?.titolo ?? "").trim().slice(0, 300);
+      if (!titolo) return { error: "Titolo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const scadenza = String(args?.scadenza ?? "").trim();
+      if (scadenza && !/^\d{4}-\d{2}-\d{2}$/.test(scadenza)) return { error: "Scadenza non valida: usa YYYY-MM-DD." };
+      const PRIO = ["bassa", "normale", "alta", "urgente"];
+      const priorita = String(args?.priorita ?? "").trim().toLowerCase() || "normale";
+      if (!PRIO.includes(priorita)) return { error: `Priorità non valida. Valori: ${PRIO.join(", ")}.` };
+
+      // Assegnatario per nome (team, esclusi clienti); default: chi scrive.
+      let assignedTo: string | null = ctx.userId;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(assegnaA);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        assignedTo = matches[0].id;
+        assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Stessa scrittura di TaskQuickAdd (status/priority/category = convenzioni app).
+      const { data: task, error } = await ctx.supabase
+        .from("tasks")
+        .insert({
+          company_id: ctx.companyId,
+          title: titolo,
+          status: "da_fare",
+          priority: priorita,
+          category: "generale",
+          created_by: ctx.userId,
+          assigned_to: assignedTo,
+          order_id: orderId,
+          due_date: scadenza || null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione task fallita: ${error.message}` };
+
+      return {
+        task_id: task.id,
+        titolo,
+        assegnato_a: assignedName ?? "(chi scrive)",
+        scadenza: scadenza || null,
+        commessa: orderCode,
+        priorita,
+        link: "/azienda/attivita",
+        nota: "Attività creata (stato: da fare).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "operations",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
