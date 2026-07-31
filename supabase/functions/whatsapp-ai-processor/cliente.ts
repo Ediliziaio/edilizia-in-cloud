@@ -119,7 +119,9 @@ export async function gestisciMessaggioCliente(
     contact
       ? supabase.from("tickets").select("id", { count: "exact", head: true })
           .eq("company_id", msg.company_id).eq("customer_id", contact.id)
-          .not("status", "in", '("risolto","chiuso")')
+          // ticket_status è un ENUM (aperto|in_lavorazione|risolto): un valore
+          // fuori lista nel filtro fa FALLIRE la query, non filtra a vuoto.
+          .neq("status", "risolto")
       : Promise.resolve({ count: 0 } as { count: number | null }),
   ]);
   const contesto = [
@@ -157,6 +159,9 @@ export async function gestisciMessaggioCliente(
   let tokensIn = 0, tokensOut = 0;
   let modelUsed = "";
 
+  // Il loop è protetto: se il provider AI è giù il cliente riceve comunque una
+  // risposta di cortesia (il silenzio su WhatsApp è peggio di un errore).
+  try {
   for (let iter = 0; iter < MAX_ITER_CLIENTE; iter++) {
     const resp = await callOpenAI({
       task_kind: "assistenza_clienti",
@@ -197,6 +202,9 @@ export async function gestisciMessaggioCliente(
       }));
       conv.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
     }
+  }
+  } catch (e) {
+    console.error(JSON.stringify({ level: "error", fn: "wa-cliente", msg: "loop AI fallito", error: String(e) }));
   }
 
   if (!finalText) {

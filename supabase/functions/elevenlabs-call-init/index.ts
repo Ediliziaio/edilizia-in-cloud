@@ -158,7 +158,9 @@ Deno.serve(async (req) => {
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
         .eq("customer_id", contact.id)
-        .not("status", "in", '("chiuso","risolto","closed","resolved")');
+        // ticket_status è un ENUM (aperto|in_lavorazione|risolto): un valore
+        // fuori lista nel filtro fa FALLIRE la query (count null → "0" sempre).
+        .neq("status", "risolto");
       vars.ticket_aperti = String(count ?? 0);
     }
 

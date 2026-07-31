@@ -251,6 +251,17 @@ export async function fissaAppuntamento(
   }
 
   const oraH = Number(ora.slice(0, 2));
+  // Finestra lavorativa: fuori da 7–19 niente prenotazione (e a 23 l'orario di
+  // fine diventerebbe "24:00", ora invalida per Postgres → insert rifiutato).
+  if (oraH < 7 || oraH > 19) {
+    const liberi = slotLiberi(occupati);
+    const proposte = liberi.slice(0, 3).map((h) => `le ${h}`).join(", ");
+    return {
+      risposta: liberi.length > 0
+        ? `A quell'ora non facciamo appuntamenti: lavoriamo tra le 8 e le 18. Per ${dataParlata(dataISO)} posso proporle ${proposte}.`
+        : `A quell'ora non facciamo appuntamenti e per ${dataParlata(dataISO)} siamo al completo. Proviamo con un altro giorno?`,
+    };
+  }
   if (occupati.has(oraH)) {
     const liberi = slotLiberi(occupati);
     if (liberi.length === 0) {
