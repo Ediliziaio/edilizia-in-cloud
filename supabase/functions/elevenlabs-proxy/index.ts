@@ -571,6 +571,26 @@ Deno.serve(async (req) => {
         const linkRes = await elFetch("/convai/phone-numbers/create", "POST", apiKey, linkBody);
         const elPhoneNumberId = linkRes?.phone_number_id || linkRes?.id;
 
+        // ── FIX F5 voce INBOUND ─────────────────────────────────────────────
+        // Il create registra il numero su ElevenLabs ma NON lo assegna
+        // all'agente: le chiamate outbound funzionavano, quelle IN ENTRATA
+        // squillavano nel vuoto (nessun agente collegato al numero lato EL).
+        // L'assegnazione esplicita chiude il cerchio: numero → agente.
+        let inboundAssigned = false;
+        if (elPhoneNumberId) {
+          try {
+            await elFetch(
+              `/convai/phone-numbers/${elPhoneNumberId}`,
+              "PATCH",
+              apiKey,
+              { agent_id },
+            );
+            inboundAssigned = true;
+          } catch (assignErr) {
+            console.error("[elevenlabs-proxy] assegnazione agente al numero fallita:", assignErr);
+          }
+        }
+
         // Update local DB record
         if (elPhoneNumberId && payload.local_phone_id) {
           await adminClient
@@ -583,9 +603,10 @@ Deno.serve(async (req) => {
         await auditLog(adminClient, companyId, null, userId, "link_phone_number", {
           phone_number: payload.phone_number,
           elevenlabs_phone_number_id: elPhoneNumberId,
+          inbound_assigned: inboundAssigned,
         });
 
-        result = { success: true, elevenlabs_phone_number_id: elPhoneNumberId };
+        result = { success: true, elevenlabs_phone_number_id: elPhoneNumberId, inbound_assigned: inboundAssigned };
         break;
       }
 

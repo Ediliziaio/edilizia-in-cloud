@@ -108,7 +108,7 @@ export function TelephonyTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      toast.success("Numero collegato a ElevenLabs — l'agente può ora chiamare");
+      toast.success("Numero collegato a ElevenLabs — l'agente può chiamare e RICEVERE su questo numero");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore collegamento ElevenLabs"),
   });
