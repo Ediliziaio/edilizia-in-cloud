@@ -5082,6 +5082,167 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  crea_ticket_assistenza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_ticket_assistenza",
+        description:
+          "Apre un TICKET di assistenza/intervento (es. 'la caldaia dei Rossi non parte, urgente'). " +
+          "Cliente per nome, tipo (supporto/intervento/emergenza), priorità, tecnico assegnato, data prevista, " +
+          "indirizzo e nota iniziale. FLUSSO: conferma col riepilogo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            oggetto: { type: "string", description: "Oggetto/problema in breve — OBBLIGATORIO" },
+            cliente_nome: { type: "string", description: "Nome del cliente" },
+            tipo: { type: "string", description: "supporto | intervento | emergenza (default intervento)" },
+            priorita: { type: "string", description: "bassa | normale | alta | urgente (default normale)" },
+            descrizione: { type: "string", description: "Descrizione estesa del problema" },
+            commessa_codice: { type: "string", description: "Codice commessa collegata (es. GE-0012)" },
+            assegna_a: { type: "string", description: "Nome del tecnico a cui assegnarlo" },
+            data_prevista: { type: "string", description: "Data intervento prevista YYYY-MM-DD" },
+            ora_prevista: { type: "string", description: "Ora prevista HH:MM (usata solo con data_prevista)" },
+            indirizzo: { type: "string", description: "Indirizzo dell'intervento" },
+          },
+          required: ["oggetto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const oggetto = String(args?.oggetto ?? "").trim().slice(0, 300);
+      if (!oggetto) return { error: "Oggetto obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const TIPI = ["supporto", "intervento", "emergenza"];
+      const tipo = String(args?.tipo ?? "").trim().toLowerCase() || "intervento";
+      if (!TIPI.includes(tipo)) return { error: `Tipo non valido. Valori: ${TIPI.join(", ")}.` };
+      // Attenzione: la colonna enum è `priority` (bassa/normale/alta/urgente);
+      // la colonna testuale `priorita` usa 'media' al posto di 'normale' → non la scriviamo.
+      const PRIO = ["bassa", "normale", "alta", "urgente"];
+      const priorita = String(args?.priorita ?? "").trim().toLowerCase() || "normale";
+      if (!PRIO.includes(priorita)) return { error: `Priorità non valida. Valori: ${PRIO.join(", ")}.` };
+      const dataPrev = String(args?.data_prevista ?? "").trim();
+      if (dataPrev && !/^\d{4}-\d{2}-\d{2}$/.test(dataPrev)) return { error: "Data prevista non valida: usa YYYY-MM-DD." };
+      const oraPrev = String(args?.ora_prevista ?? "").trim();
+      if (oraPrev && !/^([01]\d|2[0-3]):[0-5]\d$/.test(oraPrev)) return { error: "Ora prevista non valida: usa HH:MM." };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Cliente (opzionale ma consigliato): SOLO chi ha ruolo customer.
+      let customerId: string | null = null;
+      let customerLabel: string | null = null;
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (clienteNome) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(3000);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const q = norm(clienteNome);
+        const matches = (people ?? []).filter(
+          (p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+        if (matches.length > 1) {
+          return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        customerId = matches[0].id;
+        customerLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Tecnico opzionale (team, esclusi clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        assignedTo = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      const descrizione = String(args?.descrizione ?? "").trim().slice(0, 2000) || null;
+      const { data: ticket, error } = await ctx.supabase
+        .from("tickets")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: customerId,
+          order_id: orderId,
+          subject: oggetto,
+          descrizione,
+          tipo,
+          priority: priorita,
+          status: "aperto",
+          fonte: ctx.channel === "whatsapp" ? "campo" : "api",
+          assigned_to: assignedTo,
+          indirizzo_intervento: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          data_intervento_prevista: dataPrev ? new Date(`${dataPrev}T${oraPrev || "09:00"}:00`).toISOString() : null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Apertura ticket fallita: ${error.message}` };
+
+      // Nota iniziale nel thread (non bloccante: il ticket è già aperto).
+      if (descrizione) {
+        await ctx.supabase.from("ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: ctx.userId,
+          message: descrizione,
+        }).then(undefined, () => undefined);
+      }
+
+      return {
+        ticket_id: ticket.id,
+        oggetto,
+        cliente: customerLabel,
+        tipo,
+        priorita,
+        commessa: orderCode,
+        assegnato_a: assignedName,
+        quando: dataPrev ? `${dataPrev}${oraPrev ? ` ore ${oraPrev}` : ""}` : null,
+        link: `/azienda/assistenza/${ticket.id}`,
+        nota: "Ticket aperto (stato: aperto).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "support",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
