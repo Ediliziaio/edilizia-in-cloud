@@ -4216,6 +4216,151 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "finance",
   },
 
+  crea_ordine_fornitore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_ordine_fornitore",
+        description:
+          "Crea un ORDINE D'ACQUISTO (ODA) in BOZZA verso un fornitore, con le righe materiale. " +
+          "Il numero ODA viene assegnato automaticamente e i totali sono ricalcolati dalle righe. " +
+          "FLUSSO: identifica il fornitore per nome, mostra il riepilogo righe (descrizione, quantità, prezzo) " +
+          "e chiedi conferma PRIMA di chiamare il tool. L'ordine resta in bozza: l'invio al fornitore si fa dalla pagina ODA.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitore_nome: { type: "string", description: "Nome/ragione sociale del fornitore — OBBLIGATORIO" },
+            voci: {
+              type: "array",
+              description: "Righe dell'ordine (min 1, max 50)",
+              items: {
+                type: "object",
+                properties: {
+                  descrizione: { type: "string", description: "Descrizione materiale — OBBLIGATORIA" },
+                  quantita: { type: "number", description: "Quantità (default 1)" },
+                  prezzo_unitario: { type: "number", description: "Prezzo unitario in EURO (default 0 = da definire)" },
+                  unita_misura: { type: "string", description: "es. pz, mq, ml, kg, sacchi" },
+                  iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+                },
+                required: ["descrizione"],
+              },
+            },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            consegna_prevista: { type: "string", description: "Data consegna prevista YYYY-MM-DD" },
+            note: { type: "string" },
+          },
+          required: ["fornitore_nome", "voci"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const fornitoreNome = String(args?.fornitore_nome ?? "").trim();
+      if (!fornitoreNome) return { error: "Nome fornitore obbligatorio." };
+      const vociArg = Array.isArray(args?.voci) ? args.voci : [];
+      if (vociArg.length === 0) return { error: "Serve almeno una riga (voci)." };
+      if (vociArg.length > 50) return { error: "Massimo 50 righe per ordine." };
+      const consegna = String(args?.consegna_prevista ?? "").trim();
+      if (consegna && !/^\d{4}-\d{2}-\d{2}$/.test(consegna)) return { error: "Data consegna non valida: usa YYYY-MM-DD." };
+
+      // Fornitore per nome (company-scoped, con disambiguazione).
+      const { data: forn } = await ctx.supabase
+        .from("suppliers").select("id, name")
+        .eq("company_id", ctx.companyId).ilike("name", `%${fornitoreNome}%`)
+        .limit(6);
+      if (!forn || forn.length === 0) {
+        const { data: tutti } = await ctx.supabase
+          .from("suppliers").select("name").eq("company_id", ctx.companyId).limit(10);
+        return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}". Fornitori in anagrafica: ${(tutti ?? []).map((s) => s.name).join(", ") || "(nessuno — crealo prima in Fornitori)"}.` };
+      }
+      if (forn.length > 1) {
+        return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      }
+      const fornitore = forn[0];
+
+      // Commessa opzionale per codice.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Righe validate.
+      const righe = vociArg.map((v: Record<string, unknown>, i: number) => ({
+        descrizione: String(v?.descrizione ?? "").trim().slice(0, 300),
+        quantita: Math.max(Number(v?.quantita) || 1, 0.001),
+        prezzo: Math.max(Math.round((Number(v?.prezzo_unitario) || 0) * 100) / 100, 0),
+        um: String(v?.unita_misura ?? "").trim().slice(0, 20) || null,
+        iva: Number.isFinite(Number(v?.iva)) ? Math.min(Math.max(Number(v?.iva), 0), 22) : 22,
+        idx: i,
+      }));
+      if (righe.some((r) => !r.descrizione)) return { error: "Ogni riga deve avere una descrizione." };
+
+      // ODA in bozza: oda_number auto (trigger), totali ricalcolati dalle righe (trigger).
+      const { data: po, error: poErr } = await ctx.supabase
+        .from("purchase_orders")
+        .insert({
+          company_id: ctx.companyId,
+          supplier_id: fornitore.id,
+          order_id: orderId,
+          expected_delivery_date: consegna || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          created_by: ctx.userId ?? null,
+        })
+        .select("id")
+        .single();
+      if (poErr || !po?.id) return { error: `Creazione ordine fallita: ${poErr?.message ?? "errore sconosciuto"}` };
+
+      const { error: itemsErr } = await ctx.supabase
+        .from("purchase_order_items")
+        .insert(righe.map((r) => ({
+          company_id: ctx.companyId,
+          purchase_order_id: po.id,
+          description: r.descrizione,
+          quantity: r.quantita,
+          unit_price: r.prezzo,
+          vat_rate: r.iva,
+          unit_of_measure: r.um,
+          sort_order: r.idx,
+        })));
+      if (itemsErr) {
+        await ctx.supabase.from("purchase_order_items").delete().eq("purchase_order_id", po.id);
+        await ctx.supabase.from("purchase_orders").delete().eq("id", po.id);
+        return { error: `Creazione righe fallita (ordine annullato): ${itemsErr.message}` };
+      }
+
+      const { data: fresh } = await ctx.supabase
+        .from("purchase_orders").select("oda_number, total")
+        .eq("id", po.id).single();
+
+      const senzaPrezzo = righe.filter((r) => r.prezzo === 0).length;
+      return {
+        oda_id: po.id,
+        oda_number: fresh?.oda_number ?? "(assegnato)",
+        fornitore: fornitore.name,
+        commessa: orderCode,
+        righe: righe.length,
+        totale: `${Number(fresh?.total ?? 0).toFixed(2)}€`,
+        stato: "bozza",
+        avviso: senzaPrezzo > 0 ? `${senzaPrezzo} righe senza prezzo (0€): completa i prezzi prima dell'invio.` : null,
+        link: `/azienda/ordini-acquisto/${po.id}`,
+        nota: "Ordine d'acquisto creato in BOZZA. L'invio al fornitore si fa dalla pagina dell'ordine.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "operations",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
