@@ -3409,6 +3409,279 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
+  // MP-SILVIO-OPERATIVO — Silvio crea, non solo legge (2026-07-31).
+  // Pattern "carica_ddt": il modello estrae le righe dal documento/testo che
+  // l'utente fornisce, MOSTRA il riepilogo, ottiene conferma in chat, POI
+  // chiama il tool con le righe strutturate.
+  // ═════════════════════════════════════════════════════════════════════════
+  importa_listino_prodotti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "importa_listino_prodotti",
+        description:
+          "Importa un CATALOGO/LISTINO PRODOTTI nel listino aziendale (voci di listino usate poi nei preventivi). " +
+          "Usalo quando l'utente fornisce un listino: PDF/foto allegati in chat (usa il testo estratto), testo incollato o dettatura. " +
+          "FLUSSO OBBLIGATORIO: 1) estrai TU le righe (nome, codice, prezzi, unità) dal materiale fornito; 2) MOSTRA all'utente " +
+          "un riepilogo (quante voci, 3-5 esempi con prezzo) e chiedi conferma; 3) SOLO dopo il sì chiama questo tool con le righe. " +
+          "Deduplica da solo: le voci con codice o nome già presenti a listino vengono SALTATE (mai sovrascritte). Max 300 voci per chiamata " +
+          "(per cataloghi più grandi procedi a blocchi). NON usarlo per DDT (usa carica_ddt) né per creare un preventivo.",
+        parameters: {
+          type: "object",
+          properties: {
+            righe: {
+              type: "array",
+              description: "Voci del listino da creare — almeno una",
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string", description: "Nome prodotto/voce — OBBLIGATORIO" },
+                  codice: { type: "string", description: "Codice articolo/SKU se presente" },
+                  descrizione: { type: "string" },
+                  prezzo_vendita: { type: "number", description: "Prezzo di vendita unitario (imponibile)" },
+                  prezzo_acquisto: { type: "number", description: "Prezzo/costo di acquisto unitario, se noto" },
+                  unita: { type: "string", description: "Unità di misura (pz, mq, ml, h, kg, cad...)" },
+                  iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+                },
+                required: ["nome"],
+              },
+            },
+            fonte: { type: "string", description: "Nome del catalogo/fornitore di provenienza (finisce nella descrizione)" },
+            mostra_in_preventivo: { type: "boolean", description: "Se le voci devono comparire nel preventivatore (default true)" },
+          },
+          required: ["righe"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const righe = Array.isArray(args?.righe) ? (args.righe as Array<Record<string, unknown>>) : [];
+      if (righe.length === 0) return { error: "Nessuna riga fornita: estrai prima le voci dal catalogo e falle confermare." };
+      if (righe.length > 300) return { error: `Troppe voci (${righe.length}): massimo 300 per chiamata, procedi a blocchi.` };
+
+      // Dedup contro l'esistente: per codice (esatto) e nome (case-insensitive).
+      const { data: esistenti } = await ctx.supabase
+        .from("article_families")
+        .select("nome, codice")
+        .eq("company_id", ctx.companyId)
+        .is("deleted_at", null)
+        .limit(5000);
+      const nomiEsistenti = new Set(
+        ((esistenti ?? []) as Array<{ nome?: string }>).map((r) => (r.nome ?? "").trim().toLowerCase()).filter(Boolean),
+      );
+      const codiciEsistenti = new Set(
+        ((esistenti ?? []) as Array<{ codice?: string | null }>).map((r) => (r.codice ?? "").trim().toLowerCase()).filter(Boolean),
+      );
+
+      const fonte = typeof args?.fonte === "string" && args.fonte.trim() ? ` (import: ${args.fonte.trim()})` : "";
+      const daInserire: Array<Record<string, unknown>> = [];
+      let saltateDuplicate = 0;
+      const vistiInBatch = new Set<string>();
+      for (const r of righe) {
+        const nome = String(r.nome ?? "").trim().slice(0, 200);
+        if (!nome) continue;
+        const codice = String(r.codice ?? "").trim().slice(0, 80) || null;
+        const chiave = (codice ?? nome).toLowerCase();
+        if (vistiInBatch.has(chiave)) { saltateDuplicate++; continue; }
+        vistiInBatch.add(chiave);
+        if (nomiEsistenti.has(nome.toLowerCase()) || (codice && codiciEsistenti.has(codice.toLowerCase()))) {
+          saltateDuplicate++;
+          continue;
+        }
+        const pv = Number(r.prezzo_vendita);
+        const pa = Number(r.prezzo_acquisto);
+        const iva = Number(r.iva);
+        daInserire.push({
+          company_id: ctx.companyId,
+          vertical: "generico",
+          nome,
+          codice,
+          descrizione: (String(r.descrizione ?? "").trim().slice(0, 1000) || null) ?? null,
+          prezzo_base_vendita: Number.isFinite(pv) && pv >= 0 ? pv : null,
+          prezzo_base_acquisto: Number.isFinite(pa) && pa >= 0 ? pa : null,
+          unit_of_measure: String(r.unita ?? "").trim().slice(0, 20) || null,
+          vat_rate: Number.isFinite(iva) && iva >= 0 && iva <= 100 ? iva : 22,
+          attivo: true,
+          mostra_preventivo: args?.mostra_in_preventivo === false ? false : true,
+          ...(fonte ? { descrizione: ((String(r.descrizione ?? "").trim().slice(0, 900) || nome) + fonte).slice(0, 1000) } : {}),
+        });
+      }
+      if (daInserire.length === 0) {
+        return { create: 0, saltate_duplicate: saltateDuplicate, nota: "Tutte le voci erano già a listino (o senza nome): niente da creare." };
+      }
+      const { data: inserted, error } = await ctx.supabase
+        .from("article_families")
+        .insert(daInserire)
+        .select("id, nome, prezzo_base_vendita");
+      if (error) return { error: `Inserimento listino fallito: ${error.message}` };
+      const create = (inserted ?? []).length;
+      return {
+        create,
+        saltate_duplicate: saltateDuplicate,
+        esempi: (inserted ?? []).slice(0, 5).map((r: { nome?: string; prezzo_base_vendita?: number | null }) => `${r.nome}${r.prezzo_base_vendita != null ? ` — €${r.prezzo_base_vendita}` : ""}`),
+        dove: "Impostazioni → Listino (o il preventivatore, se mostra_in_preventivo).",
+        nota: "Voci create ATTIVE. Prezzi/IVA modificabili in ogni momento dal Listino.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "preventivi",
+  },
+
+  crea_preventivo_bozza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_preventivo_bozza",
+        description:
+          "Crea un PREVENTIVO in BOZZA completo di righe, pronto da rifinire e inviare dal preventivatore. " +
+          "Usalo quando l'utente chiede 'fammi un preventivo per…' con cliente e lavori/prodotti. " +
+          "FLUSSO: 1) raccogli/il deduci cliente e righe (descrizione, quantità, e prezzo se indicato); 2) mostra il riepilogo con il totale stimato " +
+          "e chiedi conferma; 3) dopo il sì chiama questo tool. Per le righe SENZA prezzo prova ad abbinare una voce del LISTINO aziendale " +
+          "per nome/codice e usa il suo prezzo; se non trova nulla mette 0 e lo segnala (l'utente completa nel builder). " +
+          "È una BOZZA: non viene inviato nulla al cliente. Ritorna il link per aprirla nel builder.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente/ragione sociale — OBBLIGATORIO" },
+            cliente_email: { type: "string" },
+            cliente_telefono: { type: "string" },
+            cliente_indirizzo: { type: "string" },
+            titolo: { type: "string", description: "Titolo/oggetto del preventivo (es. 'Rifacimento bagno')" },
+            righe: {
+              type: "array",
+              description: "Righe del preventivo — almeno una",
+              items: {
+                type: "object",
+                properties: {
+                  descrizione: { type: "string", description: "Descrizione voce — OBBLIGATORIA" },
+                  quantita: { type: "number", description: "Quantità (default 1)" },
+                  prezzo_unitario: { type: "number", description: "Prezzo unitario imponibile; se assente si tenta il listino" },
+                  unita: { type: "string", description: "Unità di misura (pz, mq, h...)" },
+                  tipo: { type: "string", enum: ["product", "service", "labor"], description: "Tipo voce (default product)" },
+                },
+                required: ["descrizione"],
+              },
+            },
+            note: { type: "string", description: "Note interne o condizioni" },
+            iva: { type: "number", description: "Aliquota IVA % di default per le righe (default 22)" },
+          },
+          required: ["cliente_nome", "righe"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const clienteNome = String(args?.cliente_nome ?? "").trim().slice(0, 200);
+      const righe = Array.isArray(args?.righe) ? (args.righe as Array<Record<string, unknown>>) : [];
+      if (!clienteNome) return { error: "cliente_nome mancante." };
+      if (righe.length === 0) return { error: "Nessuna riga: un preventivo vuoto non serve a nessuno." };
+      if (righe.length > 100) return { error: `Troppe righe (${righe.length}): massimo 100.` };
+
+      // Numero preventivo dalla RPC ufficiale (stessa del QuoteBuilder).
+      let quoteNumber = "";
+      try {
+        const { data: numData } = await ctx.supabase.rpc("generate_quote_number", { p_company_id: ctx.companyId });
+        quoteNumber = typeof numData === "string" && numData ? numData : "";
+      } catch { /* fallback sotto */ }
+      if (!quoteNumber) quoteNumber = `OFF-SILVIO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+      const ivaDefault = Number.isFinite(Number(args?.iva)) ? Number(args?.iva) : 22;
+      const { data: quote, error: qErr } = await ctx.supabase
+        .from("quotes")
+        .insert({
+          company_id: ctx.companyId,
+          quote_number: quoteNumber,
+          status: "bozza",
+          client_name: clienteNome,
+          client_email: String(args?.cliente_email ?? "").trim().slice(0, 200) || null,
+          client_phone: String(args?.cliente_telefono ?? "").trim().slice(0, 50) || null,
+          client_address: String(args?.cliente_indirizzo ?? "").trim().slice(0, 300) || null,
+          title: String(args?.titolo ?? "").trim().slice(0, 200) || `Preventivo ${clienteNome}`,
+          notes: String(args?.note ?? "").trim().slice(0, 2000) || null,
+          created_by: ctx.userId,
+          source: "silvio",
+        })
+        .select("id, quote_number")
+        .single();
+      if (qErr || !quote) return { error: `Creazione preventivo fallita: ${qErr?.message ?? "insert vuoto"}` };
+
+      // Righe: prezzo esplicito > match listino (codice/nome) > 0 (segnalato).
+      const items: Array<Record<string, unknown>> = [];
+      const senzaPrezzo: string[] = [];
+      let totale = 0;
+      let sort = 0;
+      for (const r of righe) {
+        const descrizione = String(r.descrizione ?? "").trim().slice(0, 500);
+        if (!descrizione) continue;
+        const quantita = Number.isFinite(Number(r.quantita)) && Number(r.quantita) > 0 ? Number(r.quantita) : 1;
+        let prezzo = Number(r.prezzo_unitario);
+        let unita = String(r.unita ?? "").trim().slice(0, 20) || null;
+        let familyId: string | null = null;
+        if (!Number.isFinite(prezzo) || prezzo < 0) {
+          // Tentativo listino: match sul nome (parola più significativa) o codice.
+          const term = descrizione.split(/\s+/).filter((w) => w.length >= 4).slice(0, 3).join(" ") || descrizione;
+          const { data: match } = await ctx.supabase
+            .from("article_families")
+            .select("id, nome, prezzo_base_vendita, unit_of_measure")
+            .eq("company_id", ctx.companyId)
+            .eq("attivo", true)
+            .is("deleted_at", null)
+            .ilike("nome", `%${term.slice(0, 60)}%`)
+            .limit(1)
+            .maybeSingle();
+          const m = match as { id?: string; prezzo_base_vendita?: number | null; unit_of_measure?: string | null } | null;
+          if (m?.prezzo_base_vendita != null) {
+            prezzo = Number(m.prezzo_base_vendita);
+            familyId = m.id ?? null;
+            if (!unita && m.unit_of_measure) unita = m.unit_of_measure;
+          } else {
+            prezzo = 0;
+            senzaPrezzo.push(descrizione.slice(0, 60));
+          }
+        }
+        totale += prezzo * quantita;
+        items.push({
+          quote_id: quote.id,
+          company_id: ctx.companyId,
+          name: descrizione.slice(0, 200),
+          description: descrizione,
+          quantity: quantita,
+          unit_price: prezzo,
+          vat_rate: ivaDefault,
+          unit_of_measure: unita,
+          item_type: ["product", "service", "labor"].includes(String(r.tipo)) ? String(r.tipo) : "product",
+          sort_order: sort++,
+          ...(familyId ? { family_id: familyId } : {}),
+        });
+      }
+      if (items.length > 0) {
+        const { error: iErr } = await ctx.supabase.from("quote_items").insert(items);
+        if (iErr) {
+          // Niente righe → la bozza resta ma vuota: meglio dirlo chiaramente.
+          return { error: `Preventivo ${quote.quote_number} creato ma righe NON salvate: ${iErr.message}. Aprilo nel builder e reinserisci le voci.`, quote_id: quote.id };
+        }
+      }
+      return {
+        quote_id: quote.id,
+        quote_number: quote.quote_number,
+        righe_create: items.length,
+        totale_imponibile_stimato: Math.round(totale * 100) / 100,
+        righe_senza_prezzo: senzaPrezzo,
+        link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
+        nota: senzaPrezzo.length > 0
+          ? `BOZZA creata. ${senzaPrezzo.length} righe senza prezzo (nessun match a listino): completale nel builder.`
+          : "BOZZA creata: rifiniscila e inviala dal builder. Nulla è stato mandato al cliente.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
   // bozza email_ddt_carico) che il titolare conferma nel pannello "DDT da
