@@ -4493,6 +4493,81 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  aggiorna_stato_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_commessa",
+        description:
+          "Cambia lo STATO di una commessa (es. 'metti la GE-0012 in Lavori in corso'). Usa la stessa procedura " +
+          "dell'app: aggiorna lo stato E scrive lo storico cambi stato. FLUSSO: identifica commessa e stato di " +
+          "destinazione, mostra il riepilogo (da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: il cambio stato può innescare automazioni aziendali (es. email al cliente).",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "Nome dello stato di destinazione (es. 'Lavori in corso') — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      const statoNome = String(args?.nuovo_stato ?? "").trim();
+      if (!codice || !statoNome) return { error: "Codice commessa e nuovo stato obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code, current_status_id")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      const { data: stati } = await ctx.supabase
+        .from("order_statuses").select("id, name")
+        .eq("company_id", ctx.companyId)
+        .order("position", { ascending: true });
+      const norm = (s: string) => s.toLowerCase().trim();
+      const q = norm(statoNome);
+      const match = (stati ?? []).filter((s) => norm(s.name ?? "").includes(q));
+      if (match.length === 0) {
+        return { error: `Nessuno stato si chiama "${statoNome}". Stati disponibili: ${(stati ?? []).map((s) => s.name).join(", ") || "(nessuno)"}.` };
+      }
+      if (match.length > 1) {
+        return { error: `Più stati corrispondono a "${statoNome}": ${match.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      }
+      const target = match[0];
+      if (order.current_status_id === target.id) {
+        return { error: `La commessa ${order.order_code} è GIÀ nello stato "${target.name}". Nessuna modifica.` };
+      }
+      const statoPrima = (stati ?? []).find((s) => s.id === order.current_status_id)?.name ?? "(nessuno)";
+
+      // Stessa RPC dell'app: aggiorna orders.current_status_id + order_status_history.
+      const { error } = await ctx.supabase.rpc("change_order_status", {
+        p_order_id: order.id,
+        p_new_status_id: target.id,
+        p_changed_by: ctx.userId,
+      });
+      if (error) return { error: `Cambio stato fallito: ${error.message}` };
+
+      return {
+        commessa: order.order_code,
+        stato: `${statoPrima} → ${target.name}`,
+        link: `/azienda/ordini/${order.id}`,
+        nota: `Stato aggiornato a "${target.name}" (storico registrato).`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
