@@ -5479,6 +5479,91 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "sales",
   },
 
+  aggiorna_stato_preventivo: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_preventivo",
+        description:
+          "Aggiorna lo STATO di un preventivo (es. 'il preventivo OFF-2026-012 è stato accettato', 'i Rossi hanno rifiutato'). " +
+          "Il preventivo si identifica per numero o per nome cliente. " +
+          "FLUSSO: mostra il riepilogo (numero, cliente, importo, da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: il cambio stato può innescare automazioni e ricalcola il valore dell'opportunità collegata.",
+        parameters: {
+          type: "object",
+          properties: {
+            preventivo: { type: "string", description: "Numero preventivo (es. OFF-2026-012) o nome del cliente — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "accettato | rifiutato | inviato | visto | scaduto | bozza — OBBLIGATORIO" },
+          },
+          required: ["preventivo", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const q = String(args?.preventivo ?? "").trim();
+      const nuovoStato = String(args?.nuovo_stato ?? "").trim().toLowerCase();
+      if (!q || !nuovoStato) return { error: "Preventivo e nuovo stato obbligatori." };
+      // 'firmato' è escluso di proposito: lo imposta il flusso di firma elettronica.
+      const STATI = ["bozza", "inviato", "visto", "accettato", "rifiutato", "scaduto"];
+      if (!STATI.includes(nuovoStato)) {
+        return { error: `Stato non valido. Valori: ${STATI.join(", ")}. ('firmato' lo imposta solo la firma elettronica.)` };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: quotes } = await ctx.supabase
+        .from("quotes")
+        .select("id, quote_number, status, total, contact_id, marketing_contacts(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      const qn = norm(q);
+      const candidate = (quotes ?? []).filter((qt) => {
+        const c = qt.marketing_contacts as { first_name?: string; last_name?: string } | null;
+        return norm(qt.quote_number ?? "").includes(qn) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
+      });
+      // Nome cliente ambiguo → preferisci i preventivi ancora "vivi".
+      const vivi = candidate.filter((qt) => !["accettato", "rifiutato", "scaduto", "firmato"].includes(qt.status ?? ""));
+      const pool = vivi.length > 0 && candidate.length > 1 ? vivi : candidate;
+      if (pool.length === 0) return { error: `Nessun preventivo trovato per "${q}".` };
+      if (pool.length > 1) {
+        return { error: `Più preventivi corrispondono a "${q}": ${pool.slice(0, 6).map((qt) => `${qt.quote_number} (${qt.status}, ${Number(qt.total ?? 0).toFixed(2)}€)`).join(" · ")}. Indica il numero esatto.` };
+      }
+      const quote = pool[0];
+      if (quote.status === nuovoStato) {
+        return { error: `Il preventivo ${quote.quote_number} è GIÀ in stato "${nuovoStato}". Nessuna modifica.` };
+      }
+      if (quote.status === "firmato") {
+        return { error: `Il preventivo ${quote.quote_number} è FIRMATO elettronicamente: lo stato non va cambiato da qui.` };
+      }
+
+      const { error } = await ctx.supabase
+        .from("quotes")
+        .update({ status: nuovoStato })
+        .eq("id", quote.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento stato preventivo fallito: ${error.message}` };
+
+      const c = quote.marketing_contacts as { first_name?: string; last_name?: string } | null;
+      return {
+        preventivo_id: quote.id,
+        preventivo: quote.quote_number,
+        cliente: `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || null,
+        importo: `${Number(quote.total ?? 0).toFixed(2)}€`,
+        stato: `${quote.status} → ${nuovoStato}`,
+        link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
+        nota: nuovoStato === "accettato"
+          ? "Preventivo ACCETTATO. Se serve, ora puoi trasformarlo in commessa dalla pagina del preventivo."
+          : "Stato del preventivo aggiornato.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "preventivi",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
