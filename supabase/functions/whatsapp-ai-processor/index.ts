@@ -26,6 +26,7 @@ import { STR } from "./prompts/strings.ts";
 // di rispondere su WhatsApp (operai, titolari).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { resolveIdentity } from "./identity.ts";
+import { gestisciMessaggioCliente } from "./cliente.ts";
 import { analyzeImage, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
@@ -187,6 +188,14 @@ Deno.serve(async (req) => {
     // Identity (inline, no inter-function fetch)
     const identity = await resolveIdentity(supabase, msg.from_phone, msg.company_id);
     if (!identity.matched) {
+      // Ramo CLIENTE (additivo): se il numero è di un cliente (contatto CRM o
+      // commessa), risponde l'assistente clienti con gli strumenti condivisi
+      // del canale voce — stato consegna, preventivi, appuntamenti, ticket.
+      // Non è un cliente → flusso storico invariato (unknown worker).
+      const gestitoDaAssistenteClienti = await gestisciMessaggioCliente(supabase, msg, sendReply);
+      if (gestitoDaAssistenteClienti) {
+        return markDone(supabase, body.message_id, "processed");
+      }
       if (operationalSettings.unknown_worker_mode === "create_review_ticket") {
         await createUnknownWorkerTicket(supabase, msg);
       }

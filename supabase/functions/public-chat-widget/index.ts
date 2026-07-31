@@ -10,20 +10,39 @@
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
-import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di mostrare la risposta nel widget pubblico (visitatori sito).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
+// Strumenti cliente condivisi coi canali voce/WhatsApp. Qui SOLO il subset
+// pubblico (CUSTOMER_TOOL_SPECS_PUBBLICHE): il visitatore web è anonimo e il
+// telefono è DIGITATO, non verificato → mai strumenti che rivelano dati
+// (stato consegna/preventivo), solo quelli che ne creano (appuntamenti,
+// richiamo, ricerca listino).
+import {
+  CUSTOMER_TOOL_SPECS_PUBBLICHE,
+  eseguiCustomerTool,
+  suffissoTelefono,
+  type CustomerToolCtx,
+} from "../_shared/ediliziaCustomerTools.ts";
 
 const SYSTEM_PROMPT = `Sei un assistente virtuale per un'azienda edile italiana. Il tuo compito è:
 1. Rispondere a domande generali sui servizi (preventivi, lavori, tempistiche)
 2. Qualificare il visitatore: chiedi GENTILMENTE nome, email, telefono, tipo lavoro che lo interessa
 3. Una volta raccolti almeno nome+email O nome+telefono → rispondi con "QUALIFY:" seguito da JSON con i dati
 
+STRUMENTI REALI (usali, non promettere a vuoto):
+- info_prodotto: verifica se un prodotto/materiale è in catalogo
+- disponibilita: orari liberi in agenda per un giorno (data AAAA-MM-GG)
+- fissa_appuntamento: prenota davvero un sopralluogo (chiedi PRIMA nome e telefono, poi data e ora)
+- richiesta_richiamo: lascia all'ufficio la richiesta di essere richiamati (serve il telefono)
+Per appuntamenti e richiami RACCOGLI SEMPRE prima nome e telefono: senza, l'ufficio non può confermare.
+
 REGOLE:
 - Tono cordiale, professionale, italiano corretto
 - Massimo 2 domande per messaggio
 - NON inventare prezzi precisi (di' "ti contatteremo entro 24h con un preventivo")
+- NON puoi dare informazioni su pratiche, consegne o preventivi esistenti: per quelle invita a chiamare o farsi richiamare
 - Se utente fornisce email/telefono e nome → considera qualificato
 - Se 8+ messaggi senza qualificare → suggerisci contatto diretto
 
@@ -180,7 +199,7 @@ async function handleMessage(supabase: any, body: MessageBody): Promise<Response
     .order("created_at", { ascending: true })
     .limit(20);
 
-  const messages = [
+  const messages: AiRouterMessage[] = [
     { role: "system" as const, content: SYSTEM_PROMPT },
     ...((history ?? []) as Array<{ role: string; content: string }>).map((m) => ({
       role: m.role as "user" | "assistant",
@@ -188,19 +207,61 @@ async function handleMessage(supabase: any, body: MessageBody): Promise<Response
     })),
   ];
 
-  // AI call
+  // Contesto per gli strumenti: il telefono è quello DICHIARATO dal visitatore
+  // in sessione (non verificato) — sufficiente per creare appuntamenti/task,
+  // mai usato per rivelare dati (subset pubblico degli strumenti).
+  const telefonoDichiarato = String(session.collected_phone ?? "");
+  const toolCtx: CustomerToolCtx = {
+    rawPhone: telefonoDichiarato,
+    suffix: suffissoTelefono(telefonoDichiarato),
+    fallbackCreatedBy: null,
+  };
+
+  // AI call con loop tool (max 3 giri): il router inoltra `tools` a OpenRouter
+  // e restituisce i tool_calls in rawResponse.
   let aiText = "";
   try {
-    const aiRes = await aiRouterComplete({
-      supabase,
-      taskKey: "public_chat",
-      messages,
-      params: { temperature: 0.4, max_tokens: 500 },
-      companyId: session.company_id,
-      personaKey: "sales",
-      estimatedCostEur: 0.005,
-    });
-    aiText = aiRes.content;
+    const conv: AiRouterMessage[] = [...messages];
+    for (let iter = 0; iter < 3; iter++) {
+      const aiRes = await aiRouterComplete({
+        supabase,
+        taskKey: "public_chat",
+        messages: conv,
+        params: {
+          temperature: 0.4,
+          max_tokens: 500,
+          tools: CUSTOMER_TOOL_SPECS_PUBBLICHE,
+          tool_choice: "auto",
+        },
+        companyId: session.company_id,
+        personaKey: "sales",
+        estimatedCostEur: 0.005,
+      });
+      const choice = (aiRes.rawResponse as {
+        choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }>;
+      })?.choices?.[0];
+      const toolCalls = choice?.message?.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) {
+        aiText = aiRes.content || choice?.message?.content || "";
+        break;
+      }
+      conv.push(choice!.message as unknown as AiRouterMessage);
+      for (const tc of toolCalls) {
+        let args: Record<string, unknown> = {};
+        try { args = JSON.parse(tc.function.arguments); } catch { /* args vuoti */ }
+        let result;
+        try {
+          result = await eseguiCustomerTool(supabase, session.company_id, toolCtx, tc.function.name, args);
+        } catch (e) {
+          console.error("widget_tool_error", tc.function.name, e);
+          result = { risposta: "Strumento momentaneamente non disponibile: proponi il contatto diretto." };
+        }
+        conv.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
+      }
+    }
+    if (!aiText) {
+      aiText = "Ho registrato la tua richiesta: ti ricontatteremo al più presto. Posso aiutarti con altro?";
+    }
   } catch (e) {
     aiText = "Mi dispiace, c'è stato un problema tecnico. Riprovo? Oppure puoi contattarci direttamente.";
     console.error("ai_error", e);
