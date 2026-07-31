@@ -5011,6 +5011,77 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "finance",
   },
 
+  aggiungi_nota_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiungi_nota_commessa",
+        description:
+          "Aggiunge una NOTA INTERNA al diario di una commessa (visibile al team nel Diario, MAI inviata al cliente). " +
+          "Utile per appunti veloci: 'segna sulla GE-0012 che il cliente vuole le piastrelle grigie'. " +
+          "FLUSSO: conferma commessa e testo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            testo: { type: "string", description: "Testo della nota — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice", "testo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      const testo = String(args?.testo ?? "").trim().slice(0, 2000);
+      if (!codice || !testo) return { error: "Codice commessa e testo obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      const { data: prof } = await ctx.supabase
+        .from("profiles").select("first_name, last_name")
+        .eq("id", ctx.userId).maybeSingle();
+      const senderName = `${prof?.first_name ?? ""} ${prof?.last_name ?? ""}`.trim() || "Utente";
+
+      // Stessa scrittura di send-order-message per nota_interna (nessun invio).
+      const { data: msg, error } = await ctx.supabase
+        .from("order_messages")
+        .insert({
+          order_id: order.id,
+          company_id: ctx.companyId,
+          channel: "nota_interna",
+          direction: "out",
+          to_name: "",
+          body: testo,
+          status: "delivered",
+          sent_by: ctx.userId,
+          sent_by_name: senderName,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Salvataggio nota fallito: ${error.message}` };
+
+      return {
+        nota_id: msg.id,
+        commessa: order.order_code,
+        testo: testo.length > 120 ? testo.slice(0, 120) + "…" : testo,
+        link: `/azienda/ordini/${order.id}`,
+        nota: "Nota interna salvata nel Diario della commessa (non inviata al cliente).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
