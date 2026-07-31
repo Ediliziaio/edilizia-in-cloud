@@ -5564,6 +5564,79 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "preventivi",
   },
 
+  completa_task: {
+    schema: {
+      type: "function",
+      function: {
+        name: "completa_task",
+        description:
+          "Segna un'ATTIVITÀ come completata (o la rimette in corso / da fare). " +
+          "Es. 'ho chiamato il geometra, segna fatto'. L'attività si cerca per titolo. " +
+          "Se più attività combaciano, il tool le elenca invece di indovinare.",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo (anche parziale) dell'attività — OBBLIGATORIO" },
+            stato: { type: "string", description: "completata | in_corso | da_fare (default completata)" },
+          },
+          required: ["titolo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titoloQ = String(args?.titolo ?? "").trim();
+      if (!titoloQ) return { error: "Titolo obbligatorio." };
+      const STATI = ["completata", "in_corso", "da_fare"];
+      const stato = String(args?.stato ?? "").trim().toLowerCase() || "completata";
+      if (!STATI.includes(stato)) return { error: `Stato non valido. Valori: ${STATI.join(", ")}.` };
+
+      const { data: tasks } = await ctx.supabase
+        .from("tasks")
+        .select("id, title, status, due_date, assigned_to")
+        .eq("company_id", ctx.companyId)
+        .ilike("title", `%${titoloQ}%`)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (!tasks || tasks.length === 0) return { error: `Nessuna attività trovata con titolo simile a "${titoloQ}".` };
+      // Titolo ambiguo → preferisci quelle ancora aperte (il gesto è "segna fatto").
+      const aperte = tasks.filter((t) => t.status !== "completata");
+      const pool = stato !== "completata" ? tasks : (aperte.length > 0 ? aperte : tasks);
+      if (pool.length > 1) {
+        return { error: `Più attività corrispondono a "${titoloQ}": ${pool.slice(0, 6).map((t) => `"${t.title}" (${t.status}${t.due_date ? `, scad. ${t.due_date}` : ""})`).join(" · ")}. Specifica meglio il titolo.` };
+      }
+      const task = pool[0];
+      if (task.status === stato) {
+        return { error: `L'attività "${task.title}" è GIÀ in stato "${stato}". Nessuna modifica.` };
+      }
+
+      const { error } = await ctx.supabase
+        .from("tasks")
+        .update({
+          status: stato,
+          // completed_at si valorizza solo a completamento e si azzera se riaperta
+          // (come fa la UI in LinkedTasks): altrimenti resterebbe una data di
+          // completamento su un'attività di nuovo aperta.
+          completed_at: stato === "completata" ? new Date().toISOString() : null,
+        })
+        .eq("id", task.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento attività fallito: ${error.message}` };
+
+      return {
+        task_id: task.id,
+        attivita: task.title,
+        stato: `${task.status} → ${stato}`,
+        link: "/azienda/attivita",
+        nota: stato === "completata" ? "Attività completata." : `Attività rimessa in stato "${stato}".`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "operations",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
