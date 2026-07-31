@@ -5343,6 +5343,142 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "warehouse",
   },
 
+  aggiorna_opportunita: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_opportunita",
+        description:
+          "Aggiorna un'OPPORTUNITÀ esistente: la sposta di fase nella pipeline oppure la chiude come VINTA/PERSA " +
+          "(es. 'la Rossi l'abbiamo vinta', 'sposta la Bianchi in Trattativa'). Può aggiornare anche il valore. " +
+          "FLUSSO: mostra il riepilogo (da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: segnare VINTA invia l'evento di conversione a Meta/Google Ads e può innescare automazioni.",
+        parameters: {
+          type: "object",
+          properties: {
+            opportunita_nome: { type: "string", description: "Nome dell'opportunità (o del cliente) — OBBLIGATORIO" },
+            esito: { type: "string", description: "vinta | persa | abbandonata | riapri (in alternativa a fase_nome)" },
+            fase_nome: { type: "string", description: "Nome della fase in cui spostarla" },
+            motivo: { type: "string", description: "Motivo della perdita (solo per esito=persa)" },
+            valore: { type: "number", description: "Nuovo valore in EURO (opzionale)" },
+          },
+          required: ["opportunita_nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nomeQ = String(args?.opportunita_nome ?? "").trim();
+      if (!nomeQ) return { error: "Nome opportunità obbligatorio." };
+      const esitoArg = String(args?.esito ?? "").trim().toLowerCase();
+      const faseArg = String(args?.fase_nome ?? "").trim();
+      const valoreArg = args?.valore == null ? null : Math.round(Number(args.valore) * 100) / 100;
+      if (valoreArg != null && (!Number.isFinite(valoreArg) || valoreArg < 0 || valoreArg > 100_000_000)) {
+        return { error: "Valore non valido." };
+      }
+      if (!esitoArg && !faseArg && valoreArg == null) {
+        return { error: "Indica almeno cosa cambiare: esito (vinta/persa/abbandonata/riapri), fase_nome oppure valore." };
+      }
+      const ESITI: Record<string, string> = { vinta: "won", persa: "lost", abbandonata: "abandoned", riapri: "open" };
+      if (esitoArg && !ESITI[esitoArg]) {
+        return { error: `Esito non valido. Valori: ${Object.keys(ESITI).join(", ")}.` };
+      }
+
+      // Opportunità per nome (o per nome del contatto collegato).
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const q = norm(nomeQ);
+      const { data: opps } = await ctx.supabase
+        .from("marketing_opportunities")
+        .select("id, name, value, status, stage_id, pipeline_id, contact_id, marketing_contacts(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .limit(2000);
+      const candidate = (opps ?? []).filter((o) => {
+        const c = o.marketing_contacts as { first_name?: string; last_name?: string } | null;
+        return norm(o.name ?? "").includes(q) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(q);
+      });
+      // Se il nome combacia con più opportunità, preferisci quelle ancora aperte.
+      const aperte = candidate.filter((o) => o.status === "open");
+      const pool = aperte.length > 0 && candidate.length > 1 ? aperte : candidate;
+      if (pool.length === 0) return { error: `Nessuna opportunità trovata con nome simile a "${nomeQ}".` };
+      if (pool.length > 1) {
+        return { error: `Più opportunità corrispondono a "${nomeQ}": ${pool.slice(0, 6).map((o) => `${o.name} (${o.status})`).join(", ")}. Specifica meglio.` };
+      }
+      const opp = pool[0];
+
+      const { data: stages } = await ctx.supabase
+        .from("marketing_pipeline_stages")
+        .select("id, name, position, auto_status")
+        .eq("pipeline_id", opp.pipeline_id)
+        .order("position", { ascending: true });
+      const fasePrima = (stages ?? []).find((s) => s.id === opp.stage_id)?.name ?? "(nessuna)";
+
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      let faseDopo: string | null = null;
+      let statusDopo: string | null = null;
+
+      if (faseArg) {
+        const sm = (stages ?? []).filter((s) => norm(s.name ?? "").includes(norm(faseArg)));
+        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseArg}" in questa pipeline. Fasi: ${(stages ?? []).map((s) => s.name).join(", ")}.` };
+        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseArg}": ${sm.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        update.stage_id = sm[0].id;
+        faseDopo = sm[0].name;
+        // Come useUpdateOpportunityStage: la fase può forzare lo stato.
+        if (sm[0].auto_status) {
+          update.status = sm[0].auto_status;
+          statusDopo = sm[0].auto_status;
+        }
+      }
+
+      if (esitoArg) {
+        const nuovoStatus = ESITI[esitoArg];
+        if (opp.status === nuovoStatus && !faseArg && valoreArg == null) {
+          return { error: `L'opportunità "${opp.name}" è GIÀ in stato "${nuovoStatus}". Nessuna modifica.` };
+        }
+        update.status = nuovoStatus;
+        statusDopo = nuovoStatus;
+        if (nuovoStatus === "lost") {
+          const motivo = String(args?.motivo ?? "").trim().slice(0, 500);
+          if (motivo) update.lost_reason = motivo;
+        }
+        // Allinea anche la colonna del kanban, se esiste una fase per quello stato:
+        // altrimenti la card resterebbe in una colonna incoerente col suo esito.
+        if (!faseArg) {
+          const stageEsito = (stages ?? []).find((s) => s.auto_status === nuovoStatus);
+          if (stageEsito) {
+            update.stage_id = stageEsito.id;
+            faseDopo = stageEsito.name;
+          }
+        }
+      }
+
+      if (valoreArg != null) update.value = valoreArg;
+
+      const { error } = await ctx.supabase
+        .from("marketing_opportunities")
+        .update(update)
+        .eq("id", opp.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento opportunità fallito: ${error.message}` };
+
+      return {
+        opportunita_id: opp.id,
+        opportunita: opp.name,
+        fase: faseDopo ? `${fasePrima} → ${faseDopo}` : fasePrima,
+        stato: statusDopo ? `${opp.status} → ${statusDopo}` : opp.status,
+        valore: valoreArg != null ? `${Number(opp.value ?? 0).toFixed(2)}€ → ${valoreArg.toFixed(2)}€` : `${Number(opp.value ?? 0).toFixed(2)}€`,
+        link: "/azienda/marketing/opportunita",
+        nota: statusDopo === "won"
+          ? "Opportunità segnata VINTA (evento di conversione inviato a Meta/Google se le integrazioni sono attive)."
+          : "Opportunità aggiornata.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "sales",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
