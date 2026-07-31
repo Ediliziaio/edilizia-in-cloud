@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { VOICE_AGENT_TEMPLATES, templatesPerCategoria } from "@/lib/voice-agent-templates";
 import {
   ArrowLeft, Bot, Settings2, MessageSquare, Phone, BarChart3,
   Loader2, Save, Mic, Zap, Clock, TrendingUp, CheckCircle2,
@@ -289,7 +290,40 @@ export default function AgentDetailPage() {
               <Textarea value={editDescrizione} onChange={(e) => setEditDescrizione(e.target.value)} rows={2} />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">System Prompt</label>
+              <div className="flex items-center justify-between mb-1 gap-2">
+                <label className="text-sm font-medium block">System Prompt</label>
+                {/* Un textarea vuoto è il motivo per cui gli agenti nascono
+                    generici: 5 mestieri già scritti coi 6 blocchi ElevenLabs
+                    (Personalità/Contesto/Tono/Obiettivo/Limiti/Strumenti). */}
+                <Select
+                  value=""
+                  onValueChange={(id) => {
+                    const t = VOICE_AGENT_TEMPLATES.find((x) => x.id === id);
+                    if (!t) return;
+                    setEditPrompt(t.systemPrompt);
+                    setEditPrimoMsg(t.primoMessaggio);
+                    toast.info(`Template "${t.nome}" applicato`, {
+                      description: t.variabili.length
+                        ? `Variabili da passare in chiamata: ${t.variabili.map((v) => `{{${v}}}`).join(", ")}`
+                        : undefined,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-auto max-w-[280px] text-xs">
+                    <SelectValue placeholder="Parti da un template edilizia…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templatesPerCategoria().map((g) => (
+                      <SelectGroup key={g.categoria}>
+                        <SelectLabel>{g.categoria}</SelectLabel>
+                        {g.templates.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} rows={8} className="font-mono text-xs" />
             </div>
             <div>

@@ -1,0 +1,35 @@
+-- ============================================================================
+-- Cron per ai-conversations-sweeper — NON ANCORA APPLICATO (lavoro locale)
+-- ============================================================================
+-- Da applicare via execute_sql SOLO DOPO il deploy della edge function
+-- ai-conversations-sweeper: schedulare un cron su una funzione non deployata
+-- produce solo 404 in cron_http_failures.
+--
+-- Perché esiste: initiate-outbound-call crea la conversazione in_progress e la
+-- chiusura (transcript + ADDEBITO CREDITI) arriva solo dal webhook ElevenLabs.
+-- Webhook perso = chiamata pagata a ElevenLabs e mai fatturata al cliente,
+-- riga aperta per sempre. Lo sweeper interroga ElevenLabs e reinietta l'esito
+-- nel webhook auto-firmando l'HMAC con lo stesso ELEVENLABS_WEBHOOK_SECRET
+-- (env condiviso tra le due funzioni): la pipeline di billing gira UNA volta,
+-- nel webhook — zero logica duplicata.
+--
+-- select cron.schedule(
+--   'ai-conversations-sweeper',
+--   '*/15 * * * *',
+--   $$
+--   select net.http_post(
+--     url    := 'https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/ai-conversations-sweeper',
+--     headers:= jsonb_build_object(
+--                 'Content-Type', 'application/json',
+--                 'x-cron-secret', (select coalesce(
+--                    current_setting('app.proactive_cron_secret', true),
+--                    '13035e8e9570855959a5bf9c0803d117554d8162cf63e46b'))
+--               ),
+--     body   := '{}'::jsonb
+--   );
+--   $$
+-- );
+--
+-- NB il secret sopra è quello reale già usato dagli altri cron della
+-- piattaforma (vedi memoria eic-migration-backlog / referral). La funzione
+-- accetta anche INTERNAL_CRON_SECRET e CRON_SECRET via cronAuth condiviso.

@@ -11,7 +11,14 @@ const EL_BASE = "https://api.elevenlabs.io/v1";
 // in inglese anche con testo italiano. Usare always eleven_multilingual_v2.
 // Rachel (21m00Tcm4TlvDq8ikWAM) supporta italiano nativo con multilingual_v2.
 const DEFAULT_ITALIAN_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-const DEFAULT_TTS_MODEL = "eleven_multilingual_v2";
+// Flash v2.5: ~75ms di inferenza contro ~300ms di multilingual_v2, italiano
+// supportato, costo per carattere circa dimezzato. Al telefono la qualità
+// extra di multilingual non passa dal codec della linea, la latenza invece è
+// TUTTA nell'esperienza: un agente che risponde con mezzo secondo di ritardo
+// sembra rotto. (Guida ufficiale ElevenLabs: "speed-optimized TTS like Flash
+// for real-time voice agents".) Vale per gli agenti NUOVI; gli esistenti
+// tengono il loro modello.
+const DEFAULT_TTS_MODEL = "eleven_flash_v2_5";
 
 // ── FIX BUG #2 — Tool builder inline (non può importare da src/) ─────────────
 // Converte tools_config (JSONB dal DB) nel formato array richiesto da ElevenLabs ConvAI.
@@ -175,7 +182,7 @@ Deno.serve(async (req) => {
             },
             tts: {
               voice_id: voiceId,
-              model_id: DEFAULT_TTS_MODEL, // eleven_multilingual_v2 — supporta italiano
+              model_id: DEFAULT_TTS_MODEL, // Flash v2.5 — latenza da telefono, italiano ok
             },
           },
           name: payload?.name || "Nuovo Agente",
