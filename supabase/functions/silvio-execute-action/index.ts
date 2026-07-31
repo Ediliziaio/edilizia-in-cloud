@@ -101,6 +101,11 @@ const ACTION_POLICIES: Record<string, {
     allowedRoles: ["super_admin", "company_admin"],
     requiresStrongConfirmation: true,
   },
+  // Chiamata vocale AI a un lead caldo: esegue tramite initiate-outbound-call
+  // (DND, orari, abbonamento, crediti e billing restano lì, un solo flusso).
+  make_voice_call_lead: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+  },
 };
 
 interface ActionPermission {
@@ -505,12 +510,93 @@ async function dispatchAction(
       return await createQuoteDraft(payload, ctx);
     case "create_invoice_draft":
       return await createInvoiceDraft(payload, ctx);
+    case "make_voice_call_lead":
+      return await makeVoiceCallLead(payload, ctx);
     default:
       if (SILVIO_TOOLS[actionType]) {
         return await executeRegisteredSilvioTool(actionType, payload, ctx);
       }
       return { ok: false, message: `Action type sconosciuto: ${actionType}` };
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler make_voice_call_lead — la proposta "chiamo il lead caldo?" approvata
+// (o in auto_execute) diventa una chiamata VERA tramite initiate-outbound-call:
+// niente flusso parallelo, DND/orari/abbonamento/crediti/billing restano tutti
+// nell'unico punto che già li gestisce. L'agente è quello configurato
+// dall'azienda (payload.agent_id dal worker, altrimenti il primo agente vocale
+// attivo collegato a ElevenLabs). Le dynamic variables combaciano col template
+// "Richiamo lead entro 5 minuti" ({{azienda}}, {{nome}}, {{lavoro}}).
+async function makeVoiceCallLead(
+  payload: Record<string, unknown>,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+): Promise<ExecutionResult> {
+  const p = payload as {
+    agent_id?: string;
+    contact_id?: string;
+    phone?: string;
+    contact_name?: string;
+    opportunity_name?: string;
+  };
+
+  let agentId = (p.agent_id ?? "").trim() || null;
+  if (!agentId) {
+    const { data: agent } = await ctx.supabase
+      .from("ai_agents_v2")
+      .select("id")
+      .eq("company_id", ctx.companyId)
+      .eq("stato", "attivo")
+      .in("tipo", ["vocale", "campagna"])
+      .not("elevenlabs_agent_id", "is", null)
+      .order("creato_il", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    agentId = (agent?.id as string | undefined) ?? null;
+  }
+  if (!agentId) {
+    return { ok: false, message: "Nessun agente vocale attivo configurato: creane uno in Agenti AI e collega un numero." };
+  }
+  if (!p.contact_id && !p.phone) {
+    return { ok: false, message: "Proposta senza contatto né numero: impossibile chiamare." };
+  }
+
+  const { data: company } = await ctx.supabase
+    .from("companies")
+    .select("name")
+    .eq("id", ctx.companyId)
+    .maybeSingle();
+
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/initiate-outbound-call`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    },
+    body: JSON.stringify({
+      agent_id: agentId,
+      contact_id: p.contact_id ?? undefined,
+      phone_number: p.contact_id ? undefined : p.phone,
+      company_id: ctx.companyId,
+      user_id: ctx.userId,
+      dynamic_vars: {
+        azienda: (company?.name as string | undefined) ?? "la nostra azienda",
+        nome: (p.contact_name ?? "").split(" ")[0] || "Cliente",
+        lavoro: p.opportunity_name ?? "il suo progetto",
+      },
+    }),
+  });
+  const data = await res.json().catch(() => ({} as Record<string, unknown>));
+
+  if (!res.ok) {
+    // Errori "di merito" (DND, orari, crediti) tornano leggibili all'utente.
+    return { ok: false, message: `Chiamata non avviata: ${(data as { error?: string })?.error ?? `errore ${res.status}`}` };
+  }
+  return {
+    ok: true,
+    message: `Chiamata AI avviata verso ${p.contact_name || p.phone || "il lead"}.`,
+    details: { conversation_id: (data as { conversation_id?: string })?.conversation_id ?? null, agent_id: agentId },
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
