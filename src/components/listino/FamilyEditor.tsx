@@ -1079,6 +1079,19 @@ export function FamilyEditor() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {/* La trappola silenziosa del listino: il preventivatore
+                        naviga macrocategoria → articolo → misure, quindi un
+                        articolo senza macrocategoria NON compare mai nella
+                        scelta prodotti (solo la ricerca lo trova). Prima
+                        l'utente lo scopriva al primo preventivo, quando
+                        l'articolo "sparito" sembrava un bug. */}
+                    {macrocategoriaId === "none" && (
+                      <p className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-amber-600">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
+                        Senza macrocategoria questo articolo non comparirà nella
+                        scelta prodotti del preventivo: si troverà solo con la ricerca.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -2574,8 +2587,72 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     0,
   );
 
+  // ── Checklist di completezza ──────────────────────────────────────────────
+  // Il riepilogo è l'ultimo posto dove l'utente passa prima di tornare al
+  // catalogo: se l'articolo ha un buco che lo rende inutilizzabile o brutto in
+  // preventivo, va detto QUI, non scoperto dal cliente. Ogni voce porta allo
+  // step giusto con un click.
+  const completezza: Array<{ testo: string; step: string; grave: boolean }> = [];
+  if (!macroId) {
+    completezza.push({
+      testo: "Senza macrocategoria: non compare nella scelta prodotti del preventivo.",
+      step: "1",
+      grave: true,
+    });
+  }
+  if (
+    (family.modalita_prezzo_base === "mq" || family.modalita_prezzo_base === "pz") &&
+    prodottoVendita <= 0
+  ) {
+    completezza.push({
+      testo: "Prezzo di vendita a zero: in preventivo l'articolo esce gratis.",
+      step: "2",
+      grave: true,
+    });
+  }
+  if (!immagineUrl) {
+    completezza.push({
+      testo: "Senza immagine: nel preventivo e nel catalogo appare un riquadro grigio.",
+      step: "1",
+      grave: false,
+    });
+  }
+  if (manodoperaModalita === "nessuna") {
+    completezza.push({
+      testo: "Nessuna manodopera collegata: la posa andrà aggiunta a mano in ogni preventivo.",
+      step: "4",
+      grave: false,
+    });
+  }
+
   return (
     <div className="space-y-4">
+      {completezza.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 space-y-1.5">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            Prima di chiudere, controlla:
+          </p>
+          <ul className="space-y-1">
+            {completezza.map((c) => (
+              <li key={c.testo} className="flex items-start gap-2 text-sm">
+                <span className={c.grave ? "text-destructive font-bold" : "text-amber-600"}>•</span>
+                <span className="flex-1 text-amber-900 dark:text-amber-200">{c.testo}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs shrink-0"
+                  onClick={() => onGotoStep(c.step)}
+                >
+                  Sistema
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Card Anagrafica */}
       <RiepilogoCard
         icon={Package}

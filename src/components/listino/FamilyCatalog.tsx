@@ -319,6 +319,13 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
+  // Destinazione della copia. "same" = resta dov'è. Il caso d'uso vero è il
+  // listino a materiali: la stessa Finestra 2 Ante esiste in PVC a 400 €/mq e
+  // in Alluminio a 800 €/mq — si crea una volta e si duplica cambiando macro
+  // e prezzo, invece di rifare a mano assi, valori e griglia.
+  const [dupMacroId, setDupMacroId] = useState<string>("same");
+  // Prezzo base della copia. "" = mantieni quello del sorgente.
+  const [dupPrezzo, setDupPrezzo] = useState("");
   // "Sposta" dialog: l'articolo selezionato (null = chiuso) e la selezione
   // temporanea macro/cat controllata. Era un Popover annidato nella Card, ma
   // creava overflow orizzontale con 3 bottoni in orizzontale su griglia
@@ -499,14 +506,26 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
   const handleDuplicate = async () => {
     if (!toDuplicate || !dupName.trim()) return;
+    // parseDecimalIT: virgola come separatore decimale ("450,50" → 450.5).
+    const prezzoParsed = dupPrezzo.trim() === ""
+      ? undefined
+      : Number(dupPrezzo.trim().replace(/\./g, "").replace(",", "."));
+    if (prezzoParsed != null && (!Number.isFinite(prezzoParsed) || prezzoParsed < 0)) {
+      toast.error("Prezzo non valido", { description: "Inserisci un numero, es. 800 o 550,50" });
+      return;
+    }
     try {
       const newId = await duplicateFamily.mutateAsync({
         sourceId: toDuplicate.id,
         newName: dupName.trim(),
+        targetMacrocategoriaId: dupMacroId !== "same" ? dupMacroId : undefined,
+        newPrezzoVendita: prezzoParsed,
       });
       toast.success("Articolo duplicato");
       setToDuplicate(null);
       setDupName("");
+      setDupMacroId("same");
+      setDupPrezzo("");
       navigate(`/azienda/impostazioni/listino/famiglie/${newId}`);
     } catch (err) {
       toast.error("Errore duplicazione", {
@@ -1755,6 +1774,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           if (!open) {
             setToDuplicate(null);
             setDupName("");
+            setDupMacroId("same");
+            setDupPrezzo("");
           }
         }}
       >
@@ -1762,27 +1783,66 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           <DialogHeader>
             <DialogTitle>Duplica articolo</DialogTitle>
             <DialogDescription>
-              Crea una copia di &quot;{toDuplicate?.nome}&quot; con tutte le variabili e valori.
-              Potrai modificarla separatamente.
+              Crea una copia di &quot;{toDuplicate?.nome}&quot; con tutte le variabili, i valori e la
+              griglia prezzi. Potrai modificarla separatamente.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <label htmlFor="dup-name" className="text-sm font-medium">
-              Nome nuovo articolo
-            </label>
-            <Input
-              id="dup-name"
-              value={dupName}
-              onChange={(e) => setDupName(e.target.value)}
-              autoFocus
-              className="h-10"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && dupName.trim() && !duplicateFamily.isPending) {
-                  e.preventDefault();
-                  void handleDuplicate();
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="dup-name" className="text-sm font-medium">
+                Nome nuovo articolo
+              </label>
+              <Input
+                id="dup-name"
+                value={dupName}
+                onChange={(e) => setDupName(e.target.value)}
+                autoFocus
+                className="h-10"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && dupName.trim() && !duplicateFamily.isPending) {
+                    e.preventDefault();
+                    void handleDuplicate();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="dup-macro" className="text-sm font-medium">
+                Macrocategoria di destinazione
+              </label>
+              <Select value={dupMacroId} onValueChange={setDupMacroId}>
+                <SelectTrigger id="dup-macro" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="same">Stessa macrocategoria (attuale)</SelectItem>
+                  {macrocategorie.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Utile per lo stesso prodotto in un altro materiale: es. la finestra in PVC
+                duplicata sotto &quot;Serramenti Alluminio&quot; con il suo prezzo.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="dup-prezzo" className="text-sm font-medium">
+                Prezzo base della copia <span className="font-normal text-muted-foreground">(opzionale)</span>
+              </label>
+              <Input
+                id="dup-prezzo"
+                inputMode="decimal"
+                value={dupPrezzo}
+                onChange={(e) => setDupPrezzo(e.target.value)}
+                placeholder={
+                  toDuplicate && Number(toDuplicate.prezzo_base_vendita) > 0
+                    ? `Vuoto = ${Number(toDuplicate.prezzo_base_vendita).toLocaleString("it-IT")} € (come l'originale)`
+                    : "Vuoto = come l'originale"
                 }
-              }}
-            />
+                className="h-10"
+              />
+            </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <Button
@@ -1790,6 +1850,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               onClick={() => {
                 setToDuplicate(null);
                 setDupName("");
+                setDupMacroId("same");
+                setDupPrezzo("");
               }}
               disabled={duplicateFamily.isPending}
               className="h-10 w-full sm:w-auto"

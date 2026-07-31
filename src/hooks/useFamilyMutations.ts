@@ -221,7 +221,20 @@ export function useFamilyMutations() {
 
   /** Duplica una famiglia con assi+valori (clone profondo). */
   const duplicateFamily = useMutation({
-    mutationFn: async (args: { sourceId: string; newName: string }) => {
+    mutationFn: async (args: {
+      sourceId: string;
+      newName: string;
+      /**
+       * Macrocategoria di DESTINAZIONE. È il caso "stesso prodotto, altro
+       * materiale": Finestra 2 Ante in PVC → la stessa in Alluminio a prezzo
+       * diverso. Prima si poteva duplicare solo nella stessa macro, e per
+       * costruire un listino a materiali toccava rifare a mano assi e griglia
+       * (o farlo in SQL, come per Best Infissi). Omesso = resta dov'è.
+       */
+      targetMacrocategoriaId?: string | null;
+      /** Nuovo prezzo base della copia (tipico quando cambia il materiale). */
+      newPrezzoVendita?: number;
+    }) => {
       if (!companyId) throw new Error("Azienda non identificata");
 
       // 1. leggi sorgente con assi+valori
@@ -257,9 +270,26 @@ export function useFamilyMutations() {
       void _ignoreUA;
       void _ignoreAxes;
 
+      // Override di destinazione. Se la copia cambia macrocategoria, la
+      // categoria del sorgente appartiene all'albero VECCHIO: tenerla
+      // aggancerebbe la copia a due rami diversi. Il catalogo risolve prima
+      // macrocategoria_id quindi non si vedrebbe, ma i dati resterebbero
+      // incoerenti — meglio azzerarla.
+      const cambiaMacro =
+        args.targetMacrocategoriaId != null &&
+        args.targetMacrocategoriaId !== (famRest as { macrocategoria_id?: string | null }).macrocategoria_id;
+      const overrides: Record<string, unknown> = { nome: args.newName };
+      if (cambiaMacro) {
+        overrides.macrocategoria_id = args.targetMacrocategoriaId;
+        overrides.categoria_id = null;
+      }
+      if (args.newPrezzoVendita != null && Number.isFinite(args.newPrezzoVendita)) {
+        overrides.prezzo_base_vendita = args.newPrezzoVendita;
+      }
+
       const { data: newFam, error: errNew } = await supabase
         .from("article_families" as never)
-        .insert({ ...famRest, nome: args.newName })
+        .insert({ ...famRest, ...overrides })
         .select("id")
         .single();
       if (errNew) throw new Error(errNew.message);

@@ -95,14 +95,25 @@ Deno.serve(async (req) => {
     // ============ IDEMPOTENCY ============
     // ElevenLabs ritenta i webhook su errore transitorio. Senza guard, ogni
     // retry addebitava crediti, duplicava conversazioni e ri-sparava i trigger
-    // automation. Se abbiamo già processato questo conversation_id, esci OK.
+    // automation.
+    //
+    // ⚠️ MA: initiate-outbound-call inserisce la conversazione PRIMA della
+    // chiamata (status='in_progress', stesso elevenlabs_conversation_id).
+    // La vecchia guardia "esiste → skippa" trattava quel segnaposto come
+    // "già processato": OGNI chiamata outbound usciva di qui senza transcript,
+    // senza statistiche e SENZA ADDEBITO CREDITI — chiamate gratis, appese per
+    // sempre in_progress. Skippa solo se la riga è già FINALIZZATA; il
+    // segnaposto in_progress va invece completato (update, non insert).
     const { data: existingConv } = await adminClient
       .from("ai_agent_conversations")
-      .select("id")
+      .select("id, status, metadata, contact_id")
       .eq("elevenlabs_conversation_id", conversationId)
       .maybeSingle();
 
-    if (existingConv) {
+    const placeholderConvId: string | null =
+      existingConv?.status === "in_progress" ? (existingConv.id as string) : null;
+
+    if (existingConv && !placeholderConvId) {
       console.log(`[WEBHOOK] Conversation ${conversationId} already processed, skipping`);
       return json({
         success: true,
@@ -316,11 +327,51 @@ Deno.serve(async (req) => {
       convInsert.branch_id = branchId;
     }
 
-    const { data: convRecord, error: convErr } = await adminClient
-      .from("ai_agent_conversations")
-      .insert(convInsert)
-      .select("id")
-      .single();
+    let convRecord: { id: string } | null = null;
+    let convErr: { code?: string; message?: string } | null = null;
+
+    if (placeholderConvId) {
+      // Chiamata OUTBOUND: completa il segnaposto creato da
+      // initiate-outbound-call invece di inserire un doppione. Il metadata del
+      // segnaposto (phone, initiated_by, provider) va preservato: il payload
+      // del webhook non li conosce.
+      const placeholder = existingConv as unknown as {
+        metadata?: Record<string, unknown>;
+        contact_id?: string | null;
+      };
+      const { data: updated, error: updErr } = await adminClient
+        .from("ai_agent_conversations")
+        .update({
+          ...convInsert,
+          // Il webhook risolve il contatto dal numero CHIAMANTE: nelle
+          // outbound il chiamante è il numero dell'azienda, quindi qui
+          // contactId è quasi sempre null — il contatto vero lo conosce solo
+          // il segnaposto. Mai sovrascrivere un valore buono con un null.
+          contact_id: (convInsert.contact_id as string | null) ?? placeholder.contact_id ?? null,
+          metadata: {
+            ...(placeholder.metadata ?? {}),
+            ...(convInsert.metadata as Record<string, unknown>),
+          },
+        })
+        .eq("id", placeholderConvId)
+        .eq("status", "in_progress") // guard: se un webhook concorrente ha già finalizzato, 0 righe
+        .select("id")
+        .maybeSingle();
+      convErr = updErr;
+      convRecord = (updated as { id: string } | null) ?? null;
+      if (!updErr && !convRecord) {
+        console.log(`[WEBHOOK] Conversation ${conversationId} finalized by concurrent webhook, skipping billing`);
+        return json({ success: true, already_processed: true, concurrent_duplicate: true });
+      }
+    } else {
+      const { data: inserted, error: insErr } = await adminClient
+        .from("ai_agent_conversations")
+        .insert(convInsert)
+        .select("id")
+        .single();
+      convErr = insErr;
+      convRecord = (inserted as { id: string } | null) ?? null;
+    }
 
     if (convErr) {
       console.error("Error saving conversation:", convErr);
