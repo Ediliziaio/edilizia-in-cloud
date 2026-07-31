@@ -795,6 +795,9 @@ serve(async (req: Request) => {
       primaryRole,
       personaKey: PERSONA_KEY,
       channel: "internal_chat",
+      // Permessi granulari già letti sopra per filtrare la lista: passandoli
+      // qui il motore non deve rileggerli dal DB a ogni esecuzione.
+      staffPermissions,
       // Allegati del turno corrente: già validati sopra da
       // isAuthorizedSilvioUploadPath (company/utente). Servono ai tool che
       // archiviano un file caricato in chat (carica_documento_cantiere).

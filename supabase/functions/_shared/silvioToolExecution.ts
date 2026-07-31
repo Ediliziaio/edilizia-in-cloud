@@ -14,6 +14,7 @@
 
 import {
   DEFAULT_TOOL_ALLOWED_ROLES,
+  DOMAIN_STAFF_PERMISSION,
   SILVIO_TOOLS,
   type Channel,
   type RiskLevel,
@@ -98,6 +99,56 @@ export async function executeToolWithRouting(
         durationMs: Date.now() - t0,
         riskLevel: tool.riskLevel,
       };
+    }
+  }
+
+  // ── Permission: permessi granulari per-dominio (staff_permissions) ──
+  // getToolsForChannel li applica solo alla LISTA mostrata al modello, e solo
+  // se il chiamante li passa (silvio-chat sì, telegram/ai-orchestrator no).
+  // Qui il gate è nel punto obbligato di ogni esecuzione: vale per tutti i
+  // canali e regge anche se il modello invoca un tool che non era in lista
+  // (nome allucinato, suggerito dall'utente o iniettato in un documento).
+  if (ctx.primaryRole === "company_staff" && tool.domain) {
+    const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
+    if (permKey) {
+      let perms = ctx.staffPermissions ?? null;
+      if (!perms) {
+        // Non passati dal chiamante: li leggiamo noi. Una query in più è
+        // preferibile a un permesso granulare aggirato.
+        try {
+          const { data } = await ctx.supabase
+            .from("staff_permissions")
+            .select("*")
+            .eq("user_id", ctx.userId)
+            .eq("company_id", ctx.companyId)
+            .maybeSingle();
+          perms = (data as Record<string, unknown> | null) ?? null;
+        } catch (_e) {
+          perms = null;
+        }
+      }
+      // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
+      // storico dell'app): si nega solo quando il permesso è esplicitamente false.
+      if (perms && perms[permKey] === false) {
+        await logAudit(ctx, tool, toolName, {
+          inputPayload: sanitize(input),
+          outputPayload: null,
+          status: "denied",
+          errorMessage: `staff permission '${permKey}' = false (domain '${tool.domain}')`,
+          proposalId: null,
+          durationMs: Date.now() - t0,
+        });
+        return {
+          success: false,
+          toolName,
+          error: {
+            code: "forbidden_permission",
+            message: `Non hai il permesso per l'area "${tool.domain}". Chiedi all'amministratore di abilitartelo.`,
+          },
+          durationMs: Date.now() - t0,
+          riskLevel: tool.riskLevel,
+        };
+      }
     }
   }
 

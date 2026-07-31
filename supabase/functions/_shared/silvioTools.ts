@@ -91,6 +91,14 @@ export interface ToolContext {
   kbAreasFilter?: string[] | null;
 
   /**
+   * Permessi granulari dell'utente (riga `staff_permissions`), usati dal motore
+   * di esecuzione per il gate per-dominio (vedi DOMAIN_STAFF_PERMISSION).
+   * Se assente e il ruolo è company_staff, executeToolWithRouting li carica dal
+   * DB: così il gate vale per OGNI canale, anche quelli che non li passano.
+   */
+  staffPermissions?: Record<string, unknown> | null;
+
+  /**
    * Allegati del messaggio corrente (bucket `silvio-uploads`), quando il canale
    * li supporta. Serve ai tool che devono archiviare un file caricato in chat
    * (es. carica_documento_cantiere). Assente = nessun allegato in questo turno.
@@ -7910,6 +7918,18 @@ export const DOMAIN_STAFF_PERMISSION: Partial<Record<ToolDomain, string>> = {
   calendar: "can_view_calendar",
   compliance: "can_view_sicurezza_cantiere",
   support: "can_view_tickets",
+  // Domini aggiunti dopo l'audit permessi: erano scoperti, quindi uno staff
+  // con l'area disabilitata vedeva comunque questi tool.
+  //  · filiera  = fornitori, listini, DDT, ordini fornitore → area magazzino
+  //  · anomalie = scostamenti e allerte su costi/margini → area finanziaria
+  //  · email    = posta aziendale (contenuti dei clienti) → area marketing/email
+  filiera: "can_view_warehouse",
+  anomalie: "can_view_financial_reports",
+  email: "can_view_marketing_email",
+  // Restano volutamente SENZA gate per-dominio (non espongono dati di
+  // business riservati): `ai` (approvazioni/undo, già red+admin), `meta`
+  // (promemoria personali), `knowledge` (KB interna), `generative` (bozze
+  // creative che non leggono dati sensibili).
 };
 
 /**
