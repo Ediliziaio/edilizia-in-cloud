@@ -40,15 +40,65 @@ const SYSTEM_TOOL_MAP: Record<string, string> = {
   voicemail_detection: "voicemail_detection",
 };
 
+// Le descrizioni sono LE istruzioni del tool per l'LLM: dicono quando usarlo e
+// QUALI campi mettere nel body JSON (l'azione la fissa il parametro `tool`
+// nell'URL generato dal server, così un nome sbagliato dall'LLM non conta).
 const EDILIZIA_TOOL_DESCRIPTIONS: Record<string, string> = {
-  get_lead_info: "Recupera i dati di un contatto/lead dal CRM di Edilizia in Cloud. Usa quando il chiamante chiede informazioni su un cliente esistente.",
-  create_appointment: "Crea un nuovo appuntamento nel calendario aziendale. Usa quando il chiamante vuole fissare un appuntamento, visita in cantiere o consulenza.",
-  search_products: "Cerca prodotti o materiali nel catalogo aziendale. Usa per informazioni su disponibilità, prezzi o caratteristiche.",
-  get_availability: "Verifica la disponibilità di slot liberi nel calendario. Usa prima di creare un appuntamento.",
-  assign_to_user: "Assegna un contatto o lead a un membro del team. Usa per smistare il contatto all'ufficio competente.",
+  get_lead_info: "Riepilogo del chiamante nel CRM: chi è, lavori e preventivi aperti. Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
+  create_appointment: "Fissa un appuntamento reale in agenda (sopralluogo, consulenza). Body JSON: {\"data\": \"AAAA-MM-GG\", \"ora\": \"HH:MM\", \"motivo\": \"...\", \"nome\": \"...\", \"telefono\": \"{{system__caller_id}}\"}. Se l'orario è occupato risponde con alternative da proporre.",
+  get_availability: "Slot liberi in agenda per un giorno. Usa PRIMA di fissare se il cliente non ha un orario preciso. Body JSON: {\"data\": \"AAAA-MM-GG\"}.",
+  search_products: "Cerca un prodotto o materiale nel listino aziendale. Body JSON: {\"prodotto\": \"nome del prodotto\"}.",
+  assign_to_user: "Il cliente vuole parlare con una persona: crea la richiesta di richiamo per l'ufficio. Body JSON: {\"motivo\": \"...\", \"nome\": \"...\", \"urgenza\": \"normale|urgente\", \"telefono\": \"{{system__caller_id}}\"}.",
+  stato_consegna: "Stato dell'ultima commessa del chiamante: merce arrivata in magazzino, avanzamento, consegna prevista. Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
+  crea_ticket: "Apre una segnalazione di assistenza col racconto del cliente. Body JSON: {\"descrizione\": \"il problema in una frase\", \"nome\": \"...\", \"urgenza\": \"normale|urgente\", \"telefono\": \"{{system__caller_id}}\"}.",
+  stato_preventivo: "Stato dell'ultimo preventivo del chiamante (inviato, accettato, scaduto...). Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
 };
 
-function buildElevenLabsToolsFromConfig(toolsConfig: ToolsConfig | null | undefined): unknown[] {
+// Tool con un backend reale in agent-tools: per questi il proxy genera da solo
+// l'URL del webhook (tool id → azione canonica passata come ?tool=). Gli id
+// NON in mappa restano configurabili solo con webhook_url manuale.
+const BACKED_EDILIZIA_TOOLS: Record<string, string> = {
+  stato_consegna: "stato_consegna",
+  crea_ticket: "crea_ticket",
+  create_appointment: "fissa_appuntamento",
+  fissa_appuntamento: "fissa_appuntamento",
+  get_availability: "disponibilita",
+  stato_preventivo: "stato_preventivo",
+  assign_to_user: "richiesta_richiamo",
+  richiesta_richiamo: "richiesta_richiamo",
+  search_products: "info_prodotto",
+  get_lead_info: "info_cliente",
+};
+
+// Chiave per-azienda negli URL dei tool: HMAC(secret, "agent-tools:"+company_id).
+// agent-tools accetta questa O il master secret; negli URL va SOLO la derivata,
+// così il secret di piattaforma non lascia mai il server (gli URL finiscono
+// nella config ElevenLabs, visibile a chi ha accesso all'account EL).
+async function deriveAgentToolsKey(companyId: string): Promise<string | null> {
+  const secret = Deno.env.get("AGENT_TOOLS_SECRET") || Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
+  if (!secret) return null;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`agent-tools:${companyId}`));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Factory degli URL automatici dei tool per un agente EL; null se il secret manca. */
+async function makeAutoToolUrl(companyId: string, elevenlabsAgentId: string): Promise<((toolId: string) => string | null) | null> {
+  const derived = await deriveAgentToolsKey(companyId);
+  if (!derived) return null;
+  const base = `${Deno.env.get("SUPABASE_URL")}/functions/v1/agent-tools`;
+  return (toolId: string) => {
+    const azione = BACKED_EDILIZIA_TOOLS[toolId];
+    if (!azione) return null;
+    return `${base}?agent=${encodeURIComponent(elevenlabsAgentId)}&key=${derived}&tool=${azione}`;
+  };
+}
+
+function buildElevenLabsToolsFromConfig(
+  toolsConfig: ToolsConfig | null | undefined,
+  autoToolUrl?: ((toolId: string) => string | null) | null,
+): unknown[] {
   if (!toolsConfig) return [];
   const tools: unknown[] = [];
 
@@ -61,15 +111,20 @@ function buildElevenLabsToolsFromConfig(toolsConfig: ToolsConfig | null | undefi
     }
   }
 
-  // Tool Edilizia in Cloud (webhook)
+  // Tool Edilizia in Cloud (webhook): URL esplicito dal config, altrimenti
+  // auto-generato per i tool con backend. Abilitato ma senza nessuno dei due
+  // (es. secret mancante) → saltato: mai promettere all'LLM tool che non
+  // rispondono.
   if (toolsConfig.edilizia_tools) {
     for (const [id, cfg] of Object.entries(toolsConfig.edilizia_tools)) {
-      if (!cfg.enabled || !cfg.webhook_url) continue;
+      if (!cfg.enabled) continue;
+      const url = cfg.webhook_url || autoToolUrl?.(id) || null;
+      if (!url) continue;
       tools.push({
         type: "webhook",
         name: id,
         description: EDILIZIA_TOOL_DESCRIPTIONS[id] ?? `Strumento ${id} di Edilizia in Cloud`,
-        url: cfg.webhook_url,
+        url,
         method: "POST",
         response_timeout_secs: 20,
         headers: [{ key: "Content-Type", value: "application/json" }],
@@ -78,6 +133,14 @@ function buildElevenLabsToolsFromConfig(toolsConfig: ToolsConfig | null | undefi
   }
 
   return tools;
+}
+
+/** True se il config abilita almeno un tool che richiede l'URL auto-generato. */
+function hasAutoBackedTools(toolsConfig: ToolsConfig | null | undefined): boolean {
+  if (!toolsConfig?.edilizia_tools) return false;
+  return Object.entries(toolsConfig.edilizia_tools).some(
+    ([id, cfg]) => cfg.enabled && !cfg.webhook_url && BACKED_EDILIZIA_TOOLS[id],
+  );
 }
 
 Deno.serve(async (req) => {
@@ -167,10 +230,13 @@ Deno.serve(async (req) => {
         // FIX BUG #1: usa voce italiana di default e modello multilingual
         const voiceId = payload?.voice_id || DEFAULT_ITALIAN_VOICE_ID;
 
-        // FIX BUG #2: converti tools_config in tool definitions ElevenLabs
-        const elTools = buildElevenLabsToolsFromConfig(
-          payload?.tools_config as ToolsConfig | null | undefined
-        );
+        // FIX BUG #2: converti tools_config in tool definitions ElevenLabs.
+        // Gli URL auto-generati dei tool con backend richiedono l'agent id EL,
+        // che esiste solo DOPO la create: qui entrano solo i tool di sistema e
+        // quelli con URL esplicito; i backed vengono agganciati con la PATCH
+        // subito sotto (create-then-patch).
+        const createToolsConfig = payload?.tools_config as ToolsConfig | null | undefined;
+        const elTools = buildElevenLabsToolsFromConfig(createToolsConfig);
 
         const createBody: Record<string, unknown> = {
           conversation_config: {
@@ -191,6 +257,22 @@ Deno.serve(async (req) => {
         const elRes = await elFetch("/convai/agents/create", "POST", apiKey, createBody);
 
         const elAgentId = elRes?.agent_id;
+
+        // Create-then-patch: ora che l'agent id EL esiste, aggancia i tool con
+        // backend auto-cablato. Best-effort: se la PATCH fallisce l'agente
+        // resta valido, solo senza tool (verranno risincronizzati al prossimo
+        // update_agent con tools_config).
+        if (elAgentId && hasAutoBackedTools(createToolsConfig)) {
+          try {
+            const autoUrl = await makeAutoToolUrl(companyId, elAgentId);
+            const fullTools = buildElevenLabsToolsFromConfig(createToolsConfig, autoUrl);
+            await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
+              conversation_config: { agent: { tools: fullTools } },
+            });
+          } catch (toolErr) {
+            console.error(`[PROXY] Aggancio tool auto fallito per ${elAgentId}:`, toolErr);
+          }
+        }
 
         const { data: newAgent, error: insertErr } = await adminClient
           .from("ai_agents")
@@ -253,10 +335,14 @@ Deno.serve(async (req) => {
           agentPatch.language = payload.language;
         }
 
-        // FIX BUG #2: quando tools_config viene aggiornato, ri-sincronizza i tool su ElevenLabs
+        // FIX BUG #2: quando tools_config viene aggiornato, ri-sincronizza i tool su
+        // ElevenLabs. Qui l'agent id EL è noto → gli URL auto dei tool con backend
+        // vengono generati subito.
         if (payload?.tools_config !== undefined) {
+          const autoUrl = await makeAutoToolUrl(companyId, agent_id);
           const elTools = buildElevenLabsToolsFromConfig(
-            payload.tools_config as ToolsConfig | null
+            payload.tools_config as ToolsConfig | null,
+            autoUrl
           );
           agentPatch.tools = elTools; // array vuoto = azzera i tool (intenzionale)
         }
@@ -299,6 +385,7 @@ Deno.serve(async (req) => {
           if (payload?.language !== undefined) v2Patch.lingua = payload.language;
           if (payload?.llm_model !== undefined) v2Patch.llm_model = payload.llm_model;
           if (payload?.voice_id !== undefined) v2Patch.elevenlabs_voice_id = payload.voice_id;
+          if (payload?.tools_config !== undefined) v2Patch.tools_config = payload.tools_config;
           if (Object.keys(v2Patch).length > 0) {
             await adminClient
               .from("ai_agents_v2")

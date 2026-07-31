@@ -12,9 +12,10 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { VOICE_AGENT_TEMPLATES, templatesPerCategoria } from "@/lib/voice-agent-templates";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft, Bot, Settings2, MessageSquare, Phone, BarChart3,
-  Loader2, Save, Mic, Zap, Clock, TrendingUp, CheckCircle2,
+  Loader2, Save, Mic, Zap, Clock, TrendingUp, CheckCircle2, Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
@@ -29,6 +30,22 @@ const safeNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+
+// Strumenti in-chiamata con backend reale (edge agent-tools): l'URL del webhook
+// lo genera il server (elevenlabs-proxy) — qui solo on/off. Gli id coincidono
+// con BACKED_EDILIZIA_TOOLS del proxy.
+const STRUMENTI_CHIAMATA: Array<{ id: string; label: string; descrizione: string }> = [
+  { id: "get_lead_info", label: "Riconosci il cliente", descrizione: "Sa chi sta chiamando: nome, lavori e preventivi aperti" },
+  { id: "stato_consegna", label: "Stato consegna", descrizione: "Risponde a \"quando arriva la merce?\" con i dati della commessa" },
+  { id: "stato_preventivo", label: "Stato preventivo", descrizione: "Dice se il preventivo è stato inviato, accettato o è scaduto" },
+  { id: "create_appointment", label: "Fissa appuntamenti", descrizione: "Controlla l'agenda e prenota sopralluoghi negli slot liberi" },
+  { id: "get_availability", label: "Disponibilità agenda", descrizione: "Propone gli orari liberi di una giornata" },
+  { id: "crea_ticket", label: "Apri segnalazioni", descrizione: "Crea un ticket di assistenza col racconto del cliente" },
+  { id: "assign_to_user", label: "Richiesta di richiamo", descrizione: "Lascia un'attività all'ufficio quando serve una persona vera" },
+  { id: "search_products", label: "Cerca nel listino", descrizione: "Conferma se un prodotto o materiale è in catalogo" },
+];
+
+type EdiliziaToolCfg = { enabled?: boolean; webhook_url?: string };
 
 export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -62,6 +79,7 @@ export default function AgentDetailPage() {
   const [editLingua, setEditLingua] = useState("it");
   const [editModel, setEditModel] = useState("");
   const [editTemp, setEditTemp] = useState(0.7);
+  const [editTools, setEditTools] = useState<Record<string, boolean>>({});
   const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
 
   useEffect(() => {
@@ -81,6 +99,8 @@ export default function AgentDetailPage() {
       setEditLingua(agent.lingua || "it");
       setEditModel(agent.llm_model || "gemini-2.5-flash");
       setEditTemp(safeNumber(agent.temperatura, 0.7));
+      const ediliziaTools = (agent.tools_config as { edilizia_tools?: Record<string, EdiliziaToolCfg> } | null)?.edilizia_tools ?? {};
+      setEditTools(Object.fromEntries(STRUMENTI_CHIAMATA.map((t) => [t.id, !!ediliziaTools[t.id]?.enabled])));
       setHasLoadedEdit(true);
     }
   }, [agent, hasLoadedEdit]);
@@ -93,6 +113,21 @@ export default function AgentDetailPage() {
       if (!nome) throw new Error("Inserisci un nome per l'agente AI.");
       if (prompt.length < 20) throw new Error("Completa il prompt di sistema prima di salvare.");
 
+      // Merge non distruttivo: i toggle governano `enabled`, ma un webhook_url
+      // configurato a mano (o altri rami di tools_config) restano intatti.
+      const prevConfig = (agent?.tools_config ?? {}) as Record<string, unknown> & { edilizia_tools?: Record<string, EdiliziaToolCfg> };
+      const newToolsConfig = {
+        ...prevConfig,
+        edilizia_tools: {
+          ...(prevConfig.edilizia_tools ?? {}),
+          ...Object.fromEntries(STRUMENTI_CHIAMATA.map((t) => [t.id, {
+            ...(prevConfig.edilizia_tools?.[t.id] ?? {}),
+            enabled: !!editTools[t.id],
+            webhook_url: prevConfig.edilizia_tools?.[t.id]?.webhook_url ?? "",
+          }])),
+        },
+      };
+
       if (agent?.elevenlabs_agent_id) {
         await callElevenLabsProxy({
           action: "update_agent",
@@ -103,6 +138,7 @@ export default function AgentDetailPage() {
             first_message: editPrimoMsg.trim() || "",
             language: editLingua,
             llm_model: editModel,
+            tools_config: newToolsConfig,
           },
         });
       }
@@ -117,6 +153,7 @@ export default function AgentDetailPage() {
           lingua: editLingua,
           llm_model: editModel,
           temperatura: Math.min(1, Math.max(0, safeNumber(editTemp, 0.7))),
+          tools_config: newToolsConfig,
         } as never)
         .eq("company_id", companyId)
         .eq("id", agentId!);
@@ -330,6 +367,34 @@ export default function AgentDetailPage() {
               <label className="text-sm font-medium mb-1 block">Primo messaggio</label>
               <Textarea value={editPrimoMsg} onChange={(e) => setEditPrimoMsg(e.target.value)} rows={3} />
             </div>
+            {isVoice && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <Wrench className="h-4 w-4" /> Strumenti in chiamata
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Cosa può fare davvero l'agente durante la telefonata, con i dati reali dell'azienda.
+                    Si attivano al salvataggio, senza configurazioni tecniche.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {STRUMENTI_CHIAMATA.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 py-1.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{t.label}</p>
+                        <p className="text-xs text-muted-foreground">{t.descrizione}</p>
+                      </div>
+                      <Switch
+                        checked={!!editTools[t.id]}
+                        onCheckedChange={(v) => setEditTools((prev) => ({ ...prev, [t.id]: v }))}
+                        aria-label={t.label}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Lingua</label>
