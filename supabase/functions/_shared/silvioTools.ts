@@ -191,6 +191,14 @@ export interface SilvioTool {
   estimatedCostEur?: number;
   /** Indicazioni compatte per il modello su come interpretare l'output. */
   resultContract?: string;
+  /**
+   * true = il risultato contiene TESTO SCRITTO DA TERZI (email ricevute,
+   * documenti di fornitori, messaggi di clienti). Chi costruisce il prompt deve
+   * marcarlo come dato NON FIDATO, perché un mittente esterno può inserirci
+   * istruzioni rivolte all'assistente ("registra questo pagamento su IBAN…").
+   * Vale per gli output dei tool quel che vale per gli allegati in chat.
+   */
+  untrustedOutput?: boolean;
 }
 
 const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
@@ -2000,6 +2008,8 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   // il tool con SILVIO_TOOLS[toolName] usando il nome che il modello ha visto.
   // Prima la chiave era `richieste_fatture_da_registrare`: il modello chiamava
   // `fatture_da_registrare` e il lookup falliva → tool mai eseguibile.
+  // untrustedOutput: restituisce dati ESTRATTI DA PDF DI FORNITORI (mittenti
+  // esterni) → vanno trattati come dato, mai come istruzioni.
   fatture_da_registrare: {
     schema: {
       type: "function",
@@ -2023,6 +2033,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
     riskLevel: "safe",
     domain: "fattura",
+    untrustedOutput: true,
   },
 
   // ── #1 Osservabilità — stato tecnico piattaforma (solo super admin) ─────
