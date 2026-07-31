@@ -5243,6 +5243,106 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "support",
   },
 
+  registra_movimento_magazzino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_movimento_magazzino",
+        description:
+          "Registra un CARICO o uno SCARICO di magazzino su un articolo e aggiorna la giacenza " +
+          "(es. 'scarica 20 sacchi di cemento per il cantiere Rossi'). L'articolo si cerca per nome o codice interno. " +
+          "FLUSSO: mostra articolo, quantità e giacenza risultante, poi chiedi conferma PRIMA di chiamare il tool. " +
+          "Uno scarico oltre la giacenza viene RIFIUTATO (il tool dice quanto c'è davvero).",
+        parameters: {
+          type: "object",
+          properties: {
+            articolo: { type: "string", description: "Nome o codice interno dell'articolo — OBBLIGATORIO" },
+            tipo: { type: "string", description: "carico | scarico — OBBLIGATORIO" },
+            quantita: { type: "number", description: "Quantità movimentata (> 0) — OBBLIGATORIA" },
+            note: { type: "string", description: "Nota (es. cantiere di destinazione, causale)" },
+          },
+          required: ["articolo", "tipo", "quantita"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const articoloQ = String(args?.articolo ?? "").trim();
+      if (!articoloQ) return { error: "Articolo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const tipo = String(args?.tipo ?? "").trim().toLowerCase();
+      if (tipo !== "carico" && tipo !== "scarico") return { error: "Tipo non valido: usa 'carico' o 'scarico'." };
+      const quantita = Math.round((Number(args?.quantita) || 0) * 1000) / 1000;
+      if (!Number.isFinite(quantita) || quantita <= 0 || quantita > 1_000_000) return { error: "Quantità non valida (> 0)." };
+
+      // Articolo per nome o codice interno/barcode (company-scoped).
+      const { data: articoli } = await ctx.supabase
+        .from("warehouse_stock")
+        .select("id, name, quantity, warehouse_id, internal_code")
+        .eq("company_id", ctx.companyId)
+        .or(`name.ilike.%${articoloQ}%,internal_code.ilike.%${articoloQ}%,barcode.ilike.%${articoloQ}%`)
+        .limit(6);
+      if (!articoli || articoli.length === 0) {
+        return { error: `Nessun articolo di magazzino trovato per "${articoloQ}". Verifica il nome o il codice interno.` };
+      }
+      if (articoli.length > 1) {
+        return { error: `Più articoli corrispondono a "${articoloQ}": ${articoli.map((a) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
+      }
+      const art = articoli[0];
+      const giacenza = Number(art.quantity) || 0;
+
+      // Guard: mai giacenza negativa. La UI clampa a 0 in silenzio; da chat è
+      // meglio bloccare e dire quanto c'è davvero (un errore di dettatura
+      // altrimenti falsifica il magazzino senza che nessuno se ne accorga).
+      if (tipo === "scarico" && quantita > giacenza + 0.0001) {
+        return { error: `Scarico impossibile: di "${art.name}" ci sono ${giacenza} in giacenza, ne hai chiesti ${quantita}. Registra al massimo ${giacenza}, oppure fai prima un carico.` };
+      }
+      const nuovaGiacenza = Math.round((tipo === "carico" ? giacenza + quantita : giacenza - quantita) * 1000) / 1000;
+
+      // 1) Movimento (movement_type validato dal trigger validate_movement_type).
+      const { data: mov, error: movErr } = await ctx.supabase
+        .from("warehouse_movements")
+        .insert({
+          stock_item_id: art.id,
+          movement_type: tipo,
+          quantity: quantita,
+          notes: [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — "),
+          performed_by: ctx.userId,
+          warehouse_id: art.warehouse_id ?? null,
+        })
+        .select("id")
+        .single();
+      if (movErr) return { error: `Registrazione movimento fallita: ${movErr.message}` };
+
+      // 2) Giacenza: NESSUN trigger la aggiorna (verificato su prod) → come la UI.
+      const { error: updErr } = await ctx.supabase
+        .from("warehouse_stock")
+        .update({ quantity: nuovaGiacenza })
+        .eq("id", art.id)
+        .eq("company_id", ctx.companyId);
+      if (updErr) {
+        // Rollback del movimento: senza l'update sarebbe una riga fantasma che
+        // non corrisponde alla giacenza reale.
+        await ctx.supabase.from("warehouse_movements").delete().eq("id", mov.id);
+        return { error: `Aggiornamento giacenza fallito (movimento annullato): ${updErr.message}` };
+      }
+
+      return {
+        movimento_id: mov.id,
+        articolo: art.name,
+        movimento: `${tipo} di ${quantita}`,
+        giacenza_prima: giacenza,
+        giacenza_dopo: nuovaGiacenza,
+        link: "/azienda/magazzino",
+        nota: `Movimento registrato: giacenza di "${art.name}" ora ${nuovaGiacenza}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "warehouse",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
