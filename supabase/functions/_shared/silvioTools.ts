@@ -90,6 +90,18 @@ export interface ToolContext {
    */
   kbAreasFilter?: string[] | null;
 
+  /**
+   * Allegati del messaggio corrente (bucket `silvio-uploads`), quando il canale
+   * li supporta. Serve ai tool che devono archiviare un file caricato in chat
+   * (es. carica_documento_cantiere). Assente = nessun allegato in questo turno.
+   */
+  attachments?: Array<{
+    storage_path: string;
+    mime_type: string;
+    file_name: string;
+    kind: string;
+  }>;
+
   // ── MP-AIE-01 v2 — campi multi-canale ────────────────────────────────────
   /** Canale di provenienza. Default "internal_chat" se omesso (back-compat Silvio). */
   channel?: Channel;
@@ -5876,6 +5888,114 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
     riskLevel: "yellow",
     domain: "warehouse",
+  },
+
+  carica_documento_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "carica_documento_cantiere",
+        description:
+          "Archivia un file ALLEGATO ALLA CHAT tra i documenti di una commessa (foto cantiere, disegni, permessi, " +
+          "verbali...). Funziona SOLO se l'utente ha allegato il file al messaggio: se non ci sono allegati il tool " +
+          "lo dice. Se ci sono più allegati, indica quale con nome_file. Il documento resta INTERNO salvo " +
+          "visibile_al_cliente=true. FLUSSO: conferma commessa e file prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            nome_file: { type: "string", description: "Nome (anche parziale) dell'allegato da archiviare, se ce n'è più d'uno" },
+            visibile_al_cliente: { type: "boolean", description: "true = visibile anche al cliente nel portale (default false)" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const allegati = ctx.attachments ?? [];
+      if (allegati.length === 0) {
+        return { error: "Nessun file allegato a questo messaggio. Allega il documento (foto o PDF) e ripeti la richiesta." };
+      }
+      // Selezione dell'allegato: uno solo → quello; altrimenti serve nome_file.
+      const nomeQ = String(args?.nome_file ?? "").trim().toLowerCase();
+      let scelto = allegati[0];
+      if (allegati.length > 1) {
+        if (!nomeQ) {
+          return { error: `Ci sono ${allegati.length} allegati: ${allegati.map((a) => a.file_name).join(", ")}. Indica quale archiviare con nome_file.` };
+        }
+        const match = allegati.filter((a) => a.file_name.toLowerCase().includes(nomeQ));
+        if (match.length === 0) return { error: `Nessun allegato si chiama "${args?.nome_file}". Allegati: ${allegati.map((a) => a.file_name).join(", ")}.` };
+        if (match.length > 1) return { error: `Più allegati corrispondono a "${args?.nome_file}": ${match.map((a) => a.file_name).join(", ")}. Specifica meglio.` };
+        scelto = match[0];
+      } else if (nomeQ && !scelto.file_name.toLowerCase().includes(nomeQ)) {
+        return { error: `L'unico allegato è "${scelto.file_name}", non corrisponde a "${args?.nome_file}".` };
+      }
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      // 1) Scarica dal bucket della chat (path già validato da silvio-chat
+      //    con isAuthorizedSilvioUploadPath: azienda/utente corretti).
+      const { data: blob, error: dlErr } = await ctx.supabase.storage
+        .from("silvio-uploads")
+        .download(scelto.storage_path);
+      if (dlErr || !blob) return { error: `Impossibile leggere l'allegato: ${dlErr?.message ?? "file non trovato"}` };
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      if (bytes.byteLength === 0) return { error: "L'allegato risulta vuoto." };
+
+      // 2) Copia nel bucket dei documenti commessa (stessa convenzione della UI:
+      //    file_url = path RELATIVO, il bucket è privato e si firma alla lettura).
+      const safeName = scelto.file_name.replace(/[^\w.\-]+/g, "_").slice(0, 120) || "documento";
+      const destPath = `${order.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: upErr } = await ctx.supabase.storage
+        .from("order-attachments")
+        .upload(destPath, bytes, { contentType: scelto.mime_type || "application/octet-stream", upsert: false });
+      if (upErr) return { error: `Archiviazione file fallita: ${upErr.message}` };
+
+      // 3) Riga in anagrafica documenti (stesso payload di OrderAttachments).
+      const { data: row, error: dbErr } = await ctx.supabase
+        .from("order_attachments")
+        .insert({
+          order_id: order.id,
+          file_name: scelto.file_name.slice(0, 200),
+          file_url: destPath,
+          file_type: scelto.mime_type || "application/octet-stream",
+          file_size: bytes.byteLength,
+          uploaded_by: ctx.userId,
+          visible_to_customer: args?.visibile_al_cliente === true,
+        })
+        .select("id")
+        .single();
+      if (dbErr) {
+        // Senza la riga il file sarebbe orfano nel bucket: lo rimuoviamo.
+        await ctx.supabase.storage.from("order-attachments").remove([destPath]);
+        return { error: `Registrazione documento fallita (file rimosso): ${dbErr.message}` };
+      }
+
+      return {
+        documento_id: row.id,
+        file: scelto.file_name,
+        dimensione: `${Math.round(bytes.byteLength / 1024)} KB`,
+        commessa: order.order_code,
+        visibile_al_cliente: args?.visibile_al_cliente === true,
+        link: `/azienda/ordini/${order.id}`,
+        nota: `Documento archiviato nella commessa ${order.order_code}${args?.visibile_al_cliente === true ? " (visibile anche al cliente)" : " (uso interno)"}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    // Solo i canali che sanno allegare file al messaggio.
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "cantiere",
   },
 
   // ═════════════════════════════════════════════════════════════════════════

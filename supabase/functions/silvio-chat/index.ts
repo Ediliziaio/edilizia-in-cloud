@@ -795,6 +795,15 @@ serve(async (req: Request) => {
       primaryRole,
       personaKey: PERSONA_KEY,
       channel: "internal_chat",
+      // Allegati del turno corrente: già validati sopra da
+      // isAuthorizedSilvioUploadPath (company/utente). Servono ai tool che
+      // archiviano un file caricato in chat (carica_documento_cantiere).
+      attachments: attachments.map((a) => ({
+        storage_path: a.storage_path,
+        mime_type: a.mime_type,
+        file_name: a.file_name,
+        kind: a.kind,
+      })),
       // MP-EMAIL: Bearer utente per tool che chiamano edge RLS-scoped
       // (cerca_email_intelligente → email-silvio-query). RLS-safe, no cross-tenant.
       authToken: req.headers.get("Authorization") ?? undefined,
