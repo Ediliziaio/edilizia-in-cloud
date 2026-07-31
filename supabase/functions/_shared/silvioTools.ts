@@ -3929,6 +3929,128 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  fissa_appuntamento: {
+    schema: {
+      type: "function",
+      function: {
+        name: "fissa_appuntamento",
+        description:
+          "Fissa un appuntamento nel calendario aziendale (sopralluogo, riunione, visita cantiere, consegna...). " +
+          "FLUSSO: raccogli titolo + data (+ ora se nota), mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. " +
+          "Può collegare una commessa (per codice) e assegnare l'appuntamento a un membro del team (per nome). " +
+          "Le date vanno passate in formato YYYY-MM-DD e l'ora in HH:MM: converti tu espressioni come 'domani alle 15'.",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo dell'appuntamento — OBBLIGATORIO" },
+            data: { type: "string", description: "Data in formato YYYY-MM-DD — OBBLIGATORIA" },
+            ora: { type: "string", description: "Ora di inizio HH:MM (24h). Se assente = tutto il giorno" },
+            durata_minuti: { type: "number", description: "Durata in minuti (default 60; usata solo se c'è l'ora)" },
+            tipo: { type: "string", description: "Tipo: generico | sopralluogo | riunione | consegna | cantiere (default generico)" },
+            descrizione: { type: "string" },
+            indirizzo: { type: "string", description: "Indirizzo/luogo dell'appuntamento" },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            assegna_a: { type: "string", description: "Nome del membro del team a cui assegnarlo" },
+          },
+          required: ["titolo", "data"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titolo = String(args?.titolo ?? "").trim().slice(0, 200);
+      const data = String(args?.data ?? "").trim();
+      if (!titolo) return { error: "Titolo obbligatorio." };
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: "Data non valida: usa il formato YYYY-MM-DD." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const ora = String(args?.ora ?? "").trim();
+      if (ora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(ora)) return { error: "Ora non valida: usa HH:MM (es. 15:00)." };
+      const durata = Math.min(Math.max(Math.round(Number(args?.durata_minuti) || 60), 15), 12 * 60);
+      let oraFine: string | null = null;
+      if (ora) {
+        const [h, m] = ora.split(":").map(Number);
+        const tot = Math.min(h * 60 + m + durata, 23 * 60 + 59);
+        oraFine = `${String(Math.floor(tot / 60)).padStart(2, "0")}:${String(tot % 60).padStart(2, "0")}`;
+      }
+
+      // Commessa opzionale per codice (stessa azienda).
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ord } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(1).maybeSingle();
+        if (!ord?.id) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        orderId = ord.id;
+        orderCode = ord.order_code ?? null;
+      }
+
+      // Assegnatario opzionale per nome: solo persone del team (esclusi i clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(assegnaA);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        assignedTo = matches[0].id;
+        assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Stessa scrittura di AppointmentDialog (calendar_id null = calendario aziendale/CRM).
+      const { data: appt, error } = await ctx.supabase
+        .from("appointments")
+        .insert({
+          company_id: ctx.companyId,
+          title: titolo,
+          description: String(args?.descrizione ?? "").trim().slice(0, 1000) || null,
+          appointment_date: data,
+          appointment_time: ora || null,
+          appointment_end_time: oraFine,
+          appointment_type: (String(args?.tipo ?? "").trim().toLowerCase() || "generico").slice(0, 40),
+          status: "confermato",
+          assigned_to: assignedTo,
+          order_id: orderId,
+          formatted_address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione appuntamento fallita: ${error.message}` };
+
+      return {
+        appointment_id: appt.id,
+        appuntamento: `${titolo} — ${data}${ora ? ` ore ${ora}` : " (tutto il giorno)"}${ora && oraFine ? `–${oraFine}` : ""}`,
+        commessa: orderCode,
+        assegnato_a: assignedName,
+        link: "/azienda/attivita",
+        nota: `Appuntamento creato nel calendario aziendale${assignedName ? ` e assegnato a ${assignedName}` : ""}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "calendar",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
