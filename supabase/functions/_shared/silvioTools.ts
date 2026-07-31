@@ -5637,6 +5637,123 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "operations",
   },
 
+  aggiorna_stato_ticket: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_ticket",
+        description:
+          "Aggiorna un TICKET di assistenza: lo prende in carico (in_lavorazione) o lo chiude (risolto), " +
+          "con una nota opzionale sul thread. Es. 'la caldaia dei Rossi è a posto, chiudi il ticket'. " +
+          "Il ticket si cerca per oggetto o per nome cliente; se ne combaciano più d'uno il tool li elenca.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket: { type: "string", description: "Oggetto del ticket o nome del cliente — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "aperto | in_lavorazione | risolto — OBBLIGATORIO" },
+            nota: { type: "string", description: "Nota da aggiungere al thread del ticket (es. cosa è stato fatto)" },
+            assegna_a: { type: "string", description: "Nome del tecnico a cui assegnarlo/riassegnarlo" },
+          },
+          required: ["ticket", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const q = String(args?.ticket ?? "").trim();
+      const nuovoStato = String(args?.nuovo_stato ?? "").trim().toLowerCase();
+      if (!q || !nuovoStato) return { error: "Ticket e nuovo stato obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      // enum ticket_status del DB.
+      const STATI = ["aperto", "in_lavorazione", "risolto"];
+      if (!STATI.includes(nuovoStato)) return { error: `Stato non valido. Valori: ${STATI.join(", ")}.` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: tickets } = await ctx.supabase
+        .from("tickets")
+        .select("id, subject, status, customer_id, created_at, profiles:customer_id(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const qn = norm(q);
+      const candidate = (tickets ?? []).filter((t) => {
+        const c = t.profiles as { first_name?: string; last_name?: string } | null;
+        return norm(t.subject ?? "").includes(qn) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
+      });
+      // Nome cliente ambiguo → preferisci i ticket ancora da chiudere.
+      const aperti = candidate.filter((t) => t.status !== "risolto");
+      const pool = nuovoStato === "risolto" && aperti.length > 0 && candidate.length > 1 ? aperti : candidate;
+      if (pool.length === 0) return { error: `Nessun ticket trovato per "${q}".` };
+      if (pool.length > 1) {
+        return { error: `Più ticket corrispondono a "${q}": ${pool.slice(0, 6).map((t) => `"${t.subject}" (${t.status})`).join(" · ")}. Specifica meglio.` };
+      }
+      const ticket = pool[0];
+      const nota = String(args?.nota ?? "").trim().slice(0, 2000);
+      if (ticket.status === nuovoStato && !nota && !args?.assegna_a) {
+        return { error: `Il ticket "${ticket.subject}" è GIÀ in stato "${nuovoStato}". Nessuna modifica.` };
+      }
+
+      // Riassegnazione opzionale (team, esclusi clienti).
+      const update: Record<string, unknown> = { status: nuovoStato };
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        update.assigned_to = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      const { error } = await ctx.supabase
+        .from("tickets")
+        .update(update)
+        .eq("id", ticket.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento ticket fallito: ${error.message}` };
+
+      // Nota sul thread (non bloccante: lo stato è già cambiato).
+      let notaSalvata = false;
+      if (nota) {
+        const { error: msgErr } = await ctx.supabase.from("ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: ctx.userId,
+          message: nota,
+        });
+        notaSalvata = !msgErr;
+      }
+
+      const c = ticket.profiles as { first_name?: string; last_name?: string } | null;
+      return {
+        ticket_id: ticket.id,
+        ticket: ticket.subject,
+        cliente: `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || null,
+        stato: `${ticket.status} → ${nuovoStato}`,
+        assegnato_a: assignedName,
+        nota_aggiunta: nota ? (notaSalvata ? "sì" : "NO (stato aggiornato lo stesso)") : null,
+        link: `/azienda/assistenza/${ticket.id}`,
+        nota: nuovoStato === "risolto" ? "Ticket chiuso." : "Ticket aggiornato.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "support",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
