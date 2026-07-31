@@ -65,6 +65,7 @@ export const caricaDDTDef: Omit<ToolDef, "handler"> = {
     additionalProperties: false,
   },
   requires_grants: ["ddt.write"],
+  requires_confirmation: true,
 };
 
 interface RigaArg {

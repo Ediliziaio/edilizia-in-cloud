@@ -21,6 +21,7 @@ export const approvaRichiestaDef: Omit<ToolDef, "handler"> = {
     additionalProperties: false,
   },
   requires_grants: ["approvazioni.write"],
+  requires_confirmation: true,
 };
 
 interface Args {

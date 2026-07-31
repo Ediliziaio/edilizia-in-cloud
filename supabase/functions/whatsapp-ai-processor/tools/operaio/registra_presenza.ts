@@ -25,6 +25,7 @@ export const registraPresenzaDef: Omit<ToolDef, "handler"> = {
     additionalProperties: false,
   },
   requires_grants: ["presenze.write"],
+  requires_confirmation: true,
 };
 
 interface Args {
