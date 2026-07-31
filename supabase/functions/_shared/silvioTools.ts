@@ -3681,6 +3681,254 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "preventivi",
   },
 
+  crea_cliente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_cliente",
+        description:
+          "Crea un nuovo CLIENTE in anagrafica (solo anagrafica: NESSUN accesso al portale, nessuna email inviata). " +
+          "Usalo quando l'utente vuole registrare un cliente nuovo (es. prima di creare commessa/preventivo per qualcuno che non esiste). " +
+          "FLUSSO: mostra i dati raccolti (nome, cognome, email, telefono, indirizzi) e chiedi conferma PRIMA di chiamare il tool. " +
+          "L'email è OBBLIGATORIA e deve essere univoca nel sistema: se risulta già registrata, dillo all'utente (per dare accesso a un utente " +
+          "esistente si usa 'Accessi azienda', non questo tool). Per dare al cliente l'accesso al portale si usa poi la pagina Clienti.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome (o ragione sociale se azienda) — OBBLIGATORIO" },
+            cognome: { type: "string", description: "Cognome — OBBLIGATORIO (per aziende usa es. 'SRL')" },
+            email: { type: "string", description: "Email del cliente — OBBLIGATORIA e univoca" },
+            telefono: { type: "string" },
+            indirizzo: { type: "string", description: "Indirizzo di fatturazione/residenza" },
+            citta: { type: "string" },
+            cap: { type: "string" },
+            indirizzo_cantiere: { type: "string", description: "Indirizzo del cantiere se diverso dalla residenza" },
+            note: { type: "string" },
+          },
+          required: ["nome", "cognome", "email"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 100);
+      const cognome = String(args?.cognome ?? "").trim().slice(0, 100);
+      const email = String(args?.email ?? "").trim().toLowerCase().slice(0, 200);
+      if (!nome || !cognome) return { error: "Nome e cognome obbligatori." };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Email mancante o non valida (è obbligatoria per l'anagrafica)." };
+
+      // Duplicato in azienda?
+      const { data: existing } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).ilike("email", email).maybeSingle();
+      if (existing?.id) {
+        return { error: `Esiste già "${existing.first_name ?? ""} ${existing.last_name ?? ""}" con questa email in azienda.`, customer_id: existing.id };
+      }
+
+      // Stessa meccanica dell'edge create-customer (anagrafica-only):
+      // auth user BLOCCATO (nessun accesso) + profilo + ruolo customer, con rollback.
+      const { data: created, error: authErr } = await ctx.supabase.auth.admin.createUser({
+        email,
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        email_confirm: true,
+      });
+      if (authErr || !created?.user?.id) {
+        const msg = (authErr?.message ?? "").toLowerCase();
+        if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
+          return { error: "Email già registrata nel sistema (probabilmente in un'altra azienda). Usa un'altra email, oppure per dare accesso a un utente esistente usa 'Accessi azienda'." };
+        }
+        return { error: `Creazione utente fallita: ${authErr?.message ?? "errore sconosciuto"}` };
+      }
+      const newId = created.user.id;
+
+      const { error: profErr } = await ctx.supabase.from("profiles").insert({
+        id: newId,
+        first_name: nome,
+        last_name: cognome,
+        email,
+        phone: String(args?.telefono ?? "").trim().slice(0, 50) || null,
+        address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+        city: String(args?.citta ?? "").trim().slice(0, 100) || null,
+        postal_code: String(args?.cap ?? "").trim().slice(0, 10) || null,
+        site_address: String(args?.indirizzo_cantiere ?? "").trim().slice(0, 300) || null,
+        notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        company_id: ctx.companyId,
+        portal_disabled: true,
+        is_blocked: true,
+      });
+      if (profErr) {
+        await ctx.supabase.auth.admin.deleteUser(newId).catch(() => {});
+        return { error: `Creazione profilo fallita: ${profErr.message}` };
+      }
+
+      const { error: roleErr } = await ctx.supabase.from("user_roles").insert({ user_id: newId, role: "customer" });
+      if (roleErr) {
+        await ctx.supabase.from("profiles").delete().eq("id", newId);
+        await ctx.supabase.auth.admin.deleteUser(newId).catch(() => {});
+        return { error: `Assegnazione ruolo fallita: ${roleErr.message}` };
+      }
+
+      return {
+        customer_id: newId,
+        cliente: `${nome} ${cognome}`,
+        nota: "Cliente creato (solo anagrafica, nessun accesso portale, nessuna email inviata). Ora può essere usato per commesse e preventivi.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "crm",
+  },
+
+  crea_commessa_bozza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_commessa_bozza",
+        description:
+          "Crea una COMMESSA (ordine di lavoro) per un CLIENTE GIÀ ESISTENTE in anagrafica. " +
+          "FLUSSO: 1) identifica il cliente per nome (se non esiste, proponi prima crea_cliente); 2) mostra il riepilogo " +
+          "(cliente, descrizione lavori, importo imponibile, IVA) e chiedi conferma; 3) dopo il sì chiama questo tool. " +
+          "Il codice commessa viene generato in automatico col progressivo aziendale (es. O-0001); l'indirizzo cantiere " +
+          "viene preso dalla scheda del cliente se presente. Acconti/rate e articoli si aggiungono poi dalla pagina della commessa.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente esistente (match per nome/cognome) — OBBLIGATORIO" },
+            descrizione: { type: "string", description: "Descrizione dei lavori — OBBLIGATORIA" },
+            importo_imponibile: { type: "number", description: "Importo totale imponibile in € — OBBLIGATORIO" },
+            iva: { type: "number", description: "Aliquota IVA % (default 22; 10 per ristrutturazioni agevolate)" },
+            note_interne: { type: "string" },
+            indirizzo_cantiere: { type: "string", description: "Se diverso da quello in scheda cliente" },
+          },
+          required: ["cliente_nome", "descrizione", "importo_imponibile"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      const descrizione = String(args?.descrizione ?? "").trim().slice(0, 2000);
+      const importo = Number(args?.importo_imponibile);
+      if (!clienteNome) return { error: "cliente_nome mancante." };
+      if (!descrizione) return { error: "descrizione mancante." };
+      if (!Number.isFinite(importo) || importo < 0) return { error: "importo_imponibile mancante o non valido." };
+
+      // ── Risolvi cliente (SOLO role=customer) ──────────────────────────────
+      // NB: le RPC guardate (get_company_customers) con service client ritornano
+      // vuoto (auth.uid() null) → query dirette: profili azienda ∩ ruolo customer.
+      const { data: companyProfiles } = await ctx.supabase
+        .from("profiles")
+        .select("id, first_name, last_name, site_address, site_city, site_postal_code, site_province, address, city, postal_code, province, site_lat, site_lng")
+        .eq("company_id", ctx.companyId)
+        .limit(2000);
+      const profili = (companyProfiles ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null;
+        site_address: string | null; site_city: string | null; site_postal_code: string | null; site_province: string | null;
+        address: string | null; city: string | null; postal_code: string | null; province: string | null;
+        site_lat: number | null; site_lng: number | null }>;
+      const ids = profili.map((p) => p.id);
+      const { data: roleRows } = ids.length > 0
+        ? await ctx.supabase.from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids)
+        : { data: [] as Array<{ user_id: string }> };
+      const customerIds = new Set(((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
+      const needle = clienteNome.toLowerCase();
+      const clienti = profili.filter((p) => customerIds.has(p.id));
+      const matches = clienti.filter((p) =>
+        `${p.first_name ?? ""} ${p.last_name ?? ""}`.toLowerCase().includes(needle) ||
+        needle.includes(`${p.first_name ?? ""}`.toLowerCase().trim()) && `${p.last_name ?? ""}`.toLowerCase() !== "" && needle.includes(`${p.last_name ?? ""}`.toLowerCase().trim())
+      );
+      if (matches.length === 0) {
+        return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Clienti disponibili: ${clienti.slice(0, 10).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()).join(", ") || "(nessuno)"}. Se è nuovo, crealo prima con crea_cliente.` };
+      }
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 6).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()).join(" | ")}. Chiedi all'utente quale intende e riprova col nome completo.` };
+      }
+      const cliente = matches[0];
+
+      // ── Codice commessa progressivo (inline: la RPC guardata darebbe NULL) ─
+      let orderCode: string | null = null;
+      try {
+        const { data: comp } = await ctx.supabase.from("companies").select("order_code_prefix").eq("id", ctx.companyId).maybeSingle();
+        const prefix = ((comp as { order_code_prefix?: string | null } | null)?.order_code_prefix ?? "O").trim() || "O";
+        const { data: codes } = await ctx.supabase
+          .from("orders").select("order_code")
+          .eq("company_id", ctx.companyId)
+          .ilike("order_code", `${prefix}%`)
+          .limit(2000);
+        let maxN = 0;
+        for (const r of (codes ?? []) as Array<{ order_code: string | null }>) {
+          const m = (r.order_code ?? "").match(/(\d+)\s*$/);
+          if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+        }
+        orderCode = `${prefix}-${String(maxN + 1).padStart(4, "0")}`;
+      } catch { orderCode = null; }
+
+      // ── Stato iniziale di default dell'azienda ────────────────────────────
+      let statusId: string | null = null;
+      try {
+        const { data: st } = await ctx.supabase
+          .from("order_statuses").select("id, is_default, position")
+          .eq("company_id", ctx.companyId)
+          .order("is_default", { ascending: false })
+          .order("position", { ascending: true })
+          .limit(1).maybeSingle();
+        statusId = (st as { id?: string } | null)?.id ?? null;
+      } catch { statusId = null; }
+
+      // ── Creazione atomica (stessa RPC del form Nuova Commessa) ────────────
+      const iva = Number.isFinite(Number(args?.iva)) ? Number(args?.iva) : 22;
+      const { data: created, error: createErr } = await ctx.supabase.rpc("create_order_atomic", {
+        p_order_data: {
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          order_code: orderCode,
+          description: descrizione,
+          total_amount: importo,
+          vat_rate: iva,
+          payment_type: "standard",
+          internal_notes: String(args?.note_interne ?? "").trim().slice(0, 1000) || "Creata da Silvio (chat)",
+          current_status_id: statusId,
+        },
+        p_items: [],
+        p_salesperson: null,
+        p_user_id: ctx.userId,
+        p_installments: [],
+      });
+      const result = created as { id?: string; success?: boolean } | null;
+      if (createErr || !result?.id) {
+        return { error: `Creazione commessa fallita: ${createErr?.message ?? "risposta vuota"}` };
+      }
+
+      // ── Indirizzo cantiere: esplicito > scheda cliente (best-effort) ──────
+      const line = (street: string | null, cap: string | null, city: string | null, prov: string | null) =>
+        [street, [cap, city].map((x) => (x ?? "").trim()).filter(Boolean).join(" "), prov]
+          .map((x) => (x ?? "").trim()).filter(Boolean).join(", ");
+      const cantiere = String(args?.indirizzo_cantiere ?? "").trim()
+        || line(cliente.site_address, cliente.site_postal_code, cliente.site_city, cliente.site_province)
+        || line(cliente.address, cliente.postal_code, cliente.city, cliente.province);
+      if (cantiere) {
+        const patch: Record<string, unknown> = { indirizzo_lavori: cantiere, work_address: cantiere };
+        if (cliente.site_lat != null && cliente.site_lng != null) { patch.work_lat = cliente.site_lat; patch.work_lng = cliente.site_lng; }
+        await ctx.supabase.from("orders").update(patch).eq("id", result.id).then(() => {}, () => {});
+      }
+
+      return {
+        order_id: result.id,
+        order_code: orderCode,
+        cliente: `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim(),
+        importo_imponibile: importo,
+        iva,
+        indirizzo_cantiere: cantiere || null,
+        link: `/azienda/ordini/${result.id}`,
+        nota: "Commessa creata. Acconti, articoli e date si completano dalla pagina della commessa.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
