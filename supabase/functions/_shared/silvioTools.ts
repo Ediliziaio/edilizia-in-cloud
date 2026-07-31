@@ -1988,7 +1988,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
-  richieste_fatture_da_registrare: {
+  // NB: la chiave DEVE combaciare con schema.function.name — il motore risolve
+  // il tool con SILVIO_TOOLS[toolName] usando il nome che il modello ha visto.
+  // Prima la chiave era `richieste_fatture_da_registrare`: il modello chiamava
+  // `fatture_da_registrare` e il lookup falliva → tool mai eseguibile.
+  fatture_da_registrare: {
     schema: {
       type: "function",
       function: {
