@@ -756,11 +756,31 @@ serve(async (req: Request) => {
         involvedAreas: classification.involved_areas,
       })
       : null;
+    // RBAC granulare per-utente (MVP): per lo staff carichiamo la riga
+    // staff_permissions e la passiamo al filtro tool — un permesso can_view_*
+    // esplicitamente false nasconde i tool del dominio corrispondente (vedi
+    // DOMAIN_STAFF_PERMISSION in silvioTools). Admin: nessun filtro extra.
+    let staffPermissions: Record<string, unknown> | null = null;
+    if (primaryRole === "company_staff") {
+      try {
+        const { data: spRow } = await supabaseAdmin
+          .from("staff_permissions")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        staffPermissions = (spRow as Record<string, unknown> | null) ?? null;
+      } catch (e) {
+        console.warn("[silvio-chat] staff_permissions fetch failed (nessun filtro extra):", e);
+      }
+    }
+
     const allowedTools = getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
       personaKey: PERSONA_KEY,
       domains: toolDomains,
+      staffPermissions,
     });
     const toolSchemas = toolsToOpenAISpec(allowedTools);
     // Log per misurare prima/dopo su ai_router_usage_log (prompt_tokens) + qui (char).

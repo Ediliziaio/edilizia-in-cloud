@@ -5262,6 +5262,36 @@ export function domainsForClassification(opts: {
 export const DEFAULT_TOOL_ALLOWED_ROLES = ["super_admin", "company_admin"];
 
 /**
+ * RBAC granulare per-utente (MVP 2026-07-31): dominio tool → permesso
+ * `staff_permissions.can_view_*` che ne gata la visibilità per i ruoli staff.
+ * Colma il gap "Silvio guarda solo il ruolo, mai i permessi per-utente":
+ * un operatore a cui l'admin ha tolto la finanza non deve poter chiedere
+ * l'EBITDA a Silvio. Semantica ADDITIVO-RESTRITTIVA e fail-open sui buchi:
+ *  - si applica SOLO se il chiamante passa `staffPermissions` (tipicamente
+ *    per primaryRole='company_staff'; gli admin non la passano);
+ *  - esclude un tool SOLO se il permesso mappato è ESPLICITAMENTE false;
+ *  - domini non mappati (ai, meta, knowledge, generative, anomalie, email,
+ *    filiera, titolare) restano invariati.
+ */
+export const DOMAIN_STAFF_PERMISSION: Partial<Record<ToolDomain, string>> = {
+  kpi: "can_view_financial_reports",
+  finance: "can_view_financial_reports",
+  banking: "can_view_tesoreria",
+  fattura: "can_view_billing",
+  cantiere: "can_view_orders",
+  operations: "can_view_orders",
+  warehouse: "can_view_warehouse",
+  crm: "can_view_marketing",
+  marketing: "can_view_marketing",
+  sales: "can_view_marketing_opportunities",
+  preventivi: "can_view_preventivi",
+  hr: "can_view_employees",
+  calendar: "can_view_calendar",
+  compliance: "can_view_sicurezza_cantiere",
+  support: "can_view_tickets",
+};
+
+/**
  * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
  * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
  * telegram-bot-processor, internal-agent-tools (voice).
@@ -5281,6 +5311,9 @@ export function getToolsForChannel(opts: {
   personaKey?: string;
   domain?: ToolDomain;
   domains?: ToolDomain[] | null;
+  /** RBAC granulare per-utente (vedi DOMAIN_STAFF_PERMISSION): riga
+   *  staff_permissions dell'utente. Se assente/null → nessun filtro extra. */
+  staffPermissions?: Record<string, unknown> | null;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
@@ -5303,6 +5336,12 @@ export function getToolsForChannel(opts: {
     if (opts.domain && tool.domain !== opts.domain) continue;
     // Domain-set filter (token-opt): tool senza domain = sempre incluso
     if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
+    // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
+    // staff mappato sul suo dominio è esplicitamente false.
+    if (opts.staffPermissions && tool.domain) {
+      const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
+      if (permKey && opts.staffPermissions[permKey] === false) continue;
+    }
     out.push(tool);
   }
   return out;
