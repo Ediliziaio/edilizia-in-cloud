@@ -4679,6 +4679,187 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "operations",
   },
 
+  crea_opportunita: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_opportunita",
+        description:
+          "Crea un'OPPORTUNITÀ nella pipeline CRM (es. 'Ristrutturazione bagno — Rossi, 25.000€'). " +
+          "Il contatto viene cercato per nome/email tra i contatti CRM; se non esiste e fornisci telefono o email, " +
+          "viene creato al volo (con controllo duplicati). Pipeline e fase per nome (default: prima pipeline, prima fase). " +
+          "FLUSSO: conferma col riepilogo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome dell'opportunità (es. 'Ristrutturazione bagno Rossi') — OBBLIGATORIO" },
+            contatto_nome: { type: "string", description: "Nome del contatto CRM — OBBLIGATORIO" },
+            contatto_telefono: { type: "string", description: "Telefono (serve solo per creare il contatto se non esiste)" },
+            contatto_email: { type: "string", description: "Email (serve solo per creare il contatto se non esiste)" },
+            valore: { type: "number", description: "Valore stimato in EURO (default 0)" },
+            pipeline_nome: { type: "string", description: "Nome della pipeline (default: la prima)" },
+            fase_nome: { type: "string", description: "Nome della fase (default: la prima della pipeline)" },
+            assegna_a: { type: "string", description: "Nome del venditore/membro del team a cui assegnarla" },
+            fonte: { type: "string", description: "Fonte (es. passaparola, sito, telefonata)" },
+            note: { type: "string" },
+          },
+          required: ["nome", "contatto_nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 200);
+      const contattoNome = String(args?.contatto_nome ?? "").trim();
+      if (!nome || !contattoNome) return { error: "Nome opportunità e nome contatto obbligatori." };
+      const valore = Math.max(Math.round((Number(args?.valore) || 0) * 100) / 100, 0);
+      if (valore > 100_000_000) return { error: "Valore non plausibile." };
+
+      // Pipeline + fase (per nome, default prima per position).
+      const { data: pipelines } = await ctx.supabase
+        .from("marketing_pipelines")
+        .select("id, name, position, marketing_pipeline_stages(id, name, position)")
+        .eq("company_id", ctx.companyId)
+        .order("position", { ascending: true });
+      if (!pipelines || pipelines.length === 0) {
+        return { error: "Nessuna pipeline CRM configurata: creane una in Marketing → Opportunità prima di usare questo tool." };
+      }
+      const normP = (s: string) => s.toLowerCase().trim();
+      let pipeline = pipelines[0];
+      const pipelineNome = String(args?.pipeline_nome ?? "").trim();
+      if (pipelineNome) {
+        const pm = pipelines.filter((p) => normP(p.name ?? "").includes(normP(pipelineNome)));
+        if (pm.length === 0) return { error: `Nessuna pipeline si chiama "${pipelineNome}". Disponibili: ${pipelines.map((p) => p.name).join(", ")}.` };
+        if (pm.length > 1) return { error: `Più pipeline corrispondono a "${pipelineNome}": ${pm.map((p) => p.name).join(", ")}. Specifica meglio.` };
+        pipeline = pm[0];
+      }
+      const stages = ((pipeline.marketing_pipeline_stages ?? []) as Array<{ id: string; name: string; position: number }>)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      if (stages.length === 0) return { error: `La pipeline "${pipeline.name}" non ha fasi configurate.` };
+      let stage = stages[0];
+      const faseNome = String(args?.fase_nome ?? "").trim();
+      if (faseNome) {
+        const sm = stages.filter((s) => normP(s.name ?? "").includes(normP(faseNome)));
+        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseNome}" nella pipeline "${pipeline.name}". Fasi: ${stages.map((s) => s.name).join(", ")}.` };
+        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseNome}": ${sm.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        stage = sm[0];
+      }
+
+      // Contatto CRM per nome/email; creazione al volo se assente e ho telefono/email.
+      const emailArg = String(args?.contatto_email ?? "").trim().toLowerCase();
+      const telArg = String(args?.contatto_telefono ?? "").trim();
+      const normC = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const q = normC(contattoNome);
+      const { data: contatti } = await ctx.supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email, phone")
+        .eq("company_id", ctx.companyId)
+        .limit(3000);
+      const matches = (contatti ?? []).filter((c) =>
+        normC(`${c.first_name ?? ""} ${c.last_name ?? ""}`).includes(q) ||
+        (emailArg && (c.email ?? "").toLowerCase() === emailArg));
+      let contactId: string | null = null;
+      let contactLabel = contattoNome;
+      let contattoCreato = false;
+      if (matches.length === 1) {
+        contactId = matches[0].id;
+        contactLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      } else if (matches.length > 1) {
+        return { error: `Più contatti corrispondono a "${contattoNome}": ${matches.slice(0, 6).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() + (c.email ? ` <${c.email}>` : "")).join(", ")}. Specifica meglio (o passa l'email).` };
+      } else {
+        if (!emailArg && !telArg) {
+          return { error: `Nessun contatto CRM trovato con nome simile a "${contattoNome}". Per crearlo al volo ripeti indicando anche telefono o email.` };
+        }
+        // Dedup su email/telefono prima di creare.
+        const dup = (contatti ?? []).find((c) =>
+          (emailArg && (c.email ?? "").toLowerCase() === emailArg) ||
+          (telArg && (c.phone ?? "").replace(/\s/g, "") === telArg.replace(/\s/g, "")));
+        if (dup) {
+          return { error: `Email/telefono già usati dal contatto "${dup.first_name ?? ""} ${dup.last_name ?? ""}". Usa quel nome per l'opportunità.` };
+        }
+        const parts = contattoNome.split(/\s+/);
+        const { data: nuovo, error: cErr } = await ctx.supabase
+          .from("marketing_contacts")
+          .insert({
+            company_id: ctx.companyId,
+            first_name: parts[0],
+            last_name: parts.slice(1).join(" ") || null,
+            email: emailArg || null,
+            phone: telArg || null,
+          })
+          .select("id")
+          .single();
+        if (cErr || !nuovo?.id) return { error: `Creazione contatto fallita: ${cErr?.message ?? "errore sconosciuto"}` };
+        contactId = nuovo.id;
+        contattoCreato = true;
+      }
+
+      // Assegnatario opzionale (team, esclusi clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && normC(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(normC(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        assignedTo = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      // Stessa scrittura di useCreateOpportunity (status 'open').
+      const { data: opp, error } = await ctx.supabase
+        .from("marketing_opportunities")
+        .insert({
+          company_id: ctx.companyId,
+          contact_id: contactId,
+          pipeline_id: pipeline.id,
+          stage_id: stage.id,
+          name: nome,
+          value: valore,
+          status: "open",
+          source: String(args?.fonte ?? "").trim().slice(0, 100) || null,
+          assigned_to: assignedTo,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (contattoCreato && contactId) {
+          await ctx.supabase.from("marketing_contacts").delete().eq("id", contactId);
+        }
+        return { error: `Creazione opportunità fallita: ${error.message}` };
+      }
+
+      return {
+        opportunita_id: opp.id,
+        nome,
+        contatto: contactLabel + (contattoCreato ? " (contatto creato al volo)" : ""),
+        pipeline: pipeline.name,
+        fase: stage.name,
+        valore: `${valore.toFixed(2)}€`,
+        assegnata_a: assignedName,
+        link: "/azienda/marketing/opportunita",
+        nota: "Opportunità creata nella pipeline (stato: aperta).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "sales",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
