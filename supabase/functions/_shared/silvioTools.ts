@@ -5291,19 +5291,38 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       if (!Number.isFinite(quantita) || quantita <= 0 || quantita > 1_000_000) return { error: "Quantità non valida (> 0)." };
 
       // Articolo per nome o codice interno/barcode (company-scoped).
-      const { data: articoli } = await ctx.supabase
-        .from("warehouse_stock")
-        .select("id, name, quantity, warehouse_id, internal_code")
-        .eq("company_id", ctx.companyId)
-        .or(`name.ilike.%${articoloQ}%,internal_code.ilike.%${articoloQ}%,barcode.ilike.%${articoloQ}%`)
-        .limit(6);
-      if (!articoli || articoli.length === 0) {
+      // NB: NON si usa .or(`name.ilike.%${q}%,internal_code.ilike...`): lì
+      // l'input finisce dentro la SINTASSI del filtro PostgREST, quindi un nome
+      // con una virgola ("Rete 5x5, maglia stretta") spezza la condizione in due
+      // — risultati sbagliati o query in errore. Con .ilike() il testo viaggia
+      // come VALORE (url-encoded): tre filtri separati, nessuna interpolazione.
+      const cerca = async (colonna: string) => {
+        const { data } = await ctx.supabase
+          .from("warehouse_stock")
+          .select("id, name, quantity, warehouse_id, internal_code, barcode")
+          .eq("company_id", ctx.companyId)
+          .ilike(colonna, `%${articoloQ}%`)
+          .limit(20);
+        return data ?? [];
+      };
+      const perNome = await cerca("name");
+      const trovati = perNome.length > 0
+        ? perNome
+        : [...(await cerca("internal_code")), ...(await cerca("barcode"))]
+            .filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i);
+      const normA = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+      const qArt = normA(articoloQ);
+      if (trovati.length === 0) {
         return { error: `Nessun articolo di magazzino trovato per "${articoloQ}". Verifica il nome o il codice interno.` };
       }
-      if (articoli.length > 1) {
-        return { error: `Più articoli corrispondono a "${articoloQ}": ${articoli.map((a) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
+      // Con più corrispondenze, un match ESATTO sul nome vince sulle parziali
+      // (es. "Cemento" quando a magazzino ci sono "Cemento" e "Cemento bianco");
+      // se resta ambiguo si elencano invece di indovinare.
+      const esatti = trovati.filter((a) => normA(a.name ?? "") === qArt);
+      const art = trovati.length === 1 ? trovati[0] : (esatti.length === 1 ? esatti[0] : null);
+      if (!art) {
+        return { error: `Più articoli corrispondono a "${articoloQ}": ${trovati.slice(0, 8).map((a) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
       }
-      const art = articoli[0];
       const giacenza = Number(art.quantity) || 0;
 
       // Guard: mai giacenza negativa. La UI clampa a 0 in silenzio; da chat è
@@ -5329,17 +5348,25 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         .single();
       if (movErr) return { error: `Registrazione movimento fallita: ${movErr.message}` };
 
-      // 2) Giacenza: NESSUN trigger la aggiorna (verificato su prod) → come la UI.
-      const { error: updErr } = await ctx.supabase
+      // 2) Giacenza: NESSUN trigger la aggiorna (verificato su prod) → tocca a noi.
+      //    Update OTTIMISTICO: `.eq("quantity", giacenza)` fa passare la scrittura
+      //    solo se nel frattempo nessun altro ha movimentato l'articolo. Senza
+      //    questa condizione due movimenti concorrenti (chat + app, o due operai
+      //    su WhatsApp) si sovrascriverebbero a vicenda e la giacenza finirebbe
+      //    sbagliata in silenzio — il classico lost update del read-modify-write.
+      const { data: updated, error: updErr } = await ctx.supabase
         .from("warehouse_stock")
         .update({ quantity: nuovaGiacenza })
         .eq("id", art.id)
-        .eq("company_id", ctx.companyId);
-      if (updErr) {
+        .eq("company_id", ctx.companyId)
+        .eq("quantity", giacenza)
+        .select("id");
+      if (updErr || !updated || updated.length === 0) {
         // Rollback del movimento: senza l'update sarebbe una riga fantasma che
         // non corrisponde alla giacenza reale.
         await ctx.supabase.from("warehouse_movements").delete().eq("id", mov.id);
-        return { error: `Aggiornamento giacenza fallito (movimento annullato): ${updErr.message}` };
+        if (updErr) return { error: `Aggiornamento giacenza fallito (movimento annullato): ${updErr.message}` };
+        return { error: `La giacenza di "${art.name}" è cambiata mentre registravo il movimento (qualcun altro l'ha appena movimentata). Nessuna modifica salvata: ricontrolla la giacenza attuale e ripeti.` };
       }
 
       return {
