@@ -13,17 +13,21 @@
  *  - JPEG quality 0.85 → buon compromesso peso/qualità su foto
  *  - PNG per loghi (URL con .png o "logo" nel path) → preserva trasparenza
  *
- * Best-effort: in caso di errore (CORS, formato corrotto, network timeout),
- * ritorna l'URL originale come fallback quando react-pdf puo' comunque
- * provarci. Per formati non supportati da react-pdf (webp/avif/gif) torna
- * null: meglio un placeholder coerente di una generazione PDF rotta o appesa.
+ * Best-effort, con una regola dura appresa dal campo:
+ *
+ *   se l'immagine NON si è caricata qui, NON va passata a react-pdf.
+ *
+ * react-pdf scarica le immagini remote SENZA timeout interno: un URL che non
+ * risponde (CORS, 404, bucket privato) manda `toBlob()` in attesa PER SEMPRE e
+ * l'anteprima resta a girare. Prima, in caso di errore, tornavamo l'URL
+ * originale "così react-pdf ci prova": era proprio quel tentativo a bloccare
+ * la generazione. Meglio un PDF senza logo che un PDF che non arriva mai.
+ *
+ * Unica eccezione: quando l'immagine SI è caricata ma il canvas non è
+ * esportabile (canvas "tainted" da CORS) — lì react-pdf ha una chance concreta
+ * di farcela con la sua richiesta, e il timeout a valle ci copre comunque.
  */
 const IMAGE_LOAD_TIMEOUT_MS = 12_000;
-const UNSUPPORTED_REACT_PDF_IMAGE_RE = /\.(webp|avif|gif)(?:[?#].*)?$/i;
-
-function fallbackForFailedConversion(url: string): string | null {
-  return UNSUPPORTED_REACT_PDF_IMAGE_RE.test(url) ? null : url;
-}
 
 export async function toDataUrl(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
@@ -41,8 +45,10 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
       resolve(value);
     };
     const timer = globalThis.setTimeout(() => {
-      console.warn("[pdf] toDataUrl image load timeout:", url.substring(0, 80));
-      finish(fallbackForFailedConversion(url));
+      // Non si è caricata qui in 12s: darla a react-pdf significherebbe
+      // bloccare la generazione all'infinito. Meglio saltarla.
+      console.warn("[pdf] immagine non caricata entro il timeout, esclusa dal PDF:", url.substring(0, 80));
+      finish(null);
     }, IMAGE_LOAD_TIMEOUT_MS);
 
     img.crossOrigin = "anonymous";
@@ -72,13 +78,18 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
           : canvas.toDataURL("image/jpeg", 0.85);
         finish(dataUrl);
       } catch (e) {
-        console.warn("[pdf] toDataUrl canvas failed:", e);
-        finish(fallbackForFailedConversion(url));
+        // Canvas "tainted": l'immagine ESISTE e si è caricata, non è
+        // esportabile per CORS. Qui react-pdf ha una chance reale con la sua
+        // richiesta, e il timeout a valle copre il caso peggiore.
+        console.warn("[pdf] canvas non esportabile (CORS), passo l'URL a react-pdf:", e);
+        finish(url);
       }
     };
     img.onerror = () => {
-      console.warn("[pdf] toDataUrl image load failed:", url.substring(0, 80));
-      finish(fallbackForFailedConversion(url));
+      // L'immagine non è raggiungibile: react-pdf fallirebbe allo stesso modo,
+      // ma restando appeso. Escludiamola.
+      console.warn("[pdf] immagine non raggiungibile, esclusa dal PDF:", url.substring(0, 80));
+      finish(null);
     };
     img.src = url;
   });
