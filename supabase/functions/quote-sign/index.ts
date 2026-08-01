@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
   CONSENSO,
   clausoleVessatorieAttive,
@@ -8,6 +9,7 @@ import {
   costruisciProvaFirma,
   improntaDocumento,
   risolviTestiLegali,
+  riepilogoPerEmail,
   validaConsensi,
   type ClausolaAziendale,
   type ClausolaVessatoria,
@@ -30,6 +32,13 @@ import {
  * Retrocompatibile: un client che non manda i consensi firma come prima, ma la
  * prova registra che non sono stati raccolti — così è visibile, non implicito.
  */
+/** I nomi dei clienti finiscono dentro l'HTML: qui non ci passa markup. */
+function escapeHtml(v: string): string {
+  return String(v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -275,6 +284,51 @@ Deno.serve(async (req) => {
             updated_at: firmatoIl.toISOString(),
           })
           .eq("id", quote.id);
+
+        // Conferma scritta al cliente: senza, del ripensamento resta traccia
+        // solo dentro la nostra app — e il termine decorre da oggi. Best-effort:
+        // un problema di posta non deve far fallire una firma già registrata.
+        if (quote.client_email) {
+          try {
+            const { data: azienda } = await supabaseAdmin
+              .from("companies").select("name").eq("id", quote.company_id).maybeSingle();
+            const nomeAzienda = (azienda?.name as string | undefined) ?? "L'impresa";
+            const testiFirma = risolviTestiLegali(clausoleConfigurate, {
+              lavoriSuMisura: contesto.lavoriSuMisura,
+              nomeAzienda,
+            });
+            const accettati = consensi
+              .filter((c) => c.accettato)
+              .map((c) => `<li>${escapeHtml(c.testo ?? testiFirma[c.chiave] ?? c.chiave)}</li>`)
+              .join("");
+            const vessatorieApprovate = contesto.clausoleVessatorie
+              .filter((c) => prova.clausole_approvate.includes(c.codice))
+              .map((c) => `<li><strong>${escapeHtml(c.titolo)}</strong> — ${escapeHtml(c.testo)}</li>`)
+              .join("");
+
+            await sendEmailUnified({
+              companyId: quote.company_id,
+              stream: "transactional",
+              to: [String(quote.client_email)],
+              subject: `Conferma firma offerta ${quote.quote_number} — ${nomeAzienda}`,
+              html: `
+                <p>Gentile ${escapeHtml(signed_by_name.trim())},</p>
+                <p>abbiamo registrato la tua firma sull'offerta <strong>${escapeHtml(String(quote.quote_number))}</strong>.
+                Conserva questa email: è la prova di cosa hai accettato e quando.</p>
+                <pre style="font-family:inherit;white-space:pre-wrap;background:#f6f7f9;padding:12px;border-radius:8px">${escapeHtml(riepilogoPerEmail(prova))}</pre>
+                ${accettati ? `<p><strong>Hai accettato:</strong></p><ul>${accettati}</ul>` : ""}
+                ${vessatorieApprovate ? `<p><strong>Clausole approvate specificamente:</strong></p><ul>${vessatorieApprovate}</ul>` : ""}
+                <p style="color:#64748b;font-size:13px">Per qualsiasi comunicazione rispondi a questa email o contatta ${escapeHtml(nomeAzienda)}.</p>
+              `,
+              templateName: "quote_signed_confirmation",
+              skipCredits: false,
+              adminClient: supabaseAdmin,
+              metadata: { quote_id: quote.id, quote_number: quote.quote_number },
+            });
+          } catch (mailErr) {
+            console.error("Conferma firma non inviata:", mailErr);
+          }
+        }
 
         // Notify the quote creator
         if (quote.created_by) {
