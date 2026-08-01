@@ -4528,6 +4528,140 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  approva_rapportini: {
+    schema: {
+      type: "function",
+      function: {
+        name: "approva_rapportini",
+        description:
+          "Approva (o rifiuta) i RAPPORTINI inviati dagli operai — il controllo di fine settimana del titolare. " +
+          "Si può filtrare per persona, commessa e periodo; senza periodo prende gli ultimi 7 giorni. " +
+          "FLUSSO: chiama PRIMA con solo_conteggio=true per vedere quanti sono e quante ore, mostra il riepilogo, " +
+          "chiedi conferma, poi richiama senza solo_conteggio per approvarli davvero.",
+        parameters: {
+          type: "object",
+          properties: {
+            persona: { type: "string", description: "Nome dell'operaio (se assente: tutti)" },
+            commessa_codice: { type: "string", description: "Codice commessa (se assente: tutte)" },
+            da_data: { type: "string", description: "Dal giorno YYYY-MM-DD (default: 7 giorni fa)" },
+            a_data: { type: "string", description: "Al giorno YYYY-MM-DD (default: oggi)" },
+            rifiuta: { type: "boolean", description: "true = RIFIUTA invece di approvare (richiede motivo)" },
+            motivo: { type: "string", description: "Motivo del rifiuto" },
+            solo_conteggio: { type: "boolean", description: "true = non modifica nulla, restituisce solo il riepilogo" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const rifiuta = args?.rifiuta === true;
+      const motivo = String(args?.motivo ?? "").trim().slice(0, 500);
+      if (rifiuta && !motivo) return { error: "Per rifiutare serve il motivo: l'operaio deve sapere cosa correggere." };
+
+      const oggi = (() => {
+        try { return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { return new Date().toISOString().slice(0, 10); }
+      })();
+      const settimanaFa = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+      const daData = String(args?.da_data ?? "").trim() || settimanaFa;
+      const aData = String(args?.a_data ?? "").trim() || oggi;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(daData) || !/^\d{4}-\d{2}-\d{2}$/.test(aData)) {
+        return { error: "Date non valide: usa YYYY-MM-DD." };
+      }
+      if (daData > aData) return { error: `Periodo invertito: ${daData} è dopo ${aData}.` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Persona opzionale (chi ha compilato il rapportino).
+      let userIdFiltro: string | null = null;
+      let personaNome: string | null = null;
+      const persona = String(args?.persona ?? "").trim();
+      if (persona) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(500);
+        const q = norm(persona);
+        const pm = (people ?? []).filter((p) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+        if (pm.length === 0) return { error: `Nessuna persona trovata con nome simile a "${persona}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        userIdFiltro = pm[0].id;
+        personaNome = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      // Solo i rapportini INVIATI: le bozze non si approvano, gli approvati non si ri-approvano.
+      let q = ctx.supabase
+        .from("campo_rapportini")
+        .select("id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori")
+        .eq("company_id", ctx.companyId)
+        .eq("stato", "inviato")
+        .gte("data_lavoro", daData)
+        .lte("data_lavoro", aData);
+      if (orderId) q = q.eq("order_id", orderId);
+      if (userIdFiltro) q = q.eq("user_id", userIdFiltro);
+      const { data: rapportini, error: qErr } = await q.limit(500);
+      if (qErr) return { error: `Lettura rapportini fallita: ${qErr.message}` };
+
+      const lista = rapportini ?? [];
+      const perimetro = `${daData} → ${aData}${personaNome ? `, ${personaNome}` : ""}${orderCode ? `, ${orderCode}` : ""}`;
+      if (lista.length === 0) {
+        return { esito: "nessun rapportino da approvare", perimetro, nota: "In questo periodo non ci sono rapportini in attesa (stato 'inviato')." };
+      }
+
+      const ore = lista.reduce((s, r) => s + (Number(r.ore_lavorate) || 0), 0);
+      const straord = lista.reduce((s, r) => s + (Number(r.ore_straordinario) || 0), 0);
+      const persone = new Set(lista.map((r) => r.user_id)).size;
+      const riepilogo = {
+        rapportini: lista.length,
+        persone,
+        ore_ordinarie: Math.round(ore * 100) / 100,
+        ore_straordinario: Math.round(straord * 100) / 100,
+        perimetro,
+      };
+
+      // Anteprima: nessuna scrittura, serve al riepilogo prima della conferma.
+      if (args?.solo_conteggio === true) {
+        return { ...riepilogo, esito: "ANTEPRIMA (nulla è stato modificato)", nota: `Confermando, ${lista.length} rapportini passeranno a "${rifiuta ? "rifiutato" : "approvato"}".` };
+      }
+
+      const nuovoStato = rifiuta ? "rifiutato" : "approvato";
+      const { error: updErr } = await ctx.supabase
+        .from("campo_rapportini")
+        .update({ stato: nuovoStato })
+        .in("id", lista.map((r) => r.id))
+        .eq("company_id", ctx.companyId)
+        .eq("stato", "inviato"); // rileggo lo stato: se nel frattempo cambia, non lo sovrascrivo
+      if (updErr) return { error: `Aggiornamento rapportini fallito: ${updErr.message}` };
+
+      return {
+        ...riepilogo,
+        esito: rifiuta ? "RIFIUTATI" : "APPROVATI",
+        motivo: rifiuta ? motivo : null,
+        link: "/azienda/rapportini",
+        nota: `${lista.length} rapportini (${riepilogo.ore_ordinarie} ore${straord > 0 ? ` + ${riepilogo.ore_straordinario} straordinario` : ""}) ora in stato "${nuovoStato}".`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
   aggiorna_stato_commessa: {
     schema: {
       type: "function",
