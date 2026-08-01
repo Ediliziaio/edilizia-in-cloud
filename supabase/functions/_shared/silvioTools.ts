@@ -4528,6 +4528,84 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  crea_subappaltatore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_subappaltatore",
+        description:
+          "Registra un nuovo SUBAPPALTATORE in anagrafica (ditta esterna che lavora nei cantieri). " +
+          "Solo anagrafica: i documenti di sicurezza (DURC, POS, visura...) si caricano poi dalla scheda. " +
+          "FLUSSO: mostra ragione sociale, referente e recapiti, chiedi conferma, poi chiama il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            ragione_sociale: { type: "string", description: "Ragione sociale della ditta — OBBLIGATORIA" },
+            responsabile: { type: "string", description: "Nome del referente in cantiere" },
+            telefono: { type: "string" },
+            email: { type: "string" },
+            piva: { type: "string", description: "Partita IVA" },
+            indirizzo: { type: "string" },
+            note: { type: "string" },
+          },
+          required: ["ragione_sociale"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const ragione = String(args?.ragione_sociale ?? "").trim().slice(0, 200);
+      if (!ragione) return { error: "Ragione sociale obbligatoria." };
+      const email = String(args?.email ?? "").trim().toLowerCase().slice(0, 200);
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Email non valida." };
+      const piva = String(args?.piva ?? "").trim().replace(/\s/g, "").slice(0, 20);
+      if (piva && !/^[0-9]{11}$/.test(piva) && !/^[A-Z]{2}[0-9A-Z]{2,13}$/i.test(piva)) {
+        return { error: "Partita IVA non valida (11 cifre per l'Italia, oppure con prefisso paese)." };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+      const { data: esistenti } = await ctx.supabase
+        .from("subappaltatori").select("id, ragione_sociale, piva, is_active")
+        .eq("company_id", ctx.companyId).limit(2000);
+      const dup = (esistenti ?? []).find(
+        (s) => norm(s.ragione_sociale ?? "") === norm(ragione) || (piva && (s.piva ?? "").replace(/\s/g, "") === piva),
+      );
+      if (dup) {
+        return { error: `"${dup.ragione_sociale}" è GIÀ in anagrafica subappaltatori${dup.is_active === false ? " (disattivato)" : ""}. Non ne creo un doppione.` };
+      }
+
+      const { data: sub, error } = await ctx.supabase
+        .from("subappaltatori")
+        .insert({
+          company_id: ctx.companyId,
+          ragione_sociale: ragione,
+          responsabile: String(args?.responsabile ?? "").trim().slice(0, 150) || null,
+          telefono: String(args?.telefono ?? "").trim().slice(0, 50) || null,
+          email: email || null,
+          piva: piva || null,
+          indirizzo: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione subappaltatore fallita: ${error.message}` };
+
+      return {
+        subappaltatore_id: sub.id,
+        ditta: ragione,
+        referente: String(args?.responsabile ?? "").trim() || null,
+        piva: piva || null,
+        link: `/azienda/subappaltatori/${sub.id}`,
+        nota: "Subappaltatore registrato. Ricordati di caricare i documenti di sicurezza (DURC, POS, visura) dalla sua scheda: senza, non risulta in regola per entrare in cantiere.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "compliance",
+  },
+
   approva_rapportini: {
     schema: {
       type: "function",
