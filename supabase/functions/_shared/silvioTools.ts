@@ -4528,6 +4528,168 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  crea_sopralluogo: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_sopralluogo",
+        description:
+          "Programma un SOPRALLUOGO: crea la scheda di rilievo partendo da un modello (fotovoltaico, bagno, " +
+          "cappotto, tetto, infissi...), con cliente, tecnico incaricato, data e indirizzo. " +
+          "La scheda nasce in bozza: il tecnico la compila poi sul posto dall'app. " +
+          "Se non sai quale modello usare, chiedi all'utente invece di sceglierne uno a caso.",
+        parameters: {
+          type: "object",
+          properties: {
+            tipo_rilievo: { type: "string", description: "Modello di rilievo (es. fotovoltaico, bagno, tetto, infissi) — OBBLIGATORIO" },
+            cliente_nome: { type: "string", description: "Nome del cliente" },
+            tecnico: { type: "string", description: "Nome del tecnico incaricato" },
+            data_ora: { type: "string", description: "Quando: YYYY-MM-DD oppure YYYY-MM-DD HH:MM" },
+            indirizzo: { type: "string", description: "Indirizzo del sopralluogo" },
+            citta: { type: "string" },
+            cap: { type: "string" },
+            provincia: { type: "string" },
+            commessa_codice: { type: "string", description: "Commessa collegata" },
+            note: { type: "string" },
+          },
+          required: ["tipo_rilievo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const tipoQ = String(args?.tipo_rilievo ?? "").trim();
+      if (!tipoQ) return { error: "Tipo di rilievo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Modello di rilievo: quelli dell'azienda + quelli di sistema.
+      const { data: templates } = await ctx.supabase
+        .from("survey_templates")
+        .select("id, name, category, company_id")
+        .or(`company_id.eq.${ctx.companyId},company_id.is.null`)
+        .eq("is_active", true)
+        .limit(100);
+      if (!templates || templates.length === 0) {
+        return { error: "Nessun modello di rilievo disponibile: creane uno da Sopralluoghi → Modelli." };
+      }
+      const tq = norm(tipoQ);
+      let match = templates.filter((t) => norm(t.name ?? "").includes(tq) || norm(t.category ?? "").includes(tq));
+      if (match.length === 0) {
+        return { error: `Nessun modello di rilievo per "${tipoQ}". Disponibili: ${templates.map((t) => t.name).join(", ")}.` };
+      }
+      if (match.length > 1) {
+        // Preferisci il modello dell'azienda a quello di sistema con lo stesso nome.
+        const propri = match.filter((t) => t.company_id === ctx.companyId);
+        if (propri.length === 1) match = propri;
+        else return { error: `Più modelli corrispondono a "${tipoQ}": ${match.map((t) => t.name).join(", ")}. Specifica meglio.` };
+      }
+      const template = match[0];
+
+      // Data/ora opzionale: accetta sia solo la data sia data + ora.
+      let scheduledAt: string | null = null;
+      const quando = String(args?.data_ora ?? "").trim();
+      if (quando) {
+        const m = quando.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?$/);
+        if (!m) return { error: "data_ora non valida: usa YYYY-MM-DD oppure YYYY-MM-DD HH:MM." };
+        scheduledAt = new Date(`${m[1]}T${m[2] ?? "09:00"}:00`).toISOString();
+      }
+
+      // Cliente e tecnico: stessa logica degli altri tool (clienti = role customer,
+      // tecnici = team, clienti esclusi).
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const cerca = (nome: string, soloClienti: boolean) => {
+        const q = norm(nome);
+        return (people ?? []).filter((p) =>
+          (soloClienti ? customerIds.has(p.id) : !customerIds.has(p.id)) &&
+          norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      };
+
+      let clientId: string | null = null;
+      let clienteLabel: string | null = null;
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (clienteNome) {
+        const cm = cerca(clienteNome, true);
+        if (cm.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+        if (cm.length > 1) return { error: `Più clienti corrispondono a "${clienteNome}": ${cm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        clientId = cm[0].id;
+        clienteLabel = `${cm[0].first_name ?? ""} ${cm[0].last_name ?? ""}`.trim();
+      }
+
+      let technicianId: string | null = null;
+      let tecnicoLabel: string | null = null;
+      const tecnico = String(args?.tecnico ?? "").trim();
+      if (tecnico) {
+        const tm = cerca(tecnico, false);
+        if (tm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${tecnico}".` };
+        if (tm.length > 1) return { error: `Più persone corrispondono a "${tecnico}": ${tm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        technicianId = tm[0].id;
+        tecnicoLabel = `${tm[0].first_name ?? ""} ${tm[0].last_name ?? ""}`.trim();
+      }
+
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Stessa scrittura di createSurvey (status 'draft', mode 'structured').
+      const { data: survey, error } = await ctx.supabase
+        .from("surveys")
+        .insert({
+          company_id: ctx.companyId,
+          template_id: template.id,
+          client_id: clientId,
+          order_id: orderId,
+          technician_id: technicianId,
+          scheduled_at: scheduledAt,
+          address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          city: String(args?.citta ?? "").trim().slice(0, 100) || null,
+          zip: String(args?.cap ?? "").trim().slice(0, 10) || null,
+          province: String(args?.provincia ?? "").trim().slice(0, 50) || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          mode: "structured",
+          status: "draft",
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione sopralluogo fallita: ${error.message}` };
+
+      return {
+        sopralluogo_id: survey.id,
+        modello: template.name,
+        cliente: clienteLabel,
+        tecnico: tecnicoLabel,
+        quando: quando || null,
+        dove: [String(args?.indirizzo ?? "").trim(), String(args?.citta ?? "").trim()].filter(Boolean).join(", ") || null,
+        commessa: orderCode,
+        link: `/azienda/sopralluoghi/${survey.id}`,
+        nota: "Sopralluogo creato in BOZZA. Il tecnico lo compila sul posto dall'app; a fine rilievo si può far firmare al cliente.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
   crea_impianto_cliente: {
     schema: {
       type: "function",
