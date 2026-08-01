@@ -15,7 +15,17 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { isInternalRequest, requireInternalSecret, requireAuth } from "../_shared/auth.ts";
-import { buildBrandedImagePrompt, aspectToOpenAiSize } from "../_shared/brandCreativeRules.ts";
+import {
+  buildBrandedImagePrompt,
+  aspectToOpenAiSize,
+  costoImmagineUsd,
+  qualityPerModello,
+  richiedeRitaglio,
+  type CreativeAspect,
+} from "../_shared/brandCreativeRules.ts";
+import { caricaBrandAzienda, verificaQuotaCreativita } from "../_shared/creativeContext.ts";
+import { checkPaymentMethod } from "../_shared/requirePaymentMethod.ts";
+import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
@@ -66,13 +76,13 @@ Deno.serve(async (req: Request) => {
 
     const { data: candidates } = await admin
       .from("silvio_generation_jobs")
-      .select("id, company_id, brief, formato")
+      .select("id, company_id, created_by, brief, formato")
       .eq("status", "queued")
       .eq("tipo", "image")
       .order("created_at", { ascending: true })
       .limit(MAX_JOBS_PER_RUN);
 
-    let processed = 0, failed = 0, skipped = 0;
+    let processed = 0, failed = 0, skipped = 0, blocked = 0;
 
     for (const job of (candidates ?? [])) {
       // claim atomico: solo chi porta lo stato queued→processing prosegue
@@ -83,14 +93,45 @@ Deno.serve(async (req: Request) => {
         .select("id").maybeSingle();
       if (!claimed) { skipped++; continue; }
 
+      // ── GATE SOLDI (audit creatività 01/08) ──────────────────────────────
+      // Prima di questo blocco il worker generava immagini OpenAI senza gate
+      // pagamento e senza addebito: ogni immagine chiesta in chat era costo
+      // puro di piattaforma, invisibile al billing — mentre il tool prometteva
+      // all'utente "consuma crediti". Stesso pattern già chiuso su render e voce.
+      const pagamento = await checkPaymentMethod(admin, job.company_id);
+      if (!pagamento.allowed) {
+        await admin.from("silvio_generation_jobs").update({
+          status: "failed",
+          error: pagamento.message ?? "Metodo di pagamento non configurato",
+          updated_at: new Date().toISOString(),
+        }).eq("id", job.id);
+        blocked++;
+        continue;
+      }
+      const quota = await verificaQuotaCreativita(admin, job.company_id);
+      if (!quota.consentito) {
+        await admin.from("silvio_generation_jobs").update({
+          status: "failed",
+          error: quota.messaggio ?? "Limite giornaliero raggiunto",
+          updated_at: new Date().toISOString(),
+        }).eq("id", job.id);
+        blocked++;
+        continue;
+      }
+
+      const t0 = Date.now();
       try {
-        const prompt = buildBrandedImagePrompt(job.brief ?? "");
+        // Brand aziendale nel prompt: colori e mestiere reali, non più
+        // un'immagine anonima uguale per tutte le aziende.
+        const brand = await caricaBrandAzienda(admin, job.company_id);
+        const prompt = buildBrandedImagePrompt(job.brief ?? "", brand);
         const size = aspectToOpenAiSize(job.formato);
         // gpt-image-1 ritorna b64_json di default e NON accetta response_format/quality 'standard'
         // (param DALL·E). Body model-aware per evitare 400 "Unknown parameter".
         const isGptImage = OPENAI_IMAGE_MODEL.startsWith("gpt-image");
+        const qualitaApplicata = qualityPerModello(OPENAI_IMAGE_MODEL, "standard");
         const reqBody = isGptImage
-          ? { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1 }
+          ? { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1, ...(qualitaApplicata ? { quality: qualitaApplicata } : {}) }
           : { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1, quality: "standard", response_format: "b64_json" };
         const resp = await fetchWithRetry("https://api.openai.com/v1/images/generations", {
           method: "POST",
@@ -113,9 +154,42 @@ Deno.serve(async (req: Request) => {
         }
         const { data: pub } = admin.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
 
+        // Addebito nel ledger AI centrale. Best-effort DOPO la consegna, come
+        // ai-ads-image-generate: l'immagine è già pronta, un errore di charge
+        // non deve negarla all'utente — ma va loggato, non ingoiato.
+        const costRealUsd = costoImmagineUsd({ model: OPENAI_IMAGE_MODEL, size, quality: "standard" });
+        try {
+          await chargeDirectAiCall({
+            supabase: admin,
+            // job.id è la chiave naturale: un riprocessamento dello stesso job
+            // non genera un secondo addebito (UNIQUE su idempotency_key).
+            idempotencyKey: `silvio-creativita:${job.id}`,
+            companyId: job.company_id,
+            userId: job.created_by ?? null,
+            taskKey: "silvio_creativita_image",
+            tierKey: "t2_vision",
+            modelUsed: OPENAI_IMAGE_MODEL,
+            tokensIn: 0,
+            tokensOut: 0,
+            costRealUsd,
+            durationMs: Date.now() - t0,
+            metadata: { job_id: job.id, formato: job.formato, size },
+          });
+        } catch (chargeErr) {
+          console.error(`[gen-worker] charge fallito per job ${job.id} (immagine già consegnata):`, chargeErr);
+        }
+
         await admin.from("silvio_generation_jobs").update({
           status: "ready", public_url: pub.publicUrl,
-          result: { file: fileName, size }, updated_at: new Date().toISOString(),
+          result: {
+            file: fileName,
+            size,
+            // Il compositore lato client usa questi campi per portare l'immagine
+            // al formato social reale (gpt-image-1 non genera 9:16 nativo).
+            richiede_ritaglio: richiedeRitaglio((job.formato ?? "4:5") as CreativeAspect),
+            costo_usd: costRealUsd,
+          },
+          updated_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
         }).eq("id", job.id);
         processed++;
@@ -129,7 +203,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return jsonResponse({ ok: true, processed, failed, skipped, stale_failed: staleFailed, orphan_failed: orphanFailed, claimed_candidates: (candidates ?? []).length }, 200, cors);
+    return jsonResponse({ ok: true, processed, failed, skipped, blocked, stale_failed: staleFailed, orphan_failed: orphanFailed, claimed_candidates: (candidates ?? []).length }, 200, cors);
   } catch (e) {
     if (e instanceof Response) return e;
     const msg = e instanceof Error ? e.message : String(e);

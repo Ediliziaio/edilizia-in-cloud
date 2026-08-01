@@ -8,7 +8,9 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageGeneration } from "@/components/ui/ai-chat-image-generation";
-import { Download, ImageOff } from "lucide-react";
+import { PostComposerDialog } from "@/components/creativita/PostComposerDialog";
+import type { CreativeAspect } from "../../../supabase/functions/_shared/brandCreativeRules";
+import { Download, ImageOff, Wand2 } from "lucide-react";
 
 interface GenJob {
   id: string;
@@ -34,6 +36,7 @@ function isDone(j: GenJob | null | undefined): boolean {
 
 export function SilvioImageJob({ jobId }: { jobId: string }) {
   const [timedOut, setTimedOut] = useState(false);
+  const [composerAperto, setComposerAperto] = useState(false);
   useEffect(() => {
     setTimedOut(false); // nuovo job → riparte il conteggio (evita errore "ereditato")
     const t = window.setTimeout(() => setTimedOut(true), TIMEOUT_MS);
@@ -80,14 +83,33 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
         )}
       </ImageGeneration>
       {url && (
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700"
-        >
-          <Download className="h-3.5 w-3.5" /> Scarica l'immagine
-        </a>
+        <div className="mt-1.5 flex items-center gap-3">
+          {/* L'immagine da sola è una foto: qui diventa un post con titolo,
+              richiamo e logo, nella misura esatta del social. */}
+          <button
+            type="button"
+            onClick={() => setComposerAperto(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700"
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Prepara il post
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Download className="h-3.5 w-3.5" /> Scarica l'immagine
+          </a>
+        </div>
+      )}
+      {url && (
+        <PostComposerDialog
+          open={composerAperto}
+          onOpenChange={setComposerAperto}
+          imageUrl={url}
+          aspect={(job?.formato ?? "4:5") as CreativeAspect}
+        />
       )}
     </div>
   );

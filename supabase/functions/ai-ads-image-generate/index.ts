@@ -22,7 +22,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 // MP-SILVIO-CREATIVE-01: canoni brand condivisi (single source chat+social)
-import { aspectToOpenAiSize, buildBrandedImagePrompt } from "../_shared/brandCreativeRules.ts";
+import {
+  aspectToOpenAiSize,
+  buildBrandedImagePrompt,
+  costoImmagineUsd,
+  costoImmagineCentesimiEur,
+  qualityPerModello,
+  richiedeRitaglio,
+  type CreativeAspect,
+} from "../_shared/brandCreativeRules.ts";
+import { caricaBrandAzienda, verificaQuotaCreativita } from "../_shared/creativeContext.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 
@@ -54,6 +63,8 @@ interface ImageGenResponse {
   width_px?: number;
   height_px?: number;
   cost_eur_cents?: number;
+  /** true se il formato richiesto va ritagliato prima di pubblicare (es. 9:16). */
+  richiede_ritaglio?: boolean;
   error?: string;
   detail?: string;
 }
@@ -109,31 +120,63 @@ Deno.serve(async (req) => {
     const paymentBlock = await gateAiPayment(admin, body.company_id, corsHeaders);
     if (paymentBlock) return paymentBlock;
 
+    // Tetto giornaliero condiviso con la chat (audit creatività 01/08): senza,
+    // bastava alternare i due canali per generare all'infinito.
+    const quota = await verificaQuotaCreativita(admin, body.company_id);
+    if (!quota.consentito) {
+      return json({
+        success: false,
+        error: "creative_daily_cap",
+        detail: quota.messaggio,
+      }, 429, corsHeaders);
+    }
+
     // Mapping aspect_ratio → size OpenAI (canone condiviso brandCreativeRules)
     const ar = body.aspect_ratio ?? "1:1";
     const size = aspectToOpenAiSize(ar);
 
     const quality = body.quality ?? "standard";
 
-    // SAFETY filter: prompt rinforzato anti-claim (canone condiviso brandCreativeRules)
-    const enhancedPrompt = buildBrandedImagePrompt(body.prompt);
+    // SAFETY filter + identità aziendale: colori e mestiere reali nel prompt.
+    const brand = await caricaBrandAzienda(admin, body.company_id);
+    const enhancedPrompt = buildBrandedImagePrompt(body.prompt, brand);
 
     // CHIAMATA OPENAI
-    // FIX QA: gpt-image-1 ritorna b64_json di default e NON accetta i parametri
-    // DALL·E `response_format` / `quality:'standard'` → 400 "Unknown parameter".
-    // Body model-aware: gpt-image-1 minimale, DALL·E con i suoi parametri.
+    // gpt-image-1 ritorna b64_json di default e NON accetta i parametri DALL·E
+    // `response_format` / `quality:'standard'` → 400 "Unknown parameter".
+    // FIX FATTURAZIONE (audit creatività 01/08): prima la qualità richiesta non
+    // veniva MAI inviata a gpt-image-1 ma il prezzo la conteggiava → chi
+    // sceglieva "hd" pagava il doppio per un'immagine identica. Ora la qualità
+    // viene tradotta nella scala del modello (medium|high) e il prezzo si calcola
+    // su ciò che è stato davvero applicato.
     const isGptImage = OPENAI_IMAGE_MODEL.startsWith("gpt-image");
+    const qualitaApplicata = qualityPerModello(OPENAI_IMAGE_MODEL, quality);
     const openaiBody = isGptImage
-      ? { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, n: 1 }
+      ? { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, n: 1, ...(qualitaApplicata ? { quality: qualitaApplicata } : {}) }
       : { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, quality, n: 1, response_format: "b64_json" };
-    const openaiResp = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify(openaiBody),
-    });
+    const chiamaOpenAi = (payload: Record<string, unknown>) =>
+      fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+    let openaiResp = await chiamaOpenAi(openaiBody);
+    // Qualità effettivamente ottenuta: guida il prezzo. Se il modello rifiuta
+    // il parametro `quality` (400), si ritenta senza — e allora si fattura
+    // come standard, perché standard è ciò che il cliente ha ricevuto.
+    let qualityFatturata = quality;
+    if (!openaiResp.ok && openaiResp.status === 400 && qualitaApplicata) {
+      const testo400 = await openaiResp.clone().text();
+      console.warn("[ai-ads-image-generate] quality rifiutata dal modello, retry senza:", testo400.slice(0, 200));
+      const senzaQuality = { ...openaiBody };
+      delete (senzaQuality as Record<string, unknown>).quality;
+      openaiResp = await chiamaOpenAi(senzaQuality);
+      qualityFatturata = "standard";
+    }
 
     if (!openaiResp.ok) {
       const text = await openaiResp.text();
@@ -187,19 +230,19 @@ Deno.serve(async (req) => {
     const { data: pub } = admin.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
     const publicUrl = pub.publicUrl;
 
-    // Calcolo costo approssimativo (in centesimi EUR)
-    const costEurCents =
-      quality === "hd"
-        ? ar === "1:1"
-          ? 7
-          : 12
-        : ar === "1:1"
-        ? 4
-        : 6;
-    // Costo reale stimato in USD per il ledger (listino gpt-image-1 2026,
-    // coerente con i commenti in testa al file).
-    const costRealUsd =
-      quality === "hd" ? (ar === "1:1" ? 0.08 : 0.13) : ar === "1:1" ? 0.04 : 0.065;
+    // Prezzo centralizzato in brandCreativeRules, calcolato sulla qualità
+    // REALMENTE applicata (`qualityFatturata`): se il retry ha tolto il
+    // parametro, il cliente paga standard perché standard ha ricevuto.
+    const costEurCents = costoImmagineCentesimiEur({
+      model: OPENAI_IMAGE_MODEL,
+      size,
+      quality: qualityFatturata,
+    });
+    const costRealUsd = costoImmagineUsd({
+      model: OPENAI_IMAGE_MODEL,
+      size,
+      quality: qualityFatturata,
+    });
 
     // INSERT in ad_media
     const [widthStr, heightStr] = size.split("x");
@@ -258,7 +301,12 @@ Deno.serve(async (req) => {
         tokensIn: 0,
         tokensOut: 0,
         costRealUsd,
-        metadata: { media_id: media?.id ?? null, aspect_ratio: ar, quality },
+        metadata: {
+          media_id: media?.id ?? null,
+          aspect_ratio: ar,
+          quality_richiesta: quality,
+          quality_applicata: qualityFatturata,
+        },
       });
     } catch (chargeErr) {
       console.error("[ai-ads-image-generate] ledger charge failed (image già consegnata):", chargeErr);
@@ -271,6 +319,9 @@ Deno.serve(async (req) => {
       width_px: parseInt(widthStr, 10),
       height_px: parseInt(heightStr, 10),
       cost_eur_cents: costEurCents,
+      // Il formato generabile non coincide sempre con quello social (9:16):
+      // il compositore lato client ritaglia prima della pubblicazione.
+      richiede_ritaglio: richiedeRitaglio(ar as CreativeAspect),
     };
     return json(result, 200, corsHeaders);
   } catch (e) {
