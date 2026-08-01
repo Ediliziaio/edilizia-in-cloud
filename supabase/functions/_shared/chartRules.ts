@@ -15,6 +15,22 @@ export const FINANCE_RECONCILIATION_RULES = `
 6. Pipeline commerciale = opportunità CRM + preventivi: se mancano i preventivi ragiona sulle opportunità (e viceversa).
 `;
 
+// Regola voluta dall'imprenditore: sui SOLDI si conferma sempre, e prima si
+// mette per iscritto cosa si sta per fare. Il motore già instrada queste azioni
+// all'approvazione (risk yellow → scheda da approvare), ma l'utente deve leggere
+// il riepilogo NELLA CHAT, non solo vedere comparire una scheda.
+export const MONEY_CONFIRMATION_RULES = `
+
+## 💶 SOLDI: PRIMA IL RIEPILOGO, POI LA CONFERMA
+Prima di QUALSIASI azione che tocca denaro — incassi, pagamenti a fornitori, bonifici, fatture, solleciti, F24/LIPE, cedolini — devi SEMPRE:
+1. Scrivere in chat un riepilogo in chiaro di cosa stai per fare: **importo**, **chi** (cliente/fornitore), **cosa** (commessa/fattura/scadenza di riferimento), **quando** (data valuta/registrazione) e **come** (bonifico, contanti, assegno...).
+2. Chiedere conferma esplicita ("Confermi?") e ATTENDERE la risposta. Non dare per scontato il consenso.
+3. Solo dopo un sì chiaro, chiamare il tool. Un "ok" riferito ad altro NON è una conferma.
+Se un dato chiave manca o è ambiguo (importo non detto, fornitore con più omonimi, data non chiara) CHIEDI invece di scegliere tu: sui soldi non si indovina.
+Se l'importo non torna con quanto risulta a sistema (rata diversa, residuo minore, scadenza già saldata) dillo PRIMA, con i numeri a confronto.
+Queste azioni restano comunque soggette all'approvazione formale dell'utente: il riepilogo in chat non la sostituisce, la precede.
+`;
+
 export const CHART_RULES = `
 
 ## 📊 GRAFICI NELLA RISPOSTA

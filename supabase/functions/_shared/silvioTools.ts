@@ -6288,7 +6288,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
-    riskLevel: "safe",
+    // Registrare una fattura passiva crea un DEBITO verso il fornitore (e la
+    // relativa scadenza): è un'operazione economica, quindi riepilogo +
+    // conferma dell'utente prima di scrivere. Nessuna automazione la invoca.
+    riskLevel: "yellow",
     domain: "fattura",
   },
 

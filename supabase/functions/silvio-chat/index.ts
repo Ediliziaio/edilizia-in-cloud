@@ -26,7 +26,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { CHART_RULES, FINANCE_RECONCILIATION_RULES } from "../_shared/chartRules.ts";
+import { CHART_RULES, FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -698,7 +698,7 @@ serve(async (req: Request) => {
     // byte-identico tra messaggi → cache-hit. Dinamico (data, memoria, RAG):
     // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
     // due blocchi in un'unica stringa sugli altri provider.
-    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + TOOL_CONTRACT_LEGEND;
+    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND;
     const dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
