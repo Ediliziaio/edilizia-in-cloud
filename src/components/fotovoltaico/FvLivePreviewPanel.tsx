@@ -18,6 +18,7 @@ import {
   renderFvPdfHtml,
   type FvPdfTemplateData,
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
+import { useFitScale, LARGHEZZA_A4_PX } from "@/components/shared/livePreview/useFitScale";
 
 interface Props {
   /** Stato corrente del template FV in editing. */
@@ -58,45 +59,21 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   page_cta: ["per accettare la proposta", "il prossimo passo", "cosa fare adesso"],
 };
 
-// Il documento FV è una pagina A4: `width: 210mm` nel CSS di fvHtmlTemplate,
-// cioè ~794px a 96dpi. Il pannello laterale ne misura ~400: senza adattamento
-// si vedeva solo metà foglio, tagliato a destra — ed era questo il "template FV
-// zoomato al massimo con le scritte disallineate". Il minimo di zoom (0.6 →
-// 476px) non bastava comunque a farlo entrare.
-const LARGHEZZA_DOC_PX = 794;
-
-// Lo zoom dell'utente è ora un MOLTIPLICATORE dell'adattamento: 1 = "sta tutto
-// nel pannello", come nel pannello Serramenti che usa già questo schema.
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.25;
+// Il documento FV è una pagina A4 (`width: 210mm` in fvHtmlTemplate). Il
+// pannello laterale è più stretto: senza adattamento si vedeva metà foglio
+// tagliato — era il "template FV zoomato al massimo con le scritte
+// disallineate". L'adattamento ora vive in useFitScale, condiviso.
 
 export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, debounceMs = 350 }: Props) {
   const [html, setHtml] = useState("");
-  const [zoom, setZoom] = useState(1);
-  const [fitScale, setFitScale] = useState(1);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const contenitoreRef = useRef<HTMLDivElement | null>(null);
   const savedScrollRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Adatta il foglio A4 alla larghezza reale del pannello, e ricalcola quando
-  // il pannello cambia (sidebar aperta/chiusa, finestra ridimensionata).
-  useEffect(() => {
-    const el = contenitoreRef.current;
-    if (!el) return;
-    const calcola = () => {
-      const disponibile = el.clientWidth;
-      if (disponibile > 0) setFitScale(Math.min(1, disponibile / LARGHEZZA_DOC_PX));
-    };
-    calcola();
-    const ro = new ResizeObserver(calcola);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Scala finale = adattamento × zoom scelto dall'utente.
-  const scalaEffettiva = fitScale * zoom;
+  // Adattamento del foglio alla larghezza del pannello (condiviso con gli altri
+  // vertical): si ricalcola da solo quando la finestra o la sidebar cambiano.
+  const fit = useFitScale(LARGHEZZA_A4_PX);
+  const scalaEffettiva = fit.scala;
 
   const buildHtml = useMemo(() => {
     return () => {
@@ -207,18 +184,18 @@ export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, 
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <div className="flex items-center gap-0.5 mr-1 rounded-md border bg-white px-0.5">
-            <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.riduci} disabled={!fit.puoRidurre} title="Riduci" className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
             {/* La percentuale mostra la scala REALE del foglio, non un 100%
                 che non corrispondeva a nulla di visibile. */}
-            <button type="button" onClick={() => setZoom(1)} title="Adatta alla larghezza" className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[34px] text-center">
-              {Math.round(scalaEffettiva * 100)}%
+            <button type="button" onClick={fit.adatta} title="Adatta alla larghezza" className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[34px] text-center">
+              {fit.percentuale}%
             </button>
-            <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title="Ingrandisci" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.aumenta} disabled={!fit.puoAumentare} title="Ingrandisci" className="h-6 w-6">
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title="Adatta larghezza" className="h-6 w-6">
+            <Button size="icon" variant="ghost" onClick={fit.adatta} title="Adatta larghezza" className="h-6 w-6">
               <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -227,27 +204,32 @@ export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, 
           </Button>
         </div>
       </div>
-      <div ref={contenitoreRef} className="flex-1 overflow-auto bg-muted/40">
-        {/* L'iframe è largo quanto il FOGLIO (794px) e viene rimpicciolito con
-            una trasformazione: così il documento è completo e leggibile invece
-            di essere tagliato a metà. Il wrapper riserva l'altezza reale dopo
-            la scala, altrimenti resterebbe spazio vuoto in fondo. */}
-        <div
-          style={{
-            width: LARGHEZZA_DOC_PX * scalaEffettiva,
-            height: `calc(100% / ${scalaEffettiva})`,
-            transform: `scale(${scalaEffettiva})`,
-            transformOrigin: "top left",
-          }}
-        >
-          <iframe
-            ref={iframeRef}
-            srcDoc={html}
-            onLoad={handleIframeLoad}
-            title="Anteprima preventivo Fotovoltaico"
-            className="border-0 bg-white"
-            style={{ width: LARGHEZZA_DOC_PX, height: "100%", border: 0 }}
-          />
+      <div ref={fit.ref} className="flex-1 overflow-auto bg-muted/40">
+        {/* DUE livelli, e servono entrambi:
+            - quello esterno RISERVA lo spazio già ridotto (794 × scala), così
+              il layout non lascia una fascia vuota né una barra orizzontale;
+            - quello interno tiene la misura VERA del foglio (794) e viene
+              rimpicciolito da `scale`. Mettere la larghezza ridotta sullo
+              stesso elemento che porta il transform lo rimpicciolirebbe DUE
+              volte (misurato: 172px invece di 373). */}
+        <div style={{ width: LARGHEZZA_A4_PX * scalaEffettiva, height: "100%", overflow: "hidden" }}>
+          <div
+            style={{
+              width: LARGHEZZA_A4_PX,
+              height: `${100 / scalaEffettiva}%`,
+              transform: `scale(${scalaEffettiva})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <iframe
+              ref={iframeRef}
+              srcDoc={html}
+              onLoad={handleIframeLoad}
+              title="Anteprima preventivo Fotovoltaico"
+              className="border-0 bg-white"
+              style={{ width: LARGHEZZA_A4_PX, height: "100%", border: 0 }}
+            />
+          </div>
         </div>
       </div>
     </div>

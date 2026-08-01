@@ -11,30 +11,10 @@
  * Il vertical passa una `renderBlobUrl()` (che costruisce i mock + chiama il suo
  * renderXxxPreviewBlobUrl) e una `depsKey` che, cambiando, ritriggera la generazione.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { Loader2, RefreshCw, ExternalLink, Eye, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-/**
- * Oltre questo tempo la generazione è considerata persa.
- *
- * @react-pdf scarica le immagini remote del template (logo, copertina, foto)
- * SENZA timeout interno: se una non risponde, `toBlob()` non si risolve MAI e
- * il pannello resta a girare per sempre. Il dialog Serramenti aveva già questa
- * protezione; il pannello live — usato da TUTTI i vertical — no, ed è per
- * questo che l'anteprima girava a vuoto su ogni template.
- */
-const PDF_TIMEOUT_MS = 45_000;
-
-class PreviewTimeoutError extends Error {
-  constructor() {
-    super(
-      "L'anteprima non si è generata in tempo. Di solito è un'immagine del template " +
-        "(logo, copertina o foto) che non si carica: prova a ricaricarla o sostituirla.",
-    );
-    this.name = "PreviewTimeoutError";
-  }
-}
+import { useGenerazioneProtetta } from "./livePreview/useGenerazioneProtetta";
 
 interface Props {
   /** Costruisce (async) il blob URL del PDF con mock + template correnti. */
@@ -55,69 +35,16 @@ export function PdfBlobLivePreviewPanel({
   debounceMs = 500,
   accentClass = "text-orange-600",
 }: Props) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const urlRef = useRef<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const genIdRef = useRef(0);
-  // Tieni l'ultima renderBlobUrl in un ref: cambia identità ad ogni render del
-  // parent, ma vogliamo che l'effetto dipenda SOLO da depsKey (no loop).
-  const renderRef = useRef(renderBlobUrl);
-  renderRef.current = renderBlobUrl;
-
-  /**
-   * Genera l'anteprima. Una sola implementazione per il debounce e per il
-   * bottone "Aggiorna ora" (prima erano due copie identiche: una correzione
-   * su una sola delle due sarebbe passata inosservata).
-   */
-  const genera = useCallback(() => {
-    const myGen = ++genIdRef.current;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        const blobUrl = await Promise.race([
-          renderRef.current(),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new PreviewTimeoutError()), PDF_TIMEOUT_MS);
-          }),
-        ]);
-        if (myGen !== genIdRef.current) { URL.revokeObjectURL(blobUrl); return; }
-        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = blobUrl;
-        setUrl(blobUrl);
-      } catch (e) {
-        // L'errore vero in console: il messaggio a schermo resta leggibile,
-        // ma chi deve diagnosticare trova lo stack completo.
-        console.error("[anteprima-pdf] generazione fallita:", e);
-        if (myGen === genIdRef.current) {
-          setError(e instanceof Error ? e.message : "Errore nella generazione del PDF");
-        }
-      } finally {
-        if (timer) clearTimeout(timer);
-        if (myGen === genIdRef.current) setLoading(false);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!enabled) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(genera, debounceMs);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depsKey, enabled]);
-
-  useEffect(() => () => {
-    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
-  }, []);
-
-  const forceRegen = () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    genera();
-  };
+  // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
+  // condiviso, così ogni pannello (compreso il Fotovoltaico, che è HTML) eredita
+  // le stesse protezioni invece di riscriverle — o dimenticarle.
+  const scartaBlob = useCallback((u: string) => URL.revokeObjectURL(u), []);
+  const { risultato: url, caricamento: loading, errore: error, rigenera: forceRegen } =
+    useGenerazioneProtetta<string>(renderBlobUrl, depsKey, {
+      abilitato: enabled,
+      debounceMs,
+      onScarta: scartaBlob,
+    });
 
   return (
     <div className="flex flex-col h-full rounded-lg border bg-card overflow-hidden">
