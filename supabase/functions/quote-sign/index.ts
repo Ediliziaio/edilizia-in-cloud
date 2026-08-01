@@ -1,9 +1,36 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  CLAUSOLE_VESSATORIE_TIPO,
+  CONSENSO,
+  contenutoCanonico,
+  consensiObbligatori,
+  costruisciProvaFirma,
+  improntaDocumento,
+  testoCondizioni,
+  testoInizioAnticipato,
+  testoPrivacy,
+  testoRecesso,
+  validaConsensi,
+  type ClausolaVessatoria,
+  type ConsensoRaccolto,
+  type ContestoFirma,
+  type TipoFirmatario,
+} from "../_shared/quoteLegal.ts";
 
 /**
  * Public endpoint (no auth) for viewing, signing, or refusing a quote.
- * Actions: "view", "sign", "refuse"
+ * Actions: "view", "requisiti", "sign", "refuse"
+ *
+ * TUTELE LEGALI (audit 01/08): la firma avveniva col solo nome digitato —
+ * nessuna accettazione delle condizioni, nessuna informativa sul diritto di
+ * ripensamento, nessuna approvazione delle clausole vessatorie, nessuna prova
+ * di cosa fosse stato firmato. Ora:
+ *  - "requisiti" espone i consensi da raccogliere e i testi da mostrare;
+ *  - "sign" li valida quando il client li invia e registra SEMPRE una prova
+ *    (impronta del documento, IP, browser, consensi) accanto al preventivo.
+ * Retrocompatibile: un client che non manda i consensi firma come prima, ma la
+ * prova registra che non sono stati raccolti — così è visibile, non implicito.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,7 +38,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { token, action, signed_by_name, refuse_reason } = await req.json();
+    const body = await req.json();
+    const { token, action, signed_by_name, refuse_reason } = body;
+    const consensi: ConsensoRaccolto[] = Array.isArray(body.consensi) ? body.consensi : [];
+    const tipoFirmatario: TipoFirmatario = body.tipo_firmatario === "professionista" ? "professionista" : "consumatore";
 
     if (!token || !action) {
       return errorResponse("token e action richiesti");
@@ -56,8 +86,47 @@ Deno.serve(async (req) => {
     const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
       || req.headers.get("cf-connecting-ip")
       || "unknown";
+    const userAgent = req.headers.get("user-agent") ?? "";
+
+    // Contesto legale del preventivo: guida sia "requisiti" sia la validazione.
+    // Le clausole vessatorie vengono dal template dell'azienda quando presenti;
+    // in mancanza si usa il set tipo dell'appalto edile, che l'azienda può
+    // sostituire nelle condizioni contrattuali.
+    const clausoleTemplate = Array.isArray((quote as { clausole_vessatorie?: unknown }).clausole_vessatorie)
+      ? ((quote as { clausole_vessatorie: ClausolaVessatoria[] }).clausole_vessatorie)
+      : [];
+    const haCondizioni = !!(quote.terms_and_conditions && String(quote.terms_and_conditions).trim());
+    const contesto: ContestoFirma = {
+      tipoFirmatario,
+      haCondizioni,
+      clausoleVessatorie: clausoleTemplate,
+      // Nei serramenti e negli arredi su misura il ripensamento ha una regola
+      // diversa: l'informativa cambia di conseguenza.
+      lavoriSuMisura: ["serramenti", "arredi", "su_misura"].includes(String(quote.tipo_lavoro ?? "")),
+    };
 
     switch (action) {
+      // ── Cosa deve accettare il firmatario, con i testi da mostrare ────────
+      case "requisiti": {
+        const { data: company } = await supabaseAdmin
+          .from("companies").select("name").eq("id", quote.company_id).maybeSingle();
+        const testi: Record<string, string> = {
+          [CONSENSO.CONDIZIONI]: testoCondizioni(),
+          [CONSENSO.PRIVACY]: testoPrivacy(),
+          [CONSENSO.RECESSO]: testoRecesso({
+            lavoriSuMisura: contesto.lavoriSuMisura,
+            nomeAzienda: (company?.name as string | undefined) ?? undefined,
+          }),
+          [CONSENSO.INIZIO_ANTICIPATO]: testoInizioAnticipato(),
+        };
+        return jsonResponse({
+          obbligatori: consensiObbligatori(contesto),
+          facoltativi: contesto.tipoFirmatario === "consumatore" ? [CONSENSO.INIZIO_ANTICIPATO] : [],
+          testi,
+          clausole_vessatorie: contesto.clausoleVessatorie,
+          condizioni_testo: haCondizioni ? String(quote.terms_and_conditions) : null,
+        });
+      }
       case "view": {
         // Track first view
         if (!quote.viewed_at) {
@@ -151,14 +220,59 @@ Deno.serve(async (req) => {
           return errorResponse("Nome obbligatorio per la firma");
         }
 
+        // Consensi: validati quando il client li invia, e SEMPRE richiesti se
+        // il preventivo porta clausole vessatorie (senza approvazione specifica
+        // ex art. 1341 c.c. sarebbero nulle: firmare senza è peggio che non
+        // firmare). Per il resto niente rottura dei client esistenti.
+        const consensiDaValidare = consensi.length > 0 || contesto.clausoleVessatorie.length > 0;
+        if (consensiDaValidare) {
+          const esito = validaConsensi(contesto, consensi);
+          if (!esito.valido) {
+            return jsonResponse({
+              success: false,
+              error: "consensi_mancanti",
+              mancanti: esito.mancanti,
+              message: esito.messaggio,
+            }, 422);
+          }
+        }
+
+        // Impronta di ciò che è stato firmato: se il preventivo viene modificato
+        // dopo, l'impronta non torna più e la modifica è dimostrabile.
+        const { data: righeFirmate = [] } = await supabaseAdmin
+          .from("quote_items")
+          .select("name, quantity, unit_price, line_total")
+          .eq("quote_id", quote.id)
+          .order("sort_order");
+        const impronta = await improntaDocumento(
+          contenutoCanonico({ ...quote, items: righeFirmate ?? [] }),
+        );
+
+        const firmatoIl = new Date();
+        const prova = costruisciProvaFirma({
+          firmatoDa: signed_by_name.trim(),
+          tipoFirmatario,
+          ip: clientIp,
+          userAgent,
+          improntaDocumento: impronta,
+          consensi,
+          clausoleVessatorie: contesto.clausoleVessatorie,
+          quando: firmatoIl,
+        });
+
+        // La prova sta accanto al preventivo, nel jsonb già esistente: nessuna
+        // migration necessaria e nessun dato perso se la colonna è vuota.
+        const campiEsistenti = (quote.custom_field_values ?? {}) as Record<string, unknown>;
+
         await supabaseAdmin
           .from("quotes")
           .update({
             status: "accettata",
-            signed_at: new Date().toISOString(),
+            signed_at: firmatoIl.toISOString(),
             signed_by_name: signed_by_name.trim(),
             signed_by_ip: clientIp,
-            updated_at: new Date().toISOString(),
+            custom_field_values: { ...campiEsistenti, prova_firma: prova },
+            updated_at: firmatoIl.toISOString(),
           })
           .eq("id", quote.id);
 
