@@ -4528,6 +4528,246 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  crea_impianto_cliente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_impianto_cliente",
+        description:
+          "Registra un IMPIANTO installato presso un cliente (caldaia, climatizzatore, fotovoltaico...), " +
+          "così da poterci agganciare interventi e contratti di manutenzione. " +
+          "FLUSSO: conferma cliente, tipo impianto, marca/modello/matricola prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente — OBBLIGATORIO" },
+            tipo_impianto: { type: "string", description: "Tipo (es. Caldaia a gas, Climatizzatore split) — OBBLIGATORIO" },
+            marca: { type: "string" },
+            modello: { type: "string" },
+            matricola: { type: "string", description: "Numero di matricola/serie" },
+            data_installazione: { type: "string", description: "Data installazione YYYY-MM-DD" },
+            garanzia_scadenza: { type: "string", description: "Scadenza garanzia YYYY-MM-DD" },
+            commessa_codice: { type: "string", description: "Commessa con cui è stato installato" },
+            note_tecniche: { type: "string" },
+          },
+          required: ["cliente_nome", "tipo_impianto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const tipo = String(args?.tipo_impianto ?? "").trim().slice(0, 100);
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (!tipo || !clienteNome) return { error: "Cliente e tipo impianto obbligatori." };
+      for (const [campo, val] of [["data_installazione", args?.data_installazione], ["garanzia_scadenza", args?.garanzia_scadenza]] as const) {
+        const s = String(val ?? "").trim();
+        if (s && !/^\d{4}-\d{2}-\d{2}$/.test(s)) return { error: `${campo} non valida: usa YYYY-MM-DD.` };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      // Cliente: solo chi ha ruolo customer (come negli altri tool).
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const q = norm(clienteNome);
+      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+      }
+      const cliente = matches[0];
+      const clienteLabel = `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim();
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Anti-duplicato sulla matricola: è l'identificativo fisico dell'apparecchio.
+      const matricola = String(args?.matricola ?? "").trim().slice(0, 100);
+      if (matricola) {
+        const { data: dup } = await ctx.supabase
+          .from("impianti_cliente").select("id, tipo_impianto")
+          .eq("company_id", ctx.companyId).ilike("matricola", matricola)
+          .limit(1).maybeSingle();
+        if (dup?.id) return { error: `Esiste già un impianto con matricola "${matricola}" (${dup.tipo_impianto}). Non ne creo un doppione.` };
+      }
+
+      const { data: imp, error } = await ctx.supabase
+        .from("impianti_cliente")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          order_id: orderId,
+          tipo_impianto: tipo,
+          marca: String(args?.marca ?? "").trim().slice(0, 100) || null,
+          modello: String(args?.modello ?? "").trim().slice(0, 100) || null,
+          matricola: matricola || null,
+          data_installazione: String(args?.data_installazione ?? "").trim() || null,
+          garanzia_scadenza: String(args?.garanzia_scadenza ?? "").trim() || null,
+          note_tecniche: String(args?.note_tecniche ?? "").trim().slice(0, 1000) || null,
+          attivo: true,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Registrazione impianto fallita: ${error.message}` };
+
+      return {
+        impianto_id: imp.id,
+        impianto: `${tipo}${args?.marca ? ` ${args.marca}` : ""}${args?.modello ? ` ${args.modello}` : ""}`,
+        cliente: clienteLabel,
+        matricola: matricola || null,
+        commessa: orderCode,
+        garanzia: String(args?.garanzia_scadenza ?? "").trim() || null,
+        link: "/azienda/assistenza-lavori",
+        nota: "Impianto registrato. Ora puoi agganciarci un contratto di manutenzione o gli interventi di assistenza.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "support",
+  },
+
+  crea_contratto_manutenzione: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_contratto_manutenzione",
+        description:
+          "Crea un CONTRATTO DI MANUTENZIONE su un impianto già registrato (canone periodico, durata, rinnovo). " +
+          "Se l'impianto non esiste ancora va creato prima con crea_impianto_cliente. " +
+          "FLUSSO: mostra impianto, canone, periodicità e durata, chiedi conferma, poi chiama il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente — OBBLIGATORIO" },
+            impianto: { type: "string", description: "Tipo o matricola dell'impianto (se il cliente ne ha più d'uno)" },
+            nome_contratto: { type: "string", description: "Nome del contratto (es. 'Manutenzione caldaia 2026') — OBBLIGATORIO" },
+            importo_canone: { type: "number", description: "Canone in EURO per periodo" },
+            periodicita: { type: "string", description: "mensile | trimestrale | semestrale | annuale (default annuale)" },
+            data_inizio: { type: "string", description: "Inizio validità YYYY-MM-DD (default oggi)" },
+            data_scadenza: { type: "string", description: "Fine validità YYYY-MM-DD" },
+            rinnovo_automatico: { type: "boolean", description: "true = si rinnova da solo alla scadenza" },
+            note: { type: "string" },
+          },
+          required: ["cliente_nome", "nome_contratto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nomeContratto = String(args?.nome_contratto ?? "").trim().slice(0, 200);
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (!nomeContratto || !clienteNome) return { error: "Cliente e nome contratto obbligatori." };
+      const PERIODI = ["mensile", "trimestrale", "semestrale", "annuale"];
+      const periodicita = String(args?.periodicita ?? "").trim().toLowerCase() || "annuale";
+      if (!PERIODI.includes(periodicita)) return { error: `Periodicità non valida. Valori: ${PERIODI.join(", ")}.` };
+      const canone = args?.importo_canone == null ? null : Math.round(Number(args.importo_canone) * 100) / 100;
+      if (canone != null && (!Number.isFinite(canone) || canone < 0 || canone > 1_000_000)) return { error: "Canone non valido." };
+      let dataInizio = String(args?.data_inizio ?? "").trim();
+      if (dataInizio && !/^\d{4}-\d{2}-\d{2}$/.test(dataInizio)) return { error: "data_inizio non valida: usa YYYY-MM-DD." };
+      if (!dataInizio) {
+        try { dataInizio = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { dataInizio = new Date().toISOString().slice(0, 10); }
+      }
+      const dataScadenza = String(args?.data_scadenza ?? "").trim();
+      if (dataScadenza && !/^\d{4}-\d{2}-\d{2}$/.test(dataScadenza)) return { error: "data_scadenza non valida: usa YYYY-MM-DD." };
+      if (dataScadenza && dataScadenza <= dataInizio) return { error: `La scadenza (${dataScadenza}) deve essere dopo l'inizio (${dataInizio}).` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const q = norm(clienteNome);
+      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}".` };
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+      }
+      const cliente = matches[0];
+
+      // Impianto del cliente: uno solo → quello; altrimenti serve indicarlo.
+      const { data: impianti } = await ctx.supabase
+        .from("impianti_cliente")
+        .select("id, tipo_impianto, marca, modello, matricola")
+        .eq("company_id", ctx.companyId).eq("customer_id", cliente.id).eq("attivo", true)
+        .limit(50);
+      if (!impianti || impianti.length === 0) {
+        return { error: `${`${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim()} non ha impianti registrati. Crea prima l'impianto con crea_impianto_cliente.` };
+      }
+      const impQ = norm(String(args?.impianto ?? "").trim());
+      let impianto = impianti[0];
+      if (impianti.length > 1 || impQ) {
+        const im = impQ
+          ? impianti.filter((i) => norm(`${i.tipo_impianto ?? ""} ${i.marca ?? ""} ${i.modello ?? ""} ${i.matricola ?? ""}`).includes(impQ))
+          : [];
+        if (im.length !== 1) {
+          return { error: `Indica quale impianto: ${impianti.map((i) => `${i.tipo_impianto}${i.marca ? ` ${i.marca}` : ""}${i.matricola ? ` [${i.matricola}]` : ""}`).join(" · ")}.` };
+        }
+        impianto = im[0];
+      }
+
+      const { data: contratto, error } = await ctx.supabase
+        .from("contratti_manutenzione")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          impianto_id: impianto.id,
+          nome_contratto: nomeContratto,
+          tipo_fatturazione: periodicita,
+          importo_canone: canone,
+          data_inizio: dataInizio,
+          data_scadenza: dataScadenza || null,
+          rinnovo_automatico: args?.rinnovo_automatico === true,
+          stato: "attivo",
+          note: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione contratto fallita: ${error.message}` };
+
+      return {
+        contratto_id: contratto.id,
+        contratto: nomeContratto,
+        cliente: `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim(),
+        impianto: `${impianto.tipo_impianto}${impianto.marca ? ` ${impianto.marca}` : ""}`,
+        canone: canone != null ? `${canone.toFixed(2)}€ ${periodicita}` : `(canone da definire, ${periodicita})`,
+        validita: `dal ${dataInizio}${dataScadenza ? ` al ${dataScadenza}` : " (senza scadenza)"}`,
+        rinnovo_automatico: args?.rinnovo_automatico === true,
+        link: "/azienda/assistenza-lavori",
+        nota: "Contratto di manutenzione attivo.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "support",
+  },
+
   crea_subappaltatore: {
     schema: {
       type: "function",
