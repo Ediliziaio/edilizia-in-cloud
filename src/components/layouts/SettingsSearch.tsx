@@ -53,6 +53,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Preventivi", title: "Margini preventivi", url: "/azienda/impostazioni/margini", keywords: ["margini", "ricarico", "markup"] },
   { group: "Preventivi", title: "Regole scontistica", url: "/azienda/impostazioni/scontistica", keywords: ["sconto", "fasce sconto", "scontistica"] },
   { group: "Preventivi", title: "Template offerte", url: "/azienda/impostazioni/template-preventivi", keywords: ["template", "offerta", "pdf preventivo"] },
+  { group: "Preventivi", title: "Condizioni e firma", url: "/azienda/impostazioni/condizioni-firma", keywords: ["clausole", "vessatorie", "recesso", "privacy", "firma", "condizioni contrattuali"] },
   { group: "Preventivi", title: "Firma Elettronica FEA", url: "/azienda/impostazioni/firma-elettronica", keywords: ["firma", "fea", "otp", "elettronica"] },
   { group: "Preventivi", title: "Finanziamenti", url: "/azienda/impostazioni/finanziamenti", keywords: ["finanziamento", "rate", "finanziaria", "compass", "findomestic"] },
 

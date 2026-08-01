@@ -331,6 +331,12 @@ export const queryKeys = {
     list: (companyId: string | undefined) => ["quote-templates", "list", companyId] as const,
   },
 
+  /** Clausole contrattuali e testi legali configurati dall'azienda (firma preventivi). */
+  quoteClauses: {
+    all: ["quote-clauses"] as const,
+    list: (companyId: string | undefined) => ["quote-clauses", "list", companyId] as const,
+  },
+
   // ── Internal Automations ─────────────────────────────
   internalAutomations: {
     all: ["internal-automation-flows"] as const,

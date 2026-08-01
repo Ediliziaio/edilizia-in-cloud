@@ -1,17 +1,15 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  CLAUSOLE_VESSATORIE_TIPO,
   CONSENSO,
+  clausoleVessatorieAttive,
   contenutoCanonico,
   consensiObbligatori,
   costruisciProvaFirma,
   improntaDocumento,
-  testoCondizioni,
-  testoInizioAnticipato,
-  testoPrivacy,
-  testoRecesso,
+  risolviTestiLegali,
   validaConsensi,
+  type ClausolaAziendale,
   type ClausolaVessatoria,
   type ConsensoRaccolto,
   type ContestoFirma,
@@ -89,12 +87,18 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get("user-agent") ?? "";
 
     // Contesto legale del preventivo: guida sia "requisiti" sia la validazione.
-    // Le clausole vessatorie vengono dal template dell'azienda quando presenti;
-    // in mancanza si usa il set tipo dell'appalto edile, che l'azienda può
-    // sostituire nelle condizioni contrattuali.
-    const clausoleTemplate = Array.isArray((quote as { clausole_vessatorie?: unknown }).clausole_vessatorie)
-      ? ((quote as { clausole_vessatorie: ClausolaVessatoria[] }).clausole_vessatorie)
-      : [];
+    // TUTTO PERSONALIZZABILE PER AZIENDA: clausole e testi arrivano da
+    // `quote_clause_templates` (già per-company). Se l'impresa non ha marcato
+    // clausole come vessatorie non se ne impone nessuna — far approvare al
+    // cliente clausole che l'azienda non ha scelto sarebbe sbagliato.
+    const { data: clausoleAzienda } = await supabaseAdmin
+      .from("quote_clause_templates")
+      .select("id, category, title, content, active, sort_order, applicable_to")
+      .eq("company_id", quote.company_id)
+      .eq("active", true);
+
+    const clausoleConfigurate: ClausolaAziendale[] = (clausoleAzienda ?? []) as ClausolaAziendale[];
+    const clausoleTemplate: ClausolaVessatoria[] = clausoleVessatorieAttive(clausoleConfigurate);
     const haCondizioni = !!(quote.terms_and_conditions && String(quote.terms_and_conditions).trim());
     const contesto: ContestoFirma = {
       tipoFirmatario,
@@ -110,15 +114,11 @@ Deno.serve(async (req) => {
       case "requisiti": {
         const { data: company } = await supabaseAdmin
           .from("companies").select("name").eq("id", quote.company_id).maybeSingle();
-        const testi: Record<string, string> = {
-          [CONSENSO.CONDIZIONI]: testoCondizioni(),
-          [CONSENSO.PRIVACY]: testoPrivacy(),
-          [CONSENSO.RECESSO]: testoRecesso({
-            lavoriSuMisura: contesto.lavoriSuMisura,
-            nomeAzienda: (company?.name as string | undefined) ?? undefined,
-          }),
-          [CONSENSO.INIZIO_ANTICIPATO]: testoInizioAnticipato(),
-        };
+        // Testi dell'azienda quando li ha scritti, altrimenti i nostri.
+        const testi = risolviTestiLegali(clausoleConfigurate, {
+          lavoriSuMisura: contesto.lavoriSuMisura,
+          nomeAzienda: (company?.name as string | undefined) ?? undefined,
+        });
         return jsonResponse({
           obbligatori: consensiObbligatori(contesto),
           facoltativi: contesto.tipoFirmatario === "consumatore" ? [CONSENSO.INIZIO_ANTICIPATO] : [],

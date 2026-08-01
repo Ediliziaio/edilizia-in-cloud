@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { ConsensiFirmaBlock } from "@/components/firma/ConsensiFirmaBlock";
+import type { ConsensoRaccolto, TipoFirmatario } from "../../../supabase/functions/_shared/quoteLegal";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -77,6 +79,18 @@ export default function QuoteSignPage() {
   const [actionDone, setActionDone] = useState<"signed" | "refused" | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [poweredByText, setPoweredByText] = useState("Powered by Edilizia in Cloud");
+  // Consensi di legge: quali servano e con che testo lo decide il backend in
+  // base all'azienda e al tipo di firmatario (un privato ha il ripensamento).
+  const [tipoFirmatario, setTipoFirmatario] = useState<TipoFirmatario>("consumatore");
+  const [consensi, setConsensi] = useState<ConsensoRaccolto[]>([]);
+  const [consensiCompleti, setConsensiCompleti] = useState(false);
+  const onConsensiChange = useCallback(
+    ({ consensi: c, completo }: { consensi: ConsensoRaccolto[]; completo: boolean }) => {
+      setConsensi(c);
+      setConsensiCompleti(completo);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -122,7 +136,13 @@ export default function QuoteSignPage() {
     setSubmitting(true);
     try {
       const { data: result, error } = await supabase.functions.invoke("quote-sign", {
-        body: { token, action: "sign", signed_by_name: signName.trim() },
+        body: {
+          token,
+          action: "sign",
+          signed_by_name: signName.trim(),
+          tipo_firmatario: tipoFirmatario,
+          consensi,
+        },
       });
       if (error) throw error;
       if (result?.success) setActionDone("signed");
@@ -414,22 +434,64 @@ export default function QuoteSignPage() {
               />
             </div>
 
-            <div className="flex items-start gap-3 p-3 border rounded-lg" style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)" }}>
-              <Checkbox
-                id="accept-terms"
-                checked={accepted}
-                onCheckedChange={(v) => setAccepted(!!v)}
-                className="mt-0.5"
-              />
-              <label htmlFor="accept-terms" className="text-sm cursor-pointer leading-relaxed" style={{ color: "rgba(255,255,255,0.9)" }}>
-                Ho letto e accetto integralmente l'offerta commerciale sopra descritta, compresi i prezzi, le condizioni e i termini di pagamento.
-              </label>
+            {/* Chi firma cambia le tutele: un privato ha 14 giorni di
+                ripensamento, un'impresa che compra per lavoro no. */}
+            <div className="space-y-2">
+              <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
+                Firmi come
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { valore: "consumatore", etichetta: "Privato" },
+                  { valore: "professionista", etichetta: "Azienda o professionista" },
+                ] as const).map((opzione) => (
+                  <button
+                    key={opzione.valore}
+                    type="button"
+                    onClick={() => setTipoFirmatario(opzione.valore)}
+                    aria-pressed={tipoFirmatario === opzione.valore}
+                    className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
+                    style={
+                      tipoFirmatario === opzione.valore
+                        ? { background: "#ffffff", color: "#1e3a5f", borderColor: "#ffffff" }
+                        : { background: "transparent", color: "rgba(255,255,255,0.85)", borderColor: "rgba(255,255,255,0.3)" }
+                    }
+                  >
+                    {opzione.etichetta}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3 p-3 border rounded-lg" style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)" }}>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="accept-terms"
+                  checked={accepted}
+                  onCheckedChange={(v) => setAccepted(!!v)}
+                  className="mt-0.5"
+                />
+                <label htmlFor="accept-terms" className="text-sm cursor-pointer leading-relaxed" style={{ color: "rgba(255,255,255,0.9)" }}>
+                  Ho letto e accetto integralmente l'offerta commerciale sopra descritta, compresi i prezzi, le condizioni e i termini di pagamento.
+                </label>
+              </div>
+
+              {/* Consensi di legge e clausole dell'azienda: testi e spunte
+                  arrivano dal backend, non sono cablati qui. */}
+              {token && (
+                <ConsensiFirmaBlock
+                  token={token}
+                  tipoFirmatario={tipoFirmatario}
+                  onChange={onConsensiChange}
+                  scuro
+                />
+              )}
             </div>
 
             <div className="flex gap-3 flex-wrap">
               <Button
                 onClick={handleSign}
-                disabled={!accepted || submitting || !signName.trim()}
+                disabled={!accepted || !consensiCompleti || submitting || !signName.trim()}
                 size="lg"
                 className="min-w-[180px]"
                 style={{ background: "#22c55e", color: "#ffffff" }}

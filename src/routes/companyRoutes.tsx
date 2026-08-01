@@ -322,6 +322,7 @@ const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonas
 const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
 const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
+const SettingsCondizioniFirma = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioniFirma"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -1144,6 +1145,8 @@ export default function CompanyRoutesContainer() {
           />
           <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
           <Route path="scontistica" element={withCompanyPermission("canViewSettingsScontistica", <SettingsScontistica />)} />
+          {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
+          <Route path="condizioni-firma" element={withCompanyPermission("canViewSettingsPricing", <SettingsCondizioniFirma />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
           <Route path="fornitori" element={withCompanyPermission("canViewSettingsSuppliers", <SettingsSuppliers />)} />
           <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />

@@ -10,6 +10,10 @@ import { describe, it, expect } from "vitest";
 import {
   CLAUSOLE_VESSATORIE_TIPO,
   CONSENSO,
+  clausoleVessatorieAttive,
+  risolviTestiLegali,
+  testoPrivacy,
+  type ClausolaAziendale,
   GIORNI_RECESSO,
   consensiObbligatori,
   contenutoCanonico,
@@ -199,5 +203,77 @@ describe("riepilogoPerEmail", () => {
     const testo = riepilogoPerEmail(p);
     expect(testo).toContain("Mario Rossi");
     expect(testo).toContain("15/08/2026");
+  });
+});
+
+// ── Personalizzazione per azienda ──────────────────────────────────────────
+// Ogni impresa ha il suo contratto: clausole e testi arrivano dalle sue righe
+// in quote_clause_templates. Il punto delicato è che nulla venga IMPOSTO.
+describe("clausoleVessatorieAttive", () => {
+  const riga = (extra: Partial<ClausolaAziendale> = {}): ClausolaAziendale => ({
+    id: "c1", title: "Penale ritardo", content: "Penale del 2% a settimana.",
+    active: true, sort_order: 10, applicable_to: { vessatoria: true }, ...extra,
+  });
+
+  it("l'azienda senza clausole configurate non ne fa approvare nessuna", () => {
+    expect(clausoleVessatorieAttive([])).toEqual([]);
+    expect(consensiObbligatori({ ...consumatore, clausoleVessatorie: clausoleVessatorieAttive([]) }))
+      .not.toContain(CONSENSO.VESSATORIE);
+  });
+
+  it("prende solo quelle marcate vessatorie", () => {
+    const righe = [riga(), riga({ id: "c2", applicable_to: { tipo_legale: "privacy" } }), riga({ id: "c3", applicable_to: {} })];
+    expect(clausoleVessatorieAttive(righe).map((c) => c.codice)).toEqual(["c1"]);
+  });
+
+  it("una clausola disattivata non viene mostrata al cliente", () => {
+    expect(clausoleVessatorieAttive([riga({ active: false })])).toEqual([]);
+  });
+
+  it("una clausola senza testo non viene mostrata (non si approva il vuoto)", () => {
+    expect(clausoleVessatorieAttive([riga({ content: "   " })])).toEqual([]);
+  });
+
+  it("rispetta l'ordine deciso dall'azienda", () => {
+    const righe = [riga({ id: "b", sort_order: 20 }), riga({ id: "a", sort_order: 5 })];
+    expect(clausoleVessatorieAttive(righe).map((c) => c.codice)).toEqual(["a", "b"]);
+  });
+
+  it("le clausole configurate fanno scattare l'approvazione separata", () => {
+    const attive = clausoleVessatorieAttive([riga()]);
+    expect(consensiObbligatori({ ...consumatore, clausoleVessatorie: attive })).toContain(CONSENSO.VESSATORIE);
+  });
+});
+
+describe("risolviTestiLegali", () => {
+  it("senza configurazione usa i testi di sistema", () => {
+    const testi = risolviTestiLegali([]);
+    expect(testi[CONSENSO.RECESSO]).toBe(testoRecesso());
+    expect(testi[CONSENSO.PRIVACY]).toBe(testoPrivacy());
+  });
+
+  it("il testo dell'azienda sostituisce il nostro", () => {
+    const testi = risolviTestiLegali([
+      { id: "x", content: "Da noi il ripensamento si esercita per PEC.", active: true, applicable_to: { tipo_legale: "recesso" } },
+    ]);
+    expect(testi[CONSENSO.RECESSO]).toBe("Da noi il ripensamento si esercita per PEC.");
+    expect(testi[CONSENSO.PRIVACY]).toBe(testoPrivacy()); // gli altri restano di sistema
+  });
+
+  it("un testo disattivato o vuoto non sostituisce nulla", () => {
+    const disattivo = risolviTestiLegali([
+      { id: "x", content: "Testo mio", active: false, applicable_to: { tipo_legale: "privacy" } },
+    ]);
+    expect(disattivo[CONSENSO.PRIVACY]).toBe(testoPrivacy());
+    const vuoto = risolviTestiLegali([
+      { id: "y", content: "   ", active: true, applicable_to: { tipo_legale: "privacy" } },
+    ]);
+    expect(vuoto[CONSENSO.PRIVACY]).toBe(testoPrivacy());
+  });
+
+  it("le opzioni del preventivo valgono anche sui testi di sistema", () => {
+    const testi = risolviTestiLegali([], { lavoriSuMisura: true, nomeAzienda: "Best Infissi" });
+    expect(testi[CONSENSO.RECESSO]).toContain("Best Infissi");
+    expect(testi[CONSENSO.RECESSO].toLowerCase()).toContain("non si applica");
   });
 });

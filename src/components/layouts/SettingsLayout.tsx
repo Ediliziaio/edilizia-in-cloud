@@ -30,6 +30,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   sequenze:               { title: "Sequenze",                 description: "Configura le sequenze di follow-up automatico" },
   "form-builder":         { title: "Form & UTM",               description: "Crea form di acquisizione lead e traccia le campagne" },
   "template-preventivi":  { title: "Template offerte",         description: "Crea e modifica i template per le offerte commerciali" },
+  "condizioni-firma":     { title: "Condizioni e firma",       description: "Clausole del contratto e testi che il cliente accetta firmando" },
   "firma-elettronica":    { title: "Firma Elettronica",        description: "Configura FEA, OTP, consenso e flussi firma per preventivi e documenti operativi" },
   sopralluoghi:           { title: "Sopralluoghi",             description: "Configura le impostazioni del modulo Sopralluoghi" },
   calendari:              { title: "Calendari marketing",      description: "Configura i calendari per le campagne marketing" },

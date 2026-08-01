@@ -87,10 +87,66 @@ export function testoPrivacy(): string {
   return "Ho letto l'informativa privacy e acconsento al trattamento dei miei dati per l'esecuzione del contratto.";
 }
 
+// ── PERSONALIZZAZIONE PER AZIENDA ───────────────────────────────────────────
+// Ogni impresa ha il suo contratto: i testi qui sotto sono SUGGERIMENTI da
+// proporre in fase di configurazione, mai qualcosa che viene imposto. Le
+// clausole e i testi effettivi arrivano da `quote_clause_templates`, che è già
+// per azienda; li marchiamo dentro `applicable_to` (jsonb libero) senza
+// bisogno di toccare lo schema.
+
+/** Riga di `quote_clause_templates` per quanto ci serve qui. */
+export interface ClausolaAziendale {
+  id?: string;
+  category?: string | null;
+  title?: string | null;
+  content?: string | null;
+  active?: boolean | null;
+  sort_order?: number | null;
+  /** { vessatoria: true } oppure { tipo_legale: "recesso" | "privacy" | "condizioni" } */
+  applicable_to?: Record<string, unknown> | null;
+}
+
+/**
+ * Clausole che l'azienda ha marcato come vessatorie.
+ *
+ * REGOLA: se l'azienda non ne ha configurate, NON se ne impone nessuna. Far
+ * approvare al cliente clausole che l'impresa non ha scelto sarebbe peggio del
+ * problema: le clausole vessatorie devono essere quelle del suo contratto.
+ */
+export function clausoleVessatorieAttive(righe: ClausolaAziendale[]): ClausolaVessatoria[] {
+  return righe
+    .filter((r) => r.active !== false && r.applicable_to?.vessatoria === true && (r.content ?? "").trim())
+    .sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100))
+    .map((r) => ({
+      codice: r.id ?? (r.category ?? "clausola"),
+      titolo: (r.title ?? "Clausola").trim(),
+      testo: (r.content ?? "").trim(),
+    }));
+}
+
+/** Testi informativi effettivi: quelli dell'azienda quando ci sono, altrimenti i nostri. */
+export function risolviTestiLegali(
+  righe: ClausolaAziendale[],
+  opts: { lavoriSuMisura?: boolean; nomeAzienda?: string } = {},
+): Record<string, string> {
+  const perTipo = (tipo: string): string | undefined => {
+    const r = righe.find(
+      (x) => x.active !== false && x.applicable_to?.tipo_legale === tipo && (x.content ?? "").trim(),
+    );
+    return r?.content?.trim();
+  };
+  return {
+    [CONSENSO.CONDIZIONI]: perTipo("condizioni") ?? testoCondizioni(),
+    [CONSENSO.PRIVACY]: perTipo("privacy") ?? testoPrivacy(),
+    [CONSENSO.RECESSO]: perTipo("recesso") ?? testoRecesso(opts),
+    [CONSENSO.INIZIO_ANTICIPATO]: perTipo("inizio_anticipato") ?? testoInizioAnticipato(),
+  };
+}
+
 /**
  * Clausole vessatorie di uso comune nei contratti d'appalto edile. Sono un
- * PUNTO DI PARTENZA che l'azienda deve adattare al proprio contratto: qui
- * servono a garantire che, se presenti, vengano approvate separatamente.
+ * PUNTO DI PARTENZA da proporre all'azienda nella configurazione: nessuna di
+ * queste viene applicata se l'impresa non la sceglie e non la adatta.
  */
 export const CLAUSOLE_VESSATORIE_TIPO: ClausolaVessatoria[] = [
   { codice: "foro", titolo: "Foro competente", testo: "Per ogni controversia è competente in via esclusiva il Foro della sede dell'impresa." },
