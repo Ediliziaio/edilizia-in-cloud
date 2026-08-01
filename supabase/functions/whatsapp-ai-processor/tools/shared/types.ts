@@ -24,6 +24,11 @@ export interface ToolDef {
   description: string;
   parameters: Record<string, unknown>;
   requires_grants: string[];
+  /** Enforcement lato codice (MP-AIE allineamento risk-routing): se true il
+   *  tool NON esegue su richiesta "fredda" — solo dopo un gesto esplicito
+   *  dell'utente in QUESTO turno (bottone interattivo non-negativo o testo
+   *  affermativo). Prima la conferma era affidata SOLO al prompt. */
+  requires_confirmation?: boolean;
   handler: (ctx: ToolCtx, args: Record<string, unknown>) => Promise<ToolResult>;
 }
 

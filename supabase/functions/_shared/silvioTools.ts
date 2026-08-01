@@ -90,6 +90,26 @@ export interface ToolContext {
    */
   kbAreasFilter?: string[] | null;
 
+  /**
+   * Permessi granulari dell'utente (riga `staff_permissions`), usati dal motore
+   * di esecuzione per il gate per-dominio (vedi DOMAIN_STAFF_PERMISSION).
+   * Se assente e il ruolo è company_staff, executeToolWithRouting li carica dal
+   * DB: così il gate vale per OGNI canale, anche quelli che non li passano.
+   */
+  staffPermissions?: Record<string, unknown> | null;
+
+  /**
+   * Allegati del messaggio corrente (bucket `silvio-uploads`), quando il canale
+   * li supporta. Serve ai tool che devono archiviare un file caricato in chat
+   * (es. carica_documento_cantiere). Assente = nessun allegato in questo turno.
+   */
+  attachments?: Array<{
+    storage_path: string;
+    mime_type: string;
+    file_name: string;
+    kind: string;
+  }>;
+
   // ── MP-AIE-01 v2 — campi multi-canale ────────────────────────────────────
   /** Canale di provenienza. Default "internal_chat" se omesso (back-compat Silvio). */
   channel?: Channel;
@@ -171,6 +191,14 @@ export interface SilvioTool {
   estimatedCostEur?: number;
   /** Indicazioni compatte per il modello su come interpretare l'output. */
   resultContract?: string;
+  /**
+   * true = il risultato contiene TESTO SCRITTO DA TERZI (email ricevute,
+   * documenti di fornitori, messaggi di clienti). Chi costruisce il prompt deve
+   * marcarlo come dato NON FIDATO, perché un mittente esterno può inserirci
+   * istruzioni rivolte all'assistente ("registra questo pagamento su IBAN…").
+   * Vale per gli output dei tool quel che vale per gli allegati in chat.
+   */
+  untrustedOutput?: boolean;
 }
 
 const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
@@ -1976,7 +2004,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
-  richieste_fatture_da_registrare: {
+  // NB: la chiave DEVE combaciare con schema.function.name — il motore risolve
+  // il tool con SILVIO_TOOLS[toolName] usando il nome che il modello ha visto.
+  // Prima la chiave era `richieste_fatture_da_registrare`: il modello chiamava
+  // `fatture_da_registrare` e il lookup falliva → tool mai eseguibile.
+  // untrustedOutput: restituisce dati ESTRATTI DA PDF DI FORNITORI (mittenti
+  // esterni) → vanno trattati come dato, mai come istruzioni.
+  fatture_da_registrare: {
     schema: {
       type: "function",
       function: {
@@ -1999,6 +2033,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
     riskLevel: "safe",
     domain: "fattura",
+    untrustedOutput: true,
   },
 
   // ── #1 Osservabilità — stato tecnico piattaforma (solo super admin) ─────
@@ -3409,6 +3444,3396 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
+  // MP-SILVIO-OPERATIVO — Silvio crea, non solo legge (2026-07-31).
+  // Pattern "carica_ddt": il modello estrae le righe dal documento/testo che
+  // l'utente fornisce, MOSTRA il riepilogo, ottiene conferma in chat, POI
+  // chiama il tool con le righe strutturate.
+  // ═════════════════════════════════════════════════════════════════════════
+  importa_listino_prodotti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "importa_listino_prodotti",
+        description:
+          "Importa un CATALOGO/LISTINO PRODOTTI nel listino aziendale (voci di listino usate poi nei preventivi). " +
+          "Usalo quando l'utente fornisce un listino: PDF/foto allegati in chat (usa il testo estratto), testo incollato o dettatura. " +
+          "FLUSSO OBBLIGATORIO: 1) estrai TU le righe (nome, codice, prezzi, unità) dal materiale fornito; 2) MOSTRA all'utente " +
+          "un riepilogo (quante voci, 3-5 esempi con prezzo) e chiedi conferma; 3) SOLO dopo il sì chiama questo tool con le righe. " +
+          "Deduplica da solo: le voci con codice o nome già presenti a listino vengono SALTATE (mai sovrascritte). Max 300 voci per chiamata " +
+          "(per cataloghi più grandi procedi a blocchi). NON usarlo per DDT (usa carica_ddt) né per creare un preventivo.",
+        parameters: {
+          type: "object",
+          properties: {
+            righe: {
+              type: "array",
+              description: "Voci del listino da creare — almeno una",
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string", description: "Nome prodotto/voce — OBBLIGATORIO" },
+                  codice: { type: "string", description: "Codice articolo/SKU se presente" },
+                  descrizione: { type: "string" },
+                  prezzo_vendita: { type: "number", description: "Prezzo di vendita unitario (imponibile)" },
+                  prezzo_acquisto: { type: "number", description: "Prezzo/costo di acquisto unitario, se noto" },
+                  unita: { type: "string", description: "Unità di misura (pz, mq, ml, h, kg, cad...)" },
+                  iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+                },
+                required: ["nome"],
+              },
+            },
+            fonte: { type: "string", description: "Nome del catalogo/fornitore di provenienza (finisce nella descrizione)" },
+            mostra_in_preventivo: { type: "boolean", description: "Se le voci devono comparire nel preventivatore (default true)" },
+          },
+          required: ["righe"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const righe = Array.isArray(args?.righe) ? (args.righe as Array<Record<string, unknown>>) : [];
+      if (righe.length === 0) return { error: "Nessuna riga fornita: estrai prima le voci dal catalogo e falle confermare." };
+      if (righe.length > 300) return { error: `Troppe voci (${righe.length}): massimo 300 per chiamata, procedi a blocchi.` };
+
+      // Dedup contro l'esistente: per codice (esatto) e nome (case-insensitive).
+      const { data: esistenti } = await ctx.supabase
+        .from("article_families")
+        .select("nome, codice")
+        .eq("company_id", ctx.companyId)
+        .is("deleted_at", null)
+        .limit(5000);
+      const nomiEsistenti = new Set(
+        ((esistenti ?? []) as Array<{ nome?: string }>).map((r) => (r.nome ?? "").trim().toLowerCase()).filter(Boolean),
+      );
+      const codiciEsistenti = new Set(
+        ((esistenti ?? []) as Array<{ codice?: string | null }>).map((r) => (r.codice ?? "").trim().toLowerCase()).filter(Boolean),
+      );
+
+      const fonte = typeof args?.fonte === "string" && args.fonte.trim() ? ` (import: ${args.fonte.trim()})` : "";
+      const daInserire: Array<Record<string, unknown>> = [];
+      let saltateDuplicate = 0;
+      const vistiInBatch = new Set<string>();
+      for (const r of righe) {
+        const nome = String(r.nome ?? "").trim().slice(0, 200);
+        if (!nome) continue;
+        const codice = String(r.codice ?? "").trim().slice(0, 80) || null;
+        const chiave = (codice ?? nome).toLowerCase();
+        if (vistiInBatch.has(chiave)) { saltateDuplicate++; continue; }
+        vistiInBatch.add(chiave);
+        if (nomiEsistenti.has(nome.toLowerCase()) || (codice && codiciEsistenti.has(codice.toLowerCase()))) {
+          saltateDuplicate++;
+          continue;
+        }
+        const pv = Number(r.prezzo_vendita);
+        const pa = Number(r.prezzo_acquisto);
+        const iva = Number(r.iva);
+        daInserire.push({
+          company_id: ctx.companyId,
+          vertical: "generico",
+          nome,
+          codice,
+          descrizione: (String(r.descrizione ?? "").trim().slice(0, 1000) || null) ?? null,
+          prezzo_base_vendita: Number.isFinite(pv) && pv >= 0 ? pv : null,
+          prezzo_base_acquisto: Number.isFinite(pa) && pa >= 0 ? pa : null,
+          unit_of_measure: String(r.unita ?? "").trim().slice(0, 20) || null,
+          vat_rate: Number.isFinite(iva) && iva >= 0 && iva <= 100 ? iva : 22,
+          attivo: true,
+          mostra_preventivo: args?.mostra_in_preventivo === false ? false : true,
+          ...(fonte ? { descrizione: ((String(r.descrizione ?? "").trim().slice(0, 900) || nome) + fonte).slice(0, 1000) } : {}),
+        });
+      }
+      if (daInserire.length === 0) {
+        return { create: 0, saltate_duplicate: saltateDuplicate, nota: "Tutte le voci erano già a listino (o senza nome): niente da creare." };
+      }
+      const { data: inserted, error } = await ctx.supabase
+        .from("article_families")
+        .insert(daInserire)
+        .select("id, nome, prezzo_base_vendita");
+      if (error) return { error: `Inserimento listino fallito: ${error.message}` };
+      const create = (inserted ?? []).length;
+      return {
+        create,
+        saltate_duplicate: saltateDuplicate,
+        esempi: (inserted ?? []).slice(0, 5).map((r: { nome?: string; prezzo_base_vendita?: number | null }) => `${r.nome}${r.prezzo_base_vendita != null ? ` — €${r.prezzo_base_vendita}` : ""}`),
+        dove: "Impostazioni → Listino (o il preventivatore, se mostra_in_preventivo).",
+        nota: "Voci create ATTIVE. Prezzi/IVA modificabili in ogni momento dal Listino.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "preventivi",
+  },
+
+  crea_preventivo_bozza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_preventivo_bozza",
+        description:
+          "Crea un PREVENTIVO in BOZZA completo di righe, pronto da rifinire e inviare dal preventivatore. " +
+          "Usalo quando l'utente chiede 'fammi un preventivo per…' con cliente e lavori/prodotti. " +
+          "FLUSSO: 1) raccogli/il deduci cliente e righe (descrizione, quantità, e prezzo se indicato); 2) mostra il riepilogo con il totale stimato " +
+          "e chiedi conferma; 3) dopo il sì chiama questo tool. Per le righe SENZA prezzo prova ad abbinare una voce del LISTINO aziendale " +
+          "per nome/codice e usa il suo prezzo; se non trova nulla mette 0 e lo segnala (l'utente completa nel builder). " +
+          "È una BOZZA: non viene inviato nulla al cliente. Ritorna il link per aprirla nel builder.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente/ragione sociale — OBBLIGATORIO" },
+            cliente_email: { type: "string" },
+            cliente_telefono: { type: "string" },
+            cliente_indirizzo: { type: "string" },
+            titolo: { type: "string", description: "Titolo/oggetto del preventivo (es. 'Rifacimento bagno')" },
+            righe: {
+              type: "array",
+              description: "Righe del preventivo — almeno una",
+              items: {
+                type: "object",
+                properties: {
+                  descrizione: { type: "string", description: "Descrizione voce — OBBLIGATORIA" },
+                  quantita: { type: "number", description: "Quantità (default 1)" },
+                  prezzo_unitario: { type: "number", description: "Prezzo unitario imponibile; se assente si tenta il listino" },
+                  unita: { type: "string", description: "Unità di misura (pz, mq, h...)" },
+                  tipo: { type: "string", enum: ["product", "service", "labor"], description: "Tipo voce (default product)" },
+                },
+                required: ["descrizione"],
+              },
+            },
+            note: { type: "string", description: "Note interne o condizioni" },
+            iva: { type: "number", description: "Aliquota IVA % di default per le righe (default 22)" },
+          },
+          required: ["cliente_nome", "righe"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const clienteNome = String(args?.cliente_nome ?? "").trim().slice(0, 200);
+      const righe = Array.isArray(args?.righe) ? (args.righe as Array<Record<string, unknown>>) : [];
+      if (!clienteNome) return { error: "cliente_nome mancante." };
+      if (righe.length === 0) return { error: "Nessuna riga: un preventivo vuoto non serve a nessuno." };
+      if (righe.length > 100) return { error: `Troppe righe (${righe.length}): massimo 100.` };
+
+      // Numero preventivo dalla RPC ufficiale (stessa del QuoteBuilder).
+      let quoteNumber = "";
+      try {
+        const { data: numData } = await ctx.supabase.rpc("generate_quote_number", { p_company_id: ctx.companyId });
+        quoteNumber = typeof numData === "string" && numData ? numData : "";
+      } catch { /* fallback sotto */ }
+      if (!quoteNumber) quoteNumber = `OFF-SILVIO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+      const ivaDefault = Number.isFinite(Number(args?.iva)) ? Number(args?.iva) : 22;
+      const { data: quote, error: qErr } = await ctx.supabase
+        .from("quotes")
+        .insert({
+          company_id: ctx.companyId,
+          quote_number: quoteNumber,
+          status: "bozza",
+          client_name: clienteNome,
+          client_email: String(args?.cliente_email ?? "").trim().slice(0, 200) || null,
+          client_phone: String(args?.cliente_telefono ?? "").trim().slice(0, 50) || null,
+          client_address: String(args?.cliente_indirizzo ?? "").trim().slice(0, 300) || null,
+          title: String(args?.titolo ?? "").trim().slice(0, 200) || `Preventivo ${clienteNome}`,
+          notes: String(args?.note ?? "").trim().slice(0, 2000) || null,
+          created_by: ctx.userId,
+          source: "silvio",
+        })
+        .select("id, quote_number")
+        .single();
+      if (qErr || !quote) return { error: `Creazione preventivo fallita: ${qErr?.message ?? "insert vuoto"}` };
+
+      // Righe: prezzo esplicito > match listino (codice/nome) > 0 (segnalato).
+      const items: Array<Record<string, unknown>> = [];
+      const senzaPrezzo: string[] = [];
+      let totale = 0;
+      let sort = 0;
+      for (const r of righe) {
+        const descrizione = String(r.descrizione ?? "").trim().slice(0, 500);
+        if (!descrizione) continue;
+        const quantita = Number.isFinite(Number(r.quantita)) && Number(r.quantita) > 0 ? Number(r.quantita) : 1;
+        let prezzo = Number(r.prezzo_unitario);
+        let unita = String(r.unita ?? "").trim().slice(0, 20) || null;
+        let familyId: string | null = null;
+        if (!Number.isFinite(prezzo) || prezzo < 0) {
+          // Tentativo listino: match sul nome (parola più significativa) o codice.
+          const term = descrizione.split(/\s+/).filter((w) => w.length >= 4).slice(0, 3).join(" ") || descrizione;
+          const { data: match } = await ctx.supabase
+            .from("article_families")
+            .select("id, nome, prezzo_base_vendita, unit_of_measure")
+            .eq("company_id", ctx.companyId)
+            .eq("attivo", true)
+            .is("deleted_at", null)
+            .ilike("nome", `%${term.slice(0, 60)}%`)
+            .limit(1)
+            .maybeSingle();
+          const m = match as { id?: string; prezzo_base_vendita?: number | null; unit_of_measure?: string | null } | null;
+          if (m?.prezzo_base_vendita != null) {
+            prezzo = Number(m.prezzo_base_vendita);
+            familyId = m.id ?? null;
+            if (!unita && m.unit_of_measure) unita = m.unit_of_measure;
+          } else {
+            prezzo = 0;
+            senzaPrezzo.push(descrizione.slice(0, 60));
+          }
+        }
+        totale += prezzo * quantita;
+        items.push({
+          quote_id: quote.id,
+          company_id: ctx.companyId,
+          name: descrizione.slice(0, 200),
+          description: descrizione,
+          quantity: quantita,
+          unit_price: prezzo,
+          vat_rate: ivaDefault,
+          unit_of_measure: unita,
+          item_type: ["product", "service", "labor"].includes(String(r.tipo)) ? String(r.tipo) : "product",
+          sort_order: sort++,
+          ...(familyId ? { family_id: familyId } : {}),
+        });
+      }
+      if (items.length > 0) {
+        const { error: iErr } = await ctx.supabase.from("quote_items").insert(items);
+        if (iErr) {
+          // Niente righe → la bozza resta ma vuota: meglio dirlo chiaramente.
+          return { error: `Preventivo ${quote.quote_number} creato ma righe NON salvate: ${iErr.message}. Aprilo nel builder e reinserisci le voci.`, quote_id: quote.id };
+        }
+      }
+      return {
+        quote_id: quote.id,
+        quote_number: quote.quote_number,
+        righe_create: items.length,
+        totale_imponibile_stimato: Math.round(totale * 100) / 100,
+        righe_senza_prezzo: senzaPrezzo,
+        link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
+        nota: senzaPrezzo.length > 0
+          ? `BOZZA creata. ${senzaPrezzo.length} righe senza prezzo (nessun match a listino): completale nel builder.`
+          : "BOZZA creata: rifiniscila e inviala dal builder. Nulla è stato mandato al cliente.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  crea_cliente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_cliente",
+        description:
+          "Crea un nuovo CLIENTE in anagrafica (solo anagrafica: NESSUN accesso al portale, nessuna email inviata). " +
+          "Usalo quando l'utente vuole registrare un cliente nuovo (es. prima di creare commessa/preventivo per qualcuno che non esiste). " +
+          "FLUSSO: mostra i dati raccolti (nome, cognome, email, telefono, indirizzi) e chiedi conferma PRIMA di chiamare il tool. " +
+          "L'email è OBBLIGATORIA e deve essere univoca nel sistema: se risulta già registrata, dillo all'utente (per dare accesso a un utente " +
+          "esistente si usa 'Accessi azienda', non questo tool). Per dare al cliente l'accesso al portale si usa poi la pagina Clienti.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome (o ragione sociale se azienda) — OBBLIGATORIO" },
+            cognome: { type: "string", description: "Cognome — OBBLIGATORIO (per aziende usa es. 'SRL')" },
+            email: { type: "string", description: "Email del cliente — OBBLIGATORIA e univoca" },
+            telefono: { type: "string" },
+            indirizzo: { type: "string", description: "Indirizzo di fatturazione/residenza" },
+            citta: { type: "string" },
+            cap: { type: "string" },
+            indirizzo_cantiere: { type: "string", description: "Indirizzo del cantiere se diverso dalla residenza" },
+            note: { type: "string" },
+          },
+          required: ["nome", "cognome", "email"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 100);
+      const cognome = String(args?.cognome ?? "").trim().slice(0, 100);
+      const email = String(args?.email ?? "").trim().toLowerCase().slice(0, 200);
+      if (!nome || !cognome) return { error: "Nome e cognome obbligatori." };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Email mancante o non valida (è obbligatoria per l'anagrafica)." };
+
+      // Duplicato in azienda?
+      const { data: existing } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).ilike("email", email).maybeSingle();
+      if (existing?.id) {
+        return { error: `Esiste già "${existing.first_name ?? ""} ${existing.last_name ?? ""}" con questa email in azienda.`, customer_id: existing.id };
+      }
+
+      // Stessa meccanica dell'edge create-customer (anagrafica-only):
+      // auth user BLOCCATO (nessun accesso) + profilo + ruolo customer, con rollback.
+      const { data: created, error: authErr } = await ctx.supabase.auth.admin.createUser({
+        email,
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        email_confirm: true,
+      });
+      if (authErr || !created?.user?.id) {
+        const msg = (authErr?.message ?? "").toLowerCase();
+        if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
+          return { error: "Email già registrata nel sistema (probabilmente in un'altra azienda). Usa un'altra email, oppure per dare accesso a un utente esistente usa 'Accessi azienda'." };
+        }
+        return { error: `Creazione utente fallita: ${authErr?.message ?? "errore sconosciuto"}` };
+      }
+      const newId = created.user.id;
+
+      const { error: profErr } = await ctx.supabase.from("profiles").insert({
+        id: newId,
+        first_name: nome,
+        last_name: cognome,
+        email,
+        phone: String(args?.telefono ?? "").trim().slice(0, 50) || null,
+        address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+        city: String(args?.citta ?? "").trim().slice(0, 100) || null,
+        postal_code: String(args?.cap ?? "").trim().slice(0, 10) || null,
+        site_address: String(args?.indirizzo_cantiere ?? "").trim().slice(0, 300) || null,
+        notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        company_id: ctx.companyId,
+        portal_disabled: true,
+        is_blocked: true,
+      });
+      if (profErr) {
+        await ctx.supabase.auth.admin.deleteUser(newId).catch(() => {});
+        return { error: `Creazione profilo fallita: ${profErr.message}` };
+      }
+
+      const { error: roleErr } = await ctx.supabase.from("user_roles").insert({ user_id: newId, role: "customer" });
+      if (roleErr) {
+        await ctx.supabase.from("profiles").delete().eq("id", newId);
+        await ctx.supabase.auth.admin.deleteUser(newId).catch(() => {});
+        return { error: `Assegnazione ruolo fallita: ${roleErr.message}` };
+      }
+
+      return {
+        customer_id: newId,
+        cliente: `${nome} ${cognome}`,
+        nota: "Cliente creato (solo anagrafica, nessun accesso portale, nessuna email inviata). Ora può essere usato per commesse e preventivi.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "crm",
+  },
+
+  crea_commessa_bozza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_commessa_bozza",
+        description:
+          "Crea una COMMESSA (ordine di lavoro) per un CLIENTE GIÀ ESISTENTE in anagrafica. " +
+          "FLUSSO: 1) identifica il cliente per nome (se non esiste, proponi prima crea_cliente); 2) mostra il riepilogo " +
+          "(cliente, descrizione lavori, importo imponibile, IVA) e chiedi conferma; 3) dopo il sì chiama questo tool. " +
+          "Il codice commessa viene generato in automatico col progressivo aziendale (es. O-0001); l'indirizzo cantiere " +
+          "viene preso dalla scheda del cliente se presente. Acconti/rate e articoli si aggiungono poi dalla pagina della commessa.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente esistente (match per nome/cognome) — OBBLIGATORIO" },
+            descrizione: { type: "string", description: "Descrizione dei lavori — OBBLIGATORIA" },
+            importo_imponibile: { type: "number", description: "Importo totale imponibile in € — OBBLIGATORIO" },
+            iva: { type: "number", description: "Aliquota IVA % (default 22; 10 per ristrutturazioni agevolate)" },
+            note_interne: { type: "string" },
+            indirizzo_cantiere: { type: "string", description: "Se diverso da quello in scheda cliente" },
+          },
+          required: ["cliente_nome", "descrizione", "importo_imponibile"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      const descrizione = String(args?.descrizione ?? "").trim().slice(0, 2000);
+      const importo = Number(args?.importo_imponibile);
+      if (!clienteNome) return { error: "cliente_nome mancante." };
+      if (!descrizione) return { error: "descrizione mancante." };
+      if (!Number.isFinite(importo) || importo < 0) return { error: "importo_imponibile mancante o non valido." };
+
+      // ── Risolvi cliente (SOLO role=customer) ──────────────────────────────
+      // NB: le RPC guardate (get_company_customers) con service client ritornano
+      // vuoto (auth.uid() null) → query dirette: profili azienda ∩ ruolo customer.
+      const { data: companyProfiles } = await ctx.supabase
+        .from("profiles")
+        .select("id, first_name, last_name, site_address, site_city, site_postal_code, site_province, address, city, postal_code, province, site_lat, site_lng")
+        .eq("company_id", ctx.companyId)
+        .limit(2000);
+      const profili = (companyProfiles ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null;
+        site_address: string | null; site_city: string | null; site_postal_code: string | null; site_province: string | null;
+        address: string | null; city: string | null; postal_code: string | null; province: string | null;
+        site_lat: number | null; site_lng: number | null }>;
+      const ids = profili.map((p) => p.id);
+      const { data: roleRows } = ids.length > 0
+        ? await ctx.supabase.from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids)
+        : { data: [] as Array<{ user_id: string }> };
+      const customerIds = new Set(((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
+      const needle = clienteNome.toLowerCase();
+      const clienti = profili.filter((p) => customerIds.has(p.id));
+      const matches = clienti.filter((p) =>
+        `${p.first_name ?? ""} ${p.last_name ?? ""}`.toLowerCase().includes(needle) ||
+        needle.includes(`${p.first_name ?? ""}`.toLowerCase().trim()) && `${p.last_name ?? ""}`.toLowerCase() !== "" && needle.includes(`${p.last_name ?? ""}`.toLowerCase().trim())
+      );
+      if (matches.length === 0) {
+        return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Clienti disponibili: ${clienti.slice(0, 10).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()).join(", ") || "(nessuno)"}. Se è nuovo, crealo prima con crea_cliente.` };
+      }
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 6).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()).join(" | ")}. Chiedi all'utente quale intende e riprova col nome completo.` };
+      }
+      const cliente = matches[0];
+
+      // ── Codice commessa progressivo (inline: la RPC guardata darebbe NULL) ─
+      let orderCode: string | null = null;
+      try {
+        const { data: comp } = await ctx.supabase.from("companies").select("order_code_prefix").eq("id", ctx.companyId).maybeSingle();
+        const prefix = ((comp as { order_code_prefix?: string | null } | null)?.order_code_prefix ?? "O").trim() || "O";
+        const { data: codes } = await ctx.supabase
+          .from("orders").select("order_code")
+          .eq("company_id", ctx.companyId)
+          .ilike("order_code", `${prefix}%`)
+          .limit(2000);
+        let maxN = 0;
+        for (const r of (codes ?? []) as Array<{ order_code: string | null }>) {
+          const m = (r.order_code ?? "").match(/(\d+)\s*$/);
+          if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+        }
+        orderCode = `${prefix}-${String(maxN + 1).padStart(4, "0")}`;
+      } catch { orderCode = null; }
+
+      // ── Stato iniziale di default dell'azienda ────────────────────────────
+      let statusId: string | null = null;
+      try {
+        const { data: st } = await ctx.supabase
+          .from("order_statuses").select("id, is_default, position")
+          .eq("company_id", ctx.companyId)
+          .order("is_default", { ascending: false })
+          .order("position", { ascending: true })
+          .limit(1).maybeSingle();
+        statusId = (st as { id?: string } | null)?.id ?? null;
+      } catch { statusId = null; }
+
+      // ── Creazione atomica (stessa RPC del form Nuova Commessa) ────────────
+      const iva = Number.isFinite(Number(args?.iva)) ? Number(args?.iva) : 22;
+      const { data: created, error: createErr } = await ctx.supabase.rpc("create_order_atomic", {
+        p_order_data: {
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          order_code: orderCode,
+          description: descrizione,
+          total_amount: importo,
+          vat_rate: iva,
+          payment_type: "standard",
+          internal_notes: String(args?.note_interne ?? "").trim().slice(0, 1000) || "Creata da Silvio (chat)",
+          current_status_id: statusId,
+        },
+        p_items: [],
+        p_salesperson: null,
+        p_user_id: ctx.userId,
+        p_installments: [],
+      });
+      const result = created as { id?: string; success?: boolean } | null;
+      if (createErr || !result?.id) {
+        return { error: `Creazione commessa fallita: ${createErr?.message ?? "risposta vuota"}` };
+      }
+
+      // ── Indirizzo cantiere: esplicito > scheda cliente (best-effort) ──────
+      const line = (street: string | null, cap: string | null, city: string | null, prov: string | null) =>
+        [street, [cap, city].map((x) => (x ?? "").trim()).filter(Boolean).join(" "), prov]
+          .map((x) => (x ?? "").trim()).filter(Boolean).join(", ");
+      const cantiere = String(args?.indirizzo_cantiere ?? "").trim()
+        || line(cliente.site_address, cliente.site_postal_code, cliente.site_city, cliente.site_province)
+        || line(cliente.address, cliente.postal_code, cliente.city, cliente.province);
+      if (cantiere) {
+        const patch: Record<string, unknown> = { indirizzo_lavori: cantiere, work_address: cantiere };
+        if (cliente.site_lat != null && cliente.site_lng != null) { patch.work_lat = cliente.site_lat; patch.work_lng = cliente.site_lng; }
+        await ctx.supabase.from("orders").update(patch).eq("id", result.id).then(() => {}, () => {});
+      }
+
+      return {
+        order_id: result.id,
+        order_code: orderCode,
+        cliente: `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim(),
+        importo_imponibile: importo,
+        iva,
+        indirizzo_cantiere: cantiere || null,
+        link: `/azienda/ordini/${result.id}`,
+        nota: "Commessa creata. Acconti, articoli e date si completano dalla pagina della commessa.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
+  fissa_appuntamento: {
+    schema: {
+      type: "function",
+      function: {
+        name: "fissa_appuntamento",
+        description:
+          "Fissa un appuntamento nel calendario aziendale (sopralluogo, riunione, visita cantiere, consegna...). " +
+          "FLUSSO: raccogli titolo + data (+ ora se nota), mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. " +
+          "Può collegare una commessa (per codice) e assegnare l'appuntamento a un membro del team (per nome). " +
+          "Le date vanno passate in formato YYYY-MM-DD e l'ora in HH:MM: converti tu espressioni come 'domani alle 15'.",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo dell'appuntamento — OBBLIGATORIO" },
+            data: { type: "string", description: "Data in formato YYYY-MM-DD — OBBLIGATORIA" },
+            ora: { type: "string", description: "Ora di inizio HH:MM (24h). Se assente = tutto il giorno" },
+            durata_minuti: { type: "number", description: "Durata in minuti (default 60; usata solo se c'è l'ora)" },
+            tipo: { type: "string", description: "Tipo: generico | sopralluogo | riunione | consegna | cantiere (default generico)" },
+            descrizione: { type: "string" },
+            indirizzo: { type: "string", description: "Indirizzo/luogo dell'appuntamento" },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            assegna_a: { type: "string", description: "Nome del membro del team a cui assegnarlo" },
+          },
+          required: ["titolo", "data"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titolo = String(args?.titolo ?? "").trim().slice(0, 200);
+      const data = String(args?.data ?? "").trim();
+      if (!titolo) return { error: "Titolo obbligatorio." };
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: "Data non valida: usa il formato YYYY-MM-DD." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const ora = String(args?.ora ?? "").trim();
+      if (ora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(ora)) return { error: "Ora non valida: usa HH:MM (es. 15:00)." };
+      const durata = Math.min(Math.max(Math.round(Number(args?.durata_minuti) || 60), 15), 12 * 60);
+      let oraFine: string | null = null;
+      if (ora) {
+        const [h, m] = ora.split(":").map(Number);
+        const tot = Math.min(h * 60 + m + durata, 23 * 60 + 59);
+        oraFine = `${String(Math.floor(tot / 60)).padStart(2, "0")}:${String(tot % 60).padStart(2, "0")}`;
+      }
+
+      // Commessa opzionale per codice (stessa azienda).
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ord } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(1).maybeSingle();
+        if (!ord?.id) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        orderId = ord.id;
+        orderCode = ord.order_code ?? null;
+      }
+
+      // Assegnatario opzionale per nome: solo persone del team (esclusi i clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(assegnaA);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        assignedTo = matches[0].id;
+        assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Stessa scrittura di AppointmentDialog (calendar_id null = calendario aziendale/CRM).
+      const { data: appt, error } = await ctx.supabase
+        .from("appointments")
+        .insert({
+          company_id: ctx.companyId,
+          title: titolo,
+          description: String(args?.descrizione ?? "").trim().slice(0, 1000) || null,
+          appointment_date: data,
+          appointment_time: ora || null,
+          appointment_end_time: oraFine,
+          appointment_type: (String(args?.tipo ?? "").trim().toLowerCase() || "generico").slice(0, 40),
+          status: "confermato",
+          assigned_to: assignedTo,
+          order_id: orderId,
+          formatted_address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione appuntamento fallita: ${error.message}` };
+
+      return {
+        appointment_id: appt.id,
+        appuntamento: `${titolo} — ${data}${ora ? ` ore ${ora}` : " (tutto il giorno)"}${ora && oraFine ? `–${oraFine}` : ""}`,
+        commessa: orderCode,
+        assegnato_a: assignedName,
+        link: "/azienda/attivita",
+        nota: `Appuntamento creato nel calendario aziendale${assignedName ? ` e assegnato a ${assignedName}` : ""}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "calendar",
+  },
+
+  registra_pagamento_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_pagamento_commessa",
+        description:
+          "Registra un INCASSO su una commessa: segna la rata come pagata (piano pagamenti) e crea la registrazione " +
+          "in Prima Nota (entrata, categoria 'incasso'). FLUSSO: identifica la commessa per codice, mostra il riepilogo " +
+          "(rata/importo/data/metodo) e chiedi conferma PRIMA di chiamare il tool. Se l'importo non corrisponde a nessuna " +
+          "rata da pagare, il tool elenca le rate aperte: puoi indicare rata_numero, oppure registra_comunque=true per " +
+          "registrare un incasso libero senza toccare il piano rate.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            importo: { type: "number", description: "Importo incassato in EURO. Se assente e c'è la rata, usa l'importo della rata" },
+            rata_numero: { type: "number", description: "Numero della rata da segnare pagata (1 = prima rata/acconto)" },
+            data_pagamento: { type: "string", description: "Data incasso YYYY-MM-DD (default oggi)" },
+            metodo: { type: "string", description: "Metodo: bonifico | contanti | assegno | pos | altro" },
+            registra_comunque: { type: "boolean", description: "true = registra l'incasso in Prima Nota anche senza rata corrispondente" },
+            note: { type: "string" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const importoArg = args?.importo == null ? null : Math.round(Number(args.importo) * 100) / 100;
+      if (importoArg != null && (!Number.isFinite(importoArg) || importoArg <= 0 || importoArg > 10_000_000)) {
+        return { error: "Importo non valido." };
+      }
+      let dataPag = String(args?.data_pagamento ?? "").trim();
+      if (dataPag && !/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) return { error: "Data non valida: usa YYYY-MM-DD." };
+      if (!dataPag) {
+        // Data italiana, non UTC (a notte fonda in Italia l'UTC è ancora ieri).
+        try {
+          dataPag = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+        } catch {
+          dataPag = new Date().toISOString().slice(0, 10);
+        }
+      }
+      const metodo = String(args?.metodo ?? "").trim().toLowerCase().slice(0, 30) || null;
+
+      const { data: ord } = await ctx.supabase
+        .from("orders").select("id, order_code, description")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ord || ord.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ord.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ord.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ord[0];
+
+      const { data: rate } = await ctx.supabase
+        .from("order_installments")
+        .select("id, position, label, type, amount, is_paid, paid_date")
+        .eq("order_id", order.id)
+        .order("position", { ascending: true });
+      const aperte = (rate ?? []).filter((r) => !r.is_paid);
+
+      // Selezione rata: per numero esplicito, oppure per importo combaciante.
+      let rata: (typeof aperte)[number] | null = null;
+      const rataNumero = args?.rata_numero == null ? null : Math.round(Number(args.rata_numero));
+      if (rataNumero != null) {
+        const found = (rate ?? []).find((r) => r.position === rataNumero) ?? (rate ?? [])[rataNumero - 1];
+        if (!found) return { error: `La commessa ${order.order_code} non ha una rata n. ${rataNumero}. Rate presenti: ${(rate ?? []).length}.` };
+        if (found.is_paid) return { error: `La rata n. ${rataNumero} (${found.label || found.type}) risulta GIÀ pagata il ${found.paid_date ?? "?"}. Nessuna modifica.` };
+        rata = found;
+      } else if (importoArg != null) {
+        const match = aperte.filter((r) => Math.abs(Number(r.amount) - importoArg) <= 0.01);
+        if (match.length === 1) rata = match[0];
+        else if (match.length > 1) {
+          return { error: `Più rate da pagare hanno importo ${importoArg.toFixed(2)}€ sulla ${order.order_code}: ${match.map((r) => `n.${r.position} ${r.label || r.type}`).join(", ")}. Indica rata_numero.` };
+        }
+      } else if (aperte.length === 1) {
+        rata = aperte[0];
+      }
+
+      if (!rata && !args?.registra_comunque) {
+        const lista = aperte.length
+          ? aperte.map((r) => `n.${r.position} ${r.label || r.type}: ${Number(r.amount).toFixed(2)}€`).join(" · ")
+          : "(nessuna: piano rate vuoto o tutto pagato — se il piano non è mai stato aperto nella pagina commessa, apri prima la sezione Pagamenti)";
+        return {
+          error: `Nessuna rata combacia${importoArg != null ? ` con ${importoArg.toFixed(2)}€` : ""} sulla ${order.order_code}. Rate da pagare: ${lista}. Indica rata_numero, oppure registra_comunque=true per un incasso libero.`,
+        };
+      }
+
+      const importo = importoArg ?? (rata ? Math.round(Number(rata.amount) * 100) / 100 : null);
+      if (importo == null || importo <= 0) return { error: "Importo mancante: indicalo esplicitamente." };
+
+      // Anti doppia registrazione: stesso ordine+importo+data già in Prima Nota.
+      const { data: dup } = await ctx.supabase
+        .from("prima_nota_entries").select("id")
+        .eq("company_id", ctx.companyId).eq("order_id", order.id)
+        .eq("direction", "entrata").eq("entry_date", dataPag).eq("amount", importo)
+        .limit(1).maybeSingle();
+      if (dup?.id) {
+        return { error: `Sembra già registrato: esiste un'entrata di ${importo.toFixed(2)}€ su ${order.order_code} in data ${dataPag} (Prima Nota). Se è un secondo incasso reale, cambia data o aggiungi una nota e ripeti.` };
+      }
+
+      // 1) Segna la rata pagata (stessa scrittura di OrderDetail).
+      if (rata) {
+        const { error: rataErr } = await ctx.supabase
+          .from("order_installments")
+          .update({ is_paid: true, paid_date: dataPag })
+          .eq("id", rata.id);
+        if (rataErr) return { error: `Aggiornamento rata fallito: ${rataErr.message}` };
+      }
+
+      // 2) Prima Nota: entrata categoria 'incasso' (is_auto=false → eliminabile
+      //    dall'utente dalla pagina Prima Nota se serve correggere).
+      const descr = `Incasso commessa ${order.order_code}${rata ? ` — ${rata.label || `rata ${rata.position}`}` : ""}`;
+      const { data: pn, error: pnErr } = await ctx.supabase
+        .from("prima_nota_entries")
+        .insert({
+          company_id: ctx.companyId,
+          direction: "entrata",
+          category: "incasso",
+          description: descr,
+          amount: importo,
+          entry_date: dataPag,
+          payment_method: metodo,
+          reference_number: rata ? `rata ${rata.position}` : null,
+          order_id: order.id,
+          account_label: metodo === "contanti" ? "cassa" : "banca",
+          notes: [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — "),
+          is_auto: false,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (pnErr) {
+        // Rollback del flag rata per non lasciare lo stato a metà.
+        if (rata) {
+          await ctx.supabase.from("order_installments").update({ is_paid: false, paid_date: null }).eq("id", rata.id);
+        }
+        return { error: `Registrazione Prima Nota fallita: ${pnErr.message}` };
+      }
+
+      const residuo = aperte
+        .filter((r) => !rata || r.id !== rata.id)
+        .reduce((s, r) => s + Number(r.amount || 0), 0);
+      const avviso = rata && importoArg != null && Math.abs(Number(rata.amount) - importoArg) > 0.01
+        ? `ATTENZIONE: importo registrato ${importo.toFixed(2)}€ ≠ importo rata ${Number(rata.amount).toFixed(2)}€.`
+        : null;
+
+      return {
+        commessa: order.order_code,
+        rata_segnata: rata ? `n.${rata.position} ${rata.label || rata.type} (${Number(rata.amount).toFixed(2)}€)` : null,
+        incasso_registrato: `${importo.toFixed(2)}€ il ${dataPag}${metodo ? ` (${metodo})` : ""}`,
+        prima_nota_id: pn.id,
+        residuo_da_incassare: `${residuo.toFixed(2)}€`,
+        avviso,
+        link: "/azienda/prima-nota",
+        nota: "Rata aggiornata e incasso registrato in Prima Nota." + (rata ? "" : " (incasso libero: nessuna rata toccata)"),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "finance",
+  },
+
+  crea_ordine_fornitore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_ordine_fornitore",
+        description:
+          "Crea un ORDINE D'ACQUISTO (ODA) in BOZZA verso un fornitore, con le righe materiale. " +
+          "Il numero ODA viene assegnato automaticamente e i totali sono ricalcolati dalle righe. " +
+          "FLUSSO: identifica il fornitore per nome, mostra il riepilogo righe (descrizione, quantità, prezzo) " +
+          "e chiedi conferma PRIMA di chiamare il tool. L'ordine resta in bozza: l'invio al fornitore si fa dalla pagina ODA.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitore_nome: { type: "string", description: "Nome/ragione sociale del fornitore — OBBLIGATORIO" },
+            voci: {
+              type: "array",
+              description: "Righe dell'ordine (min 1, max 50)",
+              items: {
+                type: "object",
+                properties: {
+                  descrizione: { type: "string", description: "Descrizione materiale — OBBLIGATORIA" },
+                  quantita: { type: "number", description: "Quantità (default 1)" },
+                  prezzo_unitario: { type: "number", description: "Prezzo unitario in EURO (default 0 = da definire)" },
+                  unita_misura: { type: "string", description: "es. pz, mq, ml, kg, sacchi" },
+                  iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+                },
+                required: ["descrizione"],
+              },
+            },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            consegna_prevista: { type: "string", description: "Data consegna prevista YYYY-MM-DD" },
+            note: { type: "string" },
+          },
+          required: ["fornitore_nome", "voci"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const fornitoreNome = String(args?.fornitore_nome ?? "").trim();
+      if (!fornitoreNome) return { error: "Nome fornitore obbligatorio." };
+      const vociArg = Array.isArray(args?.voci) ? args.voci : [];
+      if (vociArg.length === 0) return { error: "Serve almeno una riga (voci)." };
+      if (vociArg.length > 50) return { error: "Massimo 50 righe per ordine." };
+      const consegna = String(args?.consegna_prevista ?? "").trim();
+      if (consegna && !/^\d{4}-\d{2}-\d{2}$/.test(consegna)) return { error: "Data consegna non valida: usa YYYY-MM-DD." };
+
+      // Fornitore per nome (company-scoped, con disambiguazione).
+      const { data: forn } = await ctx.supabase
+        .from("suppliers").select("id, name")
+        .eq("company_id", ctx.companyId).ilike("name", `%${fornitoreNome}%`)
+        .limit(6);
+      if (!forn || forn.length === 0) {
+        const { data: tutti } = await ctx.supabase
+          .from("suppliers").select("name").eq("company_id", ctx.companyId).limit(10);
+        return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}". Fornitori in anagrafica: ${(tutti ?? []).map((s) => s.name).join(", ") || "(nessuno — crealo prima in Fornitori)"}.` };
+      }
+      if (forn.length > 1) {
+        return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      }
+      const fornitore = forn[0];
+
+      // Commessa opzionale per codice.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Righe validate.
+      const righe = vociArg.map((v: Record<string, unknown>, i: number) => ({
+        descrizione: String(v?.descrizione ?? "").trim().slice(0, 300),
+        quantita: Math.max(Number(v?.quantita) || 1, 0.001),
+        prezzo: Math.max(Math.round((Number(v?.prezzo_unitario) || 0) * 100) / 100, 0),
+        um: String(v?.unita_misura ?? "").trim().slice(0, 20) || null,
+        iva: Number.isFinite(Number(v?.iva)) ? Math.min(Math.max(Number(v?.iva), 0), 22) : 22,
+        idx: i,
+      }));
+      if (righe.some((r) => !r.descrizione)) return { error: "Ogni riga deve avere una descrizione." };
+
+      // ODA in bozza: oda_number auto (trigger), totali ricalcolati dalle righe (trigger).
+      const { data: po, error: poErr } = await ctx.supabase
+        .from("purchase_orders")
+        .insert({
+          company_id: ctx.companyId,
+          supplier_id: fornitore.id,
+          order_id: orderId,
+          expected_delivery_date: consegna || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          created_by: ctx.userId ?? null,
+        })
+        .select("id")
+        .single();
+      if (poErr || !po?.id) return { error: `Creazione ordine fallita: ${poErr?.message ?? "errore sconosciuto"}` };
+
+      const { error: itemsErr } = await ctx.supabase
+        .from("purchase_order_items")
+        .insert(righe.map((r) => ({
+          company_id: ctx.companyId,
+          purchase_order_id: po.id,
+          description: r.descrizione,
+          quantity: r.quantita,
+          unit_price: r.prezzo,
+          vat_rate: r.iva,
+          unit_of_measure: r.um,
+          sort_order: r.idx,
+        })));
+      if (itemsErr) {
+        await ctx.supabase.from("purchase_order_items").delete().eq("purchase_order_id", po.id);
+        await ctx.supabase.from("purchase_orders").delete().eq("id", po.id);
+        return { error: `Creazione righe fallita (ordine annullato): ${itemsErr.message}` };
+      }
+
+      const { data: fresh } = await ctx.supabase
+        .from("purchase_orders").select("oda_number, total")
+        .eq("id", po.id).single();
+
+      const senzaPrezzo = righe.filter((r) => r.prezzo === 0).length;
+      return {
+        oda_id: po.id,
+        oda_number: fresh?.oda_number ?? "(assegnato)",
+        fornitore: fornitore.name,
+        commessa: orderCode,
+        righe: righe.length,
+        totale: `${Number(fresh?.total ?? 0).toFixed(2)}€`,
+        stato: "bozza",
+        avviso: senzaPrezzo > 0 ? `${senzaPrezzo} righe senza prezzo (0€): completa i prezzi prima dell'invio.` : null,
+        link: `/azienda/ordini-acquisto/${po.id}`,
+        nota: "Ordine d'acquisto creato in BOZZA. L'invio al fornitore si fa dalla pagina dell'ordine.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "operations",
+  },
+
+  registra_rapportino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_rapportino",
+        description:
+          "Registra un RAPPORTINO di lavoro su una commessa (ore lavorate + descrizione lavori), come dal campo. " +
+          "Può registrarlo per l'utente stesso o — se chi scrive è titolare/ufficio — per un membro del team indicato per nome. " +
+          "FLUSSO: raccogli commessa, ore e cosa è stato fatto, mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. " +
+          "Le date in formato YYYY-MM-DD (converti tu 'oggi'/'ieri').",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            ore: { type: "number", description: "Ore lavorate (es. 8) — OBBLIGATORIE" },
+            descrizione_lavori: { type: "string", description: "Cosa è stato fatto (es. 'posato massetto piano terra')" },
+            data: { type: "string", description: "Data lavoro YYYY-MM-DD (default oggi)" },
+            straordinario: { type: "number", description: "Ore di straordinario oltre alle ordinarie (default 0)" },
+            percentuale_avanzamento: { type: "number", description: "Avanzamento complessivo lavori 0-100 (opzionale)" },
+            per_utente_nome: { type: "string", description: "Nome del membro del team per cui registrare (default: chi scrive)" },
+            meteo: { type: "string", description: "Meteo: soleggiato | nuvoloso | pioggia | neve | vento" },
+            registra_comunque: { type: "boolean", description: "true = registra anche se esiste già un rapportino stesso giorno/commessa/persona" },
+          },
+          required: ["commessa_codice", "ore"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      const ore = Math.round(Number(args?.ore) * 2) / 2;
+      if (!Number.isFinite(ore) || ore <= 0 || ore > 16) return { error: "Ore non valide (0,5–16)." };
+      const straord = Math.max(Math.round((Number(args?.straordinario) || 0) * 2) / 2, 0);
+      if (straord > 8) return { error: "Straordinario non valido (max 8 ore)." };
+      let data = String(args?.data ?? "").trim();
+      if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: "Data non valida: usa YYYY-MM-DD." };
+      if (!data) {
+        try { data = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { data = new Date().toISOString().slice(0, 10); }
+      }
+      const perc = args?.percentuale_avanzamento == null ? null : Math.round(Number(args.percentuale_avanzamento));
+      if (perc != null && (perc < 0 || perc > 100)) return { error: "Percentuale avanzamento fuori range (0-100)." };
+      const METEO = ["soleggiato", "nuvoloso", "pioggia", "neve", "vento"];
+      const meteo = String(args?.meteo ?? "").trim().toLowerCase() || null;
+      if (meteo && !METEO.includes(meteo)) return { error: `Meteo non valido. Valori: ${METEO.join(", ")}.` };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      // Per chi: l'utente della chat, oppure un membro del team per nome.
+      let userId = ctx.userId ?? null;
+      let perNome: string | null = null;
+      const perUtente = String(args?.per_utente_nome ?? "").trim();
+      if (perUtente) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(perUtente);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${perUtente}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${perUtente}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        userId = matches[0].id;
+        perNome = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+      if (!userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      // Anti-doppione: stesso giorno + commessa + persona.
+      if (!args?.registra_comunque) {
+        const { data: dup } = await ctx.supabase
+          .from("campo_rapportini").select("id, ore_lavorate")
+          .eq("company_id", ctx.companyId).eq("order_id", order.id)
+          .eq("user_id", userId).eq("data_lavoro", data)
+          .limit(1).maybeSingle();
+        if (dup?.id) {
+          return { error: `Esiste già un rapportino del ${data} su ${order.order_code}${perNome ? ` per ${perNome}` : ""} (${dup.ore_lavorate ?? "?"} ore). Se è un secondo turno reale, ripeti con registra_comunque=true.` };
+        }
+      }
+
+      // Stessa scrittura del flusso /campo (stato 'inviato'); source traccia il canale.
+      const { data: rap, error } = await ctx.supabase
+        .from("campo_rapportini")
+        .insert({
+          company_id: ctx.companyId,
+          order_id: order.id,
+          user_id: userId,
+          role_type: "employee",
+          data_lavoro: data,
+          ore_lavorate: ore,
+          ore_straordinario: straord,
+          descrizione_lavori: String(args?.descrizione_lavori ?? "").trim().slice(0, 1000) || null,
+          percentuale_avanzamento: perc,
+          meteo,
+          stato: "inviato",
+          source: ctx.channel === "whatsapp" ? "whatsapp" : "api",
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Registrazione rapportino fallita: ${error.message}` };
+
+      return {
+        rapportino_id: rap.id,
+        commessa: order.order_code,
+        registrato: `${ore} ore${straord > 0 ? ` + ${straord} straordinario` : ""} il ${data}${perNome ? ` per ${perNome}` : ""}`,
+        avanzamento: perc != null ? `${perc}%` : null,
+        link: `/azienda/ordini/${order.id}`,
+        nota: "Rapportino registrato (stato: inviato)." + (perc != null ? " Avanzamento aggiornato sul rapportino." : ""),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  report_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "report_commessa",
+        description:
+          "CONTO ECONOMICO di una singola commessa: incrocia valore e incassi con TUTTI i costi tracciati " +
+          "(manodopera da rapportini, ordini a fornitori, fatture/scadenze, costi diretti, subappalti) e calcola il margine. " +
+          "Usa per 'quanto ho guadagnato sulla GE-0012', 'come sta andando questa commessa', 'dove sono finiti i soldi'. " +
+          "IMPORTANTE: il risultato distingue COSTO ZERO da COSTO NON TRACCIATO e dichiara l'affidabilità del calcolo: " +
+          "riporta sempre gli avvisi all'utente e NON presentare come margine reale un dato marcato parziale o insufficiente.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders")
+        .select("id, order_code, description, total_amount, customer_id, current_status_id")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+      const valore = Number(order.total_amount) || 0;
+
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const somma = (rows: Array<Record<string, unknown>> | null, campo: string) =>
+        (rows ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
+
+      // ── Fonti, lette una per una: ognuna sa dire se è VUOTA o solo a zero ──
+      const [rate, rapportini, oda, scadenzeF, costiDiretti, sal, pnEntrate] = await Promise.all([
+        ctx.supabase.from("order_installments").select("amount, is_paid").eq("order_id", order.id),
+        ctx.supabase.from("campo_rapportini").select("ore_lavorate, ore_straordinario, user_id").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("purchase_orders").select("total, status").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("scadenze").select("amount, paid_amount, status").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("tipo", "pagamento_fornitore"),
+        ctx.supabase.from("company_costs").select("amount, is_paid").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("sal_subappaltatori").select("importo, stato").eq("order_id", order.id),
+        ctx.supabase.from("prima_nota_entries").select("amount").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("direction", "entrata"),
+      ]);
+
+      const avvisi: string[] = [];
+      const fonteVuota = (n: number, nome: string, comeSiPopola: string) => {
+        if (n === 0) { avvisi.push(`${nome}: NESSUN DATO (${comeSiPopola}) — non è un costo pari a zero, è un costo non tracciato.`); return true; }
+        return false;
+      };
+
+      // ── Ricavi ──
+      const righeRate = rate.data ?? [];
+      const incassatoRate = r2(somma(righeRate.filter((x) => x.is_paid), "amount"));
+      const daIncassareRate = r2(somma(righeRate.filter((x) => !x.is_paid), "amount"));
+      const incassiPrimaNota = r2(somma(pnEntrate.data, "amount"));
+      // NB: gli incassi possono essere registrati SIA come rata pagata SIA come
+      // entrata di Prima Nota collegata (lo fa registra_pagamento_commessa):
+      // le due cifre NON si sommano, si confrontano.
+      if (righeRate.length === 0) {
+        avvisi.push("Piano rate: NESSUNA RATA registrata — l'incassato potrebbe essere tracciato solo in Prima Nota o fuori piattaforma.");
+      }
+      if (incassiPrimaNota > 0 && incassatoRate > 0 && Math.abs(incassiPrimaNota - incassatoRate) > 0.01) {
+        avvisi.push(`Attenzione: rate pagate ${incassatoRate.toFixed(2)}€ e entrate in Prima Nota ${incassiPrimaNota.toFixed(2)}€ NON coincidono. Non sommarle: vanno riconciliate.`);
+      }
+
+      // ── Costi, per fonte ──
+      const righeRapp = rapportini.data ?? [];
+      const oreTot = r2(somma(righeRapp, "ore_lavorate") + somma(righeRapp, "ore_straordinario"));
+      const manodoperaNonTracciata = fonteVuota(righeRapp.length, "Manodopera", "nessun rapportino sulla commessa");
+
+      // Valorizzazione ore: SOLO se l'azienda ha una tariffa oraria configurata.
+      // Mai un costo orario "di mercato" inventato: falserebbe il margine.
+      let costoOrario: number | null = null;
+      if (oreTot > 0) {
+        const { data: tariffe } = await ctx.supabase
+          .from("tariffe_aziendali")
+          .select("nome, costo_interno, costo_default, unita")
+          .eq("company_id", ctx.companyId).eq("tipo", "manodopera")
+          .limit(20);
+        const conCosto = (tariffe ?? []).map((t) => Number(t.costo_interno ?? t.costo_default) || 0).filter((n) => n > 0);
+        if (conCosto.length > 0) costoOrario = r2(conCosto.reduce((a, b) => a + b, 0) / conCosto.length);
+        else avvisi.push("Ore presenti ma NON valorizzate: manca la tariffa oraria interna (Impostazioni → Tariffe). Il costo manodopera non entra nel margine.");
+      }
+      const costoManodopera = costoOrario != null ? r2(oreTot * costoOrario) : null;
+
+      const righeOda = (oda.data ?? []).filter((x) => x.status !== "annullato");
+      const costoOda = r2(somma(righeOda, "total"));
+      const odaNonTracciato = fonteVuota(righeOda.length, "Ordini a fornitori", "nessun ODA collegato alla commessa");
+
+      const righeScad = (scadenzeF.data ?? []).filter((x) => x.status !== "annullata");
+      const costoFornitori = r2(somma(righeScad, "amount"));
+      const scadNonTracciate = fonteVuota(righeScad.length, "Fatture/scadenze fornitori", "nessuna scadenza collegata alla commessa");
+
+      const righeCosti = costiDiretti.data ?? [];
+      const costoDiretto = r2(somma(righeCosti, "amount"));
+      const costiNonTracciati = fonteVuota(righeCosti.length, "Costi diretti", "nessun costo aziendale collegato alla commessa");
+
+      const righeSal = sal.data ?? [];
+      const costoSubappalti = r2(somma(righeSal, "importo"));
+      const salNonTracciati = fonteVuota(righeSal.length, "Subappalti", "nessun SAL subappaltatore sulla commessa");
+
+      const costoTracciato = r2((costoManodopera ?? 0) + costoOda + costoFornitori + costoDiretto + costoSubappalti);
+      const fontiCostoPopolate = [!manodoperaNonTracciata && costoManodopera != null, !odaNonTracciato, !scadNonTracciate, !costiNonTracciati, !salNonTracciati].filter(Boolean).length;
+
+      // ── Margine: si calcola SOLO se ha senso ──
+      let margine: Record<string, unknown> | null = null;
+      let affidabilita: string;
+      if (fontiCostoPopolate === 0) {
+        affidabilita = "INSUFFICIENTE";
+        avvisi.unshift("MARGINE NON CALCOLABILE: non risulta tracciato NESSUN costo su questa commessa. Un margine del 100% sarebbe falso: significa solo che i costi non sono stati registrati qui.");
+      } else {
+        // In edilizia la MANODOPERA pesa quanto o più dei materiali: un margine
+        // calcolato senza di essa è sistematicamente gonfiato. Perciò non basta
+        // contare le fonti — senza costo manodopera l'affidabilità resta parziale.
+        const manodoperaNelCalcolo = costoManodopera != null && costoManodopera > 0;
+        affidabilita = manodoperaNelCalcolo && fontiCostoPopolate >= 3 ? "BUONA" : "PARZIALE";
+        if (!manodoperaNelCalcolo) {
+          avvisi.unshift(
+            manodoperaNonTracciata
+              ? "Il margine NON include la manodopera (nessun rapportino sulla commessa): in edilizia è la voce che pesa di più, quindi il margine qui sotto è OTTIMISTICO."
+              : "Il margine NON include la manodopera (ore presenti ma senza tariffa oraria): il margine qui sotto è OTTIMISTICO.",
+          );
+        }
+        margine = {
+          importo: r2(valore - costoTracciato),
+          percentuale: valore > 0 ? r2(((valore - costoTracciato) / valore) * 100) : null,
+          include_manodopera: manodoperaNelCalcolo,
+          avvertenza: affidabilita === "PARZIALE"
+            ? `Calcolato su ${fontiCostoPopolate} fonti di costo su 5${!manodoperaNelCalcolo ? ", MANODOPERA ESCLUSA" : ""}: il margine reale è VEROSIMILMENTE PIÙ BASSO di quello indicato.`
+            : "Calcolato sui costi effettivamente tracciati a sistema (manodopera inclusa); eventuali costi fuori piattaforma non sono inclusi.",
+        };
+      }
+
+      return {
+        commessa: `${order.order_code}${order.description ? ` — ${order.description}` : ""}`,
+        ricavi: {
+          valore_commessa: valore,
+          incassato_da_rate: incassatoRate,
+          da_incassare_rate: daIncassareRate,
+          entrate_in_prima_nota: incassiPrimaNota,
+          nota: "incassato_da_rate ed entrate_in_prima_nota sono DUE LETTURE della stessa realtà: non sommarle.",
+        },
+        costi: {
+          manodopera: { ore: oreTot, costo_orario_usato: costoOrario, valorizzato: costoManodopera, righe: righeRapp.length, stato: manodoperaNonTracciata ? "NON TRACCIATO" : (costoManodopera == null ? "ORE SENZA TARIFFA" : "tracciato") },
+          ordini_fornitori: { importo: costoOda, righe: righeOda.length, stato: odaNonTracciato ? "NON TRACCIATO" : "tracciato" },
+          fatture_fornitori: { importo: costoFornitori, righe: righeScad.length, stato: scadNonTracciate ? "NON TRACCIATO" : "tracciato" },
+          costi_diretti: { importo: costoDiretto, righe: righeCosti.length, stato: costiNonTracciati ? "NON TRACCIATO" : "tracciato" },
+          subappalti: { importo: costoSubappalti, righe: righeSal.length, stato: salNonTracciati ? "NON TRACCIATO" : "tracciato" },
+          totale_tracciato: costoTracciato,
+          fonti_popolate: `${fontiCostoPopolate} su 5`,
+        },
+        margine,
+        affidabilita,
+        avvisi,
+        come_leggere:
+          "Riporta all'utente il livello di affidabilità e gli avvisi PRIMA dei numeri. Se l'affidabilità è INSUFFICIENTE non dare nessuna percentuale di margine. " +
+          "Se è PARZIALE, di' esplicitamente che il margine mostrato è ottimistico perché mancano fonti di costo. Non stimare, non estrapolare, non inventare costi mancanti.",
+        link: `/azienda/ordini/${order.id}`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
+  },
+
+  crea_sopralluogo: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_sopralluogo",
+        description:
+          "Programma un SOPRALLUOGO: crea la scheda di rilievo partendo da un modello (fotovoltaico, bagno, " +
+          "cappotto, tetto, infissi...), con cliente, tecnico incaricato, data e indirizzo. " +
+          "La scheda nasce in bozza: il tecnico la compila poi sul posto dall'app. " +
+          "Se non sai quale modello usare, chiedi all'utente invece di sceglierne uno a caso.",
+        parameters: {
+          type: "object",
+          properties: {
+            tipo_rilievo: { type: "string", description: "Modello di rilievo (es. fotovoltaico, bagno, tetto, infissi) — OBBLIGATORIO" },
+            cliente_nome: { type: "string", description: "Nome del cliente" },
+            tecnico: { type: "string", description: "Nome del tecnico incaricato" },
+            data_ora: { type: "string", description: "Quando: YYYY-MM-DD oppure YYYY-MM-DD HH:MM" },
+            indirizzo: { type: "string", description: "Indirizzo del sopralluogo" },
+            citta: { type: "string" },
+            cap: { type: "string" },
+            provincia: { type: "string" },
+            commessa_codice: { type: "string", description: "Commessa collegata" },
+            note: { type: "string" },
+          },
+          required: ["tipo_rilievo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const tipoQ = String(args?.tipo_rilievo ?? "").trim();
+      if (!tipoQ) return { error: "Tipo di rilievo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Modello di rilievo: quelli dell'azienda + quelli di sistema.
+      const { data: templates } = await ctx.supabase
+        .from("survey_templates")
+        .select("id, name, category, company_id")
+        .or(`company_id.eq.${ctx.companyId},company_id.is.null`)
+        .eq("is_active", true)
+        .limit(100);
+      if (!templates || templates.length === 0) {
+        return { error: "Nessun modello di rilievo disponibile: creane uno da Sopralluoghi → Modelli." };
+      }
+      const tq = norm(tipoQ);
+      let match = templates.filter((t) => norm(t.name ?? "").includes(tq) || norm(t.category ?? "").includes(tq));
+      if (match.length === 0) {
+        return { error: `Nessun modello di rilievo per "${tipoQ}". Disponibili: ${templates.map((t) => t.name).join(", ")}.` };
+      }
+      if (match.length > 1) {
+        // Preferisci il modello dell'azienda a quello di sistema con lo stesso nome.
+        const propri = match.filter((t) => t.company_id === ctx.companyId);
+        if (propri.length === 1) match = propri;
+        else return { error: `Più modelli corrispondono a "${tipoQ}": ${match.map((t) => t.name).join(", ")}. Specifica meglio.` };
+      }
+      const template = match[0];
+
+      // Data/ora opzionale: accetta sia solo la data sia data + ora.
+      let scheduledAt: string | null = null;
+      const quando = String(args?.data_ora ?? "").trim();
+      if (quando) {
+        const m = quando.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?$/);
+        if (!m) return { error: "data_ora non valida: usa YYYY-MM-DD oppure YYYY-MM-DD HH:MM." };
+        scheduledAt = new Date(`${m[1]}T${m[2] ?? "09:00"}:00`).toISOString();
+      }
+
+      // Cliente e tecnico: stessa logica degli altri tool (clienti = role customer,
+      // tecnici = team, clienti esclusi).
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const cerca = (nome: string, soloClienti: boolean) => {
+        const q = norm(nome);
+        return (people ?? []).filter((p) =>
+          (soloClienti ? customerIds.has(p.id) : !customerIds.has(p.id)) &&
+          norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      };
+
+      let clientId: string | null = null;
+      let clienteLabel: string | null = null;
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (clienteNome) {
+        const cm = cerca(clienteNome, true);
+        if (cm.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+        if (cm.length > 1) return { error: `Più clienti corrispondono a "${clienteNome}": ${cm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        clientId = cm[0].id;
+        clienteLabel = `${cm[0].first_name ?? ""} ${cm[0].last_name ?? ""}`.trim();
+      }
+
+      let technicianId: string | null = null;
+      let tecnicoLabel: string | null = null;
+      const tecnico = String(args?.tecnico ?? "").trim();
+      if (tecnico) {
+        const tm = cerca(tecnico, false);
+        if (tm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${tecnico}".` };
+        if (tm.length > 1) return { error: `Più persone corrispondono a "${tecnico}": ${tm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        technicianId = tm[0].id;
+        tecnicoLabel = `${tm[0].first_name ?? ""} ${tm[0].last_name ?? ""}`.trim();
+      }
+
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Stessa scrittura di createSurvey (status 'draft', mode 'structured').
+      const { data: survey, error } = await ctx.supabase
+        .from("surveys")
+        .insert({
+          company_id: ctx.companyId,
+          template_id: template.id,
+          client_id: clientId,
+          order_id: orderId,
+          technician_id: technicianId,
+          scheduled_at: scheduledAt,
+          address: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          city: String(args?.citta ?? "").trim().slice(0, 100) || null,
+          zip: String(args?.cap ?? "").trim().slice(0, 10) || null,
+          province: String(args?.provincia ?? "").trim().slice(0, 50) || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          mode: "structured",
+          status: "draft",
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione sopralluogo fallita: ${error.message}` };
+
+      return {
+        sopralluogo_id: survey.id,
+        modello: template.name,
+        cliente: clienteLabel,
+        tecnico: tecnicoLabel,
+        quando: quando || null,
+        dove: [String(args?.indirizzo ?? "").trim(), String(args?.citta ?? "").trim()].filter(Boolean).join(", ") || null,
+        commessa: orderCode,
+        link: `/azienda/sopralluoghi/${survey.id}`,
+        nota: "Sopralluogo creato in BOZZA. Il tecnico lo compila sul posto dall'app; a fine rilievo si può far firmare al cliente.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  crea_impianto_cliente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_impianto_cliente",
+        description:
+          "Registra un IMPIANTO installato presso un cliente (caldaia, climatizzatore, fotovoltaico...), " +
+          "così da poterci agganciare interventi e contratti di manutenzione. " +
+          "FLUSSO: conferma cliente, tipo impianto, marca/modello/matricola prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente — OBBLIGATORIO" },
+            tipo_impianto: { type: "string", description: "Tipo (es. Caldaia a gas, Climatizzatore split) — OBBLIGATORIO" },
+            marca: { type: "string" },
+            modello: { type: "string" },
+            matricola: { type: "string", description: "Numero di matricola/serie" },
+            data_installazione: { type: "string", description: "Data installazione YYYY-MM-DD" },
+            garanzia_scadenza: { type: "string", description: "Scadenza garanzia YYYY-MM-DD" },
+            commessa_codice: { type: "string", description: "Commessa con cui è stato installato" },
+            note_tecniche: { type: "string" },
+          },
+          required: ["cliente_nome", "tipo_impianto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const tipo = String(args?.tipo_impianto ?? "").trim().slice(0, 100);
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (!tipo || !clienteNome) return { error: "Cliente e tipo impianto obbligatori." };
+      for (const [campo, val] of [["data_installazione", args?.data_installazione], ["garanzia_scadenza", args?.garanzia_scadenza]] as const) {
+        const s = String(val ?? "").trim();
+        if (s && !/^\d{4}-\d{2}-\d{2}$/.test(s)) return { error: `${campo} non valida: usa YYYY-MM-DD.` };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      // Cliente: solo chi ha ruolo customer (come negli altri tool).
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const q = norm(clienteNome);
+      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+      }
+      const cliente = matches[0];
+      const clienteLabel = `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim();
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Anti-duplicato sulla matricola: è l'identificativo fisico dell'apparecchio.
+      const matricola = String(args?.matricola ?? "").trim().slice(0, 100);
+      if (matricola) {
+        const { data: dup } = await ctx.supabase
+          .from("impianti_cliente").select("id, tipo_impianto")
+          .eq("company_id", ctx.companyId).ilike("matricola", matricola)
+          .limit(1).maybeSingle();
+        if (dup?.id) return { error: `Esiste già un impianto con matricola "${matricola}" (${dup.tipo_impianto}). Non ne creo un doppione.` };
+      }
+
+      const { data: imp, error } = await ctx.supabase
+        .from("impianti_cliente")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          order_id: orderId,
+          tipo_impianto: tipo,
+          marca: String(args?.marca ?? "").trim().slice(0, 100) || null,
+          modello: String(args?.modello ?? "").trim().slice(0, 100) || null,
+          matricola: matricola || null,
+          data_installazione: String(args?.data_installazione ?? "").trim() || null,
+          garanzia_scadenza: String(args?.garanzia_scadenza ?? "").trim() || null,
+          note_tecniche: String(args?.note_tecniche ?? "").trim().slice(0, 1000) || null,
+          attivo: true,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Registrazione impianto fallita: ${error.message}` };
+
+      return {
+        impianto_id: imp.id,
+        impianto: `${tipo}${args?.marca ? ` ${args.marca}` : ""}${args?.modello ? ` ${args.modello}` : ""}`,
+        cliente: clienteLabel,
+        matricola: matricola || null,
+        commessa: orderCode,
+        garanzia: String(args?.garanzia_scadenza ?? "").trim() || null,
+        link: "/azienda/assistenza-lavori",
+        nota: "Impianto registrato. Ora puoi agganciarci un contratto di manutenzione o gli interventi di assistenza.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "support",
+  },
+
+  crea_contratto_manutenzione: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_contratto_manutenzione",
+        description:
+          "Crea un CONTRATTO DI MANUTENZIONE su un impianto già registrato (canone periodico, durata, rinnovo). " +
+          "Se l'impianto non esiste ancora va creato prima con crea_impianto_cliente. " +
+          "FLUSSO: mostra impianto, canone, periodicità e durata, chiedi conferma, poi chiama il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            cliente_nome: { type: "string", description: "Nome del cliente — OBBLIGATORIO" },
+            impianto: { type: "string", description: "Tipo o matricola dell'impianto (se il cliente ne ha più d'uno)" },
+            nome_contratto: { type: "string", description: "Nome del contratto (es. 'Manutenzione caldaia 2026') — OBBLIGATORIO" },
+            importo_canone: { type: "number", description: "Canone in EURO per periodo" },
+            periodicita: { type: "string", description: "mensile | trimestrale | semestrale | annuale (default annuale)" },
+            data_inizio: { type: "string", description: "Inizio validità YYYY-MM-DD (default oggi)" },
+            data_scadenza: { type: "string", description: "Fine validità YYYY-MM-DD" },
+            rinnovo_automatico: { type: "boolean", description: "true = si rinnova da solo alla scadenza" },
+            note: { type: "string" },
+          },
+          required: ["cliente_nome", "nome_contratto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nomeContratto = String(args?.nome_contratto ?? "").trim().slice(0, 200);
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (!nomeContratto || !clienteNome) return { error: "Cliente e nome contratto obbligatori." };
+      const PERIODI = ["mensile", "trimestrale", "semestrale", "annuale"];
+      const periodicita = String(args?.periodicita ?? "").trim().toLowerCase() || "annuale";
+      if (!PERIODI.includes(periodicita)) return { error: `Periodicità non valida. Valori: ${PERIODI.join(", ")}.` };
+      const canone = args?.importo_canone == null ? null : Math.round(Number(args.importo_canone) * 100) / 100;
+      if (canone != null && (!Number.isFinite(canone) || canone < 0 || canone > 1_000_000)) return { error: "Canone non valido." };
+      let dataInizio = String(args?.data_inizio ?? "").trim();
+      if (dataInizio && !/^\d{4}-\d{2}-\d{2}$/.test(dataInizio)) return { error: "data_inizio non valida: usa YYYY-MM-DD." };
+      if (!dataInizio) {
+        try { dataInizio = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { dataInizio = new Date().toISOString().slice(0, 10); }
+      }
+      const dataScadenza = String(args?.data_scadenza ?? "").trim();
+      if (dataScadenza && !/^\d{4}-\d{2}-\d{2}$/.test(dataScadenza)) return { error: "data_scadenza non valida: usa YYYY-MM-DD." };
+      if (dataScadenza && dataScadenza <= dataInizio) return { error: `La scadenza (${dataScadenza}) deve essere dopo l'inizio (${dataInizio}).` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: people } = await ctx.supabase
+        .from("profiles").select("id, first_name, last_name")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const ids = (people ?? []).map((p) => p.id);
+      const customerIds = new Set<string>();
+      if (ids.length > 0) {
+        const { data: roles } = await ctx.supabase
+          .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+        for (const r of roles ?? []) customerIds.add(r.user_id);
+      }
+      const q = norm(clienteNome);
+      const matches = (people ?? []).filter((p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+      if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}".` };
+      if (matches.length > 1) {
+        return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+      }
+      const cliente = matches[0];
+
+      // Impianto del cliente: uno solo → quello; altrimenti serve indicarlo.
+      const { data: impianti } = await ctx.supabase
+        .from("impianti_cliente")
+        .select("id, tipo_impianto, marca, modello, matricola")
+        .eq("company_id", ctx.companyId).eq("customer_id", cliente.id).eq("attivo", true)
+        .limit(50);
+      if (!impianti || impianti.length === 0) {
+        return { error: `${`${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim()} non ha impianti registrati. Crea prima l'impianto con crea_impianto_cliente.` };
+      }
+      const impQ = norm(String(args?.impianto ?? "").trim());
+      let impianto = impianti[0];
+      if (impianti.length > 1 || impQ) {
+        const im = impQ
+          ? impianti.filter((i) => norm(`${i.tipo_impianto ?? ""} ${i.marca ?? ""} ${i.modello ?? ""} ${i.matricola ?? ""}`).includes(impQ))
+          : [];
+        if (im.length !== 1) {
+          return { error: `Indica quale impianto: ${impianti.map((i) => `${i.tipo_impianto}${i.marca ? ` ${i.marca}` : ""}${i.matricola ? ` [${i.matricola}]` : ""}`).join(" · ")}.` };
+        }
+        impianto = im[0];
+      }
+
+      const { data: contratto, error } = await ctx.supabase
+        .from("contratti_manutenzione")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: cliente.id,
+          impianto_id: impianto.id,
+          nome_contratto: nomeContratto,
+          tipo_fatturazione: periodicita,
+          importo_canone: canone,
+          data_inizio: dataInizio,
+          data_scadenza: dataScadenza || null,
+          rinnovo_automatico: args?.rinnovo_automatico === true,
+          stato: "attivo",
+          note: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione contratto fallita: ${error.message}` };
+
+      return {
+        contratto_id: contratto.id,
+        contratto: nomeContratto,
+        cliente: `${cliente.first_name ?? ""} ${cliente.last_name ?? ""}`.trim(),
+        impianto: `${impianto.tipo_impianto}${impianto.marca ? ` ${impianto.marca}` : ""}`,
+        canone: canone != null ? `${canone.toFixed(2)}€ ${periodicita}` : `(canone da definire, ${periodicita})`,
+        validita: `dal ${dataInizio}${dataScadenza ? ` al ${dataScadenza}` : " (senza scadenza)"}`,
+        rinnovo_automatico: args?.rinnovo_automatico === true,
+        link: "/azienda/assistenza-lavori",
+        nota: "Contratto di manutenzione attivo.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "support",
+  },
+
+  crea_subappaltatore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_subappaltatore",
+        description:
+          "Registra un nuovo SUBAPPALTATORE in anagrafica (ditta esterna che lavora nei cantieri). " +
+          "Solo anagrafica: i documenti di sicurezza (DURC, POS, visura...) si caricano poi dalla scheda. " +
+          "FLUSSO: mostra ragione sociale, referente e recapiti, chiedi conferma, poi chiama il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            ragione_sociale: { type: "string", description: "Ragione sociale della ditta — OBBLIGATORIA" },
+            responsabile: { type: "string", description: "Nome del referente in cantiere" },
+            telefono: { type: "string" },
+            email: { type: "string" },
+            piva: { type: "string", description: "Partita IVA" },
+            indirizzo: { type: "string" },
+            note: { type: "string" },
+          },
+          required: ["ragione_sociale"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const ragione = String(args?.ragione_sociale ?? "").trim().slice(0, 200);
+      if (!ragione) return { error: "Ragione sociale obbligatoria." };
+      const email = String(args?.email ?? "").trim().toLowerCase().slice(0, 200);
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Email non valida." };
+      const piva = String(args?.piva ?? "").trim().replace(/\s/g, "").slice(0, 20);
+      if (piva && !/^[0-9]{11}$/.test(piva) && !/^[A-Z]{2}[0-9A-Z]{2,13}$/i.test(piva)) {
+        return { error: "Partita IVA non valida (11 cifre per l'Italia, oppure con prefisso paese)." };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+      const { data: esistenti } = await ctx.supabase
+        .from("subappaltatori").select("id, ragione_sociale, piva, is_active")
+        .eq("company_id", ctx.companyId).limit(2000);
+      const dup = (esistenti ?? []).find(
+        (s) => norm(s.ragione_sociale ?? "") === norm(ragione) || (piva && (s.piva ?? "").replace(/\s/g, "") === piva),
+      );
+      if (dup) {
+        return { error: `"${dup.ragione_sociale}" è GIÀ in anagrafica subappaltatori${dup.is_active === false ? " (disattivato)" : ""}. Non ne creo un doppione.` };
+      }
+
+      const { data: sub, error } = await ctx.supabase
+        .from("subappaltatori")
+        .insert({
+          company_id: ctx.companyId,
+          ragione_sociale: ragione,
+          responsabile: String(args?.responsabile ?? "").trim().slice(0, 150) || null,
+          telefono: String(args?.telefono ?? "").trim().slice(0, 50) || null,
+          email: email || null,
+          piva: piva || null,
+          indirizzo: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione subappaltatore fallita: ${error.message}` };
+
+      return {
+        subappaltatore_id: sub.id,
+        ditta: ragione,
+        referente: String(args?.responsabile ?? "").trim() || null,
+        piva: piva || null,
+        link: `/azienda/subappaltatori/${sub.id}`,
+        nota: "Subappaltatore registrato. Ricordati di caricare i documenti di sicurezza (DURC, POS, visura) dalla sua scheda: senza, non risulta in regola per entrare in cantiere.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "compliance",
+  },
+
+  approva_rapportini: {
+    schema: {
+      type: "function",
+      function: {
+        name: "approva_rapportini",
+        description:
+          "Approva (o rifiuta) i RAPPORTINI inviati dagli operai — il controllo di fine settimana del titolare. " +
+          "Si può filtrare per persona, commessa e periodo; senza periodo prende gli ultimi 7 giorni. " +
+          "FLUSSO: chiama PRIMA con solo_conteggio=true per vedere quanti sono e quante ore, mostra il riepilogo, " +
+          "chiedi conferma, poi richiama senza solo_conteggio per approvarli davvero.",
+        parameters: {
+          type: "object",
+          properties: {
+            persona: { type: "string", description: "Nome dell'operaio (se assente: tutti)" },
+            commessa_codice: { type: "string", description: "Codice commessa (se assente: tutte)" },
+            da_data: { type: "string", description: "Dal giorno YYYY-MM-DD (default: 7 giorni fa)" },
+            a_data: { type: "string", description: "Al giorno YYYY-MM-DD (default: oggi)" },
+            rifiuta: { type: "boolean", description: "true = RIFIUTA invece di approvare (richiede motivo)" },
+            motivo: { type: "string", description: "Motivo del rifiuto" },
+            solo_conteggio: { type: "boolean", description: "true = non modifica nulla, restituisce solo il riepilogo" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const rifiuta = args?.rifiuta === true;
+      const motivo = String(args?.motivo ?? "").trim().slice(0, 500);
+      if (rifiuta && !motivo) return { error: "Per rifiutare serve il motivo: l'operaio deve sapere cosa correggere." };
+
+      const oggi = (() => {
+        try { return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { return new Date().toISOString().slice(0, 10); }
+      })();
+      const settimanaFa = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+      const daData = String(args?.da_data ?? "").trim() || settimanaFa;
+      const aData = String(args?.a_data ?? "").trim() || oggi;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(daData) || !/^\d{4}-\d{2}-\d{2}$/.test(aData)) {
+        return { error: "Date non valide: usa YYYY-MM-DD." };
+      }
+      if (daData > aData) return { error: `Periodo invertito: ${daData} è dopo ${aData}.` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Persona opzionale (chi ha compilato il rapportino).
+      let userIdFiltro: string | null = null;
+      let personaNome: string | null = null;
+      const persona = String(args?.persona ?? "").trim();
+      if (persona) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(500);
+        const q = norm(persona);
+        const pm = (people ?? []).filter((p) => norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q));
+        if (pm.length === 0) return { error: `Nessuna persona trovata con nome simile a "${persona}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${persona}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        userIdFiltro = pm[0].id;
+        personaNome = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      // Solo i rapportini INVIATI: le bozze non si approvano, gli approvati non si ri-approvano.
+      let q = ctx.supabase
+        .from("campo_rapportini")
+        .select("id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori")
+        .eq("company_id", ctx.companyId)
+        .eq("stato", "inviato")
+        .gte("data_lavoro", daData)
+        .lte("data_lavoro", aData);
+      if (orderId) q = q.eq("order_id", orderId);
+      if (userIdFiltro) q = q.eq("user_id", userIdFiltro);
+      const { data: rapportini, error: qErr } = await q.limit(500);
+      if (qErr) return { error: `Lettura rapportini fallita: ${qErr.message}` };
+
+      const lista = rapportini ?? [];
+      const perimetro = `${daData} → ${aData}${personaNome ? `, ${personaNome}` : ""}${orderCode ? `, ${orderCode}` : ""}`;
+      if (lista.length === 0) {
+        return { esito: "nessun rapportino da approvare", perimetro, nota: "In questo periodo non ci sono rapportini in attesa (stato 'inviato')." };
+      }
+
+      const ore = lista.reduce((s, r) => s + (Number(r.ore_lavorate) || 0), 0);
+      const straord = lista.reduce((s, r) => s + (Number(r.ore_straordinario) || 0), 0);
+      const persone = new Set(lista.map((r) => r.user_id)).size;
+      const riepilogo = {
+        rapportini: lista.length,
+        persone,
+        ore_ordinarie: Math.round(ore * 100) / 100,
+        ore_straordinario: Math.round(straord * 100) / 100,
+        perimetro,
+      };
+
+      // Anteprima: nessuna scrittura, serve al riepilogo prima della conferma.
+      if (args?.solo_conteggio === true) {
+        return { ...riepilogo, esito: "ANTEPRIMA (nulla è stato modificato)", nota: `Confermando, ${lista.length} rapportini passeranno a "${rifiuta ? "rifiutato" : "approvato"}".` };
+      }
+
+      const nuovoStato = rifiuta ? "rifiutato" : "approvato";
+      const { error: updErr } = await ctx.supabase
+        .from("campo_rapportini")
+        .update({ stato: nuovoStato })
+        .in("id", lista.map((r) => r.id))
+        .eq("company_id", ctx.companyId)
+        .eq("stato", "inviato"); // rileggo lo stato: se nel frattempo cambia, non lo sovrascrivo
+      if (updErr) return { error: `Aggiornamento rapportini fallito: ${updErr.message}` };
+
+      return {
+        ...riepilogo,
+        esito: rifiuta ? "RIFIUTATI" : "APPROVATI",
+        motivo: rifiuta ? motivo : null,
+        link: "/azienda/rapportini",
+        nota: `${lista.length} rapportini (${riepilogo.ore_ordinarie} ore${straord > 0 ? ` + ${riepilogo.ore_straordinario} straordinario` : ""}) ora in stato "${nuovoStato}".`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
+  aggiorna_stato_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_commessa",
+        description:
+          "Cambia lo STATO di una commessa (es. 'metti la GE-0012 in Lavori in corso'). Usa la stessa procedura " +
+          "dell'app: aggiorna lo stato E scrive lo storico cambi stato. FLUSSO: identifica commessa e stato di " +
+          "destinazione, mostra il riepilogo (da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: il cambio stato può innescare automazioni aziendali (es. email al cliente).",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "Nome dello stato di destinazione (es. 'Lavori in corso') — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      const statoNome = String(args?.nuovo_stato ?? "").trim();
+      if (!codice || !statoNome) return { error: "Codice commessa e nuovo stato obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code, current_status_id")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      const { data: stati } = await ctx.supabase
+        .from("order_statuses").select("id, name")
+        .eq("company_id", ctx.companyId)
+        .order("position", { ascending: true });
+      const norm = (s: string) => s.toLowerCase().trim();
+      const q = norm(statoNome);
+      const match = (stati ?? []).filter((s) => norm(s.name ?? "").includes(q));
+      if (match.length === 0) {
+        return { error: `Nessuno stato si chiama "${statoNome}". Stati disponibili: ${(stati ?? []).map((s) => s.name).join(", ") || "(nessuno)"}.` };
+      }
+      if (match.length > 1) {
+        return { error: `Più stati corrispondono a "${statoNome}": ${match.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      }
+      const target = match[0];
+      if (order.current_status_id === target.id) {
+        return { error: `La commessa ${order.order_code} è GIÀ nello stato "${target.name}". Nessuna modifica.` };
+      }
+      const statoPrima = (stati ?? []).find((s) => s.id === order.current_status_id)?.name ?? "(nessuno)";
+
+      // Stessa RPC dell'app: aggiorna orders.current_status_id + order_status_history.
+      const { error } = await ctx.supabase.rpc("change_order_status", {
+        p_order_id: order.id,
+        p_new_status_id: target.id,
+        p_changed_by: ctx.userId,
+      });
+      if (error) return { error: `Cambio stato fallito: ${error.message}` };
+
+      return {
+        commessa: order.order_code,
+        stato: `${statoPrima} → ${target.name}`,
+        link: `/azienda/ordini/${order.id}`,
+        nota: `Stato aggiornato a "${target.name}" (storico registrato).`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
+  crea_task: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_task",
+        description:
+          "Crea un'ATTIVITÀ/task per il team (es. 'chiamare il geometra entro venerdì'). " +
+          "Può avere scadenza, assegnatario (per nome) e commessa collegata (per codice). " +
+          "FLUSSO: conferma col riepilogo prima di chiamare il tool. Date in YYYY-MM-DD (converti tu 'domani'/'venerdì').",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo del task — OBBLIGATORIO" },
+            scadenza: { type: "string", description: "Data scadenza YYYY-MM-DD" },
+            assegna_a: { type: "string", description: "Nome del membro del team (default: chi scrive)" },
+            commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
+            priorita: { type: "string", description: "bassa | normale | alta | urgente (default normale)" },
+          },
+          required: ["titolo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titolo = String(args?.titolo ?? "").trim().slice(0, 300);
+      if (!titolo) return { error: "Titolo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const scadenza = String(args?.scadenza ?? "").trim();
+      if (scadenza && !/^\d{4}-\d{2}-\d{2}$/.test(scadenza)) return { error: "Scadenza non valida: usa YYYY-MM-DD." };
+      const PRIO = ["bassa", "normale", "alta", "urgente"];
+      const priorita = String(args?.priorita ?? "").trim().toLowerCase() || "normale";
+      if (!PRIO.includes(priorita)) return { error: `Priorità non valida. Valori: ${PRIO.join(", ")}.` };
+
+      // Assegnatario per nome (team, esclusi clienti); default: chi scrive.
+      let assignedTo: string | null = ctx.userId;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const q = norm(assegnaA);
+        const matches = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (matches.length > 1) {
+          return { error: `Più persone corrispondono a "${assegnaA}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        assignedTo = matches[0].id;
+        assignedName = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`)
+          .limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Stessa scrittura di TaskQuickAdd (status/priority/category = convenzioni app).
+      const { data: task, error } = await ctx.supabase
+        .from("tasks")
+        .insert({
+          company_id: ctx.companyId,
+          title: titolo,
+          status: "da_fare",
+          priority: priorita,
+          category: "generale",
+          created_by: ctx.userId,
+          assigned_to: assignedTo,
+          order_id: orderId,
+          due_date: scadenza || null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione task fallita: ${error.message}` };
+
+      return {
+        task_id: task.id,
+        titolo,
+        assegnato_a: assignedName ?? "(chi scrive)",
+        scadenza: scadenza || null,
+        commessa: orderCode,
+        priorita,
+        link: "/azienda/attivita",
+        nota: "Attività creata (stato: da fare).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "operations",
+  },
+
+  crea_opportunita: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_opportunita",
+        description:
+          "Crea un'OPPORTUNITÀ nella pipeline CRM (es. 'Ristrutturazione bagno — Rossi, 25.000€'). " +
+          "Il contatto viene cercato per nome/email tra i contatti CRM; se non esiste e fornisci telefono o email, " +
+          "viene creato al volo (con controllo duplicati). Pipeline e fase per nome (default: prima pipeline, prima fase). " +
+          "FLUSSO: conferma col riepilogo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome dell'opportunità (es. 'Ristrutturazione bagno Rossi') — OBBLIGATORIO" },
+            contatto_nome: { type: "string", description: "Nome del contatto CRM — OBBLIGATORIO" },
+            contatto_telefono: { type: "string", description: "Telefono (serve solo per creare il contatto se non esiste)" },
+            contatto_email: { type: "string", description: "Email (serve solo per creare il contatto se non esiste)" },
+            valore: { type: "number", description: "Valore stimato in EURO (default 0)" },
+            pipeline_nome: { type: "string", description: "Nome della pipeline (default: la prima)" },
+            fase_nome: { type: "string", description: "Nome della fase (default: la prima della pipeline)" },
+            assegna_a: { type: "string", description: "Nome del venditore/membro del team a cui assegnarla" },
+            fonte: { type: "string", description: "Fonte (es. passaparola, sito, telefonata)" },
+            note: { type: "string" },
+          },
+          required: ["nome", "contatto_nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 200);
+      const contattoNome = String(args?.contatto_nome ?? "").trim();
+      if (!nome || !contattoNome) return { error: "Nome opportunità e nome contatto obbligatori." };
+      const valore = Math.max(Math.round((Number(args?.valore) || 0) * 100) / 100, 0);
+      if (valore > 100_000_000) return { error: "Valore non plausibile." };
+
+      // Pipeline + fase (per nome, default prima per position).
+      const { data: pipelines } = await ctx.supabase
+        .from("marketing_pipelines")
+        .select("id, name, position, marketing_pipeline_stages(id, name, position)")
+        .eq("company_id", ctx.companyId)
+        .order("position", { ascending: true });
+      if (!pipelines || pipelines.length === 0) {
+        return { error: "Nessuna pipeline CRM configurata: creane una in Marketing → Opportunità prima di usare questo tool." };
+      }
+      const normP = (s: string) => s.toLowerCase().trim();
+      let pipeline = pipelines[0];
+      const pipelineNome = String(args?.pipeline_nome ?? "").trim();
+      if (pipelineNome) {
+        const pm = pipelines.filter((p) => normP(p.name ?? "").includes(normP(pipelineNome)));
+        if (pm.length === 0) return { error: `Nessuna pipeline si chiama "${pipelineNome}". Disponibili: ${pipelines.map((p) => p.name).join(", ")}.` };
+        if (pm.length > 1) return { error: `Più pipeline corrispondono a "${pipelineNome}": ${pm.map((p) => p.name).join(", ")}. Specifica meglio.` };
+        pipeline = pm[0];
+      }
+      const stages = ((pipeline.marketing_pipeline_stages ?? []) as Array<{ id: string; name: string; position: number }>)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      if (stages.length === 0) return { error: `La pipeline "${pipeline.name}" non ha fasi configurate.` };
+      let stage = stages[0];
+      const faseNome = String(args?.fase_nome ?? "").trim();
+      if (faseNome) {
+        const sm = stages.filter((s) => normP(s.name ?? "").includes(normP(faseNome)));
+        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseNome}" nella pipeline "${pipeline.name}". Fasi: ${stages.map((s) => s.name).join(", ")}.` };
+        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseNome}": ${sm.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        stage = sm[0];
+      }
+
+      // Contatto CRM per nome/email; creazione al volo se assente e ho telefono/email.
+      const emailArg = String(args?.contatto_email ?? "").trim().toLowerCase();
+      const telArg = String(args?.contatto_telefono ?? "").trim();
+      const normC = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const q = normC(contattoNome);
+      const { data: contatti } = await ctx.supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email, phone")
+        .eq("company_id", ctx.companyId)
+        .limit(3000);
+      const matches = (contatti ?? []).filter((c) =>
+        normC(`${c.first_name ?? ""} ${c.last_name ?? ""}`).includes(q) ||
+        (emailArg && (c.email ?? "").toLowerCase() === emailArg));
+      let contactId: string | null = null;
+      let contactLabel = contattoNome;
+      let contattoCreato = false;
+      if (matches.length === 1) {
+        contactId = matches[0].id;
+        contactLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      } else if (matches.length > 1) {
+        return { error: `Più contatti corrispondono a "${contattoNome}": ${matches.slice(0, 6).map((c) => `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() + (c.email ? ` <${c.email}>` : "")).join(", ")}. Specifica meglio (o passa l'email).` };
+      } else {
+        if (!emailArg && !telArg) {
+          return { error: `Nessun contatto CRM trovato con nome simile a "${contattoNome}". Per crearlo al volo ripeti indicando anche telefono o email.` };
+        }
+        // Dedup su email/telefono prima di creare.
+        const dup = (contatti ?? []).find((c) =>
+          (emailArg && (c.email ?? "").toLowerCase() === emailArg) ||
+          (telArg && (c.phone ?? "").replace(/\s/g, "") === telArg.replace(/\s/g, "")));
+        if (dup) {
+          return { error: `Email/telefono già usati dal contatto "${dup.first_name ?? ""} ${dup.last_name ?? ""}". Usa quel nome per l'opportunità.` };
+        }
+        const parts = contattoNome.split(/\s+/);
+        const { data: nuovo, error: cErr } = await ctx.supabase
+          .from("marketing_contacts")
+          .insert({
+            company_id: ctx.companyId,
+            first_name: parts[0],
+            last_name: parts.slice(1).join(" ") || null,
+            email: emailArg || null,
+            phone: telArg || null,
+          })
+          .select("id")
+          .single();
+        if (cErr || !nuovo?.id) return { error: `Creazione contatto fallita: ${cErr?.message ?? "errore sconosciuto"}` };
+        contactId = nuovo.id;
+        contattoCreato = true;
+      }
+
+      // Assegnatario opzionale (team, esclusi clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && normC(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(normC(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun membro del team trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        assignedTo = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      // Stessa scrittura di useCreateOpportunity (status 'open').
+      const { data: opp, error } = await ctx.supabase
+        .from("marketing_opportunities")
+        .insert({
+          company_id: ctx.companyId,
+          contact_id: contactId,
+          pipeline_id: pipeline.id,
+          stage_id: stage.id,
+          name: nome,
+          value: valore,
+          status: "open",
+          source: String(args?.fonte ?? "").trim().slice(0, 100) || null,
+          assigned_to: assignedTo,
+          notes: String(args?.note ?? "").trim().slice(0, 1000) || null,
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (contattoCreato && contactId) {
+          await ctx.supabase.from("marketing_contacts").delete().eq("id", contactId);
+        }
+        return { error: `Creazione opportunità fallita: ${error.message}` };
+      }
+
+      return {
+        opportunita_id: opp.id,
+        nome,
+        contatto: contactLabel + (contattoCreato ? " (contatto creato al volo)" : ""),
+        pipeline: pipeline.name,
+        fase: stage.name,
+        valore: `${valore.toFixed(2)}€`,
+        assegnata_a: assignedName,
+        link: "/azienda/marketing/opportunita",
+        nota: "Opportunità creata nella pipeline (stato: aperta).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "sales",
+  },
+
+  registra_pagamento_fornitore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_pagamento_fornitore",
+        description:
+          "Registra un PAGAMENTO a un fornitore: salda la scadenza dallo scadenzario (anche parzialmente) e scrive " +
+          "l'uscita in Prima Nota, in un colpo solo (stessa procedura dell'app). FLUSSO: identifica fornitore e importo, " +
+          "mostra il riepilogo e chiedi conferma PRIMA di chiamare il tool. Se l'importo non combacia con nessuna scadenza " +
+          "aperta il tool le elenca: puoi indicare scadenza_data, oppure registra_comunque=true per un'uscita libera senza scadenzario.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitore_nome: { type: "string", description: "Nome del fornitore — OBBLIGATORIO" },
+            importo: { type: "number", description: "Importo pagato in EURO — OBBLIGATORIO" },
+            scadenza_data: { type: "string", description: "Data scadenza YYYY-MM-DD della rata da saldare (per disambiguare)" },
+            data_pagamento: { type: "string", description: "Data pagamento YYYY-MM-DD (default oggi)" },
+            metodo: { type: "string", description: "Metodo: bonifico | contanti | assegno | riba | altro (default bonifico)" },
+            registra_comunque: { type: "boolean", description: "true = uscita libera in Prima Nota anche senza scadenza corrispondente" },
+            note: { type: "string" },
+          },
+          required: ["fornitore_nome", "importo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const fornitoreNome = String(args?.fornitore_nome ?? "").trim();
+      if (!fornitoreNome) return { error: "Nome fornitore obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const importo = Math.round(Number(args?.importo) * 100) / 100;
+      if (!Number.isFinite(importo) || importo <= 0 || importo > 10_000_000) return { error: "Importo non valido." };
+      let dataPag = String(args?.data_pagamento ?? "").trim();
+      if (dataPag && !/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) return { error: "Data pagamento non valida: usa YYYY-MM-DD." };
+      if (!dataPag) {
+        try { dataPag = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
+        catch { dataPag = new Date().toISOString().slice(0, 10); }
+      }
+      const scadData = String(args?.scadenza_data ?? "").trim();
+      if (scadData && !/^\d{4}-\d{2}-\d{2}$/.test(scadData)) return { error: "scadenza_data non valida: usa YYYY-MM-DD." };
+      const metodo = (String(args?.metodo ?? "").trim().toLowerCase() || "bonifico").slice(0, 30);
+
+      const { data: forn } = await ctx.supabase
+        .from("suppliers").select("id, name")
+        .eq("company_id", ctx.companyId).ilike("name", `%${fornitoreNome}%`)
+        .limit(6);
+      if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornitoreNome}".` };
+      if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornitoreNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+      const fornitore = forn[0];
+
+      // Scadenze aperte del fornitore.
+      let query = ctx.supabase
+        .from("scadenze")
+        .select("id, description, amount, paid_amount, due_date, status")
+        .eq("company_id", ctx.companyId).eq("supplier_id", fornitore.id)
+        .eq("tipo", "pagamento_fornitore").in("status", ["da_pagare", "parziale"])
+        .order("due_date", { ascending: true });
+      if (scadData) query = query.eq("due_date", scadData);
+      const { data: aperte } = await query.limit(30);
+      const conResiduo = (aperte ?? []).map((s) => ({ ...s, residuo: Math.round((Number(s.amount) - Number(s.paid_amount || 0)) * 100) / 100 }));
+      const match = conResiduo.filter((s) => Math.abs(s.residuo - importo) <= 0.01);
+
+      let scadenza: (typeof conResiduo)[number] | null = null;
+      if (match.length === 1) scadenza = match[0];
+      else if (match.length > 1) {
+        return { error: `Più scadenze aperte di ${fornitore.name} hanno residuo ${importo.toFixed(2)}€: ${match.map((s) => `${s.description} (scad. ${s.due_date})`).join(" · ")}. Indica scadenza_data.` };
+      } else if (scadData && conResiduo.length === 1) {
+        // Data indicata esplicitamente: pagamento (anche parziale) su quella scadenza.
+        scadenza = conResiduo[0];
+        if (importo > scadenza.residuo + 0.01) {
+          return { error: `L'importo ${importo.toFixed(2)}€ supera il residuo ${scadenza.residuo.toFixed(2)}€ della scadenza del ${scadenza.due_date}. Verifica.` };
+        }
+      }
+
+      if (!scadenza && !args?.registra_comunque) {
+        const lista = conResiduo.length
+          ? conResiduo.map((s) => `${s.description}: residuo ${s.residuo.toFixed(2)}€ (scad. ${s.due_date})`).join(" · ")
+          : "(nessuna scadenza aperta per questo fornitore)";
+        return { error: `Nessuna scadenza combacia con ${importo.toFixed(2)}€ per ${fornitore.name}. Aperte: ${lista}. Indica scadenza_data per un pagamento (anche parziale), oppure registra_comunque=true per un'uscita libera.` };
+      }
+
+      const note = [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — ");
+
+      if (scadenza) {
+        // Stessa RPC dell'app (mark_scadenza_paid): scadenza + Prima Nota atomiche.
+        const { data: res, error } = await ctx.supabase.rpc("mark_scadenza_paid", {
+          p_scadenza_id: scadenza.id,
+          p_amount: importo,
+          p_payment_method: metodo,
+          p_payment_date: dataPag,
+          p_notes: note,
+          p_account_label: metodo === "contanti" ? "cassa" : "banca",
+        });
+        if (error) return { error: `Registrazione pagamento fallita: ${error.message}` };
+        const r = res as Record<string, unknown> | null;
+        if (r?.error) return { error: `Registrazione pagamento fallita: ${String(r.error)}` };
+        const saldata = importo >= scadenza.residuo - 0.01;
+        return {
+          fornitore: fornitore.name,
+          scadenza: `${scadenza.description} (scad. ${scadenza.due_date})`,
+          pagato: `${importo.toFixed(2)}€ il ${dataPag} (${metodo})`,
+          esito_scadenza: saldata ? "SALDATA" : `parziale — residuo ${(scadenza.residuo - importo).toFixed(2)}€`,
+          link: "/azienda/prima-nota",
+          nota: "Scadenza aggiornata e uscita registrata in Prima Nota.",
+        };
+      }
+
+      // Uscita libera (nessuna scadenza): anti-doppione + insert diretto in Prima Nota.
+      const { data: dup } = await ctx.supabase
+        .from("prima_nota_entries").select("id")
+        .eq("company_id", ctx.companyId).eq("supplier_id", fornitore.id)
+        .eq("direction", "uscita").eq("entry_date", dataPag).eq("amount", importo)
+        .limit(1).maybeSingle();
+      if (dup?.id) {
+        return { error: `Sembra già registrato: esiste un'uscita di ${importo.toFixed(2)}€ verso ${fornitore.name} in data ${dataPag}. Se è un secondo pagamento reale, cambia data o aggiungi una nota.` };
+      }
+      const { data: pn, error: pnErr } = await ctx.supabase
+        .from("prima_nota_entries")
+        .insert({
+          company_id: ctx.companyId,
+          direction: "uscita",
+          category: "fornitore",
+          description: `Pagamento fornitore ${fornitore.name}`,
+          amount: importo,
+          entry_date: dataPag,
+          payment_method: metodo,
+          supplier_id: fornitore.id,
+          account_label: metodo === "contanti" ? "cassa" : "banca",
+          notes: note,
+          is_auto: false,
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      if (pnErr) return { error: `Registrazione Prima Nota fallita: ${pnErr.message}` };
+
+      return {
+        fornitore: fornitore.name,
+        pagato: `${importo.toFixed(2)}€ il ${dataPag} (${metodo})`,
+        prima_nota_id: pn.id,
+        esito_scadenza: "nessuna scadenza toccata (uscita libera)",
+        link: "/azienda/prima-nota",
+        nota: "Uscita registrata in Prima Nota (eliminabile dalla pagina se serve correggere).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "finance",
+  },
+
+  aggiungi_nota_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiungi_nota_commessa",
+        description:
+          "Aggiunge una NOTA INTERNA al diario di una commessa (visibile al team nel Diario, MAI inviata al cliente). " +
+          "Utile per appunti veloci: 'segna sulla GE-0012 che il cliente vuole le piastrelle grigie'. " +
+          "FLUSSO: conferma commessa e testo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            testo: { type: "string", description: "Testo della nota — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice", "testo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      const testo = String(args?.testo ?? "").trim().slice(0, 2000);
+      if (!codice || !testo) return { error: "Codice commessa e testo obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
+        .limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      const { data: prof } = await ctx.supabase
+        .from("profiles").select("first_name, last_name")
+        .eq("id", ctx.userId).maybeSingle();
+      const senderName = `${prof?.first_name ?? ""} ${prof?.last_name ?? ""}`.trim() || "Utente";
+
+      // Stessa scrittura di send-order-message per nota_interna (nessun invio).
+      const { data: msg, error } = await ctx.supabase
+        .from("order_messages")
+        .insert({
+          order_id: order.id,
+          company_id: ctx.companyId,
+          channel: "nota_interna",
+          direction: "out",
+          to_name: "",
+          body: testo,
+          status: "delivered",
+          sent_by: ctx.userId,
+          sent_by_name: senderName,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Salvataggio nota fallito: ${error.message}` };
+
+      return {
+        nota_id: msg.id,
+        commessa: order.order_code,
+        testo: testo.length > 120 ? testo.slice(0, 120) + "…" : testo,
+        link: `/azienda/ordini/${order.id}`,
+        nota: "Nota interna salvata nel Diario della commessa (non inviata al cliente).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  crea_ticket_assistenza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_ticket_assistenza",
+        description:
+          "Apre un TICKET di assistenza/intervento (es. 'la caldaia dei Rossi non parte, urgente'). " +
+          "Cliente per nome, tipo (supporto/intervento/emergenza), priorità, tecnico assegnato, data prevista, " +
+          "indirizzo e nota iniziale. FLUSSO: conferma col riepilogo prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            oggetto: { type: "string", description: "Oggetto/problema in breve — OBBLIGATORIO" },
+            cliente_nome: { type: "string", description: "Nome del cliente" },
+            tipo: { type: "string", description: "supporto | intervento | emergenza (default intervento)" },
+            priorita: { type: "string", description: "bassa | normale | alta | urgente (default normale)" },
+            descrizione: { type: "string", description: "Descrizione estesa del problema" },
+            commessa_codice: { type: "string", description: "Codice commessa collegata (es. GE-0012)" },
+            assegna_a: { type: "string", description: "Nome del tecnico a cui assegnarlo" },
+            data_prevista: { type: "string", description: "Data intervento prevista YYYY-MM-DD" },
+            ora_prevista: { type: "string", description: "Ora prevista HH:MM (usata solo con data_prevista)" },
+            indirizzo: { type: "string", description: "Indirizzo dell'intervento" },
+          },
+          required: ["oggetto"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const oggetto = String(args?.oggetto ?? "").trim().slice(0, 300);
+      if (!oggetto) return { error: "Oggetto obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const TIPI = ["supporto", "intervento", "emergenza"];
+      const tipo = String(args?.tipo ?? "").trim().toLowerCase() || "intervento";
+      if (!TIPI.includes(tipo)) return { error: `Tipo non valido. Valori: ${TIPI.join(", ")}.` };
+      // Attenzione: la colonna enum è `priority` (bassa/normale/alta/urgente);
+      // la colonna testuale `priorita` usa 'media' al posto di 'normale' → non la scriviamo.
+      const PRIO = ["bassa", "normale", "alta", "urgente"];
+      const priorita = String(args?.priorita ?? "").trim().toLowerCase() || "normale";
+      if (!PRIO.includes(priorita)) return { error: `Priorità non valida. Valori: ${PRIO.join(", ")}.` };
+      const dataPrev = String(args?.data_prevista ?? "").trim();
+      if (dataPrev && !/^\d{4}-\d{2}-\d{2}$/.test(dataPrev)) return { error: "Data prevista non valida: usa YYYY-MM-DD." };
+      const oraPrev = String(args?.ora_prevista ?? "").trim();
+      if (oraPrev && !/^([01]\d|2[0-3]):[0-5]\d$/.test(oraPrev)) return { error: "Ora prevista non valida: usa HH:MM." };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+      // Cliente (opzionale ma consigliato): SOLO chi ha ruolo customer.
+      let customerId: string | null = null;
+      let customerLabel: string | null = null;
+      const clienteNome = String(args?.cliente_nome ?? "").trim();
+      if (clienteNome) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(3000);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const q = norm(clienteNome);
+        const matches = (people ?? []).filter(
+          (p) => customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(q),
+        );
+        if (matches.length === 0) return { error: `Nessun CLIENTE trovato con nome simile a "${clienteNome}". Se è nuovo, crealo prima con crea_cliente.` };
+        if (matches.length > 1) {
+          return { error: `Più clienti corrispondono a "${clienteNome}": ${matches.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        }
+        customerId = matches[0].id;
+        customerLabel = `${matches[0].first_name ?? ""} ${matches[0].last_name ?? ""}`.trim();
+      }
+
+      // Commessa opzionale.
+      let orderId: string | null = null;
+      let orderCode: string | null = null;
+      const commessaCodice = String(args?.commessa_codice ?? "").trim();
+      if (commessaCodice) {
+        const { data: ords } = await ctx.supabase
+          .from("orders").select("id, order_code")
+          .eq("company_id", ctx.companyId).ilike("order_code", `%${commessaCodice}%`).limit(2);
+        if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${commessaCodice}".` };
+        if (ords.length > 1) return { error: `Più commesse corrispondono a "${commessaCodice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+        orderId = ords[0].id;
+        orderCode = ords[0].order_code ?? null;
+      }
+
+      // Tecnico opzionale (team, esclusi clienti).
+      let assignedTo: string | null = null;
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        assignedTo = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      const descrizione = String(args?.descrizione ?? "").trim().slice(0, 2000) || null;
+      const { data: ticket, error } = await ctx.supabase
+        .from("tickets")
+        .insert({
+          company_id: ctx.companyId,
+          customer_id: customerId,
+          order_id: orderId,
+          subject: oggetto,
+          descrizione,
+          tipo,
+          priority: priorita,
+          status: "aperto",
+          fonte: ctx.channel === "whatsapp" ? "campo" : "api",
+          assigned_to: assignedTo,
+          indirizzo_intervento: String(args?.indirizzo ?? "").trim().slice(0, 300) || null,
+          data_intervento_prevista: dataPrev ? new Date(`${dataPrev}T${oraPrev || "09:00"}:00`).toISOString() : null,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Apertura ticket fallita: ${error.message}` };
+
+      // Nota iniziale nel thread (non bloccante: il ticket è già aperto).
+      if (descrizione) {
+        await ctx.supabase.from("ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: ctx.userId,
+          message: descrizione,
+        }).then(undefined, () => undefined);
+      }
+
+      return {
+        ticket_id: ticket.id,
+        oggetto,
+        cliente: customerLabel,
+        tipo,
+        priorita,
+        commessa: orderCode,
+        assegnato_a: assignedName,
+        quando: dataPrev ? `${dataPrev}${oraPrev ? ` ore ${oraPrev}` : ""}` : null,
+        link: `/azienda/assistenza/${ticket.id}`,
+        nota: "Ticket aperto (stato: aperto).",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "support",
+  },
+
+  registra_movimento_magazzino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_movimento_magazzino",
+        description:
+          "Registra un CARICO o uno SCARICO di magazzino su un articolo e aggiorna la giacenza " +
+          "(es. 'scarica 20 sacchi di cemento per il cantiere Rossi'). L'articolo si cerca per nome o codice interno. " +
+          "FLUSSO: mostra articolo, quantità e giacenza risultante, poi chiedi conferma PRIMA di chiamare il tool. " +
+          "Uno scarico oltre la giacenza viene RIFIUTATO (il tool dice quanto c'è davvero).",
+        parameters: {
+          type: "object",
+          properties: {
+            articolo: { type: "string", description: "Nome o codice interno dell'articolo — OBBLIGATORIO" },
+            tipo: { type: "string", description: "carico | scarico — OBBLIGATORIO" },
+            quantita: { type: "number", description: "Quantità movimentata (> 0) — OBBLIGATORIA" },
+            note: { type: "string", description: "Nota (es. cantiere di destinazione, causale)" },
+          },
+          required: ["articolo", "tipo", "quantita"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const articoloQ = String(args?.articolo ?? "").trim();
+      if (!articoloQ) return { error: "Articolo obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      const tipo = String(args?.tipo ?? "").trim().toLowerCase();
+      if (tipo !== "carico" && tipo !== "scarico") return { error: "Tipo non valido: usa 'carico' o 'scarico'." };
+      const quantita = Math.round((Number(args?.quantita) || 0) * 1000) / 1000;
+      if (!Number.isFinite(quantita) || quantita <= 0 || quantita > 1_000_000) return { error: "Quantità non valida (> 0)." };
+
+      // Articolo per nome o codice interno/barcode (company-scoped).
+      // NB: NON si usa .or(`name.ilike.%${q}%,internal_code.ilike...`): lì
+      // l'input finisce dentro la SINTASSI del filtro PostgREST, quindi un nome
+      // con una virgola ("Rete 5x5, maglia stretta") spezza la condizione in due
+      // — risultati sbagliati o query in errore. Con .ilike() il testo viaggia
+      // come VALORE (url-encoded): tre filtri separati, nessuna interpolazione.
+      const cerca = async (colonna: string) => {
+        const { data } = await ctx.supabase
+          .from("warehouse_stock")
+          .select("id, name, quantity, warehouse_id, internal_code, barcode")
+          .eq("company_id", ctx.companyId)
+          .ilike(colonna, `%${articoloQ}%`)
+          .limit(20);
+        return data ?? [];
+      };
+      const perNome = await cerca("name");
+      const trovati = perNome.length > 0
+        ? perNome
+        : [...(await cerca("internal_code")), ...(await cerca("barcode"))]
+            .filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i);
+      const normA = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+      const qArt = normA(articoloQ);
+      if (trovati.length === 0) {
+        return { error: `Nessun articolo di magazzino trovato per "${articoloQ}". Verifica il nome o il codice interno.` };
+      }
+      // Con più corrispondenze, un match ESATTO sul nome vince sulle parziali
+      // (es. "Cemento" quando a magazzino ci sono "Cemento" e "Cemento bianco");
+      // se resta ambiguo si elencano invece di indovinare.
+      const esatti = trovati.filter((a) => normA(a.name ?? "") === qArt);
+      const art = trovati.length === 1 ? trovati[0] : (esatti.length === 1 ? esatti[0] : null);
+      if (!art) {
+        return { error: `Più articoli corrispondono a "${articoloQ}": ${trovati.slice(0, 8).map((a) => `${a.name}${a.internal_code ? ` [${a.internal_code}]` : ""}`).join(", ")}. Specifica meglio.` };
+      }
+      const giacenza = Number(art.quantity) || 0;
+
+      // Guard: mai giacenza negativa. La UI clampa a 0 in silenzio; da chat è
+      // meglio bloccare e dire quanto c'è davvero (un errore di dettatura
+      // altrimenti falsifica il magazzino senza che nessuno se ne accorga).
+      if (tipo === "scarico" && quantita > giacenza + 0.0001) {
+        return { error: `Scarico impossibile: di "${art.name}" ci sono ${giacenza} in giacenza, ne hai chiesti ${quantita}. Registra al massimo ${giacenza}, oppure fai prima un carico.` };
+      }
+      const nuovaGiacenza = Math.round((tipo === "carico" ? giacenza + quantita : giacenza - quantita) * 1000) / 1000;
+
+      // 1) Movimento (movement_type validato dal trigger validate_movement_type).
+      const { data: mov, error: movErr } = await ctx.supabase
+        .from("warehouse_movements")
+        .insert({
+          stock_item_id: art.id,
+          movement_type: tipo,
+          quantity: quantita,
+          notes: [String(args?.note ?? "").trim() || null, "Registrato via Silvio"].filter(Boolean).join(" — "),
+          performed_by: ctx.userId,
+          warehouse_id: art.warehouse_id ?? null,
+        })
+        .select("id")
+        .single();
+      if (movErr) return { error: `Registrazione movimento fallita: ${movErr.message}` };
+
+      // 2) Giacenza: NESSUN trigger la aggiorna (verificato su prod) → tocca a noi.
+      //    Update OTTIMISTICO: `.eq("quantity", giacenza)` fa passare la scrittura
+      //    solo se nel frattempo nessun altro ha movimentato l'articolo. Senza
+      //    questa condizione due movimenti concorrenti (chat + app, o due operai
+      //    su WhatsApp) si sovrascriverebbero a vicenda e la giacenza finirebbe
+      //    sbagliata in silenzio — il classico lost update del read-modify-write.
+      const { data: updated, error: updErr } = await ctx.supabase
+        .from("warehouse_stock")
+        .update({ quantity: nuovaGiacenza })
+        .eq("id", art.id)
+        .eq("company_id", ctx.companyId)
+        .eq("quantity", giacenza)
+        .select("id");
+      if (updErr || !updated || updated.length === 0) {
+        // Rollback del movimento: senza l'update sarebbe una riga fantasma che
+        // non corrisponde alla giacenza reale.
+        await ctx.supabase.from("warehouse_movements").delete().eq("id", mov.id);
+        if (updErr) return { error: `Aggiornamento giacenza fallito (movimento annullato): ${updErr.message}` };
+        return { error: `La giacenza di "${art.name}" è cambiata mentre registravo il movimento (qualcun altro l'ha appena movimentata). Nessuna modifica salvata: ricontrolla la giacenza attuale e ripeti.` };
+      }
+
+      return {
+        movimento_id: mov.id,
+        articolo: art.name,
+        movimento: `${tipo} di ${quantita}`,
+        giacenza_prima: giacenza,
+        giacenza_dopo: nuovaGiacenza,
+        link: "/azienda/magazzino",
+        nota: `Movimento registrato: giacenza di "${art.name}" ora ${nuovaGiacenza}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "warehouse",
+  },
+
+  aggiorna_opportunita: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_opportunita",
+        description:
+          "Aggiorna un'OPPORTUNITÀ esistente: la sposta di fase nella pipeline oppure la chiude come VINTA/PERSA " +
+          "(es. 'la Rossi l'abbiamo vinta', 'sposta la Bianchi in Trattativa'). Può aggiornare anche il valore. " +
+          "FLUSSO: mostra il riepilogo (da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: segnare VINTA invia l'evento di conversione a Meta/Google Ads e può innescare automazioni.",
+        parameters: {
+          type: "object",
+          properties: {
+            opportunita_nome: { type: "string", description: "Nome dell'opportunità (o del cliente) — OBBLIGATORIO" },
+            esito: { type: "string", description: "vinta | persa | abbandonata | riapri (in alternativa a fase_nome)" },
+            fase_nome: { type: "string", description: "Nome della fase in cui spostarla" },
+            motivo: { type: "string", description: "Motivo della perdita (solo per esito=persa)" },
+            valore: { type: "number", description: "Nuovo valore in EURO (opzionale)" },
+          },
+          required: ["opportunita_nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nomeQ = String(args?.opportunita_nome ?? "").trim();
+      if (!nomeQ) return { error: "Nome opportunità obbligatorio." };
+      const esitoArg = String(args?.esito ?? "").trim().toLowerCase();
+      const faseArg = String(args?.fase_nome ?? "").trim();
+      const valoreArg = args?.valore == null ? null : Math.round(Number(args.valore) * 100) / 100;
+      if (valoreArg != null && (!Number.isFinite(valoreArg) || valoreArg < 0 || valoreArg > 100_000_000)) {
+        return { error: "Valore non valido." };
+      }
+      if (!esitoArg && !faseArg && valoreArg == null) {
+        return { error: "Indica almeno cosa cambiare: esito (vinta/persa/abbandonata/riapri), fase_nome oppure valore." };
+      }
+      const ESITI: Record<string, string> = { vinta: "won", persa: "lost", abbandonata: "abandoned", riapri: "open" };
+      if (esitoArg && !ESITI[esitoArg]) {
+        return { error: `Esito non valido. Valori: ${Object.keys(ESITI).join(", ")}.` };
+      }
+
+      // Opportunità per nome (o per nome del contatto collegato).
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const q = norm(nomeQ);
+      const { data: opps } = await ctx.supabase
+        .from("marketing_opportunities")
+        .select("id, name, value, status, stage_id, pipeline_id, contact_id, marketing_contacts(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .limit(2000);
+      const candidate = (opps ?? []).filter((o) => {
+        const c = o.marketing_contacts as { first_name?: string; last_name?: string } | null;
+        return norm(o.name ?? "").includes(q) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(q);
+      });
+      // Se il nome combacia con più opportunità, preferisci quelle ancora aperte.
+      const aperte = candidate.filter((o) => o.status === "open");
+      const pool = aperte.length > 0 && candidate.length > 1 ? aperte : candidate;
+      if (pool.length === 0) return { error: `Nessuna opportunità trovata con nome simile a "${nomeQ}".` };
+      if (pool.length > 1) {
+        return { error: `Più opportunità corrispondono a "${nomeQ}": ${pool.slice(0, 6).map((o) => `${o.name} (${o.status})`).join(", ")}. Specifica meglio.` };
+      }
+      const opp = pool[0];
+
+      const { data: stages } = await ctx.supabase
+        .from("marketing_pipeline_stages")
+        .select("id, name, position, auto_status")
+        .eq("pipeline_id", opp.pipeline_id)
+        .order("position", { ascending: true });
+      const fasePrima = (stages ?? []).find((s) => s.id === opp.stage_id)?.name ?? "(nessuna)";
+
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      let faseDopo: string | null = null;
+      let statusDopo: string | null = null;
+
+      if (faseArg) {
+        const sm = (stages ?? []).filter((s) => norm(s.name ?? "").includes(norm(faseArg)));
+        if (sm.length === 0) return { error: `Nessuna fase si chiama "${faseArg}" in questa pipeline. Fasi: ${(stages ?? []).map((s) => s.name).join(", ")}.` };
+        if (sm.length > 1) return { error: `Più fasi corrispondono a "${faseArg}": ${sm.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        update.stage_id = sm[0].id;
+        faseDopo = sm[0].name;
+        // Come useUpdateOpportunityStage: la fase può forzare lo stato.
+        if (sm[0].auto_status) {
+          update.status = sm[0].auto_status;
+          statusDopo = sm[0].auto_status;
+        }
+      }
+
+      if (esitoArg) {
+        const nuovoStatus = ESITI[esitoArg];
+        if (opp.status === nuovoStatus && !faseArg && valoreArg == null) {
+          return { error: `L'opportunità "${opp.name}" è GIÀ in stato "${nuovoStatus}". Nessuna modifica.` };
+        }
+        update.status = nuovoStatus;
+        statusDopo = nuovoStatus;
+        if (nuovoStatus === "lost") {
+          const motivo = String(args?.motivo ?? "").trim().slice(0, 500);
+          if (motivo) update.lost_reason = motivo;
+        }
+        // Allinea anche la colonna del kanban, se esiste una fase per quello stato:
+        // altrimenti la card resterebbe in una colonna incoerente col suo esito.
+        if (!faseArg) {
+          const stageEsito = (stages ?? []).find((s) => s.auto_status === nuovoStatus);
+          if (stageEsito) {
+            update.stage_id = stageEsito.id;
+            faseDopo = stageEsito.name;
+          }
+        }
+      }
+
+      if (valoreArg != null) update.value = valoreArg;
+
+      const { error } = await ctx.supabase
+        .from("marketing_opportunities")
+        .update(update)
+        .eq("id", opp.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento opportunità fallito: ${error.message}` };
+
+      return {
+        opportunita_id: opp.id,
+        opportunita: opp.name,
+        fase: faseDopo ? `${fasePrima} → ${faseDopo}` : fasePrima,
+        stato: statusDopo ? `${opp.status} → ${statusDopo}` : opp.status,
+        valore: valoreArg != null ? `${Number(opp.value ?? 0).toFixed(2)}€ → ${valoreArg.toFixed(2)}€` : `${Number(opp.value ?? 0).toFixed(2)}€`,
+        link: "/azienda/marketing/opportunita",
+        nota: statusDopo === "won"
+          ? "Opportunità segnata VINTA (evento di conversione inviato a Meta/Google se le integrazioni sono attive)."
+          : "Opportunità aggiornata.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "sales",
+  },
+
+  aggiorna_stato_preventivo: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_preventivo",
+        description:
+          "Aggiorna lo STATO di un preventivo (es. 'il preventivo OFF-2026-012 è stato accettato', 'i Rossi hanno rifiutato'). " +
+          "Il preventivo si identifica per numero o per nome cliente. " +
+          "FLUSSO: mostra il riepilogo (numero, cliente, importo, da → a) e chiedi conferma PRIMA di chiamare il tool. " +
+          "ATTENZIONE: il cambio stato può innescare automazioni e ricalcola il valore dell'opportunità collegata.",
+        parameters: {
+          type: "object",
+          properties: {
+            preventivo: { type: "string", description: "Numero preventivo (es. OFF-2026-012) o nome del cliente — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "accettato | rifiutato | inviato | visto | scaduto | bozza — OBBLIGATORIO" },
+          },
+          required: ["preventivo", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const q = String(args?.preventivo ?? "").trim();
+      const nuovoStato = String(args?.nuovo_stato ?? "").trim().toLowerCase();
+      if (!q || !nuovoStato) return { error: "Preventivo e nuovo stato obbligatori." };
+      // 'firmato' è escluso di proposito: lo imposta il flusso di firma elettronica.
+      const STATI = ["bozza", "inviato", "visto", "accettato", "rifiutato", "scaduto"];
+      if (!STATI.includes(nuovoStato)) {
+        return { error: `Stato non valido. Valori: ${STATI.join(", ")}. ('firmato' lo imposta solo la firma elettronica.)` };
+      }
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: quotes } = await ctx.supabase
+        .from("quotes")
+        .select("id, quote_number, status, total, contact_id, marketing_contacts(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      const qn = norm(q);
+      const candidate = (quotes ?? []).filter((qt) => {
+        const c = qt.marketing_contacts as { first_name?: string; last_name?: string } | null;
+        return norm(qt.quote_number ?? "").includes(qn) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
+      });
+      // Nome cliente ambiguo → preferisci i preventivi ancora "vivi".
+      const vivi = candidate.filter((qt) => !["accettato", "rifiutato", "scaduto", "firmato"].includes(qt.status ?? ""));
+      const pool = vivi.length > 0 && candidate.length > 1 ? vivi : candidate;
+      if (pool.length === 0) return { error: `Nessun preventivo trovato per "${q}".` };
+      if (pool.length > 1) {
+        return { error: `Più preventivi corrispondono a "${q}": ${pool.slice(0, 6).map((qt) => `${qt.quote_number} (${qt.status}, ${Number(qt.total ?? 0).toFixed(2)}€)`).join(" · ")}. Indica il numero esatto.` };
+      }
+      const quote = pool[0];
+      if (quote.status === nuovoStato) {
+        return { error: `Il preventivo ${quote.quote_number} è GIÀ in stato "${nuovoStato}". Nessuna modifica.` };
+      }
+      if (quote.status === "firmato") {
+        return { error: `Il preventivo ${quote.quote_number} è FIRMATO elettronicamente: lo stato non va cambiato da qui.` };
+      }
+
+      const { error } = await ctx.supabase
+        .from("quotes")
+        .update({ status: nuovoStato })
+        .eq("id", quote.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento stato preventivo fallito: ${error.message}` };
+
+      const c = quote.marketing_contacts as { first_name?: string; last_name?: string } | null;
+      return {
+        preventivo_id: quote.id,
+        preventivo: quote.quote_number,
+        cliente: `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || null,
+        importo: `${Number(quote.total ?? 0).toFixed(2)}€`,
+        stato: `${quote.status} → ${nuovoStato}`,
+        link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
+        nota: nuovoStato === "accettato"
+          ? "Preventivo ACCETTATO. Se serve, ora puoi trasformarlo in commessa dalla pagina del preventivo."
+          : "Stato del preventivo aggiornato.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "preventivi",
+  },
+
+  completa_task: {
+    schema: {
+      type: "function",
+      function: {
+        name: "completa_task",
+        description:
+          "Segna un'ATTIVITÀ come completata (o la rimette in corso / da fare). " +
+          "Es. 'ho chiamato il geometra, segna fatto'. L'attività si cerca per titolo. " +
+          "Se più attività combaciano, il tool le elenca invece di indovinare.",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Titolo (anche parziale) dell'attività — OBBLIGATORIO" },
+            stato: { type: "string", description: "completata | in_corso | da_fare (default completata)" },
+          },
+          required: ["titolo"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const titoloQ = String(args?.titolo ?? "").trim();
+      if (!titoloQ) return { error: "Titolo obbligatorio." };
+      const STATI = ["completata", "in_corso", "da_fare"];
+      const stato = String(args?.stato ?? "").trim().toLowerCase() || "completata";
+      if (!STATI.includes(stato)) return { error: `Stato non valido. Valori: ${STATI.join(", ")}.` };
+
+      const { data: tasks } = await ctx.supabase
+        .from("tasks")
+        .select("id, title, status, due_date, assigned_to")
+        .eq("company_id", ctx.companyId)
+        .ilike("title", `%${titoloQ}%`)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (!tasks || tasks.length === 0) return { error: `Nessuna attività trovata con titolo simile a "${titoloQ}".` };
+      // Titolo ambiguo → preferisci quelle ancora aperte (il gesto è "segna fatto").
+      const aperte = tasks.filter((t) => t.status !== "completata");
+      const pool = stato !== "completata" ? tasks : (aperte.length > 0 ? aperte : tasks);
+      if (pool.length > 1) {
+        return { error: `Più attività corrispondono a "${titoloQ}": ${pool.slice(0, 6).map((t) => `"${t.title}" (${t.status}${t.due_date ? `, scad. ${t.due_date}` : ""})`).join(" · ")}. Specifica meglio il titolo.` };
+      }
+      const task = pool[0];
+      if (task.status === stato) {
+        return { error: `L'attività "${task.title}" è GIÀ in stato "${stato}". Nessuna modifica.` };
+      }
+
+      const { error } = await ctx.supabase
+        .from("tasks")
+        .update({
+          status: stato,
+          // completed_at si valorizza solo a completamento e si azzera se riaperta
+          // (come fa la UI in LinkedTasks): altrimenti resterebbe una data di
+          // completamento su un'attività di nuovo aperta.
+          completed_at: stato === "completata" ? new Date().toISOString() : null,
+        })
+        .eq("id", task.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento attività fallito: ${error.message}` };
+
+      return {
+        task_id: task.id,
+        attivita: task.title,
+        stato: `${task.status} → ${stato}`,
+        link: "/azienda/attivita",
+        nota: stato === "completata" ? "Attività completata." : `Attività rimessa in stato "${stato}".`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "operations",
+  },
+
+  aggiorna_stato_ticket: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_stato_ticket",
+        description:
+          "Aggiorna un TICKET di assistenza: lo prende in carico (in_lavorazione) o lo chiude (risolto), " +
+          "con una nota opzionale sul thread. Es. 'la caldaia dei Rossi è a posto, chiudi il ticket'. " +
+          "Il ticket si cerca per oggetto o per nome cliente; se ne combaciano più d'uno il tool li elenca.",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket: { type: "string", description: "Oggetto del ticket o nome del cliente — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "aperto | in_lavorazione | risolto — OBBLIGATORIO" },
+            nota: { type: "string", description: "Nota da aggiungere al thread del ticket (es. cosa è stato fatto)" },
+            assegna_a: { type: "string", description: "Nome del tecnico a cui assegnarlo/riassegnarlo" },
+          },
+          required: ["ticket", "nuovo_stato"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const q = String(args?.ticket ?? "").trim();
+      const nuovoStato = String(args?.nuovo_stato ?? "").trim().toLowerCase();
+      if (!q || !nuovoStato) return { error: "Ticket e nuovo stato obbligatori." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+      // enum ticket_status del DB.
+      const STATI = ["aperto", "in_lavorazione", "risolto"];
+      if (!STATI.includes(nuovoStato)) return { error: `Stato non valido. Valori: ${STATI.join(", ")}.` };
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const { data: tickets } = await ctx.supabase
+        .from("tickets")
+        .select("id, subject, status, customer_id, created_at, profiles:customer_id(first_name, last_name)")
+        .eq("company_id", ctx.companyId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const qn = norm(q);
+      const candidate = (tickets ?? []).filter((t) => {
+        const c = t.profiles as { first_name?: string; last_name?: string } | null;
+        return norm(t.subject ?? "").includes(qn) ||
+          norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
+      });
+      // Nome cliente ambiguo → preferisci i ticket ancora da chiudere.
+      const aperti = candidate.filter((t) => t.status !== "risolto");
+      const pool = nuovoStato === "risolto" && aperti.length > 0 && candidate.length > 1 ? aperti : candidate;
+      if (pool.length === 0) return { error: `Nessun ticket trovato per "${q}".` };
+      if (pool.length > 1) {
+        return { error: `Più ticket corrispondono a "${q}": ${pool.slice(0, 6).map((t) => `"${t.subject}" (${t.status})`).join(" · ")}. Specifica meglio.` };
+      }
+      const ticket = pool[0];
+      const nota = String(args?.nota ?? "").trim().slice(0, 2000);
+      if (ticket.status === nuovoStato && !nota && !args?.assegna_a) {
+        return { error: `Il ticket "${ticket.subject}" è GIÀ in stato "${nuovoStato}". Nessuna modifica.` };
+      }
+
+      // Riassegnazione opzionale (team, esclusi clienti).
+      const update: Record<string, unknown> = { status: nuovoStato };
+      let assignedName: string | null = null;
+      const assegnaA = String(args?.assegna_a ?? "").trim();
+      if (assegnaA) {
+        const { data: people } = await ctx.supabase
+          .from("profiles").select("id, first_name, last_name")
+          .eq("company_id", ctx.companyId).limit(300);
+        const ids = (people ?? []).map((p) => p.id);
+        const customerIds = new Set<string>();
+        if (ids.length > 0) {
+          const { data: roles } = await ctx.supabase
+            .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          for (const r of roles ?? []) customerIds.add(r.user_id);
+        }
+        const pm = (people ?? []).filter(
+          (p) => !customerIds.has(p.id) && norm(`${p.first_name ?? ""} ${p.last_name ?? ""}`).includes(norm(assegnaA)),
+        );
+        if (pm.length === 0) return { error: `Nessun tecnico trovato con nome simile a "${assegnaA}".` };
+        if (pm.length > 1) return { error: `Più persone corrispondono a "${assegnaA}": ${pm.slice(0, 5).map((p) => `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()).join(", ")}. Specifica meglio.` };
+        update.assigned_to = pm[0].id;
+        assignedName = `${pm[0].first_name ?? ""} ${pm[0].last_name ?? ""}`.trim();
+      }
+
+      const { error } = await ctx.supabase
+        .from("tickets")
+        .update(update)
+        .eq("id", ticket.id)
+        .eq("company_id", ctx.companyId);
+      if (error) return { error: `Aggiornamento ticket fallito: ${error.message}` };
+
+      // Nota sul thread (non bloccante: lo stato è già cambiato).
+      let notaSalvata = false;
+      if (nota) {
+        const { error: msgErr } = await ctx.supabase.from("ticket_messages").insert({
+          ticket_id: ticket.id,
+          sender_id: ctx.userId,
+          message: nota,
+        });
+        notaSalvata = !msgErr;
+      }
+
+      const c = ticket.profiles as { first_name?: string; last_name?: string } | null;
+      return {
+        ticket_id: ticket.id,
+        ticket: ticket.subject,
+        cliente: `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || null,
+        stato: `${ticket.status} → ${nuovoStato}`,
+        assegnato_a: assignedName,
+        nota_aggiunta: nota ? (notaSalvata ? "sì" : "NO (stato aggiornato lo stesso)") : null,
+        link: `/azienda/assistenza/${ticket.id}`,
+        nota: nuovoStato === "risolto" ? "Ticket chiuso." : "Ticket aggiornato.",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "support",
+  },
+
+  crea_articolo_magazzino: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_articolo_magazzino",
+        description:
+          "Crea un nuovo ARTICOLO a magazzino (anagrafica + giacenza iniziale). " +
+          "Serve quando un materiale non è ancora in magazzino: per movimentare un articolo che esiste già " +
+          "si usa invece registra_movimento_magazzino. " +
+          "FLUSSO: mostra nome, quantità iniziale, costo e scorta minima, poi chiedi conferma PRIMA di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome dell'articolo — OBBLIGATORIO" },
+            quantita_iniziale: { type: "number", description: "Giacenza iniziale (default 0)" },
+            costo_unitario: { type: "number", description: "Costo unitario in EURO (default 0)" },
+            iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+            scorta_minima: { type: "number", description: "Soglia sotto la quale segnalare il riordino (default 0)" },
+            codice_interno: { type: "string", description: "Codice interno/SKU" },
+            fornitore_nome: { type: "string", description: "Nome del fornitore abituale" },
+            magazzino_nome: { type: "string", description: "Nome del magazzino (default: quello predefinito)" },
+            descrizione: { type: "string" },
+          },
+          required: ["nome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const nome = String(args?.nome ?? "").trim().slice(0, 200);
+      if (!nome) return { error: "Nome articolo obbligatorio." };
+      const qta = Math.max(Math.round((Number(args?.quantita_iniziale) || 0) * 1000) / 1000, 0);
+      const costo = Math.max(Math.round((Number(args?.costo_unitario) || 0) * 100) / 100, 0);
+      if (costo > 1_000_000) return { error: "Costo unitario non plausibile." };
+      const iva = Number.isFinite(Number(args?.iva)) ? Math.min(Math.max(Number(args.iva), 0), 22) : 22;
+      const scorta = Math.max(Math.round((Number(args?.scorta_minima) || 0) * 1000) / 1000, 0);
+      const codice = String(args?.codice_interno ?? "").trim().slice(0, 60) || null;
+
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+      // Anti-duplicato: stesso nome (o stesso codice interno) già a magazzino.
+      const { data: esistenti } = await ctx.supabase
+        .from("warehouse_stock").select("id, name, quantity, internal_code")
+        .eq("company_id", ctx.companyId).limit(3000);
+      const dupNome = (esistenti ?? []).find((a) => norm(a.name ?? "") === norm(nome));
+      if (dupNome) {
+        return { error: `"${dupNome.name}" è GIÀ a magazzino (giacenza ${dupNome.quantity}). Per caricarne altri usa registra_movimento_magazzino.` };
+      }
+      if (codice) {
+        const dupCod = (esistenti ?? []).find((a) => (a.internal_code ?? "").toLowerCase() === codice.toLowerCase());
+        if (dupCod) return { error: `Il codice interno "${codice}" è già usato dall'articolo "${dupCod.name}".` };
+      }
+
+      // Magazzino: per nome, altrimenti il predefinito (come resolveWarehouseId della UI).
+      const { data: magazzini } = await ctx.supabase
+        .from("warehouses").select("id, name, is_default")
+        .eq("company_id", ctx.companyId).eq("is_active", true)
+        .order("position", { ascending: true });
+      let warehouseId: string | null = null;
+      let warehouseName: string | null = null;
+      const magNome = String(args?.magazzino_nome ?? "").trim();
+      if (magNome) {
+        const mm = (magazzini ?? []).filter((w) => norm(w.name ?? "").includes(norm(magNome)));
+        if (mm.length === 0) return { error: `Nessun magazzino trovato con nome simile a "${magNome}". Disponibili: ${(magazzini ?? []).map((w) => w.name).join(", ") || "(nessuno)"}.` };
+        if (mm.length > 1) return { error: `Più magazzini corrispondono a "${magNome}": ${mm.map((w) => w.name).join(", ")}. Specifica meglio.` };
+        warehouseId = mm[0].id;
+        warehouseName = mm[0].name;
+      } else {
+        const def = (magazzini ?? []).find((w) => w.is_default) ?? (magazzini ?? [])[0];
+        warehouseId = def?.id ?? null;
+        warehouseName = def?.name ?? null;
+      }
+
+      // Fornitore abituale opzionale.
+      let supplierId: string | null = null;
+      let supplierName: string | null = null;
+      const fornNome = String(args?.fornitore_nome ?? "").trim();
+      if (fornNome) {
+        const { data: forn } = await ctx.supabase
+          .from("suppliers").select("id, name")
+          .eq("company_id", ctx.companyId).ilike("name", `%${fornNome}%`).limit(6);
+        if (!forn || forn.length === 0) return { error: `Nessun fornitore trovato con nome simile a "${fornNome}".` };
+        if (forn.length > 1) return { error: `Più fornitori corrispondono a "${fornNome}": ${forn.map((s) => s.name).join(", ")}. Specifica meglio.` };
+        supplierId = forn[0].id;
+        supplierName = forn[0].name;
+      }
+
+      const { data: art, error } = await ctx.supabase
+        .from("warehouse_stock")
+        .insert({
+          company_id: ctx.companyId,
+          warehouse_id: warehouseId,
+          name: nome,
+          description: String(args?.descrizione ?? "").trim().slice(0, 1000) || null,
+          quantity: qta,
+          unit_cost: costo,
+          vat_rate: iva,
+          min_stock_level: scorta,
+          internal_code: codice,
+          supplier_id: supplierId,
+        })
+        .select("id")
+        .single();
+      if (error) return { error: `Creazione articolo fallita: ${error.message}` };
+
+      return {
+        articolo_id: art.id,
+        articolo: nome,
+        giacenza_iniziale: qta,
+        costo_unitario: `${costo.toFixed(2)}€`,
+        scorta_minima: scorta,
+        magazzino: warehouseName,
+        fornitore: supplierName,
+        codice_interno: codice,
+        link: "/azienda/magazzino",
+        nota: "Articolo creato a magazzino." + (qta > 0 ? " La giacenza iniziale è impostata (nessun movimento di carico registrato)." : ""),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "yellow",
+    domain: "warehouse",
+  },
+
+  carica_documento_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "carica_documento_cantiere",
+        description:
+          "Archivia un file ALLEGATO ALLA CHAT tra i documenti di una commessa (foto cantiere, disegni, permessi, " +
+          "verbali...). Funziona SOLO se l'utente ha allegato il file al messaggio: se non ci sono allegati il tool " +
+          "lo dice. Se ci sono più allegati, indica quale con nome_file. Il documento resta INTERNO salvo " +
+          "visibile_al_cliente=true. FLUSSO: conferma commessa e file prima di chiamare il tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            nome_file: { type: "string", description: "Nome (anche parziale) dell'allegato da archiviare, se ce n'è più d'uno" },
+            visibile_al_cliente: { type: "boolean", description: "true = visibile anche al cliente nel portale (default false)" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+      if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
+
+      const allegati = ctx.attachments ?? [];
+      if (allegati.length === 0) {
+        return { error: "Nessun file allegato a questo messaggio. Allega il documento (foto o PDF) e ripeti la richiesta." };
+      }
+      // Selezione dell'allegato: uno solo → quello; altrimenti serve nome_file.
+      const nomeQ = String(args?.nome_file ?? "").trim().toLowerCase();
+      let scelto = allegati[0];
+      if (allegati.length > 1) {
+        if (!nomeQ) {
+          return { error: `Ci sono ${allegati.length} allegati: ${allegati.map((a) => a.file_name).join(", ")}. Indica quale archiviare con nome_file.` };
+        }
+        const match = allegati.filter((a) => a.file_name.toLowerCase().includes(nomeQ));
+        if (match.length === 0) return { error: `Nessun allegato si chiama "${args?.nome_file}". Allegati: ${allegati.map((a) => a.file_name).join(", ")}.` };
+        if (match.length > 1) return { error: `Più allegati corrispondono a "${args?.nome_file}": ${match.map((a) => a.file_name).join(", ")}. Specifica meglio.` };
+        scelto = match[0];
+      } else if (nomeQ && !scelto.file_name.toLowerCase().includes(nomeQ)) {
+        return { error: `L'unico allegato è "${scelto.file_name}", non corrisponde a "${args?.nome_file}".` };
+      }
+
+      const { data: ords } = await ctx.supabase
+        .from("orders").select("id, order_code")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+
+      // 1) Scarica dal bucket della chat (path già validato da silvio-chat
+      //    con isAuthorizedSilvioUploadPath: azienda/utente corretti).
+      const { data: blob, error: dlErr } = await ctx.supabase.storage
+        .from("silvio-uploads")
+        .download(scelto.storage_path);
+      if (dlErr || !blob) return { error: `Impossibile leggere l'allegato: ${dlErr?.message ?? "file non trovato"}` };
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      if (bytes.byteLength === 0) return { error: "L'allegato risulta vuoto." };
+
+      // 2) Copia nel bucket dei documenti commessa (stessa convenzione della UI:
+      //    file_url = path RELATIVO, il bucket è privato e si firma alla lettura).
+      const safeName = scelto.file_name.replace(/[^\w.\-]+/g, "_").slice(0, 120) || "documento";
+      const destPath = `${order.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: upErr } = await ctx.supabase.storage
+        .from("order-attachments")
+        .upload(destPath, bytes, { contentType: scelto.mime_type || "application/octet-stream", upsert: false });
+      if (upErr) return { error: `Archiviazione file fallita: ${upErr.message}` };
+
+      // 3) Riga in anagrafica documenti (stesso payload di OrderAttachments).
+      const { data: row, error: dbErr } = await ctx.supabase
+        .from("order_attachments")
+        .insert({
+          order_id: order.id,
+          file_name: scelto.file_name.slice(0, 200),
+          file_url: destPath,
+          file_type: scelto.mime_type || "application/octet-stream",
+          file_size: bytes.byteLength,
+          uploaded_by: ctx.userId,
+          visible_to_customer: args?.visibile_al_cliente === true,
+        })
+        .select("id")
+        .single();
+      if (dbErr) {
+        // Senza la riga il file sarebbe orfano nel bucket: lo rimuoviamo.
+        await ctx.supabase.storage.from("order-attachments").remove([destPath]);
+        return { error: `Registrazione documento fallita (file rimosso): ${dbErr.message}` };
+      }
+
+      return {
+        documento_id: row.id,
+        file: scelto.file_name,
+        dimensione: `${Math.round(bytes.byteLength / 1024)} KB`,
+        commessa: order.order_code,
+        visibile_al_cliente: args?.visibile_al_cliente === true,
+        link: `/azienda/ordini/${order.id}`,
+        nota: `Documento archiviato nella commessa ${order.order_code}${args?.visibile_al_cliente === true ? " (visibile anche al cliente)" : " (uso interno)"}.`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    // Solo i canali che sanno allegare file al messaggio.
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
   // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
   // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
   // bozza email_ddt_carico) che il titolare conferma nel pannello "DDT da
@@ -3648,7 +7073,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
-    riskLevel: "safe",
+    // Registrare una fattura passiva crea un DEBITO verso il fornitore (e la
+    // relativa scadenza): è un'operazione economica, quindi riepilogo +
+    // conferma dell'utente prima di scrivere. Nessuna automazione la invoca.
+    riskLevel: "yellow",
     domain: "fattura",
   },
 
@@ -5262,6 +8690,48 @@ export function domainsForClassification(opts: {
 export const DEFAULT_TOOL_ALLOWED_ROLES = ["super_admin", "company_admin"];
 
 /**
+ * RBAC granulare per-utente (MVP 2026-07-31): dominio tool → permesso
+ * `staff_permissions.can_view_*` che ne gata la visibilità per i ruoli staff.
+ * Colma il gap "Silvio guarda solo il ruolo, mai i permessi per-utente":
+ * un operatore a cui l'admin ha tolto la finanza non deve poter chiedere
+ * l'EBITDA a Silvio. Semantica ADDITIVO-RESTRITTIVA e fail-open sui buchi:
+ *  - si applica SOLO se il chiamante passa `staffPermissions` (tipicamente
+ *    per primaryRole='company_staff'; gli admin non la passano);
+ *  - esclude un tool SOLO se il permesso mappato è ESPLICITAMENTE false;
+ *  - domini non mappati (ai, meta, knowledge, generative, anomalie, email,
+ *    filiera, titolare) restano invariati.
+ */
+export const DOMAIN_STAFF_PERMISSION: Partial<Record<ToolDomain, string>> = {
+  kpi: "can_view_financial_reports",
+  finance: "can_view_financial_reports",
+  banking: "can_view_tesoreria",
+  fattura: "can_view_billing",
+  cantiere: "can_view_orders",
+  operations: "can_view_orders",
+  warehouse: "can_view_warehouse",
+  crm: "can_view_marketing",
+  marketing: "can_view_marketing",
+  sales: "can_view_marketing_opportunities",
+  preventivi: "can_view_preventivi",
+  hr: "can_view_employees",
+  calendar: "can_view_calendar",
+  compliance: "can_view_sicurezza_cantiere",
+  support: "can_view_tickets",
+  // Domini aggiunti dopo l'audit permessi: erano scoperti, quindi uno staff
+  // con l'area disabilitata vedeva comunque questi tool.
+  //  · filiera  = fornitori, listini, DDT, ordini fornitore → area magazzino
+  //  · anomalie = scostamenti e allerte su costi/margini → area finanziaria
+  //  · email    = posta aziendale (contenuti dei clienti) → area marketing/email
+  filiera: "can_view_warehouse",
+  anomalie: "can_view_financial_reports",
+  email: "can_view_marketing_email",
+  // Restano volutamente SENZA gate per-dominio (non espongono dati di
+  // business riservati): `ai` (approvazioni/undo, già red+admin), `meta`
+  // (promemoria personali), `knowledge` (KB interna), `generative` (bozze
+  // creative che non leggono dati sensibili).
+};
+
+/**
  * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
  * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
  * telegram-bot-processor, internal-agent-tools (voice).
@@ -5281,6 +8751,9 @@ export function getToolsForChannel(opts: {
   personaKey?: string;
   domain?: ToolDomain;
   domains?: ToolDomain[] | null;
+  /** RBAC granulare per-utente (vedi DOMAIN_STAFF_PERMISSION): riga
+   *  staff_permissions dell'utente. Se assente/null → nessun filtro extra. */
+  staffPermissions?: Record<string, unknown> | null;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
@@ -5303,6 +8776,12 @@ export function getToolsForChannel(opts: {
     if (opts.domain && tool.domain !== opts.domain) continue;
     // Domain-set filter (token-opt): tool senza domain = sempre incluso
     if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
+    // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
+    // staff mappato sul suo dominio è esplicitamente false.
+    if (opts.staffPermissions && tool.domain) {
+      const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
+      if (permKey && opts.staffPermissions[permKey] === false) continue;
+    }
     out.push(tool);
   }
   return out;

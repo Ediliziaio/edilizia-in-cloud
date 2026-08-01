@@ -47,6 +47,7 @@ export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
     additionalProperties: false,
   },
   requires_grants: ["rapportino.write"],
+  requires_confirmation: true,
 };
 
 interface Args {

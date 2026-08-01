@@ -9,6 +9,7 @@ import { AdminAiMarginsOverview } from "./AdminAiMarginsOverview";
 import { AdminMarkupConfigTab } from "./AdminMarkupConfigTab";
 import { AdminModelConfigTab } from "./AdminModelConfigTab";
 import { AdminAiPerCompanyTable } from "./AdminAiPerCompanyTable";
+import { AdminAiSpesaRealeCard } from "./AdminAiSpesaRealeCard";
 import { Zap } from "lucide-react";
 
 export function AdminAiMarginsPanel() {
@@ -24,6 +25,11 @@ export function AdminAiMarginsPanel() {
           Le aziende non vedono queste configurazioni.
         </p>
       </div>
+
+      {/* Prima di tutto il resto: la spesa vera, letta dal registro addebiti.
+          I sub-tab qui sotto passano ancora da get_ai_economics_dashboard, che
+          legge ai_model_usage_log (7 righe contro le 1073 del ledger). */}
+      <AdminAiSpesaRealeCard />
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>

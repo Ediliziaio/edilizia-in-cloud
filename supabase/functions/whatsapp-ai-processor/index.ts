@@ -280,6 +280,20 @@ Deno.serve(async (req) => {
     });
     await persistOperationalTriage(supabase, body.message_id, msg.ai_extracted_data, operationalTriage);
 
+    // ── Conferma esplicita dell'utente in QUESTO turno ──────────────────────
+    // Enforcement lato codice per i tool `requires_confirmation` (allineamento
+    // al risk-routing degli altri canali): prima la conferma era affidata SOLO
+    // al prompt (chiedi_conferma), quindi un modello che saltava il passo
+    // poteva scrivere dati senza ok dell'utente. Un gesto esplicito è:
+    //  - risposta ai bottoni/lista interattivi (qualsiasi scelta NON negativa:
+    //    il parser mappa button_reply/list_reply.title → content_text), oppure
+    //  - testo che inizia con un'affermazione chiara (sì/ok/conferma/...).
+    const confirmTextRaw = (msg.content_text ?? "").trim().toLowerCase();
+    const confirmIsNegative = /^(no\b|annull|non |ferma|stop\b|lascia stare)/.test(confirmTextRaw);
+    const userJustConfirmed =
+      (msg.message_type === "interactive" && !confirmIsNegative) ||
+      /^(s[ìi]\b|ok(ay)?\b|va bene\b|conferm|procedi\b|approv|d'accordo\b|certo\b|esatto\b)/.test(confirmTextRaw);
+
     // History: ultimi 10 turni
     const { data: history } = await supabase
       .from("whatsapp_messages")
@@ -443,6 +457,32 @@ Deno.serve(async (req) => {
                 user_message: STR.shared.generic_error,
               },
             };
+          }
+
+          // Enforcement conferma (additivo, MP-AIE): i tool marcati
+          // `requires_confirmation` non eseguono MAI su richiesta "fredda".
+          // Il modello riceve un errore strutturato e (da prompt) fa la
+          // domanda con `chiedi_conferma`; al turno successivo la risposta
+          // dell'utente (bottone/testo affermativo) sblocca l'esecuzione.
+          if (tool.requires_confirmation && !userJustConfirmed) {
+            const blocked = {
+              ok: false as const,
+              error: "confirmation_required",
+              user_message:
+                "Azione bloccata: serve la conferma esplicita dell'utente. " +
+                "Riassumi cosa stai per fare e chiedi conferma con il tool chiedi_conferma; esegui solo dopo il Sì.",
+            };
+            await logToolCall(supabase, {
+              company_id: msg.company_id,
+              wa_message_id: msg.id,
+              tool_name: tc.function.name,
+              role_kind: identity.kind,
+              args,
+              result: blocked,
+              duration_ms: 0,
+              model_used: model,
+            });
+            return { tool_call_id: tc.id, result: blocked };
           }
 
           const t0 = Date.now();

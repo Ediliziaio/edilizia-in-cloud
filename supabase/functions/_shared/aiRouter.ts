@@ -374,17 +374,64 @@ async function chargeAiCall(
   }
 }
 
-/** Precheck saldo azienda PRIMA di chiamare OpenRouter. */
+/**
+ * Rapporto caratteri/token per la stima pre-chiamata. Misurato sui prompt reali
+ * della piattaforma (italiano + schemi tool JSON): ~3.6 char per token. Volutamente
+ * piu' prudente del /4 usato altrove per le stime a posteriori — qui sottostimare
+ * significa lasciar passare una chiamata che poi sfonda il saldo.
+ */
+const PRECHECK_CHARS_PER_TOKEN = 3.6;
+
+/** Dimensione in caratteri di quello che verra' spedito al modello. */
+function payloadChars(messages: AiRouterMessage[], tools?: Array<unknown>): number {
+  let chars = 0;
+  for (const m of messages) {
+    chars += typeof m.content === "string"
+      ? m.content.length
+      : JSON.stringify(m.content ?? "").length;
+  }
+  // Gli schemi tool pesano quanto il testo: per Silvio col catalogo pieno sono
+  // ~125 KB, cioe' la voce dominante dell'input. Ignorarli falserebbe la stima.
+  if (tools?.length) chars += JSON.stringify(tools).length;
+  return chars;
+}
+
+/**
+ * Precheck saldo azienda PRIMA di chiamare OpenRouter.
+ * Con `tierKey` + token stimati la stima viene calcolata dentro l'RPC con gli
+ * STESSI prezzi che usera' charge_ai_call (override per-azienda inclusi):
+ * una sola fonte di verita', nessun round-trip aggiuntivo. Senza, l'RPC
+ * ricade sulla costante passata in `estimatedCostEur`.
+ */
 async function precheckCredit(
   supabase: SupabaseClient,
   companyId: string,
   estimatedCostEur: number,
+  tierKey?: string | null,
+  tokensIn?: number | null,
+  tokensOut?: number | null,
 ): Promise<{ ok: boolean; reason?: string; message?: string }> {
   try {
-    const { data, error } = await supabase.rpc("precheck_ai_credit", {
+    let { data, error } = await supabase.rpc("precheck_ai_credit", {
       p_company_id: companyId,
       p_estimated_cost_eur: estimatedCostEur,
+      p_tier_key: tierKey ?? null,
+      p_tokens_in: tokensIn ?? null,
+      p_tokens_out: tokensOut ?? null,
     });
+    // Ordine di rilascio indifferente: se la migration della stima non e'
+    // ancora applicata, in prod esiste solo la firma a 2 argomenti e PostgREST
+    // risponde PGRST202 ("function not found"). Senza questo fallback il
+    // precheck fallirebbe e — con fail-open disattivo — bloccherebbe OGNI
+    // chiamata AI finche' la migration non parte. Riproviamo alla vecchia
+    // maniera: stima meno precisa, servizio in piedi.
+    if (error && (error.code === "PGRST202" || /function|schema cache/i.test(error.message ?? ""))) {
+      console.warn("[aiRouter] precheck_ai_credit senza stima da token (migration non applicata?), fallback a 2 argomenti");
+      ({ data, error } = await supabase.rpc("precheck_ai_credit", {
+        p_company_id: companyId,
+        p_estimated_cost_eur: estimatedCostEur,
+      }));
+    }
     if (error) {
       const failOpen = Deno.env.get("AI_ROUTER_ALLOW_PRECHECK_FAIL_OPEN") === "true";
       console.warn("[aiRouter] precheck error:", error.message);
@@ -874,8 +921,25 @@ export async function aiRouterComplete(
         [],
       );
     }
+    // Stima pre-chiamata: token del payload reale (messaggi + schemi tool) e
+    // budget di output effettivo. E' il caso PEGGIORE — max_tokens e' il tetto
+    // che il modello non puo' superare — quindi la stima non sottostima mai.
+    // Se il chiamante ha gia' dichiarato `estimatedCostEur`, la sua ha la
+    // precedenza e i token non vengono passati.
     const estCost = opts.estimatedCostEur ?? 0.10;
-    const precheck = await precheckCredit(opts.supabase, opts.companyId, estCost);
+    const stimaEsplicita = opts.estimatedCostEur != null;
+    const estTokensIn = stimaEsplicita
+      ? null
+      : Math.ceil(payloadChars(opts.messages, params.tools) / PRECHECK_CHARS_PER_TOKEN);
+    const estTokensOut = stimaEsplicita ? null : (params.max_tokens ?? 2000);
+    const precheck = await precheckCredit(
+      opts.supabase,
+      opts.companyId,
+      estCost,
+      stimaEsplicita ? null : config.tier_key,
+      estTokensIn,
+      estTokensOut,
+    );
     if (!precheck.ok) {
       // Logga il rifiuto come error nel ledger (no addebito) e propaga errore
       await chargeAiCall(opts.supabase, {

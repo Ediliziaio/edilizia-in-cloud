@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Zap } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { GroundednessCard } from "./GroundednessCard";
 
 interface LearningLog {
   id: string;
@@ -78,6 +79,7 @@ export function LearningTab() {
 
   return (
     <div className="space-y-3">
+      <GroundednessCard />
       <Card className="border-orange-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">

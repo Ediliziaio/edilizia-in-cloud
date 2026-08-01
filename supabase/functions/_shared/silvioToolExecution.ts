@@ -14,6 +14,7 @@
 
 import {
   DEFAULT_TOOL_ALLOWED_ROLES,
+  DOMAIN_STAFF_PERMISSION,
   SILVIO_TOOLS,
   type Channel,
   type RiskLevel,
@@ -98,6 +99,56 @@ export async function executeToolWithRouting(
         durationMs: Date.now() - t0,
         riskLevel: tool.riskLevel,
       };
+    }
+  }
+
+  // ── Permission: permessi granulari per-dominio (staff_permissions) ──
+  // getToolsForChannel li applica solo alla LISTA mostrata al modello, e solo
+  // se il chiamante li passa (silvio-chat sì, telegram/ai-orchestrator no).
+  // Qui il gate è nel punto obbligato di ogni esecuzione: vale per tutti i
+  // canali e regge anche se il modello invoca un tool che non era in lista
+  // (nome allucinato, suggerito dall'utente o iniettato in un documento).
+  if (ctx.primaryRole === "company_staff" && tool.domain) {
+    const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
+    if (permKey) {
+      let perms = ctx.staffPermissions ?? null;
+      if (!perms) {
+        // Non passati dal chiamante: li leggiamo noi. Una query in più è
+        // preferibile a un permesso granulare aggirato.
+        try {
+          const { data } = await ctx.supabase
+            .from("staff_permissions")
+            .select("*")
+            .eq("user_id", ctx.userId)
+            .eq("company_id", ctx.companyId)
+            .maybeSingle();
+          perms = (data as Record<string, unknown> | null) ?? null;
+        } catch (_e) {
+          perms = null;
+        }
+      }
+      // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
+      // storico dell'app): si nega solo quando il permesso è esplicitamente false.
+      if (perms && perms[permKey] === false) {
+        await logAudit(ctx, tool, toolName, {
+          inputPayload: sanitize(input),
+          outputPayload: null,
+          status: "denied",
+          errorMessage: `staff permission '${permKey}' = false (domain '${tool.domain}')`,
+          proposalId: null,
+          durationMs: Date.now() - t0,
+        });
+        return {
+          success: false,
+          toolName,
+          error: {
+            code: "forbidden_permission",
+            message: `Non hai il permesso per l'area "${tool.domain}". Chiedi all'amministratore di abilitartelo.`,
+          },
+          durationMs: Date.now() - t0,
+          riskLevel: tool.riskLevel,
+        };
+      }
     }
   }
 
@@ -295,6 +346,98 @@ export async function executeToolsParallel(
 // ─── Internals ──────────────────────────────────────────────────────────────
 
 /**
+ * Etichetta in italiano dell'azione, per il riepilogo di conferma.
+ * Priorità alle operazioni ECONOMICHE: chi approva deve leggere in chiaro
+ * "cosa sto autorizzando" senza conoscere i nomi tecnici dei tool.
+ */
+const AZIONE_LABEL: Record<string, string> = {
+  // ── denaro in entrata/uscita ──
+  registra_pagamento_commessa: "Registrare un INCASSO",
+  registra_pagamento_fornitore: "Registrare un PAGAMENTO a fornitore",
+  invia_sollecito_pagamento: "Inviare un sollecito di pagamento",
+  registra_fattura_passiva: "Registrare una FATTURA fornitore",
+  create_invoice_draft: "Creare una bozza di FATTURA",
+  compone_sal_da_rapportini: "Comporre un SAL da fatturare",
+  approva_sal: "Approvare un SAL",
+  genera_f24_mese: "Generare un F24",
+  genera_lipe_trimestrale: "Generare la LIPE trimestrale",
+  invia_lipe_ade: "INVIARE la LIPE all'Agenzia delle Entrate",
+  genera_cedolino_dipendente: "Generare un cedolino",
+  invia_cedolino_dipendente: "Inviare un cedolino",
+  avanza_fatt_zero_touch: "Avanzare la pipeline di fatturazione",
+  // ── impegni commerciali/operativi ──
+  crea_ordine_fornitore: "Creare un ordine d'acquisto",
+  crea_commessa_bozza: "Creare una commessa",
+  crea_cliente: "Creare un cliente in anagrafica",
+  aggiorna_stato_commessa: "Cambiare stato a una commessa",
+  aggiorna_stato_preventivo: "Cambiare stato a un preventivo",
+  aggiorna_opportunita: "Aggiornare un'opportunità",
+  registra_movimento_magazzino: "Movimentare il magazzino",
+  crea_articolo_magazzino: "Creare un articolo a magazzino",
+  importa_listino_prodotti: "Importare voci a listino",
+  carica_documento_cantiere: "Archiviare un documento in commessa",
+};
+
+/** Formatta un numero come importo in euro all'italiana. */
+function formatEuro(n: number): string {
+  return `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+}
+
+/** Primo valore utile tra più chiavi possibili dell'input del tool. */
+function pick(input: unknown, chiavi: string[]): unknown {
+  if (!input || typeof input !== "object") return undefined;
+  const obj = input as Record<string, unknown>;
+  for (const k of chiavi) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return undefined;
+}
+
+/**
+ * Riepilogo leggibile dell'azione da confermare.
+ * Prima mostrava solo "FINANCE: registra_pagamento_commessa": chi approvava non
+ * vedeva né importo né controparte, cioè non poteva decidere davvero. Ora la
+ * riga dice cosa si sta autorizzando, per quanto e verso chi.
+ */
+export function buildProposalSummary(toolName: string, tool: SilvioTool, input: unknown): string {
+  const azione = AZIONE_LABEL[toolName] ?? toolName.replace(/_/g, " ");
+  const parti: string[] = [];
+
+  const importo = pick(input, ["importo", "amount", "valore", "totale", "total", "importo_pagato"]);
+  const num = typeof importo === "number" ? importo : Number(importo);
+  if (Number.isFinite(num) && num > 0) parti.push(formatEuro(num));
+
+  const chi = pick(input, [
+    "fornitore_nome", "cliente_nome", "contatto_nome", "destinatario",
+    "nome_cliente", "opportunita_nome", "assegna_a", "articolo", "nome",
+  ]);
+  // La freccia ha senso solo dopo un importo ("1.830 € → Limena Srl").
+  if (typeof chi === "string") parti.push(parti.length > 0 ? `→ ${chi}` : chi);
+
+  const rif = pick(input, ["commessa_codice", "preventivo", "numero", "oda_number", "ticket", "titolo"]);
+  if (typeof rif === "string") parti.push(`(${rif})`);
+
+  // Per i cambi di stato l'informazione che conta è proprio lo stato nuovo.
+  const stato = pick(input, ["nuovo_stato", "stato", "esito"]);
+  if (typeof stato === "string") parti.push(`→ ${stato}`);
+
+  const quanti = pick(input, ["voci", "righe", "items"]);
+  if (Array.isArray(quanti) && quanti.length > 0) parti.push(`${quanti.length} righe`);
+
+  const quando = pick(input, ["data_pagamento", "data", "scadenza_data", "data_prevista"]);
+  if (typeof quando === "string" && /^\d{4}-\d{2}-\d{2}$/.test(quando)) {
+    const [a, m, g] = quando.split("-");
+    parti.push(`il ${g}/${m}/${a}`);
+  }
+
+  const testa = parti.length > 0 ? `${azione}: ${parti.join(" ")}` : azione;
+  // Le operazioni economiche restano riconoscibili a colpo d'occhio nella lista.
+  const prefisso = tool.domain === "finance" || tool.domain === "fattura" ? "💶 " : "";
+  return `${prefisso}${testa}`;
+}
+
+/**
  * Crea un'action proposal nella tabella ai_action_proposals con la giusta
  * configurazione di risk_level. La proposta resta in stato 'pending' finché
  * l'utente non conferma via UI (componente `ActionProposalCard`).
@@ -307,7 +450,7 @@ async function createActionProposal(
   riskLevel: "yellow" | "red",
 ): Promise<string> {
   try {
-    const summary = `${(tool.domain ?? "meta").toUpperCase()}: ${toolName}`;
+    const summary = buildProposalSummary(toolName, tool, input);
     const { data, error } = await ctx.supabase.rpc("silvio_tool_propose_action", {
       p_company_id: ctx.companyId,
       p_user_id: ctx.userId,
