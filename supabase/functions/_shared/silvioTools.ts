@@ -4528,6 +4528,177 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  report_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "report_commessa",
+        description:
+          "CONTO ECONOMICO di una singola commessa: incrocia valore e incassi con TUTTI i costi tracciati " +
+          "(manodopera da rapportini, ordini a fornitori, fatture/scadenze, costi diretti, subappalti) e calcola il margine. " +
+          "Usa per 'quanto ho guadagnato sulla GE-0012', 'come sta andando questa commessa', 'dove sono finiti i soldi'. " +
+          "IMPORTANTE: il risultato distingue COSTO ZERO da COSTO NON TRACCIATO e dichiara l'affidabilità del calcolo: " +
+          "riporta sempre gli avvisi all'utente e NON presentare come margine reale un dato marcato parziale o insufficiente.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const codice = String(args?.commessa_codice ?? "").trim();
+      if (!codice) return { error: "Codice commessa obbligatorio." };
+
+      const { data: ords } = await ctx.supabase
+        .from("orders")
+        .select("id, order_code, description, total_amount, customer_id, current_status_id")
+        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
+      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
+      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o) => o.order_code).join(", ")}. Specifica il codice esatto.` };
+      const order = ords[0];
+      const valore = Number(order.total_amount) || 0;
+
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const somma = (rows: Array<Record<string, unknown>> | null, campo: string) =>
+        (rows ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
+
+      // ── Fonti, lette una per una: ognuna sa dire se è VUOTA o solo a zero ──
+      const [rate, rapportini, oda, scadenzeF, costiDiretti, sal, pnEntrate] = await Promise.all([
+        ctx.supabase.from("order_installments").select("amount, is_paid").eq("order_id", order.id),
+        ctx.supabase.from("campo_rapportini").select("ore_lavorate, ore_straordinario, user_id").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("purchase_orders").select("total, status").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("scadenze").select("amount, paid_amount, status").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("tipo", "pagamento_fornitore"),
+        ctx.supabase.from("company_costs").select("amount, is_paid").eq("order_id", order.id).eq("company_id", ctx.companyId),
+        ctx.supabase.from("sal_subappaltatori").select("importo, stato").eq("order_id", order.id),
+        ctx.supabase.from("prima_nota_entries").select("amount").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("direction", "entrata"),
+      ]);
+
+      const avvisi: string[] = [];
+      const fonteVuota = (n: number, nome: string, comeSiPopola: string) => {
+        if (n === 0) { avvisi.push(`${nome}: NESSUN DATO (${comeSiPopola}) — non è un costo pari a zero, è un costo non tracciato.`); return true; }
+        return false;
+      };
+
+      // ── Ricavi ──
+      const righeRate = rate.data ?? [];
+      const incassatoRate = r2(somma(righeRate.filter((x) => x.is_paid), "amount"));
+      const daIncassareRate = r2(somma(righeRate.filter((x) => !x.is_paid), "amount"));
+      const incassiPrimaNota = r2(somma(pnEntrate.data, "amount"));
+      // NB: gli incassi possono essere registrati SIA come rata pagata SIA come
+      // entrata di Prima Nota collegata (lo fa registra_pagamento_commessa):
+      // le due cifre NON si sommano, si confrontano.
+      if (righeRate.length === 0) {
+        avvisi.push("Piano rate: NESSUNA RATA registrata — l'incassato potrebbe essere tracciato solo in Prima Nota o fuori piattaforma.");
+      }
+      if (incassiPrimaNota > 0 && incassatoRate > 0 && Math.abs(incassiPrimaNota - incassatoRate) > 0.01) {
+        avvisi.push(`Attenzione: rate pagate ${incassatoRate.toFixed(2)}€ e entrate in Prima Nota ${incassiPrimaNota.toFixed(2)}€ NON coincidono. Non sommarle: vanno riconciliate.`);
+      }
+
+      // ── Costi, per fonte ──
+      const righeRapp = rapportini.data ?? [];
+      const oreTot = r2(somma(righeRapp, "ore_lavorate") + somma(righeRapp, "ore_straordinario"));
+      const manodoperaNonTracciata = fonteVuota(righeRapp.length, "Manodopera", "nessun rapportino sulla commessa");
+
+      // Valorizzazione ore: SOLO se l'azienda ha una tariffa oraria configurata.
+      // Mai un costo orario "di mercato" inventato: falserebbe il margine.
+      let costoOrario: number | null = null;
+      if (oreTot > 0) {
+        const { data: tariffe } = await ctx.supabase
+          .from("tariffe_aziendali")
+          .select("nome, costo_interno, costo_default, unita")
+          .eq("company_id", ctx.companyId).eq("tipo", "manodopera")
+          .limit(20);
+        const conCosto = (tariffe ?? []).map((t) => Number(t.costo_interno ?? t.costo_default) || 0).filter((n) => n > 0);
+        if (conCosto.length > 0) costoOrario = r2(conCosto.reduce((a, b) => a + b, 0) / conCosto.length);
+        else avvisi.push("Ore presenti ma NON valorizzate: manca la tariffa oraria interna (Impostazioni → Tariffe). Il costo manodopera non entra nel margine.");
+      }
+      const costoManodopera = costoOrario != null ? r2(oreTot * costoOrario) : null;
+
+      const righeOda = (oda.data ?? []).filter((x) => x.status !== "annullato");
+      const costoOda = r2(somma(righeOda, "total"));
+      const odaNonTracciato = fonteVuota(righeOda.length, "Ordini a fornitori", "nessun ODA collegato alla commessa");
+
+      const righeScad = (scadenzeF.data ?? []).filter((x) => x.status !== "annullata");
+      const costoFornitori = r2(somma(righeScad, "amount"));
+      const scadNonTracciate = fonteVuota(righeScad.length, "Fatture/scadenze fornitori", "nessuna scadenza collegata alla commessa");
+
+      const righeCosti = costiDiretti.data ?? [];
+      const costoDiretto = r2(somma(righeCosti, "amount"));
+      const costiNonTracciati = fonteVuota(righeCosti.length, "Costi diretti", "nessun costo aziendale collegato alla commessa");
+
+      const righeSal = sal.data ?? [];
+      const costoSubappalti = r2(somma(righeSal, "importo"));
+      const salNonTracciati = fonteVuota(righeSal.length, "Subappalti", "nessun SAL subappaltatore sulla commessa");
+
+      const costoTracciato = r2((costoManodopera ?? 0) + costoOda + costoFornitori + costoDiretto + costoSubappalti);
+      const fontiCostoPopolate = [!manodoperaNonTracciata && costoManodopera != null, !odaNonTracciato, !scadNonTracciate, !costiNonTracciati, !salNonTracciati].filter(Boolean).length;
+
+      // ── Margine: si calcola SOLO se ha senso ──
+      let margine: Record<string, unknown> | null = null;
+      let affidabilita: string;
+      if (fontiCostoPopolate === 0) {
+        affidabilita = "INSUFFICIENTE";
+        avvisi.unshift("MARGINE NON CALCOLABILE: non risulta tracciato NESSUN costo su questa commessa. Un margine del 100% sarebbe falso: significa solo che i costi non sono stati registrati qui.");
+      } else {
+        // In edilizia la MANODOPERA pesa quanto o più dei materiali: un margine
+        // calcolato senza di essa è sistematicamente gonfiato. Perciò non basta
+        // contare le fonti — senza costo manodopera l'affidabilità resta parziale.
+        const manodoperaNelCalcolo = costoManodopera != null && costoManodopera > 0;
+        affidabilita = manodoperaNelCalcolo && fontiCostoPopolate >= 3 ? "BUONA" : "PARZIALE";
+        if (!manodoperaNelCalcolo) {
+          avvisi.unshift(
+            manodoperaNonTracciata
+              ? "Il margine NON include la manodopera (nessun rapportino sulla commessa): in edilizia è la voce che pesa di più, quindi il margine qui sotto è OTTIMISTICO."
+              : "Il margine NON include la manodopera (ore presenti ma senza tariffa oraria): il margine qui sotto è OTTIMISTICO.",
+          );
+        }
+        margine = {
+          importo: r2(valore - costoTracciato),
+          percentuale: valore > 0 ? r2(((valore - costoTracciato) / valore) * 100) : null,
+          include_manodopera: manodoperaNelCalcolo,
+          avvertenza: affidabilita === "PARZIALE"
+            ? `Calcolato su ${fontiCostoPopolate} fonti di costo su 5${!manodoperaNelCalcolo ? ", MANODOPERA ESCLUSA" : ""}: il margine reale è VEROSIMILMENTE PIÙ BASSO di quello indicato.`
+            : "Calcolato sui costi effettivamente tracciati a sistema (manodopera inclusa); eventuali costi fuori piattaforma non sono inclusi.",
+        };
+      }
+
+      return {
+        commessa: `${order.order_code}${order.description ? ` — ${order.description}` : ""}`,
+        ricavi: {
+          valore_commessa: valore,
+          incassato_da_rate: incassatoRate,
+          da_incassare_rate: daIncassareRate,
+          entrate_in_prima_nota: incassiPrimaNota,
+          nota: "incassato_da_rate ed entrate_in_prima_nota sono DUE LETTURE della stessa realtà: non sommarle.",
+        },
+        costi: {
+          manodopera: { ore: oreTot, costo_orario_usato: costoOrario, valorizzato: costoManodopera, righe: righeRapp.length, stato: manodoperaNonTracciata ? "NON TRACCIATO" : (costoManodopera == null ? "ORE SENZA TARIFFA" : "tracciato") },
+          ordini_fornitori: { importo: costoOda, righe: righeOda.length, stato: odaNonTracciato ? "NON TRACCIATO" : "tracciato" },
+          fatture_fornitori: { importo: costoFornitori, righe: righeScad.length, stato: scadNonTracciate ? "NON TRACCIATO" : "tracciato" },
+          costi_diretti: { importo: costoDiretto, righe: righeCosti.length, stato: costiNonTracciati ? "NON TRACCIATO" : "tracciato" },
+          subappalti: { importo: costoSubappalti, righe: righeSal.length, stato: salNonTracciati ? "NON TRACCIATO" : "tracciato" },
+          totale_tracciato: costoTracciato,
+          fonti_popolate: `${fontiCostoPopolate} su 5`,
+        },
+        margine,
+        affidabilita,
+        avvisi,
+        come_leggere:
+          "Riporta all'utente il livello di affidabilità e gli avvisi PRIMA dei numeri. Se l'affidabilità è INSUFFICIENTE non dare nessuna percentuale di margine. " +
+          "Se è PARZIALE, di' esplicitamente che il margine mostrato è ottimistico perché mancano fonti di costo. Non stimare, non estrapolare, non inventare costi mancanti.",
+        link: `/azienda/ordini/${order.id}`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
+  },
+
   crea_sopralluogo: {
     schema: {
       type: "function",
