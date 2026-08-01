@@ -58,16 +58,45 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   page_cta: ["per accettare la proposta", "il prossimo passo", "cosa fare adesso"],
 };
 
-const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 2;
-const ZOOM_STEP = 0.2;
+// Il documento FV è una pagina A4: `width: 210mm` nel CSS di fvHtmlTemplate,
+// cioè ~794px a 96dpi. Il pannello laterale ne misura ~400: senza adattamento
+// si vedeva solo metà foglio, tagliato a destra — ed era questo il "template FV
+// zoomato al massimo con le scritte disallineate". Il minimo di zoom (0.6 →
+// 476px) non bastava comunque a farlo entrare.
+const LARGHEZZA_DOC_PX = 794;
+
+// Lo zoom dell'utente è ora un MOLTIPLICATORE dell'adattamento: 1 = "sta tutto
+// nel pannello", come nel pannello Serramenti che usa già questo schema.
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
 
 export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, debounceMs = 350 }: Props) {
   const [html, setHtml] = useState("");
   const [zoom, setZoom] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const contenitoreRef = useRef<HTMLDivElement | null>(null);
   const savedScrollRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Adatta il foglio A4 alla larghezza reale del pannello, e ricalcola quando
+  // il pannello cambia (sidebar aperta/chiusa, finestra ridimensionata).
+  useEffect(() => {
+    const el = contenitoreRef.current;
+    if (!el) return;
+    const calcola = () => {
+      const disponibile = el.clientWidth;
+      if (disponibile > 0) setFitScale(Math.min(1, disponibile / LARGHEZZA_DOC_PX));
+    };
+    calcola();
+    const ro = new ResizeObserver(calcola);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Scala finale = adattamento × zoom scelto dall'utente.
+  const scalaEffettiva = fitScale * zoom;
 
   const buildHtml = useMemo(() => {
     return () => {
@@ -181,8 +210,10 @@ export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, 
             <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <button type="button" onClick={() => setZoom(1)} title="Adatta" className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[30px] text-center">
-              {Math.round(zoom * 100)}%
+            {/* La percentuale mostra la scala REALE del foglio, non un 100%
+                che non corrispondeva a nulla di visibile. */}
+            <button type="button" onClick={() => setZoom(1)} title="Adatta alla larghezza" className="text-[10px] tabular-nums text-slate-600 hover:text-sky-600 min-w-[34px] text-center">
+              {Math.round(scalaEffettiva * 100)}%
             </button>
             <Button size="icon" variant="ghost" onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title="Ingrandisci" className="h-6 w-6">
               <ZoomIn className="h-3.5 w-3.5" />
@@ -196,15 +227,28 @@ export function FvLivePreviewPanel({ form, companyName, logoUrl, activeSection, 
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto bg-muted/40">
-        <iframe
-          ref={iframeRef}
-          srcDoc={html}
-          onLoad={handleIframeLoad}
-          title="Anteprima preventivo Fotovoltaico"
-          className="border-0 bg-white"
-          style={{ width: "100%", height: "100%", zoom }}
-        />
+      <div ref={contenitoreRef} className="flex-1 overflow-auto bg-muted/40">
+        {/* L'iframe è largo quanto il FOGLIO (794px) e viene rimpicciolito con
+            una trasformazione: così il documento è completo e leggibile invece
+            di essere tagliato a metà. Il wrapper riserva l'altezza reale dopo
+            la scala, altrimenti resterebbe spazio vuoto in fondo. */}
+        <div
+          style={{
+            width: LARGHEZZA_DOC_PX * scalaEffettiva,
+            height: `calc(100% / ${scalaEffettiva})`,
+            transform: `scale(${scalaEffettiva})`,
+            transformOrigin: "top left",
+          }}
+        >
+          <iframe
+            ref={iframeRef}
+            srcDoc={html}
+            onLoad={handleIframeLoad}
+            title="Anteprima preventivo Fotovoltaico"
+            className="border-0 bg-white"
+            style={{ width: LARGHEZZA_DOC_PX, height: "100%", border: 0 }}
+          />
+        </div>
       </div>
     </div>
   );
