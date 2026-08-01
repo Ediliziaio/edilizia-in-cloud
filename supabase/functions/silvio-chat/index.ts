@@ -1334,6 +1334,36 @@ serve(async (req: Request) => {
     if (citationCheck.invalidCitations.length > 0) {
       console.warn(`[silvio-chat] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono in sources`);
     }
+
+    // ── Audit citazioni: quali chunk hanno alimentato QUESTA risposta ──────
+    // La tabella `silvio_kb_citation_log` esisteva dal 2027-05 ma nessuno la
+    // scriveva: l'esito di validateCitations moriva in un console.warn, quindi
+    // "Silvio ha ricevuto 6 fonti e non ne ha citata nessuna" non lasciava
+    // traccia. Senza storico non si distingue una risposta fondata da una
+    // inventata, ne' si accorge che un pezzo di KB ha smesso di essere pescato.
+    // Best-effort: un errore qui non deve mai far fallire la chat.
+    if (ragSources.length > 0) {
+      try {
+        const isUuid = (v: unknown): v is string =>
+          typeof v === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+        // session_id e doc_ids sono colonne UUID: un valore non-UUID farebbe
+        // fallire l'insert in silenzio (dentro il catch) e il log resterebbe
+        // vuoto per sempre — lo stesso modo in cui era morto tool_execution_log.
+        const { error: citErr } = await supabaseAdmin.from("silvio_kb_citation_log").insert({
+          session_id: isUuid(channelId) ? channelId : null,
+          persona_key: PERSONA_KEY,
+          company_id: companyId,
+          user_query: userMessage.slice(0, 2000),
+          doc_ids: ragSources.map((s) => s.doc_id).filter(isUuid),
+          similarity_scores: ragSources.map((s) => Number(s.similarity.toFixed(4))),
+          used_in_response: !citationCheck.citationsMissing,
+        });
+        if (citErr) console.warn("[silvio-chat] citation log non scritto:", citErr.message);
+      } catch (e) {
+        console.warn("[silvio-chat] citation log fallito:", e instanceof Error ? e.message : e);
+      }
+    }
     // Modalità "enforce" → usa la response con sezione Fonti normalizzata.
     // 🆕 BUG FIX: il prefix "[no-rag]" deve essere SEMPRE rimosso dalla
     // response visibile all'utente (è un marker interno LLM mai user-facing).
