@@ -194,6 +194,287 @@ export async function editImage(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// GENERAZIONE DA TESTO (creatività social/ads) — catena OpenRouter-first
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface ImageGenerateParams {
+  /** Prompt completo (brief utente + canoni di brand). */
+  prompt: string;
+  /** Dimensione richiesta, formato "1024x1536". Usata dal ramo OpenAI diretto. */
+  size: string;
+  /** Qualità nella scala del modello, quando applicabile. */
+  openaiQuality?: "low" | "medium" | "high";
+  negativePrompt?: string;
+  timeoutMs?: number;
+  maxRetries?: number;
+  metadata: {
+    task_kind: string;
+    company_id?: string | null;
+    session_id?: string | null;
+  };
+}
+
+/**
+ * Ordine per la GENERAZIONE: OpenRouter primo.
+ *
+ * Diverso dall'edit dei render (OpenAI diretto primo, invariato per non
+ * toccare ciò che funziona): per le creatività la piattaforma passa da
+ * OpenRouter, che dà un catalogo unico, il costo REALE nell'header x-or-cost
+ * e la possibilità di cambiare modello senza toccare il codice. OpenAI diretto
+ * resta come rete di sicurezza se OpenRouter è irraggiungibile.
+ */
+function getGenerateProviderOrder(): ProviderStep[] {
+  return [
+    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterGenerate },
+    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIGenerate },
+  ];
+}
+
+/**
+ * Genera un'immagine da solo testo, con fallback tra provider.
+ * Throw aggregato se falliscono tutti — il chiamante decide il messaggio utente.
+ */
+export async function generateImage(
+  args: ImageGenerateParams,
+): Promise<ImageEditResult> {
+  const errors: Array<{ model: string; error: string }> = [];
+  const attemptHistory: ImageProviderAttempt[] = [];
+
+  // Riusa la stessa struttura di ProviderCallArgs dell'edit: i due rami
+  // condividono retry, timeout e formato del risultato.
+  const paramsCompat = args as unknown as ImageEditParams;
+
+  const steps = getGenerateProviderOrder();
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const tier = i + 1;
+    try {
+      const result = await step.call({ model: step.model, params: paramsCompat });
+      attemptHistory.push({
+        model: step.model,
+        provider: step.provider,
+        ok: true,
+        tier,
+        latencyMs: result.latencyMs,
+      });
+      return { ...result, attempts: tier, providerUsed: step.provider, attemptHistory };
+    } catch (e) {
+      const err = e as AIProviderError;
+      errors.push({ model: step.model, error: err.message });
+      attemptHistory.push({
+        model: step.model,
+        provider: step.provider,
+        ok: false,
+        tier,
+        error: err.message.substring(0, 500),
+        code: err.code,
+        status: err.provider_status,
+      });
+      logImageError({ session_id: args.metadata.session_id, model: step.model, msg: err.message });
+    }
+  }
+
+  throw withAttemptHistory(
+    makeAIError(
+      "unknown",
+      `Image generate failed on all providers: ${errors.map((e) => `[${e.model}] ${e.error}`).join(" | ")}`,
+      false,
+    ),
+    attemptHistory,
+  );
+}
+
+/** OpenRouter: chat/completions con modalities image, SENZA immagine sorgente. */
+async function callOpenRouterGenerate(args: ProviderCallArgs): Promise<ProviderCallResult> {
+  const apiKey = Deno.env.get("OPENROUTER_API_KEY")?.trim();
+  if (!apiKey) {
+    throw makeAIError("invalid_api_key", "OPENROUTER_API_KEY non configurata in Supabase secrets", false);
+  }
+  const p = args.params as unknown as ImageGenerateParams;
+  const appName = Deno.env.get("OPENROUTER_APP_NAME") ?? "EdiliziaInCloud";
+  const siteUrl = Deno.env.get("OPENROUTER_SITE_URL") ?? "https://www.ediliziaincloud.com";
+  const timeoutMs = p.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  const fullPrompt = p.negativePrompt
+    ? `${p.prompt}\n\n[DA EVITARE]\n${p.negativePrompt}`
+    : p.prompt;
+
+  const body = {
+    model: args.model,
+    messages: [{ role: "user", content: [{ type: "text", text: fullPrompt }] }],
+    modalities: ["image", "text"],
+  };
+
+  // Gli header devono essere ASCII puri: un em dash fa esplodere fetch()
+  // ("headers is not a valid ByteString") — lezione dai render.
+  const asciiOnly = (s: string) => s.replace(/[^\x20-\x7E]/g, "-").trim();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+    "HTTP-Referer": asciiOnly(siteUrl),
+    "X-Title": asciiOnly(`${appName} - Creativita`),
+    "X-OR-Task-Kind": asciiOnly(p.metadata.task_kind),
+  };
+  if (p.metadata.company_id) headers["X-OR-Company"] = asciiOnly(p.metadata.company_id);
+
+  const backoff = [1500, 4000];
+  const maxAttempts = p.maxRetries ?? DEFAULT_RETRIES;
+  let lastErr: AIProviderError | null = null;
+
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startMs = Date.now();
+    try {
+      const resp = await fetch(OPENROUTER_ENDPOINT, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      const latencyMs = Date.now() - startMs;
+
+      if (resp.status === 429 || resp.status >= 500) {
+        const txt = await safeRead(resp);
+        lastErr = makeAIError(
+          resp.status === 429 ? "rate_limit" : "unknown",
+          `OpenRouter ${resp.status}: ${txt.substring(0, 300)}`,
+          true,
+          resp.status,
+        );
+        if (attempt < maxAttempts) { await sleep(backoff[attempt] ?? 4000); continue; }
+        throw lastErr;
+      }
+      if (resp.status === 401 || resp.status === 403) {
+        throw makeAIError("invalid_api_key", `OpenRouter ${resp.status}`, false, resp.status);
+      }
+      if (resp.status === 404) {
+        throw makeAIError("model_not_found", `Model non disponibile su OpenRouter: ${args.model}`, false, 404);
+      }
+      if (!resp.ok) {
+        const txt = await safeRead(resp);
+        throw makeAIError("unknown", `OpenRouter ${resp.status}: ${txt.substring(0, 300)}`, false, resp.status);
+      }
+
+      const json = (await resp.json()) as Record<string, unknown>;
+      const imageDataUrl = extractOpenRouterImage(json);
+      if (!imageDataUrl) throw makeAIError("unknown", "OpenRouter: nessuna immagine nella risposta", false);
+
+      // x-or-cost è il costo REALE della chiamata: meglio di ogni stima.
+      const costHeader = resp.headers.get("x-or-cost");
+      const costUsd = costHeader ? Number(costHeader) : undefined;
+
+      return {
+        imageDataUrl,
+        modelUsed: args.model,
+        rawResponse: json,
+        costUsd: Number.isFinite(costUsd) ? costUsd : undefined,
+        costIsEstimated: !costHeader,
+        latencyMs,
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      const err = e as AIProviderError;
+      if (err?.code) {
+        if (!err.retryable || attempt >= maxAttempts) throw err;
+        lastErr = err;
+        await sleep(backoff[attempt] ?? 4000);
+        continue;
+      }
+      const asError = e as Error;
+      lastErr = asError.name === "AbortError"
+        ? makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true)
+        : makeAIError("unknown", String(asError.message ?? e), true);
+      if (attempt < maxAttempts) { await sleep(backoff[attempt] ?? 4000); continue; }
+      throw lastErr;
+    }
+  }
+  throw lastErr ?? makeAIError("unknown", "Errore generazione immagine dopo retry", false);
+}
+
+/** OpenAI diretto: /v1/images/generations (rete di sicurezza). */
+async function callOpenAIGenerate(args: ProviderCallArgs): Promise<ProviderCallResult> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+  if (!apiKey) {
+    throw makeAIError("invalid_api_key", "OPENAI_API_KEY non configurata", false);
+  }
+  const p = args.params as unknown as ImageGenerateParams;
+  const timeoutMs = p.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startMs = Date.now();
+
+  try {
+    const isGptImage = args.model.startsWith("gpt-image");
+    const body: Record<string, unknown> = {
+      model: args.model,
+      prompt: p.negativePrompt ? `${p.prompt}\n\n[DA EVITARE]\n${p.negativePrompt}` : p.prompt,
+      size: p.size,
+      n: 1,
+    };
+    if (p.openaiQuality) body.quality = p.openaiQuality;
+    // Solo DALL·E accetta response_format; gpt-image-1 ritorna b64 di default.
+    if (!isGptImage) body.response_format = "b64_json";
+
+    const chiama = (payload: Record<string, unknown>) =>
+      fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+    let resp = await chiama(body);
+    // Un 400 con `quality` valorizzata è quasi sempre un valore fuori scala per
+    // quel modello: si riprova senza, invece di perdere l'immagine. Il costo va
+    // poi calcolato sulla qualità di default (lo fa il chiamante leggendo
+    // qualityApplicata dal risultato).
+    let qualityRimossa = false;
+    if (!resp.ok && resp.status === 400 && body.quality) {
+      const dettaglio = await safeRead(resp.clone());
+      console.warn(`[image/generate] quality rifiutata da ${args.model}, retry senza: ${dettaglio.slice(0, 160)}`);
+      const senzaQuality = { ...body };
+      delete senzaQuality.quality;
+      resp = await chiama(senzaQuality);
+      qualityRimossa = true;
+    }
+    clearTimeout(timer);
+    const latencyMs = Date.now() - startMs;
+
+    if (!resp.ok) {
+      const txt = await safeRead(resp);
+      throw makeAIError(
+        resp.status === 429 ? "rate_limit" : "unknown",
+        `OpenAI ${resp.status}: ${txt.substring(0, 300)}`,
+        resp.status === 429 || resp.status >= 500,
+        resp.status,
+      );
+    }
+
+    const json = (await resp.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
+    const b64 = json.data?.[0]?.b64_json;
+    if (!b64) throw makeAIError("unknown", "OpenAI: nessuna immagine nella risposta", false);
+
+    return {
+      imageDataUrl: `data:image/png;base64,${b64}`,
+      modelUsed: args.model,
+      rawResponse: { ...(json as unknown as Record<string, unknown>), quality_rimossa: qualityRimossa },
+      costIsEstimated: true,
+      latencyMs,
+    };
+  } catch (e) {
+    clearTimeout(timer);
+    const err = e as AIProviderError;
+    if (err?.code) throw err;
+    const asError = e as Error;
+    throw asError.name === "AbortError"
+      ? makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true)
+      : makeAIError("unknown", String(asError.message ?? e), true);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Provider implementations
 // ────────────────────────────────────────────────────────────────────────────
 

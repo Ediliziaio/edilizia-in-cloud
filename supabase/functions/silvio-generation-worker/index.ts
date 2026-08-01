@@ -21,13 +21,14 @@ import {
   costoImmagineUsd,
   qualityPerModello,
   richiedeRitaglio,
+  NEGATIVE_PROMPT_CREATIVITA,
   type CreativeAspect,
 } from "../_shared/brandCreativeRules.ts";
+import { generateImage } from "../_shared/ai-provider/image.ts";
 import { caricaBrandAzienda, verificaQuotaCreativita } from "../_shared/creativeContext.ts";
 import { checkPaymentMethod } from "../_shared/requirePaymentMethod.ts";
 import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
@@ -45,7 +46,10 @@ Deno.serve(async (req: Request) => {
       await requireAuth(req, cors); // super_admin debug
     }
 
-    if (!OPENAI_API_KEY) return errorResponse("OPENAI_API_KEY non configurato", 500, cors);
+    // Basta una delle due chiavi: la catena è OpenRouter → OpenAI diretto.
+    if (!OPENAI_API_KEY && !Deno.env.get("OPENROUTER_API_KEY")) {
+      return errorResponse("Nessuna chiave immagini configurata (OPENROUTER_API_KEY o OPENAI_API_KEY)", 500, cors);
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin: any = createClient(
@@ -128,20 +132,20 @@ Deno.serve(async (req: Request) => {
         const size = aspectToOpenAiSize(job.formato);
         // gpt-image-1 ritorna b64_json di default e NON accetta response_format/quality 'standard'
         // (param DALL·E). Body model-aware per evitare 400 "Unknown parameter".
-        const isGptImage = OPENAI_IMAGE_MODEL.startsWith("gpt-image");
         const qualitaApplicata = qualityPerModello(OPENAI_IMAGE_MODEL, "standard");
-        const reqBody = isGptImage
-          ? { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1, ...(qualitaApplicata ? { quality: qualitaApplicata } : {}) }
-          : { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1, quality: "standard", response_format: "b64_json" };
-        const resp = await fetchWithRetry("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-          body: JSON.stringify(reqBody),
-        }, { timeoutMs: 90_000, retries: 1, label: "openai-image" });
-        if (!resp.ok) throw new Error(`openai ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-        const data = await resp.json() as { data?: Array<{ b64_json: string }> };
-        const b64 = data.data?.[0]?.b64_json;
-        if (!b64) throw new Error("openai: nessuna immagine");
+        // Catena condivisa OpenRouter → OpenAI diretto: stessa strada dei
+        // render, con fallback automatico e costo reale da x-or-cost.
+        const gen = await generateImage({
+          prompt,
+          negativePrompt: NEGATIVE_PROMPT_CREATIVITA,
+          size,
+          openaiQuality: (qualitaApplicata as "low" | "medium" | "high" | undefined) ?? undefined,
+          timeoutMs: 90_000,
+          maxRetries: 1, // il worker ha una finestra breve: meglio fallire e ritentare al tick dopo
+          metadata: { task_kind: "silvio_creativita_image", company_id: job.company_id, session_id: job.id },
+        });
+        const b64 = gen.imageDataUrl.split(",")[1] ?? "";
+        if (!b64) throw new Error("nessuna immagine dal provider");
 
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         const fileName = `${job.company_id}/silvio-${Date.now()}-${crypto.randomUUID()}.png`;
@@ -157,7 +161,8 @@ Deno.serve(async (req: Request) => {
         // Addebito nel ledger AI centrale. Best-effort DOPO la consegna, come
         // ai-ads-image-generate: l'immagine è già pronta, un errore di charge
         // non deve negarla all'utente — ma va loggato, non ingoiato.
-        const costRealUsd = costoImmagineUsd({ model: OPENAI_IMAGE_MODEL, size, quality: "standard" });
+        // Costo reale da OpenRouter quando disponibile, altrimenti stima listino.
+        const costRealUsd = gen.costUsd ?? costoImmagineUsd({ model: gen.modelUsed, size, quality: "standard" });
         try {
           await chargeDirectAiCall({
             supabase: admin,
@@ -168,7 +173,7 @@ Deno.serve(async (req: Request) => {
             userId: job.created_by ?? null,
             taskKey: "silvio_creativita_image",
             tierKey: "t2_vision",
-            modelUsed: OPENAI_IMAGE_MODEL,
+            modelUsed: gen.modelUsed,
             tokensIn: 0,
             tokensOut: 0,
             costRealUsd,
@@ -188,6 +193,8 @@ Deno.serve(async (req: Request) => {
             // al formato social reale (gpt-image-1 non genera 9:16 nativo).
             richiede_ritaglio: richiedeRitaglio((job.formato ?? "4:5") as CreativeAspect),
             costo_usd: costRealUsd,
+            provider: gen.providerUsed,
+            modello: gen.modelUsed,
           },
           updated_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),

@@ -22,6 +22,23 @@ export const BRAND_CREATIVE_RULES = `VINCOLI:
 - Light: naturale, ora dorata o studio neutro`;
 
 /**
+ * Cosa NON deve comparire. I motori di immagini sbagliano sempre le stesse
+ * cose sulle creatività edilizia: scritte inventate (che poi cozzano con la
+ * headline vera), loghi finti, watermark da stock, marchi altrui. Il negative
+ * prompt è più efficace di altre frasi positive nel prompt principale.
+ */
+export const NEGATIVE_PROMPT_CREATIVITA = [
+  "testo, scritte, lettere, numeri, didascalie",
+  "logo, marchi, insegne, watermark, firma",
+  "loghi di aziende reali o marchi registrati",
+  "cornici, bordi decorativi, collage",
+  "volti in primo piano riconoscibili",
+  "immagini di repertorio con filigrana",
+  "deformazioni architettoniche, prospettive impossibili",
+  "attrezzi che fluttuano, mani con dita in eccesso",
+].join(", ");
+
+/**
  * Identità visiva dell'azienda, letta da `companies`. Tutti i campi opzionali:
  * un'azienda che non ha configurato il brand riceve il canone generico di prima
  * (nessuna regressione).

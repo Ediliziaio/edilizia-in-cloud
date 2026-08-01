@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import {
   aspectToOpenAiSize,
   buildBrandedImagePrompt,
+  NEGATIVE_PROMPT_CREATIVITA,
   costoImmagineUsd,
   costoImmagineCentesimiEur,
   cropCoverBox,
@@ -206,6 +207,22 @@ describe("buildBrandedImagePrompt", () => {
 
   it("chiede sempre spazio libero per titolo e logo", () => {
     expect(buildBrandedImagePrompt("brief")).toContain("COMPOSIZIONE");
+  });
+});
+
+describe("NEGATIVE_PROMPT_CREATIVITA", () => {
+  it("vieta scritte e loghi finti: la headline vera la mette il compositore", () => {
+    expect(NEGATIVE_PROMPT_CREATIVITA).toContain("testo");
+    expect(NEGATIVE_PROMPT_CREATIVITA).toContain("logo");
+    expect(NEGATIVE_PROMPT_CREATIVITA).toContain("watermark");
+  });
+
+  it("vieta i marchi registrati (rischio legale su una grafica pubblicata)", () => {
+    expect(NEGATIVE_PROMPT_CREATIVITA).toMatch(/marchi registrati/i);
+  });
+
+  it("è una lista separata da virgole, non una frase", () => {
+    expect(NEGATIVE_PROMPT_CREATIVITA.split(",").length).toBeGreaterThan(5);
   });
 });
 

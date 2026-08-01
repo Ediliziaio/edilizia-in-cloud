@@ -29,8 +29,10 @@ import {
   costoImmagineCentesimiEur,
   qualityPerModello,
   richiedeRitaglio,
+  NEGATIVE_PROMPT_CREATIVITA,
   type CreativeAspect,
 } from "../_shared/brandCreativeRules.ts";
+import { generateImage } from "../_shared/ai-provider/image.ts";
 import { caricaBrandAzienda, verificaQuotaCreativita } from "../_shared/creativeContext.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
@@ -75,8 +77,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405, corsHeaders);
 
   try {
-    if (!OPENAI_API_KEY) {
-      return json({ error: "openai_api_key_missing" }, 503, corsHeaders);
+    // Basta UNA delle due chiavi: la catena parte da OpenRouter e ripiega su
+    // OpenAI diretto. Bloccare per la sola OPENAI_API_KEY mancante negherebbe
+    // il servizio anche quando OpenRouter è perfettamente configurato.
+    if (!OPENAI_API_KEY && !Deno.env.get("OPENROUTER_API_KEY")) {
+      return json({ error: "image_api_key_missing" }, 503, corsHeaders);
     }
 
     const authHeader = req.headers.get("Authorization");
@@ -141,62 +146,43 @@ Deno.serve(async (req) => {
     const brand = await caricaBrandAzienda(admin, body.company_id);
     const enhancedPrompt = buildBrandedImagePrompt(body.prompt, brand);
 
-    // CHIAMATA OPENAI
-    // gpt-image-1 ritorna b64_json di default e NON accetta i parametri DALL·E
-    // `response_format` / `quality:'standard'` → 400 "Unknown parameter".
-    // FIX FATTURAZIONE (audit creatività 01/08): prima la qualità richiesta non
+    // FIX FATTURAZIONE (audit creatività 01/08): la qualità richiesta non
     // veniva MAI inviata a gpt-image-1 ma il prezzo la conteggiava → chi
-    // sceglieva "hd" pagava il doppio per un'immagine identica. Ora la qualità
-    // viene tradotta nella scala del modello (medium|high) e il prezzo si calcola
-    // su ciò che è stato davvero applicato.
-    const isGptImage = OPENAI_IMAGE_MODEL.startsWith("gpt-image");
+    // sceglieva "hd" pagava il doppio per un'immagine identica. Ora viene
+    // tradotta nella scala del modello (medium|high) e il prezzo si calcola su
+    // ciò che è stato davvero applicato.
     const qualitaApplicata = qualityPerModello(OPENAI_IMAGE_MODEL, quality);
-    const openaiBody = isGptImage
-      ? { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, n: 1, ...(qualitaApplicata ? { quality: qualitaApplicata } : {}) }
-      : { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, quality, n: 1, response_format: "b64_json" };
-    const chiamaOpenAi = (payload: Record<string, unknown>) =>
-      fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify(payload),
+    // GENERAZIONE via catena condivisa OpenRouter → OpenAI diretto.
+    // Prima questa funzione parlava solo con OpenAI: un disservizio OpenAI
+    // fermava le creatività mentre i render (che usano la catena) continuavano.
+    let gen;
+    try {
+      gen = await generateImage({
+        prompt: enhancedPrompt,
+        negativePrompt: NEGATIVE_PROMPT_CREATIVITA,
+        size,
+        openaiQuality: (qualitaApplicata as "low" | "medium" | "high" | undefined) ?? undefined,
+        metadata: { task_kind: "ads_image_generate", company_id: body.company_id },
       });
-
-    let openaiResp = await chiamaOpenAi(openaiBody);
-    // Qualità effettivamente ottenuta: guida il prezzo. Se il modello rifiuta
-    // il parametro `quality` (400), si ritenta senza — e allora si fattura
-    // come standard, perché standard è ciò che il cliente ha ricevuto.
-    let qualityFatturata = quality;
-    if (!openaiResp.ok && openaiResp.status === 400 && qualitaApplicata) {
-      const testo400 = await openaiResp.clone().text();
-      console.warn("[ai-ads-image-generate] quality rifiutata dal modello, retry senza:", testo400.slice(0, 200));
-      const senzaQuality = { ...openaiBody };
-      delete (senzaQuality as Record<string, unknown>).quality;
-      openaiResp = await chiamaOpenAi(senzaQuality);
-      qualityFatturata = "standard";
-    }
-
-    if (!openaiResp.ok) {
-      const text = await openaiResp.text();
-      console.error("[ai-ads-image-generate] openai_failed", text);
+    } catch (e) {
+      console.error("[ai-ads-image-generate] tutti i provider falliti:", e);
       return json({
         success: false,
-        error: "openai_api_error",
-        detail: text.substring(0, 500),
+        error: "image_provider_error",
+        detail: e instanceof Error ? e.message.substring(0, 500) : String(e),
       }, 502, corsHeaders);
     }
 
-    const openaiData = await openaiResp.json() as {
-      data?: Array<{ b64_json: string; revised_prompt?: string }>;
-    };
-    const b64 = openaiData.data?.[0]?.b64_json;
+    // Se il ramo OpenAI ha dovuto togliere `quality`, il cliente ha ricevuto
+    // la qualità di default: si fattura quella, non quella richiesta.
+    const qualityFatturata: "standard" | "hd" =
+      (gen.rawResponse as { quality_rimossa?: boolean })?.quality_rimossa ? "standard" : quality;
+
+    // DECODE data URL → bytes
+    const b64 = gen.imageDataUrl.split(",")[1] ?? "";
     if (!b64) {
       return json({ error: "no_image_returned" }, 502, corsHeaders);
     }
-
-    // DECODE base64 → bytes
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
     // UPLOAD su Storage
@@ -234,12 +220,14 @@ Deno.serve(async (req) => {
     // REALMENTE applicata (`qualityFatturata`): se il retry ha tolto il
     // parametro, il cliente paga standard perché standard ha ricevuto.
     const costEurCents = costoImmagineCentesimiEur({
-      model: OPENAI_IMAGE_MODEL,
+      model: gen.modelUsed,
       size,
       quality: qualityFatturata,
     });
-    const costRealUsd = costoImmagineUsd({
-      model: OPENAI_IMAGE_MODEL,
+    // OpenRouter restituisce il costo REALE nell'header x-or-cost: quando c'è,
+    // batte qualunque stima da listino.
+    const costRealUsd = gen.costUsd ?? costoImmagineUsd({
+      model: gen.modelUsed,
       size,
       quality: qualityFatturata,
     });
@@ -261,8 +249,8 @@ Deno.serve(async (req) => {
         mime_type: "image/png",
         aspect_ratio: ar,
         ai_prompt: body.prompt,
-        ai_model: OPENAI_IMAGE_MODEL,
-        ai_provider: "openai",
+        ai_model: gen.modelUsed,
+        ai_provider: gen.providerUsed, // openrouter | openai_direct
         ai_cost_eur_cents: costEurCents,
         tags: body.tags ?? [],
         created_by: user.id,
