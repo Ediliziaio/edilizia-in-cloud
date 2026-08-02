@@ -250,6 +250,17 @@ verify_jwt = false
 [functions.ai-voice-outbound-leads]
 verify_jwt = false
 
+# Chiamate dall'app con utente loggato: il JWT va verificato. Dichiarate
+# esplicitamente per non cambiare comportamento a una ricreazione.
+[functions.silvio-execute-action]
+verify_jwt = true
+
+[functions.ai-ads-image-generate]
+verify_jwt = true
+
+[functions.debug-ai-providers]
+verify_jwt = true
+
 [functions.check-credits-before-call]
 verify_jwt = false
 
