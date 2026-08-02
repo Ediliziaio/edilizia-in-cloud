@@ -18,11 +18,12 @@
  *      DND, orari agente, abbonamento, crediti e billing restano nell'unico
  *      flusso che già li gestisce. Qui non si chiama MAI nessuno.
  *
- * Env: PROACTIVE_CRON_SECRET (auth cron) — nient'altro.
+ * Auth: cron secret via cronAuth condiviso (tutti i nomi noti) o service-role.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 const HOT_LEAD_WINDOW_MINUTES = 30; // intercetta lead arrivati negli ultimi 30 min
 const MAX_CALLS_PER_RUN = 5;
@@ -37,14 +38,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Auth: cron secret o service-role
-  const cronSecret = req.headers.get("x-cron-secret");
-  const expected = Deno.env.get("PROACTIVE_CRON_SECRET");
+  // Auth: cron secret (cronAuth condiviso — leggere UN solo nome env è il
+  // guasto documentato in cronAuth.ts: 4 funzioni morte 11 giorni) o service-role.
   const authHeader = req.headers.get("Authorization") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "_no_match_";
-  const isCron = !!cronSecret && !!expected && cronSecret === expected;
   const isServiceRole = authHeader === `Bearer ${serviceKey}`;
-  if (!isCron && !isServiceRole) {
+  if (!cronSecretValido(req) && !isServiceRole) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
       headers: { ...cors, "Content-Type": "application/json" },
