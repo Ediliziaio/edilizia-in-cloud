@@ -146,6 +146,11 @@ const Prezzi = lazy(() => import("@/pages/Prezzi"));
 const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
 const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
 const Confronto = lazy(() => import("@/pages/Confronto"));
+// Strumenti pubblici (calcolatori gratuiti) — hub + 4 pagine.
+const Strumenti = lazy(() => import("@/pages/Strumenti"));
+const CalcoloCongruita = lazy(() => import("@/pages/strumenti/CalcoloCongruita"));
+const CalcoloCostoOrario = lazy(() => import("@/pages/strumenti/CalcoloCostoOrario"));
+const CalcoloRitenuta = lazy(() => import("@/pages/strumenti/CalcoloRitenuta"));
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
 const SelezionaAzienda = lazy(() => import("@/pages/SelezionaAzienda"));
 const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
@@ -577,6 +582,10 @@ const App = () => (
                   deve essere raggiungibile nell'app mobile. Redirect alla home. */}
               <Route path="/prezzi" element={isMobileAppRuntime ? <Navigate to="/" replace /> : <Prezzi />} />
               <Route path="/confronto" element={<Confronto />} />
+              <Route path="/strumenti" element={<Strumenti />} />
+              <Route path="/strumenti/calcolo-congruita-manodopera" element={<CalcoloCongruita />} />
+              <Route path="/strumenti/calcolo-costo-orario-operaio" element={<CalcoloCostoOrario />} />
+              <Route path="/strumenti/calcolo-ritenuta-garanzia" element={<CalcoloRitenuta />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/blog/categoria/:slug" element={<BlogCategory />} />
               <Route path="/blog/:slug" element={<BlogPost />} />

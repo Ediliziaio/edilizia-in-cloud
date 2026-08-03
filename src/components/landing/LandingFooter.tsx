@@ -95,6 +95,12 @@ export default function LandingFooter() {
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Risorse</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/blog/" className="hover:text-[#F97415] transition-colors">Blog</Link></li>
+              {/* I calcolatori vivono nel footer e non solo nel menu: il dropdown
+                  della navbar si monta solo all'apertura, quindi nell'HTML statico
+                  che leggono i crawler quei link non esistono. Qui invece sì. */}
+              <li><Link to="/strumenti/" className="hover:text-[#F97415] transition-colors">Calcolatori gratuiti</Link></li>
+              <li><Link to="/strumenti/calcolo-congruita-manodopera/" className="hover:text-[#F97415] transition-colors">Calcolo congruità manodopera</Link></li>
+              <li><Link to="/strumenti/calcolo-costo-orario-operaio/" className="hover:text-[#F97415] transition-colors">Calcolo costo orario operaio</Link></li>
               <li><Link to="/novita/" className="hover:text-[#F97415] transition-colors">Novità del prodotto</Link></li>
               <li><Link to="/glossario-edilizia/" className="hover:text-[#F97415] transition-colors">Glossario edilizia</Link></li>
               <li><Link to="/casi-studio/" className="hover:text-[#F97415] transition-colors">Casi studio</Link></li>

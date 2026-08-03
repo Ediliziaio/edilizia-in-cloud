@@ -193,6 +193,7 @@ const risorseColumns: MenuColumn[] = [
   {
     heading: "STRUMENTI & CONFRONTI",
     items: [
+      { to: "/strumenti", label: "Calcolatori Gratuiti", desc: "Congruità, costo orario, margine", icon: Calculator },
       { to: "/confronto", label: "Confronto Software", desc: "vs Primus, Edilnet, TeamSystem", icon: PanelsTopLeft },
       { to: "/integrazioni", label: "Integrazioni", desc: "API, SDI, banche, CRM", icon: Plug },
       { to: "/software-gestionale-edilizia", label: "Software per Città", desc: "Soluzioni per area geografica", icon: MapPin },

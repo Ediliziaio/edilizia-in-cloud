@@ -136,6 +136,10 @@ const STATIC_ROUTES = [
   "/per/carpenteria-metallica",
   "/pianifica-migrazione",
   "/prezzi",
+  "/strumenti",
+  "/strumenti/calcolo-congruita-manodopera",
+  "/strumenti/calcolo-costo-orario-operaio",
+  "/strumenti/calcolo-ritenuta-garanzia",
   "/privacy-policy",
   "/software-gestionale-edilizia",
   // City landings — fix 2026-05-26: erano in sitemap.xml ma non prerenderate
