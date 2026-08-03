@@ -319,6 +319,23 @@ export default function Confronto() {
         "description": "Gestionale cloud per imprese edili italiane: preventivi, cantieri, margini in tempo reale, fatturazione elettronica SDI, subappalti e rapportini da mobile.",
         "inLanguage": "it-IT",
         "sameAs": [WIKIDATA_ENTITY],
+        // Rating e prezzi ripresi TALI E QUALI dal nodo software della home:
+        // stesso @id, quindi valori divergenti darebbero un'entità che si
+        // contraddice da sola agli occhi di Google e dei motori generativi.
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "EUR",
+          "lowPrice": "99",
+          "highPrice": "437",
+          "offerCount": "3",
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "reviewCount": "127",
+          "bestRating": "5",
+          "worstRating": "1",
+        },
         "publisher": { "@id": "https://www.ediliziaincloud.com/#organization" },
       }} />
       <JsonLd id="jsonld-itemlist-confronto" data={{
@@ -441,12 +458,32 @@ export default function Confronto() {
           {/* Answer block: deve reggere da solo se un motore generativo lo
               estrae senza il contesto intorno — soggetto esplicito, niente
               pronomi vaghi, nomi dei competitor per esteso. */}
-          <p className="text-center text-sm md:text-base text-[#111111]/70 mb-7 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-center text-sm md:text-base text-[#111111]/70 mb-4 max-w-3xl mx-auto leading-relaxed">
             Edilizia in Cloud è messo a confronto con otto alternative usate dalle imprese edili
             italiane: Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend, Excel, Pillar,
             PlanRadar e Dylog Edilizia. Ogni confronto dice anche quando conviene l'altro software,
             in base a come lavora l'impresa.
           </p>
+          {/* Densità statistica (criterio GEO): numeri verificabili invece di
+              aggettivi. Voto e prezzi sono gli STESSI dichiarati in home. */}
+          <ul className="mb-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs md:text-sm text-[#111111]/70">
+            <li className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <span><strong className="text-[#111111]">4,9/5</strong> su 127 recensioni</span>
+            </li>
+            <li className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <span>SAL aggiornato dal cantiere in <strong className="text-[#111111]">pochi secondi</strong></span>
+            </li>
+            <li className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <span>Operativo in <strong className="text-[#111111]">48 ore</strong>, migrazione inclusa</span>
+            </li>
+            <li className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <span>Da <strong className="text-[#111111]">€127/mese</strong> (€99 su base annuale)</span>
+            </li>
+          </ul>
 
           {/* Panoramica di mercato: intercetta chi non ha ancora un nome in testa */}
           <Link
