@@ -46,6 +46,48 @@ function gitLastModified(relPath) {
   }
 }
 
+/** File che contengono gli articoli del blog. */
+const FILE_ARTICOLI = [
+  "src/data/blogPosts.ts",
+  "src/data/blogPostsConfrontoDiretti.ts",
+  "src/data/blogPostsConfrontoMercato.ts",
+  "src/data/blogPostsNormativa.ts",
+  "src/data/blogPostsPillarGestione.ts",
+  "src/data/blogPostsTemplateGratis.ts",
+];
+
+/**
+ * Data di modifica dichiarata DAL SINGOLO ARTICOLO (updatedAt, o publishedAt
+ * se non ha mai avuto revisioni). Ritorna null se l'URL non e' un articolo o
+ * se il post non viene trovato — in quel caso il chiamante torna a git.
+ *
+ * Serve perche' la data git del file non distingue fra articoli che stanno
+ * nello stesso file: e' esattamente il caso di blogPosts.ts.
+ */
+function postLastModified(url) {
+  const path = url.replace(/^https?:\/\/[^/]+/, "").replace(/\/$/, "");
+  if (!path.startsWith("/blog/") || path.startsWith("/blog/categoria/")) return null;
+  const slug = path.replace("/blog/", "");
+  if (!slug) return null;
+
+  for (const f of FILE_ARTICOLI) {
+    const abs = join(ROOT, f);
+    if (!existsSync(abs)) continue;
+    const src = readFileSync(abs, "utf8");
+    const i = src.indexOf(`slug: "${slug}"`);
+    if (i === -1) continue;
+    // Il blocco del post arriva fino allo slug successivo (o a fine file).
+    const next = src.indexOf('slug: "', i + 10);
+    const blocco = src.slice(i, next === -1 ? src.length : next);
+    const upd = blocco.match(/updatedAt:\s*"(\d{4}-\d{2}-\d{2})"/);
+    if (upd) return upd[1];
+    const pub = blocco.match(/publishedAt:\s*"(\d{4}-\d{2}-\d{2})"/);
+    if (pub) return pub[1];
+    return null;
+  }
+  return null;
+}
+
 /** Mappa URL canonico → path file sorgente probabile. */
 function urlToSourcePath(url) {
   // Strip dominio
@@ -152,7 +194,13 @@ function main() {
       skipped++;
       return match;
     }
-    const newDate = gitLastModified(src);
+    // Per gli ARTICOLI la data git del file sorgente non va bene: 74 articoli
+    // vivono dentro src/data/blogPosts.ts, quindi toccarne uno solo dava a
+    // tutti e 74 la stessa <lastmod> nuova. Google dichiara di ignorare i
+    // lastmod quando li trova sistematicamente inaffidabili — gonfiarli
+    // svaluta il segnale proprio per le pagine che sono cambiate davvero.
+    // Il dato autorevole per-articolo e' il suo updatedAt (o publishedAt).
+    const newDate = postLastModified(url) ?? gitLastModified(src);
     // Monotòno: una <lastmod> non deve MAI regredire (una data più vecchia
     // dice a Google "la pagina è più vecchia di prima" → riduce il re-crawl).
     // Le date ISO YYYY-MM-DD si confrontano lessicograficamente.

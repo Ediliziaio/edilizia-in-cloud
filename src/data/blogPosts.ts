@@ -1996,7 +1996,6 @@ export const blogPosts: BlogPost[] = [
     excerpt: "Guida completa alla Cassa Edile per i titolari di imprese edili: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e impatto sul DURC.",
     category: "HR & Personale",
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
-    updatedAt: "2026-07-10",
     publishedAt: "2026-01-24",
     readTime: 13,
     updatedAt: "2026-08-03",
