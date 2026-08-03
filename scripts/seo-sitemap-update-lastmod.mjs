@@ -79,7 +79,28 @@ function urlToSourcePath(url) {
 
   // Dynamic patterns
   if (path.startsWith("/blog/categoria/")) return "src/pages/BlogCategory.tsx";
-  if (path.startsWith("/blog/")) return "src/data/blogPosts.ts";
+  if (path.startsWith("/blog/")) {
+    // Gli articoli NON stanno tutti in blogPosts.ts: sono divisi su piu' file
+    // (confronti diretti, confronti di mercato, normativa, pillar, template).
+    // Puntare sempre al primo dava a tutti gli altri una data sbagliata — chi
+    // modificava un confronto vedeva il lastmod fermo alla data di blogPosts.ts,
+    // e Google continuava a considerare la pagina invariata.
+    const slug = path.replace("/blog/", "").replace(/\/$/, "");
+    const sorgenti = [
+      "src/data/blogPosts.ts",
+      "src/data/blogPostsConfrontoDiretti.ts",
+      "src/data/blogPostsConfrontoMercato.ts",
+      "src/data/blogPostsNormativa.ts",
+      "src/data/blogPostsPillarGestione.ts",
+      "src/data/blogPostsTemplateGratis.ts",
+    ];
+    for (const f of sorgenti) {
+      const abs = join(ROOT, f);
+      if (!existsSync(abs)) continue;
+      if (readFileSync(abs, "utf8").includes(`"${slug}"`)) return f;
+    }
+    return "src/data/blogPosts.ts";
+  }
   if (path.startsWith("/funzionalita/")) {
     // PascalCase from slug: /funzionalita/calendario-lavori → CalendarioLavori.tsx
     const slug = path.replace("/funzionalita/", "");
