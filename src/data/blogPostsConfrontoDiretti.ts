@@ -401,7 +401,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Quante piattaforme può reggere davvero la mia squadra, tra installazione, formazione e abitudini?",
         ],
       },
-      {
+            {
+        type: "section",
+        heading: "Se stai confrontando anche altri software",
+        body: "PlanRadar è uno dei software con cui Edilizia in Cloud viene confrontata più spesso. Gli altri paragoni — Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel — sono raccolti nella [pagina Confronto](/confronto/), utile se stai ancora restringendo la rosa.",
+      },
+{
         type: "cta",
         heading: "Prova il flusso completo sul tuo prossimo lavoro",
         body: "Attiva Edilizia in Cloud gratis per 31 giorni: fai un preventivo con l'AI, trasformalo in commessa, fai timbrare la squadra e guarda margine e fattura uscire dallo stesso posto. Se poi ti serve anche la gestione difetti di PlanRadar, saprai esattamente cosa stai comprando e perché. Nessuna carta di credito richiesta.",
@@ -611,7 +616,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Mi serve di più un partner di zona con installazione dedicata o un prodotto che si aggiorna da solo per tutti?",
         ],
       },
-      {
+            {
+        type: "section",
+        heading: "Se stai confrontando anche altri software",
+        body: "Dylog Edilizia non è l'unico gestionale storico sul mercato. Nella [pagina Confronto](/confronto/) trovi lo stesso esame applicato a Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel, con i criteri di scelta a fianco.",
+      },
+{
         type: "cta",
         heading: "Confronta con i numeri, non con le brochure",
         body: "Attiva Edilizia in Cloud gratis per 31 giorni e fai il test più semplice: una commessa vera, la squadra che timbra dall'app per una settimana, un preventivo fatto con l'AI dalle foto del sopralluogo. Poi confronta con quello che hai oggi, o con qualsiasi demo ti facciano. I numeri sul tuo cantiere valgono più di ogni confronto scritto, compreso questo. Nessuna carta di credito richiesta.",
@@ -821,7 +831,12 @@ export const blogPostsConfrontoDiretti: BlogPost[] = [
           "Prima di decidere voglio poter usare il software sul mio cantiere, o mi basta vederlo in videocall?",
         ],
       },
-      {
+            {
+        type: "section",
+        heading: "Se stai confrontando anche altri software",
+        body: "Questo confronto guarda Pillar. Se stai valutando più software insieme, la [pagina Confronto di Edilizia in Cloud](/confronto/) mette a fianco anche Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel, con la stessa griglia di criteri usata qui.",
+      },
+{
         type: "cta",
         heading: "Confrontali sul campo, non sulle homepage",
         body: "Il test che consigliamo è lo stesso per entrambi: una commessa vera, la squadra che manda i dati per una settimana, un preventivo fatto con l'AI, una fattura emessa. Edilizia in Cloud lo puoi provare gratis per 31 giorni, da solo, con setup e migrazione dei dati inclusi: se poi la videocall con Pillar ti convince di più, avrai scelto conoscendo entrambi. Nessuna carta di credito richiesta.",
