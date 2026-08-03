@@ -1878,6 +1878,9 @@ export const blogPosts: BlogPost[] = [
       { q: "Quanto costa la Cassa Edile all'impresa?", a: "I contributi variano per provincia e livello, ma complessivamente l'incidenza è tra il 12% e il 18% della retribuzione lorda degli operai. Coprono ferie, gratifica natalizia, anzianità professionale edile (APE), formazione e prestazioni assistenziali." },
       { q: "Entro quando va inviata la denuncia mensile alla Cassa Edile?", a: "La denuncia dei lavoratori occupati (MUT) va trasmessa di norma entro la fine del mese successivo a quello di competenza, con il versamento dei relativi contributi. Ritardi e omissioni bloccano il rilascio del DURC." },
       { q: "Cosa succede se lavoro in una provincia diversa?", a: "Vale il principio di territorialità: per cantieri fuori provincia di durata rilevante l'impresa deve iscriversi e versare alla Cassa Edile del territorio dove si svolge il lavoro, salvo convenzioni di trasferta tra Casse. Va verificato caso per caso con le Casse coinvolte." },
+      { q: "Qual è la percentuale esatta della Cassa Edile?", a: "Non esiste una percentuale nazionale valida ovunque. Il CCNL fissa la struttura delle voci, ma la misura di diverse componenti è stabilita dagli accordi territoriali e cambia da provincia a provincia: due imprese identiche in province diverse pagano aliquote diverse. L'unico numero valido è quello sul prospetto della tua Cassa territoriale, che è pubblico e scaricabile dal suo sito." },
+      { q: "La Cassa Edile serve anche se ho un solo dipendente?", a: "Sì. L'obbligo di iscrizione riguarda tutte le imprese che applicano il CCNL Edilizia, senza soglie dimensionali: vale dal primo operaio assunto. L'iscrizione dell'impresa va fatta una volta sola alla Cassa della provincia dove ha sede, e la denuncia del lavoratore prima che inizi a lavorare." },
+      { q: "Che rapporto c'è tra Cassa Edile e congruità della manodopera?", a: "La verifica di congruità passa dalle ore denunciate in Cassa Edile: dato il valore dell'opera esiste un'incidenza minima attesa di costo del lavoro, e se le ore dichiarate stanno sotto quella soglia il cantiere risulta non congruo. La conseguenza pratica è che il committente non può liquidare il saldo finché la posizione non viene sanata: registrare male le ore non è solo un problema di paghe, è un problema di incassi." },
     ],
     title: "Cassa Edile: Come Funziona, Contributi e Obblighi",
     excerpt: "Guida completa alla Cassa Edile per i titolari di imprese edili: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e impatto sul DURC.",
@@ -1885,7 +1888,8 @@ export const blogPosts: BlogPost[] = [
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
     updatedAt: "2026-07-10",
     publishedAt: "2026-01-24",
-    readTime: 7,
+    readTime: 13,
+    updatedAt: "2026-08-03",
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/cassa-edile-come-funziona.jpg",
     content: [
@@ -1913,7 +1917,54 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Quanto si paga: la quota oraria e le percentuali",
-        body: "I contributi Cassa Edile si calcolano sulle ore lavorate e sulle percentuali di paga fissate dal CCNL. La quota complessiva a carico dell'impresa varia dal 12% al 18% della retribuzione lorda, a seconda della Cassa territoriale e del livello del lavoratore. La denuncia mensile va trasmessa entro il 20 del mese successivo.",
+        body: "I contributi Cassa Edile si calcolano sulle ore lavorate e sulle percentuali di paga fissate dal CCNL. La quota complessiva a carico dell'impresa varia indicativamente dal 12% al 18% della retribuzione lorda, a seconda della Cassa territoriale e del livello del lavoratore. La denuncia mensile va trasmessa entro il 20 del mese successivo.",
+      },
+      {
+        type: "section",
+        heading: "Perché nessun articolo può dirti la tua aliquota esatta (e come trovarla)",
+        body: "Qui va detta una cosa che quasi nessuno scrive: le aliquote della Cassa Edile NON sono uguali in tutta Italia. Il CCNL nazionale fissa la struttura e le voci, ma la misura di diverse componenti è determinata dagli accordi integrativi territoriali, e cambia da provincia a provincia. Due imprese identiche, una a Brescia e una a Bari, pagano percentuali diverse sullo stesso operaio con lo stesso livello. Per questo se trovi un articolo che ti dà «la percentuale della Cassa Edile» con un numero secco e nessuna provincia, quel numero è sbagliato per definizione — o è giusto per una sola provincia su oltre cento. Come trovare la tua: vai sul sito della Cassa Edile della provincia dove ha sede l'azienda, cerca la sezione aliquote o contribuzione, e scarica il prospetto in vigore; sono documenti pubblici e aggiornati a ogni rinnovo. Se lavori su più province, ti serve il prospetto di ciascuna, perché i cantieri fuori sede seguono regole loro. Il consulente del lavoro le ha già tutte: chiedigli il prospetto aggiornato una volta l'anno e tienilo con i documenti di cantiere.",
+      },
+      {
+        type: "table",
+        heading: "Chi paga cosa: Cassa Edile, INPS e impresa a confronto",
+        headers: ["Voce", "Chi la gestisce", "Come funziona in pratica"],
+        rows: [
+          ["Ferie e permessi", "Cassa Edile", "L'impresa accantona ogni mese, la Cassa eroga al lavoratore"],
+          ["Gratifica natalizia", "Cassa Edile", "Accantonata mensilmente, pagata a fine anno"],
+          ["APE — anzianità professionale", "Cassa Edile", "Cresce con gli anni di settore, non con l'anzianità in azienda"],
+          ["Formazione e sicurezza (RLST)", "Cassa Edile / Scuola Edile", "Contributo obbligatorio, finanzia i corsi del settore"],
+          ["Contributi previdenziali", "INPS", "Restano fuori dalla Cassa Edile, canale separato"],
+          ["Infortuni", "INAIL", "Canale separato, ma concorre al DURC"],
+          ["Retribuzione ordinaria", "Impresa", "Paga diretta in busta, al netto degli accantonamenti"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cantieri fuori provincia: quale Cassa Edile paghi",
+        body: "È la domanda che genera più errori nelle imprese che iniziano a lavorare fuori zona. Il principio generale è che l'impresa resta iscritta alla Cassa Edile della provincia dove ha sede, ma quando apre un cantiere in un'altra provincia scattano gli obblighi verso la Cassa territorialmente competente per quel cantiere, con il meccanismo della cosiddetta trasferta. In pratica significa denunciare il cantiere alla Cassa del luogo dove si lavora e, a seconda degli accordi fra le due Casse, versare lì o mantenere il versamento alla Cassa di origine tramite convenzione. Il punto operativo è uno solo: non dare per scontato che basti la tua Cassa. Prima di aprire un cantiere in una provincia nuova, una telefonata alla Cassa di destinazione ti dice in cinque minuti cosa devi fare, e ti evita un DURC irregolare scoperto sei mesi dopo, magari proprio mentre aspetti il pagamento di un SAL. Chi lavora stabilmente su più province chiede alle Casse coinvolte la convenzione o l'accordo di reciprocità, che semplifica tutto.",
+      },
+      {
+        type: "section",
+        heading: "Denuncia mensile in ritardo: cosa succede davvero",
+        body: "La denuncia va trasmessa entro il 20 del mese successivo, e il versamento segue la stessa scadenza. Saltarla non produce una multa immediata che ti arriva a casa: produce qualcosa di peggio, cioè un'irregolarità che si accumula silenziosamente e ti esplode addosso nel momento sbagliato. Il meccanismo è questo: la Cassa registra il mancato versamento, la posizione contributiva diventa irregolare, e la prima volta che qualcuno interroga il DURC — il committente prima di pagare un SAL, la stazione appaltante prima di aggiudicare, il general contractor prima di autorizzare il subappalto — quel DURC risulta negativo. A quel punto non stai discutendo di qualche centinaio di euro di more: stai aspettando un pagamento che non arriva, su una gara che perdi, mentre regolarizzi. Il recupero è quasi sempre possibile con la regolarizzazione entro i termini di invito, ma richiede giorni che tu non hai. La regola operativa è banale e vale più di qualsiasi approfondimento normativo: la denuncia Cassa Edile si tratta come l'IVA, con una scadenza fissa a calendario e una persona responsabile, non come un adempimento da fare quando c'è tempo.",
+      },
+      {
+        type: "table",
+        heading: "Il calendario mensile della Cassa Edile",
+        headers: ["Quando", "Cosa fare", "Se salti"],
+        rows: [
+          ["Prima del primo giorno di lavoro", "Iscrivere il lavoratore alla Cassa", "Lavoratore non coperto, posizione irregolare dal giorno uno"],
+          ["Durante il mese", "Registrare le ore effettive per lavoratore e per cantiere", "Denuncia stimata: è l'origine della maggior parte degli errori"],
+          ["Entro il 20 del mese successivo", "Trasmettere la denuncia mensile", "Posizione irregolare, DURC a rischio"],
+          ["Entro il 20 del mese successivo", "Versare i contributi", "Irregolarità contributiva e more"],
+          ["A ogni nuovo cantiere", "Denunciare il cantiere alla Cassa competente", "Problemi su congruità e DURC di cantiere"],
+          ["A fine cantiere", "Verificare la congruità della manodopera", "Blocco del saldo finale finché non regolarizzi"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Cassa Edile e congruità della manodopera: il legame che blocca i saldi",
+        body: "Dal 2021 sui cantieri edili esiste un secondo controllo che passa dalla Cassa Edile e che molti scoprono tardi: la verifica della congruità della manodopera. Il concetto è che, dato il valore di un'opera, esiste un'incidenza minima attesa di costo del lavoro: se le ore denunciate stanno sotto quella soglia, il cantiere risulta non congruo e il committente non può liquidare il saldo finché la posizione non viene sanata. Non è un controllo sulla qualità del lavoro: è un controllo aritmetico fra il valore dell'opera e le ore che hai dichiarato. Questo cambia il modo in cui vanno registrate le ore: non è più solo una questione di paghe, è una questione di incassi. Se il capocantiere segna le ore approssimativamente, o se le ore finiscono su una commessa sbagliata, la congruità salta e il saldo si blocca — su un cantiere già finito, quando non puoi più recuperare nulla. La difesa è tenere le ore attribuite al cantiere giusto giorno per giorno, e controllare la congruità prima della fine lavori, non dopo, quando c'è ancora tempo per capire se manca qualcosa. Ne abbiamo scritto in dettaglio nella guida su [DURC di congruità e soglie di manodopera](/blog/durc-congruita-manodopera-soglie/).",
       },
       {
         type: "list",
@@ -1952,6 +2003,21 @@ export const blogPosts: BlogPost[] = [
           "Dimenticare le variazioni: assunzioni, cessazioni e cambi livello vanno comunicati subito",
           "Versare in ritardo contando sulla tolleranza: il DURC diventa irregolare comunque",
         ],
+      },
+      {
+        type: "section",
+        heading: "Il costo vero di un operaio edile: dove finiscono i soldi",
+        body: "Molti titolari ragionano ancora sulla paga oraria da busta e poi non capiscono perché il costo del cantiere non torna. La paga lorda è solo la prima delle voci. Sopra ci vanno i contributi INPS, il premio INAIL, e i contributi Cassa Edile con dentro ferie, permessi, gratifica natalizia e APE — che sono differiti nel tempo ma sono costo del mese in cui matura l'ora, non del mese in cui li paghi. Il risultato è che il costo aziendale di un'ora di operaio è sensibilmente più alto della paga che il lavoratore vede in busta, e il rapporto fra i due numeri cambia per livello, per provincia e per anno. Non ti do una percentuale secca perché sarebbe lo stesso errore di prima: il moltiplicatore corretto lo ricavi dal tuo consulente sui tuoi dati, e va rifatto a ogni rinnovo contrattuale. Il punto operativo è un altro: qualunque sia il tuo moltiplicatore, va usato quando fai i preventivi. Preventivare un cantiere sulla paga lorda invece che sul costo aziendale pieno è il modo più diffuso di firmare lavori in perdita convinti di guadagnarci, e ci si accorge dell'errore solo a consuntivo, quando è tardi.",
+      },
+      {
+        type: "section",
+        heading: "Il primo operaio: cosa fare, in ordine",
+        body: "Se stai assumendo il primo dipendente e la Cassa Edile per te è una parola nuova, la sequenza è questa e non ha scorciatoie. Prima di tutto l'impresa deve essere iscritta alla Cassa Edile della provincia dove ha sede: è un adempimento dell'azienda, non del lavoratore, e va fatto una volta sola. Poi, prima che l'operaio metta piede in cantiere — non dopo, non a fine mese — va denunciata l'assunzione alla Cassa: la copertura decorre da lì, e un lavoratore che lavora prima dell'iscrizione crea un'irregolarità che ti trascini. Da quel momento parte il ciclo mensile: registri le ore giorno per giorno, attribuite al cantiere su cui sono state fatte, e entro il 20 del mese successivo trasmetti la denuncia e versi. In parallelo, ogni volta che apri un cantiere nuovo lo denunci, e se è fuori provincia verifichi prima con la Cassa competente. Infine, ogni variazione — cambio di livello, passaggio da tempo determinato a indeterminato, cessazione — va comunicata subito, perché è dalle variazioni non comunicate che nascono le differenze fra quello che hai versato e quello che risulta dovuto. Il consulente del lavoro fa materialmente quasi tutti questi passaggi, ma la responsabilità resta dell'impresa: sapere che il ciclo è questo ti permette almeno di accorgerti quando qualcosa non gira.",
+      },
+      {
+        type: "section",
+        heading: "In sintesi: le sette cose da ricordare sulla Cassa Edile",
+        body: "Primo: l'iscrizione è obbligatoria per tutte le imprese che applicano il CCNL Edilizia, senza soglie dimensionali. Secondo: le aliquote cambiano per provincia, quindi l'unico numero valido è quello sul prospetto della tua Cassa territoriale, non quello letto in un articolo. Terzo: la Cassa gestisce ferie, permessi, gratifica natalizia, APE e formazione; INPS e INAIL restano canali separati ma concorrono tutti al DURC. Quarto: la denuncia si trasmette entro il 20 del mese successivo e va trattata come una scadenza fiscale, non come un adempimento rinviabile. Quinto: le ore vanno registrate per cantiere, non solo per lavoratore, altrimenti la congruità salta e il saldo finale si blocca. Sesto: sui cantieri fuori provincia verifica prima con la Cassa di destinazione, perché un errore lì lo scopri mesi dopo attraverso un DURC negativo. Settimo: il costo di un'ora di operaio non è la paga in busta — usa il costo aziendale pieno nei preventivi, o firmi lavori in perdita credendo di guadagnarci.",
       },
       {
         type: "cta",
