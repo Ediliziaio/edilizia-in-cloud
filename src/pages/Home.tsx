@@ -68,10 +68,15 @@ export default function Home() {
           "areaServed": "IT",
           "availableLanguage": ["Italian"]
         },
+        // Stessi profili di HubSeoSchema.tsx: e' la stessa Organization e due
+        // elenchi divergenti impediscono la riconciliazione dell'entita'.
+        // Verificati 2026-08-03; Facebook corretto in "…business" (l'URL
+        // precedente non era la pagina ufficiale).
         "sameAs": [
           "https://www.linkedin.com/company/edilizia-in-cloud",
-          "https://www.facebook.com/ediliziaincloud",
-          "https://www.instagram.com/ediliziaincloud"
+          "https://www.facebook.com/ediliziaincloudbusiness",
+          "https://www.instagram.com/ediliziaincloud",
+          "https://share.google/tbE8MjJlaiZbQqHxp"
         ]
       }} />
       <JsonLd id="jsonld-software-home" data={{

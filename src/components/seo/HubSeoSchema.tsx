@@ -28,10 +28,16 @@ const ORG_LD = {
     width: 512,
     height: 512,
   },
+  // Profili UFFICIALI, verificati uno per uno (2026-08-03). Devono restare
+  // identici a quelli dichiarati in Home.tsx: e' la stessa Organization, e due
+  // elenchi diversi impediscono a Google di riconciliare l'entita'.
+  // Rimosso YouTube: /@ediliziaincloud risponde 404, e un sameAs che porta nel
+  // vuoto e' peggio di un sameAs assente.
   sameAs: [
     "https://www.linkedin.com/company/edilizia-in-cloud",
-    "https://www.facebook.com/ediliziaincloud",
-    "https://www.youtube.com/@ediliziaincloud",
+    "https://www.facebook.com/ediliziaincloudbusiness",
+    "https://www.instagram.com/ediliziaincloud",
+    "https://share.google/tbE8MjJlaiZbQqHxp",
   ],
   contactPoint: {
     "@type": "ContactPoint",
