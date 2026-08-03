@@ -86,37 +86,35 @@ const VENDOR_CARDS = [
 ];
 
 /**
- * Confronti che vivono sul blog e che questa pagina non raccoglieva: chi cerca
- * "Pillar" o "PlanRadar" arrivava sull'articolo senza mai passare da qui, e
- * l'hub restava scollegato dalla metà dei contenuti BOFU che già esistono.
+ * Confronti che vivono sul blog. Stanno nella STESSA griglia dei cinque sopra:
+ * separarli in una sezione a parte faceva sembrare Pillar e PlanRadar
+ * concorrenti di serie B, e chi arrivava cercando proprio quelli trovava un
+ * blocco secondario invece della risposta.
+ * TeamSystem Construction non compare qui: ha gia' la sua scheda dedicata e
+ * due card con lo stesso nome confondono e basta.
  */
-const APPROFONDIMENTI = [
-  {
-    to: "/blog/migliori-software-gestionali-edilizia-confronto",
-    name: "I migliori software gestionali per l'edilizia nel 2026",
-    tagline: "La panoramica di mercato: chi fa cosa, e per che tipo di impresa.",
-    guida: true,
-  },
+const CONFRONTI_BLOG = [
   {
     to: "/blog/edilizia-in-cloud-vs-pillar",
-    name: "vs Pillar",
+    name: "Edilizia in Cloud vs Pillar",
     tagline: "Due gestionali con l'AI dentro: dove cambia davvero il lavoro.",
   },
   {
     to: "/blog/edilizia-in-cloud-vs-planradar",
-    name: "vs PlanRadar",
+    name: "Edilizia in Cloud vs PlanRadar",
     tagline: "Documentazione di cantiere o gestione dell'intera commessa.",
   },
   {
     to: "/blog/edilizia-in-cloud-vs-dylog-edilizia",
-    name: "vs Dylog Edilizia",
+    name: "Edilizia in Cloud vs Dylog Edilizia",
     tagline: "Gestionale storico installato o cloud nativo.",
   },
-  {
-    to: "/blog/edilizia-in-cloud-vs-teamsystem-construction",
-    name: "vs TeamSystem Construction",
-    tagline: "L'analisi estesa, oltre alla scheda di confronto.",
-  },
+];
+
+/** Tutti i confronti in un unico elenco: 5 schede + 3 analisi sul blog. */
+const TUTTI_I_CONFRONTI = [
+  ...VENDOR_CARDS.map((v) => ({ ...v, approfondito: false })),
+  ...CONFRONTI_BLOG.map((v) => ({ ...v, approfondito: true })),
 ];
 
 const excelRows: { feature: string; excel: TableCell; eic: TableCell }[] = [
@@ -431,25 +429,62 @@ export default function Confronto() {
         </div>
       </section>
 
-      {/* ── VENDOR NAV BLOCK ── */}
+      {/* ── TUTTI I CONFRONTI ──
+          Un blocco solo. Prima erano due sezioni separate e Pillar, PlanRadar
+          e Dylog finivano in un riquadro secondario: chi arrivava cercando
+          proprio quelli trovava contenuti di serie B invece della risposta. */}
       <section className="bg-white py-10 px-4 border-b border-gray-100">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-center text-xs font-bold tracking-widest uppercase text-[#F97415] mb-6">
-            Vai al confronto diretto con un competitor
+          <h2 className="text-center text-xl md:text-2xl font-bold text-[#111111] mb-3">
+            Confronta Edilizia in Cloud con il software che usi oggi
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {VENDOR_CARDS.map((v) => (
+          {/* Answer block: deve reggere da solo se un motore generativo lo
+              estrae senza il contesto intorno — soggetto esplicito, niente
+              pronomi vaghi, nomi dei competitor per esteso. */}
+          <p className="text-center text-sm md:text-base text-[#111111]/70 mb-7 max-w-3xl mx-auto leading-relaxed">
+            Edilizia in Cloud è messo a confronto con otto alternative usate dalle imprese edili
+            italiane: Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend, Excel, Pillar,
+            PlanRadar e Dylog Edilizia. Ogni confronto dice anche quando conviene l'altro software,
+            in base a come lavora l'impresa.
+          </p>
+
+          {/* Panoramica di mercato: intercetta chi non ha ancora un nome in testa */}
+          <Link
+            to="/blog/migliori-software-gestionali-edilizia-confronto"
+            className="group mb-4 flex flex-col gap-2 rounded-2xl border border-[#F97415]/40 bg-[#F97415]/5 p-5 transition-all hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          >
+            <div className="min-w-0">
+              <span className="mb-1.5 inline-flex w-fit items-center rounded-full bg-[#F97415]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#F97415]">
+                Panoramica di mercato
+              </span>
+              <p className="text-base font-bold leading-snug text-[#111111] group-hover:text-[#F97415]">
+                I migliori software gestionali per l'edilizia nel 2026
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[#111111]/65">
+                Non sai da quale partire? Qui c'è chi fa cosa, e per che tipo di impresa.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#F97415]">
+              Leggi l'analisi <ArrowRight className="h-4 w-4" />
+            </span>
+          </Link>
+
+          {/* Mobile: una colonna piena, tap target ampio. Da sm in poi due, da
+              lg quattro — otto card fanno due righe pulite senza orfani. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {TUTTI_I_CONFRONTI.map((v) => (
               <Link
                 key={v.to}
                 to={v.to}
-                className="group flex flex-col gap-2 rounded-xl border border-gray-200 bg-white hover:border-[#F97415] hover:shadow-md p-4 transition-all"
+                className="group flex min-h-[132px] flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-[#F97415] hover:shadow-md"
               >
-                <span className="text-sm font-bold text-[#111111] group-hover:text-[#F97415] leading-snug">
+                <span className="text-sm font-bold leading-snug text-[#111111] group-hover:text-[#F97415]">
                   {v.name}
                 </span>
-                <span className="text-xs text-[#111111]/60 leading-relaxed flex-1">{v.tagline}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#F97415] mt-1">
-                  Apri confronto <ArrowRight className="w-3 h-3" />
+                <span className="flex-1 text-xs leading-relaxed text-[#111111]/60">{v.tagline}</span>
+                <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#F97415]">
+                  {v.approfondito ? "Leggi l'analisi" : "Apri confronto"}
+                  <ArrowRight className="h-3 w-3" />
                 </span>
               </Link>
             ))}
@@ -467,50 +502,6 @@ export default function Confronto() {
             >
               Come funziona la migrazione <ArrowRight className="h-4 w-4" />
             </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ALTRI CONFRONTI (blog) ── */}
-      <section className="bg-[#FAFAFA] py-10 px-4 border-b border-gray-100">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-center text-xs font-bold tracking-widest uppercase text-[#F97415] mb-2">
-            Altri confronti e panoramiche di mercato
-          </h2>
-          {/* Answer block: deve reggere da solo se un motore generativo lo
-              estrae senza il contesto intorno — soggetto esplicito, niente
-              pronomi vaghi, nomi dei competitor per esteso. */}
-          <p className="text-center text-sm text-[#111111]/70 mb-6 max-w-3xl mx-auto leading-relaxed">
-            Edilizia in Cloud è confrontato anche con Pillar, PlanRadar e Dylog Edilizia in analisi
-            dedicate sul blog. Ogni confronto spiega quale software conviene in base a come lavora
-            l'impresa: chi ha bisogno solo del rilievo fotografico di cantiere, chi deve tenere il
-            margine della commessa e chi sta valutando se lasciare un gestionale installato.
-          </p>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {APPROFONDIMENTI.map((a) => (
-              <Link
-                key={a.to}
-                to={a.to}
-                className={`group flex flex-col gap-2 rounded-xl border bg-white p-4 transition-all hover:shadow-md ${
-                  a.guida
-                    ? "border-[#F97415]/40 lg:col-span-3"
-                    : "border-gray-200 hover:border-[#F97415]"
-                }`}
-              >
-                {a.guida && (
-                  <span className="inline-flex w-fit items-center rounded-full bg-[#F97415]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#F97415]">
-                    Panoramica di mercato
-                  </span>
-                )}
-                <span className="text-sm font-bold leading-snug text-[#111111] group-hover:text-[#F97415]">
-                  {a.name}
-                </span>
-                <span className="flex-1 text-xs leading-relaxed text-[#111111]/60">{a.tagline}</span>
-                <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#F97415]">
-                  Leggi l'analisi <ArrowRight className="h-3 w-3" />
-                </span>
-              </Link>
-            ))}
           </div>
         </div>
       </section>
