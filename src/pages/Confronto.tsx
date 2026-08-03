@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSEO } from "@/hooks/useSEO";
+import { useSEO, WIKIDATA_ENTITY } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
@@ -203,6 +203,18 @@ const faqItems = [
     a: "Sono due strumenti diversi. Primus ACCA è eccellente per computi metrici e preventivi tecnici (~85-95€/mese modulare). Edilizia in Cloud copre l'intero ciclo della commessa: cantieri, margini real-time, fatturazione SDI, HR, CRM, AI. Se gestisci cantieri attivi e personale, Edilizia in Cloud è più completo.",
   },
   {
+    q: "Che differenza c'è tra Edilizia in Cloud e Pillar?",
+    a: "Edilizia in Cloud e Pillar sono entrambi gestionali con AI integrata, ma partono da problemi diversi. Pillar nasce sul controllo documentale e sulla compliance. Edilizia in Cloud usa l'AI sul conto economico della commessa: calcola il margine reale incrociando rapportini, ordini a fornitore e fatture, e avvisa quando scende. Entrambi cloud, entrambi italiani.",
+  },
+  {
+    q: "Edilizia in Cloud è un'alternativa a PlanRadar?",
+    a: "Solo in parte, perché coprono fasi diverse. PlanRadar è specializzato nella documentazione di cantiere: rilievi, difetti, foto georeferenziate, verbali. Edilizia in Cloud gestisce l'intera commessa, dal preventivo alla fattura, includendo rapportini e stato avanzamento lavori. Chi cerca solo il rilievo fotografico resta su PlanRadar; chi vuole anche i numeri della commessa usa Edilizia in Cloud.",
+  },
+  {
+    q: "Conviene passare da Dylog Edilizia a un gestionale cloud?",
+    a: "Dipende da dove lavori. Dylog Edilizia è un gestionale storico installato sul computer dell'ufficio: solido sulla contabilità, ma raggiungibile solo da quella postazione. Edilizia in Cloud è nativo cloud: il capocantiere aggiorna dal telefono e i dati sono immediatamente in ufficio. La migrazione delle anagrafiche è assistita e gratuita.",
+  },
+  {
     q: "Posso migrare da Excel a Edilizia in Cloud?",
     a: "Sì. Il team di onboarding importa gratuitamente cantieri, clienti, fornitori e storico da qualsiasi file Excel. La migrazione standard si chiude in 48 ore senza interrompere l'operatività dell'impresa.",
   },
@@ -234,10 +246,10 @@ export default function Confronto() {
   const [filter, setFilter] = useState<RowCategory | "all">("all");
 
   useSEO({
-    title: "Confronto Software Gestionale Edilizia",
-    description: "Confronta Edilizia in Cloud con Primus ACCA, TeamSystem, Edilnet, Buildertrend ed Excel: funzionalità, prezzi e fiscale italiano per scegliere il migliore.",
+    title: "Confronto Software Gestionale Edilizia 2026",
+    description: "Edilizia in Cloud a confronto con Primus ACCA, TeamSystem, Edilnet, Buildertrend, Pillar, PlanRadar, Dylog ed Excel: funzioni, prezzi e fiscale italiano a confronto.",
     canonical: "/confronto",
-    keywords: "confronto software gestionale edilizia, edilizia in cloud vs primus, edilizia in cloud vs teamsystem, alternativa ERP edilizia, miglior gestionale imprese edili 2026",
+    keywords: "confronto software gestionale edilizia, edilizia in cloud vs primus, edilizia in cloud vs teamsystem, edilizia in cloud vs pillar, edilizia in cloud vs planradar, alternativa ERP edilizia, miglior gestionale imprese edili 2026",
   });
 
   useEffect(() => {
@@ -294,6 +306,22 @@ export default function Confronto() {
           "name": item.q,
           "acceptedAnswer": { "@type": "Answer", "text": item.a },
         })),
+      }} />
+      {/* Nodo software: STESSO @id della home. Un @id diverso spaccherebbe
+          l'entità in due invece di consolidarla, e i motori generativi non
+          riconcilierebbero questa pagina con il prodotto già noto (Wikidata). */}
+      <JsonLd id="jsonld-software-confronto" data={{
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "@id": "https://www.ediliziaincloud.com/#software",
+        "name": "Edilizia in Cloud",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Construction Management Software",
+        "operatingSystem": "Web, iOS, Android",
+        "description": "Gestionale cloud per imprese edili italiane: preventivi, cantieri, margini in tempo reale, fatturazione elettronica SDI, subappalti e rapportini da mobile.",
+        "inLanguage": "it-IT",
+        "sameAs": [WIKIDATA_ENTITY],
+        "publisher": { "@id": "https://www.ediliziaincloud.com/#organization" },
       }} />
       <JsonLd id="jsonld-itemlist-confronto" data={{
         "@context": "https://schema.org",
@@ -449,8 +477,14 @@ export default function Confronto() {
           <h2 className="text-center text-xs font-bold tracking-widest uppercase text-[#F97415] mb-2">
             Altri confronti e panoramiche di mercato
           </h2>
-          <p className="text-center text-sm text-[#111111]/60 mb-6 max-w-2xl mx-auto">
-            Analisi estese sul blog, per chi vuole entrare nel dettaglio prima di decidere.
+          {/* Answer block: deve reggere da solo se un motore generativo lo
+              estrae senza il contesto intorno — soggetto esplicito, niente
+              pronomi vaghi, nomi dei competitor per esteso. */}
+          <p className="text-center text-sm text-[#111111]/70 mb-6 max-w-3xl mx-auto leading-relaxed">
+            Edilizia in Cloud è confrontato anche con Pillar, PlanRadar e Dylog Edilizia in analisi
+            dedicate sul blog. Ogni confronto spiega quale software conviene in base a come lavora
+            l'impresa: chi ha bisogno solo del rilievo fotografico di cantiere, chi deve tenere il
+            margine della commessa e chi sta valutando se lasciare un gestionale installato.
           </p>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {APPROFONDIMENTI.map((a) => (
