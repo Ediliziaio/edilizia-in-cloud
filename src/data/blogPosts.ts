@@ -5673,8 +5673,8 @@ export const blogPosts: BlogPost[] = [
     category: "Normativa",
     tags: ["patente a crediti", "sicurezza cantieri", "D.Lgs 81/2008", "normativa edilizia"],
     publishedAt: "2026-06-11",
-    updatedAt: "2026-07-04",
-    readTime: 8,
+    updatedAt: "2026-08-03",
+    readTime: 16,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/patente-a-crediti-edilizia-guida.jpg",
@@ -5695,8 +5695,73 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "section",
+        heading: "Come si Richiede, e Cosa Serve Prima di Aprire il Portale",
+        body: "La patente si chiede all'Ispettorato Nazionale del Lavoro attraverso il suo portale telematico. La richiesta la presenta il legale rappresentante dell'impresa o il lavoratore autonomo, oppure un soggetto munito di delega, e consiste in una dichiarazione sul possesso dei requisiti.\n\nQuello che quasi nessuno dice è che il momento della richiesta è il momento sbagliato per scoprire cosa manca. I requisiti dichiarati riguardano cose che devono già esistere in azienda: iscrizione alla camera di commercio, DURC in corso di validità, documento di valutazione dei rischi, DURF dove previsto, designazione del responsabile del servizio di prevenzione e protezione, e la formazione di datore di lavoro, preposti e lavoratori. Se uno di questi pezzi non c'è, non è una pratica da sistemare in giornata.\n\nDue accortezze pratiche. La prima: la dichiarazione è un'autocertificazione, quindi risponde chi la firma — vale la pena verificare davvero ogni voce invece di spuntarla, perché una dichiarazione non veritiera è un problema molto più serio della patente. La seconda: il possesso della patente va poi mantenuto nel tempo. Un DURC che scade o una formazione non rinnovata non sono dettagli amministrativi: sono i presupposti su cui hai dichiarato di essere in regola.",
+      },
+      {
+        type: "section",
         heading: "Cosa fa perdere crediti",
         body: "Le decurtazioni scattano con provvedimenti definitivi: le più pesanti riguardano gli infortuni. La morte di un lavoratore comporta la decurtazione di 20 crediti, l'inabilità permanente fino a 15, e le violazioni gravi in materia di salute e sicurezza (quelle richiamate dall'Allegato I al D.Lgs 81/2008) tolgono punti in proporzione alla gravità. I crediti persi si possono recuperare frequentando corsi specifici in materia di sicurezza e con comportamenti virtuosi certificati.",
+      },
+      {
+        type: "table",
+        heading: "Come funzionano le decurtazioni: la logica del sistema",
+        headers: ["Cosa succede", "Effetto sui crediti", "Nota pratica"],
+        rows: [
+          ["Infortunio mortale del lavoratore", "Decurtazione di 20 crediti", "La piu' pesante: da 30 crediti iniziali si scende a 10, sotto la soglia operativa"],
+          ["Inabilita' permanente", "Fino a 15 crediti", "L'entita' dipende dalla gravita' accertata"],
+          ["Violazioni gravi in materia di salute e sicurezza", "Decurtazione graduata per gravita'", "Sono quelle richiamate dall'Allegato I al D.Lgs 81/2008"],
+          ["Lavoro irregolare", "Dal 2026 la decurtazione e' stata inasprita", "Con segnalazione automatica al Portale Nazionale del Sommerso"],
+          ["Piu' violazioni nello stesso accertamento", "Al massimo il DOPPIO della violazione piu' grave", "E' il tetto che evita l'azzeramento in un solo controllo"],
+          ["Quando scatta la decurtazione", "Con provvedimento definitivo", "Non alla contestazione: c'e' spazio per difendersi prima"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Aggiornamento 2026: Cosa e' Cambiato",
+        body: "Questa e' la parte che rende obsoleti quasi tutti gli articoli in circolazione, scritti nell'autunno 2024 e mai piu' toccati.\n\nCon il decreto in materia di sicurezza sul lavoro e la sua conversione in legge, dal 2026 la decurtazione prevista per il lavoro irregolare e' stata inasprita in modo significativo, ed e' stata introdotta la segnalazione automatica delle violazioni al Portale Nazionale del Sommerso. Sono state inoltre eliminate due voci dell'allegato che elenca le decurtazioni.\n\nDue precisazioni che contano nella pratica. La prima riguarda la decorrenza: le nuove misure si applicano agli illeciti commessi a partire dal 1° gennaio 2026, mentre per le infrazioni precedenti valgono le decurtazioni della tabella previgente. Non e' un dettaglio da giuristi — se hai una contestazione aperta, la data del fatto determina quanti crediti rischi.\n\nLa seconda riguarda l'automatismo: la segnalazione automatica cambia la natura del rischio. Fino a ieri una violazione doveva essere trasmessa attraverso passaggi che richiedevano tempo; con il flusso automatico la distanza fra l'accertamento e l'effetto sulla patente si accorcia. Chi contava sulla lentezza del sistema conta su qualcosa che non c'e' piu'.",
+      },
+      {
+        type: "section",
+        heading: "Il Tetto delle Decurtazioni Multiple: la Regola che Nessuno Cita",
+        body: "E' la regola piu' utile dell'intero impianto, ed e' anche quella di cui non parla quasi nessuno.\n\nQuando in un unico accertamento ispettivo vengono contestate piu' violazioni, i crediti non si sommano senza limite: la decurtazione complessiva non puo' eccedere il doppio di quella prevista per la violazione piu' grave. Significa che un controllo che rileva sei irregolarita' non azzera la patente sommando sei decurtazioni.\n\nPerche' e' importante saperlo: cambia completamente la reazione razionale a un verbale. Senza questa regola la logica sarebbe difendersi su tutto, perche' ogni contestazione pesa. Con questa regola conviene concentrare la difesa sulla violazione piu' grave, perche' e' quella che determina il tetto — ridurla riduce anche il massimo complessivo.\n\nE c'e' un corollario meno rassicurante: il tetto vale per accertamento, non per anno. Due ispezioni distinte producono due tetti distinti, e le decurtazioni si sommano. Un'impresa che prende due verbali in stagioni diverse puo' arrivare sotto soglia anche senza un singolo evento catastrofico.",
+      },
+      {
+        type: "section",
+        heading: "La Patente dei Tuoi Subappaltatori e' un Problema Tuo",
+        body: "E' la parte che le imprese affidatarie sottovalutano piu' spesso, e il meccanismo e' lo stesso che gia' conoscono per il DURC e per la congruita' della manodopera.\n\nIn cantiere ogni impresa esecutrice deve avere la propria patente in regola. Ma la verifica non e' un fatto privato fra il subappaltatore e l'Ispettorato: il committente e il responsabile dei lavori hanno l'obbligo di verificare che le imprese affidatarie ed esecutrici la possiedano, e chi non lo fa risponde. Nella catena reale, questo significa che l'impresa principale si trova nel mezzo — deve pretendere la verifica dai propri subappaltatori e deve poterla dimostrare.\n\nLa parte scomoda e' che il punteggio di un subappaltatore puo' scendere sotto soglia mentre il cantiere e' aperto, senza che tu lo sappia. Una verifica fatta una volta sola, alla firma del contratto, e' una fotografia che invecchia. Le tre clausole che risolvono il problema sono le stesse che ormai conosci: obbligo di comunicare tempestivamente ogni variazione del punteggio, facolta' di sospendere i pagamenti in assenza della verifica, e risoluzione se la patente scende sotto la soglia operativa. Le abbiamo dettagliate nella [guida al contratto di subappalto](/blog/contratto-subappalto-edile-fac-simile/).",
+      },
+      {
+        type: "section",
+        heading: "Cosa NON Fa Perdere Crediti (e Perche' Vale Dirlo)",
+        body: "Molte imprese vivono la patente con un'ansia che non corrisponde a come funziona davvero, e l'ansia mal riposta porta a preoccuparsi delle cose sbagliate.\n\nNon fanno perdere crediti le irregolarita' amministrative che non riguardano salute e sicurezza. Non li fa perdere un infortunio in se', se non e' accompagnato da un accertamento di responsabilita': il sistema colpisce le violazioni accertate, non la sfortuna. Non li fa perdere una contestazione finche' non diventa definitiva — c'e' uno spazio reale per difendersi, e usarlo non e' un cavillo, e' il funzionamento normale del procedimento.\n\nQuesto pero' ha un rovescio che vale la pena guardare in faccia: siccome la decurtazione arriva alla fine del percorso, l'impresa che ignora una contestazione «tanto non e' successo niente» si ritrova l'effetto mesi dopo, magari mentre sta per firmare un appalto. Il momento per occuparsene e' quando arriva il verbale, non quando arriva la decurtazione.",
+      },
+      {
+        type: "table",
+        heading: "Il punteggio in pratica: dove sei e cosa puoi fare",
+        headers: ["Crediti", "Puoi lavorare in cantiere?", "Cosa fare"],
+        rows: [
+          ["30 (dotazione iniziale)", "Si'", "Punta a salire: storicita', formazione e certificazioni fanno crescere il punteggio"],
+          ["Sopra 15", "Si'", "Situazione normale, ma monitora: una decurtazione seria puo' portarti sotto"],
+          ["Esattamente 15", "Si', ma sei al limite", "Attiva subito i corsi per il recupero: non aspettare la prossima contestazione"],
+          ["Sotto 15", "No", "Puoi solo completare le lavorazioni gia' in corso se hai eseguito piu' del 30% dei lavori"],
+          ["Sotto 15 con lavori sotto il 30%", "No", "Il cantiere si ferma: e' lo scenario da evitare a qualunque costo"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come si Recuperano i Crediti Persi",
+        body: "Una decurtazione non e' definitiva nel senso di irreversibile: il sistema prevede espressamente che i crediti si possano riprendere, ed e' la parte che le imprese scoprono troppo tardi.\n\nLo strumento principale e' la formazione. Frequentando i corsi previsti in materia di salute e sicurezza sul lavoro l'impresa recupera punteggio, entro i limiti fissati dalla norma. Non e' un corso qualunque: contano quelli indicati dalla disciplina, e la documentazione della frequenza e' cio' che rende effettivo il recupero.\n\nDue considerazioni pratiche che cambiano il modo di ragionare. La prima: il recupero richiede tempo — iscrizione, svolgimento, attestazioni, aggiornamento della posizione. Se aspetti di essere a 15 crediti per attivarti, nel frattempo il cantiere e' fermo, e nessun corso si conclude in quarantotto ore. La seconda: la formazione conviene farla prima, non dopo. Un'impresa che tiene aggiornata la formazione per convinzione arriva a un'eventuale decurtazione con un margine che le altre non hanno, e in piu' ha ridotto la probabilita' stessa della violazione.\n\nDetto in modo brutale: la formazione e' l'unica voce di spesa in materia di sicurezza che restituisce punteggio. Trattarla come un adempimento da rinviare e' la scelta economicamente peggiore fra quelle disponibili.",
+      },
+      {
+        type: "section",
+        heading: "Salire Sopra 30: i Crediti che Quasi Nessuno si Prende",
+        body: "Trenta crediti sono la dotazione di partenza, non il tetto: il punteggio puo' arrivare fino a cento. E qui c'e' un'asimmetria che vale la pena capire, perche' e' quella che separa le imprese che dormono tranquille da quelle che vivono di sponda.\n\nIl punteggio cresce lungo tre direttrici. La storicita' dell'impresa: gli anni di attivita' senza provvedimenti pesano, ed e' un credito che si accumula semplicemente lavorando bene. Gli investimenti in salute e sicurezza: attivita' e dotazioni che vanno oltre il minimo di legge. Le certificazioni e i modelli organizzativi: sistemi di gestione della sicurezza e modelli di organizzazione riconosciuti.\n\nPerche' e' importante e non un vezzo da grande impresa: la differenza fra stare a 30 e stare a 60 e' la differenza fra un infortunio grave che ti porta sotto soglia e uno che ti lascia operativo. Con 30 crediti, una decurtazione da venti ti mette a dieci — sotto la soglia, cantieri fermi. Con un punteggio piu' alto, lo stesso evento e' un problema serio ma non un blocco dell'attivita'.\n\nIl calcolo economico e' quindi meno ovvio di quanto sembri. Investire per salire non serve a esibire un numero: serve a comprarsi margine di sopravvivenza per il giorno in cui qualcosa va storto. E in edilizia quel giorno, statisticamente, arriva.",
+      },
+      {
+        type: "section",
+        heading: "In Sintesi: le Sette Cose da Ricordare",
+        body: "Primo: si parte da 30 crediti, si puo' salire fino a 100 e sotto 15 non si lavora — con l'unica eccezione delle lavorazioni gia' in corso oltre il 30% di esecuzione. Secondo: sono esonerati solo chi effettua mere forniture o prestazioni intellettuali e le imprese con SOA in classifica pari o superiore alla III: tutti gli altri, comprese le imprese estere, devono averla. Terzo: le decurtazioni scattano con provvedimento definitivo, quindi lo spazio per difendersi esiste e va usato quando arriva il verbale, non dopo. Quarto: in un unico accertamento la decurtazione complessiva non puo' superare il doppio di quella della violazione piu' grave — conviene concentrare la difesa proprio su quella. Quinto: quel tetto vale per accertamento e non per anno, quindi due ispezioni distinte si sommano. Sesto: dal 1° gennaio 2026 il lavoro irregolare pesa di piu' e la segnalazione e' automatica, mentre per gli illeciti precedenti vale la tabella previgente. Settimo: la patente dei subappaltatori e' un problema tuo, e una verifica fatta solo alla firma del contratto e' una fotografia che invecchia.",
       },
       {
         type: "section",
@@ -5724,6 +5789,22 @@ export const blogPosts: BlogPost[] = [
       },
     ],
     faqs: [
+      {
+        q: "Se in un controllo mi contestano più violazioni, si sommano tutte le decurtazioni?",
+        a: "No, ed è la regola più utile dell'intero sistema: quando più violazioni vengono contestate nell'ambito dello stesso accertamento ispettivo, la decurtazione complessiva non può eccedere il doppio di quella prevista per la violazione più grave. Attenzione però: il tetto vale per accertamento, non per anno. Due ispezioni distinte producono due tetti distinti e le decurtazioni si sommano.",
+      },
+      {
+        q: "Come si recuperano i crediti persi?",
+        a: "Attraverso la frequenza dei corsi previsti in materia di salute e sicurezza sul lavoro, entro i limiti fissati dalla norma. Il punto pratico è il tempo: fra iscrizione, svolgimento, attestazioni e aggiornamento della posizione passano settimane, e se aspetti di essere sotto soglia per attivarti nel frattempo il cantiere è fermo. La formazione conviene tenerla aggiornata prima, non dopo la decurtazione.",
+      },
+      {
+        q: "Conviene salire sopra i 30 crediti iniziali?",
+        a: "Sì, e il motivo non è esibire un numero. Il punteggio può arrivare fino a 100 grazie a storicità dell'impresa, investimenti in salute e sicurezza e certificazioni. Con 30 crediti una decurtazione da venti ti porta a dieci, cioè sotto la soglia operativa, con i cantieri fermi; con un punteggio più alto lo stesso evento resta un problema serio ma non blocca l'attività. È margine di sopravvivenza, non immagine.",
+      },
+      {
+        q: "Devo verificare la patente dei miei subappaltatori?",
+        a: "In cantiere ogni impresa esecutrice deve avere la propria patente in regola, e committente e responsabile dei lavori hanno l'obbligo di verificarlo. Nella catena reale l'impresa affidataria sta nel mezzo: deve pretendere la verifica e poterla dimostrare. Il rischio meno ovvio è che il punteggio di un subappaltatore scenda sotto soglia a cantiere aperto — una verifica fatta solo alla firma del contratto è una fotografia che invecchia.",
+      },
       {
         q: "Da quando è obbligatoria la patente a crediti nei cantieri?",
         a: "Dal 1° ottobre 2024. È stata introdotta dal D.L. 19/2024 (decreto PNRR), che ha riscritto l'articolo 27 del D.Lgs 81/2008, e riguarda le imprese e i lavoratori autonomi che operano fisicamente nei cantieri temporanei o mobili, comprese le imprese estere che lavorano in Italia.",
