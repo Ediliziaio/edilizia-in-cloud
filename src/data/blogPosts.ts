@@ -5683,14 +5683,18 @@ export const blogPosts: BlogPost[] = [
       { q: "Quando si svincolano le ritenute di garanzia?", a: "Nei pubblici con l'approvazione del certificato di collaudo o di regolare esecuzione. Nei privati alla data prevista dal contratto: collaudo, fine lavori o decorso del periodo di garanzia. Lo svincolo va richiesto formalmente, con il riepilogo delle ritenute operate." },
       { q: "Posso evitare la ritenuta di garanzia?", a: "Spesso sì, sostituendola con una garanzia fideiussoria (polizza assicurativa o bancaria) di pari importo: paghi un premio ma liberi subito la liquidità. La possibilità va prevista nel contratto; su commesse lunghe e importi alti conviene quasi sempre." },
       { q: "La ritenuta di garanzia si fattura?", a: "La prassi più comune è fatturare l'intero importo del SAL e incassare al netto della ritenuta, che resta un credito verso il committente. Il trattamento va comunque allineato con il contratto e con il proprio commercialista, soprattutto per l'esigibilità dell'IVA." },
+      { q: "Che differenza c'è tra ritenuta di garanzia e ritenuta d'acconto?", a: "Sono due cose diverse che si somigliano solo nel nome. La ritenuta di garanzia è una trattenuta contrattuale a garanzia della buona esecuzione dell'opera: è un tuo credito, che rientra allo svincolo. La ritenuta d'acconto è un anticipo d'imposta versato all'Erario dal sostituto. La prima la recuperi dal committente, la seconda la recuperi in dichiarazione." },
+      { q: "In quanto tempo si prescrive la ritenuta di garanzia?", a: "È un credito contrattuale e segue la prescrizione ordinaria decennale. In pratica però conta poco: dopo tre o quattro anni ricostruire SAL, verbali e comunicazioni di un cantiere chiuso costa più di quanto vale la ritenuta. Vanno recuperate nei mesi successivi al collaudo, non negli anni." },
+      { q: "Devo applicare la ritenuta anche ai miei subappaltatori?", a: "Se il committente la applica a te, ha senso replicarla a valle sulle lavorazioni subappaltate — altrimenti finanzi tu la garanzia di lavori eseguiti da altri. Lo svincolo verso il subappaltatore va agganciato al collaudo della sua lavorazione, non a una data secca: se il committente contesta proprio quella parte, la ritenuta è l'unica leva per farla sistemare." },
     ],
     title: "Ritenuta di Garanzia negli Appalti: Come Funziona",
     excerpt:
-      "Ritenute di garanzia negli appalti pubblici e privati: percentuali, quando si applicano, come si svincolano e come tracciarle per non perdere soldi.",
+      "Ritenuta di garanzia negli appalti pubblici e privati: percentuali, svincolo, clausola pronta da contratto, fideiussione sostitutiva e trattamento IVA.",
     category: "Finanza",
-    tags: ["ritenuta di garanzia", "appalti", "SAL", "pagamenti", "collaudo"],
+    tags: ["ritenuta di garanzia", "appalti", "SAL", "pagamenti", "collaudo", "fideiussione", "svincolo ritenute", "subappalto"],
     publishedAt: "2026-07-10",
-    readTime: 8,
+    updatedAt: "2026-08-03",
+    readTime: 14,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
       "/blog/covers/ritenuta-di-garanzia-appalti-come-funziona.jpg",
@@ -5705,9 +5709,41 @@ export const blogPosts: BlogPost[] = [
         body: "La ritenuta di garanzia è una trattenuta percentuale operata dal committente su ogni pagamento in acconto (tipicamente su ogni SAL), a tutela della buona esecuzione dell'opera e degli adempimenti dell'appaltatore. Non è un costo: è un tuo credito che matura e resta parcheggiato fino alla verifica finale. Negli appalti pubblici la trattenuta dello 0,50% su ogni SAL è prevista dalla legge a garanzia dei lavoratori (retribuzioni e contributi) e viene svincolata in sede di verifica di conformità o collaudo, previa verifica del DURC. Nei lavori privati la ritenuta è contrattuale: percentuali tipiche tra il 5% e il 10% di ogni SAL, con svincolo legato al collaudo o alla scadenza della garanzia.",
       },
       {
+        type: "table",
+        heading: "Appalti pubblici e lavori privati: le differenze che contano",
+        headers: ["", "Appalto pubblico", "Lavoro privato"],
+        rows: [
+          ["Percentuale", "0,50% su ogni SAL", "Contrattuale: di norma 5%–10% del SAL"],
+          ["Da cosa nasce", "Previsione di legge, a tutela di retribuzioni e contributi", "Solo dal contratto: se non è scritta, non esiste"],
+          ["Base di calcolo", "Importo netto del SAL", "Da definire: quasi sempre l'imponibile del SAL"],
+          ["Cosa fa scattare lo svincolo", "Approvazione del collaudo o del certificato di regolare esecuzione", "La data scritta in contratto: collaudo, fine lavori o fine garanzia"],
+          ["DURC", "Serve regolare: un'irregolarità blocca anche ritenute di anni prima", "Non richiesto per legge, ma il committente può pretenderlo"],
+          ["Sostituibile con fideiussione", "Di norma no", "Sì, se lo prevedi nel contratto"],
+          ["Margine di trattativa", "Nessuno", "Tutto: percentuale, base, tempi, garanzia sostitutiva"],
+        ],
+      },
+      {
         type: "section",
         heading: "Ritenute nei Lavori Privati: Cosa Negoziare nel Contratto",
         body: "Nel privato la ritenuta è tutta questione di contratto — e chi non la negozia subisce le condizioni del committente. I punti da definire per iscritto: la percentuale (il 5% è uno standard ragionevole; il 10% su commesse lunghe pesa molto sulla liquidità), la base di calcolo (sull'imponibile del SAL), il momento esatto dello svincolo (collaudo, fine lavori, o decorso del termine di garanzia — evita formule vaghe come 'a ultimazione soddisfacente'), e l'alternativa della garanzia sostitutiva: spesso puoi sostituire la ritenuta con una polizza fideiussoria, liberando cassa subito a fronte di un premio assicurativo. Su commesse importanti, la fideiussione conviene quasi sempre.",
+      },
+      {
+        type: "section",
+        heading: "Fideiussione al Posto della Ritenuta: Quando Conviene Davvero",
+        body: "Sostituire la ritenuta con una polizza fideiussoria significa incassare subito il 100% del SAL e consegnare al committente una garanzia bancaria o assicurativa di pari importo. Costa un premio, quindi la domanda giusta non è «conviene?» ma «conviene più di quanto mi costa non avere quei soldi?». Il conto si fa in due righe. Da un lato il premio della fideiussione, che sul mercato si muove indicativamente fra l'1% e il 3% annuo dell'importo garantito, a seconda del merito creditizio dell'impresa e della durata. Dall'altro il costo del denaro che stai anticipando: se quei soldi ti mancano e li copri con lo scoperto di conto o l'anticipo fatture, stai pagando l'interesse che ti applica la banca su una cifra pari alla ritenuta, per tutti i mesi che passano fino allo svincolo. Se il tuo fido costa più del premio, la fideiussione è in guadagno; se hai cassa in abbondanza e nessun costo finanziario, la ritenuta è solo una scocciatura amministrativa e la polizza è un costo secco. La regola pratica: più la commessa è lunga e più il collaudo è lontano, più la fideiussione conviene, perché il premio si paga una volta mentre l'interesse corre ogni mese.",
+      },
+      {
+        type: "table",
+        heading: "Ritenuta trattenuta o fideiussione: il confronto su una commessa da 300.000 €",
+        headers: ["", "Ritenuta 5% trattenuta", "Fideiussione sostitutiva"],
+        rows: [
+          ["Importo coinvolto", "15.000 € (5% di 300.000)", "15.000 € garantiti da polizza"],
+          ["Quando incassi", "Allo svincolo, dopo il collaudo", "Subito, con l'ultimo SAL"],
+          ["Costo diretto", "Nessuno", "Premio della polizza, una tantum sul periodo"],
+          ["Costo indiretto", "Gli interessi sul fido, se quei 15.000 ti servono", "Nessuno"],
+          ["Rischio", "Il committente non svincola e devi rincorrerlo", "Nessuno sull'incasso; la polizza resta escutibile se sbagli i lavori"],
+          ["Quando sceglierla", "Commesse brevi, collaudo vicino, cassa tranquilla", "Commesse lunghe, collaudo lontano, cassa tirata"],
+        ],
       },
       {
         type: "section",
@@ -5726,8 +5762,49 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "section",
+        heading: "La Clausola da Mettere a Contratto: Testo Pronto",
+        body: "Questa è la formulazione minima che copre i quattro punti critici. Adattala con il tuo legale, ma non firmare contratti che dicono meno di così. «A garanzia della buona esecuzione delle opere, il Committente tratterrà il 5% (cinque per cento) dell'imponibile di ciascuno stato di avanzamento lavori. Le somme trattenute non producono interessi e saranno svincolate integralmente entro 30 (trenta) giorni dalla data del verbale di collaudo, ovvero, in mancanza di collaudo formale, entro 30 (trenta) giorni dalla data del certificato di ultimazione dei lavori. L'Appaltatore ha facoltà, in qualunque momento, di sostituire la ritenuta con garanzia fideiussoria bancaria o assicurativa di pari importo, a prima richiesta, con conseguente obbligo del Committente di corrispondere le somme fino a quel momento trattenute entro 15 (quindici) giorni dalla consegna della garanzia.» Cosa fa questo testo, riga per riga: fissa la percentuale e la base, così non si discute se si calcola sull'imponibile o sul lordo; fissa una data certa e un'alternativa se il collaudo non arriva mai, che è il buco da cui passano la maggior parte delle ritenute perse; nega gli interessi ma in cambio fissa termini brevi, ed è uno scambio che i committenti accettano volentieri; e soprattutto ti lascia aperta la porta della fideiussione anche a lavori iniziati, cioè quando ti accorgi che la cassa serve.",
+      },
+      {
+        type: "section",
+        heading: "Caso Pratico: una Commessa da 300.000 € dall'Inizio allo Svincolo",
+        body: "Ristrutturazione per un committente privato, 300.000 € di imponibile, ritenuta contrattuale al 5%, quattro SAL da 75.000 € ciascuno, collaudo previsto a tre mesi dalla fine lavori. Su ogni SAL fatturi 75.000 € e ne incassi 71.250, perché 3.750 restano trattenuti. A fine lavori hai emesso 300.000 € di fatture, ne hai incassati 285.000 e hai 15.000 € parcheggiati presso il committente. Nel frattempo l'IVA l'hai versata sull'intero imponibile fatturato, non su quello incassato: è il primo punto in cui la ritenuta ti costa davvero, perché anticipi imposta su denaro che non hai. Passano i tre mesi, arriva il collaudo, e da lì partono i 30 giorni della clausola: se hai scritto il contratto come sopra, a quattro mesi dalla fine lavori i 15.000 € rientrano. Se invece il contratto diceva «a ultimazione soddisfacente dei lavori», quei 15.000 € dipendono dall'umore del committente, e la trattativa la fai da una posizione debole perché il cantiere è finito e non hai più nessuna leva. La differenza fra i due scenari non è nella percentuale: è in una riga di contratto scritta sei mesi prima.",
+      },
+      {
+        type: "section",
+        heading: "Se il Committente non Svincola: Cosa Fare, nell'Ordine",
+        body: "Capita, e quasi sempre non è malafede: è che nessuno dall'altra parte ha in mano il riepilogo. Per questo il primo passo è mandarlo tu. Parti da una richiesta scritta via PEC con l'elenco delle ritenute SAL per SAL — data, importo del SAL, percentuale applicata, ritenuta maturata — e l'atto che fa scattare lo svincolo allegato: verbale di collaudo, certificato di regolare esecuzione o attestazione di fine lavori. Un committente serio, davanti a un prospetto ordinato, paga. Se dopo due settimane non risponde, il secondo passo è la messa in mora formale, che oltre a sollecitare interrompe la prescrizione e fa decorrere gli interessi di mora. Il terzo passo è la valutazione legale vera e propria, e qui conta una cosa che molti ignorano: la ritenuta di garanzia è un credito come tutti gli altri, quindi si prescrive. Il termine ordinario dei crediti contrattuali è decennale, ma non fartene un'illusione: dopo tre o quattro anni ricostruire i SAL, i verbali e le comunicazioni di un cantiere chiuso diventa un lavoro archeologico, e il costo di recupero supera spesso l'importo. Le ritenute si recuperano nei mesi successivi al collaudo, non negli anni.",
+      },
+      {
+        type: "section",
+        heading: "L'Altro Lato: le Ritenute che Applichi ai Tuoi Subappaltatori",
+        body: "Se lavori con subappaltatori, la ritenuta la subisci a monte e la applichi a valle — e quasi nessuno tiene le due cose allineate. Il principio è semplice: non puoi tenere aperta verso il subappaltatore una garanzia che a te è già stata svincolata, e allo stesso modo non ha senso svincolare al subappaltatore mentre il committente tiene ancora fermi i tuoi soldi per lo stesso lotto di lavori. Nel contratto di subappalto vanno quindi scritte le stesse quattro cose che pretendi nel tuo: percentuale, base di calcolo, evento che fa scattare lo svincolo e possibilità di garanzia sostitutiva. La regola che evita i guai è agganciare lo svincolo verso il subappaltatore al collaudo della parte di opera che ha eseguito, non a una data secca del calendario: se il committente contesta proprio quella lavorazione, la ritenuta che hai in mano è l'unica leva che ti resta per farla sistemare. Attenzione però a non usarla come arma impropria: trattenere oltre il dovuto un subappaltatore che ha lavorato bene è il modo più rapido per perderlo, e le squadre serie in edilizia si contano sulle dita.",
+      },
+      {
+        type: "section",
+        heading: "Fatturazione e IVA: l'Errore che Costa Caro",
+        body: "La prassi più diffusa è fatturare l'intero importo del SAL e incassare al netto della ritenuta, che resta a bilancio come credito verso il committente. È l'impostazione più lineare, ma comporta una conseguenza che va capita: l'IVA sull'intero SAL diventa esigibile secondo le regole ordinarie, quindi la versi su un importo che hai incassato solo in parte. Su una ritenuta del 10% applicata a SAL importanti, l'anticipo di IVA non è una cifra trascurabile. L'alternativa — fatturare al netto e emettere la fattura sulla quota trattenuta al momento dello svincolo — sposta il problema in avanti ma va concordata e coerente col contratto, altrimenti si crea un disallineamento fra quanto hai fatturato e quanto risulta contabilizzato dal committente, e la discussione salta fuori proprio al momento dello svincolo, quando serve chiarezza. Qualunque strada scegli, la regola è una sola: decidila prima con il tuo commercialista, scrivila nel contratto e tienila identica su tutti i SAL della stessa commessa. La confusione fra ritenuta di garanzia e ritenuta d'acconto è un altro classico da evitare: sono due cose diverse, la prima è una trattenuta a garanzia dell'opera, la seconda è un anticipo d'imposta, e non c'entrano nulla l'una con l'altra.",
+      },
+      {
+        type: "section",
         heading: "Ritenuta di Garanzia e Liquidità: il Peso Reale",
         body: "Facciamo i conti: impresa con 2 milioni di produzione annua in appalti privati con ritenuta al 5% = 100.000€ trattenuti nell'anno. Con collaudi a 6-12 mesi dalla fine lavori, il 'magazzino ritenute' a regime può superare i 100-150.000€ — liquidità tua, ferma, che spesso finanzi con il fido bancario pagando interessi. Per questo le ritenute vanno trattate come un asset da gestire: sapere sempre quanto hai fuori, presso chi, e quando matura lo svincolo. È esattamente il tipo di numero che un gestionale con la gestione delle ritenute di garanzia integrata ti mostra in una schermata — e che su Excel muore in un file che nessuno riapre.",
+      },
+      {
+        type: "table",
+        heading: "Quanta cassa ti resta ferma, per dimensione d'impresa",
+        headers: ["Produzione annua", "Ritenuta 5%", "Ritenuta 10%", "Con collaudi a 12 mesi, il fermo a regime"],
+        rows: [
+          ["500.000 €", "25.000 €", "50.000 €", "circa una mensilità di costi fissi"],
+          ["1.000.000 €", "50.000 €", "100.000 €", "quanto basta a coprire due stipendi l'anno"],
+          ["2.000.000 €", "100.000 €", "200.000 €", "l'equivalente di un mezzo d'opera nuovo"],
+          ["5.000.000 €", "250.000 €", "500.000 €", "una linea di fido intera, che paghi di interessi"],
+        ],
+      },
+      {
+        type: "section",
+        heading: "In Sintesi: le Sei Cose da Ricordare",
+        body: "Primo: nel pubblico la ritenuta è di legge ed è lo 0,50%, nel privato esiste solo se è scritta nel contratto, e lì si tratta. Secondo: la percentuale conta meno della data di svincolo — «a ultimazione soddisfacente» non è una data, «entro 30 giorni dal collaudo» sì. Terzo: su commesse lunghe la fideiussione sostitutiva quasi sempre conviene, perché il premio si paga una volta e l'interesse sul fido corre ogni mese. Quarto: le ritenute non tornano da sole, vanno chieste per iscritto con il riepilogo SAL per SAL, e vanno chieste nei mesi dopo il collaudo, non negli anni. Quinto: se subappalti, aggancia lo svincolo verso il subappaltatore al collaudo della sua lavorazione, non a una data secca. Sesto, e più importante di tutti: il saldo delle ritenute aperte deve stare in un posto solo, aggiornato, con la data di svincolo a scadenzario. Non è un problema di norma, è un problema di memoria: le ritenute perse non le perde chi non conosce la legge, le perde chi non si ricorda di averle.",
       },
       {
         type: "cta",
