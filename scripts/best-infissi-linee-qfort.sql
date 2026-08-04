@@ -121,16 +121,18 @@ on conflict (company_id, nome) do nothing;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 3. DUPLICA le famiglie nelle linee nuove
---    Colonne elencate una per una: copia categoria, assi griglia, unita',
---    markup e manodopera; non copia id ne' deleted_at.
+--    Colonne elencate una per una: copia vertical, categoria, assi griglia,
+--    unita', markup e manodopera; non copia id ne' deleted_at.
+--    NB: `vertical` e' NOT NULL senza default — dimenticarla fa fallire
+--    l'INSERT. Sono le uniche tre obbligatorie: company_id, vertical, nome.
 --    Idempotente: rilanciarlo non crea doppioni.
 -- ────────────────────────────────────────────────────────────────────────────
 insert into article_families
-  (company_id, macrocategoria_id, categoria_id, nome, descrizione, codice, attivo,
+  (company_id, vertical, macrocategoria_id, categoria_id, nome, descrizione, codice, attivo,
    griglia_asse_x_label, griglia_asse_y_label, griglia_unita,
    manodopera_modalita, manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita,
    markup_tipo, markup_valore, custom_field_values, immagine_url)
-select f.company_id, nuova.id, f.categoria_id, f.nome, f.descrizione, f.codice, f.attivo,
+select f.company_id, f.vertical, nuova.id, f.categoria_id, f.nome, f.descrizione, f.codice, f.attivo,
        f.griglia_asse_x_label, f.griglia_asse_y_label, f.griglia_unita,
        f.manodopera_modalita, f.manodopera_unita, f.manodopera_costo_acquisto, f.manodopera_prezzo_vendita,
        f.markup_tipo, f.markup_valore, f.custom_field_values, f.immagine_url
@@ -185,11 +187,18 @@ from (values
   ('Portoncino 1 Anta',                                      'Portoncino d''ingresso ad anta unica.'),
   ('Portoncino 2 Ante',                                      'Portoncino d''ingresso a due ante, secondaria apribile all''occorrenza.')
 ) as d(nome, testo)
-join listino_macrocategorie m on m.id = f.macrocategoria_id
+-- La macrocategoria si filtra con EXISTS e non con una JOIN: in un
+-- UPDATE ... FROM la tabella target (f) non e' referenziabile dentro la ON
+-- di un altro join. Con la JOIN Postgres alza
+-- "invalid reference to FROM-clause entry for table f".
 where f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
   and f.deleted_at is null
   and f.nome = d.nome
-  and m.nome in ('4Stars', 'Epiq', 'Arrogance', '5Stars');
+  and exists (
+    select 1 from listino_macrocategorie m
+    where m.id = f.macrocategoria_id
+      and m.nome in ('4Stars', 'Epiq', 'Arrogance', '5Stars')
+  );
 -- attese: 92 righe (23 tipologie x 4 linee)
 
 

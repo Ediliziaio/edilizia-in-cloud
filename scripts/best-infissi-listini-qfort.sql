@@ -5,8 +5,10 @@
 -- REGOLE DICHIARATE DAL CLIENTE (agosto 2026):
 --   Prodotto : Qfort si compra a 200 €/m² e si vende a 400 €/m² → x2 (markup 100%)
 --   Montaggio: si aggiunge A PARTE, non e' dentro il raddoppio
---   Il 20%   : e' il margine sul SOLO montaggio, ed e' GIA' COMPRESO nel
---              prezzo di posa esposto (posa 60 € => costo reale 50 €)
+--   Il 20%   : e' il margine sulla manodopera, GIA' COMPRESO nel prezzo
+--              esposto (posa 60 € => costo reale 50 €). Confermato dal
+--              cliente che vale anche per smaltimento, trasporto e tiro al
+--              piano: quindi tutte e 62 le voci, non solo le 46 di posa.
 --   IVA      : a parte
 --
 -- COSA FA / COSA NON FA
@@ -17,9 +19,9 @@
 --
 -- FUORI AMBITO, DELIBERATAMENTE
 --   - Serramenti Legno-Alluminio (23 famiglie): altro fornitore, markup ignoto.
---   - smaltimento / trasporto / tiro al piano (16 voci): il cliente ha detto
---     "il 20% e' solo il montaggio". Applicarlo anche a queste sarebbe
---     un'estrapolazione. Vedi la query in fondo per decidere.
+--   (Le 16 voci smaltimento/trasporto/tiro al piano erano inizialmente fuori
+--   ambito; il cliente ha poi confermato che il 20% vale anche per quelle,
+--   quindi ora rientrano nell'UPDATE principale.)
 --
 -- REVERSIBILE: prima di ogni UPDATE c'e' la query che salva lo stato attuale.
 --              Eseguile e conserva l'output se vuoi poter tornare indietro.
@@ -82,9 +84,8 @@ where m.id = f.macrocategoria_id
 update tariffe_aziendali
 set costo_interno = round((prezzo_vendita / 1.20)::numeric, 2)
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
-  and tipo = 'posa'
   and coalesce(prezzo_vendita, 0) > 0;
--- attese: 46 righe
+-- attese: 62 righe (46 posa + 8 smaltimento + 7 tiro al piano + 1 trasporto)
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -112,17 +113,17 @@ where f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
 
 union all
 
-select 'voci posa con costo', count(*), '46 attese'
+select 'voci manodopera con costo', count(*), '62 attese'
 from tariffe_aziendali
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
-  and tipo = 'posa' and coalesce(costo_interno, 0) > 0
+  and coalesce(costo_interno, 0) > 0
 
 union all
 
-select 'margine posa fuori dal 20%', count(*), '0 attese'
+select 'margine fuori dal 20%', count(*), '0 attese'
 from tariffe_aziendali
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
-  and tipo = 'posa' and coalesce(costo_interno, 0) > 0
+  and coalesce(costo_interno, 0) > 0
   and abs(round(((prezzo_vendita - costo_interno) / costo_interno * 100)::numeric, 1) - 20.0) > 0.5;
 
 
@@ -132,30 +133,9 @@ select nome,
        costo_interno  as costo,
        round(((prezzo_vendita - costo_interno) / costo_interno * 100)::numeric, 1) as margine_pct
 from tariffe_aziendali
-where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and tipo = 'posa'
-order by nome
-limit 10;
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 4. DA DECIDERE — le 16 voci che NON ho toccato
---
---    smaltimento (8), tiro al piano (7), trasporto (1). Se anche su queste il
---    prezzo esposto comprende il 20%, esegui anche l'UPDATE qui sotto.
---    Guarda prima l'elenco e decidi.
--- ────────────────────────────────────────────────────────────────────────────
-select tipo, nome, prezzo_vendita
-from tariffe_aziendali
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
-  and tipo in ('smaltimento', 'tiro_piano', 'trasporto')
-order by tipo, nome;
-
--- SOLO SE confermi che vale anche per queste — altrimenti NON eseguire:
--- update tariffe_aziendali
--- set costo_interno = round((prezzo_vendita / 1.20)::numeric, 2)
--- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
---   and tipo in ('smaltimento', 'tiro_piano', 'trasporto')
---   and coalesce(prezzo_vendita, 0) > 0;
+order by tipo, nome
+limit 12;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -169,4 +149,4 @@ order by tipo, nome;
 --   and m.nome in ('Serramenti PVC', 'Serramenti Alluminio');
 --
 -- update tariffe_aziendali set costo_interno = null
--- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and tipo = 'posa';
+-- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee';
