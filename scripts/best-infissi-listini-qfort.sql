@@ -137,6 +137,39 @@ where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
 order by tipo, nome
 limit 12;
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 4. PREZZI AL MQ — costo d'acquisto = meta' del prezzo di vendita
+--
+--    Il listino del cliente (PVC 400, alluminio 800, legno-alluminio 800,
+--    tapparelle 100 e 60, cassonetto 120/ml, zanzariere 160 e 100, inferriata
+--    450) e' un listino di VENDITA. Lo si capisce da due riscontri
+--    indipendenti: gli accessori avevano gia' quei numeri esatti in
+--    prezzo_base_vendita, e il PVC a 400 coincide con l'esempio dato a voce
+--    ("io vendo a 400 al mq, qfort lo compro a 200").
+--
+--    Il x2 vale su TUTTO il listino, non solo sui serramenti Qfort:
+--    confermato dal cliente anche per cassonetti, zanzariere, inferriate e
+--    legno-alluminio. Quindi acquisto = vendita / 2 ovunque.
+--
+--    Senza questa riga prezzo_base_acquisto resta a 0 e la marginalita' non
+--    e' calcolabile da nessuna parte nel gestionale — che e' esattamente lo
+--    stato in cui era il listino prima.
+-- ────────────────────────────────────────────────────────────────────────────
+update article_families
+set prezzo_base_acquisto = round((prezzo_base_vendita / 2)::numeric, 2), updated_at = now()
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and deleted_at is null
+  and coalesce(prezzo_base_vendita, 0) > 0;
+-- attese: 122 righe
+
+-- Controllo: nessuna famiglia deve avere un margine diverso dal 100%.
+select count(*) as fuori_dal_100_pct
+from article_families
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and deleted_at is null
+  and coalesce(prezzo_base_vendita, 0) > 0
+  and abs(prezzo_base_vendita - prezzo_base_acquisto * 2) > 0.01;
+-- atteso: 0
+
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 5. ROLLBACK, se serve tornare indietro
@@ -149,4 +182,7 @@ limit 12;
 --   and m.nome in ('Serramenti PVC', 'Serramenti Alluminio');
 --
 -- update tariffe_aziendali set costo_interno = null
+-- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee';
+--
+-- update article_families set prezzo_base_acquisto = 0
 -- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee';
