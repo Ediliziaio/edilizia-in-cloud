@@ -2,45 +2,46 @@
 -- Best Infissi S.r.l. — le quattro linee Qfort
 -- company_id: 421f4929-04bc-406d-b0fd-3ff4d57a64ee
 --
--- COSA CAMBIA
---   Oggi il listino e' organizzato per MATERIALE: "Serramenti PVC" e
---   "Serramenti Alluminio", 23 famiglie ciascuna. Ma Best Infissi non vende
---   "il PVC": vende 4Stars ed Epiq in PVC, Arrogance e 5Stars in alluminio.
---   Un commerciale che apre il listino deve vedere il nome che dice al
---   cliente, non il materiale.
+-- DOVE VA IL TESTO, E PERCHE'
+--   Verificato nel renderer PDF (src/types/serramenti.ts, sezione
+--   "macro_dedicate"): il preventivo serramenti ha UNA PAGINA DEDICATA PER
+--   MACROCATEGORIA, che presenta la linea con foto e descrizione estesa, e
+--   viene messa PRIMA dell'allegato tecnico. Le singole famiglie compaiono
+--   dopo, nell'allegato, come righe di composizione.
 --
---   Serramenti PVC        -> rinominata  4Stars        (23 famiglie, restano)
---                         -> duplicata   Epiq          (23 famiglie nuove)
---   Serramenti Alluminio  -> rinominata  Arrogance     (23 famiglie, restano)
---                         -> duplicata   5Stars        (23 famiglie nuove)
+--   Quindi:
+--     macrocategoria (4Stars, Epiq, ...) -> testo commerciale, e' la pagina
+--                                           che il cliente legge e su cui
+--                                           decide. Qui va l'impegno.
+--     famiglia (Finestra 1 Anta, ...)    -> una riga tecnica e basta. In un
+--                                           preventivo da otto finestre si
+--                                           ripete otto volte: un paragrafo
+--                                           di vendita li' e' rumore.
 --
---   Totale: da 46 a 92 famiglie sulle linee Qfort.
+--   Oggi mostra_pagina_dedicata_pdf e' FALSE su tutte e descrizione_estesa
+--   e' VUOTA: quella pagina non compare proprio. Lo script la accende.
 --
---   Serramenti Legno-Alluminio NON si tocca: altro fornitore.
+-- COSA CAMBIA NELLA STRUTTURA
+--   Serramenti PVC       -> rinominata 4Stars     + duplicata Epiq
+--   Serramenti Alluminio -> rinominata Arrogance  + duplicata 5Stars
+--   da 46 a 92 famiglie. Legno-Alluminio non si tocca: altro fornitore.
 --
 -- PREZZI
---   Identici fra le due linee dello stesso materiale, come indicato dal
---   cliente. La duplicazione copia anche markup e configurazione griglia,
---   quindi le linee nuove nascono gia' allineate. Se in futuro Epiq e 5Stars
---   avranno prezzi propri, basta modificarne la griglia: sono famiglie
---   distinte, non alias.
+--   Identici fra le due linee dello stesso materiale, come indicato. Se un
+--   giorno divergono, sono famiglie distinte: basta modificarne la griglia.
 --
--- DESCRIZIONI
---   Riscritte tutte e 23, e sono le stesse per le quattro linee perche'
---   descrivono la TIPOLOGIA (cosa apre, come, dove si usa), che non cambia
---   fra PVC e alluminio.
---   NON contengono valori di trasmittanza, spessori o numero di guarnizioni:
---   quelli variano per linea e non li ho da fonte Qfort. Inventarli su un
---   documento che finisce in un preventivo firmato non e' accettabile.
---   Vanno nelle schede prodotto (article_family_documents), come da tua nota.
+-- NIENTE DATI TECNICI INVENTATI
+--   Nessuna trasmittanza, spessore o numero di guarnizioni: variano per
+--   linea, non li ho da fonte Qfort e finirebbero su un preventivo firmato.
+--   Vanno nelle schede prodotto (article_family_documents).
 --
--- REVERSIBILE: vedi blocco 6 in fondo.
+-- REVERSIBILE: vedi blocco 7.
 -- ============================================================================
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 0. BACKUP — esegui e conserva l'output
 -- ────────────────────────────────────────────────────────────────────────────
-select id, nome, descrizione, sort_order, attivo
+select id, nome, descrizione, descrizione_estesa, mostra_pagina_dedicata_pdf, sort_order
 from listino_macrocategorie
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
 order by sort_order, nome;
@@ -55,38 +56,49 @@ order by m.nome, f.nome;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. RINOMINA le due macrocategorie esistenti
---    Il materiale non si perde: finisce nella descrizione.
+-- 1. RINOMINA + PAGINA DEDICATA — le due linee esistenti
 -- ────────────────────────────────────────────────────────────────────────────
 update listino_macrocategorie
 set nome = '4Stars',
-    descrizione = 'Serramenti in PVC Qfort — linea 4Stars',
-    descrizione_estesa = 'Linea in PVC della gamma Qfort. Profilo multicamera con rinforzo interno in acciaio, ottimo rapporto fra isolamento termico e prezzo: e'' la scelta di riferimento per la sostituzione serramenti nel residenziale. Disponibile in tutte le tipologie di apertura, dalla finestra a un''anta all''alzante scorrevole.',
+    descrizione = 'Serramenti in PVC — linea Qfort 4Stars',
+    descrizione_estesa =
+      'La linea 4Stars e'' il nostro riferimento in PVC per la sostituzione dei serramenti nel residenziale, ed e'' la scelta che proponiamo piu'' spesso perche'' nella grande maggioranza delle case fa esattamente quello che serve.' || chr(10) || chr(10) ||
+      'Il PVC lavora bene dove il serramento vecchio disperde: telaio e anta sono a camere multiple, con rinforzo interno in acciaio che tiene la geometria nel tempo, e la superficie non richiede manutenzione — niente da riverniciare, si pulisce e basta.' || chr(10) || chr(10) ||
+      'La 4Stars e'' pensata per lasciare passare piu'' luce possibile a parita'' di foro murario: e'' il primo effetto che si nota entrando in una stanza dopo la sostituzione, prima ancora della differenza in bolletta.' || chr(10) || chr(10) ||
+      'La consigliamo quando l''obiettivo e'' migliorare comfort e consumi con una spesa proporzionata, su appartamenti e villette dove non ci sono vincoli architettonici particolari e le dimensioni dei fori sono quelle standard.',
+    mostra_pagina_dedicata_pdf = true,
     updated_at = now()
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Serramenti PVC';
 
 update listino_macrocategorie
 set nome = 'Arrogance',
-    descrizione = 'Serramenti in alluminio Qfort — linea Arrogance',
-    descrizione_estesa = 'Linea in alluminio a taglio termico della gamma Qfort. Profili sottili e sezioni a vista ridotte: massimizza la superficie vetrata e quindi la luce naturale, e regge luci e pesi che il PVC non permette. E'' la linea da proporre su grandi vetrate, ristrutturazioni di pregio e progetti dove conta il disegno del serramento.',
+    descrizione = 'Serramenti in alluminio — linea Qfort Arrogance',
+    descrizione_estesa =
+      'Arrogance e'' la linea in alluminio a taglio termico che proponiamo quando il serramento deve reggere dimensioni importanti e allo stesso tempo farsi vedere il meno possibile.' || chr(10) || chr(10) ||
+      'L''alluminio permette sezioni piu'' sottili del PVC a parita'' di solidita'': significa piu'' vetro e meno telaio nello stesso foro, quindi piu'' luce naturale in casa. E permette luci e pesi che in PVC non sarebbero realizzabili — vetrate ampie, ante alte, grandi porte finestra.' || chr(10) || chr(10) ||
+      'Il taglio termico separa la parte esterna del profilo da quella interna: e'' l''accorgimento che rende l''alluminio adatto anche dove conta l''isolamento, e non solo il disegno.' || chr(10) || chr(10) ||
+      'La consigliamo su ristrutturazioni di pregio, su grandi superfici vetrate e in tutti i casi in cui il serramento e'' parte del progetto architettonico e non solo un elemento da sostituire.',
+    mostra_pagina_dedicata_pdf = true,
     updated_at = now()
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Serramenti Alluminio';
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 2. CREA le due macrocategorie nuove
---    Ereditano tipologia, colore, icona e verticali dalla linea gemella:
---    devono comportarsi allo stesso modo nell'interfaccia.
+-- 2. CREA le due linee nuove
+--    Ereditano tipologia, colore, icona e verticali dalla gemella: devono
+--    comportarsi allo stesso modo nell'interfaccia e nel PDF.
 -- ────────────────────────────────────────────────────────────────────────────
 insert into listino_macrocategorie
   (company_id, nome, descrizione, descrizione_estesa, categoria_tipo, tipologia,
    colore, icona, attivo, sort_order, verticali_abilitati, mostra_pagina_dedicata_pdf)
-select company_id,
-       'Epiq',
-       'Serramenti in PVC Qfort — linea Epiq',
-       'Linea in PVC di fascia superiore della gamma Qfort. Rispetto alla 4Stars punta sul comfort abitativo: profilo piu' || ' evoluto per isolamento termico e acustico, pensato per chi vuole ridurre i consumi e il rumore esterno. Stessa versatilita' || ' di aperture, resa estetica piu' || ' curata.',
+select company_id, 'Epiq',
+       'Serramenti in PVC — linea Qfort Epiq',
+       'Epiq e'' la linea in PVC di fascia superiore: stessa versatilita'' della 4Stars, ma costruita attorno al comfort di chi ci abita.' || chr(10) || chr(10) ||
+       'La differenza si sente su due fronti. Il primo e'' il rumore: un profilo piu'' evoluto lavora meglio sull''isolamento acustico, e in casa su strada o vicino a una scuola la differenza rispetto a un serramento normale e'' immediata. Il secondo e'' la temperatura percepita vicino alla finestra, quella sensazione di aria fredda in prossimita'' del vetro che sparisce.' || chr(10) || chr(10) ||
+       'A parita'' di apertura e di dimensioni, Epiq e'' la scelta di chi vuole spendere una volta sola e non tornarci sopra.' || chr(10) || chr(10) ||
+       'La consigliamo dove ci sono rumore esterno, esposizioni sfavorevoli o l''obiettivo dichiarato di ridurre i consumi — e in tutte le situazioni in cui il cliente ci chiede "qual e'' la versione migliore".',
        categoria_tipo, tipologia, colore, icona, attivo, sort_order + 1,
-       verticali_abilitati, mostra_pagina_dedicata_pdf
+       verticali_abilitati, true
 from listino_macrocategorie
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = '4Stars'
 on conflict (company_id, nome) do nothing;
@@ -94,28 +106,24 @@ on conflict (company_id, nome) do nothing;
 insert into listino_macrocategorie
   (company_id, nome, descrizione, descrizione_estesa, categoria_tipo, tipologia,
    colore, icona, attivo, sort_order, verticali_abilitati, mostra_pagina_dedicata_pdf)
-select company_id,
-       '5Stars',
-       'Serramenti in alluminio Qfort — linea 5Stars',
-       'Linea in alluminio dal disegno minimale della gamma Qfort. Sezioni a vista ancora piu' || ' contenute rispetto ad Arrogance, per un serramento che quasi sparisce e lascia parlare il vetro. Indicata su progetti architettonici, ampie superfici vetrate e contesti dove il telaio deve farsi notare il meno possibile.',
+select company_id, '5Stars',
+       'Serramenti in alluminio — linea Qfort 5Stars',
+       '5Stars e'' la linea in alluminio dal disegno minimale: il telaio si riduce al minimo indispensabile e quello che resta e'' il vetro.' || chr(10) || chr(10) ||
+       'Rispetto ad Arrogance le sezioni a vista sono ancora piu'' contenute. In un ambiente il risultato e'' che il serramento smette di essere un elemento e diventa una cornice sottile attorno al panorama: e'' la scelta di chi guarda i render prima dei preventivi.' || chr(10) || chr(10) ||
+       'Resta un serramento in alluminio a taglio termico, quindi tutti i vantaggi strutturali della linea Arrogance ci sono ancora — grandi luci, ante di peso importante, tenuta nel tempo.' || chr(10) || chr(10) ||
+       'La consigliamo su progetti architettonici, ville con affacci importanti e ristrutturazioni dove l''estetica del serramento e'' un requisito e non un dettaglio.',
        categoria_tipo, tipologia, colore, icona, attivo, sort_order + 1,
-       verticali_abilitati, mostra_pagina_dedicata_pdf
+       verticali_abilitati, true
 from listino_macrocategorie
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Arrogance'
 on conflict (company_id, nome) do nothing;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 3. DUPLICA le famiglie nelle due linee nuove
---
---    INSERT ... SELECT con l'elenco esplicito delle colonne: copia tutto
---    (categoria, assi della griglia, unita', markup, manodopera, campi
---    custom) tranne id/date, che si rigenerano. Elencarle invece di usare
---    una scorciatoia serve a non copiare per sbaglio id o deleted_at.
---
---    NB: non copia le righe di listino_griglia, che oggi sono zero. Quando
---    caricherai i prezzi, andranno inseriti anche per Epiq e 5Stars: il
---    blocco 5 contiene la query per allinearli in un colpo solo.
+-- 3. DUPLICA le famiglie nelle linee nuove
+--    Colonne elencate una per una: copia categoria, assi griglia, unita',
+--    markup e manodopera; non copia id ne' deleted_at.
+--    Idempotente: rilanciarlo non crea doppioni.
 -- ────────────────────────────────────────────────────────────────────────────
 insert into article_families
   (company_id, macrocategoria_id, categoria_id, nome, descrizione, codice, attivo,
@@ -134,74 +142,48 @@ join listino_macrocategorie nuova
 where f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
   and f.deleted_at is null
   and vecchia.nome in ('4Stars', 'Arrogance')
-  -- idempotente: se lo rilanci non crea doppioni
   and not exists (
     select 1 from article_families x
-    where x.company_id = f.company_id
-      and x.macrocategoria_id = nuova.id
-      and x.nome = f.nome
-      and x.deleted_at is null
+    where x.company_id = f.company_id and x.macrocategoria_id = nuova.id
+      and x.nome = f.nome and x.deleted_at is null
   );
 -- attese: 46 righe (23 Epiq + 23 5Stars)
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 4. DESCRIZIONI — riscritte per tutte e 23 le tipologie, su tutte e 4 le linee
+-- 4. DESCRIZIONI FAMIGLIA — una riga tecnica, niente vendita
 --
---    Le vecchie erano etichette ("Finestra ad anta unica anta-ribalta."):
---    dicono cosa e' a chi lo sa gia'. Queste dicono anche a cosa serve e
---    quando proporla, perche' finiscono sotto gli occhi del cliente nel PDF
---    del preventivo.
+--    Queste finiscono nell'allegato tecnico, ripetute per ogni serramento
+--    del preventivo. Servono a dire COSA APRE E COME, in modo che il
+--    cliente riconosca la riga e il commerciale scelga la famiglia giusta
+--    nel builder. Il perche' comprare sta nella pagina della linea.
 -- ────────────────────────────────────────────────────────────────────────────
 update article_families f
 set descrizione = d.testo, updated_at = now()
 from (values
-  ('Finestra 1 Anta',
-   'Finestra a una sola anta con apertura anta-ribalta: ruota lateralmente per pulire e affacciarsi, si inclina in alto per arieggiare senza spalancare. E'' la tipologia piu'' diffusa nel residenziale, adatta a bagni, cucine e camere dove lo spazio interno per l''anta aperta e'' limitato.'),
-  ('Finestra 2 Ante',
-   'Finestra a due ante, con l''anta principale anta-ribalta e la seconda apribile a battente. Libera tutta la luce del foro quando serve — utile per passare oggetti o pulire dall''interno — e permette la microventilazione su una sola anta. Soluzione standard per soggiorni e camere con fori di larghezza media.'),
-  ('Finestra 3 Ante',
-   'Finestra a tre ante con anta-ribalta centrale. Nasce per fori larghi dove due ante risulterebbero troppo pesanti e ingombranti da manovrare: dividendo la superficie in tre si mantengono ante leggere e maneggevoli. Da valutare quando la larghezza supera quella gestibile con due ante.'),
-  ('Finestra Wasistas',
-   'Finestra con sola apertura a vasistas: si inclina verso l''interno dalla parte alta e non ruota lateralmente. Serve dove non c''e'' spazio per un''anta che si apre del tutto — sopra un piano cottura, in un bagno cieco, in un vano scala — e garantisce comunque il ricambio d''aria in sicurezza, anche in presenza di bambini.'),
-  ('Fisso nel Telaio',
-   'Elemento vetrato fisso, senza anta apribile, montato direttamente nel telaio. Il vetro arriva quasi al bordo del serramento e la sezione a vista resta minima: e'' la soluzione che porta piu'' luce a parita'' di foro. Da usare dove l''apertura non serve e conta la superficie vetrata.'),
-  ('Fisso nell''Anta',
-   'Elemento fisso realizzato con un''anta cieca bloccata sul telaio. Rispetto al fisso nel telaio ha una sezione a vista maggiore, ma il vantaggio e'' estetico: affiancato a un''anta apribile, i due elementi risultano identici e la finestra appare simmetrica. Si sceglie quando conta l''allineamento visivo.'),
-  ('Porta Finestra 1 Anta',
-   'Porta finestra a una sola anta con apertura anta-ribalta. Consente il passaggio verso balcone o terrazzo e, in posizione ribalta, l''areazione a serramento chiuso. Adatta a balconi di servizio e a fori dove non serve un''apertura ampia.'),
-  ('Porta Finestra 1 Anta con Serratura Passante',
-   'Porta finestra a un''anta con serratura passante, azionabile con la chiave da entrambi i lati. E'' la versione da usare quando si esce su un terrazzo o un giardino e si vuole poter richiudere dall''esterno: risolve il problema di restare chiusi fuori e aggiunge un livello di sicurezza sull''accesso.'),
-  ('Porta Finestra 2 Ante',
-   'Porta finestra a due ante a battente. Aperta libera l''intera luce del foro, il che la rende la scelta naturale verso terrazzi e giardini dove si passa spesso e si portano oggetti ingombranti. Richiede spazio interno per la rotazione di entrambe le ante.'),
-  ('Porta Finestra 2 Ante con Serratura Passante',
-   'Porta finestra a due ante con serratura passante, manovrabile con la chiave dall''esterno. Unisce il passaggio ampio delle due ante alla possibilita'' di richiudere uscendo: e'' la configurazione tipica dell''accesso principale a giardino o cortile.'),
-  ('Porta Finestra 3 Ante',
-   'Porta finestra a tre ante per aperture di grande larghezza. Suddividendo la superficie in tre elementi si tengono le ante leggere e manovrabili anche su fori importanti, senza ricorrere a un sistema scorrevole.'),
-  ('Alzante Scorrevole a Scomparsa',
-   'Alzante scorrevole con anta che scompare all''interno della muratura: aperto, il serramento e'' completamente invisibile e il passaggio verso l''esterno resta libero da telai. E'' la soluzione piu'' scenografica per unire soggiorno e terrazzo, e va prevista in fase di progetto perche'' richiede il vano a muro.'),
-  ('Alzante Scorrevole AS + FA',
-   'Alzante scorrevole composto da un''anta mobile e un elemento fisso affiancato. Il meccanismo di sollevamento stacca l''anta dalla guarnizione prima di farla scorrere: si muove senza sforzo anche con vetri pesanti e, richiusa, la tenuta all''aria e all''acqua e'' quella di un serramento a battente.'),
-  ('Alzante Scorrevole FA + AS + AS + FA',
-   'Alzante scorrevole simmetrico a quattro elementi: due ante mobili centrali che si aprono verso l''esterno e due fissi laterali. Apre il centro della vetrata lasciando il perimetro chiuso — la configurazione classica delle grandi vetrate sul giardino, dove serve un passaggio ampio e una simmetria pulita.'),
-  ('Porta Finestra Traslante Scorrevole 4 Ante',
-   'Traslante scorrevole a quattro ante. Le ante scorrono lateralmente senza occupare spazio interno, vantaggio decisivo quando davanti al serramento ci sono mobili o il passaggio e'' stretto. Soluzione da valutare in alternativa all''alzante su fori larghi con budget piu'' contenuto.'),
-  ('Porta Finestra Traslante Scorrevole con Fisso nel Telaio',
-   'Traslante scorrevole con elemento fisso integrato nel telaio. Il fisso mantiene la sezione a vista minima e massimizza la superficie vetrata sulla parte non apribile, mentre l''anta scorrevole garantisce il passaggio senza ingombro interno.'),
-  ('Porta Finestra Traslante Scorrevole con Fisso nell''Anta',
-   'Traslante scorrevole con vetro fisso realizzato su anta cieca. La scelta e'' estetica: parte fissa e parte mobile hanno la stessa sezione a vista, quindi la vetrata risulta visivamente regolare. Da preferire quando il serramento e'' in vista e conta l''allineamento.'),
-  ('Porta Finestra Traslante Scorrevole su Parete',
-   'Traslante scorrevole con anta che trasla all''esterno lungo la parete. Non richiede vano a muro come lo scomparsa, ma libera comunque tutto il passaggio: e'' il compromesso da proporre in ristrutturazione, dove intervenire sulla muratura non e'' praticabile.'),
-  ('Slide',
-   'Sistema scorrevole dal disegno minimale: telai ridotti al minimo e vetro protagonista. Pensato per chi vuole l''effetto della grande vetrata continua senza le opere murarie di un alzante a scomparsa. Configurazione base della famiglia scorrevoli minimal.'),
-  ('Slide Plus',
-   'Evoluzione del sistema Slide con prestazioni termiche superiori a parita'' di estetica minimale. E'' la versione da proporre quando la grande vetrata guarda a nord, e'' molto esposta o l''immobile ha requisiti energetici da rispettare, e la sola resa estetica non basta.'),
-  ('Smart Slide',
-   'Sistema scorrevole predisposto per la motorizzazione: l''anta si apre con un comando, senza sforzo fisico. Ha senso su vetrate di grandi dimensioni e peso elevato, e in tutti i casi in cui l''utilizzatore ha difficolta'' di movimento o il serramento va integrato nella domotica di casa.'),
-  ('Portoncino 1 Anta',
-   'Portoncino d''ingresso a un''anta. E'' il serramento su cui il cliente giudica per primo la qualita'' dell''intera fornitura: va proposto valutando insieme sicurezza della serratura, isolamento e finitura esterna, perche'' e'' l''elemento piu'' esposto e il piu'' guardato.'),
-  ('Portoncino 2 Ante',
-   'Portoncino d''ingresso a due ante, con anta secondaria apribile all''occorrenza. Si usa su ingressi di larghezza importante, dove una sola anta risulterebbe sproporzionata o troppo pesante, e quando serve poter allargare il passaggio per traslochi e arredi.')
+  ('Finestra 1 Anta',                                        'Anta unica con apertura a battente e ribalta.'),
+  ('Finestra 2 Ante',                                        'Due ante: principale anta-ribalta, secondaria a battente.'),
+  ('Finestra 3 Ante',                                        'Tre ante con anta-ribalta centrale.'),
+  ('Finestra Wasistas',                                      'Apertura a vasistas: sola inclinazione dall''alto, nessuna rotazione laterale.'),
+  ('Fisso nel Telaio',                                       'Vetro fisso montato nel telaio, senza anta. Sezione a vista minima.'),
+  ('Fisso nell''Anta',                                       'Vetro fisso su anta cieca. Stessa sezione a vista delle ante apribili affiancate.'),
+  ('Porta Finestra 1 Anta',                                  'Anta unica a tutta altezza, apertura a battente e ribalta.'),
+  ('Porta Finestra 1 Anta con Serratura Passante',           'Anta unica a tutta altezza con serratura a chiave azionabile dai due lati.'),
+  ('Porta Finestra 2 Ante',                                  'Due ante a tutta altezza a battente, passaggio libero sull''intero foro.'),
+  ('Porta Finestra 2 Ante con Serratura Passante',           'Due ante a tutta altezza con serratura a chiave azionabile dai due lati.'),
+  ('Porta Finestra 3 Ante',                                  'Tre ante a tutta altezza a battente.'),
+  ('Alzante Scorrevole a Scomparsa',                         'Alzante scorrevole con anta a scomparsa nella muratura. Richiede vano a muro.'),
+  ('Alzante Scorrevole AS + FA',                             'Alzante scorrevole: un''anta mobile e un elemento fisso affiancato.'),
+  ('Alzante Scorrevole FA + AS + AS + FA',                   'Alzante scorrevole simmetrico: due ante mobili centrali e due fissi laterali.'),
+  ('Porta Finestra Traslante Scorrevole 4 Ante',             'Traslante scorrevole a quattro ante, scorrimento laterale senza ingombro interno.'),
+  ('Porta Finestra Traslante Scorrevole con Fisso nel Telaio','Traslante scorrevole con elemento fisso integrato nel telaio.'),
+  ('Porta Finestra Traslante Scorrevole con Fisso nell''Anta','Traslante scorrevole con vetro fisso su anta cieca, sezioni a vista allineate.'),
+  ('Porta Finestra Traslante Scorrevole su Parete',          'Traslante scorrevole con anta che scorre all''esterno lungo la parete.'),
+  ('Slide',                                                  'Scorrevole minimale con telai a sezione ridotta.'),
+  ('Slide Plus',                                             'Scorrevole minimale con prestazioni termiche superiori alla versione Slide.'),
+  ('Smart Slide',                                            'Scorrevole predisposto per motorizzazione e integrazione domotica.'),
+  ('Portoncino 1 Anta',                                      'Portoncino d''ingresso ad anta unica.'),
+  ('Portoncino 2 Ante',                                      'Portoncino d''ingresso a due ante, secondaria apribile all''occorrenza.')
 ) as d(nome, testo)
 join listino_macrocategorie m on m.id = f.macrocategoria_id
 where f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
@@ -215,28 +197,27 @@ where f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
 -- 5. VERIFICA
 -- ────────────────────────────────────────────────────────────────────────────
 select m.nome as linea,
+       m.mostra_pagina_dedicata_pdf as pagina_pdf,
+       length(coalesce(m.descrizione_estesa, '')) as caratteri_pagina,
        count(f.id) as famiglie,
        count(*) filter (where f.attivo) as attive,
-       count(*) filter (where length(coalesce(f.descrizione, '')) > 200) as con_descrizione_nuova,
-       count(*) filter (where f.markup_tipo = 'percentuale' and f.markup_valore = 100) as con_markup_x2
+       round(avg(length(coalesce(f.descrizione, '')))) as media_car_riga_tecnica,
+       count(*) filter (where f.markup_tipo = 'percentuale' and f.markup_valore = 100) as markup_x2
 from listino_macrocategorie m
-left join article_families f
-  on f.macrocategoria_id = m.id and f.deleted_at is null
+left join article_families f on f.macrocategoria_id = m.id and f.deleted_at is null
 where m.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
   and m.nome in ('4Stars', 'Epiq', 'Arrogance', '5Stars', 'Serramenti Legno-Alluminio')
-group by m.nome
+group by m.nome, m.mostra_pagina_dedicata_pdf, m.descrizione_estesa
 order by m.nome;
--- atteso: 23 famiglie per ognuna delle 4 linee Qfort, tutte con descrizione
---         nuova e markup x2. Legno-Alluminio invariata: 23 famiglie, markup none.
+-- atteso: 4 linee Qfort con pagina_pdf = true, ~900-1100 caratteri di
+--         presentazione, 23 famiglie ciascuna con righe tecniche brevi
+--         (media 60-90 caratteri) e markup x2.
+--         Legno-Alluminio invariata: pagina_pdf false, markup none.
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 6. DOPO: allineare i prezzi fra le linee gemelle
---
---    Da eseguire QUANDO avrai caricato la griglia su 4Stars e Arrogance.
---    Copia le celle sulla linea gemella abbinando le famiglie per nome.
---    Prezzi identici, come da tua indicazione: se un giorno divergeranno,
---    basta non lanciarlo e modificare la griglia di Epiq/5Stars a mano.
+-- 6. DOPO — allineare la griglia fra linee gemelle
+--    Da eseguire quando avrai caricato i prezzi su 4Stars e Arrogance.
 -- ────────────────────────────────────────────────────────────────────────────
 -- insert into listino_griglia
 --   (company_id, family_id, valore_x, valore_y, prezzo_acquisto, prezzo_vendita, axis_config, note)
@@ -260,21 +241,20 @@ order by m.nome;
 -- ────────────────────────────────────────────────────────────────────────────
 -- 7. ROLLBACK
 -- ────────────────────────────────────────────────────────────────────────────
--- -- 7a. elimina le famiglie duplicate (soft delete)
 -- update article_families f set deleted_at = now()
 -- from listino_macrocategorie m
 -- where m.id = f.macrocategoria_id
 --   and f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
 --   and m.nome in ('Epiq', '5Stars');
 --
--- -- 7b. elimina le macrocategorie nuove
 -- delete from listino_macrocategorie
 -- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome in ('Epiq', '5Stars');
 --
--- -- 7c. ripristina i nomi originali
--- update listino_macrocategorie set nome = 'Serramenti PVC'
+-- update listino_macrocategorie
+-- set nome = 'Serramenti PVC', descrizione_estesa = null, mostra_pagina_dedicata_pdf = false
 -- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = '4Stars';
--- update listino_macrocategorie set nome = 'Serramenti Alluminio'
+-- update listino_macrocategorie
+-- set nome = 'Serramenti Alluminio', descrizione_estesa = null, mostra_pagina_dedicata_pdf = false
 -- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Arrogance';
 --
--- -- 7d. le descrizioni vecchie vanno ripristinate dall'output del blocco 0
+-- -- le descrizioni famiglia si ripristinano dall'output del blocco 0
