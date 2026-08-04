@@ -345,3 +345,108 @@ from listino_macrocategorie
 where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
   and nome in ('4Stars','Epiq','Arrogance','5Stars')
 order by nome;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 9. ASSI E VALORI — il pezzo che mancava alla duplicazione
+--
+--    Il blocco 3 duplicava le famiglie ma NON i loro assi. Risultato: Epiq e
+--    5Stars sono nate con zero assi, quindi in preventivo non si poteva
+--    scegliere ne' Colore, ne' Tipologia Vetro, ne' Finitura. Due linee
+--    complete di prezzo ma inutilizzabili.
+--
+--    E' il secondo pezzo dimenticato dopo le colonne di prezzo: una
+--    duplicazione "a mano" di una famiglia deve portarsi dietro TRE cose —
+--    la riga, le colonne di prezzo, e il sottoalbero assi/valori.
+--
+--    NOTA: l'asse "Finitura" di 4Stars contiene gia' il PVC PELLICOLATO come
+--    valore con maggiorazione fisso_mq +150 €/mq, cioe' 400 + 150 = 550, che
+--    e' esattamente la voce del listino. Non serve crearlo: serviva copiarlo
+--    su Epiq, cosa che questo blocco fa.
+-- ════════════════════════════════════════════════════════════════════════════
+insert into article_family_axes
+  (family_id, company_id, nome, codice, descrizione, tipo, obbligatorio, sort_order)
+select dest.id, x.company_id, x.nome, x.codice, x.descrizione, x.tipo, x.obbligatorio, x.sort_order
+from article_family_axes x
+join article_families src on src.id = x.family_id
+join listino_macrocategorie m_src on m_src.id = src.macrocategoria_id
+join listino_macrocategorie m_dst
+  on m_dst.company_id = src.company_id
+ and m_dst.nome = case m_src.nome when '4Stars' then 'Epiq' when 'Arrogance' then '5Stars' end
+join article_families dest
+  on dest.macrocategoria_id = m_dst.id and dest.nome = src.nome and dest.deleted_at is null
+where src.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and src.deleted_at is null
+  and m_src.nome in ('4Stars','Arrogance')
+  and not exists (select 1 from article_family_axes y where y.family_id = dest.id and y.nome = x.nome);
+-- attese: 115 righe
+
+insert into article_family_axis_values
+  (axis_id, company_id, valore, label, descrizione, is_default,
+   maggiorazione_tipo, maggiorazione_valore, maggiorazione_acquisto,
+   sort_order, attivo, codice, prezzo_vendita, prezzo_acquisto, immagine_url)
+select x_dst.id, v.company_id, v.valore, v.label, v.descrizione, v.is_default,
+       v.maggiorazione_tipo, v.maggiorazione_valore, v.maggiorazione_acquisto,
+       v.sort_order, v.attivo, v.codice, v.prezzo_vendita, v.prezzo_acquisto, v.immagine_url
+from article_family_axis_values v
+join article_family_axes x_src on x_src.id = v.axis_id
+join article_families src on src.id = x_src.family_id
+join listino_macrocategorie m_src on m_src.id = src.macrocategoria_id
+join listino_macrocategorie m_dst
+  on m_dst.company_id = src.company_id
+ and m_dst.nome = case m_src.nome when '4Stars' then 'Epiq' when 'Arrogance' then '5Stars' end
+join article_families dest
+  on dest.macrocategoria_id = m_dst.id and dest.nome = src.nome and dest.deleted_at is null
+join article_family_axes x_dst on x_dst.family_id = dest.id and x_dst.nome = x_src.nome
+where src.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and src.deleted_at is null
+  and m_src.nome in ('4Stars','Arrogance')
+  and not exists (
+    select 1 from article_family_axis_values w
+    where w.axis_id = x_dst.id and w.valore = v.valore);
+-- attese: 322 righe
+
+-- Verifica: le linee gemelle devono essere simmetriche.
+select m.nome as linea, count(distinct f.id) as famiglie,
+       count(distinct x.id) as assi, count(v.id) as valori,
+       string_agg(distinct x.nome, ', ' order by x.nome) as assi_presenti
+from listino_macrocategorie m
+join article_families f on f.macrocategoria_id = m.id and f.deleted_at is null
+left join article_family_axes x on x.family_id = f.id
+left join article_family_axis_values v on v.axis_id = x.id
+where m.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and m.nome in ('4Stars','Epiq','Arrogance','5Stars')
+group by m.nome order by m.nome;
+-- atteso: 4Stars ed Epiq identici (69 assi, 184 valori, con Finitura),
+--         Arrogance e 5Stars identici (46 assi, 138 valori).
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 10. ARCHIVIAZIONE delle famiglie orfane
+--
+--    23 famiglie rimaste nelle vecchie macrocategorie per TIPOLOGIA
+--    (Finestre, Porte-finestra, Portoncini, Scorrevoli & Alzanti), residuo
+--    della struttura precedente al passaggio alle linee.
+--
+--    Verificato prima di archiviare: zero utilizzi in quote_items,
+--    order_items, listino_griglia, documenti, template, bundle, alias,
+--    magazzino, articoli_native e accessori_progetto. Avevano solo 46 assi
+--    attaccati, che con il soft delete restano al loro posto.
+--
+--    Soft delete e non DELETE: le FK verso article_families sono per meta'
+--    in CASCADE, e una cancellazione fisica porterebbe via anche cio' che
+--    un domani potrebbe servire per ricostruire uno storico.
+-- ════════════════════════════════════════════════════════════════════════════
+update article_families f
+set deleted_at = now(), updated_at = now()
+from listino_macrocategorie m
+where m.id = f.macrocategoria_id
+  and f.company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and f.deleted_at is null
+  and m.nome in ('Finestre','Porte-finestra','Portoncini','Scorrevoli & Alzanti')
+  and f.attivo = false
+  and coalesce(f.prezzo_base_vendita, 0) = 0;
+-- attese: 23 righe
+
+-- Ripristino, se servisse: update article_families set deleted_at = null
+-- where id in (...) — gli id sono nel backup /tmp/orfane-backup.json.
+
