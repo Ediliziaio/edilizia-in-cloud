@@ -267,3 +267,81 @@ order by m.nome;
 -- where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Arrogance';
 --
 -- -- le descrizioni famiglia si ripristinano dall'output del blocco 0
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 8. DESCRIZIONI DI LINEA — versione con i dati tecnici Qfort
+--
+--    Sostituisce i testi del blocco 1 e 2. Quelli erano qualitativi ("linea
+--    di fascia superiore"); questi contengono le specifiche prese dalle
+--    schede tecniche pubblicate su qfort.it e verificate nel contesto della
+--    pagina, non da un riassunto:
+--
+--      4Stars    profondita' 70 mm, 5 camere telaio+anta, rinforzo in acciaio
+--      Epiq      profondita' 76 mm, 6 camere telaio+anta, 3 guarnizioni
+--      Arrogance profondita' di soli 65 mm
+--      5Stars    vetrocamera da 24 a 50 mm, cerniere a scomparsa
+--
+--    Serve a rendere confrontabile la differenza di prezzo fra le linee: un
+--    cliente che ha due preventivi davanti vede da dove viene, invece di
+--    leggere due aggettivi.
+--
+--    NIENTE Uw: la pagina 4Stars lo dichiara "calcolato per vetrocamera con
+--    Ug = 1,0", cioe' dipende dal vetro scelto. In un preventivo senza la
+--    vetrata specificata sarebbe un numero contestabile.
+--
+--    Il testo NON e' copiato da Qfort: sono i fatti tecnici, riscritti nella
+--    voce di Best Infissi.
+-- ════════════════════════════════════════════════════════════════════════════
+
+update listino_macrocategorie set descrizione_estesa =
+      'La linea 4Stars e'' il nostro riferimento in PVC per la sostituzione dei serramenti nel residenziale, ed e'' la scelta che proponiamo piu'' spesso: nella grande maggioranza delle case fa esattamente quello che serve.' ||
+      chr(10) || chr(10) ||
+      'Il profilo ha una profondita'' di montaggio di 70 mm e cinque camere sia nel telaio sia nell''anta: sono le camere d''aria a fare l''isolamento, ed e'' li'' che si vede la differenza rispetto a un serramento di vent''anni fa. All''interno corre un rinforzo in acciaio zincato che tiene la geometria nel tempo — un''anta che non si abbassa e continua a chiudere bene anche fra dieci anni.' ||
+      chr(10) || chr(10) ||
+      'Il PVC non richiede manutenzione: niente da riverniciare, si pulisce e basta. E la 4Stars e'' disegnata per lasciare passare piu'' luce possibile a parita'' di foro murario: e'' il primo effetto che si nota entrando in una stanza dopo la sostituzione, prima ancora della differenza in bolletta.' ||
+      chr(10) || chr(10) ||
+      'La consigliamo quando l''obiettivo e'' migliorare comfort e consumi con una spesa proporzionata, su appartamenti e villette senza vincoli architettonici particolari.',
+    mostra_pagina_dedicata_pdf = true, updated_at = now()
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = '4Stars';
+
+update listino_macrocategorie set descrizione_estesa =
+      'Epiq e'' la linea in PVC di fascia superiore: stessa versatilita'' della 4Stars, ma costruita attorno al comfort di chi ci abita.' ||
+      chr(10) || chr(10) ||
+      'La differenza e'' nel profilo. Profondita'' di montaggio 76 mm contro 70, sei camere invece di cinque sia nel telaio sia nell''anta, pareti piu'' spesse e tre guarnizioni coestruse. Ogni guarnizione in piu'' e'' una barriera in piu'' contro aria e rumore.' ||
+      chr(10) || chr(10) ||
+      'Dove si sente, in concreto. Il rumore: in una casa su strada o vicino a una scuola il salto rispetto a un serramento normale e'' immediato. E la temperatura vicino alla finestra: quella sensazione di aria fredda in prossimita'' del vetro che con un profilo piu'' isolante sparisce.' ||
+      chr(10) || chr(10) ||
+      'La consigliamo dove ci sono rumore esterno, esposizioni sfavorevoli o l''obiettivo dichiarato di ridurre i consumi — e ogni volta che il cliente ci chiede qual e'' la versione migliore.',
+    mostra_pagina_dedicata_pdf = true, updated_at = now()
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Epiq';
+
+update listino_macrocategorie set descrizione_estesa =
+      'Arrogance e'' la linea in alluminio a taglio termico che proponiamo quando il serramento deve reggere dimensioni importanti e allo stesso tempo farsi vedere il meno possibile.' ||
+      chr(10) || chr(10) ||
+      'La profondita'' di montaggio e'' di soli 65 mm: il telaio occupa poco e il vetro occupa tanto. A parita'' di foro murario entra piu'' luce che con qualsiasi profilo in PVC, ed e'' la ragione principale per cui si sceglie l''alluminio quando l''estetica conta.' ||
+      chr(10) || chr(10) ||
+      'L''alluminio permette poi luci e pesi che in PVC non sarebbero realizzabili: vetrate ampie, ante alte, grandi porte finestra che restano stabili nel tempo. Il taglio termico separa la parte esterna del profilo da quella interna, ed e'' l''accorgimento che rende l''alluminio adatto anche dove conta l''isolamento e non solo il disegno.' ||
+      chr(10) || chr(10) ||
+      'La consigliamo su ristrutturazioni di pregio, grandi superfici vetrate e ogni volta che il serramento e'' parte del progetto architettonico e non un elemento da sostituire.',
+    mostra_pagina_dedicata_pdf = true, updated_at = now()
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = 'Arrogance';
+
+update listino_macrocategorie set descrizione_estesa =
+      '5Stars e'' la linea in alluminio dal disegno minimale: il telaio si riduce al minimo indispensabile e quello che resta e'' il vetro.' ||
+      chr(10) || chr(10) ||
+      'Due dettagli fanno la differenza estetica. Le cerniere possono essere a scomparsa, quindi il serramento chiuso non mostra nessuna ferramenta. E la camera puo'' ospitare vetri da 24 fino a 50 mm: piu'' spessore significa piu'' isolamento acustico, che su una vetrata grande e'' esattamente dove si gioca il comfort.' ||
+      chr(10) || chr(10) ||
+      'Resta un serramento in alluminio a taglio termico, quindi tutti i vantaggi strutturali di Arrogance ci sono ancora: grandi luci, ante di peso importante, tenuta nel tempo.' ||
+      chr(10) || chr(10) ||
+      'La consigliamo su progetti architettonici, ville con affacci importanti e ristrutturazioni dove l''estetica del serramento e'' un requisito e non un dettaglio.',
+    mostra_pagina_dedicata_pdf = true, updated_at = now()
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee' and nome = '5Stars';
+
+-- Verifica: quattro linee, pagina PDF accesa, specifiche presenti.
+select nome, length(descrizione_estesa) as caratteri, mostra_pagina_dedicata_pdf as pdf,
+       case when descrizione_estesa like '%mm%' then 'sì' else 'NO' end as dati_tecnici
+from listino_macrocategorie
+where company_id = '421f4929-04bc-406d-b0fd-3ff4d57a64ee'
+  and nome in ('4Stars','Epiq','Arrogance','5Stars')
+order by nome;
