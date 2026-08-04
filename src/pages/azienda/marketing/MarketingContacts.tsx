@@ -20,6 +20,7 @@ import { getInitials, getAvatarColor, formatContactDate } from "@/lib/contactUti
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { cleanPhone } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
+import { DeleteContactsDialog, type ContactLinks } from "@/components/marketing/DeleteContactsDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
 import { BulkTagsDialog, BulkCreateOpportunitiesDialog } from "@/components/contacts/BulkContactActions";
@@ -598,6 +599,9 @@ export default function MarketingContacts() {
   const pageSize = normalizedUrl.pageSize;
   const setPageSize = useCallback((v: number) => setURLParam("pageSize", v), [setURLParam]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Eliminazione contatti: ids in attesa di conferma + collegamenti trovati.
+  const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
+  const [deleteLinks, setDeleteLinks] = useState<ContactLinks | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
@@ -1226,8 +1230,17 @@ export default function MarketingContacts() {
     queryClient.invalidateQueries({ queryKey: ["marketing_contacts_search"] });
   };
 
-  const assertContactsAreSafeToDelete = async (ids: string[]) => {
-    const linkedChecks = await Promise.all([
+  /**
+   * Conta i record collegati ai contatti indicati, per tipo.
+   *
+   * Prima questa funzione si chiamava assertContactsAreSafeToDelete e si
+   * limitava a sollevare un errore quando trovava un collegamento: il
+   * contatto diventava di fatto ineliminabile, perche' il messaggio diceva
+   * "rimuovi prima i collegamenti" ma dall'interfaccia non c'era modo di
+   * farlo. Adesso i conteggi alimentano il dialog di conferma.
+   */
+  const contaCollegamenti = async (ids: string[]): Promise<ContactLinks> => {
+    const [opp, app, quo, tsk] = await Promise.all([
       supabase
         .from("marketing_opportunities")
         .select("id", { count: "exact", head: true })
@@ -1250,13 +1263,15 @@ export default function MarketingContacts() {
         .in("contact_id", ids),
     ]);
 
-    const error = linkedChecks.find((result) => result.error)?.error;
-    if (error) throw error;
+    const err = [opp, app, quo, tsk].find((r) => r.error)?.error;
+    if (err) throw err;
 
-    const linkedCount = linkedChecks.reduce((sum, result) => sum + (result.count || 0), 0);
-    if (linkedCount > 0) {
-      throw new Error("Impossibile eliminare contatti collegati a opportunità, appuntamenti, preventivi o task. Rimuovi prima i collegamenti oppure mantieni il contatto nello storico CRM.");
-    }
+    return {
+      opportunities: opp.count || 0,
+      appointments: app.count || 0,
+      quotes: quo.count || 0,
+      tasks: tsk.count || 0,
+    };
   };
 
   const saveMutation = useMutation({
@@ -1305,17 +1320,77 @@ export default function MarketingContacts() {
     mutationFn: async (ids: string[]) => {
       if (!companyId) throw new Error("No company");
       if (!canEditContacts) throw new Error("Non hai i permessi per eliminare i contatti");
-      await assertContactsAreSafeToDelete(ids);
+
+      // Ordine deliberato: prima le operazioni reversibili, per ultima quella
+      // che non lo e'. Non c'e' una transazione lato client, quindi se un
+      // passaggio fallisce si interrompe qui e il contatto resta — meglio un
+      // contatto ancora presente con qualche documento scollegato che un
+      // contatto sparito lasciando dietro record inconsistenti.
+
+      // 1. Scollega cio' che puo' sopravvivere senza contatto. Un preventivo
+      //    e' un documento commerciale: si scollega, non si cancella.
+      for (const tabella of ["appointments", "quotes", "tasks"] as const) {
+        const { error } = await supabase
+          .from(tabella)
+          .update({ contact_id: null })
+          .eq("company_id", companyId)
+          .in("contact_id", ids);
+        if (error) throw new Error(`Non sono riuscito a scollegare ${tabella}: ${error.message}`);
+      }
+
+      // 2. Elimina le opportunita': contact_id e' NOT NULL, quindi non
+      //    esiste un modo di conservarle senza il contatto.
+      const { error: errOpp } = await supabase
+        .from("marketing_opportunities")
+        .delete()
+        .eq("company_id", companyId)
+        .in("contact_id", ids);
+      if (errOpp) throw new Error(`Non sono riuscito a eliminare le opportunità collegate: ${errOpp.message}`);
+
+      // 3. Solo adesso il contatto.
       const { error } = await supabase.from("marketing_contacts").delete().eq("company_id", companyId).in("id", ids);
       if (error) throw error;
     },
     onSuccess: (_, ids) => {
-      toast.success(`${ids.length} contatt${ids.length === 1 ? "o eliminato" : "i eliminati"}`);
+      const l = deleteLinks;
+      const dettagli: string[] = [];
+      if (l && l.opportunities > 0) dettagli.push(`${l.opportunities} opportunità eliminate`);
+      const scollegati = l ? l.appointments + l.quotes + l.tasks : 0;
+      if (scollegati > 0) dettagli.push(`${scollegati} record scollegati`);
+      toast.success(`${ids.length} contatt${ids.length === 1 ? "o eliminato" : "i eliminati"}`, {
+        description: dettagli.length > 0 ? dettagli.join(" · ") : undefined,
+      });
       setSelectedIds(new Set());
+      setDeleteIds(null);
+      setDeleteLinks(null);
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
     onError: (error: any) => toast.error("Errore nell'eliminazione", { description: error.message || "Operazione non riuscita. Riprova." }),
   });
+
+  /**
+   * Apre il dialog di conferma dopo aver contato i collegamenti. Il conteggio
+   * avviene PRIMA di mostrare il dialog perche' il testo cambia in base a
+   * cosa e' collegato: senza, si chiederebbe una conferma generica.
+   */
+  const handleRichiestaEliminazione = useCallback(async (ids: string[]) => {
+    if (!companyId || ids.length === 0) return;
+    setDeleteIds(ids);
+    setDeleteLinks(null);
+    try {
+      setDeleteLinks(await contaCollegamenti(ids));
+    } catch (e: any) {
+      setDeleteIds(null);
+      toast.error("Non riesco a verificare i collegamenti", {
+        description: e?.message || "Riprova fra poco.",
+      });
+    }
+    // contaCollegamenti dipende solo da companyId, che e' gia' nelle deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -2029,7 +2104,7 @@ export default function MarketingContacts() {
               onToggleSelect={handleToggleSelect}
               onToggleAll={handleToggleAll}
               onEdit={handleEdit}
-              onDelete={(ids) => deleteMutation.mutate(ids)}
+              onDelete={handleRichiestaEliminazione}
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
@@ -2088,6 +2163,31 @@ export default function MarketingContacts() {
       />
 
       {/* Dialogs */}
+      <DeleteContactsDialog
+        key={deleteIds?.join(",") ?? "nessuno"}
+        open={deleteIds !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteIds(null);
+            setDeleteLinks(null);
+          }
+        }}
+        count={deleteIds?.length ?? 0}
+        nome={
+          deleteIds?.length === 1
+            ? (() => {
+                const c = contacts.find((x) => x.id === deleteIds[0]);
+                return c ? `${c.first_name} ${c.last_name || ""}`.trim() : undefined;
+              })()
+            : undefined
+        }
+        links={deleteLinks}
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteIds) deleteMutation.mutate(deleteIds);
+        }}
+      />
+
       <ContactDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
