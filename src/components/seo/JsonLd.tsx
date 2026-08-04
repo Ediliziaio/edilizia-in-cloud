@@ -6,7 +6,11 @@ interface JsonLdProps {
   id?: string;
 }
 
-export function JsonLd({ data, id = "jsonld-main" }: JsonLdProps) {
+// Tipo di ritorno esplicito: senza, con noImplicitAny il compilatore alza
+// TS7010 ("lacks return-type annotation, implicitly has an 'any' return
+// type"). Il componente non renderizza nulla — inietta lo script nell'head —
+// quindi il tipo corretto e' null.
+export function JsonLd({ data, id = "jsonld-main" }: JsonLdProps): null {
   useEffect(() => {
     let script = document.getElementById(id) as HTMLScriptElement | null;
     if (!script) {
