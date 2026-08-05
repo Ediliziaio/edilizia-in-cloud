@@ -133,6 +133,12 @@ Deno.serve(async (req) => {
 
     const byService: Record<string, number> = {};
     let totalProcessed = 0;
+    // Motivi degli addebiti non riusciti, riportati nella risposta. Servono
+    // perche' questa funzione la invoca pg_cron: senza un riscontro nel corpo
+    // della risposta l'unica traccia sarebbe console.error, che da un cron non
+    // legge nessuno. Nessun dato sensibile: id azienda, wallet e messaggio
+    // Stripe, che e' gia' quello mostrato in fattura.
+    const failures: Array<{ company_id: string; wallet: string; reason: string }> = [];
 
     for (const config of configs as Array<Record<string, unknown>>) {
       const walletType = String(config.wallet_type);
@@ -198,8 +204,20 @@ Deno.serve(async (req) => {
 
       const pi = await piRes.json();
       if (pi.status !== "succeeded") {
-        console.error(`[auto-topup] charge FAILED ${companyId}/${walletType}:`, pi.error?.message || pi.status);
-        await supabase.rpc("increment_payment_failure_count", { p_company_id: companyId }).catch(() => {});
+        const reason = pi.error?.message || pi.status || `HTTP ${piRes.status}`;
+        console.error(`[auto-topup] charge FAILED ${companyId}/${walletType}:`, reason);
+        failures.push({ company_id: companyId, wallet: walletType, reason: String(reason) });
+        // Il query builder di supabase-js e' un Thenable, NON una Promise: non
+        // espone .catch(). Chiamarlo qui faceva esplodere la funzione con
+        // "supabase.rpc(...).catch is not a function" PROPRIO sul percorso di
+        // gestione dell'errore, trasformando un addebito rifiutato in un 500
+        // che interrompeva il ciclo e lasciava le aziende successive
+        // inevase. Va incapsulato in un try/catch vero.
+        try {
+          await supabase.rpc("increment_payment_failure_count", { p_company_id: companyId });
+        } catch (rpcErr) {
+          console.error(`[auto-topup] increment_payment_failure_count fallita ${companyId}:`, (rpcErr as Error).message);
+        }
         continue;
       }
 
@@ -248,7 +266,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ processed: totalProcessed, by_service: byService });
+    return jsonResponse({ processed: totalProcessed, by_service: byService, failures });
   } catch (err) {
     console.error("[auto-topup-trigger] error:", err);
     return errorResponse((err as Error).message, 500);
