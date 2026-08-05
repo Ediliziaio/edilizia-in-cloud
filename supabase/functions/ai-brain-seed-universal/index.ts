@@ -19,8 +19,10 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { generateEmbeddingsBatch, contentHash } from "../_shared/brainEmbed.ts";
 import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
 import { CORPUS_REDAZIONALE } from "./corpusRedazionale.ts";
@@ -424,12 +426,27 @@ serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405, corsHeaders);
 
   try {
-    const auth = await requireAuth(req, corsHeaders);
-    const userId = auth.userId;
+    // Due strade di autenticazione, come nelle altre ~40 funzioni interne:
+    //  - super_admin dal pannello (bottone Re-seed in /admin AI Knowledge);
+    //  - x-cron-secret interno, per il seeding senza passare dal browser.
+    //    Il corpus e' fisso nel codice e l'upsert e' idempotente (hash del
+    //    contenuto): il peggio che puo' fare chi ha il secret interno e'
+    //    rigenerare gli embedding, pochi centesimi. Lo stesso secret gia'
+    //    protegge funzioni ben piu' sensibili (email-poll-inbox).
+    let userId: string | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAdmin = auth.supabaseAdmin as any;
-
-    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    let supabaseAdmin: any;
+    if (cronSecretValido(req)) {
+      supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+    } else {
+      const auth = await requireAuth(req, corsHeaders);
+      userId = auth.userId;
+      supabaseAdmin = auth.supabaseAdmin;
+      await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    }
 
     // Generate embeddings
     const FULL_CORPUS = [...CORPUS, ...CORPUS_REDAZIONALE];

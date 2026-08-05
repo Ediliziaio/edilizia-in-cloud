@@ -20,6 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 import {
   sostituisciVariabili, valutaStop, entroLimiteInvii,
   buildOptOutFooter, avanzaEsecuzione, normalizzaEmail, type SequenzaStep,
@@ -35,9 +36,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   // Auth: solo cron interno (service role bearer o x-cron-secret). Mai pubblico.
+  // 2026-08-05: aggiunto cronSecretValido (tutti i nomi noti del secret).
+  // Leggere SOLO PROACTIVE_CRON_SECRET era fail-closed su una variabile che in
+  // produzione non e' valorizzata: 401 a ogni giro del cron da sempre, con
+  // pg_cron che segnava "succeeded". Le sequenze email non sono mai partite
+  // da schedulazione.
   const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
   const cronHeader = req.headers.get("x-cron-secret") || "";
-  const authorized = (!!token && token === SERVICE_ROLE) || (!!CRON_SECRET && cronHeader === CRON_SECRET);
+  const authorized = (!!token && token === SERVICE_ROLE)
+    || (!!CRON_SECRET && cronHeader === CRON_SECRET)
+    || cronSecretValido(req);
   if (!authorized) return json({ error: "unauthorized" }, 401, cors);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);

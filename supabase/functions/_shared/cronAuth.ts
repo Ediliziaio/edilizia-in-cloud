@@ -29,12 +29,21 @@ const NOMI_SECRET = [
 ] as const;
 
 /**
- * true se la richiesta porta un `x-cron-secret` che combacia con almeno uno
- * dei secret configurati. Confronto a lunghezza costante per non offrire un
- * oracolo temporale a chi provasse a indovinarlo byte per byte.
+ * true se la richiesta porta un `x-cron-secret` (o `x-internal-cron-secret`)
+ * che combacia con almeno uno dei secret configurati. Confronto a lunghezza
+ * costante per non offrire un oracolo temporale a chi provasse a indovinarlo
+ * byte per byte.
+ *
+ * 2026-08-05: accettato anche l'header `x-internal-cron-secret`. Lo stesso
+ * disallineamento che questo file cura sui NOMI delle variabili esisteva
+ * anche sul nome dell'HEADER: silvio_invoke_edge (la funzione SQL che fa da
+ * ponte per 11 job pg_cron) manda `x-internal-cron-secret`, questo file
+ * leggeva solo `x-cron-secret`, e whatsapp-operational-reminders rispondeva
+ * 401 a ogni giro — con pg_cron che segnava "succeeded", perche' net.http_post
+ * considera riuscito l'aver spedito la richiesta.
  */
 export function cronSecretValido(req: Request): boolean {
-  const inviato = req.headers.get("x-cron-secret");
+  const inviato = req.headers.get("x-cron-secret") ?? req.headers.get("x-internal-cron-secret");
   if (!inviato) return false;
 
   let combacia = false;

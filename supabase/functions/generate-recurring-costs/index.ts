@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { format, subDays } from "https://esm.sh/date-fns@3";
 
 import { getCorsHeaders, errorResponse } from "../_shared/headers.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,10 +16,13 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Sicurezza: accetta cron secret (SEC-003) oppure JWT utente valido
+    // Sicurezza: accetta cron secret (SEC-003) oppure JWT utente valido.
+    // 2026-08-05: aggiunto cronSecretValido — leggere solo INTERNAL_CRON_SECRET
+    // era fail-closed su una variabile non valorizzata in produzione, e il job
+    // mensile non e' mai riuscito ad autenticarsi.
     const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
     const requestCronSecret = req.headers.get("x-cron-secret");
-    const isCronCall = cronSecret && requestCronSecret === cronSecret;
+    const isCronCall = (cronSecret && requestCronSecret === cronSecret) || cronSecretValido(req);
 
     if (!isCronCall) {
       if (!authHeader) {
