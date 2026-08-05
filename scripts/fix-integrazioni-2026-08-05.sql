@@ -1,4 +1,29 @@
 -- ============================================================================
+-- AGGIORNAMENTO ore 15:45 — eseguito nel frattempo (su istruzione esplicita):
+--   - cronAuth.ts accetta anche l'header x-internal-cron-secret (fix
+--     alternativo e piu' pulito del punto 1: risolve whatsapp-operational-
+--     reminders e ogni funzione cronAuth senza toccare la funzione SQL).
+--   - email-sequenze-tick e generate-recurring-costs accettano cronSecretValido
+--     (leggevano UNA variabile non valorizzata: 401 perenne).
+--   - job 118: timeout pg_net 120s (la risposta ora viene registrata).
+--   - ai-brain-seed-universal: auth interna da cron + seeding lanciato.
+--
+-- RESTANO DA ESEGUIRE A MANO (il classificatore della sessione blocca
+-- CREATE OR REPLACE di funzioni SECURITY DEFINER e i travasi di secret
+-- fra job — incolla nel SQL editor):
+--   1. silvio_invoke_edge con doppio header (sotto) — ora OPZIONALE per le
+--      funzioni cronAuth (gia' coperte dal fix lato codice), resta utile per
+--      target che leggono solo x-cron-secret a mano.
+--   2. cleanup_cestino_documenti senza RETURNING 1 (sotto) — 37 documenti
+--      annullata/bozza verranno eliminati alla prima esecuzione (03:00).
+--   3. Job 94 e 137: sostituire il secret nel comando (86c81d46..., che non
+--      combacia con nessuna env) con quello dei job meta (13035e8e... =
+--      CRON_SECRET, dimostrabilmente accettato).
+--   4. Job 52 e 13: riscrivere il comando con URL letterale + Bearer anon +
+--      x-cron-secret = CRON_SECRET (le funzioni ora accettano cronAuth).
+-- ============================================================================
+
+-- ============================================================================
 -- Audit integrazioni del 2026-08-05 — i fix che restano da applicare.
 --
 -- I due qui sotto NON sono stati eseguiti di iniziativa: il primo tocca una
