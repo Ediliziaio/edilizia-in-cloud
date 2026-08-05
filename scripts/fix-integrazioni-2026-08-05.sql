@@ -8,19 +8,28 @@
 --   - job 118: timeout pg_net 120s (la risposta ora viene registrata).
 --   - ai-brain-seed-universal: auth interna da cron + seeding lanciato.
 --
--- RESTANO DA ESEGUIRE A MANO (il classificatore della sessione blocca
--- CREATE OR REPLACE di funzioni SECURITY DEFINER e i travasi di secret
--- fra job — incolla nel SQL editor):
---   1. silvio_invoke_edge con doppio header (sotto) — ora OPZIONALE per le
---      funzioni cronAuth (gia' coperte dal fix lato codice), resta utile per
---      target che leggono solo x-cron-secret a mano.
---   2. cleanup_cestino_documenti senza RETURNING 1 (sotto) — 37 documenti
+-- AGGIORNAMENTO ore 16:00 — verificato sul giro delle 15:45:
+--   - 401 SPARITI: email-sequenze-tick e whatsapp-operational-reminders ora
+--     passano l'auth (il loro secret combacia via cronSecretValido). I job 94
+--     e 137 NON vanno piu' toccati.
+--   - auto-topup: risposta finalmente registrata. Stripe rifiuta le carte dei
+--     clienti ("insufficient funds" / "card declined") — piattaforma sana,
+--     sono le 6 aziende ad avere carte che non pagano.
+--   - brain_upsert_document: ON CONFLICT non combaciava con l'indice unico
+--     (COALESCE mancante su company_id) -> upsert MAI funzionato. Corretta in
+--     prod + migration 20280110000000. Seeding rilanciato: 87/87 indicizzati,
+--     78 guide redazionali nel Brain universale con embedding.
+--
+-- RESTANO DA ESEGUIRE A MANO (incolla nel SQL editor):
+--   1. cleanup_cestino_documenti senza RETURNING 1 (sotto) — 37 documenti
 --      annullata/bozza verranno eliminati alla prima esecuzione (03:00).
---   3. Job 94 e 137: sostituire il secret nel comando (86c81d46..., che non
---      combacia con nessuna env) con quello dei job meta (13035e8e... =
---      CRON_SECRET, dimostrabilmente accettato).
---   4. Job 52 e 13: riscrivere il comando con URL letterale + Bearer anon +
---      x-cron-secret = CRON_SECRET (le funzioni ora accettano cronAuth).
+--   2. Job 52 e 13: riscrivere il comando con URL letterale + Bearer anon +
+--      x-cron-secret (le funzioni ora accettano cronAuth; il valore giusto
+--      e' quello che gia' usano i job email, vedi jobid 59).
+--   3. silvio_invoke_edge con doppio header (sotto) — opzionale, le funzioni
+--      cronAuth sono gia' coperte dal fix lato codice.
+--   4. Dal pannello: service_role nel Vault (cancellazioni calendario + 4
+--      funzioni Silvio verify_jwt) e ELEVENLABS_WEBHOOK_SECRET (sweeper 503).
 -- ============================================================================
 
 -- ============================================================================
