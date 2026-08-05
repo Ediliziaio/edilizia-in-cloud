@@ -1142,13 +1142,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Cron full-sync: validate that the token is the anon key (from pg_cron)
+    // Cron full-sync. Il controllo e' verify_jwt del gateway: senza un JWT
+    // valido di progetto la richiesta non arriva nemmeno qui.
+    //
+    // Prima c'era un confronto a mano fra il token ricevuto e
+    // SUPABASE_ANON_KEY, e non ha mai lasciato passare nessuno: il job
+    // rispondeva 403 e google_calendar_sync_log e' rimasta vuota dal primo
+    // giorno. Quella variabile, nell'ambiente delle edge function, non
+    // contiene la chiave anon del progetto — e verificarla non proteggeva
+    // comunque niente, visto che la chiave anon e' pubblica e sta nel bundle
+    // JavaScript servito a ogni browser.
     if (action === "cron-full-sync") {
-      const token = authHeader.replace("Bearer ", "");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      if (token !== anonKey) {
-        return json({ error: "Unauthorized for cron" }, 403);
-      }
       return cronFullSync();
     }
 

@@ -215,8 +215,13 @@ verify_jwt = false
 [functions.google-calendar-auth]
 verify_jwt = false
 
+# Nessun chiamante anonimo: il cron manda la chiave anon, il trigger DB e le
+# altre edge function la service_role, il frontend il JWT dell'utente. Il
+# gateway verifica il JWT ed e' l'unico controllo che serve — quello fatto a
+# mano dentro la funzione confrontava il token con SUPABASE_ANON_KEY e non ha
+# mai lasciato passare il cron. (Le notifiche push di Google arrivano su
+# google-calendar-webhook, che resta pubblica.)
 [functions.google-calendar-sync]
-verify_jwt = false
 
 [functions.check-lifecycle-events]
 verify_jwt = false
