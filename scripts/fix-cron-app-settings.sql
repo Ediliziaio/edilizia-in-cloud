@@ -1,25 +1,23 @@
 -- ============================================================================
--- FIX: 14 cron job falliscono da mesi per due parametri mancanti
+-- 14 cron job falliscono da mesi. Diagnosi completa e stato del fix.
+-- Aggiornato il 2026-08-05 dopo l'intervento in produzione.
 --
 -- IL PROBLEMA
---   14 job in cron.job costruiscono la chiamata alla edge function cosi':
+--   14 job in cron.job costruiscono la chiamata alla edge function leggendo
+--   dei parametri di configurazione che su questo database NON ESISTONO:
 --       url := current_setting('app.supabase_url') || '/functions/v1/...'
 --       Authorization := 'Bearer ' || current_setting('app.supabase_anon_key')
 --
---   Quei due parametri NON SONO IMPOSTATI su questo database. Verificato:
---       select current_setting('app.supabase_url', true);      -> null
---       select current_setting('app.supabase_anon_key', true); -> null
---
---   Quindi ogni esecuzione muore prima ancora di partire, con:
+--   Chi usa la forma a un argomento muore subito con
 --       ERROR: unrecognized configuration parameter "app.supabase_url"
+--   chi usa la forma a due argomenti (..., true) ottiene NULL e costruisce
+--   una URL nulla. In entrambi i casi la funzione non viene MAI chiamata:
+--   nessun log applicativo, nessun errore in tabella. Solo silenzio.
 --
---   Non e' un errore della funzione: la funzione non viene MAI chiamata.
---   Ecco perche' nessuno se n'e' accorto — non ci sono log applicativi, non
---   ci sono errori nelle tabelle di stato, non c'e' niente. Solo silenzio.
+--   I namespace usati sono DUE, non uno: app.* e app.settings.* .
 --
 -- QUANTO E' GRAVE (rilevato il 2026-08-04)
---   8 job ATTIVI con tasso di fallimento del 100%:
---
+--   8 job attivi con tasso di fallimento del 100%:
 --     auto-topup-check                   5.070 fallimenti  ogni 15 min
 --     google-calendar-sync-every-15min   5.232 fallimenti  ogni 15 min
 --     morning-briefing-capomastri-daily     90 fallimenti  giornaliero
@@ -28,108 +26,144 @@
 --     cleanup-capture-orphans-daily         88 fallimenti  giornaliero
 --     weekly-customer-reports               12 fallimenti  settimanale
 --     generate-recurring-costs-monthly       5 fallimenti  mensile
+--   Piu' 6 job disattivati con lo stesso difetto.
 --
---   Piu' 6 job disattivati che avrebbero lo stesso problema se riaccesi.
+-- LA STRADA CHE NON FUNZIONA
+--   Impostare i parametri una volta per tutte sarebbe stato meglio che
+--   riscrivere 14 comandi, ma Supabase non lo concede:
+--       alter database postgres set app.supabase_url = '...';
+--       ERROR: 42501: permission denied to set parameter "app.supabase_url"
+--   Vale anche dall'editor SQL del pannello: non e' una questione di ruolo.
 --
---   In concreto, sulla piattaforma oggi NON funzionano: la ricarica
---   automatica dei crediti, la generazione dei costi ricorrenti, il giornale
---   dei lavori automatico, il briefing mattutino ai capomastri, i report
---   settimanali ai clienti, il rilevamento anomalie AI e la sincronizzazione
---   dei calendari.
---
--- COME SI E' ARRIVATI QUI
---   Il job google-calendar-renew-watches-6h, l'unico che funziona, ha URL e
---   chiave scritti direttamente nel comando. Gli altri usano current_setting.
---   Probabilmente i parametri erano previsti e non sono mai stati impostati,
---   oppure sono spariti in un ripristino del database.
---
--- LA CHIAVE ANON NON E' UN SEGRETO
---   E' la chiave pubblica del progetto: sta gia' nel bundle JavaScript
---   servito ai browser e nel comando del job che funziona. Non e' la
---   service_role, che invece non va mai messa in un cron.
+-- LA STRADA CHE FUNZIONA
+--   Riscrivere il comando di ogni job con URL e chiave in chiaro, come fa
+--   gia' google-calendar-renew-watches-6h. La chiave anon NON e' un segreto:
+--   sta nel bundle JavaScript servito a ogni browser. La service_role invece
+--   e' un segreto e non va mai messa in un cron.
 -- ============================================================================
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. IL FIX — due righe, sistemano tutti e 14 i job
+-- 1. FATTO il 2026-08-05 — comandi riscritti
 --
---    Impostare i parametri a livello di database e' meglio che riscrivere i
---    14 comandi: vale anche per i job futuri che useranno lo stesso schema,
---    ed e' un punto solo da aggiornare se un domani cambiano URL o chiave.
--- ────────────────────────────────────────────────────────────────────────────
-alter database postgres
-  set app.supabase_url = 'https://rsbrguhkodgnqfomrevo.supabase.co';
-
-alter database postgres
-  set app.supabase_anon_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzYnJndWhrb2RnbnFmb21yZXZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODQzODYsImV4cCI6MjA4OTk2MDM4Nn0.aHzsPcf09M0PYUmFqmJwZWiyoNjM2shWL12sHHUGSZc';
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 2. VERIFICA — in una NUOVA sessione
+--    30 google-calendar-sync-every-15min   -> da 'failed' a 'succeeded'
+--    49 auto-genera-giornale-daily
+--    50 ai-anomaly-detection-daily
+--    51 fatt-zero-touch-orchestrator-tick  (resta disattivo)
 --
---    ALTER DATABASE ... SET vale dalla connessione successiva: la sessione
---    in cui lo esegui continua a non vedere i parametri. pg_cron apre una
---    connessione nuova a ogni esecuzione, quindi per lui il fix e' immediato.
---    Se questa query torna null, chiudi e riapri l'editor SQL.
+--    Nessuna di queste funzioni ha un controllo segreto nel codice: l'unico
+--    gate e' verify_jwt del gateway, che la chiave anon soddisfa.
 -- ────────────────────────────────────────────────────────────────────────────
-select current_setting('app.supabase_url', true)      as url,
-       left(current_setting('app.supabase_anon_key', true), 24) || '…' as chiave;
--- atteso: l'URL del progetto e l'inizio della chiave, non null.
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 3. CONTROLLO A CALDO — dopo 15-20 minuti
+-- Blocco applicato (i valori si leggono dal job che gia' li aveva in chiaro,
+-- cosi' non vengono da fuori e restano in un posto solo):
 --
---    Il job del calendario gira ogni 15 minuti: e' il piu' rapido a dare un
---    riscontro. Se il fix ha funzionato, status passa da 'failed' a
---    'succeeded'.
+-- do $fix$
+-- declare
+--   v_url text := 'https://rsbrguhkodgnqfomrevo.supabase.co';
+--   v_key text; r record; nuovo text;
+-- begin
+--   select (regexp_match(command, 'Bearer ([A-Za-z0-9._-]+)'))[1] into v_key
+--   from cron.job where jobname = 'google-calendar-renew-watches-6h';
+--   if v_key is null then raise exception 'chiave non trovata'; end if;
+--
+--   for r in select jobid, command from cron.job where jobid in (30,49,50,51) loop
+--     nuovo := replace(r.command, 'current_setting(''app.supabase_url'')', quote_literal(v_url));
+--     nuovo := replace(nuovo, 'current_setting(''app.settings.supabase_url'', true)', quote_literal(v_url));
+--     nuovo := replace(nuovo, 'current_setting(''app.supabase_anon_key'')', quote_literal(v_key));
+--     nuovo := replace(nuovo, 'current_setting(''app.settings.cron_token'', true)', quote_literal(v_key));
+--     if nuovo <> r.command then perform cron.alter_job(r.jobid, command := nuovo); end if;
+--   end loop;
+-- end $fix$;
+
+
 -- ────────────────────────────────────────────────────────────────────────────
+-- 2. RESIDUO — il calendario parte ma la funzione lo respinge
+--
+--    Il job 30 ora arriva a destinazione, ma google-calendar-sync risponde
+--        403 {"error":"Unauthorized for cron"}
+--    perche' confronta il token ricevuto con Deno.env.get("SUPABASE_ANON_KEY")
+--    e i due non coincidono (index.ts riga ~1147).
+--
+--    Verificato: la chiave anon inviata e' quella giusta — identica a quella
+--    del bundle di produzione, e accettata dalla piattaforma
+--    (auth/v1/settings 200, rest/v1/companies 200).
+--
+--    Verificato anche: google_calendar_sync_log ha ZERO righe da sempre.
+--    Quel percorso non ha mai funzionato, non e' una regressione.
+--
+--    Nota di sostanza: quel confronto non protegge nulla. La chiave anon e'
+--    pubblica, sta nel bundle: chiunque potrebbe gia' oggi invocare la
+--    sincronizzazione completa. E' un controllo che da' sicurezza apparente.
+--
+--    Rimedio proposto (richiede redeploy della funzione):
+--      togliere verify_jwt = false da config.toml per google-calendar-sync e
+--      lasciare che sia il gateway a pretendere un JWT valido di progetto,
+--      eliminando il confronto fatto a mano. Stesso livello di protezione di
+--      oggi, ma applicato dalla piattaforma invece che da una riga di codice
+--      che confronta due variabili d'ambiente che non combaciano.
+--      Tutti i chiamanti attuali mandano gia' un Bearer valido: il cron la
+--      chiave anon, il trigger DB la service_role, il frontend il JWT utente.
+-- ────────────────────────────────────────────────────────────────────────────
+
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 3. DA DECIDERE — job che riaccesi mandano roba fuori o muovono soldi
+--
+--    47 weekly-customer-reports     -> email ai clienti, venerdi' alle 17
+--    48 morning-briefing-capomastri -> WhatsApp ai capomastri, ogni mattina
+--   118 auto-topup-check            -> ricariche automatiche su Stripe, /15min
+--
+--    Il comando si sistema come gli altri, ma ripartono con mesi di arretrato
+--    da smaltire: 118 in particolare potrebbe addebitare a molte aziende
+--    entro un quarto d'ora dalla riaccensione. Vanno riaccesi uno per uno.
+-- ────────────────────────────────────────────────────────────────────────────
+
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 4. BLOCCATI — servono segreti che non stanno nel database
+--
+--    13 generate-recurring-costs -> INTERNAL_CRON_SECRET (oppure un JWT
+--                                   utente vero: la chiave anon non basta,
+--                                   la funzione fa auth.getUser sul token)
+--    52 cleanup-capture-orphans  -> CRON_SECRET, confronto secco senza
+--                                   alternative
+--    Piu' i disattivati 32, 36, 38, 76, 79 (service_role_key,
+--    internal_cron_secret, proactive_cron_secret).
+--
+--    Si leggono dal pannello Supabase, Edge Functions → Secrets.
+-- ────────────────────────────────────────────────────────────────────────────
+
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 5. VERIFICHE
+-- ────────────────────────────────────────────────────────────────────────────
+-- Quali job usano ancora i parametri fantasma, e quali:
+select jobid, jobname, active,
+       array(select distinct m[1]
+             from regexp_matches(command, 'current_setting\(\s*''([a-z_.]+)''', 'g') m) as parametri
+from cron.job
+where command like '%current_setting%'
+order by jobid;
+
+-- Esito delle ultime esecuzioni dei job sistemati:
 select j.jobname, d.start_time::text as quando, d.status,
        left(coalesce(d.return_message, ''), 80) as messaggio
 from cron.job_run_details d
 join cron.job j on j.jobid = d.jobid
-where j.command like '%current_setting(''app.%'
-  and d.start_time > now() - interval '30 minutes'
+where j.jobid in (30, 49, 50)
+  and d.start_time > now() - interval '2 hours'
 order by d.start_time desc;
--- atteso: status 'succeeded'. Se resta 'failed', leggi il messaggio: a quel
--- punto sara' un errore VERO della funzione, non piu' del parametro mancante.
 
--- E il log applicativo del calendario, che finora era vuoto:
-select started_at::text, connections_found, connections_synced, connections_failed, status
+-- Il cron che parte non basta: serve la risposta HTTP della funzione.
+-- Un 'succeeded' qui sotto significa solo "richiesta accodata".
+select id, status_code, created::text as quando,
+       left(coalesce(content, coalesce(error_msg, '')), 120) as corpo
+from net._http_response
+where created > now() - interval '30 minutes'
+order by id desc limit 20;
+
+-- E il log applicativo del calendario, che finora e' sempre stato vuoto:
+select started_at::text, connections_found, connections_synced,
+       connections_failed, status
 from google_calendar_sync_log order by started_at desc limit 5;
--- atteso: almeno una riga, con connections_found = 3.
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 4. ALTERNATIVA, se ALTER DATABASE non fosse concesso dal piano Supabase
---
---    Si riscrive il comando di ogni job mettendo URL e chiave in chiaro,
---    come fa gia' google-calendar-renew-watches-6h. Meno elegante: 14 punti
---    da aggiornare invece di uno. Esempio per il calendario:
--- ────────────────────────────────────────────────────────────────────────────
--- select cron.alter_job(30, command := $cmd$
---   SELECT net.http_post(
---     url := 'https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/google-calendar-sync',
---     headers := jsonb_build_object(
---       'Content-Type', 'application/json',
---       'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzYnJndWhrb2RnbnFmb21yZXZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODQzODYsImV4cCI6MjA4OTk2MDM4Nn0.aHzsPcf09M0PYUmFqmJwZWiyoNjM2shWL12sHHUGSZc'
---     ),
---     body := '{"action": "cron-full-sync"}'::jsonb
---   );
--- $cmd$);
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 5. DA DECIDERE DOPO — i 6 job disattivati
---
---    Erano probabilmente spenti proprio perche' fallivano. Con il fix
---    tornerebbero a funzionare, ma vanno riaccesi uno per uno valutando se
---    servono ancora. NON riaccenderli in blocco.
--- ────────────────────────────────────────────────────────────────────────────
-select jobid, jobname, schedule
-from cron.job
-where command like '%current_setting(''app.%' and not active
-order by jobname;
--- apple-calendar-sync-every-10min, render-economics-monitor-hourly,
--- whatsapp-ai-recovery, fatt-zero-touch-orchestrator-tick,
--- ai-auto-execute-pending, ai-workflow-engine
+-- atteso, quando il 403 sara' risolto: connections_found = 3.
