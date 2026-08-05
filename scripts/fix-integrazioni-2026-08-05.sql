@@ -131,6 +131,52 @@ $function$;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
+-- 2-bis. auto-topup: gli addebiti VENGONO TENTATI e Stripe li rifiuta
+--
+--    Il crash sul .catch dimostrava che l'esecuzione arrivava alla riga 202,
+--    cioe' dentro il ramo `if (pi.status !== "succeeded")`. Quindi la chiave
+--    Stripe c'e', il PaymentIntent viene creato, e viene RIFIUTATO.
+--    Motivi tipici: authentication_required (SCA), card_declined, oppure il
+--    payment method non piu' agganciato al customer.
+--
+--    Verificato che nessun soldo si e' mosso: company_auto_topup.last_topup_at
+--    mai valorizzato, e 0 righe in ai_credit_topups, whatsapp_credit_topups,
+--    email_credits_log, whatsapp_credits_log, topup_outbox.
+--
+--    Per LEGGERE il motivo servono due cose:
+--    (a) il fix gia' deployato, che mette i motivi in `failures` nella
+--        risposta JSON;
+--    (b) alzare il timeout di pg_net sul job 118: la funzione fa una chiamata
+--        Stripe per azienda e supera i 5 secondi di default, quindi la
+--        risposta non viene mai registrata in net._http_response. Gli altri
+--        job lenti usano gia' timeout_milliseconds := 120000.
+--
+--    do $t$
+--    declare c text;
+--    begin
+--      select command into c from cron.job where jobid = 118;
+--      if c not like '%timeout_milliseconds%' then
+--        perform cron.alter_job(118, command := replace(c,
+--          'body := ''{}''::jsonb',
+--          'body := ''{}''::jsonb, timeout_milliseconds := 120000'));
+--      end if;
+--    end $t$;
+--
+--    Poi, al giro successivo:
+--      select left(content, 600) from net._http_response
+--      where content like '%by_service%' order by id desc limit 1;
+--
+--    IN PIU': la RPC `increment_payment_failure_count` NON ESISTE nel
+--    database. La chiama solo auto-topup-trigger. Significa che il contatore
+--    dei pagamenti falliti non e' mai stato incrementato da nessuno: se
+--    qualche parte del billing si aspetta quel valore per sospendere o
+--    avvisare, sta leggendo un dato fermo a zero. Va creata, oppure va tolta
+--    la chiamata — ma decidere quale delle due richiede sapere se quel
+--    contatore serve a qualcuno.
+-- ────────────────────────────────────────────────────────────────────────────
+
+
+-- ────────────────────────────────────────────────────────────────────────────
 -- 3. Segreti mancanti, per chi ha accesso al pannello
 --
 --    ELEVENLABS_WEBHOOK_SECRET / API key -> ai-conversations-sweeper risponde
