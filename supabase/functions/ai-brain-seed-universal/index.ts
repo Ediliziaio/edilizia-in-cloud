@@ -12,6 +12,7 @@
  *   - 04-vendita-consulenziale
  *   - 05-fiscale-compliance
  *   - 06-hr-edile
+ *   - 07-guide-redazionali (76 guide + filiere + esempi, da corpusRedazionale.ts)
  *
  * Permission: SOLO super_admin
  */
@@ -22,6 +23,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateEmbeddingsBatch, contentHash } from "../_shared/brainEmbed.ts";
 import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { CORPUS_REDAZIONALE } from "./corpusRedazionale.ts";
 
 interface UniversalDoc {
   category: string;
@@ -430,7 +432,8 @@ serve(async (req: Request) => {
     await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
 
     // Generate embeddings
-    const contents = CORPUS.map(d => d.content);
+    const FULL_CORPUS = [...CORPUS, ...CORPUS_REDAZIONALE];
+    const contents = FULL_CORPUS.map(d => d.content);
     let embeddings: number[][] = [];
     const startedAt = Date.now();
     try {
@@ -445,7 +448,7 @@ serve(async (req: Request) => {
         tokensIn: estimated.tokens,
         costRealUsd: estimated.costUsd,
         durationMs: Date.now() - startedAt,
-        metadata: { documents: CORPUS.length },
+        metadata: { documents: FULL_CORPUS.length },
       });
     } catch (e) {
       console.error("[brain-seed-universal] embed error:", e);
@@ -455,8 +458,8 @@ serve(async (req: Request) => {
     // Upsert
     let okCount = 0;
     const failed: string[] = [];
-    for (let i = 0; i < CORPUS.length; i++) {
-      const doc = CORPUS[i];
+    for (let i = 0; i < FULL_CORPUS.length; i++) {
+      const doc = FULL_CORPUS[i];
       const emb = embeddings[i];
       const hash = await contentHash(doc.content);
       try {
@@ -494,7 +497,7 @@ serve(async (req: Request) => {
 
     return jsonResponse({
       ok: true,
-      total_corpus: CORPUS.length,
+      total_corpus: FULL_CORPUS.length,
       ingested: okCount,
       failed: failed.length,
       failed_details: failed.slice(0, 5),
