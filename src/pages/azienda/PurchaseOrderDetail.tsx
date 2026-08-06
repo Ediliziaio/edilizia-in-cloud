@@ -1,4 +1,9 @@
 import { useState, lazy, Suspense } from "react";
+import {
+  ODA_STATUS_FLOW as STATUS_FLOW,
+  ODA_STATUS_LABELS as STATUS_LABELS,
+  ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
+} from "@/lib/odaStatus";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -40,28 +45,6 @@ const OdaReceiveSheet = lazy(() =>
 
 const fmtEur = (n: number) => formatCurrency(n);
 
-const STATUS_FLOW: Record<string, string[]> = {
-  bozza: ["inviato", "annullato"],
-  inviato: ["confermato", "annullato"],
-  confermato: ["parziale", "ricevuto"],
-  parziale: ["ricevuto"],
-  ricevuto: [],
-  annullato: [],
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza", inviato: "Inviato", confermato: "Confermato",
-  parziale: "Parziale", ricevuto: "Ricevuto", annullato: "Annullato",
-};
-
-const STATUS_CHIP_VARIANT: Record<string, "default" | "green" | "orange" | "red" | "navy" | "yellow" | "blue"> = {
-  bozza: "default",
-  inviato: "blue",
-  confermato: "green",
-  parziale: "yellow",
-  ricevuto: "green",
-  annullato: "red",
-};
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   inviato: <Send className="h-3.5 w-3.5 mr-1" />,
@@ -117,7 +100,7 @@ export default function PurchaseOrderDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Ordine non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/ordini-acquisto")}>Torna alla lista</Button>
+        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=acquisto")}>Torna alla lista</Button>
       </div>
     );
   }

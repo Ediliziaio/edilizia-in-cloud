@@ -17,19 +17,10 @@ import { CreatePurchaseOrderButton } from "./CreatePurchaseOrderButton";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
 import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
 
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza", inviato: "Inviato", confermato: "Confermato",
-  parziale: "Parziale", ricevuto: "Ricevuto", annullato: "Annullato",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  inviato: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  confermato: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-  parziale: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  ricevuto: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  annullato: "bg-destructive/10 text-destructive",
-};
+import {
+  ODA_STATUS_LABELS as STATUS_LABELS,
+  ODA_STATUS_COLORS as STATUS_COLORS,
+} from "@/lib/odaStatus";
 
 interface OrderItem {
   id: string;

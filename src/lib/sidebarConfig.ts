@@ -6,6 +6,7 @@ import {
   TrendingUp,
   Receipt,
   Warehouse,
+  ShoppingCart,
   CalendarDays,
   CheckSquare,
   MessageSquare,
@@ -123,6 +124,9 @@ export const macroAreas: MacroArea[] = [
       // NB: Sopralluoghi non è più voce separata sidebar — è un tab dentro Commesse
       // (OrdersList.tsx). Visibile a Demo Azienda via feature flag surveys_module.
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+      // Voce dedicata: gli ODA vivono in un tab dentro Commesse e prima non
+      // erano raggiungibili da NESSUN menu — si scoprivano solo per caso.
+      { title: "Ordini d'Acquisto", url: "/azienda/ordini?tab=acquisto", icon: ShoppingCart, permissionKey: "canViewOrders", moduleKey: "orders" },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori", featureKey: "subappaltatori" },

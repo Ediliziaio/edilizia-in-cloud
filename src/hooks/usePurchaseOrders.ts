@@ -110,6 +110,10 @@ export function usePurchaseOrders() {
     mutationFn: async (params: { id: string; status: string; actual_delivery_date?: string }) => {
       const updates: any = { status: params.status };
       if (params.actual_delivery_date) updates.actual_delivery_date = params.actual_delivery_date;
+      // Timestamp di passaggio stato: prima non li scriveva nessuno, quindi i
+      // merge-field {{ordine_acquisto.sent_at}} dei template erano sempre vuoti.
+      if (params.status === "inviato") updates.sent_at = new Date().toISOString();
+      if (params.status === "confermato") updates.confirmed_at = new Date().toISOString();
       const { error } = await supabase.from("purchase_orders").update(updates).eq("id", params.id);
       if (error) throw error;
 
@@ -144,13 +148,29 @@ export function usePurchaseOrders() {
             let stockItem: { id: string; quantity: number; warehouse_id: string | null } | null = null;
 
             if (item.sku) {
-              const { data: found } = await supabase
+              // Lo SKU si confronta con codice interno o barcode, NON col nome:
+              // il vecchio ilike("name", sku) non trovava mai nulla e a ogni
+              // ricezione nasceva un articolo duplicato in inventario.
+              // Due eq separati invece di .or(): lo SKU e' testo libero e
+              // dentro la sintassi di .or() virgole/parentesi la romperebbero.
+              const { data: byCode } = await supabase
                 .from("warehouse_stock")
                 .select("id, quantity, warehouse_id")
                 .eq("company_id", companyId!)
-                .ilike("name", item.sku)
+                .eq("internal_code", item.sku)
+                .limit(1)
                 .maybeSingle();
-              stockItem = found as typeof stockItem;
+              stockItem = byCode as typeof stockItem;
+              if (!stockItem) {
+                const { data: byBarcode } = await supabase
+                  .from("warehouse_stock")
+                  .select("id, quantity, warehouse_id")
+                  .eq("company_id", companyId!)
+                  .eq("barcode", item.sku)
+                  .limit(1)
+                  .maybeSingle();
+                stockItem = byBarcode as typeof stockItem;
+              }
             }
 
             if (!stockItem && item.description) {
@@ -193,9 +213,11 @@ export function usePurchaseOrders() {
 
             if (stockItem) {
               await supabase.from("warehouse_movements").insert({
+                company_id: companyId!,
                 stock_item_id: stockItem.id,
                 movement_type: "carico",
                 quantity: qtyToLoad,
+                unit_cost: Number(item.unit_price ?? 0),
                 notes: "Ricezione ODA",
                 performed_by: user?.id,
                 warehouse_id: warehouseId,
@@ -212,10 +234,14 @@ export function usePurchaseOrders() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast.success("Stato aggiornato");
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
+      // detail(undefined) produceva ["purchase-order-detail", undefined], che
+      // non matcha nessuna query reale: il dettaglio restava stale dopo il
+      // cambio stato. L'id ce l'abbiamo — usiamolo.
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(variables.id) });
       queryClient.invalidateQueries({ queryKey: ["warehouse"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
     },
@@ -227,9 +253,9 @@ export function usePurchaseOrders() {
       const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(undefined) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(variables.id) });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

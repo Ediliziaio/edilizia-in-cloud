@@ -24,13 +24,14 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseImporto } from "./doc-validation.ts";
 
 // Stati ODA considerati "aperti" per il match in fallback (non chiusi/annullati).
+// Il CHECK reale su purchase_orders.status ammette SOLO:
+//   bozza | inviato | confermato | parziale | ricevuto | annullato
+// La vecchia lista conteneva 5 valori inesistenti (closed, cancelled, chiuso,
+// completed, completato) e NON conteneva 'ricevuto': un ODA gia' ricevuto
+// veniva trattato come aperto e il DDT poteva agganciarsi a un ordine chiuso.
 const ODA_STATI_CHIUSI = new Set([
-  "closed",
-  "cancelled",
+  "ricevuto",
   "annullato",
-  "chiuso",
-  "completed",
-  "completato",
 ]);
 
 export interface DdtDocForCarico {

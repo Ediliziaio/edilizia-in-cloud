@@ -22,7 +22,6 @@ function tabHaptic() {
 }
 import {
   LayoutDashboard,
-  HardHat,
   ClipboardList,
   Users,
   LayoutGrid,
@@ -69,7 +68,8 @@ const GESTIONE_ITEMS: BottomNavItem[] = [
   { label: "Email", icon: Mail, href: "/azienda/email" },
   { label: "Magazzino", icon: Package, href: "/azienda/magazzino", permissionKey: "canViewWarehouse" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
-  { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  // Niente doppione "Cantieri": puntava allo STESSO url di "Commesse" e la
+  // stessa pagina appariva con due nomi diversi. La commessa E' il cantiere.
   { label: "Giornale", icon: NotebookPen, href: "/azienda/giornale-lavori", permissionKey: "canViewGiornaleLavori" },
   { label: "Clienti", icon: Users, href: "/azienda/clienti", permissionKey: "canViewCustomers" },
 ];
@@ -86,7 +86,9 @@ const CRUSCOTTO_OFFICE: BottomNavItem[] = [
 ];
 
 const CRUSCOTTO_OPERATIONS: BottomNavItem[] = [
-  { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  // Stesso nome ovunque: chiamarla "Cantieri" qui e "Commesse" altrove faceva
+  // sembrare che fossero due sezioni diverse.
+  { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Giornale", icon: NotebookPen, href: "/azienda/giornale-lavori", permissionKey: "canViewGiornaleLavori" },
 ];
 

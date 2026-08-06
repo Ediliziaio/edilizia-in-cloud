@@ -11,16 +11,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza", inviato: "Inviato", confermato: "Confermato",
-  parziale: "Parziale", ricevuto: "Ricevuto", annullato: "Annullato",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  inviato: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  confermato: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-};
+// Mappa unica: la copia locale precedente aveva solo 3 stati su 6 — un OdA
+// "parziale" compariva nel picker senza etichetta ne' colore.
+import {
+  ODA_STATUS_LABELS as STATUS_LABELS,
+  ODA_STATUS_COLORS as STATUS_COLORS,
+} from "@/lib/odaStatus";
 
 interface LinkExistingPurchaseOrderDialogProps {
   open: boolean;

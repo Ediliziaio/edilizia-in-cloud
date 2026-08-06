@@ -1436,6 +1436,20 @@ function OrderDetailInner() {
                   orderId={id!}
                 />
               )}
+              {/* OdA collegati QUI come su desktop: prima stava nel tab "Altro"
+                  e su mobile nessuno li trovava. */}
+              <LinkedPurchaseOrdersCard
+                orderId={id!}
+                orderCode={order.order_code}
+                items={displayItems.map((i) => ({
+                  id: i.id,
+                  name: i.name,
+                  quantity: i.quantity,
+                  purchase_price: i.purchase_price,
+                  supplier_id: i.supplier_id,
+                  vat_rate: i.vat_rate,
+                }))}
+              />
               <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </TabsContent>
 
@@ -1664,18 +1678,6 @@ function OrderDetailInner() {
                 customerId={order.customer_id}
                 customerEmail={order.customer?.email}
                 customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-              />
-              <LinkedPurchaseOrdersCard
-                orderId={id!}
-                orderCode={order.order_code}
-                items={displayItems.map((i) => ({
-                  id: i.id,
-                  name: i.name,
-                  quantity: i.quantity,
-                  purchase_price: i.purchase_price,
-                  supplier_id: i.supplier_id,
-                  vat_rate: i.vat_rate,
-                }))}
               />
               {effectiveCompany?.id && (
                 <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
@@ -1988,6 +1990,10 @@ function OrderDetailInner() {
               orderId={id!}
               orderCode={order.order_code}
               items={displayItems.map((i) => ({
+                // id incluso come nella versione mobile: senza, le righe OdA
+                // create da desktop nascevano con order_item_id nullo e
+                // l'articolo risultava per sempre "Senza OdA".
+                id: i.id,
                 name: i.name,
                 quantity: i.quantity,
                 purchase_price: i.purchase_price,

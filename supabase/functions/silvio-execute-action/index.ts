@@ -1150,14 +1150,18 @@ async function createPurchaseOrderDraft(
     return { ok: false, message: "Fornitore non trovato o non autorizzato per questa azienda." };
   }
 
-  // Crea purchase_order draft (assume schema purchase_orders/items esistente)
+  // Crea purchase_order in bozza.
+  // 2026-08-05: questa azione non ha MAI funzionato — "draft" violava il CHECK
+  // sullo status (i valori sono italiani: bozza/inviato/...), e l'insert riga
+  // usava colonne inesistenti (warehouse_stock_id, unit_cost) senza company_id
+  // NOT NULL, con l'errore ingoiato da un console.warn.
   try {
     const { data: po, error: poErr } = await ctx.supabase
       .from("purchase_orders")
       .insert({
         company_id: ctx.companyId,
         supplier_id: finalSupplierId,
-        status: "draft",
+        status: "bozza",
         notes: `Bozza generata da Silvio (riordino automatico ${stock.name})`,
         created_by: ctx.userId,
       })
@@ -1165,20 +1169,26 @@ async function createPurchaseOrderDraft(
 
     if (poErr) return { ok: false, message: `Creazione PO fallita: ${poErr.message}` };
 
-    // Aggiungi item
+    // Aggiungi item (line_total/vat_amount sono colonne GENERATED: mai scriverle)
     const { error: itemErr } = await ctx.supabase
       .from("purchase_order_items")
       .insert({
+        company_id: ctx.companyId,
         purchase_order_id: po.id,
-        warehouse_stock_id: stockId,
         description: stock.name,
+        sku: stock.internal_code ?? null,
         quantity: finalQty,
-        unit_cost: stock.unit_cost,
+        unit_price: Number(stock.unit_cost ?? 0),
       });
 
     if (itemErr) {
-      // best-effort, non rolling back per ora
-      console.warn("[silvio] PO item insert failed:", itemErr.message);
+      // La bozza senza righe e' inutile e ingannevole: meglio dirlo che
+      // fingere successo.
+      return {
+        ok: false,
+        message: `Bozza ODA creata (${po.oda_number ?? po.id}) ma inserimento riga fallito: ${itemErr.message}`,
+        details: { purchase_order_id: po.id },
+      };
     }
 
     return {

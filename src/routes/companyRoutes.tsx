@@ -686,10 +686,12 @@ export default function CompanyRoutesContainer() {
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
         <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />
+        {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
+            vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
-        <Route path="ordini-acquisto/:odaId" element={withCompanyPermission("canViewOrders", <PurchaseOrderDetail />)} />
+        <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />)} />
         <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
-        <Route path="ddt/:ddtId" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
+        <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
         <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />
         <Route path="giornale-lavori" element={withCompanyPermission("canViewGiornaleLavori", <FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>)} />

@@ -92,7 +92,8 @@ export interface OrderItem {
   balance_expected_date?: string;
   // v8.6.35 — Tracking & ODA
   delivery_date?: string; // arrivo previsto YYYY-MM-DD
-  linked_purchase_order_id?: string; // link a purchase_orders esistente
+  // Il collegamento a un OdA NON vive qui: sta in purchase_order_items
+  // (colonna order_item_id). order_items non ha una colonna per il link.
   // Legacy fields kept for backwards compat
   unit_price?: number;
   discount_percent?: number;
@@ -236,6 +237,13 @@ export function OrderItemsList({
   // v8.6.35 — Tracking & ODA state nel dialog
   const [itemDeliveryDate, setItemDeliveryDate] = useState<Date | undefined>();
   const [itemLinkedPoId, setItemLinkedPoId] = useState<string | undefined>();
+  // Link OdA reale dell'articolo al momento dell'apertura del dialog, letto da
+  // purchase_order_items.order_item_id — che e' la fonte di verita'. Su
+  // order_items NON esiste una colonna linked_purchase_order_id: la vecchia
+  // versione la leggeva da li' e trovava sempre undefined, quindi il picker
+  // era vuoto anche per articoli gia' collegati e ogni salvataggio ritentava
+  // il collegamento.
+  const loadedPoIdRef = useRef<string | undefined>(undefined);
   /** Deferred upload: file selezionato in memoria, viene caricato DOPO
    *  che l'articolo è salvato (necessita order_item_id). */
   const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
@@ -526,7 +534,25 @@ export function OrderItemsList({
     setItemDepositExpectedDate(item.deposit_expected_date ? new Date(item.deposit_expected_date) : undefined);
     // v8.6.35
     setItemDeliveryDate(item.delivery_date ? new Date(item.delivery_date) : undefined);
-    setItemLinkedPoId(item.linked_purchase_order_id);
+    // Il link OdA si legge dalla tabella vera (purchase_order_items), non da
+    // order_items che non ha quella colonna. Async: il picker parte vuoto e si
+    // popola appena arriva la riga — al piu' qualche decimo di secondo.
+    setItemLinkedPoId(undefined);
+    loadedPoIdRef.current = undefined;
+    if (item.id) {
+      void supabase
+        .from("purchase_order_items")
+        .select("purchase_order_id, quantity_received")
+        .eq("order_item_id", item.id)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.purchase_order_id) {
+            setItemLinkedPoId(data.purchase_order_id);
+            loadedPoIdRef.current = data.purchase_order_id;
+          }
+        });
+    }
     setPendingAttachment(null); // file deferred non si "pre-popola" in edit
     setEditingIndex(index);
     setDialogOpen(true);
@@ -590,7 +616,6 @@ export function OrderItemsList({
       balance_expected_date: isInstallment && itemBalanceExpectedDate ? itemBalanceExpectedDate.toLocaleDateString("en-CA") : undefined,
       // v8.6.35 — Tracking & ODA
       delivery_date: itemDeliveryDate ? itemDeliveryDate.toLocaleDateString("en-CA") : undefined,
-      linked_purchase_order_id: itemLinkedPoId,
       // Aggancio listino: baseline da listino (€ standard) + link + categoria.
       // standard_cost NON è più hardcoded a 0 — porta il costo da listino così
       // da poterlo confrontare con purchase_price (€ realmente pagato).
@@ -616,12 +641,15 @@ export function OrderItemsList({
         newItems[editingIndex] = updatedItem;
         onItemsChange(newItems);
       }
-      // v8.6.35 — Edit mode: item ha già id → upload immediato + link PO
+      // v8.6.35 — Edit mode: item ha già id → upload immediato + link PO.
+      // Il confronto e' con il link REALE caricato all'apertura del dialog
+      // (loadedPoIdRef), cosi' salvare senza toccare il picker non ritenta
+      // il collegamento.
       if (existing.id) {
         if (pendingAttachment) {
           void uploadAttachmentForItem(existing.id, pendingAttachment);
         }
-        if (itemLinkedPoId && itemLinkedPoId !== existing.linked_purchase_order_id) {
+        if (itemLinkedPoId && itemLinkedPoId !== loadedPoIdRef.current) {
           void linkExistingPoToItem(existing.id, itemLinkedPoId);
         }
       }
@@ -658,24 +686,57 @@ export function OrderItemsList({
     return true;
   };
 
-  // v8.6.35 — Helper link ODA esistente: crea record in purchase_order_items
-  // collegando l'articolo al PO selezionato. Mantiene tracking DDT/ricezione.
+  // v8.6.35 — Helper link ODA esistente: crea (o sposta) la riga in
+  // purchase_order_items collegando l'articolo al PO selezionato. Mantiene
+  // tracking DDT/ricezione.
+  //
+  // line_total e vat_amount NON si scrivono: sono colonne GENERATED del DB e
+  // Postgres rifiuta l'insert se compaiono — era il motivo per cui questo
+  // collegamento non e' mai andato a buon fine.
   const linkExistingPoToItem = async (orderItemId: string, poId: string) => {
     if (!companyId) return;
     try {
       // Trova item nel parent items (per dati base)
       const item = items.find((i) => i.id === orderItemId);
       if (!item) return;
+
+      // La riga esiste gia'? Allora e' uno spostamento, non un nuovo insert:
+      // un secondo insert conterebbe lo stesso articolo su due OdA.
+      const { data: existingRow } = await supabase
+        .from("purchase_order_items")
+        .select("id, purchase_order_id, quantity_received")
+        .eq("order_item_id", orderItemId)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingRow) {
+        if (existingRow.purchase_order_id === poId) return; // gia' collegato
+        if (Number(existingRow.quantity_received) > 0) {
+          toast({
+            variant: "destructive",
+            title: "Articolo già ricevuto",
+            description: "Su questo articolo è già stata registrata merce ricevuta: non si può spostare su un altro OdA.",
+          });
+          return;
+        }
+        const { error } = await supabase
+          .from("purchase_order_items")
+          .update({ purchase_order_id: poId })
+          .eq("id", existingRow.id);
+        if (error) throw error;
+        toast({ title: "ODA aggiornato", description: "L'articolo è stato spostato sull'OdA selezionato." });
+        return;
+      }
+
       const { error } = await supabase.from("purchase_order_items").insert({
         company_id: companyId,
         purchase_order_id: poId,
         order_item_id: orderItemId,
         description: item.name,
+        sku: item.product_code ?? null,
         quantity: item.quantity,
         unit_price: item.purchase_price ?? 0,
         vat_rate: item.vat_rate ?? 22,
-        line_total: (item.purchase_price ?? 0) * item.quantity,
-        vat_amount: ((item.purchase_price ?? 0) * item.quantity) * ((item.vat_rate ?? 22) / 100),
       });
       if (error) throw error;
       toast({ title: "ODA collegato", description: "L'articolo è ora associato all'ODA selezionato." });

@@ -1,4 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
+import {
+  ODA_STATUS_LABELS as STATUS_LABELS,
+  ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
+} from "@/lib/odaStatus";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -36,23 +40,6 @@ import {
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
 
-const STATUS_CHIP_VARIANT: Record<string, "default" | "green" | "orange" | "red" | "navy" | "yellow" | "blue"> = {
-  bozza: "default",
-  inviato: "blue",
-  confermato: "green",
-  parziale: "yellow",
-  ricevuto: "green",
-  annullato: "red",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza",
-  inviato: "Inviato",
-  confermato: "Confermato",
-  parziale: "Parziale",
-  ricevuto: "Ricevuto",
-  annullato: "Annullato",
-};
 
 const VERIFICATION_BADGES: Record<string, { label: string; className: string }> = {
   match: { label: "Verificato", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" },
