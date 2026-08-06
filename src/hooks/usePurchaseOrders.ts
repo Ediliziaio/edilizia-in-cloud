@@ -82,7 +82,16 @@ export function usePurchaseOrders() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (params: { supplier_id: string; notes?: string; expected_delivery_date?: string; delivery_warehouse_id?: string | null }) => {
+    mutationFn: async (params: {
+      supplier_id: string;
+      notes?: string;
+      expected_delivery_date?: string;
+      delivery_warehouse_id?: string | null;
+      /** Come e' stato piazzato l'ordine — vedi @/lib/odaOrigine. */
+      origine?: string;
+      /** Numero d'ordine sul sito del fornitore, o dello scontrino. */
+      supplier_reference?: string | null;
+    }) => {
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -92,6 +101,8 @@ export function usePurchaseOrders() {
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
           delivery_warehouse_id: params.delivery_warehouse_id || null,
+          origine: params.origine || "email",
+          supplier_reference: params.supplier_reference || null,
           created_by: user?.id,
         } as any)
         .select()

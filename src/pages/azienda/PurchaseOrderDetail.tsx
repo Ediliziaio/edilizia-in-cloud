@@ -1,6 +1,5 @@
 import { useState, lazy, Suspense } from "react";
 import {
-  ODA_STATUS_FLOW as STATUS_FLOW,
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
@@ -38,6 +37,8 @@ import { VerificationHistoryCard } from "@/components/orders/VerificationHistory
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
 import { OdaAccountingCard } from "@/components/orders/OdaAccountingCard";
+import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
+import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
 import { useQueryClient } from "@tanstack/react-query";
@@ -118,7 +119,11 @@ export default function PurchaseOrderDetail() {
   }
 
   const supplier = order.suppliers as any;
-  const nextStatuses = STATUS_FLOW[order.status] || [];
+  const origine = (order as { origine?: string }).origine ?? "email";
+  const infoOrigine = ODA_ORIGINE_INFO[origine] ?? ODA_ORIGINE_INFO.email;
+  // I passaggi dipendono da come si e' ordinato: chi compra al banco ha gia'
+  // la merce, "inviato" e "confermato" sarebbero due clic per finta.
+  const nextStatuses = prossimiStatiOda(order.status, origine);
 
   // Oggetto e corpo precompilati per il compositore: sono solo una bozza, chi
   // invia li puo' riscrivere come vuole prima di mandare.
@@ -235,13 +240,20 @@ export default function PurchaseOrderDetail() {
           </QuoteChip>
         }
         chips={
-          order.orders?.order_code ? (
-            <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
-                Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3" />
-              </span>
-            </Link>
-          ) : null
+          <>
+            {order.orders?.order_code ? (
+              <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
+                  Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3" />
+                </span>
+              </Link>
+            ) : null}
+            {/* Come e' stato comprato: spiega perche' i pulsanti sono quelli
+                e non altri. Sugli ordini vecchi e' sempre "Email". */}
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+              {ODA_ORIGINE_LABELS[origine] ?? origine}
+            </span>
+          </>
         }
         title={`OdA ${order.oda_number}`}
         subtitle={supplier?.name ? `Fornitore: ${supplier.name}` : undefined}
@@ -269,8 +281,9 @@ export default function PurchaseOrderDetail() {
               </Button>
             )}
             {/* Reinvio: capita di dover rimandare l'ordine (email persa, referente
-                cambiato). Non tocca lo stato, manda solo di nuovo la mail. */}
-            {["inviato", "confermato", "parziale"].includes(order.status) && (
+                cambiato). Non tocca lo stato, manda solo di nuovo la mail.
+                Non ha senso su cio' che si e' comprati di persona. */}
+            {origine !== "negozio" && ["inviato", "confermato", "parziale"].includes(order.status) && (
               <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
                 <Send className="h-3.5 w-3.5 mr-1" />
                 Reinvia
@@ -281,7 +294,10 @@ export default function PurchaseOrderDetail() {
               // partire davvero al fornitore. Si apre il compositore email e lo
               // stato avanza solo quando l'email e' uscita. Chi ordina a voce ha
               // accanto la scorciatoia per segnarlo inviato senza mandare nulla.
-              ns === "inviato" ? (
+              // Vale solo per gli ordini che partono da qui: se l'ordine e' gia'
+              // stato piazzato altrove (sito, banco, documento) il pulsante dice
+              // cosa fare davvero, senza fingere un invio.
+              ns === "inviato" && origine === "email" ? (
                 <div key={ns} className="flex items-center gap-1">
                   <QuotePrimaryButton size="sm" onClick={() => setSendOpen(true)}>
                     {STATUS_ICONS[ns]}
@@ -316,7 +332,11 @@ export default function PurchaseOrderDetail() {
                   disabled={updateStatus.isPending}
                 >
                   {STATUS_ICONS[ns]}
-                  {STATUS_LABELS[ns]}
+                  {/* Dalla bozza il pulsante parla la lingua di come si e'
+                      comprato: "Registra acquisto" al banco, "Ordine
+                      confermato" online. "Confermato" e basta non direbbe a
+                      nessuno cosa sta per succedere. */}
+                  {order.status === "bozza" ? infoOrigine.azione : STATUS_LABELS[ns]}
                 </QuotePrimaryButton>
               )
             )}
@@ -648,6 +668,19 @@ export default function PurchaseOrderDetail() {
               )}
             </div>
           </QuoteCard>
+
+          {/* La prova dell'ordine quando non e' partito da qui: conferma del
+              sito, modulo firmato, scontrino del banco. */}
+          {infoOrigine.vuoleDocumento && (
+            <OdaDocumentoCard
+              odaId={order.id}
+              label={infoOrigine.documentoLabel ?? "Documento d'ordine"}
+              attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
+              riferimento={(order as { supplier_reference?: string | null }).supplier_reference}
+              riferimentoLabel={infoOrigine.riferimentoLabel}
+              onChange={(attachment_url) => update.mutate({ id: order.id, updates: { attachment_url } })}
+            />
+          )}
 
           {/* Costo + fattura generati da questo ordine */}
           <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />

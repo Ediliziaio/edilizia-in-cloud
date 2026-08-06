@@ -50,7 +50,14 @@ export const ODA_STATUS_CHIP_VARIANT: Record<string, "default" | "green" | "oran
   annullato: "red",
 };
 
-/** Transizioni ammesse da ciascuno stato (ricevuto/annullato sono terminali). */
+/**
+ * Transizioni ammesse da ciascuno stato (ricevuto/annullato sono terminali).
+ *
+ * NB: dalla bozza il percorso dipende anche da COME e' stato ordinato — chi
+ * compra al banco non ha niente da inviare. Per quel caso usare
+ * `prossimiStatiOda(status, origine)` in @/lib/odaOrigine, che tiene conto
+ * dell'origine; questa mappa resta il percorso classico via email.
+ */
 export const ODA_STATUS_FLOW: Record<string, string[]> = {
   bozza: ["inviato", "annullato"],
   inviato: ["confermato", "annullato"],

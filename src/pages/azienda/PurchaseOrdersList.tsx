@@ -23,7 +23,7 @@ import {
 import {
   ShoppingCart, Plus, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
   FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Warehouse, Link2, ArrowRight,
-  AlertTriangle, Send,
+  AlertTriangle, Send, Check,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { ODA_ORIGINI, ODA_ORIGINE_INFO, type OdaOrigine } from "@/lib/odaOrigine";
 import {
   QuotePageHeader,
   QuoteChip,
@@ -107,6 +108,10 @@ export default function PurchaseOrdersList() {
   const [newSupplierId, setNewSupplierId] = useState("");
   const [newDelivery, setNewDelivery] = useState("");
   const [newWarehouseId, setNewWarehouseId] = useState<string | null>(null);
+  // Come si sta ordinando: e' la prima domanda del dialog, perche' decide i
+  // passaggi successivi (chi compra al banco non deve "inviare" niente).
+  const [newOrigine, setNewOrigine] = useState<OdaOrigine | null>(null);
+  const [newRiferimento, setNewRiferimento] = useState("");
 
   // Filtri avanzati
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
@@ -354,15 +359,23 @@ export default function PurchaseOrdersList() {
   }, [orders]);
 
   const handleCreate = () => {
-    if (!newSupplierId) return;
+    if (!newSupplierId || !newOrigine) return;
     create.mutate(
-      { supplier_id: newSupplierId, expected_delivery_date: newDelivery || undefined, delivery_warehouse_id: newWarehouseId },
+      {
+        supplier_id: newSupplierId,
+        expected_delivery_date: newDelivery || undefined,
+        delivery_warehouse_id: newWarehouseId,
+        origine: newOrigine,
+        supplier_reference: newRiferimento.trim() || null,
+      },
       {
         onSuccess: (data: any) => {
           setNewOpen(false);
           setNewSupplierId("");
           setNewDelivery("");
           setNewWarehouseId(null);
+          setNewOrigine(null);
+          setNewRiferimento("");
           navigate(`/azienda/ordini-acquisto/${data.id}`);
         },
         onError: () => {
@@ -775,6 +788,58 @@ export default function PurchaseOrdersList() {
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuovo Ordine d'Acquisto</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {/* Prima domanda: come stai ordinando. Decide i passaggi che
+                l'ordine dovra' fare — chi compra al banco ha gia' la merce e
+                non deve passare per "inviato" e "confermato".
+                Riquadri con icona invece di cinque paragrafi in colonna: la
+                spiegazione lunga compare solo per quello scelto, cosi' la
+                scelta si legge in un colpo d'occhio e il resto del form non
+                finisce sotto la piega. */}
+            <div className="space-y-2">
+              <Label>Come lo ordini?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {ODA_ORIGINI.map((o) => {
+                  const info = ODA_ORIGINE_INFO[o];
+                  const Icona = info.icona;
+                  const scelta = newOrigine === o;
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => setNewOrigine(o)}
+                      aria-pressed={scelta}
+                      className={cn(
+                        "relative flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all",
+                        // L'acquisto al banco e' l'unico che chiude tutto in un
+                        // passaggio: sta su una riga sua, non spaiato in fondo.
+                        o === "negozio" && "col-span-2",
+                        scelta
+                          ? "border-orange-400 bg-orange-50 ring-2 ring-orange-200 shadow-sm"
+                          : "border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                      )}
+                    >
+                      <Icona
+                        className={cn("h-4 w-4 shrink-0", scelta ? "text-orange-600" : "text-slate-400")}
+                      />
+                      <span
+                        className={cn(
+                          "text-sm font-semibold leading-tight",
+                          scelta ? "text-orange-900" : "text-slate-700",
+                        )}
+                      >
+                        {info.titoloBreve}
+                      </span>
+                      {scelta && <Check className="h-3.5 w-3.5 ml-auto shrink-0 text-orange-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {newOrigine && (
+                <p className="text-xs text-slate-500 leading-snug pt-0.5">
+                  {ODA_ORIGINE_INFO[newOrigine].descrizione}
+                </p>
+              )}
+            </div>
             <div className="space-y-2">
               <Label>Fornitore</Label>
               <Select value={newSupplierId} onValueChange={setNewSupplierId}>
@@ -786,12 +851,30 @@ export default function PurchaseOrdersList() {
                 </SelectContent>
               </Select>
             </div>
+            {/* Chi ha comprato online o al banco ha gia' un numero d'ordine o
+                uno scontrino: chiederlo qui evita di doverlo cercare dopo. */}
+            {newOrigine && ODA_ORIGINE_INFO[newOrigine].riferimentoLabel && (
+              <div className="space-y-2">
+                <Label>{ODA_ORIGINE_INFO[newOrigine].riferimentoLabel} (opzionale)</Label>
+                <Input
+                  value={newRiferimento}
+                  onChange={(e) => setNewRiferimento(e.target.value)}
+                  placeholder="Es. 2026-A-4471"
+                />
+              </div>
+            )}
+            {/* Al banco la merce e' gia' arrivata: chiedere quando la
+                consegneranno non ha senso. */}
+            {newOrigine !== "negozio" && (
+              <div className="space-y-2">
+                <Label>Data consegna prevista (opzionale)</Label>
+                <Input type="date" value={newDelivery} onChange={(e) => setNewDelivery(e.target.value)} />
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Data consegna prevista (opzionale)</Label>
-              <Input type="date" value={newDelivery} onChange={(e) => setNewDelivery(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Magazzino di destinazione (opzionale)</Label>
+              <Label>
+                {newOrigine === "negozio" ? "Magazzino in cui scaricare" : "Magazzino di destinazione (opzionale)"}
+              </Label>
               <WarehouseSelect
                 value={newWarehouseId}
                 onChange={setNewWarehouseId}
@@ -799,10 +882,15 @@ export default function PurchaseOrdersList() {
                 placeholder="Magazzino predefinito"
               />
             </div>
+            {newOrigine && (
+              <p className="text-xs text-slate-500">
+                Prossimo passo: aggiungi gli articoli, poi «{ODA_ORIGINE_INFO[newOrigine].azione}».
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annulla</Button>
-            <Button onClick={handleCreate} disabled={!newSupplierId || create.isPending}>
+            <Button onClick={handleCreate} disabled={!newSupplierId || !newOrigine || create.isPending}>
               {create.isPending ? "Creazione..." : "Crea OdA"}
             </Button>
           </DialogFooter>
