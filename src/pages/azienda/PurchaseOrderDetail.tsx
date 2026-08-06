@@ -37,6 +37,11 @@ import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrd
 import { VerificationHistoryCard } from "@/components/orders/VerificationHistoryCard";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
+import { OdaAccountingCard } from "@/components/orders/OdaAccountingCard";
+import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 // MP2 P1a: ricezione via scansione QR/barcode (lazy: trascina @zxing solo on-demand).
 const OdaReceiveSheet = lazy(() =>
@@ -68,6 +73,13 @@ export default function PurchaseOrderDetail() {
   // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
   const [receiveScanOpen, setReceiveScanOpen] = useState(false);
+
+  // Invio al fornitore: si usa il compositore email dell'app, lo stesso di
+  // contatti/opportunita'/commesse, cosi' l'ordine parte dalla casella
+  // aziendale, il testo si puo' modificare e la risposta del fornitore torna
+  // nella posta invece che in un buco nero.
+  const [sendOpen, setSendOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
@@ -107,17 +119,69 @@ export default function PurchaseOrderDetail() {
 
   const supplier = order.suppliers as any;
   const nextStatuses = STATUS_FLOW[order.status] || [];
+
+  // Oggetto e corpo precompilati per il compositore: sono solo una bozza, chi
+  // invia li puo' riscrivere come vuole prima di mandare.
+  const datiEmail = {
+    odaNumber: order.oda_number,
+    fornitoreNome: supplier?.name ?? null,
+    aziendaNome: effectiveCompany?.name ?? null,
+    dataEmissione: order.issue_date,
+    consegnaPrevista: order.expected_delivery_date,
+    pagamento: order.payment_terms,
+    commessaCodice: order.orders?.order_code ?? null,
+    note: order.notes,
+    subtotal: Number(order.subtotal),
+    vatTotal: Number(order.vat_total),
+    total: Number(order.total),
+    righe: items.map((i) => ({
+      description: i.description,
+      quantity: i.quantity,
+      unit_of_measure: i.unit_of_measure,
+      unit_price: i.unit_price,
+      line_total: Number(i.line_total),
+      sku: (i as { sku?: string | null }).sku ?? null,
+    })),
+  };
+  const composeContext: ComposeContext = {
+    mode: "new",
+    initialTo: supplier?.email ? [supplier.email] : [],
+    initialSubject: buildOdaEmailSubject(datiEmail),
+    initialBodyHtml: buildOdaEmailBody(datiEmail),
+  };
   const isEditable = order.status === "bozza";
 
   const handleStatusChange = async (ns: string) => {
-    updateStatus.mutate({ id: order.id, status: ns }, {
+    updateStatus.mutate({
+      id: order.id,
+      status: ns,
+      // Senza questa data la riga "Consegna effettiva" nel riquadro info non
+      // compariva mai: nessuno la scriveva, ne' qui ne' nella mutation.
+      ...(ns === "ricevuto" ? { actual_delivery_date: format(new Date(), "yyyy-MM-dd") } : {}),
+    }, {
       onSuccess: async () => {
         // Auto-generate cost when status becomes "ricevuto"
         if (ns === "ricevuto" && effectiveCompany?.id) {
           try {
             const today = format(new Date(), "yyyy-MM-dd");
-            const { error } = await supabase.from("company_costs").insert({
+            // Un ordine puo' arrivare a "ricevuto" da piu' strade (questo
+            // pulsante, la scansione, il DDT). Senza questo controllo la stessa
+            // fornitura poteva finire due volte nei costi.
+            const { data: giaRegistrato } = await (supabase as any)
+              .from("company_costs")
+              .select("id")
+              .eq("purchase_order_id", order.id)
+              .limit(1)
+              .maybeSingle();
+            if (giaRegistrato) {
+              toast.info("Costo già registrato per questo ordine");
+              return;
+            }
+            const { error } = await (supabase as any).from("company_costs").insert({
               company_id: effectiveCompany.id,
+              // Aggancio esplicito all'OdA: prima il legame esisteva solo nel
+              // testo del nome, quindi non era interrogabile.
+              purchase_order_id: order.id,
               // 2026-08-06: order_id era omesso, quindi il costo generato da un
               // OdA finiva nei costi generali e NON risultava sulla commessa che
               // lo aveva prodotto. Verificato in produzione: 194 costi, zero
@@ -204,8 +268,36 @@ export default function PurchaseOrderDetail() {
                 Ricevi via scansione
               </Button>
             )}
+            {/* Reinvio: capita di dover rimandare l'ordine (email persa, referente
+                cambiato). Non tocca lo stato, manda solo di nuovo la mail. */}
+            {["inviato", "confermato", "parziale"].includes(order.status) && (
+              <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
+                <Send className="h-3.5 w-3.5 mr-1" />
+                Reinvia
+              </Button>
+            )}
             {nextStatuses.map((ns) =>
-              ns === "annullato" ? (
+              // "Inviato" non e' un cambio di stato come gli altri: l'ordine deve
+              // partire davvero al fornitore. Si apre il compositore email e lo
+              // stato avanza solo quando l'email e' uscita. Chi ordina a voce ha
+              // accanto la scorciatoia per segnarlo inviato senza mandare nulla.
+              ns === "inviato" ? (
+                <div key={ns} className="flex items-center gap-1">
+                  <QuotePrimaryButton size="sm" onClick={() => setSendOpen(true)}>
+                    {STATUS_ICONS[ns]}
+                    Invia al fornitore
+                  </QuotePrimaryButton>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    disabled={updateStatus.isPending}
+                    onClick={() => handleStatusChange("inviato")}
+                  >
+                    Già ordinato a voce
+                  </Button>
+                </div>
+              ) : ns === "annullato" ? (
                 <Button
                   key={ns}
                   variant="destructive"
@@ -281,7 +373,13 @@ export default function PurchaseOrderDetail() {
                     <tbody>
                       {items.map((item) => (
                         <ItemRow
-                          key={item.id}
+                          // La quantita' ricevuta cambia anche da fuori questa
+                          // riga (scansione barcode, DDT, passaggio a
+                          // "ricevuto"). Includendola nella key la casella
+                          // riparte dal valore vero invece di restare ferma a
+                          // quello letto all'apertura della pagina, mentre la
+                          // barra di avanzamento sopra diceva un'altra cosa.
+                          key={`${item.id}:${item.quantity_received}`}
                           item={item}
                           isEditable={isEditable}
                           showReceived={!isEditable && order.status !== "annullato"}
@@ -551,6 +649,9 @@ export default function PurchaseOrderDetail() {
             </div>
           </QuoteCard>
 
+          {/* Costo + fattura generati da questo ordine */}
+          <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
+
           {/* Verification History */}
           <VerificationHistoryCard purchaseOrderId={order.id} />
         </div>
@@ -564,6 +665,25 @@ export default function PurchaseOrderDetail() {
         odaNumber={order.oda_number}
         orderId={order.order_id}
         orderCode={order.orders?.order_code}
+      />
+
+      {/* Invio al fornitore — stesso compositore email del resto dell'app:
+          oggetto e corpo arrivano precompilati ma restano modificabili, si
+          possono allegare i documenti della commessa e scegliere il mittente. */}
+      <EmailComposeDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        context={composeContext}
+        orderId={order.order_id}
+        onSent={() => {
+          // Lo stato avanza solo a email partita. Un ordine gia' confermato che
+          // viene rimandato non deve tornare indietro a "inviato".
+          if (order.status === "bozza") {
+            updateStatus.mutate({ id: order.id, status: "inviato" });
+          } else {
+            queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(order.id) });
+          }
+        }}
       />
 
       {/* DDT Wizard — nuovo dialog procedurale multi-step con upload foto/PDF */}

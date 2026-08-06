@@ -57,6 +57,12 @@ export interface ComposeContext {
    * Se presente, sostituisce il body di default per mode="reply"/"replyAll"/"forward".
    */
   initialBody?: string;
+  /**
+   * Corpo gia' in HTML per mode="new" (es. il riepilogo di un ordine
+   * d'acquisto). A differenza di initialBody non viene escapato: arriva
+   * nell'editor come contenuto ricco, pronto da modificare prima di inviare.
+   */
+  initialBodyHtml?: string;
 }
 
 interface EmailComposeDialogProps {
@@ -65,6 +71,9 @@ interface EmailComposeDialogProps {
   context: ComposeContext;
   companyIdOverride?: string | null;
   orderId?: string | null;
+  /** Chiamata a invio riuscito: serve a chi deve aggiornare il proprio stato
+   *  (es. l'OdA che passa a "inviato" solo se l'email e' partita davvero). */
+  onSent?: () => void;
 }
 
 const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/i;
@@ -87,7 +96,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
   return sep + header + quoted;
 }
 
-export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId }: EmailComposeDialogProps) {
+export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent }: EmailComposeDialogProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -149,9 +158,11 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   const [subject, setSubject] = useState(initial.subject);
   // bodyHtml: contenuto rich (con tag), bodyText: derivato per fallback plain
   const [bodyHtml, setBodyHtml] = useState(() =>
-    initial.body
-      ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
-      : "",
+    context.initialBodyHtml
+      ? context.initialBodyHtml
+      : initial.body
+        ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
+        : "",
   );
   const [bodyText, setBodyText] = useState(initial.body);
   const [accountId, setAccountId] = useState<string>("");
@@ -190,9 +201,11 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     setSubject(initial.subject);
     setBodyText(initial.body);
     setBodyHtml(
-      initial.body
-        ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
-        : "",
+      context.initialBodyHtml
+        ? context.initialBodyHtml
+        : initial.body
+          ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
+          : "",
     );
     setShowCcBcc(initial.cc.length > 0 || initial.bcc.length > 0);
     setOutboxId(null);
@@ -440,6 +453,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     },
     onSuccess: () => {
       toast.success("Email inviata");
+      onSent?.();
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-thread-messages"] });
       qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
