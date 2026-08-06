@@ -995,7 +995,26 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
 
-          if (adminProfile) {
+          // 2026-08-06 — Anti-ripetizione. Questo blocco gira OGNI GIORNO e
+          // finora inseriva un avviso nuovo a ogni giro: cinque giorni di
+          // previsione negativa producevano cinque banner identici uno sotto
+          // l'altro in testa alla pagina. Il fatto e' uno solo, e ripeterlo
+          // non lo rende piu' urgente — lo rende rumore che si impara a
+          // saltare, e a quel punto smette di funzionare anche quando conta.
+          //
+          // Se ne esiste gia' uno NON archiviato per questa azienda, non se ne
+          // crea un altro: quello che c'e' dice gia' la stessa cosa. Quando
+          // l'utente lo archivia, il prossimo giro ne creera' uno aggiornato.
+          const { data: giaAvvisato } = await supabase
+            .from("lifecycle_notifications")
+            .select("id")
+            .eq("company_id", company.id)
+            .eq("notification_type", "cash_flow_alert")
+            .eq("is_dismissed", false)
+            .limit(1)
+            .maybeSingle();
+
+          if (adminProfile && !giaAvvisato) {
             // Colonne REALI: notification_type (non "type"), nessuna colonna
             // user_id (destinatario nel metadata), notification_date NULL per
             // non collidere con l'indice unico dei digest. Prima l'insert
