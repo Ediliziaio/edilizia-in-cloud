@@ -118,6 +118,12 @@ export default function PurchaseOrderDetail() {
             const today = format(new Date(), "yyyy-MM-dd");
             const { error } = await supabase.from("company_costs").insert({
               company_id: effectiveCompany.id,
+              // 2026-08-06: order_id era omesso, quindi il costo generato da un
+              // OdA finiva nei costi generali e NON risultava sulla commessa che
+              // lo aveva prodotto. Verificato in produzione: 194 costi, zero
+              // agganciati a una commessa. Senza questo campo l'analisi di
+              // marginalita' per cantiere lavora sul vuoto.
+              order_id: order.order_id ?? null,
               name: `OdA ${order.oda_number} - ${supplier?.name || "Fornitore"}`,
               cost_type: "variable",
               amount: Number(order.subtotal),

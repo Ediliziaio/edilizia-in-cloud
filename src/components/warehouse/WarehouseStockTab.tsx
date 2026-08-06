@@ -365,7 +365,29 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       if (updError) throw updError;
 
       if (registerCost && type === "carico") {
-        await insertCostRecord(currentItem.name, currentItem.unit_cost, quantity, currentItem.vat_rate ?? 22, currentItem.supplier_id || undefined, costPaidDate, costCategory);
+        // Guardia anti doppio costo (2026-08-06). Se questa merce sta arrivando
+        // da un ordine d'acquisto, il costo lo genera gia' l'OdA quando passa a
+        // "ricevuto": registrarlo anche qui conterebbe due volte la stessa
+        // spesa, in due punti del prodotto che non si parlano.
+        // Non blocco — segnalo e lascio decidere: potrebbe essere un acquisto
+        // davvero separato dallo stesso fornitore.
+        const { data: odaAperti } = await supabase
+          .from("purchase_order_items")
+          .select("purchase_orders!inner(oda_number, status, supplier_id)")
+          .eq("company_id", companyId!)
+          .ilike("description", currentItem.name)
+          .in("purchase_orders.status", ["inviato", "confermato", "parziale"])
+          .limit(1);
+
+        if (odaAperti && odaAperti.length > 0) {
+          const oda = (odaAperti[0] as unknown as { purchase_orders?: { oda_number?: string } }).purchase_orders;
+          toast.warning("Costo non registrato: c'è un ordine aperto", {
+            description: `"${currentItem.name}" è su ${oda?.oda_number ?? "un OdA"} ancora aperto. Il costo verrà creato da quell'ordine quando lo segni ricevuto, così non viene contato due volte.`,
+            duration: 9000,
+          });
+        } else {
+          await insertCostRecord(currentItem.name, currentItem.unit_cost, quantity, currentItem.vat_rate ?? 22, currentItem.supplier_id || undefined, costPaidDate, costCategory);
+        }
       }
     },
     onSuccess: () => {
