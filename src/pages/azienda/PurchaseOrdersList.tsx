@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingCart, Plus, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
-  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity, Warehouse, Link2, ArrowRight,
+  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Warehouse, Link2, ArrowRight,
+  AlertTriangle, Send,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -46,6 +47,42 @@ const VERIFICATION_BADGES: Record<string, { label: string; className: string }> 
   partial_match: { label: "Discrepanze", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" },
   mismatch: { label: "Non conforme", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" },
 };
+
+/**
+ * Importo senza centesimi per le card KPI: a sei cifre "365.225,30 €" veniva
+ * troncato in "365...." e il numero spariva del tutto. Sui totali di sintesi
+ * i centesimi non servono a nessuno.
+ */
+function euroCompatto(n: number): string {
+  const v = Number.isFinite(n) ? n : 0;
+  // Sopra i centomila la forma per esteso non entra nella card (misurato:
+  // servono 102px, ce ne sono 82) e veniva troncata a meta'. Meglio un numero
+  // arrotondato ma leggibile che uno preciso e invisibile: il dettaglio
+  // esatto e' comunque nella colonna Totale della tabella.
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+    ...(Math.abs(v) >= 100_000 ? { notation: "compact" as const } : {}),
+  }).format(v);
+}
+
+/**
+ * Giorni di ritardo di un ordine, o null se non e' in ritardo.
+ * In ritardo = mandato al fornitore, data di consegna passata, merce non
+ * ancora arrivata. Bozze e annullati non possono essere in ritardo: le prime
+ * non le ha viste nessuno, i secondi non arriveranno mai per definizione.
+ */
+function giorniDiRitardo(o: { status: string; expected_delivery_date: string | null }): number | null {
+  if (!o.expected_delivery_date) return null;
+  if (!["inviato", "confermato", "parziale"].includes(o.status)) return null;
+  const oggi = new Date().toLocaleDateString("en-CA");
+  if (o.expected_delivery_date >= oggi) return null;
+  const gg = Math.floor(
+    (new Date(oggi).getTime() - new Date(o.expected_delivery_date).getTime()) / 86400000,
+  );
+  return gg > 0 ? gg : null;
+}
 
 function VerificationBadge({ result }: { result: string | null | undefined }) {
   if (!result) return null;
@@ -78,6 +115,9 @@ export default function PurchaseOrdersList() {
   const [filterAmountMin, setFilterAmountMin] = useState<string>("");
   const [filterAmountMax, setFilterAmountMax] = useState<string>("");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [guidaChiusa, setGuidaChiusa] = useState(() => {
+    try { return localStorage.getItem("oda-guida-chiusa") === "1"; } catch { return false; }
+  });
 
   const activeFiltersCount = useMemo(() => {
     let n = 0;
@@ -98,8 +138,19 @@ export default function PurchaseOrdersList() {
   };
 
   const filtered = useMemo(() => {
+    const oggi = new Date().toLocaleDateString("en-CA");
     let list = orders;
-    if (tab === "attivi") list = list.filter((o) => !["annullato", "ricevuto"].includes(o.status));
+    // "attivi" = mandati al fornitore e non ancora arrivati. Le bozze hanno
+    // un tab loro: sono ordini che non esistono ancora per nessuno tranne noi.
+    if (tab === "attivi") list = list.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
+    else if (tab === "bozze") list = list.filter((o) => o.status === "bozza");
+    else if (tab === "ritardo")
+      list = list.filter(
+        (o) =>
+          ["inviato", "confermato", "parziale"].includes(o.status) &&
+          o.expected_delivery_date &&
+          o.expected_delivery_date < oggi,
+      );
     else if (tab === "ricevuti") list = list.filter((o) => o.status === "ricevuto");
     else if (tab === "annullati") list = list.filter((o) => o.status === "annullato");
 
@@ -253,21 +304,52 @@ export default function PurchaseOrdersList() {
     }
   }, [buildExportRows, toast]);
 
-  const counts = useMemo(() => ({
-    tutti: orders.length,
-    attivi: orders.filter((o) => !["annullato", "ricevuto"].includes(o.status)).length,
-    ricevuti: orders.filter((o) => o.status === "ricevuto").length,
-    annullati: orders.filter((o) => o.status === "annullato").length,
-  }), [orders]);
-
-  const kpis = useMemo(() => {
-    const active = orders.filter((o) => !["annullato", "ricevuto"].includes(o.status));
+  const counts = useMemo(() => {
+    const oggi = new Date().toLocaleDateString("en-CA");
+    const inCorso = orders.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
     return {
-      activeCount: active.length,
-      activeTotal: active.reduce((s, o) => s + Number(o.total), 0),
-      totalAll: orders.reduce((s, o) => s + Number(o.total), 0),
-      linkedCount: orders.filter((o) => Boolean(o.order_id || o.orders?.order_code)).length,
-      toReceiveCount: active.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status)).length,
+      tutti: orders.length,
+      ritardo: inCorso.filter((o) => o.expected_delivery_date && o.expected_delivery_date < oggi).length,
+      bozze: orders.filter((o) => o.status === "bozza").length,
+      attivi: inCorso.length,
+      ricevuti: orders.filter((o) => o.status === "ricevuto").length,
+      annullati: orders.filter((o) => o.status === "annullato").length,
+    };
+  }, [orders]);
+
+  /**
+   * KPI rifatti il 2026-08-06. I precedenti raccontavano poco:
+   *   "Collegati commesse" mostrava 41 su 41 — un numero che non varia mai
+   *      non e' un indicatore, e' decorazione.
+   *   "Valore totale" sommava anche bozze e annullati, cioe' impegni che non
+   *      esistono: su questa azienda gonfiava il dato di 38.935 € di bozze.
+   *   "Attivi" contava le bozze fra gli ordini attivi, ma una bozza non e'
+   *      mai stata mandata a nessuno.
+   *
+   * E soprattutto mancava il dato che conta: 14 ordini su 41 hanno la
+   * consegna prevista gia' passata e la merce non e' mai arrivata. 132.387 €
+   * di roba promessa e non consegnata, invisibili in pagina.
+   */
+  const kpis = useMemo(() => {
+    const oggi = new Date().toLocaleDateString("en-CA"); // confronto su data locale
+    const inCorso = orders.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status));
+    const inRitardo = inCorso.filter(
+      (o) => o.expected_delivery_date && o.expected_delivery_date < oggi,
+    );
+    const bozze = orders.filter((o) => o.status === "bozza");
+    const somma = (list: typeof orders) => list.reduce((s, o) => s + Number(o.total), 0);
+
+    return {
+      lateCount: inRitardo.length,
+      lateTotal: somma(inRitardo),
+      draftCount: bozze.length,
+      draftTotal: somma(bozze),
+      inCorsoCount: inCorso.length,
+      inCorsoTotal: somma(inCorso),
+      // Impegnato = quello che ho promesso di pagare: esclude bozze
+      // (non mandate) e annullati (non dovuti). Stessa regola del margine
+      // di commessa, cosi' i due numeri non si contraddicono.
+      committedTotal: somma(orders.filter((o) => !["bozza", "annullato"].includes(o.status))),
     };
   }, [orders]);
 
@@ -292,7 +374,11 @@ export default function PurchaseOrdersList() {
 
   const hubTabs: HubTab[] = [
     { key: "tutti", label: "Tutti", icon: <ShoppingCart className="h-4 w-4" />, count: counts.tutti },
-    { key: "attivi", label: "Attivi", icon: <Activity className="h-4 w-4" />, count: counts.attivi },
+    // Il ritardo per primo dopo "Tutti": e' l'unica voce su cui c'e' qualcosa
+    // da fare oggi — telefonare al fornitore.
+    { key: "ritardo", label: "In ritardo", icon: <AlertTriangle className="h-4 w-4" />, count: counts.ritardo },
+    { key: "bozze", label: "Da mandare", icon: <Send className="h-4 w-4" />, count: counts.bozze },
+    { key: "attivi", label: "In arrivo", icon: <Truck className="h-4 w-4" />, count: counts.attivi },
     { key: "ricevuti", label: "Ricevuti", icon: <Package className="h-4 w-4" />, count: counts.ricevuti },
     { key: "annullati", label: "Annullati", icon: <X className="h-4 w-4" />, count: counts.annullati },
   ];
@@ -393,39 +479,61 @@ export default function PurchaseOrdersList() {
         }
       />
 
-      {/* KPIs */}
+      {/* KPI — cliccabili: ognuno filtra la lista sotto, cosi' il numero
+          porta direttamente agli ordini che lo compongono. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <OperationalKpiCard
-          label="OdA attivi"
-          value={kpis.activeCount}
-          icon={Activity}
-          hint={formatCurrency(kpis.activeTotal)}
-          tone="orange"
+          label="In ritardo"
+          value={kpis.lateCount}
+          icon={AlertTriangle}
+          hint={kpis.lateCount > 0 ? euroCompatto(kpis.lateTotal) : "nessuno"}
+          tone={kpis.lateCount > 0 ? "red" : "green"}
+          onClick={() => setTab("ritardo")}
+          active={tab === "ritardo"}
         />
         <OperationalKpiCard
-          label="Da ricevere"
-          value={kpis.toReceiveCount}
-          icon={Truck}
-          hint="monitor DDT"
+          label="Da mandare"
+          value={kpis.draftCount}
+          icon={Send}
+          hint={kpis.draftCount > 0 ? euroCompatto(kpis.draftTotal) : "nessuna bozza"}
           tone="amber"
+          onClick={() => setTab("bozze")}
+          active={tab === "bozze"}
         />
         <OperationalKpiCard
-          label="Valore totale"
-          value={formatCurrency(kpis.totalAll)}
-          icon={Wallet}
-          tone="green"
-        />
-        <OperationalKpiCard
-          label="Collegati commesse"
-          value={kpis.linkedCount}
-          icon={Link2}
-          hint="origine lavori"
+          label="In arrivo"
+          value={kpis.inCorsoCount}
+          icon={Truck}
+          hint={euroCompatto(kpis.inCorsoTotal)}
           tone="blue"
+          onClick={() => setTab("attivi")}
+          active={tab === "attivi"}
+        />
+        <OperationalKpiCard
+          label="Impegnato"
+          value={euroCompatto(kpis.committedTotal)}
+          icon={Wallet}
+          hint="senza bozze"
+          tone="green"
         />
       </div>
 
-      {/* "Come funziona" educational box — nascosto su mobile per dare priorità alla lista */}
-      <div className="hidden md:grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-3">
+      {/* "Come funziona" — si legge una volta, poi e' ingombro. Chiudibile,
+          con memoria: chi lo ha gia' letto non se lo ritrova ogni giorno in
+          testa alla pagina. */}
+      {!guidaChiusa && (
+      <div className="relative hidden md:grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 pr-10 text-sm shadow-sm lg:grid-cols-3">
+        <button
+          type="button"
+          aria-label="Nascondi la spiegazione"
+          onClick={() => {
+            setGuidaChiusa(true);
+            try { localStorage.setItem("oda-guida-chiusa", "1"); } catch { /* private mode */ }
+          }}
+          className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-slate-100"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
         <div className="flex gap-3">
           <ShoppingCart className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
           <div>
@@ -453,6 +561,7 @@ export default function PurchaseOrdersList() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Tabs + Search */}
       <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
@@ -591,7 +700,9 @@ export default function PurchaseOrdersList() {
               <th className="text-left p-3 font-medium">N° OdA</th>
               <th className="text-left p-3 font-medium">Fornitore</th>
               <th className="text-left p-3 font-medium">Commessa</th>
-              <th className="text-left p-3 font-medium">Destinazione</th>
+              {/* La colonna "Destinazione" e' stata tolta: su 41 ordini nessuno
+                  aveva il magazzino impostato, quindi diceva "Da decidere" 41
+                  volte su 41. Il dato resta nel dettaglio, dove si imposta. */}
               <th className="text-left p-3 font-medium">Data</th>
               <th className="text-left p-3 font-medium">Stato</th>
               <th className="text-right p-3 font-medium">Totale</th>
@@ -621,12 +732,6 @@ export default function PurchaseOrdersList() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="p-3 text-xs">
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Warehouse className="h-3 w-3" />
-                      {o.warehouses?.name ?? (o.delivery_warehouse_id ? "Magazzino selezionato" : "Da decidere")}
-                    </span>
-                  </td>
                   <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -637,8 +742,25 @@ export default function PurchaseOrdersList() {
                     </div>
                   </td>
                   <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
-                  <td className="p-3 text-sm text-muted-foreground">
-                    {o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it }) : "—"}
+                  <td className="p-3 text-sm">
+                    {o.expected_delivery_date ? (
+                      <>
+                        <span className="text-muted-foreground">
+                          {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}
+                        </span>
+                        {/* Il ritardo va detto, non lasciato calcolare a mente:
+                            su questa azienda 14 ordini su 41 erano scaduti e
+                            in pagina non si vedeva da nessuna parte. */}
+                        {giorniDiRitardo(o) !== null && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                            <AlertTriangle className="h-3 w-3" />
+                            {giorniDiRitardo(o)}gg
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

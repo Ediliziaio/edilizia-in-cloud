@@ -100,7 +100,17 @@ export function OperationalKpiCard({
           {isLoading ? (
             <Skeleton className="mt-1 h-7 w-28" />
           ) : (
-            <p className={cn("mt-0.5 truncate text-xl font-bold leading-tight tabular-nums sm:text-2xl", styles.value)}>
+            <p
+              className={cn(
+                "mt-0.5 truncate font-bold leading-tight tabular-nums",
+                styles.value,
+                // Gli importi non entrano a text-2xl e venivano troncati in
+                // "365...." — cioe' il numero spariva del tutto. Misurato: la
+                // colonna di testo della card e' 82px, un importo a text-2xl ne
+                // chiede oltre 90. I conteggi ("10", "5") restano grandi.
+                String(value).length > 5 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
+              )}
+            >
               {value}
             </p>
           )}
