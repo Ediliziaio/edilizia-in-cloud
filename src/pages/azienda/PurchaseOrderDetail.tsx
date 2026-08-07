@@ -38,6 +38,8 @@ import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
 import { OdaAccountingCard } from "@/components/orders/OdaAccountingCard";
 import { OdaImpattoCommessaCard } from "@/components/orders/OdaImpattoCommessaCard";
+import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
+import { calcolaScadenza, TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
 import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
@@ -183,6 +185,14 @@ export default function PurchaseOrderDetail() {
               toast.info("Costo già registrato per questo ordine");
               return;
             }
+            // La scadenza vera del pagamento: dai termini dell'ordine, o da
+            // quelli abituali del fornitore. Prima era sempre "oggi", e il
+            // previsionale mostrava un'uscita immediata che non esiste — in
+            // edilizia si paga a 30/60/90.
+            const scadenza =
+              calcolaScadenza(order.payment_terms) ??
+              calcolaScadenza(supplier?.payment_method) ??
+              today;
             const { error } = await (supabase as any).from("company_costs").insert({
               company_id: effectiveCompany.id,
               // Aggancio esplicito all'OdA: prima il legame esisteva solo nel
@@ -202,7 +212,7 @@ export default function PurchaseOrderDetail() {
                 : 22,
               category: "materiali",
               recurrence: "once",
-              due_date: today,
+              due_date: scadenza,
               is_paid: false,
               supplier_id: order.supplier_id,
               notes: `Generato automaticamente da OdA ${order.oda_number}`,
@@ -502,12 +512,77 @@ export default function PurchaseOrderDetail() {
                   <span className="font-medium text-slate-900">{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
                 </div>
               )}
-              {order.payment_terms && (
-                <div className="flex justify-between">
+              {/* Termini di pagamento: prima si vedevano solo se gia' scritti,
+                  e non li scriveva nessuno (0 su 82 in produzione) perche' non
+                  c'era NESSUN posto per farlo. Sono il dato che decide QUANDO
+                  esce la cassa. */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-500">Pagamento</span>
-                  <span className="font-medium text-slate-900">{order.payment_terms}</span>
+                  <Input
+                    list="termini-pagamento-preset"
+                    defaultValue={order.payment_terms ?? ""}
+                    placeholder="Es. 30 gg fine mese"
+                    className="h-7 w-40 text-right text-sm"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim() || null;
+                      if (v !== order.payment_terms) {
+                        update.mutate({ id: order.id, updates: { payment_terms: v } });
+                      }
+                    }}
+                  />
+                  <datalist id="termini-pagamento-preset">
+                    {TERMINI_PRESET.map((tp) => <option key={tp} value={tp} />)}
+                  </datalist>
                 </div>
-              )}
+                {(() => {
+                  const anteprima = calcolaScadenza(order.payment_terms) ?? calcolaScadenza(supplier?.payment_method);
+                  if (!anteprima) return null;
+                  return (
+                    <p className="text-[11px] text-slate-400 text-right">
+                      Se ricevi oggi, il pagamento scade il {anteprima.split("-").reverse().join("/")}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {/* Commessa: collegabile e cambiabile anche DOPO la creazione —
+                  gli ordini dimenticati "generici" sono la regola, non
+                  l'eccezione. Cambiandola, il costo gia' generato la segue. */}
+              <div className="space-y-1 pt-1">
+                <span className="text-slate-500">Commessa</span>
+                <CommessaCombobox
+                  value={order.order_id}
+                  onChange={async (nuovaCommessa) => {
+                    if (nuovaCommessa === order.order_id) return;
+                    update.mutate(
+                      { id: order.id, updates: { order_id: nuovaCommessa } },
+                      {
+                        onSuccess: async () => {
+                          // Coerenza finanziaria: il costo nato da questo
+                          // ordine deve stare sulla stessa commessa, altrimenti
+                          // la marginalita' del cantiere legge un dato vecchio.
+                          const { error } = await (supabase as any)
+                            .from("company_costs")
+                            .update({ order_id: nuovaCommessa })
+                            .eq("purchase_order_id", order.id);
+                          if (error) {
+                            toast.error("Commessa aggiornata, ma il costo collegato no", {
+                              description: error.message,
+                            });
+                          } else {
+                            queryClient.invalidateQueries({ queryKey: ["oda-impatto-commessa"] });
+                            queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
+                          }
+                        },
+                      },
+                    );
+                  }}
+                  nessunaLabel="Acquisto generico"
+                  className="h-8 text-xs"
+                />
+              </div>
+
               <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">Totale</span>

@@ -7,9 +7,11 @@
  * righe se la fornitura e' stata contabilizzata, se e' arrivata la fattura e
  * se la fattura combacia con l'ordine.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Wallet, FileText, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { Wallet, FileText, AlertTriangle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -41,6 +43,7 @@ export function OdaAccountingCard({
   totaleOrdine: number;
   stato: string;
 }) {
+  const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ["oda-contabilita", odaId],
     queryFn: async () => {
@@ -60,6 +63,29 @@ export function OdaAccountingCard({
       };
     },
     enabled: !!odaId,
+  });
+
+  // Il pagamento si registra da qui invece che andando a cercare il costo in
+  // un'altra pagina: e' il gesto che chiude il cerchio ordine → merce →
+  // fattura → soldi usciti. Tesoreria e previsionale leggono is_paid.
+  const segnaPagato = useMutation({
+    mutationFn: async () => {
+      const oggi = new Date().toLocaleDateString("en-CA");
+      const { error, count } = await (supabase as any)
+        .from("company_costs")
+        .update({ is_paid: true, paid_date: oggi }, { count: "exact" })
+        .eq("purchase_order_id", odaId)
+        .eq("is_paid", false);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    onSuccess: (n) => {
+      toast.success(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
+        description: "La cassa e la tesoreria ora lo vedono come uscito.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["oda-contabilita", odaId] });
+    },
+    onError: (e) => toast.error("Pagamento non registrato", { description: String(e) }),
   });
 
   // Sulle bozze non c'e' niente da contabilizzare: mostrare due righe vuote
@@ -116,6 +142,21 @@ export function OdaAccountingCard({
             <span className="text-right text-slate-400 text-xs">Non ancora arrivata</span>
           )}
         </div>
+
+        {nonPagati > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-8"
+            disabled={segnaPagato.isPending}
+            onClick={() => segnaPagato.mutate()}
+          >
+            {segnaPagato.isPending
+              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+            Segna pagato al fornitore
+          </Button>
+        )}
 
         {fatture.length > 0 && (
           scostamentoRilevante ? (

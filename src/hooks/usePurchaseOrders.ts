@@ -91,6 +91,8 @@ export function usePurchaseOrders() {
       origine?: string;
       /** Numero d'ordine sul sito del fornitore, o dello scontrino. */
       supplier_reference?: string | null;
+      /** Commessa per cui si compra. Null = acquisto generico (magazzino). */
+      order_id?: string | null;
     }) => {
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
@@ -103,6 +105,7 @@ export function usePurchaseOrders() {
           delivery_warehouse_id: params.delivery_warehouse_id || null,
           origine: params.origine || "email",
           supplier_reference: params.supplier_reference || null,
+          order_id: params.order_id || null,
           created_by: user?.id,
         } as any)
         .select()

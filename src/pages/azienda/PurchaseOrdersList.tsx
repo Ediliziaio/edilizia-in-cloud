@@ -35,6 +35,7 @@ import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { ODA_ORIGINI, ODA_ORIGINE_INFO, type OdaOrigine } from "@/lib/odaOrigine";
+import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import {
   QuotePageHeader,
   QuoteChip,
@@ -112,6 +113,9 @@ export default function PurchaseOrdersList() {
   // passaggi successivi (chi compra al banco non deve "inviare" niente).
   const [newOrigine, setNewOrigine] = useState<OdaOrigine | null>(null);
   const [newRiferimento, setNewRiferimento] = useState("");
+  // Null e' una scelta legittima: scorte di magazzino e attrezzatura non
+  // hanno una commessa, e non devono fingerne una.
+  const [newOrderId, setNewOrderId] = useState<string | null>(null);
 
   // Filtri avanzati
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
@@ -367,6 +371,7 @@ export default function PurchaseOrdersList() {
         delivery_warehouse_id: newWarehouseId,
         origine: newOrigine,
         supplier_reference: newRiferimento.trim() || null,
+        order_id: newOrderId,
       },
       {
         onSuccess: (data: any) => {
@@ -376,6 +381,7 @@ export default function PurchaseOrdersList() {
           setNewWarehouseId(null);
           setNewOrigine(null);
           setNewRiferimento("");
+          setNewOrderId(null);
           navigate(`/azienda/ordini-acquisto/${data.id}`);
         },
         onError: () => {
@@ -839,6 +845,14 @@ export default function PurchaseOrdersList() {
                   {ODA_ORIGINE_INFO[newOrigine].descrizione}
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Per quale commessa?</Label>
+              <CommessaCombobox value={newOrderId} onChange={setNewOrderId} />
+              <p className="text-[11px] text-slate-500">
+                Se e' per un cantiere, collegalo subito: il costo finira' sulla
+                commessa giusta e vedrai quanto stai impegnando.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Fornitore</Label>
