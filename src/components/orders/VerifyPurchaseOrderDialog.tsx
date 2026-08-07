@@ -30,14 +30,18 @@ export interface VerifyPurchaseOrderDialogProps {
   odaNumber: string;
   orderId?: string | null;
   orderCode?: string | null;
+  /** Path nel bucket order-attachments del documento gia' allegato all'ordine
+   *  (conferma d'ordine del sito, modulo firmato, scontrino). Se c'e', la
+   *  verifica puo' usarlo senza far ricaricare il file una seconda volta. */
+  attachmentUrl?: string | null;
 }
 
-type VerificationMode = "auto" | "document_pdf" | "document_image";
+type VerificationMode = "auto" | "document_pdf" | "document_image" | "attachment";
 
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function VerifyPurchaseOrderDialog({
-  open, onOpenChange, purchaseOrderId, odaNumber, orderId, orderCode,
+  open, onOpenChange, purchaseOrderId, odaNumber, orderId, orderCode, attachmentUrl,
 }: VerifyPurchaseOrderDialogProps): JSX.Element {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -62,6 +66,29 @@ export function VerifyPurchaseOrderDialog({
   const verifyMutation = useMutation({
     mutationFn: async (): Promise<VerificationData> => {
       let supplierDocumentBase64: string | undefined;
+
+      if (mode === "attachment" && attachmentUrl) {
+        // Il documento sta gia' nello storage: si scarica e si manda come se
+        // fosse stato caricato ora. E' lo stesso file che si vede nella scheda
+        // "Conferma d'ordine" del dettaglio.
+        const { data: signed, error: signErr } = await supabase.storage
+          .from("order-attachments")
+          .createSignedUrl(attachmentUrl, 600);
+        if (signErr || !signed?.signedUrl) {
+          throw new Error("Documento allegato non scaricabile dallo storage");
+        }
+        const resp = await fetch(signed.signedUrl);
+        if (!resp.ok) throw new Error("Documento allegato non scaricabile");
+        const bytes = new Uint8Array(await resp.arrayBuffer());
+        if (bytes.length > 10 * 1024 * 1024) throw new Error("Documento troppo grande (max 10MB)");
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base = btoa(binary);
+        // Le immagini vanno marcate col prefisso, altrimenti l'edge le tratta
+        // da PDF e Claude riceve bytes JPEG dentro un blocco document.
+        const isImg = /\.(jpe?g|png|webp)$/i.test(attachmentUrl);
+        supplierDocumentBase64 = isImg ? `data:image/jpeg;base64,${base}` : base;
+      }
 
       if ((mode === "document_pdf" || mode === "document_image") && uploadedFile) {
         const arrayBuffer = await uploadedFile.arrayBuffer();
@@ -124,6 +151,7 @@ export function VerifyPurchaseOrderDialog({
 
   const canStartVerification = (): boolean => {
     if (mode === "auto") return !!orderId;
+    if (mode === "attachment") return !!attachmentUrl;
     return !!uploadedFile;
   };
 
@@ -166,6 +194,25 @@ export function VerifyPurchaseOrderDialog({
                   </p>
                 </div>
               </button>
+
+              {/* Documento gia' allegato all'ordine */}
+              {attachmentUrl && (
+                <button
+                  type="button"
+                  onClick={() => setMode("attachment")}
+                  className={`flex items-start gap-3 p-4 rounded-lg border-2 text-left transition-colors cursor-pointer ${
+                    mode === "attachment" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  <ShieldCheck className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">Usa il documento allegato all'ordine</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Confronta la conferma d'ordine gia' caricata ({attachmentUrl.split("/").pop()}) senza ricaricarla
+                    </p>
+                  </div>
+                </button>
+              )}
 
               {/* PDF upload */}
               <button
@@ -213,12 +260,13 @@ export function VerifyPurchaseOrderDialog({
         {/* Step 2 — Upload/Confirm */}
         {step === 2 && (
           <div className="space-y-4 py-2">
-            {mode === "auto" ? (
+            {mode === "auto" || mode === "attachment" ? (
               <div className="rounded-lg border p-4 space-y-2">
                 <p className="text-sm font-medium">Riepilogo confronto</p>
                 <p className="text-xs text-muted-foreground">
-                  L'AI confronterà gli articoli dell'OdA <strong>{odaNumber}</strong> con
-                  quelli della commessa cliente <strong>{orderCode || ""}</strong>.
+                  {mode === "auto"
+                    ? <>L'AI confronterà gli articoli dell'OdA <strong>{odaNumber}</strong> con quelli della commessa cliente <strong>{orderCode || ""}</strong>.</>
+                    : <>L'AI confronterà il documento allegato (<strong>{attachmentUrl?.split("/").pop()}</strong>) con il contenuto dell'OdA <strong>{odaNumber}</strong>{orderCode ? <> e della commessa <strong>{orderCode}</strong></> : null}.</>}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Verranno verificati: quantità, prezzi, descrizioni e specifiche tecniche.

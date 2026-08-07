@@ -37,6 +37,7 @@ import { VerificationHistoryCard } from "@/components/orders/VerificationHistory
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
 import { OdaAccountingCard } from "@/components/orders/OdaAccountingCard";
+import { OdaImpattoCommessaCard } from "@/components/orders/OdaImpattoCommessaCard";
 import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
 import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
@@ -682,6 +683,15 @@ export default function PurchaseOrderDetail() {
             />
           )}
 
+          {/* Quanto pesa questo ordine sulla commessa: il conto si fa QUI,
+              mentre si ordina, non a fine lavori quando e' tardi. */}
+          <OdaImpattoCommessaCard
+            odaId={order.id}
+            orderId={order.order_id}
+            totaleOrdine={Number(order.total)}
+            statoOrdine={order.status}
+          />
+
           {/* Costo + fattura generati da questo ordine */}
           <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
 
@@ -698,6 +708,7 @@ export default function PurchaseOrderDetail() {
         odaNumber={order.oda_number}
         orderId={order.order_id}
         orderCode={order.orders?.order_code}
+        attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
       />
 
       {/* Invio al fornitore — stesso compositore email del resto dell'app:

@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -430,11 +431,12 @@ export function OrderItemsList({
       if (orderItemIds.length === 0) return [];
       const { data, error } = await supabase
         .from("purchase_order_items")
-        .select("order_item_id, purchase_orders!inner(oda_number, status)")
+        .select("order_item_id, quantity, purchase_orders!inner(oda_number, status)")
         .in("order_item_id", orderItemIds);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{
         order_item_id: string;
+        quantity: number;
         purchase_orders: { oda_number: string; status: string };
       }>;
     },
@@ -450,6 +452,20 @@ export function OrderItemsList({
       const existing = map.get(row.order_item_id) || [];
       existing.push(row.purchase_orders);
       map.set(row.order_item_id, existing);
+    }
+    return map;
+  }, [poItemCoverage]);
+
+  // Quantita' ORDINATA per riga: somma degli OdA emessi (le bozze non
+  // impegnano nessuno). E' il controllo "260 su 200": ordinare piu' del
+  // previsto e' l'errore d'acquisto che mangia il margine, e finora non
+  // c'era un solo posto che lo dicesse.
+  const qtaOrdinataMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of poItemCoverage) {
+      if (!row.order_item_id) continue;
+      if (!(ODA_STATI_EMESSI as readonly string[]).includes(row.purchase_orders.status)) continue;
+      map.set(row.order_item_id, (map.get(row.order_item_id) ?? 0) + Number(row.quantity || 0));
     }
     return map;
   }, [poItemCoverage]);
@@ -1452,6 +1468,30 @@ export function OrderItemsList({
                         OdA {poItemMap.get(item.id)!.map(p => p.oda_number).join(", ")}
                       </Badge>
                     )}
+                    {/* Il controllo "260 su 200": quantita' ordinata ai fornitori
+                        (OdA emessi) contro quantita' prevista in commessa. Due
+                        numeri affiancati, cosi' chi legge puo' rifare il conto a
+                        mente; rosso solo quando si e' ordinato PIU' del previsto. */}
+                    {showOdaCoverage && item.id && (qtaOrdinataMap.get(item.id) ?? 0) > 0 && (() => {
+                      const ordinata = qtaOrdinataMap.get(item.id!)!;
+                      const prevista = Number(item.quantity) || 0;
+                      const oltre = prevista > 0 && ordinata > prevista;
+                      const pct = prevista > 0 ? Math.round(((ordinata - prevista) / prevista) * 100) : 0;
+                      return (
+                        <Badge
+                          className={`text-xs gap-1 ${
+                            oltre
+                              ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
+                              : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700"
+                          }`}
+                          title="Quantita' ordinata ai fornitori (OdA emessi) rispetto alla quantita' prevista in commessa"
+                        >
+                          {oltre && <AlertTriangle className="h-3 w-3" />}
+                          Ordinato {ordinata.toLocaleString("it-IT")}/{prevista.toLocaleString("it-IT")}
+                          {oltre && ` (+${pct}%)`}
+                        </Badge>
+                      );
+                    })()}
                     {showOdaCoverage && item.id && !poItemMap.has(item.id) && !item.stock_item_id && (
                       <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
                         <Link2 className="h-3 w-3" />

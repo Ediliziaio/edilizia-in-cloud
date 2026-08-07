@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
-  FileQuestion, Users, ClipboardList, CheckCircle2,
+  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles,
 } from "lucide-react";
 import {
   QuotePageHeader, QuoteCard, QuoteChip, QuotePrimaryButton,
@@ -34,6 +34,7 @@ import { useSupplierRfqDetail, totaleRigaOfferta, type RfqSupplier } from "@/hoo
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { EstraiOffertaAIDialog, type RigaEstratta, type PropostaEstratta } from "@/components/rdo/EstraiOffertaAIDialog";
 import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import {
   RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
@@ -58,6 +59,7 @@ export default function SupplierRfqDetail() {
   const [nuovoFornitore, setNuovoFornitore] = useState("");
   const [inviaA, setInviaA] = useState<RfqSupplier | null>(null);
   const [aggiudicaA, setAggiudicaA] = useState<RfqSupplier | null>(null);
+  const [estraiDa, setEstraiDa] = useState<RfqSupplier | null>(null);
   const [motivazione, setMotivazione] = useState("");
 
   const totaliPerFornitore = useMemo(() => {
@@ -482,6 +484,24 @@ export default function SupplierRfqDetail() {
                         <Trophy className="h-3 w-3 mr-1" /> Scegli questo
                       </Button>
                     )}
+                    {/* La lettura AI del preventivo: propone i prezzi nella
+                        griglia, l'umano conferma. Sempre disponibile: anche chi
+                        non ha l'email agganciata ha un PDF da caricare. */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-orange-500 hover:text-orange-600"
+                      title="Leggi il preventivo con l'AI"
+                      onClick={() => {
+                        if (items.length === 0) {
+                          toast.error("Aggiungi le voci della richiesta prima di leggere il preventivo");
+                          return;
+                        }
+                        setEstraiDa(f);
+                      }}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </Button>
                     {modificabile && (
                       <Button
                         size="sm"
@@ -566,6 +586,48 @@ export default function SupplierRfqDetail() {
               updates: { status: "inviata", inviata_at: new Date().toISOString() },
             });
             if (rfq.status === "bozza") updateRfq.mutate({ status: "inviata" });
+          }}
+        />
+      )}
+
+      {/* Lettura AI del preventivo fornitore */}
+      {estraiDa && (
+        <EstraiOffertaAIDialog
+          open={!!estraiDa}
+          onOpenChange={(o) => { if (!o) setEstraiDa(null); }}
+          rfqSupplierId={estraiDa.id}
+          fornitoreNome={estraiDa.suppliers?.name ?? "Fornitore"}
+          haEmailAgganciata={!!estraiDa.email_inbox_id}
+          onApplica={async (righe: RigaEstratta[], meta: PropostaEstratta) => {
+            // I prezzi scelti finiscono nella griglia, riga per riga.
+            for (const r of righe) {
+              if (!r.rfq_item_id) continue;
+              await setQuote.mutateAsync({
+                rfq_supplier_id: estraiDa.id,
+                rfq_item_id: r.rfq_item_id,
+                updates: {
+                  prezzo_unitario: r.prezzo_unitario,
+                  sconto_percentuale: r.sconto_percentuale,
+                  aliquota_iva: r.aliquota_iva,
+                  disponibile: r.disponibile,
+                  note: r.nota,
+                },
+              });
+            }
+            // Consegna/validita'/pagamento: si compilano solo se vuoti, per non
+            // sovrascrivere quello che qualcuno ha gia' scritto a mano.
+            const updates: Record<string, unknown> = {};
+            if (meta.giorni_consegna != null && estraiDa.giorni_consegna == null) updates.giorni_consegna = meta.giorni_consegna;
+            if (meta.validita_offerta && !estraiDa.validita_offerta) updates.validita_offerta = meta.validita_offerta;
+            if (meta.condizioni_pagamento && !estraiDa.condizioni_pagamento) updates.condizioni_pagamento = meta.condizioni_pagamento;
+            if (meta.totale_documento != null && estraiDa.totale_offerto == null) updates.totale_offerto = meta.totale_documento;
+            if (estraiDa.status === "inviata" || estraiDa.status === "da_inviare") {
+              updates.status = "risposta";
+              updates.risposta_at = new Date().toISOString();
+            }
+            if (Object.keys(updates).length > 0) {
+              await updateFornitore.mutateAsync({ id: estraiDa.id, updates });
+            }
           }}
         />
       )}

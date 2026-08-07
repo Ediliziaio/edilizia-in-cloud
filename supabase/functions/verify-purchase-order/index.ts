@@ -186,12 +186,12 @@ L'immagine allegata è una foto/scansione del preventivo del fornitore.
 4. Abbreviazioni tipiche: AR=anta-ribalta, VAS=vasistas, PF=porta-finestra, SC=scorrevole, BI=bianco, EL=effetto legno
 ` : ""}
 
-=== DOCUMENTO CLIENTE (Ordine #${orderData.code}) ===
+=== DOCUMENTO DI RIFERIMENTO (${orderData.code}) ===
 
-Articoli ordinati dal cliente:
+Articoli di riferimento (cio' che risulta a noi):
 ${JSON.stringify(orderData.items, null, 2)}
 
-Totale ordine cliente: €${orderData.total}
+Totale di riferimento: €${orderData.total}
 
 === DOCUMENTO FORNITORE ===
 ${documentType === "image" ? "Vedi immagine allegata." : "Vedi documento PDF allegato - analizza il testo estratto."}
@@ -388,6 +388,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       notes: po.notes || "",
     };
 
+    // Senza commessa collegata il confronto col documento si fa contro l'OdA
+    // stesso: e' il caso piu' comune ("la conferma del fornitore combacia con
+    // quello che ho ordinato?"), e prima veniva rifiutato con un errore.
+    const referenceDoc = orderData ?? {
+      code: `OdA ${po.oda_number}`,
+      items: poDataForPrompt.items,
+      total: poDataForPrompt.total,
+    };
+
     // Build messages for Claude API
     const messages: Array<{ role: string; content: unknown }> = [];
 
@@ -396,7 +405,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ? supplier_document_base64.replace(/^data:application\/pdf;base64,/, "")
       : null;
 
-    if (verification_mode === "document_upload" && pdfBase64 && orderData) {
+    if (verification_mode === "document_upload" && pdfBase64) {
       // PDF document mode — send as document block
       messages.push({
         role: "user",
@@ -407,11 +416,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           },
           {
             type: "text",
-            text: buildDocumentPrompt(orderData, "pdf"),
+            text: buildDocumentPrompt(referenceDoc, "pdf"),
           },
         ],
       });
-    } else if (verification_mode === "document_upload" && imageBase64 && orderData) {
+    } else if (verification_mode === "document_upload" && imageBase64) {
       // Vision mode — send image
       messages.push({
         role: "user",
@@ -422,12 +431,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
           },
           {
             type: "text",
-            text: buildDocumentPrompt(orderData, "image"),
+            text: buildDocumentPrompt(referenceDoc, "image"),
           },
         ],
       });
-    } else if (verification_mode === "document_upload" && !orderData) {
-      return errorResponse("Ordine cliente necessario per confronto documento", 400, corsH);
+    } else if (verification_mode === "document_upload") {
+      return errorResponse("Documento non leggibile: carica il file (PDF o immagine)", 400, corsH);
     } else if (orderData) {
       // Structured or manual comparison
       messages.push({

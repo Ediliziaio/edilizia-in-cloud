@@ -37,7 +37,12 @@ interface AnthropicImageBlock {
     | { type: "url"; url: string };
 }
 
-type AnthropicContentBlock = AnthropicTextBlock | AnthropicImageBlock;
+interface AnthropicDocumentBlock {
+  type: "document";
+  source: { type: "base64"; media_type: string; data: string };
+}
+
+type AnthropicContentBlock = AnthropicTextBlock | AnthropicImageBlock | AnthropicDocumentBlock;
 
 interface AnthropicMessage {
   role: "user" | "assistant";
@@ -80,7 +85,8 @@ function mapModelToOpenRouter(model: string): string {
 // ── Conversione contenuti Anthropic → OpenAI ─────────────────────────────────
 type OpenAiContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "file"; file: { filename: string; file_data: string } };
 
 function convertContent(
   content: string | AnthropicContentBlock[],
@@ -94,6 +100,19 @@ function convertContent(
           url: block.source.type === "url"
             ? block.source.url
             : `data:${block.source.media_type};base64,${block.source.data}`,
+        },
+      };
+    }
+    // I PDF (blocchi "document" Anthropic) su OpenRouter viaggiano come parte
+    // "file" in formato OpenAI. Prima cadevano nel ramo testo e diventavano
+    // {type:"text"} SENZA testo → 400 dal provider: e' il motivo per cui la
+    // verifica documenti via PDF non ha mai potuto funzionare.
+    if (block.type === "document") {
+      return {
+        type: "file",
+        file: {
+          filename: "documento.pdf",
+          file_data: `data:${block.source.media_type};base64,${block.source.data}`,
         },
       };
     }
