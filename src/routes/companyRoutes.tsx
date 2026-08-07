@@ -350,6 +350,7 @@ const FormazioneDipendente = lazy(() => import("@/pages/azienda/formazione/Forma
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
+const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
@@ -690,6 +691,10 @@ export default function CompanyRoutesContainer() {
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />)} />
+        {/* Le richieste d'offerta stanno prima degli ordini nello stesso flusso:
+            chi puo' vedere gli ordini d'acquisto puo' vedere anche da dove nascono. */}
+        <Route path="richieste-offerta" element={<Navigate to="/azienda/ordini?tab=offerte" replace />} />
+        <Route path="richieste-offerta/:rfqId" element={withCompanyPermissionOrCommercialista("canViewOrders", <SupplierRfqDetail />)} />
         <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
         <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
