@@ -167,60 +167,18 @@ export default function PurchaseOrderDetail() {
       // compariva mai: nessuno la scriveva, ne' qui ne' nella mutation.
       ...(ns === "ricevuto" ? { actual_delivery_date: format(new Date(), "yyyy-MM-dd") } : {}),
     }, {
-      onSuccess: async () => {
-        // Auto-generate cost when status becomes "ricevuto"
-        if (ns === "ricevuto" && effectiveCompany?.id) {
-          try {
-            const today = format(new Date(), "yyyy-MM-dd");
-            // Un ordine puo' arrivare a "ricevuto" da piu' strade (questo
-            // pulsante, la scansione, il DDT). Senza questo controllo la stessa
-            // fornitura poteva finire due volte nei costi.
-            const { data: giaRegistrato } = await (supabase as any)
-              .from("company_costs")
-              .select("id")
-              .eq("purchase_order_id", order.id)
-              .limit(1)
-              .maybeSingle();
-            if (giaRegistrato) {
-              toast.info("Costo già registrato per questo ordine");
-              return;
-            }
-            // La scadenza vera del pagamento: dai termini dell'ordine, o da
-            // quelli abituali del fornitore. Prima era sempre "oggi", e il
-            // previsionale mostrava un'uscita immediata che non esiste — in
-            // edilizia si paga a 30/60/90.
-            const scadenza =
-              calcolaScadenza(order.payment_terms) ??
-              calcolaScadenza(supplier?.payment_method) ??
-              today;
-            const { error } = await (supabase as any).from("company_costs").insert({
-              company_id: effectiveCompany.id,
-              // Aggancio esplicito all'OdA: prima il legame esisteva solo nel
-              // testo del nome, quindi non era interrogabile.
-              purchase_order_id: order.id,
-              // 2026-08-06: order_id era omesso, quindi il costo generato da un
-              // OdA finiva nei costi generali e NON risultava sulla commessa che
-              // lo aveva prodotto. Verificato in produzione: 194 costi, zero
-              // agganciati a una commessa. Senza questo campo l'analisi di
-              // marginalita' per cantiere lavora sul vuoto.
-              order_id: order.order_id ?? null,
-              name: `OdA ${order.oda_number} - ${supplier?.name || "Fornitore"}`,
-              cost_type: "variable",
-              amount: Number(order.subtotal),
-              vat_rate: Number(order.vat_total) > 0 && Number(order.subtotal) > 0
-                ? Math.round((Number(order.vat_total) / Number(order.subtotal)) * 100)
-                : 22,
-              category: "materiali",
-              recurrence: "once",
-              due_date: scadenza,
-              is_paid: false,
-              supplier_id: order.supplier_id,
-              notes: `Generato automaticamente da OdA ${order.oda_number}`,
+      onSuccess: () => {
+        // Il costo NON si crea piu' qui: lo genera il trigger sul database
+        // (migration 20280117000000) al passaggio a "ricevuto", cosi' anche
+        // scanner, DDT e percorsi futuri lo producono — prima solo questo
+        // pulsante lo faceva, e un ordine ricevuto via scan non esisteva per
+        // la cassa. Qui resta solo il refresh della scheda Contabilita'.
+        if (ns === "ricevuto") {
+          queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
+          if (Number(order.subtotal) > 0) {
+            toast.success("Merce ricevuta", {
+              description: "Costo registrato in Costi Aziendali con la scadenza dei termini di pagamento.",
             });
-            if (error) throw error;
-            toast.success("Costo registrato in Costi Aziendali");
-          } catch {
-            toast.error("OdA ricevuto, ma errore nella registrazione del costo");
           }
         }
       },

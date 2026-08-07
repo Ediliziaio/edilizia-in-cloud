@@ -145,7 +145,9 @@ function EnrollContactDialog({
         .order("created_at", { ascending: false })
         .limit(10);
       if (search.trim()) {
-        q = q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+        // Niente virgole/parentesi dentro .or(): sono la sua sintassi.
+        const s0 = search.replace(/[,()]/g, " ").trim();
+        q = q.or(`first_name.ilike.%${s0}%,last_name.ilike.%${s0}%,email.ilike.%${s0}%`);
       }
       const { data } = await q;
       return data ?? [];
@@ -337,7 +339,9 @@ export function WorkflowCronologia({ flowId }: Props) {
       if (search.trim()) {
         // entity_id è UUID: ilike su uuid = errore Postgres 42883 e tabella
         // vuota. La ricerca "per contatto" passa da nome/email → id.
-        const s = search.trim();
+        // Niente virgole/parentesi dentro .or(): sono la sua sintassi, e
+        // cercare "Rossi, Mario" spaccava la query intera.
+        const s = search.trim().replace(/[,()]/g, " ").trim();
         const { data: matches } = await (supabase as any)
           .from("marketing_contacts")
           .select("id")

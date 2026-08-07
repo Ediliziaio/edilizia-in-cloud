@@ -43,7 +43,9 @@ export function CommessaCombobox({
         .eq("company_id", effectiveCompany!.id)
         .order("created_at", { ascending: false })
         .limit(20);
-      const t = ricerca.trim();
+      // Virgole e parentesi sono sintassi di .or() in PostgREST: lasciate nel
+      // testo di ricerca spaccano la query intera ("Manzoni, lotto 2" → 400).
+      const t = ricerca.trim().replace(/[,()]/g, " ").trim();
       if (t) q = q.or(`order_code.ilike.%${t}%,description.ilike.%${t}%`);
       const { data, error } = await q;
       if (error) throw error;

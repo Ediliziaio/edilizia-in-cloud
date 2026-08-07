@@ -115,7 +115,9 @@ export default function AuditLogTab() {
       // If searching, first resolve matching user IDs from profiles
       let matchingUserIds: string[] | null = null;
       if (debouncedSearch.trim()) {
-        const q = `%${debouncedSearch.trim()}%`;
+        // Virgole e parentesi sono sintassi di .or() in PostgREST: cercare
+        // "Rossi, Mario" spaccava la query intera con un 400.
+        const q = `%${debouncedSearch.trim().replace(/[,()]/g, " ").trim()}%`;
         const { data: profileMatches } = await supabase
           .from("profiles")
           .select("id")

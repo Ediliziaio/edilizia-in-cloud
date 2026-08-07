@@ -76,7 +76,22 @@ export function EstraiOffertaAIDialog({
       const { data, error } = await supabase.functions.invoke("rdo-ai-estrai-offerta", {
         body: { rfq_supplier_id: rfqSupplierId, ...payload },
       });
-      if (error) throw error;
+      if (error) {
+        // supabase-js incarta i non-2xx in FunctionsHttpError e il messaggio
+        // diventa "Edge Function returned a non-2xx status code": il vero
+        // motivo ("Crediti AI esauriti...", "Limite giornaliero...") sta nel
+        // body della risposta. Senza questo, l'avviso piu' importante — cosa
+        // fare per sbloccarsi — non arrivava a chi lo doveva leggere.
+        let msg = error.message;
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const b = await ctx.json();
+            if (b?.error) msg = b.error;
+          } catch { /* il body non era JSON: resta il messaggio generico */ }
+        }
+        throw new Error(msg);
+      }
       if (!data?.ok) throw new Error(data?.error || "Lettura non riuscita");
       const p = data as PropostaEstratta;
       setProposta(p);
