@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,8 @@ import {
   CheckCircle2,
   Inbox,
   Loader2,
+  Link2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -75,6 +79,8 @@ interface FatturaRicevuta {
   stato: "non_letta" | "letta" | "contabilizzata" | "rifiutata";
   note: string | null;
   created_at: string;
+  /** Ordine d'acquisto collegato: dal trigger automatico o a mano da qui. */
+  purchase_order_id: string | null;
 }
 
 // ─── Stato Badge ──────────────────────────────────────────────
@@ -105,6 +111,7 @@ export default function FattureRicevutePage() {
   const [statoFilter, setStatoFilter] = useState("all");
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
+  const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
 
   // ─── Data Query ──────────────────────────────────────────
 
@@ -120,6 +127,27 @@ export default function FattureRicevutePage() {
 
       if (error) throw error;
       return (data as unknown as FatturaRicevuta[]) ?? [];
+    },
+  });
+
+  // I numeri OdA degli ordini collegati: una query sola per tutta la lista,
+  // così il badge mostra "ODA-2026-028" e non un uuid.
+  const linkedOdaIds = useMemo(
+    () => [...new Set(fatture.map((f) => f.purchase_order_id).filter(Boolean))] as string[],
+    [fatture],
+  );
+  const { data: odaNumbers = {} } = useQuery({
+    queryKey: ["fatture-oda-numbers", linkedOdaIds],
+    enabled: linkedOdaIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("purchase_orders")
+        .select("id, oda_number")
+        .in("id", linkedOdaIds);
+      if (error) throw error;
+      return Object.fromEntries(
+        ((data ?? []) as Array<{ id: string; oda_number: string }>).map((o) => [o.id, o.oda_number]),
+      ) as Record<string, string>;
     },
   });
 
@@ -168,6 +196,26 @@ export default function FattureRicevutePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
       toast.success("Stato aggiornato");
+    },
+    onError: (e) => toast.error(`Errore: ${e.message}`),
+  });
+
+  // Collega/scollega l'ordine d'acquisto. Lo scollegamento e' reversibile in
+  // un clic, quindi niente conferma; il trigger automatico non riaggancera'
+  // da solo (scatta solo su insert/update degli importi), la scelta resta.
+  const linkOdaMutation = useMutation({
+    mutationFn: async ({ id, odaId }: { id: string; odaId: string | null }) => {
+      const { error } = await supabase
+        .from("fatture_ricevute" as never)
+        .update({ purchase_order_id: odaId, updated_at: new Date().toISOString() } as never)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
+      setCollegaFattura(null);
+      toast.success(v.odaId ? "Fattura collegata all'ordine" : "Fattura scollegata dall'ordine");
     },
     onError: (e) => toast.error(`Errore: ${e.message}`),
   });
@@ -360,6 +408,7 @@ export default function FattureRicevutePage() {
                 <TableHead className="text-right">IVA</TableHead>
                 <TableHead className="text-right">Totale</TableHead>
                 <TableHead>Stato</TableHead>
+                <TableHead>Ordine</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -393,6 +442,41 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   <TableCell>
                     <StatoBadge stato={f.stato} />
+                  </TableCell>
+                  <TableCell>
+                    {f.purchase_order_id ? (
+                      <div className="flex items-center gap-0.5">
+                        <Link
+                          to={`/azienda/ordini-acquisto/${f.purchase_order_id}`}
+                          title="Apri l'ordine d'acquisto"
+                        >
+                          <Badge variant="outline" className="font-mono text-[11px] hover:bg-orange-50 hover:border-orange-300 transition-colors">
+                            {odaNumbers[f.purchase_order_id] ?? "OdA"}
+                          </Badge>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          title="Scollega dall'ordine"
+                          disabled={linkOdaMutation.isPending}
+                          onClick={() => linkOdaMutation.mutate({ id: f.id, odaId: null })}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        title="Collega a un ordine d'acquisto"
+                        onClick={() => setCollegaFattura(f)}
+                      >
+                        <Link2 className="h-3.5 w-3.5 mr-1" />
+                        Collega
+                      </Button>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -507,6 +591,18 @@ export default function FattureRicevutePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Collega ordine Dialog */}
+      <CollegaOrdineFatturaDialog
+        open={!!collegaFattura}
+        onOpenChange={(o) => { if (!o) setCollegaFattura(null); }}
+        companyId={companyId}
+        fattura={collegaFattura}
+        saving={linkOdaMutation.isPending}
+        onScelto={(odaId) => {
+          if (collegaFattura) linkOdaMutation.mutate({ id: collegaFattura.id, odaId });
+        }}
+      />
 
       {/* XML Preview Dialog */}
       <Dialog open={!!xmlPreview} onOpenChange={() => setXmlPreview(null)}>
