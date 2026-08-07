@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/formatters";
 // testo digitato: chi scriveva "1.500" vedeva "1.500" e si portava a casa
 // 1,50 € nel totale, nel PDF e in fattura senza un solo segnale.
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { RegistraIncassoPrimaNota, useIncassiRegistrati } from "./RegistraIncassoPrimaNota";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -639,6 +640,11 @@ interface FinancialSummaryReadOnlyProps {
   /** Se presente, le date incasso/prevista diventano modificabili inline
       (solo rate già su DB, cioè con id). */
   onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
+  /** Con orderId + conPrimaNota, le rate pagate offrono "Registra incasso"
+      in Prima Nota (gate: permesso canViewPrimaNota del chiamante). */
+  orderId?: string;
+  orderCode?: string | null;
+  conPrimaNota?: boolean;
 }
 
 export function FinancialSummaryReadOnly({
@@ -650,7 +656,12 @@ export function FinancialSummaryReadOnly({
   financingCost,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
+  orderId,
+  orderCode,
+  conPrimaNota,
 }: FinancialSummaryReadOnlyProps) {
+  // Una query per tutta la card: quali rate hanno già la loro registrazione.
+  const { data: incassiRegistrati = {} } = useIncassiRegistrati(orderId, !!conPrimaNota);
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
   const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
@@ -776,6 +787,19 @@ export function FinancialSummaryReadOnly({
                 <span className="text-xs text-muted-foreground">Previsto {formatPaymentDate(inst.expected_date)}</span>
               )
             )}
+          </div>
+        )}
+        {/* Rata incassata → un tap e la registrazione nasce in Prima Nota
+            (solo rate su DB: senza id non c'e' aggancio idempotente). */}
+        {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && (
+          <div className="flex justify-end">
+            <RegistraIncassoPrimaNota
+              inst={inst}
+              amount={amount}
+              orderId={orderId}
+              orderCode={orderCode}
+              entryId={incassiRegistrati[inst.id]}
+            />
           </div>
         )}
       </div>

@@ -1468,6 +1468,8 @@ function OrderDetailInner() {
                 collectedAmount={collectedAmount}
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
+                orderCode={order.order_code}
+                conPrimaNota={permissions.canViewPrimaNota}
               />
               )}
               {/* Fatturazione e documenti */}
@@ -2021,6 +2023,8 @@ function OrderDetailInner() {
                 collectedAmount={collectedAmount}
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
+                orderCode={order.order_code}
+                conPrimaNota={permissions.canViewPrimaNota}
               />
               )}
             </div>

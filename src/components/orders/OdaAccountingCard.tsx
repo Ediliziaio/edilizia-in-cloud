@@ -67,23 +67,73 @@ export function OdaAccountingCard({
 
   // Il pagamento si registra da qui invece che andando a cercare il costo in
   // un'altra pagina: e' il gesto che chiude il cerchio ordine → merce →
-  // fattura → soldi usciti. Tesoreria e previsionale leggono is_paid.
+  // fattura → soldi usciti. Il pagamento E' l'uscita dalla banca, quindi
+  // insieme a is_paid nasce anche la registrazione in Prima Nota — la stessa
+  // scrittura (auto_source company_cost_payment) che farebbe la pagina Costi,
+  // cosi' i due percorsi restano indistinguibili in contabilita'.
   const segnaPagato = useMutation({
     mutationFn: async () => {
       const oggi = new Date().toLocaleDateString("en-CA");
-      const { error, count } = await (supabase as any)
+      const { data: pagati, error } = await (supabase as any)
         .from("company_costs")
-        .update({ is_paid: true, paid_date: oggi }, { count: "exact" })
+        .update({ is_paid: true, paid_date: oggi })
         .eq("purchase_order_id", odaId)
-        .eq("is_paid", false);
+        .eq("is_paid", false)
+        .select("id, name, amount, company_id, payment_method");
       if (error) throw error;
-      return count ?? 0;
+      const rows = (pagati ?? []) as Array<{
+        id: string; name: string | null; amount: number | string;
+        company_id: string; payment_method: string | null;
+      }>;
+
+      // Uscita in Prima Nota, saltando i costi che ce l'hanno gia' (un costo
+      // ri-pagato dopo un "non pagato" non deve raddoppiare l'uscita). Se la
+      // scrittura contabile fallisce il pagamento resta valido: si avvisa,
+      // non si annulla.
+      let erroreContabile: string | null = null;
+      if (rows.length > 0) {
+        const { data: esistenti } = await (supabase as any)
+          .from("prima_nota_entries")
+          .select("cost_id")
+          .in("cost_id", rows.map((r) => r.id))
+          .eq("auto_source", "company_cost_payment");
+        const gia = new Set(((esistenti ?? []) as Array<{ cost_id: string }>).map((e) => e.cost_id));
+        const daScrivere = rows.filter((r) => !gia.has(r.id));
+        if (daScrivere.length > 0) {
+          const { error: ePn } = await (supabase as any).from("prima_nota_entries").insert(
+            daScrivere.map((r) => ({
+              company_id: r.company_id,
+              direction: "uscita",
+              amount: Number(r.amount || 0),
+              description: `Pagamento: ${r.name ?? "fornitura"}`,
+              entry_date: oggi,
+              category: "Costi Aziendali",
+              cost_id: r.id,
+              is_auto: true,
+              auto_source: "company_cost_payment",
+              ...(r.payment_method ? { payment_method: r.payment_method } : {}),
+            })),
+          );
+          if (ePn) erroreContabile = ePn.message ?? String(ePn);
+        }
+      }
+      return { n: rows.length, erroreContabile };
     },
-    onSuccess: (n) => {
-      toast.success(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
-        description: "La cassa e la tesoreria ora lo vedono come uscito.",
-      });
+    onSuccess: ({ n, erroreContabile }) => {
+      if (erroreContabile) {
+        toast.warning(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
+          description: `L'uscita in Prima Nota però non è stata scritta: ${erroreContabile}`,
+        });
+      } else {
+        toast.success(n === 1 ? "Pagamento registrato" : `${n} pagamenti registrati`, {
+          description: "Uscita in Prima Nota creata: cassa, tesoreria e contabilità vedono la stessa cosa.",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita", odaId] });
+      // Due prefissi: le liste/saldo usano "prima-nota", il grafico 6 mesi
+      // usa "primaNota" (incoerenza storica del codebase).
+      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
+      queryClient.invalidateQueries({ queryKey: ["primaNota"] });
     },
     onError: (e) => toast.error("Pagamento non registrato", { description: String(e) }),
   });

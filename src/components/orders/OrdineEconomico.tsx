@@ -13,6 +13,10 @@ interface OrdineEconomicoProps {
   collectedAmount: number;
   onInstallmentPaidToggle: (installment: Installment, paid: boolean) => void;
   onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
+  /** Codice commessa per la descrizione della registrazione in Prima Nota. */
+  orderCode?: string | null;
+  /** true se chi guarda ha il permesso Prima Nota: abilita "Registra incasso". */
+  conPrimaNota?: boolean;
 }
 
 // NB: niente card "Conto Economico" qui — il conto economico completo
@@ -29,6 +33,8 @@ export function OrdineEconomico({
   collectedAmount,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
+  orderCode,
+  conPrimaNota,
 }: OrdineEconomicoProps) {
   return (
     <div className="space-y-4">
@@ -41,6 +47,9 @@ export function OrdineEconomico({
         financingCost={financingCost}
         onInstallmentPaidToggle={onInstallmentPaidToggle}
         onInstallmentDateChange={onInstallmentDateChange}
+        orderId={orderId}
+        orderCode={orderCode}
+        conPrimaNota={conPrimaNota}
       />
       <OrderCommissions
         orderId={orderId}
