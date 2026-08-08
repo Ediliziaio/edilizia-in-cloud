@@ -315,8 +315,20 @@ Deno.serve(async (req) => {
       sal_voci: Array.isArray(sal.sal_voci) ? sal.sal_voci : [],
     };
 
-    // Genera token di firma digitale per il committente (valido 7 giorni)
-    const { data: signToken } = await supabase
+    // Token di firma per il committente: RIUSA quello ancora valido e non
+    // firmato — prima ogni export ne inseriva uno nuovo, lasciando righe
+    // orfane a ogni click e invalidando di fatto i PDF già inviati.
+    const { data: tokenEsistente } = await supabase
+      .from("sal_signature_tokens")
+      .select("token")
+      .eq("sal_id", sal_id)
+      .is("signed_at", null)
+      .gte("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const signToken = tokenEsistente ?? (await supabase
       .from("sal_signature_tokens")
       .insert({
         sal_id,
@@ -325,7 +337,7 @@ Deno.serve(async (req) => {
         expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
       })
       .select("token")
-      .single();
+      .single()).data;
 
     // Branding dinamico
     const branding = await getBrandingForCompany(supabase, company_id);
