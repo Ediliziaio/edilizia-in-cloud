@@ -105,6 +105,16 @@ window.addEventListener("vite:preloadError", () => {
   window.location.replace(url.toString());
 });
 
+// Se questa pagina E' un recovery riuscito, togli subito il parametro dalla
+// barra: senza questa pulizia il ?__recovery=<timestamp> restava nell'URL,
+// veniva copiato/condiviso e scansionato da Google — GSC ne contava decine
+// come duplicati ("Pagina alternativa con tag canonical appropriato").
+if (window.location.search.includes("__recovery=")) {
+  const pulito = new URL(window.location.href);
+  pulito.searchParams.delete("__recovery");
+  window.history.replaceState(window.history.state, "", pulito.toString());
+}
+
 // Meta Ads attribution: idempotente, no-op se fbclid assente.
 // Va PRIMA del render perché il fbclid arriva da URL al primo paint.
 initFacebookClickTracker();

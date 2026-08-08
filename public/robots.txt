@@ -46,6 +46,10 @@ Disallow: /blog/?q=
 # automaticamente da Cloudflare al posto delle email) risponde 404 se seguito
 # dai crawler → fix GSC "Non trovata (404)".
 Disallow: /cdn-cgi/
+# Recovery da chunk error (main.tsx): dopo un deploy i bot con HTML vecchio
+# ricaricano con ?__recovery=<timestamp> — URL infiniti, tutti duplicati
+# (fix GSC "Pagina alternativa con tag canonical appropriato").
+Disallow: /*__recovery=
 
 # ── AI / Search Crawlers ─────────────────────────────────────────
 # Tutti i crawler AI sono ammessi per search e RAG (non per training).
@@ -58,6 +62,7 @@ Allow: /
 Disallow: /blog?q=
 Disallow: /blog/?q=
 Disallow: /cdn-cgi/
+Disallow: /*__recovery=
 
 User-agent: GPTBot
 Allow: /

@@ -2329,6 +2329,105 @@ const ROUTES = {
   },
 };
 
+// ── Hub /funzionalita: directory COMPLETA di funzionalità e mestieri ───────
+// GSC (05/08/26): la sitemap dichiara 58 pagine funzionalità e 15 /per/*, ma
+// l'hub sintetico servito ai bot ne linkava SEI. Le altre erano orfane
+// nell'architettura — Google le scopriva solo dalla sitemap, le scansionava e
+// le lasciava fuori indice ("Scansionata, ma attualmente non indicizzata":
+// ordini-acquisto, ritenute-garanzia, render-tetti, finanziamenti-cantieri,
+// medie/grandi-imprese...). Una pagina che nessuna pagina linka, per Google,
+// non conta. L'elenco sotto è la fonte: l'hub linka TUTTO, con anchor
+// parlanti. Aggiungi qui la riga quando nasce una funzionalità nuova.
+const FUNZIONALITA_DIRECTORY = [
+  ["agenti-ai", "Agenti AI per l'impresa edile"],
+  ["app-cantiere-mobile", "App cantiere mobile"],
+  ["automazioni", "Automazioni di lavoro"],
+  ["calendario-lavori", "Calendario lavori e cronoprogramma"],
+  ["cassa-cantiere", "Cassa di cantiere"],
+  ["cassetto-sdi", "Cassetto SDI"],
+  ["cedolini-paga", "Cedolini paga"],
+  ["chat-interna", "Chat interna di squadra"],
+  ["computo-metrico", "Computo metrico"],
+  ["conserva-digitale", "Conservazione digitale a norma"],
+  ["contabilita-fiscale", "Contabilità fiscale"],
+  ["contabilita-lavori", "Contabilità lavori"],
+  ["crm-edilizia", "CRM per l'edilizia"],
+  ["cruscotto-aziendale", "Cruscotto aziendale"],
+  ["ddt-digitali", "DDT digitali"],
+  ["direzione-lavori", "Direzione lavori"],
+  ["email-marketing", "Email marketing"],
+  ["fatturazione-elettronica", "Fatturazione elettronica SDI"],
+  ["ferie-permessi", "Ferie e permessi"],
+  ["finanziamenti-cantieri", "Finanziamenti per cantieri"],
+  ["firma-elettronica", "Firma elettronica"],
+  ["foto-cantiere", "Foto di cantiere geolocalizzate"],
+  ["fotovoltaico", "Impianti fotovoltaici"],
+  ["gestione-cantieri", "Gestione cantieri"],
+  ["gestione-commesse", "Gestione commesse"],
+  ["gestione-subappalti", "Gestione subappalti e DURC"],
+  ["giornale-lavori", "Giornale dei lavori"],
+  ["hr-personale", "HR e personale"],
+  ["lead-form-facebook", "Lead form Facebook"],
+  ["magazzino-cantiere", "Magazzino di cantiere"],
+  ["manutenzione-impianti", "Manutenzione impianti"],
+  ["margini-cantiere", "Controllo margini di cantiere"],
+  ["mezzi-attrezzature", "Mezzi e attrezzature"],
+  ["ordini-acquisto", "Ordini d'acquisto fornitori"],
+  ["pipeline-vendite", "Pipeline vendite"],
+  ["portale-clienti", "Portale clienti"],
+  ["preventivi-edilizia", "Preventivi per l'edilizia"],
+  ["prima-nota", "Prima nota"],
+  ["quote-builder-ai", "Preventivi con AI (Quote Builder)"],
+  ["rapportini-cantiere", "Rapportini di cantiere"],
+  ["registro-iva", "Registro IVA"],
+  ["render-bagni", "Render AI bagni"],
+  ["render-infissi", "Render AI infissi"],
+  ["render-pavimenti", "Render AI pavimenti"],
+  ["render-piscine", "Render AI piscine"],
+  ["render-ristrutturazioni", "Render AI ristrutturazioni"],
+  ["render-stanza", "Render AI stanze"],
+  ["render-tetti", "Render AI tetti"],
+  ["report-fatturazione", "Report di fatturazione"],
+  ["ritenute-garanzia", "Ritenute di garanzia"],
+  ["scadenzario", "Scadenzario"],
+  ["sicurezza-cantiere", "Sicurezza cantiere"],
+  ["sms-marketing", "SMS marketing"],
+  ["tesoreria", "Tesoreria"],
+  ["ticket-assistenza", "Ticket di assistenza"],
+  ["timbrature-gps", "Timbrature GPS"],
+  ["whatsapp-marketing", "WhatsApp marketing"],
+];
+
+const PER_DIRECTORY = [
+  ["imprese-edili", "Imprese edili"],
+  ["ristrutturatori", "Imprese di ristrutturazione"],
+  ["impiantisti", "Impiantisti"],
+  ["installatori", "Installatori"],
+  ["fotovoltaico", "Installatori fotovoltaico"],
+  ["serramentisti", "Serramentisti"],
+  ["muratori", "Muratori"],
+  ["cartongessisti", "Cartongessisti"],
+  ["carpenteria-metallica", "Carpenteria metallica"],
+  ["movimento-terra", "Movimento terra"],
+  ["geometri", "Geometri"],
+  ["commercialista-edilizia", "Commercialisti dell'edilizia"],
+  ["piccole-imprese", "Piccole imprese"],
+  ["medie-imprese", "Medie imprese"],
+  ["grandi-imprese", "Grandi imprese"],
+];
+
+ROUTES["/funzionalita"].extra += `
+    <h2>Tutte le funzionalità del gestionale, una per una</h2>
+    <p>Ogni funzionalità ha la sua pagina di approfondimento, con casi d'uso reali e domande frequenti:</p>
+    <ul>
+${FUNZIONALITA_DIRECTORY.map(([slug, label]) => `      <li><a href="/funzionalita/${slug}/">${label}</a></li>`).join("\n")}
+    </ul>
+    <h2>Il gestionale per ogni mestiere dell'edilizia</h2>
+    <p>Percorsi dedicati al lavoro reale di ogni tipo di impresa:</p>
+    <ul>
+${PER_DIRECTORY.map(([slug, label]) => `      <li><a href="/per/${slug}/">${label}</a></li>`).join("\n")}
+    </ul>`;
+
 // City-specific routes (dynamic)
 const CITY_CONFIGS = {
   milano: {
