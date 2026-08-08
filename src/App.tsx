@@ -168,6 +168,7 @@ const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
+const FirmaSal = lazy(() => import("@/pages/public/FirmaSal"));
 const SerramentiStimaPubblica = lazy(() => import("@/pages/public/SerramentiStimaPubblica"));
 const TalentProfilePublic = lazy(() => import("@/pages/public/TalentProfilePublic"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
@@ -446,7 +447,7 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
   /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile)(\/|$)/;
@@ -723,6 +724,9 @@ const App = () => (
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/firma-fea/:token" element={<FirmaDocumento />} />
+              {/* Firma committente del verbale SAL: il PDF linkava già qui,
+                  ma la rotta non esisteva — 404 per il cliente. */}
+              <Route path="/firma-sal/:token" element={<FirmaSal />} />
               <Route path="/talent-profile/:token" element={<TalentProfilePublic />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />

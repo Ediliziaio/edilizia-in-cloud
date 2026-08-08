@@ -436,14 +436,18 @@ function OrderDetailInner() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("order_work_phases")
-        .select("status")
+        .select("status, percentuale")
         .eq("order_id", id);
       if (error) throw error;
-      const rows = (data ?? []) as { status: string }[];
+      const rows = (data ?? []) as { status: string; percentuale: number | null }[];
+      // Completata = status O percentuale al 100: prima testata e semaforo
+      // misuravano due cose diverse (10 fasi al 90% = "0/10 completate").
+      const completata = (p: { status: string; percentuale: number | null }) =>
+        p.status === "completata" || Number(p.percentuale) >= 100;
       return {
         total: rows.length,
-        done: rows.filter((p) => p.status === "completata").length,
-        inCorso: rows.filter((p) => p.status === "in_corso").length,
+        done: rows.filter(completata).length,
+        inCorso: rows.filter((p) => !completata(p) && (p.status === "in_corso" || Number(p.percentuale) > 0)).length,
       };
     },
     enabled: !!id,

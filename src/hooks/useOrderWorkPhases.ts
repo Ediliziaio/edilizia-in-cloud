@@ -416,7 +416,10 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   const updatePhase = useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<WorkPhase, "name" | "status" | "start_date" | "end_date" | "notes" | "position">>) => {
+    // "percentuale" è correggibile dall'ufficio: prima l'avanzamento poteva
+    // solo salire dai rapportini (Math.max) e un 100 digitato per errore
+    // restava per sempre — l'unico rimedio era SQL diretto.
+    mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<WorkPhase, "name" | "status" | "start_date" | "end_date" | "notes" | "position" | "percentuale">>) => {
       const { error } = await db
         .from("order_work_phases")
         .update({ ...patch, updated_at: new Date().toISOString() })

@@ -600,9 +600,24 @@ export default function SubappaltatoreDetail() {
     stato: 'ricevuto' as StatoSALSub,
   });
 
+  // DURC bloccante: senza documento valido niente nuovi SAL e niente
+  // pagamenti. Gli alert c'erano già ma erano solo grafica — e il sito
+  // promette il "blocco automatico con DURC non valido".
+  const durcBloccante = (): string | null => {
+    const scad = sub?.durc_scadenza ?? null;
+    if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
+    const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+    if (new Date(scad) < oggi) {
+      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: rinnovalo prima di procedere.`;
+    }
+    return null;
+  };
+
   const saveSalMutation = useMutation({
     mutationFn: async () => {
       if (!contratto?.id) throw new Error('Contratto non trovato');
+      const bloccoDurc = durcBloccante();
+      if (bloccoDurc) throw new Error(bloccoDurc);
       const importoLordo = parseFloat(salForm.importo_lordo) || 0;
       const ritenutaPct = parseFloat(salForm.ritenuta_pct) || 5;
       const importoRitenuta = Math.round(importoLordo * ritenutaPct) / 100;
@@ -714,6 +729,8 @@ export default function SubappaltatoreDetail() {
   const registraPagamentoMutation = useMutation({
     mutationFn: async () => {
       if (!paymentSAL) throw new Error('SAL non selezionato');
+      const bloccoDurc = durcBloccante();
+      if (bloccoDurc) throw new Error(bloccoDurc);
       const { error } = await (supabase as any)
         .from('sal_subappaltatori')
         .update({

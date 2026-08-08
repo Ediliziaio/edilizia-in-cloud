@@ -367,47 +367,10 @@ export default function CampoRapportino() {
 
       if (error) throw error;
 
-      // ── Avanzamento fasi dichiarate: GREATEST(attuale, dichiarata) ──
-      // Mai regredire; rilettura fresca dal DB (la cache può essere stantia).
-      // Errori: console.warn, non bloccano mai l'invio del rapportino.
-      if (fasiLavorate.length > 0) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const db = supabase as any;
-          const { data: fresche, error: frescheErr } = await db
-            .from("order_work_phases")
-            .select("id, status, percentuale")
-            .in("id", fasiLavorate.map(f => f.phase_id));
-          if (frescheErr) throw frescheErr;
-          const byId = new Map(
-            ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
-              .map(f => [f.id, f]),
-          );
-
-          for (const dich of fasiLavorate) {
-            try {
-              const attuale = byId.get(dich.phase_id);
-              const nuova = Math.max(Number(attuale?.percentuale) || 0, dich.percentuale);
-              const patch: Record<string, unknown> = {
-                percentuale: nuova,
-                updated_at: new Date().toISOString(),
-              };
-              // Status: completata a 100, in_corso se >0 — mai in regressione
-              if (nuova >= 100) patch.status = "completata";
-              else if (nuova > 0 && attuale?.status !== "completata") patch.status = "in_corso";
-              const { error: faseErr } = await db
-                .from("order_work_phases")
-                .update(patch)
-                .eq("id", dich.phase_id);
-              if (faseErr) throw faseErr;
-            } catch (err) {
-              console.warn("[CampoRapportino] aggiornamento fase non riuscito:", err);
-            }
-          }
-        } catch (err) {
-          console.warn("[CampoRapportino] aggiornamento fasi non riuscito:", err);
-        }
-      }
+      // Le fasi dichiarate NON si applicano qui: l'avanzamento si muove
+      // all'APPROVAZIONE del rapportino (OrdineRapportiniCampo). Prima si
+      // applicava all'invio e l'approvazione era decorativa: un rapportino
+      // rifiutato lasciava la fase gonfiata per sempre.
 
       if (inserted?.id) {
         const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";

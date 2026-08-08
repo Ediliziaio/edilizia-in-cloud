@@ -467,6 +467,7 @@ interface PhaseCardProps {
     status?: PhaseStatus;
     start_date?: string | null;
     end_date?: string | null;
+    percentuale?: number;
   }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
@@ -642,9 +643,30 @@ function PhaseCard({
                       style={{ width: `${Math.min(100, Math.max(0, actualPct))}%` }}
                     />
                   </span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {/* Correzione dall'ufficio: click sulla % → input. Serve
+                      quando un rapportino approvato ha dichiarato una %
+                      sbagliata (prima non c'era rimedio se non SQL). */}
+                  <button
+                    type="button"
+                    className="rounded px-0.5 text-[11px] tabular-nums text-muted-foreground underline-offset-2 hover:underline"
+                    title="Correggi l'avanzamento della fase"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const risposta = window.prompt(
+                        `Avanzamento di "${phase.name}" (0-100):`,
+                        String(actualPct),
+                      );
+                      if (risposta === null) return;
+                      const val = Math.min(100, Math.max(0, Math.round(Number(risposta.replace(",", ".")))));
+                      if (Number.isNaN(val)) return;
+                      onUpdatePhase({
+                        percentuale: val,
+                        status: val >= 100 ? "completata" : val > 0 ? "in_corso" : "da_iniziare",
+                      });
+                    }}
+                  >
                     {actualPct}%
-                  </span>
+                  </button>
                   {inRitardo && (
                     <span className="text-[11px] font-medium text-rose-600">
                       atteso {Math.round(Number(health.expected_pct))}%

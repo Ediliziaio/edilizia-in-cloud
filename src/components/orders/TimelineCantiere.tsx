@@ -205,7 +205,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
         .from('sal_records')
         .select('id, numero_sal, importo_totale, data_emissione, stato')
         .eq('order_id', orderId)
-        .in('stato', ['emesso', 'approvato', 'pagato'])
+        .in('stato', ['emesso', 'approvato', 'firmato'])
         .order('data_emissione', { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -288,7 +288,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       date: s.data_emissione,
       title: `SAL #${s.numero_sal} — €${Number(s.importo_totale).toLocaleString('it-IT')}`,
       badge: s.stato as string | undefined,
-      badgeColor: s.stato === 'pagato' ? '#16A34A' : '#CA8A04',
+      badgeColor: s.stato === 'firmato' ? '#16A34A' : '#CA8A04',
       amount: s.importo_totale,
     })),
     ...varianti

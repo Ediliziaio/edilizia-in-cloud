@@ -31,9 +31,11 @@ interface SalRecord {
   id: string;
   numero_sal: number;
   data_emissione: string;
-  stato: "bozza" | "emesso" | "approvato";
+  stato: "bozza" | "emesso" | "approvato" | "firmato";
   importo_totale: number;
   note: string | null;
+  /** Rata del piano pagamenti che questo verbale certifica (SAL = rata). */
+  installment_id: string | null;
   sal_voci: SalVoce[];
 }
 
@@ -41,12 +43,14 @@ const STATO_LABELS: Record<string, string> = {
   bozza: "Bozza",
   emesso: "Emesso",
   approvato: "Approvato",
+  firmato: "Firmato dal cliente",
 };
 
 const STATO_COLORS: Record<string, string> = {
   bozza: "secondary",
   emesso: "default",
   approvato: "outline",
+  firmato: "default",
 };
 
 function fmtDate(d: string): string {
@@ -86,6 +90,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const [dialogOpen, setDialogOpen] = useState(false);
   const [note, setNote] = useState("");
   const [stato, setStato] = useState<"bozza" | "emesso" | "approvato">("bozza");
+  // Il modello: le rate nascono dal contratto, ogni SAL certifica la sua rata.
+  const [rataCollegata, setRataCollegata] = useState<string>("");
   const [voci, setVoci] = useState<VoceForm[]>([emptyVoce()]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
@@ -168,6 +174,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           stato,
           importo_totale: Math.round(importoTotale * 100) / 100,
           note: note.trim() || null,
+          installment_id: rataCollegata || null,
         })
         .select()
         .single();
@@ -198,6 +205,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       setDialogOpen(false);
       setNote("");
       setStato("bozza");
+      setRataCollegata("");
       setVoci([emptyVoce()]);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -346,7 +354,29 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <div className="space-y-1.5">
               {recapRows.map(({ inst, amount, scaduta }) => (
                 <div key={inst.position} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground truncate">{inst.label}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="text-muted-foreground truncate">{inst.label}</span>
+                    {(() => {
+                      // Il verbale collegato alla rata: quando è firmato dal
+                      // cliente la rata è MATURATA — via libera alla fattura.
+                      const salRata = inst.id ? salList.find((sr) => sr.installment_id === inst.id) : undefined;
+                      if (!salRata) return null;
+                      return (
+                        <span
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            salRata.stato === "firmato"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                              : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
+                          }`}
+                          title={`Verbale SAL n. ${salRata.numero_sal} — ${STATO_LABELS[salRata.stato]}`}
+                        >
+                          <FileBarChart2 className="h-3 w-3" aria-hidden="true" />
+                          SAL {salRata.numero_sal}
+                          {salRata.stato === "firmato" ? " · maturata" : ""}
+                        </span>
+                      );
+                    })()}
+                  </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="font-medium">{formatCurrency(amount)}</span>
                     {inst.is_paid ? (
@@ -521,6 +551,43 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 ))}
               </div>
             </div>
+
+            {/* Rata certificata: il piano rate nasce dagli importi del
+                contratto, e ogni verbale SAL matura la sua rata. Facoltativo
+                per non bloccare chi usa i SAL come soli documenti. */}
+            {(installments ?? []).length > 0 && (
+              <div className="space-y-2">
+                <Label>Rata certificata da questo verbale</Label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRataCollegata("")}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                      rataCollegata === ""
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    Nessuna
+                  </button>
+                  {recapRows.map(({ inst, amount }) => (
+                    <button
+                      key={inst.position}
+                      type="button"
+                      disabled={!inst.id}
+                      onClick={() => inst.id && setRataCollegata(inst.id)}
+                      className={`px-3 py-1.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
+                        rataCollegata === inst.id
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {inst.label} · {formatCurrency(amount)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Voci */}
             <div className="space-y-3">

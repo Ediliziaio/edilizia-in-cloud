@@ -96,10 +96,55 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
         })
         .eq("id", rapportinoId);
       if (error) throw error;
+
+      // È QUI che l'avanzamento fasi si applica: le % dichiarate dall'operaio
+      // valgono solo quando l'ufficio approva. GREATEST(attuale, dichiarata)
+      // su lettura fresca; un fallimento qui non annulla l'approvazione ma
+      // viene detto, non nascosto.
+      let erroreFasi: string | null = null;
+      try {
+        const { data: rapp } = await supabase
+          .from("campo_rapportini")
+          .select("fasi_lavorate")
+          .eq("id", rapportinoId)
+          .single();
+        const fasi = (rapp?.fasi_lavorate ?? []) as Array<{ phase_id: string; percentuale: number }>;
+        if (fasi.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = supabase as any;
+          const { data: fresche, error: frescheErr } = await db
+            .from("order_work_phases")
+            .select("id, status, percentuale")
+            .in("id", fasi.map((f) => f.phase_id));
+          if (frescheErr) throw frescheErr;
+          const byId = new Map(
+            ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
+              .map((f) => [f.id, f]),
+          );
+          for (const dich of fasi) {
+            const attuale = byId.get(dich.phase_id);
+            if (!attuale) continue;
+            const nuova = Math.max(Number(attuale.percentuale) || 0, Number(dich.percentuale) || 0);
+            const patch: Record<string, unknown> = { percentuale: nuova, updated_at: new Date().toISOString() };
+            if (nuova >= 100) patch.status = "completata";
+            else if (nuova > 0 && attuale.status !== "completata") patch.status = "in_corso";
+            const { error: faseErr } = await db.from("order_work_phases").update(patch).eq("id", dich.phase_id);
+            if (faseErr) throw faseErr;
+          }
+        }
+      } catch (e) {
+        erroreFasi = e instanceof Error ? e.message : String(e);
+      }
+      return { erroreFasi };
     },
-    onSuccess: () => {
+    onSuccess: ({ erroreFasi }) => {
       toast.success("Rapportino approvato");
+      if (erroreFasi) {
+        toast.error("Approvato, ma l'avanzamento fasi non è stato aggiornato", { description: erroreFasi });
+      }
       qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
+      qc.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
     },
     onError: () => toast.error("Errore durante l'approvazione"),
   });

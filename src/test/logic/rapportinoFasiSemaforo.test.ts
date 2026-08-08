@@ -26,12 +26,20 @@ describe("Fasi lavorate — rapportino mobile (CampoRapportino)", () => {
     expect(src).toContain('from("order_work_phases")');
   });
 
-  it("non regredisce mai l'avanzamento fase (max attuale/dichiarata) e non blocca su errore", () => {
-    const src = readFileSync(CAMPO_RAPPORTINO, "utf8");
-    expect(src).toContain("Math.max(Number(attuale?.percentuale) || 0, dich.percentuale)");
-    expect(src).toContain('"completata"');
-    expect(src).toContain('"in_corso"');
-    expect(src).toContain("console.warn");
+  it("l'avanzamento fase si applica all'APPROVAZIONE, non all'invio", () => {
+    // Design cambiato (08/08): prima la % si muoveva all'invio del rapportino
+    // e l'approvazione era decorativa — un rifiuto lasciava la fase gonfiata.
+    // Ora CampoRapportino NON tocca le fasi; le applica OrdineRapportiniCampo
+    // quando l'ufficio approva, con GREATEST(attuale, dichiarata).
+    const campo = readFileSync(CAMPO_RAPPORTINO, "utf8");
+    expect(campo).not.toContain("Math.max(Number(attuale?.percentuale)");
+    const approvazione = readFileSync(
+      "src/components/orders/OrdineRapportiniCampo.tsx",
+      "utf8",
+    );
+    expect(approvazione).toContain("Math.max(Number(attuale.percentuale) || 0, Number(dich.percentuale) || 0)");
+    expect(approvazione).toContain('"completata"');
+    expect(approvazione).toContain('"in_corso"');
   });
 });
 
