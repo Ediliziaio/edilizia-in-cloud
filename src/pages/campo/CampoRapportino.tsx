@@ -152,18 +152,24 @@ export default function CampoRapportino() {
     queryKey: ["campo-ruolo", orderId, user?.id],
     enabled: !!orderId && !!user?.id && !!companyId,
     staleTime: 300_000,
-    queryFn: async (): Promise<{ isCapocantiere: boolean }> => {
+    queryFn: async (): Promise<{ isCapocantiere: boolean; esisteCapo: boolean }> => {
       const { data } = await supabase
         .from("order_campo_assignments")
-        .select("is_capocantiere")
+        .select("user_id, is_capocantiere")
         .eq("order_id", orderId!)
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId!)
-        .maybeSingle();
-      return { isCapocantiere: !!(data as { is_capocantiere?: boolean } | null)?.is_capocantiere };
+        .eq("company_id", companyId!);
+      const righe = (data ?? []) as Array<{ user_id: string; is_capocantiere: boolean | null }>;
+      return {
+        isCapocantiere: righe.some(r => r.user_id === user!.id && !!r.is_capocantiere),
+        esisteCapo: righe.some(r => !!r.is_capocantiere),
+      };
     },
   });
   const isCapocantiere = ruoloCampo?.isCapocantiere ?? false;
+  // FALLBACK di adozione: finché la commessa non ha un capocantiere nominato
+  // vale il comportamento storico (chiunque dichiara le %) — le commesse
+  // esistenti non si bloccano; il rigore scatta con la nomina.
+  const puoDichiararePercentuali = isCapocantiere || !(ruoloCampo?.esisteCapo ?? false);
 
   // ── Squadra del giorno ────────────────────────────────────────────────
   // Il flusso reale: il rapportino lo fa UNO (capocantiere), e dentro c'è
@@ -183,19 +189,24 @@ export default function CampoRapportino() {
     queryFn: async (): Promise<MembroSquadra[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const [empRes, subRes] = await Promise.all([
+      const [empRes, subRes, campoRes] = await Promise.all([
         db.from("order_employees")
-          .select("employee_id, employees(id, first_name, last_name)")
+          .select("employee_id, employees(id, first_name, last_name, user_id)")
           .eq("order_id", orderId),
         db.from("subappaltatori_sicurezza")
           .select("id, ragione_sociale")
           .eq("order_id", orderId),
+        db.from("order_campo_assignments")
+          .select("user_id, profiles(first_name, last_name)")
+          .eq("order_id", orderId),
       ]);
       const visti = new Set<string>();
+      const utentiDipendenti = new Set<string>();
       const membri: MembroSquadra[] = [];
-      for (const r of (empRes.data ?? []) as Array<{ employee_id: string; employees: { id: string; first_name: string; last_name: string } | null }>) {
+      for (const r of (empRes.data ?? []) as Array<{ employee_id: string; employees: { id: string; first_name: string; last_name: string; user_id: string | null } | null }>) {
         if (!r.employees || visti.has(r.employee_id)) continue;
         visti.add(r.employee_id);
+        if (r.employees.user_id) utentiDipendenti.add(r.employees.user_id);
         membri.push({
           key: `emp-${r.employee_id}`,
           employee_id: r.employee_id,
@@ -204,6 +215,15 @@ export default function CampoRapportino() {
       }
       for (const sub of (subRes.data ?? []) as Array<{ id: string; ragione_sociale: string }>) {
         membri.push({ key: `sub-${sub.id}`, subappaltatore_id: sub.id, nome: sub.ragione_sociale });
+      }
+      // Assegnati al cantiere senza scheda dipendente: presenza registrabile
+      // (senza costo orario finché la scheda non c'è) — meglio vederli che
+      // fingere che non fossero in cantiere.
+      for (const r of (campoRes.data ?? []) as Array<{ user_id: string; profiles: { first_name: string | null; last_name: string | null } | null }>) {
+        if (utentiDipendenti.has(r.user_id)) continue;
+        const nome = `${r.profiles?.first_name ?? ""} ${r.profiles?.last_name ?? ""}`.trim();
+        if (!nome) continue;
+        membri.push({ key: `usr-${r.user_id}`, nome });
       }
       return membri;
     },
@@ -818,7 +838,7 @@ export default function CampoRapportino() {
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">Su cosa hai lavorato oggi?</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {isCapocantiere
+                  {puoDichiararePercentuali
                     ? "Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)"
                     : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere."}
                 </p>
@@ -842,7 +862,7 @@ export default function CampoRapportino() {
                   })}
                 </div>
 
-                {isCapocantiere && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
+                {puoDichiararePercentuali && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
                   <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
                     <div className="mb-1 flex items-center justify-between">
                       <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>

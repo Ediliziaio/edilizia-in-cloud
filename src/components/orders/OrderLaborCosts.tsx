@@ -265,7 +265,11 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
               )}
             </div>
           ) : (
-            <p className="text-xs text-amber-600/70 mt-1">Nessun capocantiere assegnato</p>
+            <p className="text-xs text-amber-600/70 mt-1">
+              Nessun capocantiere: nominalo per attivare il diario di squadra —
+              un solo rapportino al giorno con presenze, ore di tutti e
+              avanzamento fasi. Può essere anche un subappaltatore.
+            </p>
           )}
         </div>
 
