@@ -57,6 +57,10 @@ export function OdaAccountingCard({
           .select("id, numero_fattura, data_fattura, totale_documento, stato")
           .eq("purchase_order_id", odaId),
       ]);
+      // Un errore di lettura NON deve diventare "nessun costo registrato":
+      // la card affermerebbe con sicurezza il contrario del vero.
+      if (costiRes.error) throw costiRes.error;
+      if (fattureRes.error) throw fattureRes.error;
       return {
         costi: (costiRes.data ?? []) as Costo[],
         fatture: (fattureRes.data ?? []) as Fattura[],

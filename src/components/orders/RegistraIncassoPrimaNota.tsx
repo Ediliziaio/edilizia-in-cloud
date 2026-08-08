@@ -56,7 +56,7 @@ interface Props {
 }
 
 export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, entryId }: Props) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
 
   const registra = useMutation({
@@ -75,7 +75,7 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
         account_label: "banca",
         is_auto: false,
         auto_source: "order_installment",
-        created_by: (await supabase.auth.getUser()).data.user?.id,
+        created_by: user?.id,
       });
       if (error) throw error;
     },

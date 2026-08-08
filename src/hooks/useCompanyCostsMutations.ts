@@ -370,16 +370,78 @@ export function useCompanyCostsMutations({
     },
   });
 
+  // Scrive le uscite in Prima Nota per i costi appena pagati, saltando quelli
+  // che ce l'hanno già (un costo ri-pagato dopo un "non pagato" non deve
+  // raddoppiare l'uscita). Stesso pattern di OdaAccountingCard: se la
+  // scrittura contabile fallisce il pagamento resta valido — si avvisa, non
+  // si annulla.
+  const scriviUscitePrimaNota = async (ids: string[], dataPagamento: string): Promise<string | null> => {
+    const { data: costi, error: eCosti } = await supabase
+      .from("company_costs")
+      .select("id, name, amount, company_id, payment_method")
+      .in("id", ids);
+    if (eCosti || !costi?.length) return eCosti ? eCosti.message : null;
+
+    const { data: esistenti, error: eEsistenti } = await supabase
+      .from("prima_nota_entries")
+      .select("cost_id")
+      .in("cost_id", ids)
+      .eq("auto_source", "company_cost_payment");
+    if (eEsistenti) return eEsistenti.message;
+
+    const gia = new Set((esistenti ?? []).map((e) => e.cost_id));
+    const daScrivere = costi.filter((c) => !gia.has(c.id));
+    if (daScrivere.length === 0) return null;
+
+    const { error: ePn } = await supabase.from("prima_nota_entries").insert(
+      daScrivere.map((c) => ({
+        company_id: c.company_id,
+        direction: "uscita",
+        amount: Number(c.amount || 0),
+        description: `Pagamento: ${c.name ?? "costo"}`,
+        entry_date: dataPagamento,
+        category: "Costi Aziendali",
+        cost_id: c.id,
+        is_auto: true,
+        auto_source: "company_cost_payment",
+        ...(c.payment_method ? { payment_method: c.payment_method } : {}),
+      })),
+    );
+    return ePn ? ePn.message : null;
+  };
+
+  /** Toglie le uscite automatiche quando un costo torna "non pagato": senza,
+   *  il ciclo paga→annulla→ripaga lascerebbe movimenti fantasma in cassa. */
+  const rimuoviUscitePrimaNota = async (ids: string[]): Promise<string | null> => {
+    const { error } = await supabase
+      .from("prima_nota_entries")
+      .delete()
+      .in("cost_id", ids)
+      .eq("auto_source", "company_cost_payment")
+      .eq("is_auto", true);
+    return error ? error.message : null;
+  };
+
   const bulkMarkPaidMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const today = format(new Date(), "yyyy-MM-dd");
       const { error } = await supabase.from("company_costs").update({ is_paid: true, paid_date: today }).in("id", ids);
       if (error) throw error;
-      return ids.length;
+      // Prima il bulk lasciava la cassa a zero movimenti mentre il pagamento
+      // singolo (in teoria) la muoveva: stesso gesto, stessa contabilità.
+      const erroreContabile = await scriviUscitePrimaNota(ids, today);
+      return { count: ids.length, erroreContabile };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ count, erroreContabile }) => {
       invalidateCosts();
       toast({ title: `${count} costi segnati come pagati` });
+      if (erroreContabile) {
+        toast({
+          title: "Pagamenti salvati, ma la Prima Nota non è aggiornata",
+          description: erroreContabile,
+          variant: "destructive",
+        });
+      }
     },
     onError: () => {
       toast({ title: "Errore nell'aggiornamento", variant: "destructive" });
@@ -390,11 +452,19 @@ export function useCompanyCostsMutations({
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase.from("company_costs").update({ is_paid: false, paid_date: null }).in("id", ids);
       if (error) throw error;
-      return ids.length;
+      const erroreContabile = await rimuoviUscitePrimaNota(ids);
+      return { count: ids.length, erroreContabile };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ count, erroreContabile }) => {
       invalidateCosts();
       toast({ title: `${count} costi riportati a non pagati` });
+      if (erroreContabile) {
+        toast({
+          title: "Stato aggiornato, ma le uscite in Prima Nota non sono state rimosse",
+          description: erroreContabile,
+          variant: "destructive",
+        });
+      }
     },
     onError: () => {
       toast({ title: "Errore nell'aggiornamento", variant: "destructive" });
@@ -403,35 +473,30 @@ export function useCompanyCostsMutations({
 
   const markPaidMutation = useMutation({
     mutationFn: async ({ id, date, paymentMethod }: { id: string; date: string; paymentMethod?: string }) => {
-      // Update the cost as paid
-      const { data: costData, error } = await supabase
+      const { error } = await supabase
         .from("company_costs")
         .update({ is_paid: true, paid_date: date, ...(paymentMethod ? { payment_method: paymentMethod } : {}) })
-        .eq("id", id)
-        .select("name, amount, company_id")
-        .single();
+        .eq("id", id);
       if (error) throw error;
 
-      // Auto-create Prima Nota entry
-      if (costData) {
-        await supabase.from("prima_nota_entries").insert({
-          company_id: costData.company_id,
-          direction: "uscita",
-          amount: costData.amount,
-          description: `Pagamento: ${costData.name}`,
-          entry_date: date,
-          category: "Costi Aziendali",
-          cost_id: id,
-          is_auto: true,
-          auto_source: "company_cost_payment",
-          ...(paymentMethod ? { payment_method: paymentMethod } : {}),
-        }).catch((e: any) => console.warn("[markPaid] prima_nota_entries insert failed:", e));
-      }
+      // Uscita in Prima Nota. Il vecchio codice faceva `.catch()` sul builder
+      // Postgrest, che non ha `catch`: TypeError PRIMA che la insert partisse,
+      // quindi la cassa non vedeva mai i costi pagati da qui — e il toast
+      // diceva "errore" su un pagamento in realtà salvato.
+      const erroreContabile = await scriviUscitePrimaNota([id], date);
+      return { erroreContabile };
     },
-    onSuccess: () => {
+    onSuccess: ({ erroreContabile }) => {
       invalidateCosts();
       onPaySuccess();
       toast({ title: "Costo segnato come pagato" });
+      if (erroreContabile) {
+        toast({
+          title: "Pagamento salvato, ma la Prima Nota non è aggiornata",
+          description: erroreContabile,
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       logger.error("Payment error:", error);
@@ -443,10 +508,19 @@ export function useCompanyCostsMutations({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("company_costs").update({ is_paid: false, paid_date: null }).eq("id", id);
       if (error) throw error;
+      const erroreContabile = await rimuoviUscitePrimaNota([id]);
+      return { erroreContabile };
     },
-    onSuccess: () => {
+    onSuccess: ({ erroreContabile }) => {
       invalidateCosts();
       toast({ title: "Costo riportato a non pagato" });
+      if (erroreContabile) {
+        toast({
+          title: "Stato aggiornato, ma l'uscita in Prima Nota non è stata rimossa",
+          description: erroreContabile,
+          variant: "destructive",
+        });
+      }
     },
     onError: (error) => {
       logger.error("Payment error:", error);

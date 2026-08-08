@@ -9,6 +9,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { formatCurrency } from "@/lib/formatters";
 
 // Mappa unica: la copia locale precedente aveva solo 3 stati su 6 — un OdA
@@ -82,16 +83,23 @@ export function LinkExistingPurchaseOrderDialog({
         .eq("id", poId);
       if (error) throw error;
 
-      // Diary log
-      void supabase.from("order_events" as never).insert({
+      // Diario: senza company_id (NOT NULL) l'insert falliva SEMPRE, e il
+      // `void` senza await lo nascondeva. L'evento e' cronaca, non
+      // transazione: se fallisce lo si logga, il collegamento resta valido.
+      const { error: diaryErr } = await supabase.from("order_events" as never).insert({
         order_id: orderId,
+        company_id: companyId,
         event_type: "ordine_fornitore_collegato",
         payload: { po_id: poId, order_code: orderCode },
       } as never);
+      if (diaryErr) logger.error("[LinkExistingPurchaseOrderDialog] evento diario non registrato:", diaryErr);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
+      // Il Conto economico legge gli OdA con ["oes-oda"]: senza questa
+      // invalidazione il margine restava quello vecchio per 2 minuti.
+      queryClient.invalidateQueries({ queryKey: ["oes-oda", orderId] });
       toast.success("OdA collegato alla commessa");
       onOpenChange(false);
     },

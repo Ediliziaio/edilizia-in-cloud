@@ -1,5 +1,6 @@
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import { OrderCommissions } from "./OrderCommissions";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
 
 interface OrdineEconomicoProps {
@@ -39,6 +40,10 @@ export function OrdineEconomico({
   conPrimaNota,
   clienteNome,
 }: OrdineEconomicoProps) {
+  // Le provvigioni sono un dato di margine (vedi usePermissions: can_view_margins
+  // copre "margine e provvigioni"): un ruolo senza quel permesso non deve
+  // vederle solo perche' vede gli importi della commessa.
+  const permissions = usePermissions();
   return (
     <div className="space-y-4">
       <FinancialSummaryReadOnly
@@ -55,12 +60,14 @@ export function OrdineEconomico({
         conPrimaNota={conPrimaNota}
         clienteNome={clienteNome}
       />
-      <OrderCommissions
-        orderId={orderId}
-        totalAmount={totalAmount}
-        collectedAmount={collectedAmount}
-        vatRate={vatRate}
-      />
+      {permissions.canViewMargins && (
+        <OrderCommissions
+          orderId={orderId}
+          totalAmount={totalAmount}
+          collectedAmount={collectedAmount}
+          vatRate={vatRate}
+        />
+      )}
     </div>
   );
 }

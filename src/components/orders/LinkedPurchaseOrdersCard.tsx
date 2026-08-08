@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
+import { logger } from "@/utils/logger";
 import { CreatePurchaseOrderButton } from "./CreatePurchaseOrderButton";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
 import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
@@ -54,16 +55,22 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
         .eq("id", poId);
       if (error) throw error;
 
-      // Diary log
-      void supabase.from("order_events" as never).insert({
+      // Diario: senza company_id (NOT NULL) l'insert falliva SEMPRE, e il
+      // `void` senza await lo nascondeva — nessun collegamento OdA è mai
+      // finito nel diario. L'evento è cronaca, non transazione: se fallisce
+      // lo si logga, lo scollegamento resta valido.
+      const { error: diaryErr } = await supabase.from("order_events" as never).insert({
         order_id: orderId,
+        company_id: companyId,
         event_type: "ordine_fornitore_scollegato",
         payload: { po_id: poId, order_code: orderCode },
       } as never);
+      if (diaryErr) logger.error("[LinkedPurchaseOrdersCard] evento diario non registrato:", diaryErr);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["oes-oda", orderId] });
       toast.success("OdA scollegato dalla commessa");
       setUnlinkTarget(null);
     },

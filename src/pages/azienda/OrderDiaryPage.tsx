@@ -39,7 +39,7 @@ export default function OrderDiaryPage() {
 
   // ── Carica dati ordine ────────────────────────────────────────────────────
   const { data: order, isLoading } = useQuery({
-    queryKey: queryKeys.orders.detail(id),
+    queryKey: queryKeys.orders.diaryHeader(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")

@@ -30,6 +30,7 @@ import type { DDTStato } from "@/hooks/useDDTRicezione";
 import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrderDialog";
@@ -84,6 +85,9 @@ export default function PurchaseOrderDetail() {
   // nella posta invece che in un buco nero.
   const [sendOpen, setSendOpen] = useState(false);
   const queryClient = useQueryClient();
+  // Incidenza acquisti/vendita = dato di margine; costi e fatture = dato di
+  // costo. Chi lavora solo sugli ordini (magazzino) non deve vederli.
+  const permissions = usePermissions();
 
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
@@ -717,16 +721,21 @@ export default function PurchaseOrderDetail() {
           )}
 
           {/* Quanto pesa questo ordine sulla commessa: il conto si fa QUI,
-              mentre si ordina, non a fine lavori quando e' tardi. */}
-          <OdaImpattoCommessaCard
-            odaId={order.id}
-            orderId={order.order_id}
-            totaleOrdine={Number(order.total)}
-            statoOrdine={order.status}
-          />
+              mentre si ordina, non a fine lavori quando e' tardi. Mostra il
+              valore della commessa e l'incidenza in %: e' un dato di margine. */}
+          {permissions.canViewMargins && (
+            <OdaImpattoCommessaCard
+              odaId={order.id}
+              orderId={order.order_id}
+              totaleOrdine={Number(order.total)}
+              statoOrdine={order.status}
+            />
+          )}
 
           {/* Costo + fattura generati da questo ordine */}
-          <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
+          {permissions.canViewCosts && (
+            <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
+          )}
 
           {/* Verification History */}
           <VerificationHistoryCard purchaseOrderId={order.id} />

@@ -913,6 +913,16 @@ function OrderDetailInner() {
     return labels[tipo] ?? tipo;
   };
 
+  // Stato documento fiscale in italiano: la copia mobile della card lo mappava,
+  // quella desktop stampava il valore DB ("inviata_sdi") — stesso dato, due lingue.
+  const formatStatoFiscale = (stato: string | null | undefined) => {
+    const labels: Record<string, string> = {
+      bozza: "Bozza", emessa: "Emessa", pagata: "Pagata", consegnata: "Consegnata",
+      inviata_sdi: "Inviata SDI", rifiutata: "Rifiutata", scaduta: "Scaduta",
+    };
+    return (stato && labels[stato]) || stato || "—";
+  };
+
   const formatAttachmentType = (documento: OrderDocumentSummary) => {
     const name = documento.file_name.toLowerCase();
     if (name.includes("collaudo") || name.includes("verbale")) return "Collaudo";
@@ -1437,7 +1447,10 @@ function OrderDetailInner() {
                 />
               )}
               {/* OdA collegati QUI come su desktop: prima stava nel tab "Altro"
-                  e su mobile nessuno li trovava. */}
+                  e su mobile nessuno li trovava. Gate canViewCosts come la
+                  card SupplierPayments qui sopra: mostra fornitori e importi
+                  d'acquisto. */}
+              {permissions.canViewCosts && (
               <LinkedPurchaseOrdersCard
                 orderId={id!}
                 orderCode={order.order_code}
@@ -1450,6 +1463,7 @@ function OrderDetailInner() {
                   vat_rate: i.vat_rate,
                 }))}
               />
+              )}
               <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </TabsContent>
 
@@ -1853,7 +1867,7 @@ function OrderDetailInner() {
                               <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
                             </div>
                             <Badge variant="outline" className="text-xs">
-                              {f.stato}
+                              {formatStatoFiscale(f.stato)}
                             </Badge>
                           </Link>
                           <div className="flex items-center gap-2">
@@ -1989,6 +2003,7 @@ function OrderDetailInner() {
               />
             )}
             <OrderUsciteCard orderId={id!} />
+            {permissions.canViewCosts && (
             <LinkedPurchaseOrdersCard
               orderId={id!}
               orderCode={order.order_code}
@@ -2004,6 +2019,7 @@ function OrderDetailInner() {
                 vat_rate: i.vat_rate,
               }))}
             />
+            )}
           </TabsContent>
 
           {/* Tab: Finanza */}
@@ -2034,8 +2050,9 @@ function OrderDetailInner() {
             {/* Cassa della commessa — timeline acconto → materiali → saldo.
                 Mostra l'eventuale anticipo da sostenere (capitale circolante)
                 quando l'acconto non copre i fornitori. Additiva, non tocca il
-                Conto economico. */}
-            {permissions.canViewOrderAmounts && (collectedGross > 0 || costoMaterialiGross > 0) && (
+                Conto economico. Richiede ANCHE canViewCosts: il costo
+                materiali dei fornitori è metà del suo messaggio. */}
+            {permissions.canViewOrderAmounts && permissions.canViewCosts && (collectedGross > 0 || costoMaterialiGross > 0) && (
               <QuoteCard
                 title={
                   <span className="flex items-center gap-2">

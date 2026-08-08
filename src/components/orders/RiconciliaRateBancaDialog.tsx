@@ -88,18 +88,48 @@ export function RiconciliaRateBancaDialog({
     if (confirming) return;
     setConfirming(rataId);
     try {
-      // Passi in sequenza con rollback: mai lasciare meta' storia scritta.
-      // 1) La rata risulta pagata alla data del movimento (la banca decide la data).
+      // Ordine pensato per i fallimenti a metà, non per il percorso felice.
+      // 1) PRENOTA il movimento: update condizionale su linked_installment_id
+      //    ancora nullo. È la guardia atomica contro il doppio consumo — se
+      //    un'altra finestra (o l'import banca) l'ha già abbinato, qui si
+      //    toccano 0 righe e ci si ferma subito, senza scrivere nulla.
+      const claim = await (supabase as any)
+        .from("bank_transactions")
+        .update({ linked_installment_id: rataId })
+        .eq("id", txId)
+        .eq("company_id", companyId)
+        .is("linked_installment_id", null)
+        .select("id");
+      if (claim.error) throw claim.error;
+      if (!claim.data?.length) {
+        throw new Error("Questo accredito è già stato abbinato altrove: aggiorna la pagina e ricontrolla.");
+      }
+
+      const liberaMovimento = () => (supabase as any)
+        .from("bank_transactions")
+        .update({ linked_installment_id: null })
+        .eq("id", txId)
+        .eq("linked_installment_id", rataId);
+
+      // 2) La rata risulta pagata alla data del movimento (la banca decide la
+      //    data). Se tocca 0 righe la rata era GIÀ pagata: prima si proseguiva
+      //    lo stesso e il bonifico spariva dal "da riconciliare" senza nessuna
+      //    scrittura contabile — ora si libera il movimento e ci si ferma.
       const upRata = await (supabase as any)
         .from("order_installments")
         .update({ is_paid: true, paid_date: bookingDate })
         .eq("id", rataId)
-        .eq("is_paid", false);
-      if (upRata.error) throw upRata.error;
+        .eq("is_paid", false)
+        .select("id");
+      if (upRata.error || !upRata.data?.length) {
+        await liberaMovimento();
+        throw upRata.error ?? new Error("La rata risulta già incassata: controlla in Prima Nota prima di abbinare questo bonifico.");
+      }
 
-      // 2) Registrazione in Prima Nota agganciata a rata E movimento. L'indice
-      //    UNIQUE su installment_id ferma i doppioni: se esiste gia', va bene
-      //    cosi' — la storia contabile c'e', si prosegue.
+      // 3) Registrazione in Prima Nota agganciata a rata E movimento.
+      //    L'importo è quello del BONIFICO (`importo` arriva da tx.amount):
+      //    il match tollera fino all'1% di scarto, e la cassa deve registrare
+      //    i soldi veri, non quelli previsti dalla rata.
       const insPn = await (supabase as any).from("prima_nota_entries").insert({
         company_id: companyId,
         direction: "entrata",
@@ -116,18 +146,17 @@ export function RiconciliaRateBancaDialog({
         auto_source: "order_installment",
         created_by: user?.id,
       });
-      if (insPn.error && !String(insPn.error.message).includes("uq_prima_nota_installment")) {
+      if (insPn.error) {
+        // Anche il doppione UNIQUE è un errore: la rata risultava NON pagata
+        // (passo 2) ma una registrazione esiste già — stato incoerente da
+        // guardare, non da scavalcare in silenzio.
         await (supabase as any).from("order_installments").update({ is_paid: false, paid_date: null }).eq("id", rataId);
+        await liberaMovimento();
+        if (String(insPn.error.message).includes("uq_prima_nota_installment")) {
+          throw new Error("Esiste già una registrazione in Prima Nota per questa rata: verifica lì prima di riconciliare.");
+        }
         throw insPn.error;
       }
-
-      // 3) Il movimento e' consumato: non verra' riproposto ne' qui ne' in Tesoreria.
-      const upTx = await (supabase as any)
-        .from("bank_transactions")
-        .update({ linked_installment_id: rataId })
-        .eq("id", txId)
-        .eq("company_id", companyId);
-      if (upTx.error) throw upTx.error;
 
       setDone((prev) => new Set(prev).add(rataId));
       toast.success(`${label} riconciliata`, {
@@ -206,7 +235,7 @@ export function RiconciliaRateBancaDialog({
                   size="sm"
                   className="h-8 shrink-0"
                   disabled={!!confirming}
-                  onClick={() => conferma(m.rata.id, m.tx.id, m.rata.amount, m.rata.label, m.tx.booking_date)}
+                  onClick={() => conferma(m.rata.id, m.tx.id, Number(m.tx.amount), m.rata.label, m.tx.booking_date)}
                 >
                   {confirming === m.rata.id
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />

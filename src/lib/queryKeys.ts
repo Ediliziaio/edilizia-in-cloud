@@ -17,6 +17,10 @@ export const queryKeys = {
     all: ["orders"] as const,
     list: (companyId: string | undefined) => ["orders", "list", companyId] as const,
     detail: (orderId: string | undefined) => ["orders", "detail", orderId] as const,
+    // Header del Diario: 4 colonne, NON l'ordine completo. Chiave separata da
+    // `detail` — condividerla scriveva in cache una riga monca che OrderDetail
+    // rileggeva per 2 minuti (importi a zero, pannelli spariti).
+    diaryHeader: (orderId: string | undefined) => ["orders", "diary-header", orderId] as const,
     statuses: (companyId: string | undefined) => ["orders", "statuses", companyId] as const,
     // Solo l'ultima fase (posizione max) — chiave separata da `statuses`:
     // condividere la chiave con payload diversi corrompe lo stepper commessa.

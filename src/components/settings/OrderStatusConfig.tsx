@@ -266,6 +266,9 @@ export function OrderStatusConfig() {
 
       await queryClient.invalidateQueries({ queryKey: ["order-statuses-config", company.id] });
       await queryClient.invalidateQueries({ queryKey: ["orders", "statuses", company.id] });
+      // OrdersList/CreateOrder/Calendar usano la chiave storica "order-statuses":
+      // senza questa riga vedevano le fasi vecchie fino a 10 minuti.
+      await queryClient.invalidateQueries({ queryKey: ["order-statuses", company.id] });
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setHasChanges(false);

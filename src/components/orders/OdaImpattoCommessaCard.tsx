@@ -38,6 +38,9 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
           .eq("order_id", orderId!),
       ]);
       if (commessaRes.error) throw commessaRes.error;
+      // Senza questo check un errore lasciava impegnatoAltri=0 e la barra
+      // verde anche a commessa satura — proprio il numero su cui si decide.
+      if (odaRes.error) throw odaRes.error;
       const altri = (odaRes.data ?? []).filter(
         (o) =>
           o.id !== odaId &&

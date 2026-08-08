@@ -42,6 +42,8 @@ const EVENT_CONFIG: Record<string, { label: string; color: string; icon: string 
   appuntamento_confermato:    { label: "Appuntamento conf.",   color: "bg-blue-100 text-blue-800",    icon: "✅" },
   appuntamento_completato:    { label: "Appuntamento compl.",  color: "bg-green-100 text-green-800",  icon: "✔️" },
   ordine_fornitore_creato:    { label: "OdF creato",           color: "bg-teal-100 text-teal-800",    icon: "🏭" },
+  ordine_fornitore_collegato: { label: "OdA collegato",        color: "bg-teal-100 text-teal-800",    icon: "🔗" },
+  ordine_fornitore_scollegato:{ label: "OdA scollegato",       color: "bg-slate-100 text-slate-700",  icon: "🔗" },
   merce_arrivata:             { label: "Merce arrivata",       color: "bg-teal-100 text-teal-800",    icon: "🚚" },
   contratto_firmato:          { label: "Contratto firmato",    color: "bg-green-100 text-green-800",  icon: "✍️" },
   preventivo_accettato:       { label: "Preventivo accettato", color: "bg-green-100 text-green-800",  icon: "👍" },
