@@ -26,12 +26,39 @@ const TIPI_VENDITE = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "a
   "fattura_riepilogativa", "parcella", "fattura_accompagnatoria",
   "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
 
+// La nota di credito RIDUCE l'IVA del registro: gli importi in tabella sono
+// salvati positivi (stessa convenzione di ReportFatturazione: abs + segno dal
+// tipo). Lato acquisti il tipo arriva dall'SDI (TD04) o dai gestionali
+// esterni ("credit_note" e simili).
+function isNotaCreditoVendita(tipo: string): boolean {
+  return tipo === "nota_credito";
+}
+function isNotaCreditoAcquisto(tipoDocumento: string | null): boolean {
+  const td = (tipoDocumento || "").toUpperCase();
+  return td === "TD04" || td.includes("CREDIT");
+}
+const conSegno = (v: number, notaCredito: boolean) =>
+  notaCredito ? -Math.abs(v) : v;
+
+// Le date fiscali sono stringhe ISO "YYYY-MM-DD": il mese si legge dalla
+// stringa, senza passare da new Date() (che in timezone negative sposta il
+// giorno e sfila il documento dal periodo giusto).
+function meseDaISO(dateStr: string): number {
+  const m = parseInt(String(dateStr).slice(5, 7), 10);
+  return Number.isFinite(m) ? m : 0;
+}
+function formatDataIT(dateStr: string): string {
+  const s = String(dateStr).slice(0, 10);
+  const [y, m, d] = s.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : s;
+}
+
 function exportCSV(rows: any[], filename: string) {
   const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura"];
   const lines = [
     headers.join(";"),
     ...rows.map((r) =>
-      [r.data, r.numero, r.controparte, r.imponibile.toFixed(2), r.iva.toFixed(2),
+      [formatDataIT(r.data), r.numero, r.controparte, r.imponibile.toFixed(2), r.iva.toFixed(2),
         r.totale.toFixed(2), r.aliquota, r.natura || ""]
         .map((v) => escapeCsvCell(v as string | number, ";")).join(";")
     ),
@@ -78,12 +105,14 @@ export default function RegistroIVA() {
     queryKey: ["registro-iva-acquisti", companyId, anno],
     enabled: !!companyId,
     queryFn: async () => {
+      // fatture_ricevute non ha ne' `anno` ne' `deleted_at`: l'anno si filtra
+      // sulla data documento, e l'unica esclusione e' lo stato 'rifiutata'.
       const { data, error } = await supabase
         .from("fatture_ricevute" as never)
-        .select("id, numero_fattura, data_fattura, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
+        .select("id, numero_fattura, data_fattura, tipo_documento, cedente_ragione_sociale, imponibile_totale, iva_totale, totale_documento, riepilogo_iva")
         .eq("company_id", companyId!)
-        .eq("anno", anno)
-        .is("deleted_at", null)
+        .gte("data_fattura", `${anno}-01-01`)
+        .lte("data_fattura", `${anno}-12-31`)
         .in("stato", ["non_letta", "letta", "contabilizzata"])
         .order("data_fattura", { ascending: true });
       if (error) throw error;
@@ -94,8 +123,8 @@ export default function RegistroIVA() {
   // Filtro per periodo selezionato
   function inPeriod(dateStr: string): boolean {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
-    const m = d.getMonth() + 1;
+    const m = meseDaISO(dateStr);
+    if (!m) return false;
     if (periodoType === "mensile") return m === mese;
     return Math.ceil(m / 3) === trimestre;
   }
@@ -105,19 +134,23 @@ export default function RegistroIVA() {
     const rows: any[] = [];
     for (const doc of documentiVendite) {
       if (!inPeriod(doc.data_emissione)) continue;
+      const nc = isNotaCreditoVendita(doc.tipo);
       const riepilogo = doc.riepilogo_iva || [];
       if (riepilogo.length > 0) {
         for (const r of riepilogo) {
+          const imponibile = conSegno(parseFloat(r.imponibile) || 0, nc);
+          const iva = conSegno(parseFloat(r.imposta) || 0, nc);
           rows.push({
             data: doc.data_emissione,
             numero: doc.numero,
             controparte: doc.cliente_snapshot?.ragione_sociale || "—",
-            imponibile: parseFloat(r.imponibile) || 0,
-            iva: parseFloat(r.imposta) || 0,
-            totale: (parseFloat(r.imponibile) || 0) + (parseFloat(r.imposta) || 0),
+            imponibile,
+            iva,
+            totale: imponibile + iva,
             aliquota: r.aliquota || "0",
             natura: r.natura || "",
             tipo: doc.tipo,
+            notaCredito: nc,
           });
         }
       } else {
@@ -126,12 +159,13 @@ export default function RegistroIVA() {
           data: doc.data_emissione,
           numero: doc.numero,
           controparte: doc.cliente_snapshot?.ragione_sociale || "—",
-          imponibile: doc.imponibile_totale || 0,
-          iva: doc.iva_totale || 0,
-          totale: doc.totale_documento || 0,
+          imponibile: conSegno(doc.imponibile_totale || 0, nc),
+          iva: conSegno(doc.iva_totale || 0, nc),
+          totale: conSegno(doc.totale_documento || 0, nc),
           aliquota: "—",
           natura: "",
           tipo: doc.tipo,
+          notaCredito: nc,
         });
       }
     }
@@ -143,18 +177,22 @@ export default function RegistroIVA() {
     const rows: any[] = [];
     for (const doc of documentiAcquisti) {
       if (!inPeriod(doc.data_fattura)) continue;
+      const nc = isNotaCreditoAcquisto(doc.tipo_documento);
       const riepilogo = doc.riepilogo_iva || [];
       if (riepilogo.length > 0) {
         for (const r of riepilogo) {
+          const imponibile = conSegno(parseFloat(r.imponibile) || 0, nc);
+          const iva = conSegno(parseFloat(r.imposta) || 0, nc);
           rows.push({
             data: doc.data_fattura,
             numero: doc.numero_fattura,
             controparte: doc.cedente_ragione_sociale || "—",
-            imponibile: parseFloat(r.imponibile) || 0,
-            iva: parseFloat(r.imposta) || 0,
-            totale: (parseFloat(r.imponibile) || 0) + (parseFloat(r.imposta) || 0),
+            imponibile,
+            iva,
+            totale: imponibile + iva,
             aliquota: r.aliquota || "0",
             natura: r.natura || "",
+            notaCredito: nc,
           });
         }
       } else {
@@ -162,11 +200,12 @@ export default function RegistroIVA() {
           data: doc.data_fattura,
           numero: doc.numero_fattura,
           controparte: doc.cedente_ragione_sociale || "—",
-          imponibile: doc.imponibile_totale || 0,
-          iva: doc.iva_totale || 0,
-          totale: doc.totale_documento || 0,
+          imponibile: conSegno(doc.imponibile_totale || 0, nc),
+          iva: conSegno(doc.iva_totale || 0, nc),
+          totale: conSegno(doc.totale_documento || 0, nc),
           aliquota: "—",
           natura: "",
+          notaCredito: nc,
         });
       }
     }
@@ -345,8 +384,11 @@ export default function RegistroIVA() {
                     <>
                       {righeVendite.map((r, i) => (
                         <TableRow key={i}>
-                          <TableCell className="text-xs">{r.data}</TableCell>
-                          <TableCell className="font-mono text-xs">{r.numero}</TableCell>
+                          <TableCell className="text-xs">{formatDataIT(r.data)}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {r.numero}
+                            {r.notaCredito && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">NC</Badge>}
+                          </TableCell>
                           <TableCell className="text-xs max-w-[200px] truncate">{r.controparte}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.imponibile)}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.iva)}</TableCell>
@@ -397,8 +439,11 @@ export default function RegistroIVA() {
                     <>
                       {righeAcquisti.map((r, i) => (
                         <TableRow key={i}>
-                          <TableCell className="text-xs">{r.data}</TableCell>
-                          <TableCell className="font-mono text-xs">{r.numero}</TableCell>
+                          <TableCell className="text-xs">{formatDataIT(r.data)}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {r.numero}
+                            {r.notaCredito && <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">NC</Badge>}
+                          </TableCell>
                           <TableCell className="text-xs max-w-[200px] truncate">{r.controparte}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.imponibile)}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{formatCurrency(r.iva)}</TableCell>
