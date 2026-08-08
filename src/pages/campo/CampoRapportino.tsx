@@ -145,6 +145,26 @@ export default function CampoRapportino() {
     },
   });
 
+  // Chi dichiara l'avanzamento? L'OPERAIO racconta la giornata (ore, foto,
+  // su quali fasi ha lavorato — serve ad attribuire il costo); il
+  // CAPOCANTIERE, che segue lo stato avanzamento, dichiara le percentuali.
+  const { data: ruoloCampo } = useQuery({
+    queryKey: ["campo-ruolo", orderId, user?.id],
+    enabled: !!orderId && !!user?.id && !!companyId,
+    staleTime: 300_000,
+    queryFn: async (): Promise<{ isCapocantiere: boolean }> => {
+      const { data } = await supabase
+        .from("order_campo_assignments")
+        .select("is_capocantiere")
+        .eq("order_id", orderId!)
+        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      return { isCapocantiere: !!(data as { is_capocantiere?: boolean } | null)?.is_capocantiere };
+    },
+  });
+  const isCapocantiere = ruoloCampo?.isCapocantiere ?? false;
+
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
 
@@ -674,7 +694,9 @@ export default function CampoRapportino() {
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">Su cosa hai lavorato oggi?</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)
+                  {isCapocantiere
+                    ? "Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)"
+                    : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere."}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {fasiDichiarabili.map(fase => {
@@ -696,7 +718,7 @@ export default function CampoRapportino() {
                   })}
                 </div>
 
-                {fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
+                {isCapocantiere && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
                   <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
                     <div className="mb-1 flex items-center justify-between">
                       <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>

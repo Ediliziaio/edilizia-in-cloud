@@ -150,10 +150,51 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
         note: formNote || null,
       });
       if (error) throw error;
+
+      // UNIFICAZIONE delle due porte: chi entra nel cantiere deve esistere
+      // anche sul lato costi. Se l'utente assegnato ha una scheda dipendente
+      // (employees.user_id), si crea la riga order_employees mancante — così
+      // i rapportini approvati trovano subito dove accumulare ore e costo.
+      let avvisoCosti: string | null = null;
+      try {
+        const { data: emp } = await supabase
+          .from("employees")
+          .select("id, costo_orario")
+          .eq("company_id", effectiveCompanyId!)
+          .eq("user_id", formUserId)
+          .maybeSingle();
+        if (emp?.id) {
+          const { data: giaPresente } = await supabase
+            .from("order_employees")
+            .select("id")
+            .eq("order_id", orderId)
+            .eq("employee_id", emp.id)
+            .limit(1)
+            .maybeSingle();
+          if (!giaPresente) {
+            const { error: eIns } = await supabase.from("order_employees").insert({
+              order_id: orderId,
+              employee_id: emp.id,
+              phase_id: null,
+              hourly_rate: Number(emp.costo_orario) || 0,
+              hours_worked: 0,
+              total_cost: 0,
+            });
+            if (eIns) avvisoCosti = eIns.message;
+          }
+        }
+      } catch (e) {
+        avvisoCosti = e instanceof Error ? e.message : String(e);
+      }
+      return { avvisoCosti };
     },
-    onSuccess: () => {
+    onSuccess: ({ avvisoCosti }) => {
       toast.success("Assegnato al cantiere");
+      if (avvisoCosti) {
+        toast.warning("Assegnato, ma la riga costi non è stata creata", { description: avvisoCosti });
+      }
       queryClient.invalidateQueries({ queryKey: ["order-campo-assignments", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-employees", orderId] });
       setCampoDialogOpen(false);
       setFormUserId(""); setFormDataInizio(""); setFormDataFine("");
       setFormCapocantiere(false); setFormNote("");

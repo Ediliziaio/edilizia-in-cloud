@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { logger } from "@/utils/logger";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -455,6 +456,38 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           notes: a.notes,
         });
         if (error) throw error;
+
+        // UNIFICAZIONE delle due porte (senso inverso): il dipendente messo
+        // in fase deve poter aprire la commessa dall'app campo. Se la sua
+        // scheda ha l'account collegato, si crea l'assegnazione cantiere
+        // mancante. Best-effort: un intoppo qui non annulla l'esecutore.
+        try {
+          const { data: emp } = await db
+            .from("employees")
+            .select("user_id")
+            .eq("id", a.employee_id)
+            .maybeSingle();
+          if (emp?.user_id && companyId) {
+            const { data: giaAssegnato } = await db
+              .from("order_campo_assignments")
+              .select("id")
+              .eq("order_id", orderId)
+              .eq("user_id", emp.user_id)
+              .limit(1)
+              .maybeSingle();
+            if (!giaAssegnato) {
+              await db.from("order_campo_assignments").insert({
+                company_id: companyId,
+                order_id: orderId,
+                user_id: emp.user_id,
+                role_type: "employee",
+                is_capocantiere: false,
+              });
+            }
+          }
+        } catch (e) {
+          logger.error("[addAssignment] assegnazione campo non creata:", e);
+        }
       } else {
         const { error } = await db.from("order_external_teams").insert({
           order_id: orderId,
