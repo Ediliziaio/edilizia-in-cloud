@@ -165,6 +165,58 @@ export default function CampoRapportino() {
   });
   const isCapocantiere = ruoloCampo?.isCapocantiere ?? false;
 
+  // ── Squadra del giorno ────────────────────────────────────────────────
+  // Il flusso reale: il rapportino lo fa UNO (capocantiere), e dentro c'è
+  // chi ha lavorato oggi — operai con le loro ore, subappaltatori presenti.
+  // Il costo si calcola per OGNI dipendente elencato, non per l'autore.
+  type MembroSquadra = {
+    key: string;
+    employee_id?: string;
+    subappaltatore_id?: string;
+    nome: string;
+  };
+  const [presenzeSel, setPresenzeSel] = useState<Record<string, number>>({});
+  const { data: squadra = [] } = useQuery({
+    queryKey: ["campo-squadra", orderId],
+    enabled: !!orderId && isCapocantiere,
+    staleTime: 300_000,
+    queryFn: async (): Promise<MembroSquadra[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [empRes, subRes] = await Promise.all([
+        db.from("order_employees")
+          .select("employee_id, employees(id, first_name, last_name)")
+          .eq("order_id", orderId),
+        db.from("subappaltatori_sicurezza")
+          .select("id, ragione_sociale")
+          .eq("order_id", orderId),
+      ]);
+      const visti = new Set<string>();
+      const membri: MembroSquadra[] = [];
+      for (const r of (empRes.data ?? []) as Array<{ employee_id: string; employees: { id: string; first_name: string; last_name: string } | null }>) {
+        if (!r.employees || visti.has(r.employee_id)) continue;
+        visti.add(r.employee_id);
+        membri.push({
+          key: `emp-${r.employee_id}`,
+          employee_id: r.employee_id,
+          nome: `${r.employees.first_name} ${r.employees.last_name}`.trim(),
+        });
+      }
+      for (const sub of (subRes.data ?? []) as Array<{ id: string; ragione_sociale: string }>) {
+        membri.push({ key: `sub-${sub.id}`, subappaltatore_id: sub.id, nome: sub.ragione_sociale });
+      }
+      return membri;
+    },
+  });
+  const togglePresenza = (m: MembroSquadra) => {
+    setPresenzeSel(prev => {
+      const next = { ...prev };
+      if (m.key in next) delete next[m.key];
+      else next[m.key] = 8;
+      return next;
+    });
+  };
+
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
 
@@ -370,6 +422,20 @@ export default function CampoRapportino() {
           stato: "inviato",
           // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
           ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
+          // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
+          // I subappaltatori sono presenza registrata, non costo orario.
+          ...(isCapocantiere && Object.keys(presenzeSel).length > 0
+            ? {
+                presenze: squadra
+                  .filter(m => m.key in presenzeSel)
+                  .map(m => ({
+                    ...(m.employee_id ? { employee_id: m.employee_id } : {}),
+                    ...(m.subappaltatore_id ? { subappaltatore_id: m.subappaltatore_id } : {}),
+                    nome: m.nome,
+                    ore: presenzeSel[m.key],
+                  })),
+              }
+            : {}),
           // Materiali confermati oggi (facoltativi): stesso formato del vocale
           ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
           // Firme SOLO sul fine lavori: il payload del giornaliero resta invariato
@@ -686,6 +752,64 @@ export default function CampoRapportino() {
                   <span>50%</span>
                   <span>100%</span>
                 </div>
+              </div>
+            )}
+
+            {/* ── Squadra del giorno (solo capocantiere): chi c'era oggi ── */}
+            {isCapocantiere && squadra.length > 0 && (
+              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                <p className="text-sm font-semibold text-foreground">Chi ha lavorato oggi?</p>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Tocca chi era in cantiere: le ore dei dipendenti diventano costo
+                  di commessa all'approvazione. I subappaltatori sono registrati
+                  come presenza (il loro costo è nel contratto).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {squadra.map(m => {
+                    const selected = m.key in presenzeSel;
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => togglePresenza(m)}
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {m.nome}
+                        {m.subappaltatore_id ? " · sub" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                {squadra.filter(m => m.key in presenzeSel).map(m => (
+                  <div key={m.key} className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-3">
+                    <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {m.nome}
+                      {m.subappaltatore_id && (
+                        <span className="ml-1 text-xs text-muted-foreground">(subappaltatore)</span>
+                      )}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={16}
+                        step={0.5}
+                        inputMode="decimal"
+                        value={presenzeSel[m.key]}
+                        onChange={e =>
+                          setPresenzeSel(prev => ({ ...prev, [m.key]: Number(e.target.value) || 0 }))
+                        }
+                        className="w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-sm"
+                        aria-label={`Ore di ${m.nome}`}
+                      />
+                      <span className="text-xs text-muted-foreground">ore</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

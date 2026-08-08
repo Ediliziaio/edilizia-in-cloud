@@ -371,6 +371,22 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                           </div>
                         )}
 
+                        {/* Squadra del giorno dichiarata dal capocantiere:
+                            un rapportino solo per tutto il cantiere. */}
+                        {Array.isArray(r.presenze) && r.presenze.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {(r.presenze as Array<{ nome?: string; ore?: number; subappaltatore_id?: string }>).map((pz, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+                              >
+                                {pz.nome ?? "—"} · {Number(pz.ore) || 0}h
+                                {pz.subappaltatore_id ? " · sub" : ""}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Costo scritto dal trigger all'approvazione: ore ×
                             costo orario del dipendente. 0 = subappaltatore
                             (costa a contratto/SAL) o dipendente senza tariffa. */}
