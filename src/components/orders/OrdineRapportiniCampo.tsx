@@ -370,6 +370,16 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                             {fmtSafeDate(r.approvato_at, "d MMM yyyy HH:mm")}
                           </div>
                         )}
+
+                        {/* Costo scritto dal trigger all'approvazione: ore ×
+                            costo orario del dipendente. 0 = subappaltatore
+                            (costa a contratto/SAL) o dipendente senza tariffa. */}
+                        {stato === "approvato" && Number(r.costo_manodopera) > 0 && (
+                          <div className="text-xs font-medium text-emerald-700">
+                            Costo manodopera registrato:{" "}
+                            {Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

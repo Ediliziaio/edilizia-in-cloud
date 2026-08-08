@@ -42,6 +42,7 @@ const employeeSchema = z.object({
   gross_salary: z.coerce.number().min(0, "Deve essere >= 0"),
   net_salary: z.coerce.number().min(0, "Deve essere >= 0"),
   monthly_hours: z.coerce.number().min(1, "Deve essere >= 1").max(744, "Max 744 ore"),
+  costo_orario: z.coerce.number().min(0, "Deve essere >= 0").optional(),
   is_active: z.boolean(),
   area: z.enum(["cantiere", "commerciale", "amministrazione", "tecnico"]).default("cantiere"),
 });
@@ -108,6 +109,7 @@ export function EmployeeDialog({
         gross_salary: employee.gross_salary,
         net_salary: employee.net_salary,
         monthly_hours: employee.monthly_hours,
+        costo_orario: employee.costo_orario ?? undefined,
         is_active: employee.is_active,
         area: employee.area || (employee.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
       });
@@ -304,6 +306,24 @@ export function EmployeeDialog({
                   </FormControl>
                   <FormDescription>
                     Costo orario calcolato: <strong>{formatCurrency(hourlyCost)}/h</strong>
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="costo_orario"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Costo orario in commessa (€/h)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" step="0.5" placeholder={String(hourlyCost || "")} {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <FormDescription>
+                    Quando un rapportino viene approvato, le ore diventano costo di
+                    commessa a questa tariffa. Vuoto = costo calcolato dallo stipendio.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

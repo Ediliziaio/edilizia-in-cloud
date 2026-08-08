@@ -63,7 +63,7 @@ function EmployeesInner() {
     queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("employees")
-        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, is_active, user_id, role_type, area")
+        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, costo_orario, is_active, user_id, role_type, area")
         .eq("company_id", effectiveCompanyId!).order("last_name");
       if (error) {
         // Fallback if area column doesn't exist yet
@@ -100,6 +100,13 @@ function EmployeesInner() {
           first_name: data.first_name, last_name: data.last_name,
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
+          // €/h per i costi automatici dai rapportini: l'override se digitato,
+          // altrimenti il costo calcolato dallo stipendio (stessa formula del dialog)
+          costo_orario: (data.costo_orario && data.costo_orario > 0)
+            ? data.costo_orario
+            : (data.gross_salary > 0 && data.monthly_hours > 0
+                ? Math.round((data.gross_salary / data.monthly_hours) * 100) / 100
+                : null),
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           area: data.area || null,
         }).eq("id", data.id);
@@ -110,6 +117,13 @@ function EmployeesInner() {
           first_name: data.first_name, last_name: data.last_name,
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
+          // €/h per i costi automatici dai rapportini: l'override se digitato,
+          // altrimenti il costo calcolato dallo stipendio (stessa formula del dialog)
+          costo_orario: (data.costo_orario && data.costo_orario > 0)
+            ? data.costo_orario
+            : (data.gross_salary > 0 && data.monthly_hours > 0
+                ? Math.round((data.gross_salary / data.monthly_hours) * 100) / 100
+                : null),
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           role_type: data.role_type || 'operaio',
           area: data.area || null,

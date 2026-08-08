@@ -7,6 +7,9 @@ export interface Employee {
   gross_salary: number;
   net_salary: number;
   monthly_hours: number;
+  /** €/h usato dal trigger rapportino approvato → costo commessa.
+   *  Se assente si salva il costo calcolato dallo stipendio. */
+  costo_orario?: number | null;
   is_active: boolean;
   user_id: string | null;
   role_type: string;
