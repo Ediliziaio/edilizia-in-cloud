@@ -82,6 +82,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .select("*, bank_accounts(display_name, account_name)")
           .eq("company_id", companyId)
           .is("linked_invoice_id", null)
+          // Un accredito gia' riconciliato con una RATA di commessa (dalla
+          // scheda Finanza della commessa) e' consumato quanto uno abbinato
+          // a fattura: riproporlo qui inviterebbe a contarlo due volte.
+          .is("linked_installment_id" as never, null)
           .eq("transaction_type", "credit")
           .order("booking_date", { ascending: false })
           .limit(200),

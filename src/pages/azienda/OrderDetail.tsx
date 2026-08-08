@@ -1470,6 +1470,7 @@ function OrderDetailInner() {
                 onInstallmentDateChange={handleInstallmentDateChange}
                 orderCode={order.order_code}
                 conPrimaNota={permissions.canViewPrimaNota}
+                clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
               />
               )}
               {/* Fatturazione e documenti */}
@@ -2025,6 +2026,7 @@ function OrderDetailInner() {
                 onInstallmentDateChange={handleInstallmentDateChange}
                 orderCode={order.order_code}
                 conPrimaNota={permissions.canViewPrimaNota}
+                clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
               />
               )}
             </div>

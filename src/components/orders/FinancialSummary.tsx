@@ -10,6 +10,9 @@ import { formatCurrency } from "@/lib/formatters";
 // 1,50 € nel totale, nel PDF e in fattura senza un solo segnale.
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { RegistraIncassoPrimaNota, useIncassiRegistrati } from "./RegistraIncassoPrimaNota";
+import { RiconciliaRateBancaDialog } from "./RiconciliaRateBancaDialog";
+import type { RataDaIncassare } from "@/lib/rateBankMatch";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -27,7 +30,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Euro, CalendarIcon, Check, Clock, Building2 } from "lucide-react";
+import { Euro, CalendarIcon, Check, Clock, Building2, Landmark } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -645,6 +648,8 @@ interface FinancialSummaryReadOnlyProps {
   orderId?: string;
   orderCode?: string | null;
   conPrimaNota?: boolean;
+  /** Nome del cliente: aiuta il match banca↔rate (citato nella causale). */
+  clienteNome?: string | null;
 }
 
 export function FinancialSummaryReadOnly({
@@ -659,9 +664,12 @@ export function FinancialSummaryReadOnly({
   orderId,
   orderCode,
   conPrimaNota,
+  clienteNome,
 }: FinancialSummaryReadOnlyProps) {
+  const { effectiveCompany } = useAuth();
   // Una query per tutta la card: quali rate hanno già la loro registrazione.
   const { data: incassiRegistrati = {} } = useIncassiRegistrati(orderId, !!conPrimaNota);
+  const [riconciliaOpen, setRiconciliaOpen] = useState(false);
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
   const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
@@ -884,10 +892,45 @@ export function FinancialSummaryReadOnly({
           {(() => {
             const visibili = installments.filter(i => i.amount > 0 || i.type === 'balance');
             const pagate = visibili.filter(i => i.is_paid).length;
+            // Rate ancora da incassare, con l'importo MOSTRATO (per il saldo
+            // quello calcolato): sono i candidati della riconciliazione banca.
+            const daIncassare: RataDaIncassare[] = installments
+              .filter(i => !i.is_paid && !!i.id)
+              .map(i => ({
+                id: i.id!,
+                label: i.label,
+                amount: i.type === 'balance' ? balanceAmount : i.amount,
+                expected_date: i.expected_date ?? null,
+              }))
+              .filter(r => r.amount > 0);
             return (
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">Pagamenti</span>
-                <span className="text-xs text-muted-foreground">{pagate}/{visibili.length} rate incassate</span>
+                <span className="flex items-center gap-2">
+                  {conPrimaNota && orderId && daIncassare.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setRiconciliaOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-orange-700 hover:bg-orange-50 transition-colors"
+                      title="Cerca fra gli accrediti bancari i bonifici che combaciano con le rate da incassare"
+                    >
+                      <Landmark className="h-3 w-3" />
+                      Riconcilia con banca
+                    </button>
+                  )}
+                  <span className="text-xs text-muted-foreground">{pagate}/{visibili.length} rate incassate</span>
+                </span>
+                {conPrimaNota && orderId && (
+                  <RiconciliaRateBancaDialog
+                    open={riconciliaOpen}
+                    onOpenChange={setRiconciliaOpen}
+                    companyId={effectiveCompany?.id}
+                    orderId={orderId}
+                    orderCode={orderCode}
+                    clienteNome={clienteNome}
+                    rateNonPagate={daIncassare}
+                  />
+                )}
               </div>
             );
           })()}

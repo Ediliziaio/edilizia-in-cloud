@@ -17,6 +17,8 @@ interface OrdineEconomicoProps {
   orderCode?: string | null;
   /** true se chi guarda ha il permesso Prima Nota: abilita "Registra incasso". */
   conPrimaNota?: boolean;
+  /** Nome cliente per il match banca↔rate (citato nelle causali). */
+  clienteNome?: string | null;
 }
 
 // NB: niente card "Conto Economico" qui — il conto economico completo
@@ -35,6 +37,7 @@ export function OrdineEconomico({
   onInstallmentDateChange,
   orderCode,
   conPrimaNota,
+  clienteNome,
 }: OrdineEconomicoProps) {
   return (
     <div className="space-y-4">
@@ -50,6 +53,7 @@ export function OrdineEconomico({
         orderId={orderId}
         orderCode={orderCode}
         conPrimaNota={conPrimaNota}
+        clienteNome={clienteNome}
       />
       <OrderCommissions
         orderId={orderId}
