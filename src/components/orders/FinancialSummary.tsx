@@ -674,13 +674,24 @@ export function FinancialSummaryReadOnly({
   const totalWithVat = totalAmount + vatAmount;
   const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
 
-  const nonBalanceSum = installments
-    .filter(i => i.type !== 'balance')
+  // Piani a 3+ rate: il tipo rata conosce solo deposit/balance/financing, quindi
+  // SAL intermedi e saldo arrivano ENTRAMBI come 'balance'. Solo l'ULTIMA rata
+  // balance è il saldo calcolato per differenza: le intermedie valgono il LORO
+  // importo. Prima ogni riga 'balance' mostrava l'intero residuo e la seconda
+  // spariva dalla lista (il render faceva find() della prima e basta).
+  const posSaldoFinale = installments.reduce<number | null>(
+    (acc, i) => (i.type === 'balance' ? Math.max(acc ?? i.position, i.position) : acc),
+    null,
+  );
+  const isSaldoFinale = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinale;
+  const sommaAltreRate = installments
+    .filter(i => !isSaldoFinale(i))
     .reduce((sum, i) => sum + i.amount, 0);
-  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum - financingCostValue);
+  const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - financingCostValue);
+  const importoRata = (i: Installment) => (isSaldoFinale(i) ? balanceAmount : i.amount);
   const collectedAmount = installments
     .filter(i => i.is_paid)
-    .reduce((sum, i) => sum + (i.type === "balance" ? balanceAmount : i.amount), 0);
+    .reduce((sum, i) => sum + importoRata(i), 0);
   const dueAmount = Math.max(0, totalWithVat - financingCostValue - collectedAmount);
 
   const formatPaymentDate = (dateStr?: string | null) => {
@@ -899,7 +910,7 @@ export function FinancialSummaryReadOnly({
               .map(i => ({
                 id: i.id!,
                 label: i.label,
-                amount: i.type === 'balance' ? balanceAmount : i.amount,
+                amount: importoRata(i),
                 expected_date: i.expected_date ?? null,
               }))
               .filter(r => r.amount > 0);
@@ -951,11 +962,13 @@ export function FinancialSummaryReadOnly({
             </div>
           )}
 
-          {/* Balance */}
-          {(() => {
-            const balanceInst = installments.find(i => i.type === 'balance');
-            return balanceInst ? renderPaymentRow(balanceInst, balanceAmount) : null;
-          })()}
+          {/* Rate intermedie (SAL) e saldo finale: tutte le righe 'balance'
+              in ordine di posizione. Prima veniva mostrata solo la prima,
+              con l'intero residuo come importo. */}
+          {installments
+            .filter(i => i.type === 'balance')
+            .sort((a, b) => a.position - b.position)
+            .map(inst => renderPaymentRow(inst, importoRata(inst)))}
         </div>
       </CardContent>
     </Card>

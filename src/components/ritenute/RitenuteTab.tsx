@@ -44,6 +44,19 @@ export function RitenuteTab({ orderId }: Props) {
     }
   }
 
+  // Senza subappalti e senza ritenute la sezione occupava mezza schermata di
+  // blocchi vuoti (due card a 0 €, un avviso, un bottone disabilitato, una
+  // tabella vuota): una riga sola dice la stessa cosa senza rumore.
+  const sezioneVuota = !isLoading && noContratti && ritenute.length === 0;
+  if (sezioneVuota) {
+    return (
+      <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+        Nessun subappalto su questa commessa: le ritenute di garanzia compariranno
+        qui quando colleghi un contratto di subappalto.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Summary cards */}
@@ -75,7 +88,7 @@ export function RitenuteTab({ orderId }: Props) {
       {noContratti && (
         <Alert>
           <AlertDescription>
-            Nessun contratto di subappalto collegato a questo ordine.
+            Nessun contratto di subappalto collegato a questa commessa.
           </AlertDescription>
         </Alert>
       )}

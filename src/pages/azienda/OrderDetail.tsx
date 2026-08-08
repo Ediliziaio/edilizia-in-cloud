@@ -891,7 +891,23 @@ function OrderDetailInner() {
 
   const orderAlerts = useMemo(() => {
     if (!order) return [];
-    return getOrderAlerts(order, displayItems, displayInstallments);
+    // Stessa matematica delle card rate: l'ULTIMA rata 'balance' vale il
+    // residuo calcolato, le intermedie il loro importo. Senza questa mappa
+    // l'alert diceva una cifra e la lista Pagamenti un'altra.
+    const totaleIvato = (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100);
+    const costoFin = order.financing_cost ?? 0;
+    const posSaldo = displayInstallments.reduce<number | null>(
+      (acc, i) => (i.type === "balance" ? Math.max(acc ?? i.position, i.position) : acc),
+      null,
+    );
+    const altre = displayInstallments
+      .filter(i => !(i.type === "balance" && i.position === posSaldo))
+      .reduce((s, i) => s + i.amount, 0);
+    const saldoCalcolato = Math.max(0, totaleIvato - altre - costoFin);
+    const conImportiMostrati = displayInstallments.map(i =>
+      i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i,
+    );
+    return getOrderAlerts(order, displayItems, conImportiMostrati);
   }, [order, displayItems, displayInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
@@ -1380,7 +1396,7 @@ function OrderDetailInner() {
                   workEndDate={order.work_end_date}
                 />
               )}
-              <OrdineCliente customer={order.customer} />
+              <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
               <QuoteCard title="Storico Stati">
                 {statusHistory.length === 0 ? (
                   <p className="text-slate-500 text-sm">Nessuno storico</p>
@@ -1770,7 +1786,7 @@ function OrderDetailInner() {
 
             {/* Riga 1: Cliente · Tempistiche e date chiave (a colpo d'occhio) */}
             <div className="grid gap-6 lg:grid-cols-2 items-start">
-              <OrdineCliente customer={order.customer} />
+              <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
               <OrdineTempistiche
                 orderId={order.id}
                 expectedDate={order.expected_date}

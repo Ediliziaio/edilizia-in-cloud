@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { User, Mail, Phone, MapPin } from "lucide-react";
+import { User, Mail, Phone, MapPin, HardHat, ExternalLink } from "lucide-react";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 
 interface Cliente {
@@ -13,13 +13,44 @@ interface Cliente {
 
 interface OrdineClienteProps {
   customer: Cliente | null;
+  /** Indirizzo del CANTIERE (orders.indirizzo_lavori): non è quello del
+   *  cliente — prima viveva solo dentro il titolo libero della commessa. */
+  indirizzoLavori?: string | null;
 }
 
-export function OrdineCliente({ customer }: OrdineClienteProps) {
+/** Blocco "Cantiere": indirizzo dei lavori + navigazione. Chi parte col
+ *  furgone cerca questo, non la residenza del cliente. */
+function BloccoCantiere({ indirizzo }: { indirizzo?: string | null }) {
+  const pulito = indirizzo?.trim();
+  if (!pulito) return null;
+  return (
+    <div className="mt-3 border-t border-slate-100 pt-3">
+      <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <HardHat className="h-3.5 w-3.5 text-orange-500" />
+        Cantiere
+      </p>
+      <div className="flex items-start justify-between gap-2 text-sm">
+        <span className="text-slate-600">{pulito}</span>
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pulito)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-orange-600 hover:underline"
+        >
+          Naviga
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+export function OrdineCliente({ customer, indirizzoLavori }: OrdineClienteProps) {
   if (!customer) {
     return (
       <QuoteCard title="Cliente" icon={<User className="h-4 w-4" />}>
         <p className="text-sm text-slate-500">Cliente non disponibile</p>
+        <BloccoCantiere indirizzo={indirizzoLavori} />
       </QuoteCard>
     );
   }
@@ -58,6 +89,7 @@ export function OrdineCliente({ customer }: OrdineClienteProps) {
           </div>
         )}
       </div>
+      <BloccoCantiere indirizzo={indirizzoLavori} />
     </QuoteCard>
   );
 }

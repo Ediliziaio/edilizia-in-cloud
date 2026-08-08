@@ -260,14 +260,24 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // Stessa matematica di FinancialSummaryReadOnly: il saldo è il residuo del
   // totale ivato al netto delle altre rate e del costo finanziaria.
   const totalWithVat = (orderTotalAmount ?? 0) * (1 + vatRate / 100);
-  const nonBalanceSum = (installments ?? [])
-    .filter((i) => i.type !== "balance")
+  // Piani a 3+ rate: SAL intermedi e saldo arrivano ENTRAMBI come 'balance'
+  // (il tipo rata non conosce altro). Solo l'ULTIMA balance è il residuo
+  // calcolato: le intermedie valgono il loro importo — prima ogni riga
+  // 'balance' mostrava l'intero residuo (68.000 € su due righe diverse).
+  const posSaldoFinale = (installments ?? []).reduce<number | null>(
+    (acc, i) => (i.type === "balance" ? Math.max(acc ?? i.position, i.position) : acc),
+    null,
+  );
+  const isSaldoFinale = (i: { type: string; position: number }) =>
+    i.type === "balance" && i.position === posSaldoFinale;
+  const sommaAltreRate = (installments ?? [])
+    .filter((i) => !isSaldoFinale(i))
     .reduce((s, i) => s + i.amount, 0);
-  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum - financingCost);
+  const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - financingCost);
   const oggi = new Date();
   oggi.setHours(0, 0, 0, 0);
   const recapRows = (installments ?? [])
-    .map((inst) => ({ inst, amount: inst.type === "balance" ? balanceAmount : inst.amount }))
+    .map((inst) => ({ inst, amount: isSaldoFinale(inst) ? balanceAmount : inst.amount }))
     .filter(({ inst, amount }) => amount > 0 || inst.type === "balance")
     .map((row) => ({
       ...row,
@@ -293,9 +303,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <Badge variant="secondary">{salList.length}</Badge>
           )}
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
-        </Button>
+        {/* Con la lista vuota il CTA vive nell'empty state qui sotto:
+            due bottoni identici nella stessa card erano solo rumore. */}
+        {salList.length > 0 && (
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
+          </Button>
+        )}
       </div>
 
       {/* Avanzamento incassi: riporta qui il piano rate della commessa (lo

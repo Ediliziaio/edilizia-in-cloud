@@ -500,7 +500,7 @@ export function OrderEconomicsSummary({
                   ) : (
                     <div className="flex flex-col items-center">
                       <span className={`text-lg font-bold leading-none ${marginColor}`}>
-                        {econ.marginPct.toFixed(0)}%
+                        {econ.marginPct.toFixed(1)}%
                       </span>
                       <span className="text-[10px] text-muted-foreground">margine</span>
                     </div>
