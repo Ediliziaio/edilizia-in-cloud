@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HardHat, Building2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 
 export default function CampoTesserino() {
   const { user, profile, role, company, effectiveCompany } = useAuth();
@@ -20,6 +21,22 @@ export default function CampoTesserino() {
   // tesserino mostrava "Edilizia in Cloud" al posto dell'azienda vera.
   const companyName = (effectiveCompany ?? company)?.name ?? "Edilizia in Cloud";
   const isSubappaltatore = role === "subcontractor";
+  // Il tesserino lo EMETTE l'ufficio: i dati (matricola, mansione, foto,
+  // assunzione) vengono dalla scheda HR compilata dall'admin nel modulo
+  // Personale. Qui si mostrano soltanto.
+  const { data: hrProfilo } = useMyHrProfilo();
+  const hr = hrProfilo as {
+    matricola?: string | null;
+    mansione?: string | null;
+    foto_url?: string | null;
+    data_assunzione?: string | null;
+    tipo_contratto?: string | null;
+  } | null;
+  const mansione = hr?.mansione ?? (isSubappaltatore ? "Subappaltatore" : "Operaio");
+  const assuntoIl = hr?.data_assunzione
+    ? new Date(hr.data_assunzione).toLocaleDateString("it-IT", { month: "2-digit", year: "numeric" })
+    : null;
+
 
   useEffect(() => {
     if (!user?.id || !canvasRef.current) return;
@@ -74,15 +91,20 @@ export default function CampoTesserino() {
     ctx.font = "bold 28px Arial";
     ctx.fillText(nome, 30, 70);
 
-    // Role
+    // Mansione (dalla scheda HR)
     ctx.fillStyle = "#f59e0b";
     ctx.font = "16px Arial";
-    ctx.fillText(isSubappaltatore ? "Subappaltatore" : "Operaio", 30, 100);
+    ctx.fillText(mansione, 30, 100);
 
     // Company
     ctx.fillStyle = "#94a3b8";
     ctx.font = "14px Arial";
     ctx.fillText(companyName, 30, 130);
+    if (hr?.matricola) {
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "13px monospace";
+      ctx.fillText(`Matricola ${hr.matricola}`, 30, 156);
+    }
 
     // QR code
     ctx.drawImage(canvas, 390, 80, 180, 180);
@@ -111,8 +133,8 @@ export default function CampoTesserino() {
           {/* Header */}
           <div className="flex items-center gap-2 mb-6">
             <HardHat className="w-5 h-5 text-primary" />
-            <span className="text-xs text-primary font-semibold uppercase tracking-widest">
-              Edilizia in Cloud
+            <span className="truncate text-xs text-primary font-semibold uppercase tracking-widest">
+              {companyName}
             </span>
           </div>
 
@@ -120,9 +142,17 @@ export default function CampoTesserino() {
             {/* Left: dati */}
             <div className="flex-1">
               {/* Avatar */}
-              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-3">
-                <span className="text-2xl font-bold text-primary-foreground">{initials}</span>
-              </div>
+              {hr?.foto_url ? (
+                <img
+                  src={hr.foto_url}
+                  alt={`Foto di ${nome}`}
+                  className="mb-3 h-16 w-16 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-3">
+                  <span className="text-2xl font-bold text-primary-foreground">{initials}</span>
+                </div>
+              )}
 
               <p className="text-xl font-bold text-foreground leading-tight">{nome}</p>
               <div className="flex items-center gap-1 mt-1">
@@ -131,12 +161,19 @@ export default function CampoTesserino() {
                 ) : (
                   <HardHat className="w-3.5 h-3.5 text-primary" />
                 )}
-                <span className="text-sm text-primary">
-                  {isSubappaltatore ? "Subappaltatore" : "Operaio"}
-                </span>
+                <span className="text-sm text-primary">{mansione}</span>
               </div>
 
               <p className="text-xs text-muted-foreground mt-2">{companyName}</p>
+
+              {hr?.matricola && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Matricola <span className="font-mono font-semibold text-foreground">{hr.matricola}</span>
+                </p>
+              )}
+              {assuntoIl && (
+                <p className="mt-0.5 text-xs text-muted-foreground">In forza dal {assuntoIl}</p>
+              )}
 
               {user?.email && (
                 <p className="text-xs text-muted-foreground mt-1 break-all">{user.email}</p>
@@ -184,6 +221,13 @@ export default function CampoTesserino() {
         <Download className="w-4 h-4" />
         Salva immagine
       </button>
+
+      {!hr && (
+        <p className="max-w-xs rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">
+          Matricola, mansione e foto compaiono quando l'ufficio completa la tua
+          scheda nel modulo Personale.
+        </p>
+      )}
 
       <p className="text-xs text-muted-foreground text-center max-w-xs">
         Il codice QR può essere scansionato in cantiere per verificare la tua identità.

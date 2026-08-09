@@ -189,9 +189,18 @@ export default function CampoCalendario() {
   // qualsiasi tenant): geocodifichiamo l'indirizzo operativo; se non c'è,
   // le righe "Dalla sede" semplicemente non compaiono.
   const activeCompany = (effectiveCompany ?? company) as (typeof company & {
-    operational_address?: string | null; legal_address?: string | null;
+    operational_address?: string | null; operational_city?: string | null;
+    legal_address?: string | null; legal_city?: string | null;
   }) | null;
-  const sedeAddr = activeCompany?.operational_address || activeCompany?.address || activeCompany?.legal_address || null;
+  // Via + città: "Via Ada Negri 28" da sola geocodifica nel comune sbagliato.
+  const sedeAddr =
+    (activeCompany?.operational_address
+      ? [activeCompany.operational_address, activeCompany.operational_city].filter(Boolean).join(", ")
+      : null) ||
+    (activeCompany?.legal_address
+      ? [activeCompany.legal_address, activeCompany.legal_city].filter(Boolean).join(", ")
+      : null) ||
+    null;
   const [sedeCoords, setSedeCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
