@@ -928,23 +928,28 @@ function RapportiniDaCompilareOggi() {
 
 function RapportiniSospesi() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: rapportini = [] } = useQuery({
-    queryKey: ["campo-rapportini-sospesi", user?.id],
+    queryKey: ["campo-rapportini-sospesi", user?.id, companyId],
     queryFn: async () => {
+      // Filtro azienda: i rapportini sono dell'utente ma restano nel tenant
+      // in cui sono nati — cambiando azienda i vecchi non devono riapparire
+      // come "da completare" (e il link aprirebbe un cantiere non accessibile).
       const { data, error } = await supabase
         .from("campo_rapportini")
         .select("id, order_id, data_lavoro, order:orders(order_code, description)")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .eq("lavoro_completato", false)
         .lt("data_lavoro", today)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   if (rapportini.length === 0) return null;
