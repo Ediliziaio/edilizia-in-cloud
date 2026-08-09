@@ -467,7 +467,7 @@ function AssistenteCampoOperaio() {
   const suggestion = focusRapportino
     ? "Prima chiudi il rapportino: aggiorna ore, diario lavori e avanzamento del cantiere."
     : prossimoTask
-      ? "Parti dalla task piu urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro."
+      ? "Parti dalla task più urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro."
       : focusOrder
         ? "Vai al cantiere, timbra collegando la commessa e a fine turno invia il rapportino vocale."
         : "Nessun cantiere prioritario trovato: controlla calendario o chiedi indicazioni al responsabile.";

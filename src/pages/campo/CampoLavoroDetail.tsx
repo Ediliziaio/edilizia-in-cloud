@@ -752,13 +752,18 @@ export default function CampoLavoroDetail() {
   // `hasTimbratoQui` restava false per sempre e il CTA principale del lavoro
   // era bloccato su "Timbra entrata" → una pagina fuori dalla sua navigazione.
   // Per il sub la sequenza sensata è: checklist → rapportino → fine.
+  // La TIMBRATURA NON è un prerequisito del rapportino: capita spesso di
+  // scordarsela e il lavoro va comunque documentato. Prima il CTA restava
+  // inchiodato su "Timbra entrata" e senza quella non si arrivava mai al
+  // resto. Ora l'ordine segue il lavoro (sicurezza → rapportino) e la
+  // timbratura resta un passo consigliato, raggiungibile dalla card.
   const nextStickyAction: { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" } =
-    isOperaio && !hasTimbratoQui
-      ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
-      : !checklistCompletataOggi
-        ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
-        : !rapportinoInviatoOggi
-          ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
+    !checklistCompletataOggi
+      ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
+      : !rapportinoInviatoOggi
+        ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
+        : isOperaio && !hasTimbratoQui
+          ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
           : isOperaio && !uscitaRegistrataOggi
             ? { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" }
             : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
@@ -863,6 +868,9 @@ export default function CampoLavoroDetail() {
 	          materialiCount={materialiCountOggi}
 	          oreRapportino={rapportinoOggi?.ore_lavorate ?? null}
 	          avanzamentoRapportino={rapportinoOggi?.percentuale_avanzamento ?? null}
+	          onTimbratura={() => navigate(timbraturaUrl)}
+	          onChecklist={() => navigate(checklistUrl)}
+	          onRapportino={() => navigate(rapportinoManualeUrl)}
 	        />
 
         {/* ── Tab: Descrizione ── */}
@@ -1209,6 +1217,9 @@ function CampoCloseDayCard({
   materialiCount,
   oreRapportino,
   avanzamentoRapportino,
+  onTimbratura,
+  onChecklist,
+  onRapportino,
 }: {
   isOperaio: boolean;
   hasTimbrato: boolean;
@@ -1221,42 +1232,48 @@ function CampoCloseDayCard({
   materialiCount: number;
   oreRapportino: number | null;
   avanzamentoRapportino: number | null;
+  onTimbratura: () => void;
+  onChecklist: () => void;
+  onRapportino: () => void;
 }) {
   // Il subappaltatore non timbra: la timbratura non è nella sua navigazione
   // (né sidebar né azioni rapide), quindi entrata/uscita resterebbero per
   // sempre "Manca" e la giornata non si chiuderebbe mai. Per lui la giornata
   // è checklist + rapportino.
-  const entrataOk = isOperaio ? hasTimbrato : true;
+  // La timbratura NON è un prerequisito: capita di dimenticarla e il lavoro
+  // va documentato lo stesso. Entrata e uscita restano passi CONSIGLIATI —
+  // quello che l'ufficio deve avere per forza è sicurezza + rapportino.
+  const timbraturaAttesa = isOperaio && !hasTimbrato;
   const uscitaOk = isOperaio ? uscitaRegistrata : true;
 
   const evidenceOk = fotoCount > 0 || materialiCount > 0 || avanzamentoRapportino != null;
-  const requiredMissing = [entrataOk, checklistDone, rapportinoDone].filter((ok) => !ok).length;
-  const readyToExit = entrataOk && checklistDone && rapportinoDone && !uscitaOk;
-  const giornataCompleta = entrataOk && checklistDone && rapportinoDone && uscitaOk;
+  const requiredMissing = [checklistDone, rapportinoDone].filter((ok) => !ok).length;
+  const readyToExit = checklistDone && rapportinoDone && hasTimbrato && !uscitaOk;
+  const giornataCompleta = checklistDone && rapportinoDone && uscitaOk;
 
-  const status = !entrataOk
+  const status = !checklistDone
     ? {
-        label: "Avvio giornata",
-        cls: "bg-blue-100 text-blue-800",
-        text: "Prima registra l'entrata sul cantiere.",
+        label: "Sicurezza",
+        cls: "bg-amber-100 text-amber-800",
+        text: "Completa la checklist prima di proseguire.",
       }
-    : !checklistDone
+    : !rapportinoDone
       ? {
-          label: "Sicurezza",
+          label: "Rapportino",
           cls: "bg-amber-100 text-amber-800",
-          text: "Completa la checklist prima di proseguire.",
+          text: "Manda il rapportino per aggiornare commessa e diario.",
         }
-      : !rapportinoDone
+      : readyToExit && (isInCantiere || isInPausa)
         ? {
-            label: "Rapportino",
-            cls: "bg-amber-100 text-amber-800",
-            text: "Manda il rapportino per aggiornare commessa e diario.",
+            label: "Pronto uscita",
+            cls: "bg-emerald-100 text-emerald-800",
+            text: "Dati minimi raccolti. Puoi andare alla timbratura di uscita.",
           }
-        : readyToExit && (isInCantiere || isInPausa)
+        : timbraturaAttesa
           ? {
-              label: "Pronto uscita",
-              cls: "bg-emerald-100 text-emerald-800",
-              text: "Dati minimi raccolti. Puoi andare alla timbratura di uscita.",
+              label: "Manca la timbratura",
+              cls: "bg-blue-100 text-blue-800",
+              text: "Sicurezza e rapportino ci sono. Se hai lavorato qui, registra anche la timbratura.",
             }
           : giornataCompleta
             ? {
@@ -1282,14 +1299,30 @@ function CampoCloseDayCard({
         </span>
       </div>
 
+      {/* Ogni passo è un collegamento: prima erano riquadri morti e l'unico
+          modo di muoversi era il bottone grande in fondo. */}
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
         {isOperaio && (
-          <CloseDayStep ok={hasTimbrato} icon={LogIn} label="Entrata" detail={hasTimbrato ? "Registrata" : "Manca"} />
+          <CloseDayStep
+            ok={hasTimbrato}
+            icon={LogIn}
+            label="Entrata"
+            detail={hasTimbrato ? "Registrata" : "Consigliata"}
+            optional
+            onClick={onTimbratura}
+          />
         )}
-        <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} />
-        <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional />
-        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0}h` : "Manca"} />
-        <CloseDayStep ok={giornataCompleta} icon={LogOut} label="Uscita" detail={giornataCompleta ? "Registrata" : readyToExit ? "Pronta" : `${requiredMissing} blocchi`} />
+        <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} onClick={onChecklist} />
+        <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional onClick={onRapportino} />
+        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : "Manca"} onClick={onRapportino} />
+        <CloseDayStep
+          ok={giornataCompleta}
+          icon={LogOut}
+          label="Uscita"
+          detail={giornataCompleta ? "Registrata" : readyToExit ? "Pronta" : requiredMissing === 1 ? "1 passo prima" : `${requiredMissing} passi prima`}
+          optional={!isOperaio}
+          onClick={isOperaio ? onTimbratura : undefined}
+        />
       </div>
 
       {/* Solo se dichiarato davvero (>0): con le fasi la % la calcola il sistema
@@ -1310,28 +1343,35 @@ function CloseDayStep({
   label,
   detail,
   optional,
+  onClick,
 }: {
   ok: boolean;
   icon: LucideIcon;
   label: string;
   detail: string;
   optional?: boolean;
+  onClick?: () => void;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className={cn(
-      "rounded-xl border p-2.5",
-      ok
-        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-        : optional
-          ? "border-blue-100 bg-blue-50 text-blue-800"
-          : "border-amber-200 bg-amber-50 text-amber-800",
-    )}>
+    <Tag
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border p-2.5 text-left",
+        onClick && "transition-transform active:scale-[0.98]",
+        ok
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : optional
+            ? "border-blue-100 bg-blue-50 text-blue-800"
+            : "border-amber-200 bg-amber-50 text-amber-800",
+      )}
+    >
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 shrink-0" />
         <p className="min-w-0 truncate text-xs font-black">{label}</p>
       </div>
       <p className="mt-1 truncate text-[10px] font-semibold opacity-80">{detail}</p>
-    </div>
+    </Tag>
   );
 }
 

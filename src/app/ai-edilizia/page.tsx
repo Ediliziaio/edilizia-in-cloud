@@ -32,11 +32,11 @@ const ctaHref = "/demo";
 const painScenes = [
   {
     title: "Sabato mattina, ore 8.",
-    text: "Sei in ufficio a rifare preventivi e conti di cantiere. Gli altri sono gia' fuori con la famiglia. Tu stai cercando di capire dove e' sparito il margine.",
+    text: "Sei in ufficio a rifare preventivi e conti di cantiere. Gli altri sono già fuori con la famiglia. Tu stai cercando di capire dove è sparito il margine.",
   },
   {
     title: "Fatturato record. Utile ridicolo.",
-    text: "Hai chiuso l'anno a 1.300.000 euro. A marzo il commercialista ti dice che l'utile e' 32.000 euro. Hai lavorato come un titolare, ma ti sei pagato meno di un dipendente.",
+    text: "Hai chiuso l'anno a 1.300.000 euro. A marzo il commercialista ti dice che l'utile è 32.000 euro. Hai lavorato come un titolare, ma ti sei pagato meno di un dipendente.",
   },
   {
     title: "Quattro cantieri aperti. Un buco invisibile.",
@@ -48,7 +48,7 @@ const painScenes = [
   },
   {
     title: "Il cantiere preso per fatturare.",
-    text: "Hai detto si' a un lavoro da 180.000 euro per non lasciare ferma la squadra. Ora non sai piu' se stai guadagnando o se stai pagando per lavorare.",
+    text: "Hai detto sì a un lavoro da 180.000 euro per non lasciare ferma la squadra. Ora non sai più se stai guadagnando o se stai pagando per lavorare.",
   },
 ];
 
@@ -56,15 +56,15 @@ const aiActions = [
   { icon: FileText, title: "Legge fatture e DDT", text: "Imputa costi, materiali e documenti al cantiere giusto senza farti inseguire fogli e allegati." },
   { icon: LineChart, title: "Calcola il margine reale", text: "Ti mostra ogni giorno se una commessa sta creando utile o sta drenando cassa." },
   { icon: Clock3, title: "Prevede la cassa", text: "Ti avvisa prima che un buco diventi emergenza: incassi, fornitori, stipendi e scadenze." },
-  { icon: Target, title: "Ti dice cosa fare", text: "Non solo dati: priorita', azioni, clienti da seguire, lavori da rifiutare, preventivi da correggere." },
+  { icon: Target, title: "Ti dice cosa fare", text: "Non solo dati: priorità, azioni, clienti da seguire, lavori da rifiutare, preventivi da correggere." },
   { icon: Bot, title: "Scrive bozze operative", text: "Preventivi, solleciti, email ai clienti e promemoria interni. Tu controlli e approvi." },
 ];
 
 const resultDays = [
   {
     when: "Lunedi, 7:15",
-    title: "Apri il telefono prima del caffe'.",
-    text: "Vedi quattro cantieri: 28%, 31%, 19% e -3%. Quello rosso ha gia' tre azioni consigliate da Silvio. Alle 8 sei in cantiere, non a rincorrere Excel.",
+    title: "Apri il telefono prima del caffè.",
+    text: "Vedi quattro cantieri: 28%, 31%, 19% e -3%. Quello rosso ha già tre azioni consigliate da Silvio. Alle 8 sei in cantiere, non a rincorrere Excel.",
   },
   {
     when: "Venerdi, 18:00",
@@ -80,12 +80,12 @@ const resultDays = [
 
 const modules = [
   ["Margini cantieri", "Sai quale cantiere ti fa guadagnare e quale sta bruciando soldi."],
-  ["Cassa 30/60/90", "Vedi prima il buco di liquidita', non quando sei gia' in banca."],
-  ["Preventivi AI", "Prepari offerte piu' veloci, con costi e margini sotto controllo."],
+  ["Cassa 30/60/90", "Vedi prima il buco di liquidità, non quando sei già in banca."],
+  ["Preventivi AI", "Prepari offerte più veloci, con costi e margini sotto controllo."],
   ["DDT e magazzino", "Materiali, arrivi, lotti e uscite collegati alle commesse."],
   ["Giornale lavori", "Foto, rapportini e SAL dal campo, aggiornati senza carta."],
-  ["CRM edilizia", "Lead, clienti, follow-up e opportunita' senza perdere richieste."],
-  ["Squadre e HR", "Presenze, ferie, attivita' e responsabilita' operative chiare."],
+  ["CRM edilizia", "Lead, clienti, follow-up e opportunità senza perdere richieste."],
+  ["Squadre e HR", "Presenze, ferie, attività e responsabilità operative chiare."],
   ["Documenti", "Contratti, fatture, POS, DURC e allegati sempre recuperabili."],
   ["Agenti AI", "19 specialisti coordinati da Silvio per leggere la tua azienda."],
 ];
@@ -127,7 +127,7 @@ const faqs = [
   },
   {
     q: "Serve cambiare commercialista?",
-    a: "No. Il commercialista puo' avere accesso in sola lettura ai dati utili. Tu smetti di perdere ore a cercare documenti e lui lavora su informazioni ordinate.",
+    a: "No. Il commercialista può avere accesso in sola lettura ai dati utili. Tu smetti di perdere ore a cercare documenti e lui lavora su informazioni ordinate.",
   },
   {
     q: "Quanto tempo richiede?",
@@ -140,10 +140,10 @@ const faqs = [
 ];
 
 const proofMetrics = [
-  { value: "31 giorni", label: "per capire se il Sistema recupera piu' di quanto costa" },
+  { value: "31 giorni", label: "per capire se il Sistema recupera più di quanto costa" },
   { value: "90 giorni", label: "di visione cassa, cantieri, margini e scadenze" },
   { value: "19 AI", label: "persone operative coordinate da Silvio sui tuoi dati" },
-  { value: "0 Excel", label: "per leggere margini, DDT, fatture e priorita' reali" },
+  { value: "0 Excel", label: "per leggere margini, DDT, fatture e priorità reali" },
 ];
 
 const landingImages = {
@@ -230,7 +230,7 @@ function HeroAI() {
       <div className="relative mx-auto grid max-w-7xl gap-9 lg:grid-cols-[1.06fr_0.84fr] lg:items-center">
         <div className="ai-hero-copy">
           <div className="inline-flex max-w-full rounded-full border border-white/12 bg-white/[0.07] px-4 py-2 text-sm font-bold leading-5 text-white/74">
-            150+ imprese edili italiane stanno gia' usando il Sistema
+            150+ imprese edili italiane stanno già usando il Sistema
           </div>
           <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-eic-orange md:text-sm md:tracking-[0.22em]">
             Il primo Sistema con AI per imprenditori edili italiani
@@ -283,7 +283,7 @@ function HeroAI() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange">Regia AI</p>
-                <h2 className="mt-1 text-xl font-black md:text-2xl">Silvio, priorita' di oggi</h2>
+                <h2 className="mt-1 text-xl font-black md:text-2xl">Silvio, priorità di oggi</h2>
               </div>
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">Live</span>
             </div>
@@ -414,7 +414,7 @@ function PainSection() {
         <FadeUp className="max-w-3xl">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Ti riconosci?</p>
           <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
-            Se si', non sei il problema. E' il metodo.
+            Se sì, non sei il problema. È il metodo.
           </h2>
         </FadeUp>
         <div className="mt-12 divide-y divide-eic-border rounded-md border border-eic-border bg-white shadow-xl shadow-eic-navy/5">
@@ -430,7 +430,7 @@ function PainSection() {
             </FadeUp>
           ))}
         </div>
-        <p className="mt-8 text-center text-xl font-black italic text-eic-navy">Non e' colpa tua. Nessuno ti ha mai dato uno strumento vero.</p>
+        <p className="mt-8 text-center text-xl font-black italic text-eic-navy">Non è colpa tua. Nessuno ti ha mai dato uno strumento vero.</p>
       </div>
     </section>
   );
@@ -446,7 +446,7 @@ function SystemSection() {
             Non sei diventato titolare per fare anche il commercialista, l'analista e il direttore HR.
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-eic-muted">
-            Tutto contemporaneamente. Tutto a mente. Tutto a sensazione. Funziona finche' l'azienda e' piccola. Da 500.000 euro in su, smette di funzionare.
+            Tutto contemporaneamente. Tutto a mente. Tutto a sensazione. Funziona finché l'azienda è piccola. Da 500.000 euro in su, smette di funzionare.
           </p>
         </FadeUp>
 
@@ -457,7 +457,7 @@ function SystemSection() {
                 Non un gestionale
               </span>
               <h3 className="mt-5 text-3xl md:text-4xl font-black leading-tight text-eic-navy">
-                E' un Sistema con AI che lavora 24 ore al giorno.
+                è un Sistema con AI che lavora 24 ore al giorno.
               </h3>
               <p className="mt-4 text-lg leading-8 text-eic-muted">
                 Tu fai l'imprenditore. Il Sistema fa l'amministratore: collega dati, segnala rischi, prepara azioni.
@@ -510,8 +510,8 @@ function ResultSection() {
           ))}
         </div>
         <div className="mt-10 rounded-md bg-eic-navy p-8 text-center text-white">
-          <h3 className="text-2xl md:text-3xl font-black">Stesso fatturato. Molto piu' compenso.</h3>
-          <p className="mx-auto mt-3 max-w-2xl text-white/68">Non perche' lavori di piu'. Perche' smetti di regalare soldi su cantieri presi male, costi nascosti e cassa gestita tardi.</p>
+          <h3 className="text-2xl md:text-3xl font-black">Stesso fatturato. Molto più compenso.</h3>
+          <p className="mx-auto mt-3 max-w-2xl text-white/68">Non perché lavori di più. Perché smetti di regalare soldi su cantieri presi male, costi nascosti e cassa gestita tardi.</p>
         </div>
       </div>
     </section>
@@ -526,10 +526,10 @@ function EconomicsSection() {
           <FadeUp>
             <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Costo del non decidere</p>
             <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em]">
-              Ogni mese senza Sistema e' un mese che non torna.
+              Ogni mese senza Sistema è un mese che non torna.
             </h2>
             <p className="mt-6 text-lg leading-8 text-white/68">
-              Il fatturato che farai quest'anno e' gia' quasi scritto. Quello che porti a casa e' ancora da decidere.
+              Il fatturato che farai quest'anno è già quasi scritto. Quello che porti a casa è ancora da decidere.
             </p>
             <div className="mt-8">
               <CTAButton>Voglio vedere dove perdo soldi</CTAButton>
@@ -602,10 +602,10 @@ function FounderLetter() {
             <p>Per anni ho fatto quello che fanno tanti titolari: fatturare, fatturare, fatturare. Convinto che il fatturato fosse la risposta.</p>
             <p><strong className="text-eic-navy">Poi ho guardato i numeri veri.</strong> Fatturato record, stress alle stelle, compenso personale troppo basso.</p>
             <p>Non ho trovato un sistema fatto da chi capisce davvero il cantiere. Allora me lo sono costruito. Prima l'ho usato io, con i miei soldi in gioco. Poi l'abbiamo portato ad altre imprese edili.</p>
-            <p>Oggi dentro quel Sistema c'e' Silvio: un'AI che legge fatture, collega costi, prevede cassa e ti aiuta a decidere prima che il problema esploda.</p>
+            <p>Oggi dentro quel Sistema c'è Silvio: un'AI che legge fatture, collega costi, prevede cassa e ti aiuta a decidere prima che il problema esploda.</p>
           </div>
           <blockquote className="mt-8 rounded-md border-l-4 border-eic-orange bg-eic-orange/8 p-5 text-xl font-black italic text-eic-navy">
-            Il fatturato e' vanita'. Il margine e' sanita'. La cassa e' realta'.
+            Il fatturato è vanità. Il margine è sanità. La cassa è realtà.
           </blockquote>
           <div className="mt-8">
             <CTAButton>Voglio i 30 minuti con un consulente</CTAButton>
@@ -656,17 +656,17 @@ function FitPricingFaq() {
         <div className="grid gap-6 lg:grid-cols-2">
           <FadeUp>
             <div id="per-chi" className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
-              <h2 className="text-3xl font-black text-eic-navy">Edilizia in Cloud non e' per tutti.</h2>
+              <h2 className="text-3xl font-black text-eic-navy">Edilizia in Cloud non è per tutti.</h2>
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <div>
-                  <h3 className="font-black text-emerald-700">E' per te se</h3>
+                  <h3 className="font-black text-emerald-700">è per te se</h3>
                   {["Fatturi almeno 400.000 euro/anno", "Vuoi decidere su margini e cassa", "Gestisci cantieri operativi", "Vuoi delegare senza perdere controllo"].map((item) => (
                     <p key={item} className="mt-3 flex gap-2 text-sm font-semibold text-eic-muted"><Check className="h-5 w-5 shrink-0 text-emerald-600" />{item}</p>
                   ))}
                 </div>
                 <div>
-                  <h3 className="font-black text-red-700">Non e' per te se</h3>
-                  {["Vuoi solo un Excel piu' carino", "Non vuoi guardare i margini", "Cerchi un ERP generico", "Non puoi dedicare 2 ore al mese"].map((item) => (
+                  <h3 className="font-black text-red-700">Non è per te se</h3>
+                  {["Vuoi solo un Excel più carino", "Non vuoi guardare i margini", "Cerchi un ERP generico", "Non puoi dedicare 2 ore al mese"].map((item) => (
                     <p key={item} className="mt-3 flex gap-2 text-sm font-semibold text-eic-muted"><X className="h-5 w-5 shrink-0 text-red-600" />{item}</p>
                   ))}
                 </div>
@@ -677,7 +677,7 @@ function FitPricingFaq() {
           <FadeUp transition={{ delay: 0.06 }}>
             <div className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
               <h2 className="text-3xl font-black text-eic-navy">Quanto costa il Sistema?</h2>
-              <p className="mt-3 text-eic-muted">Tre piani. Uno solo ti servira' davvero: te lo diciamo in consulenza, senza forzare.</p>
+              <p className="mt-3 text-eic-muted">Tre piani. Uno solo ti servirà davvero: te lo diciamo in consulenza, senza forzare.</p>
               <div className="mt-6 grid gap-3">
                 {plans.map((plan) => (
                   <div key={plan.name} className={cn("rounded-md border p-4", plan.highlight ? "border-eic-orange bg-eic-orange/8" : "border-eic-border bg-eic-slate")}>
