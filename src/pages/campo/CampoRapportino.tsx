@@ -1,13 +1,13 @@
 /**
- * Rapportino giornaliero multi-step (3 step):
- * 1. Descrizione lavori + meteo (facoltativo)
- * 2. Ore + Avanzamento + Foto (facoltativo)
- * 3. Riepilogo e invio
- * 4. Firme (SOLO se "lavoro completato" è attivo): firma cliente + nome
- *    obbligatori per il fine lavori, firma operaio opzionale.
+ * Rapportino giornaliero SEMPLIFICATO (2 step):
+ * 1. La giornata — descrizione, meteo, ore e foto: tutto quello che serve
+ *    all'operaio "normale", in una schermata sola.
+ * 2. Conferma e firma — fasi/squadra/materiali (solo se servono), riepilogo
+ *    e FIRMA dell'operaio/capocantiere: il PDF generato all'invio esce già
+ *    firmato da chi lo compila.
+ * 3. SOLO se "lavoro completato": firma del cliente (obbligatoria).
  *
- * Sul rapportino giornaliero normale nessun campo è obbligatorio e il
- * flusso resta a 3 step, identico a prima (zero regressioni).
+ * Nessun campo del giornaliero è obbligatorio (firma inclusa).
  */
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -25,7 +25,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 2;
 
 // Fase della commessa su cui l'operaio può dichiarare l'avanzamento
 interface FaseCommessa {
@@ -106,9 +106,9 @@ export default function CampoRapportino() {
   const [firmaClienteNome, setFirmaClienteNome] = useState("");
   const [firmaOperaio, setFirmaOperaio] = useState<string | null>(null);
 
-  // Con "lavoro completato" attivo il flusso diventa 4 step (step Firme);
-  // sul giornaliero normale resta a 3 step, identico a prima.
-  const totalSteps = lavoro_completato ? 4 : TOTAL_STEPS;
+  // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
+  // sul giornaliero normale sono 2 step.
+  const totalSteps = lavoro_completato ? 3 : TOTAL_STEPS;
 
   // Acquisisci GPS all'inizio — una sola volta al mount (requestPosition è useCallback
   // con dep [companyId]; se companyId cambia da null a valore, l'effect rilancia una
@@ -392,32 +392,33 @@ export default function CampoRapportino() {
         percentuale,
       }));
 
-      // ── Firme (solo fine lavori): dataURL → PNG → bucket campo-rapportini ──
+      // ── Firme: dataURL → PNG → bucket campo-rapportini ──
+      // La firma dell'operaio/capocantiere vale su OGNI rapportino (finisce
+      // nel PDF generato all'invio); quella del cliente solo sul fine lavori.
       let firmaClienteUrl: string | null = null;
       let firmaOperaioUrl: string | null = null;
+      const ts = Date.now();
+      const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
+        const blob = await (await fetch(dataUrl)).blob();
+        const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
+        const { data: up, error: upErr } = await supabase.storage
+          .from("campo-rapportini")
+          .upload(path, blob, { contentType: "image/png", upsert: false });
+        if (upErr) throw upErr;
+        if (!up?.path) throw new Error("Upload firma senza path");
+        const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
+        return urlData.publicUrl;
+      };
+      if (firmaOperaio) {
+        // Opzionale: se fallisce non blocca l'invio del rapportino
+        firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err) => {
+          console.warn("[CampoRapportino] upload firma operaio fallito:", err);
+          return null;
+        });
+      }
       if (lavoro_completato && firmaCliente) {
-        const ts = Date.now();
-        const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
-          const blob = await (await fetch(dataUrl)).blob();
-          const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
-          const { data: up, error: upErr } = await supabase.storage
-            .from("campo-rapportini")
-            .upload(path, blob, { contentType: "image/png", upsert: false });
-          if (upErr) throw upErr;
-          if (!up?.path) throw new Error("Upload firma senza path");
-          const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
-          return urlData.publicUrl;
-        };
-
         // La firma del cliente è obbligatoria sul fine lavori: se fallisce, blocca l'invio
         firmaClienteUrl = await uploadFirma(firmaCliente, "cliente");
-        // La firma operaio è opzionale: se fallisce non blocca l'invio
-        if (firmaOperaio) {
-          firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err) => {
-            console.warn("[CampoRapportino] upload firma operaio fallito:", err);
-            return null;
-          });
-        }
       }
 
       // Inserisci rapportino
@@ -458,13 +459,13 @@ export default function CampoRapportino() {
             : {}),
           // Materiali confermati oggi (facoltativi): stesso formato del vocale
           ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
-          // Firme SOLO sul fine lavori: il payload del giornaliero resta invariato
+          // Firma dell'autore su qualunque rapportino; firma cliente solo fine lavori
+          ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
           ...(lavoro_completato && firmaClienteUrl
             ? {
                 firma_cliente_url: firmaClienteUrl,
                 firma_cliente_nome: firmaClienteNome.trim(),
                 firma_cliente_at: new Date().toISOString(),
-                ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
               }
             : {}),
         })
@@ -592,8 +593,11 @@ export default function CampoRapportino() {
       queryClient.invalidateQueries({ queryKey: ["campo-fasi-commessa", orderId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
-    onError: () => {
-      toast.error("Errore nel salvataggio. Riprova.");
+    onError: (err: unknown) => {
+      // Il messaggio vero (es. "lavoro non assegnato") deve arrivare
+      // all'operaio: il toast generico faceva riprovare all'infinito.
+      const msg = err instanceof Error && err.message ? err.message : "Errore nel salvataggio. Riprova.";
+      toast.error(msg);
     },
   });
 
@@ -607,12 +611,12 @@ export default function CampoRapportino() {
   };
 
   const goBack = () => {
-    if (step === 4) {
-      // Tornando indietro il canvas si smonta: azzera le firme per evitare
-      // uno stato "firmato" con pad visivamente vuoto al rientro nello step.
+    if (step === 3) {
+      // Tornando indietro il canvas si smonta: azzera la firma cliente per
+      // evitare uno stato "firmato" con pad visivamente vuoto al rientro.
       setFirmaCliente(null);
-      setFirmaOperaio(null);
     }
+    if (step === 2) setFirmaOperaio(null);
     if (step > 1) setStep(s => s - 1);
     else navigate(`/campo/lavoro/${orderId}`);
   };
@@ -678,14 +682,6 @@ export default function CampoRapportino() {
                 ))}
               </div>
             </div>
-          </>
-        )}
-
-        {/* ── Step 2: Ore + Avanzamento + Foto ── */}
-        {step === 2 && (
-          <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Ore e avanzamento</h2>
-
             {/* Ore lavorate + straordinario in un'unica card (meno scroll su mobile) */}
             <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
               <div>
@@ -749,6 +745,55 @@ export default function CampoRapportino() {
               </div>
             </div>
 
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
+              <label className="block w-full">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  className="hidden"
+                  onChange={handleFotoChange}
+                  disabled={uploadingFoto}
+                />
+                <div className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/60 p-6 transition-colors active:border-primary">
+                  {uploadingFoto ? (
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  ) : (
+                    <>
+                      <Camera className="w-8 h-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Scatta o scegli foto</span>
+                    </>
+                  )}
+                </div>
+              </label>
+              {fotoPreviews.length > 0 && (
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  {fotoPreviews.map((p, i) => (
+                    <div key={i} className="relative">
+                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
+                      <button
+                        onClick={() => {
+                          setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
+                          setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
+                        }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Step 2 (a): fasi, squadra e materiali del cantiere ── */}
+        {step === 2 && (
+          <>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Conferma e firma</h2>
 
             {/* Avanzamento generale SOLO senza fasi: con le fasi la % commessa
                 è derivata dal DB, chiederla di nuovo qui confonde. */}
@@ -999,55 +1044,13 @@ export default function CampoRapportino() {
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
-              <label className="block w-full">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  multiple
-                  className="hidden"
-                  onChange={handleFotoChange}
-                  disabled={uploadingFoto}
-                />
-                <div className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/60 p-6 transition-colors active:border-primary">
-                  {uploadingFoto ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  ) : (
-                    <>
-                      <Camera className="w-8 h-8 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Scatta o scegli foto</span>
-                    </>
-                  )}
-                </div>
-              </label>
-              {fotoPreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {fotoPreviews.map((p, i) => (
-                    <div key={i} className="relative">
-                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
-                      <button
-                        onClick={() => {
-                          setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
-                          setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
-                        }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-                      >
-                        <X className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </>
         )}
 
-        {/* ── Step 3: Riepilogo ── */}
-        {step === 3 && (
+        {/* ── Step 2 (b): riepilogo, fine lavori e firma dell'autore ── */}
+        {step === 2 && (
           <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Riepilogo</h2>
+            <h3 className="text-base font-black text-foreground">Riepilogo</h3>
 
             {/* Riepilogo dati */}
             <div className="space-y-3 rounded-2xl border border-border bg-muted/60 p-4">
@@ -1133,15 +1136,22 @@ export default function CampoRapportino() {
                 </p>
               </div>
             </div>
+
+            {/* Firma dell'autore su OGNI rapportino: finisce nel PDF generato
+                all'invio. Facoltativa, ma il pad qui la rende un gesto solo. */}
+            <FirmaPad
+              label={isCapocantiere ? "Firma del capocantiere (facoltativa)" : "Firma dell'operaio (facoltativa)"}
+              onChange={setFirmaOperaio}
+            />
           </>
         )}
 
-        {/* ── Step 4: Firme (solo fine lavori) ── */}
-        {step === 4 && lavoro_completato && (
+        {/* ── Step 3: Firma del cliente (solo fine lavori) ── */}
+        {step === 3 && lavoro_completato && (
           <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Firme di fine lavori</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Firma del cliente</h2>
             <p className="text-sm text-muted-foreground">
-              Fai firmare il cliente per confermare la fine dei lavori. La firma dell'operaio è facoltativa.
+              Fai firmare il cliente per confermare la fine dei lavori.
             </p>
 
             <FirmaPad label="Firma del cliente" onChange={setFirmaCliente} />
@@ -1156,8 +1166,6 @@ export default function CampoRapportino() {
                 onChange={e => setFirmaClienteNome(e.target.value)}
               />
             </div>
-
-            <FirmaPad label="Firma operaio (facoltativa)" onChange={setFirmaOperaio} />
 
             {firmeMancanti && (
               <p className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">

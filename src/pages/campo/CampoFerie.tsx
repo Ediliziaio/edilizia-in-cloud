@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,9 @@ export default function CampoFerie() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  // Profilo HR: la lista dell'ufficio joina hr_profili via profilo_id — senza,
+  // la richiesta compariva in HR senza nome del dipendente.
+  const { data: hrProfilo } = useMyHrProfilo();
 
   // Form state
   const [tipo, setTipo] = useState("ferie");
@@ -69,6 +73,7 @@ export default function CampoFerie() {
       const { error } = await supabase.from("hr_richieste").insert({
         user_id: user!.id,
         company_id: (profile as any)?.company_id,
+        profilo_id: hrProfilo?.id ?? null,
         tipo,
         data_inizio: dataInizio,
         data_fine: dataFine,

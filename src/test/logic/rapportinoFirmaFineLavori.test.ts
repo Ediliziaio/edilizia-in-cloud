@@ -37,9 +37,13 @@ describe("Fine lavori — step firme in CampoRapportino", () => {
     expect(src).toContain("firma_operaio_url");
   });
 
-  it("il flusso diventa 4 step solo con lavoro_completato e carica le firme sul bucket", () => {
+  it("il flusso è 2 step (+ firma cliente solo con lavoro_completato) e carica le firme sul bucket", () => {
     const src = readFileSync(CAMPO_RAPPORTINO, "utf8");
-    expect(src).toContain("lavoro_completato ? 4 : TOTAL_STEPS");
+    // Redesign 2026-08-09: giornaliero in 2 step; il fine lavori aggiunge lo
+    // step Firma cliente. La firma dell'autore vale su OGNI rapportino.
+    expect(src).toContain("const TOTAL_STEPS = 2;");
+    expect(src).toContain("lavoro_completato ? 3 : TOTAL_STEPS");
+    expect(src).toContain("if (firmaOperaio) {");
     expect(src).toContain("/firme/");
     expect(src).toContain('from("campo-rapportini")');
   });

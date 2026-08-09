@@ -398,22 +398,24 @@ function TaskFormCampo({
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        company_id: companyId,
         title: title.trim(),
         notes: notes.trim() || null,
         priority,
         status,
         due_date: dueDate || null,
-        assigned_to: userId,
-        category: "generale",
         completed_at: status === "completata" ? new Date().toISOString() : null,
       };
 
       if (isEditing) {
+        // In modifica NON tocchiamo assigned_to/category/company: salvare una
+        // task creata dall'ufficio ne cancellava categoria e assegnatario.
         const { error } = await supabase.from("tasks").update(payload).eq("id", task.id);
         if (error) throw error;
         toast.success("Attività aggiornata");
       } else {
+        payload.company_id = companyId;
+        payload.assigned_to = userId;
+        payload.category = "generale";
         payload.created_by = userId;
         const { error } = await supabase.from("tasks").insert(payload as any);
         if (error) throw error;

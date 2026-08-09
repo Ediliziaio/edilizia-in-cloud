@@ -23,6 +23,7 @@ import {
   Receipt,
   ArrowLeft,
   ListChecks,
+  Package,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,6 +87,10 @@ export default function CampoLayout() {
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
+    // Su desktop la bottom nav è nascosta: senza queste voci Timbratura e
+    // Magazzino erano raggiungibili SOLO da mobile (o per niente).
+    { title: "Timbratura", url: "/campo/timbratura", icon: Clock },
+    { title: "Magazzino", url: "/campo/magazzino", icon: Package },
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },

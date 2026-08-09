@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { FirmaPad } from "@/components/campo/FirmaPad";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
@@ -62,6 +63,8 @@ type CampoOrderItem = {
 type CampoRapportinoRow = {
   id: string;
   data_lavoro: string;
+  pdf_url?: string | null;
+  firma_operaio_url?: string | null;
   ore_lavorate: number | null;
   descrizione_lavori: string | null;
   stato?: string | null;
@@ -508,6 +511,64 @@ export default function CampoLavoroDetail() {
     enabled: !!orderId && !!currentUserId && activeTab === "rapportini",
   });
 
+  // ── Firma del rapportino a posteriori + PDF ────────────────────────────
+  // All'invio il PDF viene generato da solo; da qui l'operaio/capocantiere
+  // può firmare un rapportino non ancora firmato (il PDF viene rigenerato
+  // con la firma dentro) e aprire il PDF.
+  const [firmaRapportinoId, setFirmaRapportinoId] = useState<string | null>(null);
+  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+
+  const firmaRapportinoMutation = useMutation({
+    mutationFn: async ({ rapportinoId, dataUrl }: { rapportinoId: string; dataUrl: string }) => {
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = `${companyId}/${orderId}/firme/${Date.now()}_operaio.png`;
+      const { data: up, error: upErr } = await supabase.storage
+        .from("campo-rapportini")
+        .upload(path, blob, { contentType: "image/png", upsert: false });
+      if (upErr || !up?.path) throw upErr ?? new Error("Upload firma non riuscito");
+      const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
+      const { error: updErr } = await supabase
+        .from("campo_rapportini")
+        .update({ firma_operaio_url: urlData.publicUrl })
+        .eq("id", rapportinoId);
+      if (updErr) throw updErr;
+      // Rigenera il PDF con la firma (fire-and-forget)
+      supabase.functions.invoke("genera-pdf-rapportino", { body: { rapportino_id: rapportinoId } }).catch(() => {});
+    },
+    onSuccess: () => {
+      toast.success("Rapportino firmato");
+      setFirmaRapportinoId(null);
+      setFirmaDataUrl(null);
+      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
+    },
+    onError: (err: unknown) =>
+      toast.error(err instanceof Error ? err.message : "Non riesco a salvare la firma"),
+  });
+
+  const apriPdfRapportino = async (r: CampoRapportinoRow) => {
+    if (r.pdf_url) {
+      window.open(r.pdf_url, "_blank", "noopener");
+      return;
+    }
+    // Rapportini vecchi (o generazione fallita): genera al volo e apri
+    setPdfBusyId(r.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("genera-pdf-rapportino", {
+        body: { rapportino_id: r.id },
+      });
+      if (error) throw error;
+      const url = (data as { pdf_url?: string } | null)?.pdf_url;
+      if (!url) throw new Error("PDF non disponibile, riprova tra qualche istante");
+      window.open(url, "_blank", "noopener");
+      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Non riesco a generare il PDF");
+    } finally {
+      setPdfBusyId(null);
+    }
+  };
+
   const { data: timbratureLavoroOggi = [] } = useQuery({
     queryKey: ["campo-lavoro-timbrature-oggi", companyId, orderId, currentUserId, today],
     queryFn: async () => {
@@ -754,7 +815,7 @@ export default function CampoLavoroDetail() {
         )}
 
         <div className="mt-2 grid grid-cols-2 gap-1.5 md:mt-3 md:gap-2">
-          <QuickAction icon={Camera} label="Foto" onClick={() => navigate(rapportinoManualeUrl)} />
+          <QuickAction icon={Camera} label="Foto e rapportino" onClick={() => navigate(rapportinoManualeUrl)} />
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
         </div>
 
@@ -968,8 +1029,60 @@ export default function CampoLavoroDetail() {
                       ))}
                     </div>
                   )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                    <button
+                      onClick={() => void apriPdfRapportino(r)}
+                      disabled={pdfBusyId === r.id}
+                      className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground disabled:opacity-50"
+                    >
+                      {pdfBusyId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      PDF
+                    </button>
+                    {r.firma_operaio_url ? (
+                      <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[10px] font-semibold text-green-700">
+                        <PenLine className="h-3 w-3" />
+                        Firmato
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); }}
+                        className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
+                      >
+                        <PenLine className="h-3.5 w-3.5" />
+                        Firma
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
+            )}
+
+            {/* Dialog firma rapportino */}
+            {firmaRapportinoId && (
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+                <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
+                  <p className="text-base font-black text-foreground">Firma il rapportino</p>
+                  <FirmaPad label="Firma con il dito" onChange={setFirmaDataUrl} />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setFirmaRapportinoId(null); setFirmaDataUrl(null); }}
+                      className="flex-1 rounded-xl border border-border bg-muted py-3 text-sm font-semibold text-foreground"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!firmaDataUrl) { toast.error("Firma prima nel riquadro"); return; }
+                        firmaRapportinoMutation.mutate({ rapportinoId: firmaRapportinoId, dataUrl: firmaDataUrl });
+                      }}
+                      disabled={firmaRapportinoMutation.isPending}
+                      className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
+                    >
+                      {firmaRapportinoMutation.isPending ? "Salvo…" : "Salva firma"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1300,6 +1413,10 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
           signer_email: customer.email,
           signer_name: customerName || "Cliente",
           expires_giorni: 7,
+          // La scelta della griglia (verbale consegna, collaudo, ...) e le
+          // note prima si perdevano: l'edge le salva su signature_requests.
+          categoria: selectedTipo,
+          note: noteDoc.trim() || null,
         },
       });
 
@@ -1455,7 +1572,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
             Storico documenti ({firmeRichieste.length})
           </p>
           {firmeRichieste.map((f) => {
-            const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === f.tipo_documento)
+            const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === ((f as { categoria?: string | null }).categoria ?? f.tipo_documento))
               || (f.tipo_documento === "order" ? { label: "Documento ordine", icon: FileCheck, color: "text-blue-600 bg-blue-50" } : null);
             const stato = STATO_FIRMA[f.status] || STATO_FIRMA.pending;
             const StatoIcon = stato.icon;

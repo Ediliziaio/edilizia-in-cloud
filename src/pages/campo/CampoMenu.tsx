@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Calendar, Clock, CalendarDays, Receipt, Mic, MessageSquare,
   ShieldCheck, CreditCard, FileText, Ticket, Settings, LogOut,
-  ClipboardCheck, Search, CheckSquare,
+  ClipboardCheck, Search, CheckSquare, Package, ListChecks,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -46,6 +46,9 @@ export default function CampoMenu() {
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
+        { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
+        { icon: Clock, label: "Timbratura", url: "/campo/timbratura", color: "text-lime-600 bg-lime-50" },
+        { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
       ],
     },
     {
@@ -83,7 +86,7 @@ export default function CampoMenu() {
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
-        { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-cyan-600 bg-cyan-50" },
+        { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
       ],
     },
     {

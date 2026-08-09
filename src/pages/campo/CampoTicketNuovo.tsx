@@ -66,7 +66,10 @@ export default function CampoTicketNuovo() {
         company_id: companyId,
         order_id: selectedOrderId || null,
         created_by: user!.id,
-        customer_id: user!.id,
+        // customer_id resta null: i ticket dal campo non hanno un cliente
+        // (la colonna è stata resa nullable proprio per questo); metterci
+        // l'operaio lo faceva comparire come "cliente" in ufficio.
+        customer_id: null,
         subject: titolo.trim(),
         titolo: titolo.trim(),
         descrizione: descrizione.trim() || null,
@@ -79,7 +82,11 @@ export default function CampoTicketNuovo() {
     },
     onSuccess: () => {
       setDone(true);
-      setTimeout(() => navigate(-1), 2000);
+      // Da link diretto/notifica la history è vuota: -1 uscirebbe dall'app.
+      setTimeout(() => {
+        if (window.history.length > 2) navigate(-1);
+        else navigate("/campo", { replace: true });
+      }, 2000);
     },
     onError: (err: any) => toast.error(err.message ?? "Errore nell'invio del ticket"),
   });

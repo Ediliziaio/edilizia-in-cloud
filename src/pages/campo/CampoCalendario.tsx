@@ -121,11 +121,13 @@ function formatKm(meters: number): string {
 }
 
 function formatDriveTime(meters: number): string {
+  // Stima grezza in linea d'aria a 35 km/h: utile come ordine di grandezza,
+  // il "~" la dichiara per quello che è.
   const minutes = Math.max(3, Math.round((meters / 1000 / 35) * 60));
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return `~${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+  return rest ? `~${hours}h ${rest}m` : `~${hours}h`;
 }
 
 function itemTitle(item: CalendarItem): string {
@@ -178,13 +180,19 @@ function assignmentsToCantieri(rows: AssignmentRow[] | null | undefined): Cantie
     }));
 }
 
-// Sede demo
-const SEDE = { lat: 45.4642, lng: 9.1900, label: "Sede" }; // Milano
 
 export default function CampoCalendario() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, company, effectiveCompany } = useAuth();
   const { isSubappaltatore } = useIsCampo();
+  // Sede REALE dell'azienda (prima era hardcodato il Duomo di Milano per
+  // qualsiasi tenant): geocodifichiamo l'indirizzo operativo; se non c'è,
+  // le righe "Dalla sede" semplicemente non compaiono.
+  const activeCompany = (effectiveCompany ?? company) as (typeof company & {
+    operational_address?: string | null; legal_address?: string | null;
+  }) | null;
+  const sedeAddr = activeCompany?.operational_address || activeCompany?.address || activeCompany?.legal_address || null;
+  const [sedeCoords, setSedeCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [selectedAppuntamento, setSelectedAppuntamento] = useState<Appuntamento | null>(null);
@@ -246,14 +254,37 @@ export default function CampoCalendario() {
         return assignmentsToCantieri(contracts as AssignmentRow[] | null);
       }
 
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
-        .eq("employee_id", employeeId!);
-      if (error) throw error;
-      return assignmentsToCantieri(data as AssignmentRow[] | null);
+      // Le assegnazioni operaio vivono in DUE tabelle (order_employees dalla
+      // scheda costi, order_campo_assignments dall'app campo): la Home le
+      // legge entrambe, qui ne leggevamo una sola → cantieri visibili in Home
+      // ma "Nessun impegno" nel calendario. Unione con dedup per order_id.
+      const [empRes, campoRes] = await Promise.all([
+        employeeId
+          ? supabase
+              .from("order_employees")
+              .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
+              .eq("employee_id", employeeId)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("order_campo_assignments")
+          .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
+          .eq("user_id", user!.id),
+      ]);
+      if (empRes.error) throw empRes.error;
+      if (campoRes.error) throw campoRes.error;
+      const uniti = [
+        ...assignmentsToCantieri(empRes.data as AssignmentRow[] | null),
+        ...assignmentsToCantieri(campoRes.data as AssignmentRow[] | null),
+      ];
+      const visti = new Set<string>();
+      return uniti.filter((c) => {
+        const key = c.order?.id ?? c.id;
+        if (visti.has(key)) return false;
+        visti.add(key);
+        return true;
+      });
     },
-    enabled: isSubappaltatore ? !!user?.id : !!employeeId,
+    enabled: isSubappaltatore ? !!user?.id : !!user?.id,
   });
 
   // Appuntamenti assegnati all'operaio
@@ -262,7 +293,7 @@ export default function CampoCalendario() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, formatted_address, lat, lng, order_id, address_line, address_city")
+        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, formatted_address, lat, lng, order_id, address_line, address_city, order:orders(order_code)")
         .eq("company_id", profile!.company_id)
         .eq("assigned_to", user!.id)
         .neq("status", "annullato")
@@ -336,6 +367,16 @@ export default function CampoCalendario() {
     return null;
   }, [itemsForDay]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!sedeAddr) { setSedeCoords(null); return; }
+    (async () => {
+      const coords = await forwardGeocode(sedeAddr);
+      if (!cancelled) setSedeCoords(coords);
+    })();
+    return () => { cancelled = true; };
+  }, [sedeAddr]);
+
   // Geocoding cantieri — risolvi indirizzo → coordinate
   const [geocodedCoords, setGeocodedCoords] = useState<Record<string, { lat: number; lng: number } | null>>({});
 
@@ -378,9 +419,9 @@ export default function CampoCalendario() {
       const geo = geoItems[i];
       const entry: { fromSede?: number; between: number[] } = { between: [] };
 
-      // Distanza dalla sede
-      if (geo?.lat && geo?.lng) {
-        entry.fromSede = haversineMeters(SEDE.lat, SEDE.lng, geo.lat, geo.lng);
+      // Distanza dalla sede (solo se l'azienda ha un indirizzo geocodificabile)
+      if (geo?.lat && geo?.lng && sedeCoords) {
+        entry.fromSede = haversineMeters(sedeCoords.lat, sedeCoords.lng, geo.lat, geo.lng);
       }
 
       // Distanza dall'item precedente
@@ -394,7 +435,7 @@ export default function CampoCalendario() {
       result.push(entry);
     }
     return result;
-  }, [dayItems, geocodedCoords]);
+  }, [dayItems, geocodedCoords, sedeCoords]);
 
   // Mese calendario
   const monthStart = startOfMonth(currentMonth);

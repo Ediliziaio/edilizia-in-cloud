@@ -49,7 +49,10 @@ export default function CampoRoutesContainer() {
         <Route path="lavoro/:orderId/*">
           <Route index element={<CampoLavoroDetail />} />
           <Route path="rapportino" element={<CampoRapportino />} />
-          <Route path="rapportino/:rapportinoId" element={<CampoRapportino />} />
+          {/* La route "rapportino/:rapportinoId" NON è una modifica: il
+              componente ignorava l'id e CREAVA un secondo rapportino. Redirect
+              al form nuovo finché una vera modifica non esiste. */}
+          <Route path="rapportino/:rapportinoId" element={<Navigate to=".." replace />} />
           <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
         </Route>
         <Route path="sicurezza" element={<CampoChecklistSicurezza />} />

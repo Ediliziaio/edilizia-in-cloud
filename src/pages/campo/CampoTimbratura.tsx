@@ -188,24 +188,27 @@ export default function CampoTimbratura() {
       });
       if (error) throw error;
 
-      // Sincronizzazione NON BLOCCANTE con hr_timbrature (se l'operaio ha un profilo HR)
+      // Sincronizzazione NON BLOCCANTE con hr_timbrature (se l'operaio ha un
+      // profilo HR). data_evento/ora_evento sono GENERATED ALWAYS nel DB: NON
+      // vanno passate (Postgres rifiuta l'insert). E il client Supabase non
+      // lancia: l'errore va letto da { error }, il try/catch da solo non
+      // intercettava nulla e la sync falliva in silenzio da sempre.
       if (profiloId && companyId) {
-        try {
-          await supabase.from("hr_timbrature").insert({
-            company_id: companyId,
-            profilo_id: profiloId,
-            tipo,
-            timestamp: now,
-            data_evento: now.slice(0, 10),
-            ora_evento: now.slice(11, 19),
-            lat: gpsReady ? lat : null,
-            lng: gpsReady ? lng : null,
-            fonte: "app",
-            note,
+        const { error: hrErr } = await supabase.from("hr_timbrature").insert({
+          company_id: companyId,
+          profilo_id: profiloId,
+          tipo,
+          timestamp: now,
+          lat: gpsReady ? lat : null,
+          lng: gpsReady ? lng : null,
+          fonte: "app",
+          note,
+        });
+        if (hrErr) {
+          console.warn("[CampoTimbratura] hr_timbrature sync failed:", hrErr.message);
+          toast.warning("Timbratura registrata", {
+            description: "La copia sul registro HR non è riuscita: l'ufficio potrebbe non vederla subito.",
           });
-        } catch (hrErr) {
-          // Non bloccante: la timbratura campo è già avvenuta
-          console.warn("[CampoTimbratura] hr_timbrature sync failed:", hrErr);
         }
       }
     },
@@ -415,25 +418,36 @@ export default function CampoTimbratura() {
             {Object.entries(storicoByDay)
               .filter(([day]) => day !== today)
               .map(([day, items]) => {
-                // Compute ore for this day
+                // Lo storico arriva DESC (giorni più recenti in alto), ma il
+                // conteggio di pause e sessioni ha senso solo in ordine
+                // cronologico: prima si calcolava su array rovesciato →
+                // pause mai riconosciute e, con più sessioni, entrata/uscita
+                // sbagliate. Ordiniamo una copia ASC e sommiamo OGNI coppia
+                // entrata→uscita della giornata.
+                const asc = [...items].sort((a, b) =>
+                  a.timestamp_evento.localeCompare(b.timestamp_evento)
+                );
                 let mins = 0;
                 let pauseMins = 0;
-                for (let i = 0; i < items.length - 1; i++) {
-                  if (items[i].tipo === "pausa_inizio" && items[i + 1].tipo === "pausa_fine") {
+                for (let i = 0; i < asc.length - 1; i++) {
+                  if (asc[i].tipo === "pausa_inizio" && asc[i + 1].tipo === "pausa_fine") {
                     pauseMins += differenceInMinutes(
-                      parseISO(items[i + 1].timestamp_evento),
-                      parseISO(items[i].timestamp_evento)
+                      parseISO(asc[i + 1].timestamp_evento),
+                      parseISO(asc[i].timestamp_evento)
                     );
                   }
                 }
-                const ent = items.find(t => t.tipo === "entrata");
-                const usc = items.find(t => t.tipo === "uscita");
-                if (ent && usc) {
-                  mins = Math.max(0, differenceInMinutes(
-                    parseISO(usc.timestamp_evento),
-                    parseISO(ent.timestamp_evento)
-                  ) - pauseMins);
+                let entrataAperta: string | null = null;
+                for (const t of asc) {
+                  if (t.tipo === "entrata") entrataAperta = t.timestamp_evento;
+                  else if (t.tipo === "uscita" && entrataAperta) {
+                    mins += Math.max(0, differenceInMinutes(parseISO(t.timestamp_evento), parseISO(entrataAperta)));
+                    entrataAperta = null;
+                  }
                 }
+                mins = Math.max(0, mins - pauseMins);
+                const ent = asc.find(t => t.tipo === "entrata");
+                const usc = [...asc].reverse().find(t => t.tipo === "uscita");
                 const ore = (mins / 60).toFixed(1);
 
                 return (

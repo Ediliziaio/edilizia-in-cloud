@@ -22,6 +22,12 @@ Deno.serve(async (req: Request) => {
       signer_email,
       signer_name,
     } = body;
+    // Categoria "umana" del documento (verbale_consegna, collaudo_finale, ...)
+    // e note libere: arrivano dall'app campo, si salvano sulla richiesta così
+    // ufficio e storico vedono COSA si sta facendo firmare, non un generico
+    // "order".
+    const categoria = typeof body.categoria === "string" ? body.categoria.slice(0, 64) : null;
+    const noteRichiesta = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 2000) : null;
     const expiresGiorniRaw = Number(body.expires_giorni ?? body.scadenza_giorni ?? 30);
     const expiresGiorni = Number.isFinite(expiresGiorniRaw)
       ? Math.min(Math.max(Math.trunc(expiresGiorniRaw), 1), 365)
@@ -102,6 +108,8 @@ Deno.serve(async (req: Request) => {
       created_by: userId,
       tipo_documento,
       tipo_firmatario,
+      categoria,
+      note: noteRichiesta,
     };
 
     // Assegna ID documento in base al tipo
@@ -230,7 +238,7 @@ Deno.serve(async (req: Request) => {
       request_id,
       company_id,
       evento: "sessione_creata",
-      metadati: { tipo_documento, tipo_firmatario, signer_email },
+      metadati: { tipo_documento, tipo_firmatario, signer_email, categoria },
     });
 
     return new Response(

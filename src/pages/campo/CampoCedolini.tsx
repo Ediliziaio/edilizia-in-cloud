@@ -46,6 +46,9 @@ export default function CampoCedolini() {
         .from("hr_cedolini")
         .select("*")
         .eq("employee_id", employeeId!)
+        // Le bozze sono lavorazioni interne dell'ufficio: mostrarle (e contarle
+        // nei KPI) faceva vedere all'operaio importi non ancora validati.
+        .neq("stato", "bozza")
         .order("anno", { ascending: false })
         .order("mese", { ascending: false })
         .limit(24);
@@ -57,10 +60,12 @@ export default function CampoCedolini() {
   // KPI
   const cedoliniPagati = cedolini.filter((c: any) => c.stato === "pagato");
   const ultimoCedolino = cedolini[0] as any;
-  const totaleNetto = cedoliniPagati.reduce((sum: number, c: any) => {
-    const netto = (c.lordo ?? 0) - (c.contributi_dipendente ?? 0) - (c.ritenute_irpef ?? 0);
-    return sum + netto;
-  }, 0);
+  // Il netto è quello SCRITTO sul cedolino (colonna `netto`): il ricalcolo
+  // lordo-contributi-irpef ignorava indennità e straordinari 25/50/100 e
+  // mostrava all'operaio un importo diverso dalla busta paga reale.
+  const nettoDi = (c: any) =>
+    c.netto ?? Math.max(0, (c.lordo ?? 0) - (c.contributi_dipendente ?? 0) - (c.ritenute_irpef ?? 0));
+  const totaleNetto = cedoliniPagati.reduce((sum: number, c: any) => sum + nettoDi(c), 0);
 
   return (
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
@@ -106,7 +111,7 @@ export default function CampoCedolini() {
           ) : (
             <div className="space-y-3">
               {cedolini.map((c: any) => {
-                const netto = (c.lordo ?? 0) - (c.contributi_dipendente ?? 0) - (c.ritenute_irpef ?? 0);
+                const netto = nettoDi(c);
                 const statoConf = STATO_BADGE[c.stato] || STATO_BADGE.bozza;
                 const meseLabel = MESI[(c.mese ?? 1) - 1] ?? "";
 

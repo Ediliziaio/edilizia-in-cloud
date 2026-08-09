@@ -7,7 +7,7 @@ import { HardHat, Building2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function CampoTesserino() {
-  const { user, profile, role } = useAuth();
+  const { user, profile, role, company, effectiveCompany } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrReady, setQrReady] = useState(false);
   const [qrError, setQrError] = useState(false);
@@ -15,7 +15,10 @@ export default function CampoTesserino() {
   const p = profile as any;
   const nome = [p?.first_name, p?.last_name].filter(Boolean).join(" ") || user?.email || "—";
   const initials = [p?.first_name?.[0], p?.last_name?.[0]].filter(Boolean).join("").toUpperCase() || "?";
-  const companyName = p?.company?.name ?? p?.company_name ?? "Edilizia in Cloud";
+  // La ragione sociale vive su useAuth().company: AuthContext RIMUOVE `company`
+  // dall'oggetto profile, quindi p?.company?.name era sempre undefined e il
+  // tesserino mostrava "Edilizia in Cloud" al posto dell'azienda vera.
+  const companyName = (effectiveCompany ?? company)?.name ?? "Edilizia in Cloud";
   const isSubappaltatore = role === "subcontractor";
 
   useEffect(() => {
