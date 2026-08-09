@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { useIsCampo } from "@/hooks/useIsCampo";
 // 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
@@ -190,6 +191,9 @@ function TimbraturaCampo() {
   const isUscito = lastTimbro?.tipo === "uscita";
   const nonHaTimbrato = !lastTimbro;
 
+  const { data: hrProfilo } = useMyHrProfilo();
+  const hrProfiloId = hrProfilo?.id ?? null;
+
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
       if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
@@ -212,6 +216,20 @@ function TimbraturaCampo() {
         fonte: "app",
       });
       if (error) throw error;
+
+      // Stessa copia HR della pagina Timbratura: prima il widget Home creava
+      // timbrature "di serie B" che l'ufficio non vedeva nel registro.
+      // data_evento/ora_evento sono GENERATED ALWAYS: mai passarle.
+      if (hrProfiloId) {
+        const { error: hrErr } = await supabase.from("hr_timbrature").insert({
+          company_id: companyId,
+          profilo_id: hrProfiloId,
+          tipo,
+          timestamp: now,
+          fonte: "app",
+        });
+        if (hrErr) console.warn("[CampoHome] hr_timbrature sync failed:", hrErr.message);
+      }
     },
     onSuccess: () => {
       toast.success("Timbratura registrata");
@@ -434,7 +452,7 @@ function AssistenteCampoOperaio() {
 
   const focusRapportino = rapportiniMancanti[0] ?? null;
   const focusOrder = focusRapportino
-    ? { id: focusRapportino.order_id, order_code: focusRapportino.order_code, description: focusRapportino.description, indirizzo_lavori: null }
+    ? { id: focusRapportino.order_id, order_code: focusRapportino.order_code, description: focusRapportino.description, indirizzo_lavori: focusRapportino.indirizzo_lavori }
     : prossimoLavoro?.order ?? null;
 
   const suggestion = focusRapportino

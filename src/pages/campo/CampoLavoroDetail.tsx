@@ -1642,21 +1642,27 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
 // ── Componente inline: link al canale chat del cantiere ──────────────────────
 function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: string }) {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
   const channelName = "cantiere-" + orderCode.toLowerCase().replace(/\s+/g, "-");
 
   const { data: canale, isLoading, isFetching } = useQuery({
-    queryKey: ["campo-canale-cantiere", orderId, orderCode],
+    queryKey: ["campo-canale-cantiere", orderId, orderCode, companyId],
     queryFn: async () => {
       if (!orderCode) return null;
+      // Filtro azienda: due tenant con lo stesso order_code hanno lo stesso
+      // nome canale — senza company_id si poteva aprire quello sbagliato
+      // (o esplodere con maybeSingle su 2 righe).
       const { data, error } = await supabase
         .from("internal_chat_channels")
         .select("id, name")
         .eq("name", channelName)
+        .eq("company_id", companyId!)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!orderCode,
+    enabled: !!orderCode && !!companyId,
   });
 
   // Spinner anche durante il refetch di un null cache-stantio: senza,

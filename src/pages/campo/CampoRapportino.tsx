@@ -325,10 +325,15 @@ export default function CampoRapportino() {
     const previews: string[] = [];
     const urls: string[] = [];
     let failed = 0;
+    let troppoGrandi = 0;
 
     for (const file of files) {
-      const previewUrl = URL.createObjectURL(file);
-      previews.push(previewUrl);
+      // Limite dimensione: una foto da 30MB su 4G tiene bloccato il wizard
+      // per minuti (e lo storage non la vuole comunque).
+      if (file.size > 10 * 1024 * 1024) {
+        troppoGrandi++;
+        continue;
+      }
 
       try {
         // Comprimi: se il browser fallisce qualsiasi step, carica il file originale
@@ -345,6 +350,7 @@ export default function CampoRapportino() {
 
         const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
         urls.push(urlData.publicUrl);
+        previews.push(URL.createObjectURL(file));
       } catch (err) {
         failed++;
         console.error("[CampoRapportino] upload foto:", err);
@@ -355,11 +361,14 @@ export default function CampoRapportino() {
     setFotoUrls(prev => [...prev, ...urls]);
     setUploadingFoto(false);
 
+    if (troppoGrandi > 0) {
+      toast.error(`${troppoGrandi} foto oltre i 10MB: scattale dall'app invece di allegarle dalla galleria in alta risoluzione`);
+    }
     if (failed > 0) {
       toast.error(
-        failed === files.length
+        failed === files.length - troppoGrandi
           ? "Impossibile caricare le foto — riprova"
-          : `Caricate ${files.length - failed}/${files.length} foto`,
+          : `Caricate ${urls.length}/${files.length} foto`,
       );
     }
   };
@@ -658,11 +667,11 @@ export default function CampoRapportino() {
   };
 
   const METEO_OPTIONS = [
-    { value: "soleggiato", emoji: "☀️" },
-    { value: "nuvoloso", emoji: "☁️" },
-    { value: "pioggia", emoji: "🌧️" },
-    { value: "neve", emoji: "❄️" },
-    { value: "vento", emoji: "💨" },
+    { value: "soleggiato", emoji: "☀️", label: "Sole" },
+    { value: "nuvoloso", emoji: "☁️", label: "Nuvolo" },
+    { value: "pioggia", emoji: "🌧️", label: "Pioggia" },
+    { value: "neve", emoji: "❄️", label: "Neve" },
+    { value: "vento", emoji: "💨", label: "Vento" },
   ];
 
   return (
@@ -722,6 +731,7 @@ export default function CampoRapportino() {
                     }`}
                   >
                     <span className="text-lg">{m.emoji}</span>
+                    <span className="text-[10px] font-medium text-muted-foreground">{m.label}</span>
                   </button>
                 ))}
               </div>

@@ -12,6 +12,7 @@ import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -50,18 +51,52 @@ export default function CampoPresenze() {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
 
-  // Timbrature del mese (campo_timbrature)
-  const { data: timbrature = [], isLoading } = useQuery({
-    queryKey: ["campo-presenze", user?.id, format(monthStart, "yyyy-MM")],
+  const { data: hrProfilo } = useMyHrProfilo();
+  const profiloId = hrProfilo?.id ?? null;
+
+  // Timbrature del mese: campo_timbrature UNITE a hr_timbrature (quelle
+  // inserite/corrette dall'ufficio vivono solo lì — il commento del file
+  // le prometteva ma la query non le leggeva). Dedup per tipo+minuto:
+  // la copia HR della stessa timbratura non deve contare doppio.
+  const { data: timbrature = [], isLoading, isError } = useQuery({
+    queryKey: ["campo-presenze", user?.id, profiloId, format(monthStart, "yyyy-MM")],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("campo_timbrature")
-        .select("*")
-        .eq("user_id", user!.id)
-        .gte("timestamp_evento", format(monthStart, "yyyy-MM-dd") + "T00:00:00")
-        .lte("timestamp_evento", format(monthEnd, "yyyy-MM-dd") + "T23:59:59")
-        .order("timestamp_evento", { ascending: true });
-      return data ?? [];
+      const [campoRes, hrRes] = await Promise.all([
+        supabase
+          .from("campo_timbrature")
+          .select("*")
+          .eq("user_id", user!.id)
+          .gte("timestamp_evento", format(monthStart, "yyyy-MM-dd") + "T00:00:00")
+          .lte("timestamp_evento", format(monthEnd, "yyyy-MM-dd") + "T23:59:59")
+          .order("timestamp_evento", { ascending: true }),
+        profiloId
+          ? supabase
+              .from("hr_timbrature")
+              .select("tipo, timestamp")
+              .eq("profilo_id", profiloId)
+              .gte("timestamp", format(monthStart, "yyyy-MM-dd") + "T00:00:00")
+              .lte("timestamp", format(monthEnd, "yyyy-MM-dd") + "T23:59:59")
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (campoRes.error) throw campoRes.error;
+      if (hrRes.error) throw hrRes.error;
+
+      const unite: Array<{ tipo: string; timestamp_evento: string }> = [
+        ...((campoRes.data ?? []) as Array<{ tipo: string; timestamp_evento: string }>),
+        ...(((hrRes.data ?? []) as Array<{ tipo: string; timestamp: string }>).map(h => ({
+          tipo: h.tipo,
+          timestamp_evento: h.timestamp,
+        }))),
+      ];
+      const visti = new Set<string>();
+      return unite
+        .filter(t => {
+          const key = `${t.tipo}|${String(t.timestamp_evento).slice(0, 16)}`;
+          if (visti.has(key)) return false;
+          visti.add(key);
+          return true;
+        })
+        .sort((a, b) => String(a.timestamp_evento).localeCompare(String(b.timestamp_evento)));
     },
     enabled: !!user?.id,
   });
@@ -128,7 +163,9 @@ export default function CampoPresenze() {
       const days = eachDayOfInterval({ start, end });
       for (const d of days) {
         const key = format(d, "yyyy-MM-dd");
-        if (!map[key]) {
+        // La richiesta approvata vince se quel giorno non ha ore lavorate
+        // vere: una timbratura vuota non deve nascondere ferie/malattia.
+        if (!map[key] || (map[key].ore ?? 0) === 0) {
           map[key] = { status: r.tipo || "permesso" };
         }
       }
@@ -189,7 +226,11 @@ export default function CampoPresenze() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-4 text-center text-sm text-destructive">
+              Non riesco a caricare le presenze. Controlla la connessione e riapri la pagina.
+            </p>
+          ) : isLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>

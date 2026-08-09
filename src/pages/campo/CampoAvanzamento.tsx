@@ -153,7 +153,11 @@ export default function CampoAvanzamento() {
   });
 
   async function handlePhoto(fase: Fase, files: FileList | null) {
-    if (!files?.length || !companyId) return;
+    if (!files?.length) return;
+    if (!companyId) {
+      toast.error("Profilo in caricamento, riprova tra un istante");
+      return;
+    }
     setUploadingFaseId(fase.id);
     const nuove: string[] = [];
     let falliti = 0;

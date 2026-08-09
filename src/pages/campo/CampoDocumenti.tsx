@@ -70,7 +70,10 @@ function CampoDocumentiDipendente() {
       return data ?? [];
     },
     enabled: !!user?.id && !!companyId,
-    retry: false,
+    // Rete di cantiere: un solo tentativo faceva comparire l'errore anche per
+    // un singolo pacchetto perso. Un retry assorbe i blip senza mascherare
+    // i guasti veri.
+    retry: 1,
   });
 
   const today = new Date();

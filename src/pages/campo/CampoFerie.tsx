@@ -160,7 +160,12 @@ export default function CampoFerie() {
                   type="date"
                   className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground"
                   value={dataInizio}
-                  onChange={e => setDataInizio(e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setDataInizio(v);
+                    // La fine segue l'inizio: evita il giro errore-al-submit
+                    if (dataFine < v) setDataFine(v);
+                  }}
                 />
               </div>
               <div>
@@ -169,6 +174,7 @@ export default function CampoFerie() {
                   type="date"
                   className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground"
                   value={dataFine}
+                  min={dataInizio}
                   onChange={e => setDataFine(e.target.value)}
                 />
               </div>

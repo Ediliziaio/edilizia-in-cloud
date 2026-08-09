@@ -23,6 +23,7 @@ export interface RapportinoMancante {
   order_id: string;
   order_code: string | null;
   description: string | null;
+  indirizzo_lavori: string | null;
   prima_timbratura_at: string;
   prossima_timbratura_at: string | null;
   ore_in_cantiere_stimate: number;
@@ -32,7 +33,7 @@ interface TimbraturaRow {
   order_id: string | null;
   timestamp_evento: string;
   tipo: string;
-  orders: { order_code: string | null; description: string | null } | null;
+  orders: { order_code: string | null; description: string | null; indirizzo_lavori: string | null } | null;
 }
 
 interface RapportinoExistRow {
@@ -44,6 +45,7 @@ interface AssignmentOrderRow {
   order_code: string | null;
   description: string | null;
   status: string | null;
+  indirizzo_lavori: string | null;
 }
 
 interface OrderAssignmentRow {
@@ -75,7 +77,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: timbrature, error: tErr } = await (supabase as any)
         .from("campo_timbrature")
-        .select("order_id, timestamp_evento, tipo, orders(order_code, description)")
+        .select("order_id, timestamp_evento, tipo, orders(order_code, description, indirizzo_lavori)")
         .eq("user_id", userId!)
         .gte("timestamp_evento", todayStartIso)
         .lt("timestamp_evento", tomorrowStartIso)
@@ -102,6 +104,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
             order_id: t.order_id,
             order_code: t.orders?.order_code ?? null,
             description: t.orders?.description ?? null,
+            indirizzo_lavori: t.orders?.indirizzo_lavori ?? null,
             prima_timbratura_at: t.timestamp_evento,
             prossima_timbratura_at: t.timestamp_evento,
             ore_in_cantiere_stimate: 0,
@@ -125,7 +128,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
             .from("order_employees")
             .select(`
               order_id,
-              order:orders(id, order_code, description, status)
+              order:orders(id, order_code, description, status, indirizzo_lavori)
             `)
             .eq("employee_id", employee.id);
 
@@ -145,6 +148,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
                 order_id: inferred.id,
                 order_code: inferred.order_code ?? null,
                 description: inferred.description ?? null,
+                indirizzo_lavori: inferred.indirizzo_lavori ?? null,
                 prima_timbratura_at: first.timestamp_evento,
                 prossima_timbratura_at: last.timestamp_evento,
                 ore_in_cantiere_stimate: 0,

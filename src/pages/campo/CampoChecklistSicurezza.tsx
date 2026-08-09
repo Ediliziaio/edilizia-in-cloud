@@ -2,7 +2,7 @@
  * Checklist Sicurezza giornaliera — obbligo normativo prima di iniziare i lavori.
  * Verifica DPI, condizioni cantiere, segnaletica, presidi antincendio.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -17,6 +17,11 @@ import { isChecklistCompleta } from "@/lib/campo/checklist-items";
 
 export default function CampoChecklistSicurezza(): JSX.Element {
   const navigate = useNavigate();
+  // Turno di default dall'orologio: chi attacca il pomeriggio firmava per
+  // forza la checklist "mattina" (la chiave DB è per turno).
+  const [turno, setTurno] = useState<"mattina" | "pomeriggio">(
+    new Date().getHours() < 13 ? "mattina" : "pomeriggio",
+  );
   const {
     loading,
     record,
@@ -27,7 +32,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
     toggleItem,
     setNote,
     conferma,
-  } = useChecklistSicurezza("mattina");
+  } = useChecklistSicurezza(turno);
 
   const completaLocale = useMemo(() => isChecklistCompleta(risposte), [risposte]);
 
@@ -175,6 +180,23 @@ export default function CampoChecklistSicurezza(): JSX.Element {
             Checklist Sicurezza
           </h1>
           <p className="text-xs text-muted-foreground">{capitalizedDate}</p>
+        </div>
+        {/* Selettore turno: la checklist è una per turno */}
+        <div className="flex shrink-0 rounded-xl bg-muted p-0.5">
+          {(["mattina", "pomeriggio"] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTurno(t)}
+              className={
+                turno === t
+                  ? "rounded-lg bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm"
+                  : "rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground"
+              }
+            >
+              {t === "mattina" ? "Mattina" : "Pomeriggio"}
+            </button>
+          ))}
         </div>
       </div>
 
