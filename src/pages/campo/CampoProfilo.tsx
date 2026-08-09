@@ -49,7 +49,8 @@ export default function CampoProfilo() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-4 py-4 pb-28 space-y-4">
+    // Il <main> della shell è l'unico scroller mobile: qui solo flusso.
+    <div className="flex flex-col px-4 py-4 space-y-4">
 
       {/* Avatar + nome */}
       <div className="bg-muted border border-border rounded-2xl p-6 flex flex-col items-center gap-3">

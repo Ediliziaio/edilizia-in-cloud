@@ -250,8 +250,10 @@ export default function CampoTimbratura() {
     storicoByDay[day].push(t);
   });
 
+  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
+  // mobile (il suo pb-28 dà già aria sopra la bottom nav).
   return (
-    <div className="flex flex-col h-full pb-24">
+    <div className="flex flex-col">
       {/* GPS Status bar */}
       <div className={cn(
         "flex items-center gap-2 px-4 py-2 text-xs",
@@ -268,7 +270,7 @@ export default function CampoTimbratura() {
         {gpsStatus === "error" && <span>Errore GPS — timbratura senza posizione</span>}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4">
         {selectedOrderId && selectedOrderLoading && !selectedOrderContext && (
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center gap-3 text-sm font-semibold text-primary">

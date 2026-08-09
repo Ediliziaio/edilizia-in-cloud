@@ -174,8 +174,10 @@ export default function SubDocumenti() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
+  // mobile (il suo pb-28 dà già aria sopra la bottom nav).
   return (
-    <div className="flex flex-col h-full pb-28">
+    <div className="flex flex-col">
       {/* Header */}
       <div className="bg-muted border-b border-border px-4 py-3 flex items-center justify-between">
         <p className="font-bold text-foreground">I miei documenti</p>
@@ -188,7 +190,7 @@ export default function SubDocumenti() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4">
         {/* Alert scadenze */}
         {scadutiCount > 0 && (
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">

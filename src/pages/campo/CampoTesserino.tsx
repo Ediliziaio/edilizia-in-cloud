@@ -122,7 +122,10 @@ export default function CampoTesserino() {
   };
 
   return (
-    <div className="flex flex-col h-full items-center justify-center px-4 py-6 gap-6">
+    // min-h-full (non h-full): con h-full + justify-center il contenuto più
+    // alto del viewport veniva centrato sbordando anche SOPRA l'area
+    // scrollabile — la parte alta della card era irraggiungibile.
+    <div className="flex min-h-full flex-col items-center justify-center px-4 py-6 gap-6">
 
       {/* Card tesserino */}
       <div className="w-full max-w-sm bg-muted rounded-3xl overflow-hidden border border-border shadow-2xl">

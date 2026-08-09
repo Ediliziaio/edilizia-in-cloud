@@ -101,10 +101,12 @@ export default function CampoTicketNuovo() {
     );
   }
 
+  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
+  // mobile. Gli sticky compensano il padding del main (-top-3 / -bottom-28).
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3">
+      <div className="sticky -top-3 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3 md:top-14">
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0"
@@ -117,7 +119,7 @@ export default function CampoTicketNuovo() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4">
 
         {/* Cantiere (opzionale) */}
         {cantieri.length > 0 && (
@@ -193,7 +195,7 @@ export default function CampoTicketNuovo() {
 
       {/* Submit */}
       <div
-        className="sticky bottom-[calc(4.35rem+env(safe-area-inset-bottom))] z-20 border-t border-border bg-background px-4 py-3 md:bottom-0"
+        className="sticky -bottom-28 z-20 border-t border-border bg-background px-4 py-3 pb-20 md:bottom-0 md:pb-3"
       >
         <button
           onClick={() => submitMutation.mutate()}
