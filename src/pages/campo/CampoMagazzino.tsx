@@ -146,7 +146,7 @@ export default function CampoMagazzino() {
   const scarseCount = scorte.filter((s) => (s.quantita ?? 0) <= (s.quantita_minima ?? 1)).length;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Tab selector */}
       <div className="bg-muted border-b border-border px-4 py-3">
         <div className="flex gap-2">
@@ -167,7 +167,7 @@ export default function CampoMagazzino() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="px-4 py-4">
 
         {/* TAB FURGONE */}
         {activeTab === "furgone" && (

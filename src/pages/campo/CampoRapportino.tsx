@@ -675,7 +675,7 @@ export default function CampoRapportino() {
   ];
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
         <button
@@ -696,7 +696,7 @@ export default function CampoRapportino() {
       </div>
 
       {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-5">
+      <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
 
         {/* ── Step 1: Descrizione ── */}
         {step === 1 && (
@@ -1230,11 +1230,9 @@ export default function CampoRapportino() {
         )}
       </div>
 
-      {/* Navigazione */}
-      <div
-        className="flex-none border-t border-border bg-background px-3 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:px-4"
-        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-      >
+      {/* Navigazione. -bottom-28 compensa il pb-28 del <main>: senza, la
+          barra si aggancia 112px sopra il fondo e copre il form. */}
+      <div className="sticky -bottom-28 z-20 border-t border-border bg-background px-3 pb-20 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:bottom-0 md:px-4 md:pb-3">
         <div className="flex gap-3">
           <button
             onClick={goBack}

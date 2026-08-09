@@ -771,10 +771,17 @@ export default function CampoLavoroDetail() {
     { key: "chat",        label: "Chat" },
   ];
 
+  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller.
+  // Con il doppio scroller il main scorreva del suo padding (pb-28) mostrando
+  // una striscia bianca sotto la pagina e il gesto non raggiungeva mai il
+  // blocco interno.
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col">
+    <div className="mx-auto flex max-w-6xl flex-col">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:px-4 md:py-4">
+      {/* -top-3 compensa il padding-top del <main>: lo sticky si aggancia
+          sotto il padding del contenitore scrollante, lasciando una striscia
+          in cui traspare il contenuto. Su md scrolla il documento: top-14. */}
+      <div className="sticky -top-3 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:top-14 md:px-4 md:py-4">
         <div className="mb-2 flex items-center gap-3 md:mb-3">
           <button
             onClick={() => navigate("/campo")}
@@ -843,7 +850,7 @@ export default function CampoLavoroDetail() {
       </div>
 
       {/* Contenuto tab */}
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-4 md:pb-4">
+      <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-4">
 	        <CampoCloseDayCard
 	          isOperaio={isOperaio}
 	          hasTimbrato={hasTimbratoQui}
@@ -1171,7 +1178,10 @@ export default function CampoLavoroDetail() {
       </div>
 
       {/* CTA sticky in basso */}
-      <div className="sticky bottom-0 bg-background border-t border-border px-4 py-3 z-20 pb-20 md:pb-3">
+      {/* -bottom-28 compensa il padding-bottom (pb-28) del <main>: senza,
+          la barra si aggancia 112px sopra il fondo e il bottone copre il
+          contenuto. Il pb-20 tiene il bottone sopra la bottom nav fissa. */}
+      <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-20 md:bottom-0 md:pb-3">
         <button
           onClick={nextStickyAction.onClick}
           className={cn(
