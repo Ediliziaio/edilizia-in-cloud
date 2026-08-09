@@ -71,6 +71,11 @@ export default function CampoRapportinoVoce(): JSX.Element {
     const result = await processAudio(blob, durationSec, mimeType, orderId ?? null);
     if (result) {
       setLocalDraft(result);
+      // Trascrizione ok ma estrazione vuota (es. crediti AI esauriti):
+      // senza avviso l'operaio si trovava il form vuoto senza capire perché.
+      if (result.trascrizione && Object.keys(result.dati_estratti ?? {}).length === 0) {
+        toast.info("Trascrizione pronta, ma l'AI non ha compilato i campi: controlla ore e materiali a mano.");
+      }
     } else if (error) {
       toast.error(error);
     }
