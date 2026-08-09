@@ -55,8 +55,11 @@ export default function CampoChecklistItem({
 
   return (
     <div
+      onClick={onToggle}
+      role="button"
+      aria-pressed={checked}
       className={`
-        flex items-center gap-3 rounded-xl border-2 p-4 transition-all
+        flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-all active:scale-[0.99]
         ${checked
           ? "border-emerald-500 bg-emerald-50"
           : item.critico
@@ -67,7 +70,7 @@ export default function CampoChecklistItem({
     >
       <button
         type="button"
-        onClick={onToggle}
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
         aria-pressed={checked}
         aria-label={`${checked ? "Togli spunta" : "Spunta"}: ${item.label}`}
         className={`
@@ -99,7 +102,7 @@ export default function CampoChecklistItem({
       {item.fotoRichiesta && onFotoClick && (
         <button
           type="button"
-          onClick={onFotoClick}
+          onClick={(e) => { e.stopPropagation(); onFotoClick(); }}
           aria-label="Scatta foto"
           className={`
             flex-none w-12 h-12 rounded-xl flex items-center justify-center

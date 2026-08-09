@@ -379,30 +379,39 @@ function AssistenteCampoOperaio() {
   });
 
   const { data: lavori = [], isLoading } = useQuery<CampoAiAssignment[]>({
-    queryKey: ["campo-ai-lavori-oggi", employeeId],
+    queryKey: ["campo-ai-lavori-oggi", employeeId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select(`
-          id, order_id, is_capocantiere,
+      // Doppio binario assegnazioni (come Calendario): un operaio assegnato
+      // solo via order_campo_assignments vedeva "Nessun cantiere prioritario
+      // trovato" con il cantiere attivo un riquadro più in su.
+      // NB: is_capocantiere vive SOLO su order_campo_assignments — chiederlo
+      // a order_employees faceva rispondere 400 a tutta la query (era uno dei
+      // 400 silenziosi in console) e la card restava sempre "nessun cantiere".
+      const orderEmbed = `
           order:orders(
             id, order_code, description, status,
             indirizzo_lavori, percentuale_avanzamento,
             work_start_date, work_end_date
           )
-        `)
-        .eq("employee_id", employeeId!);
-      if (error) throw error;
+        `;
+      const [empRes, campoRes] = await Promise.all([
+        employeeId
+          ? supabase.from("order_employees").select(`id, order_id, ${orderEmbed}`).eq("employee_id", employeeId)
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from("order_campo_assignments").select(`id, order_id, is_capocantiere, ${orderEmbed}`).eq("user_id", user!.id),
+      ]);
+      if (empRes.error) throw empRes.error;
+      if (campoRes.error) throw campoRes.error;
 
       const seen = new Set<string>();
-      return ((data ?? []) as CampoAiAssignment[]).filter((a) => {
+      return ([...(empRes.data ?? []), ...(campoRes.data ?? [])] as CampoAiAssignment[]).filter((a) => {
         if (!a.order?.id || seen.has(a.order.id)) return false;
         seen.add(a.order.id);
         const status = String(a.order.status ?? "").toLowerCase();
         return status !== "annullato" && status !== "chiuso";
       });
     },
-    enabled: !!employeeId,
+    enabled: !!user?.id,
     staleTime: 60_000,
   });
 
@@ -945,7 +954,7 @@ function RapportiniSospesi() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2 text-amber-800">
           <AlertTriangle className="h-4 w-4" />
-          {rapportini.length} rapportini da completare
+          {rapportini.length} {rapportini.length === 1 ? "rapportino" : "rapportini"} da completare
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
