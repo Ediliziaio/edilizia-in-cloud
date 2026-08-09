@@ -73,12 +73,16 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
       const todayStartIso = startOfDay.toISOString();
       const tomorrowStartIso = endOfDay.toISOString();
 
-      // 1) Timbrature di oggi (con order_id + dati cantiere)
+      // 1) Timbrature di oggi (con order_id + dati cantiere).
+      // Filtro company_id: senza, una timbratura fatta su un'ALTRA azienda
+      // faceva comparire la card "compila il rapportino" mentre la card
+      // Timbratura (filtrata per company) diceva "non hai ancora timbrato".
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: timbrature, error: tErr } = await (supabase as any)
         .from("campo_timbrature")
         .select("order_id, timestamp_evento, tipo, orders(order_code, description, indirizzo_lavori)")
         .eq("user_id", userId!)
+        .eq("company_id", companyId)
         .gte("timestamp_evento", todayStartIso)
         .lt("timestamp_evento", tomorrowStartIso)
         .order("timestamp_evento", { ascending: true });
@@ -91,6 +95,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
         .from("campo_rapportini")
         .select("order_id")
         .eq("user_id", userId!)
+        .eq("company_id", companyId)
         .eq("data_lavoro", today);
       const coverti = new Set(((rapportini ?? []) as RapportinoExistRow[]).map((r) => r.order_id));
 

@@ -39,7 +39,7 @@ export default function CampoMenu() {
   // Sezioni per operaio
   const operaioSections: AppSection[] = [
     {
-      title: "Lavoro e Produttivita",
+      title: "Lavoro e Produttività",
       items: [
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
@@ -79,7 +79,7 @@ export default function CampoMenu() {
   // Sezioni per subappaltatore
   const subSections: AppSection[] = [
     {
-      title: "Lavoro e Produttivita",
+      title: "Lavoro e Produttività",
       items: [
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },

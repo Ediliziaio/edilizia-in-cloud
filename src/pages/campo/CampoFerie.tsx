@@ -238,10 +238,9 @@ export default function CampoFerie() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {format(new Date(r.data_inizio), "d MMM", { locale: it })}
-                        {r.data_inizio !== r.data_fine && (
-                          <> — {format(new Date(r.data_fine), "d MMM yyyy", { locale: it })}</>
-                        )}
+                        {r.data_inizio === r.data_fine
+                          ? format(new Date(r.data_inizio), "d MMMM yyyy", { locale: it })
+                          : <>{format(new Date(r.data_inizio), "d MMM", { locale: it })} — {format(new Date(r.data_fine), "d MMM yyyy", { locale: it })}</>}
                       </p>
                       {r.motivo && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.motivo}</p>

@@ -197,7 +197,7 @@ export default function CampoPresenze() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
         {[
           { label: "Giorni presente", value: giorniPresente, color: "text-green-600" },
-          { label: "Ore totali", value: `${oreTotali.toFixed(1)}h`, color: "text-primary" },
+          { label: "Ore totali", value: `${oreTotali.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`, color: "text-primary" },
           { label: "Giorni ferie", value: giorniFerie, color: "text-blue-500" },
           { label: "Giorni malattia", value: giorniMalattia, color: "text-orange-500" },
         ].map(kpi => (
