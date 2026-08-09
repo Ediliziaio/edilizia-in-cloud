@@ -453,7 +453,8 @@ export default function CampoCalendario() {
               Area campo
             </div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">I miei lavori</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {/* Su mobile lo spazio è dei dati, non del sottotitolo */}
+            <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
               Calendario operativo con cantieri, sopralluoghi, indirizzi e avanzamento lavori in una vista unica.
             </p>
           </div>
@@ -462,7 +463,7 @@ export default function CampoCalendario() {
             <SummaryTile icon={CalendarDays} label="Oggi" value={todayItems.length} tone="blue" />
             <SummaryTile icon={CalendarRange} label="Settimana" value={weekItemsCount} tone="indigo" />
             <SummaryTile icon={Building2} label="Cantieri" value={allCantieri.length} tone="emerald" />
-            <SummaryTile icon={Clock} label="Appuntamenti" value={allAppuntamenti.length} tone="amber" />
+            <SummaryTile icon={Clock} label="Appunt." value={allAppuntamenti.length} tone="amber" />
           </div>
         </div>
       </div>
@@ -624,8 +625,8 @@ export default function CampoCalendario() {
                 <h2 className="text-xl font-bold capitalize md:text-2xl">{dayLabel(selectedDay)}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <AgendaPill icon={ClipboardList} label={`${selectedAppointments} appuntamenti`} />
-                <AgendaPill icon={HardHat} label={`${selectedSites} cantieri`} />
+                <AgendaPill icon={ClipboardList} label={`${selectedAppointments} ${selectedAppointments === 1 ? "appuntamento" : "appuntamenti"}`} />
+                <AgendaPill icon={HardHat} label={`${selectedSites} ${selectedSites === 1 ? "cantiere" : "cantieri"}`} />
                 {!isToday(selectedDay) && (
                   <button onClick={() => {
                     setSelectedDay(new Date());
@@ -847,7 +848,8 @@ function SummaryTile({
         <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
         <span className="text-lg font-black tabular-nums leading-none md:text-xl">{value}</span>
       </div>
-      <p className="truncate text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</p>
+      {/* niente truncate: "SETTIMANA/APPUNTAMENTI" diventavano "SETTI…" su 375px */}
+      <p className="text-[10px] font-bold uppercase leading-tight opacity-80 md:text-[11px] md:tracking-wide">{label}</p>
     </div>
   );
 }

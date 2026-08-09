@@ -44,7 +44,7 @@ export default function CampoMenu() {
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
-        { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+        { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Clock, label: "Timbratura", url: "/campo/timbratura", color: "text-lime-600 bg-lime-50" },
@@ -84,7 +84,7 @@ export default function CampoMenu() {
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
-        { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+        { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
         { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
       ],
@@ -174,7 +174,7 @@ export default function CampoMenu() {
                   )}>
                     <item.icon className={cn("w-6 h-6", textColor)} />
                   </div>
-                  <span className="text-[11px] font-medium text-foreground text-center leading-tight line-clamp-2 max-w-[72px]">
+                  <span className="text-[11px] font-medium text-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
                     {item.label}
                   </span>
                 </button>

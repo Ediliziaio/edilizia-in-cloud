@@ -414,6 +414,11 @@ export default function CampoTimbratura() {
         {/* Storico */}
         <div>
           <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wide">Storico ultimi 14 giorni</p>
+          {Object.entries(storicoByDay).filter(([day]) => day !== today).length === 0 && (
+            <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+              Nessuna timbratura nei giorni scorsi. Qui vedrai le ore degli ultimi 14 giorni.
+            </p>
+          )}
           <div className="space-y-3">
             {Object.entries(storicoByDay)
               .filter(([day]) => day !== today)

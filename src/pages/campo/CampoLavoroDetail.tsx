@@ -591,15 +591,19 @@ export default function CampoLavoroDetail() {
   const { data: rapportinoOggi } = useQuery({
     queryKey: ["campo-lavoro-rapportino-oggi", orderId, currentUserId, today],
     queryFn: async () => {
+      // Più rapportini nello stesso giorno sono legittimi (correzioni, due
+      // turni): maybeSingle() esplodeva con PGRST116 e la card giornata
+      // tornava a dire "Rapportino: Manca". Prendiamo l'ultimo.
       const { data, error } = await supabase
-	        .from("campo_rapportini")
-	        .select("id, stato, created_at, ore_lavorate, descrizione_lavori, foto_urls, materiali_usati, percentuale_avanzamento, lavoro_completato")
-	        .eq("order_id", orderId!)
+        .from("campo_rapportini")
+        .select("id, stato, created_at, ore_lavorate, descrizione_lavori, foto_urls, materiali_usati, percentuale_avanzamento, lavoro_completato")
+        .eq("order_id", orderId!)
         .eq("user_id", currentUserId!)
         .eq("data_lavoro", today)
-        .maybeSingle();
+        .order("created_at", { ascending: false })
+        .limit(1);
       if (error) throw error;
-      return data;
+      return data?.[0] ?? null;
     },
     enabled: !!orderId && !!currentUserId,
     staleTime: 30_000,

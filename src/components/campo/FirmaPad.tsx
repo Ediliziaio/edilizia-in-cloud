@@ -99,7 +99,7 @@ export function FirmaPad({ label, onChange }: FirmaPadProps) {
         <canvas
           ref={canvasRef}
           width={560}
-          height={160}
+          height={210}
           className="w-full touch-none cursor-crosshair"
           style={{ touchAction: "none" }}
           onMouseDown={startDraw}

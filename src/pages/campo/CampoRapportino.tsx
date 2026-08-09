@@ -237,6 +237,27 @@ export default function CampoRapportino() {
     });
   };
 
+  // Rapportino già inviato oggi su questo cantiere? Avvisiamo (non blocchiamo:
+  // due squadre o una correzione sono casi legittimi), così niente doppioni
+  // per sbaglio da tap ripetuto o da "non ricordavo di averlo mandato".
+  const { data: rapportinoGiaOggi } = useQuery({
+    queryKey: ["campo-rapportino-gia-oggi", orderId, user?.id],
+    enabled: !!orderId && !!user?.id,
+    staleTime: 30_000,
+    queryFn: async (): Promise<{ id: string; created_at: string } | null> => {
+      const { data, error } = await supabase
+        .from("campo_rapportini")
+        .select("id, created_at")
+        .eq("order_id", orderId!)
+        .eq("user_id", user!.id)
+        .eq("data_lavoro", format(new Date(), "yyyy-MM-dd"))
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0] as { id: string; created_at: string } | undefined) ?? null;
+    },
+  });
+
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
 
@@ -610,15 +631,30 @@ export default function CampoRapportino() {
     else salva();
   };
 
+  // Dati "sudati" nel form: uscire per sbaglio (freccia indietro col pollice)
+  // non deve buttare via la giornata scritta senza nemmeno chiedere.
+  const datiInseriti =
+    descrizione.trim().length > 0 ||
+    fotoUrls.length > 0 ||
+    Object.keys(fasiDichiarate).length > 0 ||
+    Object.keys(presenzeSel).length > 0 ||
+    Object.keys(materialiSel).length > 0;
+
   const goBack = () => {
+    if (step === 1) {
+      if (datiInseriti && !window.confirm("Vuoi uscire dal rapportino? I dati inseriti andranno persi.")) {
+        return;
+      }
+      navigate(`/campo/lavoro/${orderId}`);
+      return;
+    }
     if (step === 3) {
       // Tornando indietro il canvas si smonta: azzera la firma cliente per
       // evitare uno stato "firmato" con pad visivamente vuoto al rientro.
       setFirmaCliente(null);
     }
     if (step === 2) setFirmaOperaio(null);
-    if (step > 1) setStep(s => s - 1);
-    else navigate(`/campo/lavoro/${orderId}`);
+    setStep(s => s - 1);
   };
 
   const METEO_OPTIONS = [
@@ -657,6 +693,14 @@ export default function CampoRapportino() {
         {step === 1 && (
           <>
             <h2 className="text-lg font-black text-foreground md:text-xl">Cosa hai fatto oggi?</h2>
+            {rapportinoGiaOggi && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Hai già inviato un rapportino oggi
+                {" alle "}
+                {new Date(rapportinoGiaOggi.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                . Se continui ne crei un altro.
+              </p>
+            )}
             <textarea
               className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
               rows={5}

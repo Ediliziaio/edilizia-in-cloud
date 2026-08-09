@@ -1227,7 +1227,7 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
   const items = [
     ...(isOperaio ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
-      { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+      { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },
       { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
       { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
@@ -1237,7 +1237,7 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
     ] : []),
     ...(isSubappaltatore ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
-      { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+      { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-teal-600 bg-teal-50" },
       { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
       { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
