@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
@@ -746,19 +747,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(authBootstrapWatchdog);
     };
 
-    // Set up auth state listener BEFORE checking initial session
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Keep the module-level token cache fresh — allows getCachedTokens() to
-        // return the current tokens WITHOUT acquiring the Supabase storage lock.
-        if (session?.access_token) {
-          _cachedAccessToken = session.access_token;
-          _cachedRefreshToken = session.refresh_token ?? null;
-        } else if (event === "SIGNED_OUT") {
-          _cachedAccessToken = null;
-          _cachedRefreshToken = null;
-        }
-
+    // Corpo dell'evento auth, eseguito FUORI dal lock interno di supabase-js.
+    // supabase-js emette gli eventi TENENDO il lock auth: un callback async che
+    // await-a query Supabase (fetchUserData) le accoda dietro lo stesso lock →
+    // deadlock fino al race-timeout (14s) e nel frattempo TUTTE le query
+    // dell'app restano in coda (pagine "lente", probe campo in falso timeout,
+    // "fetchUserData failed" a ogni load). Fix ufficiale Supabase: il callback
+    // ritorna subito, il lavoro parte al tick successivo.
+    const processAuthEvent = async (event: AuthChangeEvent, session: Session | null) => {
         if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
           settleAuthBootstrap();
           // Claim a generation slot. Any concurrent or previous fetch whose
@@ -1012,6 +1008,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             clearProfileCache();
           }
         }
+    };
+
+    // Set up auth state listener BEFORE checking initial session.
+    // NB: callback SINCRONO — vedi processAuthEvent sopra.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        // Keep the module-level token cache fresh — allows getCachedTokens() to
+        // return the current tokens WITHOUT acquiring the Supabase storage lock.
+        if (session?.access_token) {
+          _cachedAccessToken = session.access_token;
+          _cachedRefreshToken = session.refresh_token ?? null;
+        } else if (event === "SIGNED_OUT") {
+          _cachedAccessToken = null;
+          _cachedRefreshToken = null;
+        }
+        setTimeout(() => { void processAuthEvent(event, session); }, 0);
       }
     );
 

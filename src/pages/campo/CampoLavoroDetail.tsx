@@ -422,6 +422,16 @@ export default function CampoLavoroDetail() {
         throw new Error("Connessione lenta: verifica assegnazione non completata");
       }
 
+      // Tutti i probe vuoti SENZA timeout: prima di concludere "non assegnato"
+      // verifica che le query siano davvero partite con una sessione autenticata.
+      // Se il token non era ancora agganciato (boot auth), le RLS rispondono
+      // vuoto per TUTTO → falso "Lavoro non disponibile" a operai assegnati.
+      // Errore → react-query riprova, invece di cementare il falso negativo.
+      const { data: sessionCheck } = await supabase.auth.getSession();
+      if (!sessionCheck?.session) {
+        throw new Error("Sessione non ancora pronta: verifica assegnazione da riprovare");
+      }
+
       // Non assegnato — la UI mostra un fallback recuperabile.
       return null;
     },
