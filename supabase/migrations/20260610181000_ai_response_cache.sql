@@ -21,9 +21,13 @@ CREATE TABLE IF NOT EXISTS public.ai_response_cache (
   UNIQUE (task_key, company_id, input_hash)
 );
 
-CREATE INDEX IF NOT EXISTS idx_ai_response_cache_lookup
-  ON public.ai_response_cache(task_key, company_id, input_hash)
-  WHERE expires_at > now();
+-- Qui c'era un indice parziale su (task_key, company_id, input_hash) con
+-- predicato `WHERE expires_at > now()`: Postgres lo rifiuta — now() e' STABLE,
+-- non IMMUTABLE, e il predicato di un indice deve esserlo (42P17). Per questo
+-- l'intera migrazione non e' MAI stata applicata in produzione (tabella
+-- inesistente al 2026-08-11) e faceva fallire il branch di prova.
+-- L'indice non serviva comunque: la UNIQUE qui sopra ne crea gia' uno
+-- identico sulle stesse tre colonne. La scadenza si filtra a query time.
 
 CREATE INDEX IF NOT EXISTS idx_ai_response_cache_expiry
   ON public.ai_response_cache(expires_at);
