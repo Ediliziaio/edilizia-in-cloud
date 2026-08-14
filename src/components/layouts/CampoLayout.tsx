@@ -70,6 +70,15 @@ export default function CampoLayout() {
   const navigate = useNavigate();
   // Sotto-pagina = non la home /campo: mostra la freccia "indietro" come nell'app azienda.
   const isSubPage = location.pathname !== "/campo" && location.pathname !== "/campo/";
+  // Nei flussi di compilazione (rapportino a passi, rapportino vocale,
+  // checklist sicurezza) il wizard ha già la SUA barra fissa in basso:
+  // tenere anche la bottom-nav crea due barre sovrapposte che mangiano
+  // ~180px di schermo e mettono il FAB "Timbra" a un millimetro dal
+  // bottone "Avanti" — tap sbagliati garantiti. Lì la nav si nasconde:
+  // si esce col back del wizard, non cambiando tab a metà compilazione.
+  // (Il rapportino vocale resta fuori: è una schermata singola senza barra
+  // propria, lì la bottom-nav serve ancora.)
+  const inFlussoCompilazione = /\/(rapportino|sicurezza)$/.test(location.pathname);
 
   // Messaggi chat team non letti. Riusa l'hook condiviso (RPC
   // get_internal_chat_sidebar_state + realtime), come nell'app azienda: le
@@ -304,7 +313,7 @@ export default function CampoLayout() {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 pb-28 md:pb-6">
+          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione ? "pb-4" : "pb-28"} md:pb-6`}>
             <PreviewSessionContext.Provider value={previewSession}>
               <ErrorBoundary title="Errore nel caricamento della pagina">
                 <Outlet />
@@ -313,8 +322,8 @@ export default function CampoLayout() {
           </main>
         </div>
 
-        {/* Mobile bottom navigation */}
-        <CampoBottomNav unreadCount={unreadCount} />
+        {/* Mobile bottom navigation — nascosta nei flussi di compilazione */}
+        {!inFlussoCompilazione && <CampoBottomNav unreadCount={unreadCount} />}
       </div>
     </SidebarProvider>
   );

@@ -938,12 +938,18 @@ function RapportiniSospesi() {
       // Filtro azienda: i rapportini sono dell'utente ma restano nel tenant
       // in cui sono nati — cambiando azienda i vecchi non devono riapparire
       // come "da completare" (e il link aprirebbe un cantiere non accessibile).
+      //
+      // "Da completare" = bozza mai inviata o rapportino RESPINTO dall'ufficio.
+      // Prima il filtro era lavoro_completato=false, ma quel flag significa
+      // "il CANTIERE è finito": ogni rapportino normale di un cantiere aperto
+      // restava segnato per sempre come sospeso, anche se già inviato — la
+      // card gridava al lupo tutti i giorni e i veri sospesi si perdevano.
       const { data, error } = await supabase
         .from("campo_rapportini")
-        .select("id, order_id, data_lavoro, order:orders(order_code, description)")
+        .select("id, order_id, data_lavoro, stato, order:orders(order_code, description)")
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)
-        .eq("lavoro_completato", false)
+        .in("stato", ["bozza", "rifiutato"])
         .lt("data_lavoro", today)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;
@@ -970,7 +976,14 @@ function RapportiniSospesi() {
             className="w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-amber-100/50 transition-colors"
           >
             <div>
-              <p className="text-sm text-foreground font-medium">{r.order?.order_code}</p>
+              <p className="text-sm text-foreground font-medium">
+                {r.order?.order_code}
+                {r.stato === "rifiutato" && (
+                  <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-red-600">
+                    Respinto — da rifare
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {format(parseISO(r.data_lavoro), "d MMM", { locale: it })} — {r.order?.description?.slice(0, 40)}
               </p>

@@ -1232,7 +1232,10 @@ export default function CampoRapportino() {
 
       {/* Navigazione. -bottom-28 compensa il pb-28 del <main>: senza, la
           barra si aggancia 112px sopra il fondo e copre il form. */}
-      <div className="sticky -bottom-28 z-20 border-t border-border bg-background px-3 pb-20 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:bottom-0 md:px-4 md:pb-3">
+      {/* La bottom-nav è nascosta nel wizard (CampoLayout): la barra sta a
+          filo schermo, senza più il trucco -bottom-28/pb-20 che le faceva
+          spazio sopra la nav. */}
+      <div className="sticky bottom-0 z-20 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:px-4 md:pb-3">
         <div className="flex gap-3">
           <button
             onClick={goBack}

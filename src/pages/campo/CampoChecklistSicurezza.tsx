@@ -253,10 +253,11 @@ export default function CampoChecklistSicurezza(): JSX.Element {
         />
       </div>
 
-      {/* CTA fissa in fondo */}
+      {/* CTA fissa in fondo — la bottom-nav qui è nascosta (CampoLayout),
+          la barra sta a filo schermo con il solo margine della safe-area. */}
       <div
-        className="fixed left-0 right-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] border-t border-border bg-background/95 p-4 backdrop-blur md:bottom-0"
-        style={{ paddingBottom: "1rem" }}
+        className="fixed left-0 right-0 bottom-0 border-t border-border bg-background/95 p-4 backdrop-blur"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <button
           type="button"
