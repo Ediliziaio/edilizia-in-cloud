@@ -3,7 +3,7 @@
  * Timbratura integrata, cantieri assegnati, attività e accesso rapido.
  * Condizionale per operaio vs subappaltatore.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
+import { useGPS } from "@/hooks/useGPS";
 import { useIsCampo } from "@/hooks/useIsCampo";
 // 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
@@ -170,6 +171,15 @@ function TimbraturaCampo() {
     refetchIntervalInBackground: false,
   });
 
+  // Tick al minuto: le ore della sessione aperta ticchettano invece di
+  // restare congelate fino al refetch (e Date.now() esce dal render, che il
+  // compiler vieta come funzione impura).
+  const [adesso, setAdesso] = useState(() => new Date().getTime());
+  useEffect(() => {
+    const id = setInterval(() => setAdesso(new Date().getTime()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const oreLavorate = useMemo(() => {
     let totaleMs = 0;
     let ultimaEntrata: Date | null = null;
@@ -181,9 +191,9 @@ function TimbraturaCampo() {
         ultimaEntrata = null;
       }
     }
-    if (ultimaEntrata) totaleMs += Date.now() - ultimaEntrata.getTime();
+    if (ultimaEntrata) totaleMs += Math.max(0, adesso - ultimaEntrata.getTime());
     return Math.round((totaleMs / 3_600_000) * 10) / 10;
-  }, [timbratureOggi]);
+  }, [timbratureOggi, adesso]);
 
   const lastTimbro = timbratureOggi[timbratureOggi.length - 1] as any;
   const isEntrato = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
@@ -193,6 +203,39 @@ function TimbraturaCampo() {
 
   const { data: hrProfilo } = useMyHrProfilo();
   const hrProfiloId = hrProfilo?.id ?? null;
+
+  // GPS come nella pagina Timbratura dedicata: la posizione si chiede quando il
+  // widget monta (non al tap, o l'operaio aspetterebbe il fix col dito a
+  // mezz'aria) e si allega solo se è arrivata — la timbratura non aspetta mai
+  // il GPS. Prima il widget non salvava proprio posizione né cantiere: le
+  // timbrature dalla Home erano "di serie B" rispetto alla pagina dedicata.
+  const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
+  useEffect(() => {
+    if (companyId) void requestPosition();
+  }, [companyId, requestPosition]);
+
+  // Cantiere collegato SOLO se è certo: un'unica assegnazione attiva → quella.
+  // Con più cantieri non si indovina (la pagina Timbratura lo collega solo
+  // quando ci si arriva dal cantiere stesso — stessa filosofia).
+  const { data: cantiereUnico = null } = useQuery({
+    queryKey: ["campo-cantiere-unico", companyId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_campo_assignments")
+        .select("order_id, orders(order_code)")
+        .eq("company_id", companyId!)
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      const distinct = [...new Map((data ?? [])
+        .filter((r) => r.order_id)
+        .map((r) => [r.order_id as string, r])).values()];
+      if (distinct.length !== 1) return null;
+      const unico = distinct[0] as { order_id: string; orders: { order_code: string | null } | null };
+      return { id: unico.order_id, code: unico.orders?.order_code ?? null };
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 5 * 60_000,
+  });
 
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
@@ -208,11 +251,21 @@ function TimbraturaCampo() {
         throw new Error("Sequenza timbratura non valida per lo stato attuale");
       }
       const now = new Date().toISOString();
+      const gpsReady = gpsStatus === "success";
+      const note = [
+        cantiereUnico ? `Cantiere: ${cantiereUnico.code ?? cantiereUnico.id}` : null,
+        address ? `GPS: ${address}` : null,
+      ].filter(Boolean).join(" · ") || null;
       const { error } = await supabase.from("campo_timbrature").insert({
         company_id: companyId,
         user_id: user!.id,
+        order_id: cantiereUnico?.id ?? null,
         tipo,
         timestamp_evento: now,
+        gps_lat: gpsReady ? lat : null,
+        gps_lng: gpsReady ? lng : null,
+        gps_accuracy: gpsReady ? Math.round(accuracy) : null,
+        note,
         fonte: "app",
       });
       if (error) throw error;
@@ -226,7 +279,10 @@ function TimbraturaCampo() {
           profilo_id: hrProfiloId,
           tipo,
           timestamp: now,
+          lat: gpsReady ? lat : null,
+          lng: gpsReady ? lng : null,
           fonte: "app",
+          note,
         });
         if (hrErr) console.warn("[CampoHome] hr_timbrature sync failed:", hrErr.message);
       }
@@ -285,6 +341,16 @@ function TimbraturaCampo() {
                 </span>
               )}
             </div>
+
+            {/* Cosa verrà allegato alla timbratura: posizione e cantiere.
+                Stessi testi della pagina Timbratura — l'operaio sa PRIMA di
+                timbrare se la posizione c'è o no, niente sorprese dopo. */}
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {gpsStatus === "success" && <span className="text-green-600">GPS attivo — precisione {Math.round(accuracy)}m{address ? ` · ${address}` : ""}</span>}
+              {gpsStatus === "loading" && "Acquisizione GPS..."}
+              {(gpsStatus === "denied" || gpsStatus === "error" || gpsStatus === "idle") && "GPS non disponibile — timbratura senza posizione"}
+              {cantiereUnico && <span> · Cantiere {cantiereUnico.code ?? ""}</span>}
+            </p>
 
             {/* Bottoni azione */}
             <div className="flex flex-wrap gap-2">
@@ -646,10 +712,12 @@ function CantieriAssegnati() {
       const rows: any[] = [];
 
       // Fonte 1: assegnazioni campo dirette (order_campo_assignments) —
-      // è la fonte primaria dell'area campo (stessa usata dal dettaglio lavoro)
+      // è la fonte primaria dell'area campo (stessa usata dal dettaglio lavoro).
+      // is_capocantiere va chiesto SOLO qui: su order_employees la colonna non
+      // esiste (400) — col select condiviso il badge Capocantiere era morto.
       const { data: campoAss, error: campoErr } = await supabase
         .from("order_campo_assignments")
-        .select(orderSelect)
+        .select(`is_capocantiere, ${orderSelect}`)
         .eq("user_id", user!.id);
       if (campoErr) throw campoErr;
       rows.push(...(campoAss ?? []));
