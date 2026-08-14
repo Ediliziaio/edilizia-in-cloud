@@ -22,6 +22,10 @@ export default function CampoChecklistSicurezza(): JSX.Element {
   const [turno, setTurno] = useState<"mattina" | "pomeriggio">(
     new Date().getHours() < 13 ? "mattina" : "pomeriggio",
   );
+  // Copre anche l'attesa GPS (fino a 5s) PRIMA che il salvataggio parta:
+  // `saving` del hook si accende solo all'upsert, e in quei secondi il
+  // bottone restava attivo e muto — tap ripetuti garantiti in cantiere.
+  const [confermando, setConfermando] = useState(false);
   const {
     loading,
     record,
@@ -40,6 +44,8 @@ export default function CampoChecklistSicurezza(): JSX.Element {
   const capitalizedDate = today.charAt(0).toUpperCase() + today.slice(1);
 
   const handleConferma = async (): Promise<void> => {
+    if (confermando) return;
+    setConfermando(true);
     // Prova a ottenere GPS (non bloccante)
     let gps: { lat: number; lng: number; accuracy: number } | null = null;
     if (navigator.geolocation) {
@@ -61,6 +67,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
     }
 
     const ok = await conferma(null, gps);
+    setConfermando(false);
     if (ok) {
       toast.success("Checklist confermata — buon lavoro!", { duration: 3000 });
       setTimeout(() => navigate("/campo"), 800);
@@ -262,17 +269,17 @@ export default function CampoChecklistSicurezza(): JSX.Element {
         <button
           type="button"
           onClick={handleConferma}
-          disabled={saving || !completaLocale}
+          disabled={confermando || saving || !completaLocale}
           className={`
             w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2
             transition-all active:scale-[0.98]
-            ${completaLocale && !saving
+            ${completaLocale && !saving && !confermando
               ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
               : "bg-muted text-muted-foreground cursor-not-allowed"
             }
           `}
         >
-          {saving ? (
+          {confermando || saving ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
               Salvataggio…
