@@ -543,7 +543,7 @@ export default function Prezzi() {
               <p className="text-xs text-gray-400">Nessuna carta richiesta</p>
             </div>
             <Link
-              to="/demo?plan=scopri"
+              to="/demo/?plan=scopri"
               onClick={() => trackPlanIntent("Scopri", 0)}
               className="block text-center w-full border border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors mb-6"
             >
@@ -917,7 +917,7 @@ export default function Prezzi() {
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td className="px-5 py-4" />
                   <td className="px-3 py-4 text-center">
-                    <Link to="/demo?plan=scopri" className="text-xs border border-gray-300 text-gray-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <Link to="/demo/?plan=scopri" className="text-xs border border-gray-300 text-gray-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                       Gratis
                     </Link>
                   </td>
