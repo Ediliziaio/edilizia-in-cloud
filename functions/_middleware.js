@@ -3047,7 +3047,7 @@ function isPublicNoindexPath(pathname) {
   return PUBLIC_NOINDEX_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
-export async function onRequest({ request, next, env }) {
+export async function onRequest({ request, next, env, waitUntil }) {
   const ua = request.headers.get("user-agent") || "";
   const url = new URL(request.url);
 
@@ -3090,20 +3090,32 @@ export async function onRequest({ request, next, env }) {
     const needsPathFix = isMain && normalizedPath !== path;
 
     if (needsHostFix || needsPathFix) {
-      // Cache-Control esplicito sul 301: senza header le risposte delle
-      // Functions non vengono memorizzate dall'edge, quindi OGNI ripasso dei
-      // crawler su OGNI variante (senza slash, apex, http, alias) ri-invocava
-      // il middleware e bruciava quota Workers Free (burst USA 2026-08-17:
-      // ~85k invocazioni in 3 ore, media 8KB/risposta ≈ quasi tutti redirect).
-      // La mappa host+slash+alias e' deterministica: edge 1 giorno (s-maxage),
-      // browser 1 ora (max-age) — stesso pattern gia' usato per l'HTML sotto.
-      return new Response(null, {
+      // Il 301 di canonicalizzazione va in Cache API: gli header da soli NON
+      // bastano (verificato live: cf-cache-status DYNAMIC anche con s-maxage)
+      // perche' Pages non memorizza l'output delle Functions nella cache edge.
+      // Senza questo, OGNI ripasso dei crawler su OGNI variante (senza slash,
+      // apex, http, alias) ri-invocava il middleware e bruciava quota Workers
+      // Free (burst USA 2026-08-17: ~85k invocazioni in 3 ore, ~tutte
+      // redirect). La mappa host+slash+alias e' deterministica: 1 giorno di
+      // cache per-colo e' senza rischi. Solo GET/HEAD finiscono in cache.
+      const isCacheable = request.method === "GET" || request.method === "HEAD";
+      const cache = caches.default;
+      const cacheKey = new Request(url.toString(), { method: "GET" });
+      if (isCacheable) {
+        const hit = await cache.match(cacheKey);
+        if (hit) return hit;
+      }
+      const redirect = new Response(null, {
         status: 301,
         headers: {
           Location: `https://www.ediliziaincloud.com${normalizedPath}${url.search}`,
           "Cache-Control": "public, max-age=3600, s-maxage=86400",
         },
       });
+      if (isCacheable && typeof waitUntil === "function") {
+        waitUntil(cache.put(cacheKey, redirect.clone()));
+      }
+      return redirect;
     }
   }
 
