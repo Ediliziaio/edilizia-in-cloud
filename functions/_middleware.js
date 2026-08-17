@@ -3090,10 +3090,20 @@ export async function onRequest({ request, next, env }) {
     const needsPathFix = isMain && normalizedPath !== path;
 
     if (needsHostFix || needsPathFix) {
-      return Response.redirect(
-        `https://www.ediliziaincloud.com${normalizedPath}${url.search}`,
-        301,
-      );
+      // Cache-Control esplicito sul 301: senza header le risposte delle
+      // Functions non vengono memorizzate dall'edge, quindi OGNI ripasso dei
+      // crawler su OGNI variante (senza slash, apex, http, alias) ri-invocava
+      // il middleware e bruciava quota Workers Free (burst USA 2026-08-17:
+      // ~85k invocazioni in 3 ore, media 8KB/risposta ≈ quasi tutti redirect).
+      // La mappa host+slash+alias e' deterministica: edge 1 giorno (s-maxage),
+      // browser 1 ora (max-age) — stesso pattern gia' usato per l'HTML sotto.
+      return new Response(null, {
+        status: 301,
+        headers: {
+          Location: `https://www.ediliziaincloud.com${normalizedPath}${url.search}`,
+          "Cache-Control": "public, max-age=3600, s-maxage=86400",
+        },
+      });
     }
   }
 
