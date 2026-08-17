@@ -3090,14 +3090,17 @@ export async function onRequest({ request, next, env, waitUntil }) {
     const needsPathFix = isMain && normalizedPath !== path;
 
     if (needsHostFix || needsPathFix) {
-      // Il 301 di canonicalizzazione va in Cache API: gli header da soli NON
-      // bastano (verificato live: cf-cache-status DYNAMIC anche con s-maxage)
-      // perche' Pages non memorizza l'output delle Functions nella cache edge.
-      // Senza questo, OGNI ripasso dei crawler su OGNI variante (senza slash,
-      // apex, http, alias) ri-invocava il middleware e bruciava quota Workers
-      // Free (burst USA 2026-08-17: ~85k invocazioni in 3 ore, ~tutte
-      // redirect). La mappa host+slash+alias e' deterministica: 1 giorno di
-      // cache per-colo e' senza rischi. Solo GET/HEAD finiscono in cache.
+      // Il 301 di canonicalizzazione va in Cache API + Cache-Control.
+      // ATTENZIONE alla meccanica (verificato live 2026-08-17): l'output delle
+      // Functions NON entra da solo nella cache edge (cf-cache-status DYNAMIC
+      // anche con s-maxage), e la Cache API qui dentro NON riduce le
+      // invocazioni (la Function gira comunque, e' lei a leggere la cache):
+      // taglia solo latenza/CPU. Cio' che riduce DAVVERO le invocazioni e'
+      // una Cache Rule di zona (dashboard: apex host + path senza slash e
+      // senza estensione → Eligible for cache): a quel punto il s-maxage=86400
+      // qui sotto governa il TTL della zona e i ripassi dei crawler muoiono
+      // PRIMA di arrivare a Pages (burst USA 2026-08-17: ~85k invocazioni in
+      // 3 ore, ~tutte redirect). Solo GET/HEAD finiscono in cache.
       const isCacheable = request.method === "GET" || request.method === "HEAD";
       const cache = caches.default;
       const cacheKey = new Request(url.toString(), { method: "GET" });
