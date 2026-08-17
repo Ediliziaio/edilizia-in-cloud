@@ -457,7 +457,7 @@ const config: FunzionalitaPageConfig = {
       text: "Foto e avanzamenti dall'app vanno al portale cliente in tempo reale.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e cantieri.",
     },

@@ -434,7 +434,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/preventivi-edilizia", title: "Preventivi Edilizia", text: "Sequenze nurturing sui preventivi pendenti." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI campagne email nel dashboard executive." },
     { to: "/funzionalita/agenti-ai", title: "Agenti AI", text: "AI per scrivere oggetti email e personalizzare contenuti." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

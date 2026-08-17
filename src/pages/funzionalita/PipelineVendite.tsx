@@ -424,7 +424,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "Forecast cassa basato su preventivi in pipeline × probabilità." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI commerciali nel dashboard direzionale: conversione, ticket, fonte." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Trigger automatici di follow-up per fase pipeline." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Pipeline Vendite inclusa nei piani Professional e Business." },
   ],
 

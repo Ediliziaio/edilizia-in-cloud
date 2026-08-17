@@ -456,7 +456,7 @@ const config: FunzionalitaPageConfig = {
       text: "Archivio cloud decennale dossier finanziamento conforme AgID.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e Superbonus.",
     },

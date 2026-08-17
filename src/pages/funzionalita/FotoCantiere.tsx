@@ -435,7 +435,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/whatsapp-marketing", title: "WhatsApp Marketing", text: "Notifica WhatsApp al cliente con foto del giorno." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Foto di milestone triggerano notifiche cliente automatiche." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Statistiche foto cantieri nel dashboard executive." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

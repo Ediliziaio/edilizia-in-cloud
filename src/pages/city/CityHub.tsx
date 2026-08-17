@@ -43,6 +43,16 @@ const CITIES = [
   { name: "Trento", slug: "trento", region: "Trentino-Alto Adige", desc: "Standard CasaClima, costruzioni in legno e cantieri alpini d'eccellenza" },
   { name: "Bolzano", slug: "bolzano", region: "Alto Adige", desc: "Leader italiano per standard energetici KlimaHaus e bioedilizia alpina" },
   { name: "Ferrara", slug: "ferrara", region: "Emilia-Romagna", desc: "Restauro patrimonio UNESCO, zona delta e riqualificazione residenziale" },
+  // Le 7 sotto esistevano in sitemap e middleware ma NON qui: pagine orfane
+  // per Google (zero link interni in entrata) — la lista hub deve coprire
+  // TUTTE le città del dizionario middleware (43), non fermarsi a 36.
+  { name: "Como", slug: "como", region: "Lombardia", desc: "Ville sul lago, clientela internazionale e ristrutturazioni di pregio" },
+  { name: "Lecco", slug: "lecco", region: "Lombardia", desc: "Cantieri prealpini, capannoni del distretto metalmeccanico e residenziale" },
+  { name: "Monza", slug: "monza", region: "Lombardia", desc: "Brianza produttiva: capannoni, residenziale di pregio e SAL settimanali" },
+  { name: "Varese", slug: "varese", region: "Lombardia", desc: "Clienti italo-svizzeri, cantieri prealpini e gestione frontalieri" },
+  { name: "Treviso", slug: "treviso", region: "Veneto", desc: "Distretti vinicoli, rustici sotto vincolo e capannoni industriali" },
+  { name: "Latina", slug: "latina", region: "Lazio", desc: "Agro pontino, edilizia industriale e residenziale in espansione" },
+  { name: "Pisa", slug: "pisa", region: "Toscana", desc: "Restauro storico, edilizia universitaria e cantieri della costa toscana" },
 ];
 
 const baseUrl = "https://www.ediliziaincloud.com";

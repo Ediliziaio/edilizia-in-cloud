@@ -416,7 +416,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "F24 e bonifici stipendi sincronizzati con il piano cassa." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costo del lavoro per cantiere alimentato dai cedolini." },
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "F24 contributi e scadenze MUT nel calendario aziendale." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Cedolini Paga incluso nel piano Business con dipendenti illimitati." },
   ],
 

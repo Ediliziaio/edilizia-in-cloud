@@ -437,7 +437,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/sicurezza-cantiere", title: "Sicurezza Cantiere", text: "Alert automatici su visite mediche e scadenze sicurezza." },
     { to: "/funzionalita/agenti-ai", title: "Agenti AI", text: "AI agents che eseguono task complessi nelle automazioni." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI delle automazioni nel dashboard executive." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

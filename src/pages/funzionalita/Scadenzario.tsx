@@ -420,7 +420,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/email-marketing", title: "Email Marketing", text: "Solleciti email transazionali con tracking aperture." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Sequenze multi-step di sollecito programmate e personalizzate." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "DSO, aging e sofferenze nel dashboard direzionale." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Scadenzario incluso nei piani Professional e Business." },
   ],
 

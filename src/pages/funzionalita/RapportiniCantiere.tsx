@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/firma-elettronica", title: "Firma Elettronica", text: "Firme con valore legale su chiusure e documenti." },
     { to: "/funzionalita/timbrature-gps", title: "Timbrature GPS", text: "Presenze in cantiere che si incrociano coi rapportini." },
     { to: "/funzionalita/app-cantiere-mobile", title: "App Cantiere Mobile", text: "Tutto il cantiere in tasca al caposquadra." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

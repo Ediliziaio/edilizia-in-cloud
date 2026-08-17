@@ -449,7 +449,7 @@ const config: FunzionalitaPageConfig = {
       text: "Per imprese di ristrutturazione: prima/dopo sulla foto reale del cliente.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
     },

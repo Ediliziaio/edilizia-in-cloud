@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/sicurezza-cantiere", title: "Sicurezza Cantiere", text: "POS, DUVRI, PSC conservati 10 anni con marca temporale." },
     { to: "/funzionalita/foto-cantiere", title: "Foto Cantiere", text: "Foto cantiere geolocalizzate conservate con valore probatorio." },
     { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "DDT cantiere e ordini fornitore conservati 10 anni a norma." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Conservazione Digitale inclusa nei piani Professional e Business." },
   ],
 

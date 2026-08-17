@@ -454,7 +454,7 @@ const config: FunzionalitaPageConfig = {
       text: "Cliente vede libretti, scadenze, storico interventi.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e manutenzione.",
     },

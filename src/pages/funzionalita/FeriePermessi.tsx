@@ -416,7 +416,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/calendario-lavori", title: "Calendario Lavori", text: "Pianificazione cantieri considera assenze approvate." },
     { to: "/funzionalita/app-cantiere-mobile", title: "App Cantiere Mobile", text: "Capocantiere approva ferie dallo stesso telefono del giornale lavori." },
     { to: "/funzionalita/chat-interna", title: "Chat Interna", text: "Comunicazione tra operai e capocantiere su sostituzioni e copertura turni." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Ferie e Permessi incluso nei piani Professional e Business." },
   ],
 

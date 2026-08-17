@@ -416,7 +416,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/sicurezza-cantiere", title: "Sicurezza Cantiere", text: "Canale dedicato RSPP, near miss, alert immediati." },
     { to: "/funzionalita/hr-personale", title: "HR Personale", text: "Canali ferie, formazione, comunicazioni aziendali tracciate." },
     { to: "/funzionalita/whatsapp-marketing", title: "WhatsApp Marketing", text: "Comunicazione clienti finali separata e con DPA." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Chat Interna inclusa nei piani Professional e Business." },
   ],
 

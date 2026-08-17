@@ -425,7 +425,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/magazzino-cantiere", title: "Magazzino Cantiere", text: "Materiali e attrezzature tracciati con la stessa logica." },
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Tutte le scadenze dell'impresa in un colpo d'occhio." },
     { to: "/funzionalita/app-cantiere-mobile", title: "App Cantiere Mobile", text: "Ricerca e assegnazione mezzi dal telefono in cantiere." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

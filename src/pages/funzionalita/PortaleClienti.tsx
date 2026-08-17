@@ -367,7 +367,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/preventivi-edilizia", title: "Preventivi Edilizia", text: "Preventivi firmabili online direttamente dal portale cliente." },
     { to: "/funzionalita/ticket-assistenza", title: "Ticket Assistenza", text: "Sistema ticket per richieste post-vendita dal portale cliente." },
     { to: "/funzionalita/whatsapp-marketing", title: "WhatsApp Marketing", text: "Notifiche cliente del portale via WhatsApp Business." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Portale Clienti incluso nei piani Professional e Business." },
   ],
 

@@ -162,7 +162,7 @@ const perChiColumns: MenuColumn[] = [
   {
     heading: "SETTORE",
     items: [
-      { to: "/per/imprese-costruzione", label: "Imprese di Costruzione", desc: "General contractor edili", icon: HardHat },
+      { to: "/per/imprese-edili", label: "Imprese di Costruzione", desc: "General contractor edili", icon: HardHat },
       { to: "/per/impiantisti", label: "Impiantisti", desc: "Idraulici, elettricisti, termici", icon: Wrench },
       { to: "/per/ristrutturatori", label: "Ristrutturatori", desc: "Ristrutturazione residenziale", icon: Hammer },
       { to: "/per/fotovoltaico", label: "Fotovoltaico", desc: "Installatori e EPC", icon: SunMedium },

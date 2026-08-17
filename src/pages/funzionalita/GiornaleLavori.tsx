@@ -434,7 +434,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente vede giornale lavori se autorizzato dal DL." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Notifiche push automatiche al DL e RUP per firme." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Stato firme giornali lavori nel dashboard executive." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

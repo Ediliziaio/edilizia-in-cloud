@@ -427,7 +427,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "Dalle quantità computate agli ordini fornitore." },
     { to: "/funzionalita/magazzino-cantiere", title: "Magazzino Cantiere", text: "Materiali computati e materiali consumati a confronto." },
     { to: "/funzionalita/crm-edilizia", title: "CRM Edilizia", text: "Richieste, sopralluoghi e preventivi in un flusso solo." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

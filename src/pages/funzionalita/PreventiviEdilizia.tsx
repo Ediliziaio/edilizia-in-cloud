@@ -451,7 +451,7 @@ const config: FunzionalitaPageConfig = {
       text: "Per imprese di ristrutturazione: prima/dopo realistico in 60 secondi, allegato al preventivo per migliorare la conversione.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
     },

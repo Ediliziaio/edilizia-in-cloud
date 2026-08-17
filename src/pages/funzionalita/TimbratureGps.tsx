@@ -421,7 +421,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "Squadra presente registrata automaticamente nel giornale." },
     { to: "/funzionalita/cassa-cantiere", title: "Cassa Cantiere", text: "Ore lavorate alimentano fatturazione SAL clienti." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Timbrature GPS anche per ditte subappaltatrici." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Timbrature GPS incluse nei piani Professional e Business." },
   ],
 

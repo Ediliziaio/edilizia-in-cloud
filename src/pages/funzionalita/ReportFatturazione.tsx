@@ -416,7 +416,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Dashboard direzionale con KPI cross-aziendali." },
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Scadenze fatture e versamenti nel calendario aziendale." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente vede stato fatture e scadenze del proprio cantiere." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Report Fatturazione incluso nei piani Professional e Business." },
   ],
 

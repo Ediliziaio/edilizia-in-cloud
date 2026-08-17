@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/manutenzione-impianti", title: "Manutenzione Impianti", text: "Ticket di manutenzione programmata e a guasto su impianti consegnati." },
     { to: "/funzionalita/foto-cantiere", title: "Foto Cantiere", text: "Foto datate del cantiere alimentano il dossier 1669 c.c." },
     { to: "/funzionalita/conserva-digitale", title: "Conservazione Digitale", text: "Archivio decennale a norma CAD per dossier garanzia." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Ticket Assistenza incluso nei piani Professional e Business." },
   ],
 

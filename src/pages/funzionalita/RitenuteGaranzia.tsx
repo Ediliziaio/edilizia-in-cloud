@@ -455,7 +455,7 @@ const config: FunzionalitaPageConfig = {
       text: "Anticipo SAL banche con cessione ritenute future come garanzia.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili appalti pubblici e privati.",
     },

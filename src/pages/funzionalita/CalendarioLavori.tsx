@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/app-cantiere-mobile", title: "App Cantiere Mobile", text: "Capocantiere vede pianificato del giorno e segnala variazioni." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente vede milestone e date sul calendario condiviso." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI di puntualità cantiere e produttività squadre." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Calendario Lavori incluso nei piani Professional e Business." },
   ],
 

@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cassa-cantiere", title: "Cassa Cantiere", text: "Costo materiali reale alimenta valorizzazione SAL e fatturazione." },
     { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "Materiali utilizzati al giorno tracciati nel giornale di cantiere." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Materiali forniti a subappaltatori tracciati con prelievi." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Magazzino Cantiere incluso nei piani Professional e Business." },
   ],
 

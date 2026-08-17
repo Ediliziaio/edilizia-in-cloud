@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/fatturazione-elettronica", title: "Fatturazione Elettronica", text: "Fatture di acconto elettroniche generate dai SAL." },
     { to: "/funzionalita/ritenute-garanzia", title: "Ritenute di Garanzia", text: "Ritenute calcolate sui SAL e tracciate fino allo svincolo." },
     { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "La registrazione giornaliera che documenta l'avanzamento." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

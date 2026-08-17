@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "Pagamenti fornitore collegati agli ordini d'acquisto." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi/ricavi imputati al cantiere per analisi margine live." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Cassa, fatturato, margini nel dashboard direzionale." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Prima Nota inclusa nei piani Professional e Business." },
   ],
 

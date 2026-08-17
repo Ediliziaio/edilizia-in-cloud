@@ -421,7 +421,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cassa-cantiere", title: "Cassa Cantiere", text: "Movimenti cassa cantiere consolidati nella tesoreria." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Cassa, fatturato, margini nel dashboard direzionale." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi e ricavi cantiere imputati per analisi margine real-time." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Tesoreria inclusa nei piani Professional e Business." },
   ],
 

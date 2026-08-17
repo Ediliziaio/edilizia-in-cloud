@@ -457,7 +457,7 @@ const config: FunzionalitaPageConfig = {
       text: "Preventivi FV generati da foto tetto e simulazione produzione.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e installatori energia.",
     },

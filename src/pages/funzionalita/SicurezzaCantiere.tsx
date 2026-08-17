@@ -438,7 +438,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/foto-cantiere", title: "Foto Cantiere", text: "Foto allegate ai sopralluoghi e ai near-miss." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Verifica idoneità tecnico-professionale subappaltatori." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI sicurezza nel dashboard executive." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

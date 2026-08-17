@@ -451,7 +451,7 @@ const config: FunzionalitaPageConfig = {
       text: "Tutte le fatture SDI conservate digitalmente con marca temporale.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma orientata alle imprese edili italiane.",
     },

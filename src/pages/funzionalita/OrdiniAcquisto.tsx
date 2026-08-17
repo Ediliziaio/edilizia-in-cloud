@@ -425,7 +425,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi reali da PO/fatture per analisi margine progetto." },
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Scadenze pagamento fornitori popolate da PO e fatture passive." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Ordini di subappalto con SAL e reverse charge art. 17 ter." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Ordini Acquisto inclusi nei piani Professional e Business." },
   ],
 

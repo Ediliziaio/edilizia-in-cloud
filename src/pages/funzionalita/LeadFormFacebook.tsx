@@ -454,7 +454,7 @@ const config: FunzionalitaPageConfig = {
       text: "SMS conferma in 30 secondi, reminder appuntamento sopralluogo.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e ristrutturazioni.",
     },

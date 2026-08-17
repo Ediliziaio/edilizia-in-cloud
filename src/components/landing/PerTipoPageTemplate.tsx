@@ -29,7 +29,7 @@ const ALL_SECTORS = [
 
 // Mappa seoCanonical → categorie blog pertinenti per "Leggi anche"
 const SECTOR_BLOG_CATEGORIES: Record<string, string[]> = {
-  "/per/imprese-costruzione": ["Gestione Cantieri", "Finanza"],
+  "/per/imprese-edili": ["Gestione Cantieri", "Finanza"],
   "/per/impiantisti":          ["Gestione Cantieri", "HR & Personale"],
   "/per/ristrutturatori":      ["Gestione Cantieri", "Commerciale"],
   "/per/fotovoltaico":         ["Finanza", "Gestione Cantieri"],

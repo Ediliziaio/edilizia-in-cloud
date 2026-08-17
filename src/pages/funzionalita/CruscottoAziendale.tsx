@@ -434,7 +434,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/hr-personale", title: "HR Personale", text: "Costo del lavoro su fatturato come KPI nel dashboard." },
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Alert automatici su soglie KPI critici." },
     { to: "/funzionalita/agenti-ai", title: "Agenti AI", text: "AI che interpreta i numeri e suggerisce azioni." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

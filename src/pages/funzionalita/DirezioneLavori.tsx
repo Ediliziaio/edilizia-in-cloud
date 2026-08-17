@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/firma-elettronica", title: "Firma Elettronica", text: "Verbali e ordini di servizio firmati con valore legale." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Avanzamento fisico ed economico letti insieme." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Il committente aggiornato senza telefonate." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

@@ -455,7 +455,7 @@ const config: FunzionalitaPageConfig = {
       text: "DDT consegnati alimentano consuntivo materiali e marginalità cantiere.",
     },
     {
-      to: "/per/imprese-costruzione",
+      to: "/per/imprese-edili",
       title: "Software per Imprese di Costruzione",
       text: "Tutta la piattaforma per imprese edili e fornitori materiali.",
     },

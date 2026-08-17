@@ -437,7 +437,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/preventivi-edilizia", title: "Preventivi Edilizia", text: "Reminder WhatsApp sui preventivi pendenti." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI campagne WhatsApp nel dashboard executive." },
     { to: "/funzionalita/firma-elettronica", title: "Firma Elettronica", text: "Link di firma SAL via WhatsApp con validità eIDAS." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

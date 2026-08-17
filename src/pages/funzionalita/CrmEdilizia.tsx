@@ -437,7 +437,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente diventato attivo accede al portale dal CRM." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI commerciali e pipeline nel dashboard executive." },
     { to: "/funzionalita/agenti-ai", title: "Agenti AI", text: "AI per qualificare lead, suggerire follow-up, scrivere risposte." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

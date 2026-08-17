@@ -414,7 +414,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/conserva-digitale", title: "Conservazione Digitale", text: "Registri IVA conservati 10 anni a norma CAD." },
     { to: "/funzionalita/prima-nota", title: "Prima Nota", text: "Movimenti IVA registrati con causali edilizia preimpostate." },
     { to: "/funzionalita/ritenute-garanzia", title: "Ritenute Garanzia", text: "Gestione ritenute d'acconto e ritenute di garanzia in subappalti." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Registro IVA incluso nel piano Business con fatture illimitate." },
   ],
 

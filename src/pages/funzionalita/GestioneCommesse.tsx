@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/rapportini-cantiere", title: "Rapportini Cantiere", text: "Ore e materiali dai rapportini entrano nel consuntivo." },
     { to: "/funzionalita/calendario-lavori", title: "Calendario Lavori", text: "Pianificazione squadre e fasi collegata alle commesse." },
     { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "Registrazione giornaliera conforme collegata al cantiere." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
   ],
 
   finalCtaH2:

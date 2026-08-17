@@ -420,7 +420,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/prima-nota", title: "Prima Nota", text: "Registro contabile con riconciliazione automatica dei movimenti bancari." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Margine reale per commessa che alimenta forecast e decisioni." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Pagamenti SAL subappalto e ritenute 4% nel forecast pagamenti." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Modulo Cassa incluso nei piani Professional e Business." },
   ],
 

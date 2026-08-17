@@ -425,7 +425,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "Riconciliazione automatica ordini con fatture passive del cassetto." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi reali imputati al cantiere dal cassetto fiscale." },
     { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "Pagamenti fornitori da fatture passive sincronizzate dal cassetto." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Cassetto SDI incluso nei piani Professional e Business." },
   ],
 

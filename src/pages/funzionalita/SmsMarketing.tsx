@@ -423,7 +423,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "SMS sollecito pagamento integrato nelle sequenze multi-canale." },
     { to: "/funzionalita/gestione-cantieri", title: "Gestione Cantieri", text: "SMS automatici al cliente per milestone cantiere." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Notifiche SMS link diretto al portale clienti." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "SMS Marketing incluso nei piani Professional e Business." },
   ],
 

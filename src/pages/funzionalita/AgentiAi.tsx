@@ -422,7 +422,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/gestione-cantieri", title: "Gestione Cantieri", text: "Briefing AI sullo stato cantieri e alert intelligenti." },
     { to: "/funzionalita/email-marketing", title: "Email Marketing", text: "Generazione contenuti email con agenti AI dedicati." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Dashboard con insight AI sulle performance dell'impresa." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Modulo Agenti AI incluso nel piano Business da 199€/mese." },
   ],
 

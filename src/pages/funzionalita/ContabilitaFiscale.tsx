@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "Movimenti bancari riconciliati con scritture contabili." },
     { to: "/funzionalita/prima-nota", title: "Prima Nota", text: "Tutte le registrazioni centralizzate in un unico modulo." },
     { to: "/funzionalita/conserva-digitale", title: "Conservazione Digitale", text: "Bilanci e libri contabili a norma CAD per 10 anni." },
-    { to: "/per/imprese-costruzione", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
+    { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
     { to: "/prezzi", title: "Prezzi e Piani", text: "Contabilità Fiscale inclusa nel piano Business." },
   ],
 
