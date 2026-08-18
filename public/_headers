@@ -70,6 +70,22 @@
 /icons/*
   Cache-Control: public, max-age=2592000
 
+# manifest.json: senza una regola esplicita vale il default di Cloudflare Pages
+# (max-age=0, must-revalidate) → cf-cache-status DYNAMIC → la Pages Function
+# viene invocata a OGNI richiesta. E il manifest e' linkato da 194 pagine su
+# 241: una richiesta per ogni caricamento, sia utenti sia crawler. Con la quota
+# Workers Free a 100k invocazioni/giorno (17/08/2026: 84.754 consumate durante
+# un burst di crawler USA) e' una delle voci piu' pesanti e piu' inutili.
+# Il file cambia solo ai deploy, che purgano la cache: 1 giorno di edge TTL
+# non ha controindicazioni.
+/manifest.json
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+# Immagini Open Graph: richieste dai crawler social a ogni condivisione,
+# cambiano solo ai deploy. Stesso ragionamento del manifest.
+/og/*
+  Cache-Control: public, max-age=604800
+
 # Cache static assets aggressively
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
