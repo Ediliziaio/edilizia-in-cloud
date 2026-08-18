@@ -49,16 +49,28 @@ export function useGoogleCalendarSync() {
   // un posatore). Verifichiamo se QUALCUNO nell'azienda è connesso —
   // se sì, tentiamo il push (la edge function risolve l'utente
   // effettivo via owner/assigned).
+  // 2026-08-18: la SELECT diretta qui era invisibile allo staff. Le policy di
+  // google_calendar_connections mostrano a ciascuno solo la PROPRIA riga (gli
+  // admin vedono tutta l'azienda), quindi per un utente senza Google collegato
+  // il conteggio tornava 0, il gate diventava falso e il push usciva muto:
+  // Suntech aveva 24 appuntamenti su 28 mai arrivati sul calendario del
+  // commerciale, perché a fissarli era il call center. Ora la domanda passa da
+  // una RPC SECURITY DEFINER che risponde solo sì/no, senza esporre nulla
+  // della connessione altrui.
   const { data: anyCompanyConnection } = useQuery({
     queryKey: ["gcal-any-company-connection", companyId],
     queryFn: async () => {
       if (!companyId) return false;
-      const { count } = await supabase
-        .from("google_calendar_connections")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("status", "connected");
-      return (count ?? 0) > 0;
+      // `as any`: la RPC e' appena nata (migration 20280129000000) e non e'
+      // ancora nei tipi generati — stessa convenzione degli altri hook.
+      const { data, error } = await (supabase as any).rpc(
+        "company_has_google_calendar_connection",
+      );
+      if (error) {
+        console.warn("[gcal] verifica connessione azienda fallita:", error.message);
+        return false;
+      }
+      return data === true;
     },
     enabled: !!companyId,
     staleTime: 2 * 60_000,
