@@ -685,13 +685,46 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Update local DB record
-        if (elPhoneNumberId && payload.local_phone_id) {
-          await adminClient
-            .from("ai_agent_phone_numbers")
-            .update({ elevenlabs_phone_number_id: elPhoneNumberId })
-            .eq("id", payload.local_phone_id)
-            .eq("company_id", companyId);
+        // Salvataggio dell'id ElevenLabs sul record locale.
+        //
+        // 2026-08-18: prima l'id veniva scritto SOLO su ai_agent_phone_numbers
+        // (il modello legacy) e SOLO se il chiamante passava local_phone_id.
+        // Ma initiate-outbound-call legge PRIMA ai_phone_numbers_v2, il modello
+        // nuovo usato dalla UI Agenti AI: un numero agganciato dal percorso v2
+        // restava quindi senza id ElevenLabs, e ogni chiamata moriva con
+        // "Nessun numero di telefono configurato per questo agente" — con il
+        // numero però gia' acquistato e fatturato sia su Telnyx sia su
+        // ElevenLabs. Ora l'id finisce su ENTRAMBI i modelli.
+        if (elPhoneNumberId) {
+          if (payload.local_phone_id) {
+            await adminClient
+              .from("ai_agent_phone_numbers")
+              .update({ elevenlabs_phone_number_id: elPhoneNumberId })
+              .eq("id", payload.local_phone_id)
+              .eq("company_id", companyId);
+          }
+
+          // Modello v2: match sul numero (l'unico dato sempre disponibile qui).
+          // Se non esiste una riga v2 per questo numero l'update non tocca
+          // nulla — nessun errore, il percorso legacy resta valido.
+          const { error: v2Err, count: v2Count } = await adminClient
+            .from("ai_phone_numbers_v2")
+            .update(
+              { elevenlabs_phone_id: elPhoneNumberId },
+              { count: "exact" },
+            )
+            .eq("company_id", companyId)
+            .eq("numero", payload.phone_number);
+          if (v2Err) {
+            console.error(
+              "[elevenlabs-proxy] aggiornamento ai_phone_numbers_v2 fallito:",
+              v2Err.message,
+            );
+          } else {
+            console.log(
+              `[elevenlabs-proxy] id ElevenLabs propagato su ${v2Count ?? 0} riga/e v2 per ${payload.phone_number}`,
+            );
+          }
         }
 
         await auditLog(adminClient, companyId, null, userId, "link_phone_number", {
