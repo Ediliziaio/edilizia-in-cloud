@@ -78,6 +78,13 @@
 # un burst di crawler USA) e' una delle voci piu' pesanti e piu' inutili.
 # Il file cambia solo ai deploy, che purgano la cache: 1 giorno di edge TTL
 # non ha controindicazioni.
+# ATTENZIONE (verificato live 17/08/2026): questo header da solo NON basta.
+# Le risposte che passano dalla Pages Function restano cf-cache-status DYNAMIC
+# qualunque Cache-Control abbiano — vale anche per i 301 canonici in
+# _middleware.js. L'header e' il PREREQUISITO: diventa efficace solo quando una
+# Cache Rule di zona rende il path "Eligible for cache" con Edge TTL "use
+# cache-control header if present". Senza quella regola sul pannello, manifest
+# e og continuano a invocare la Function.
 /manifest.json
   Cache-Control: public, max-age=3600, s-maxage=86400
 
