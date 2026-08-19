@@ -193,14 +193,32 @@ async function handleOutboundCall(
     }
   }
 
-  // Credit check
+  // Credit check — il saldo spendibile e' la somma dei due borsellini:
+  // l'omaggio incluso nel piano (che si azzera ogni mese) e la ricarica
+  // pagata con la carta (che resta). Guardare solo balance_eur bloccherebbe
+  // chi ha ancora crediti inclusi da usare.
   const { data: credits } = await adminClient
     .from("ai_credits")
     .select("balance_eur, calls_blocked")
     .eq("company_id", companyId)
     .maybeSingle();
 
-  if (credits?.calls_blocked || (credits?.balance_eur ?? 0) < 0.04) {
+  // Lettura separata e tollerante: se la colonna non c'e' ancora (migration
+  // non applicata) l'omaggio vale 0 e il controllo torna a guardare la sola
+  // ricarica, com'era prima.
+  let freeBalance = 0;
+  const { data: freeRow, error: freeErr } = await adminClient
+    .from("ai_credits")
+    .select("free_balance_eur")
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!freeErr && freeRow) {
+    freeBalance = Number((freeRow as { free_balance_eur?: number }).free_balance_eur ?? 0);
+  }
+
+  const spendibile = Number(credits?.balance_eur ?? 0) + freeBalance;
+
+  if (credits?.calls_blocked || spendibile < 0.04) {
     return json(req, { error: "Crediti AI insufficienti." }, 402);
   }
 
