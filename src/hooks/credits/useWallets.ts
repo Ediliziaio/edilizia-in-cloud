@@ -31,6 +31,14 @@ export interface Wallet {
   currency: "eur" | "count";
   /** Se true, la ricarica via Stripe è disponibile. False = "contatta supporto". */
   rechargeable: boolean;
+  /**
+   * Omaggio del mese ancora disponibile (solo wallet AI). NON cumulabile:
+   * si riazzera alla quota del piano il primo del mese. `balance` invece e'
+   * il credito ricaricato, che resta finche' non lo spendi.
+   */
+  freeBalance?: number;
+  /** Quota omaggio del mese, per mostrare "3,20 di 5,00". */
+  freeGranted?: number;
 }
 
 export interface WalletsResult {
@@ -79,6 +87,26 @@ export function useWallets(): WalletsResult {
     },
     enabled: !!companyId,
     staleTime: 30_000,
+  });
+
+  // Omaggio mensile del piano. Query separata e tollerante: se le colonne non
+  // ci sono ancora (migration non applicata) si degrada a zero invece di far
+  // saltare l'intera pagina crediti.
+  const aiFree = useQuery({
+    queryKey: ["wallets", "ai-free", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("ai_credits")
+        .select("free_balance_eur, free_granted_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) return null;
+      return data as { free_balance_eur: number; free_granted_eur: number } | null;
+    },
+    enabled: !!companyId,
+    staleTime: 30_000,
+    retry: false,
   });
 
   const whatsapp = useQuery({
@@ -136,6 +164,8 @@ export function useWallets(): WalletsResult {
       blocked: ai.data?.calls_blocked ?? false,
       currency: "eur",
       rechargeable: true,
+      freeBalance: aiFree.data?.free_balance_eur ?? 0,
+      freeGranted: aiFree.data?.free_granted_eur ?? 0,
     },
     {
       type: "whatsapp",

@@ -50,9 +50,9 @@ const COLORS: Record<Wallet["type"], { border: string; icon: string; bg: string 
   render:   { border: "border-l-amber-500",   icon: "text-amber-600",   bg: "bg-amber-50/50" },
 };
 
-function formatBalance(w: Wallet): string {
-  if (w.currency === "count") return `${w.balance.toLocaleString("it-IT")} render`;
-  return formatEur(w.balance);
+function formatBalance(w: Wallet, amount: number): string {
+  if (w.currency === "count") return `${amount.toLocaleString("it-IT")} render`;
+  return formatEur(amount);
 }
 
 export function WalletCard({
@@ -62,10 +62,17 @@ export function WalletCard({
   onRecharge,
   onAutoTopup,
 }: Props) {
+  // Due borsellini: l'omaggio del mese (scade) e la ricarica (resta).
+  // Il saldo grande e' la somma — e' quello che il cliente puo' spendere.
+  const freeBalance = wallet.freeBalance ?? 0;
+  const freeGranted = wallet.freeGranted ?? 0;
+  const hasFree = wallet.currency === "eur" && freeGranted > 0;
+  const totalBalance = wallet.balance + (wallet.currency === "eur" ? freeBalance : 0);
+
   const lowBalance =
     wallet.currency === "eur" &&
-    wallet.balance > 0 &&
-    wallet.balance < lowBalanceThreshold;
+    totalBalance > 0 &&
+    totalBalance < lowBalanceThreshold;
   const colors = COLORS[wallet.type];
 
   return (
@@ -107,11 +114,37 @@ export function WalletCard({
             wallet.blocked && "text-destructive",
           )}
         >
-          {formatBalance(wallet)}
+          {formatBalance(wallet, totalBalance)}
         </p>
 
+        {/* Da dove viene il saldo: l'omaggio scade a fine mese, la ricarica no. */}
+        {hasFree && (
+          <div className="space-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Zap className="h-3 w-3 text-violet-600" />
+                Inclusi nel piano
+              </span>
+              <span className="tabular-nums font-medium">
+                {formatEur(freeBalance)} di {formatEur(freeGranted)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <ArrowUpRight className="h-3 w-3 text-emerald-600" />
+                Ricaricati da te
+              </span>
+              <span className="tabular-nums font-medium">{formatEur(wallet.balance)}</span>
+            </div>
+            <p className="pt-0.5 text-[11px] leading-tight text-muted-foreground">
+              I crediti inclusi si rinnovano il primo del mese e non si sommano.
+              Quelli ricaricati restano finché non li usi.
+            </p>
+          </div>
+        )}
+
         {/* ETA esaurimento (se forecast disponibile e relevante) */}
-        {wallet.currency === "eur" && daysRemaining != null && daysRemaining < 60 && wallet.balance > 0 && (
+        {wallet.currency === "eur" && daysRemaining != null && daysRemaining < 60 && totalBalance > 0 && (
           <div
             className={cn(
               "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
