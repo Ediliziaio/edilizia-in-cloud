@@ -63,6 +63,7 @@ import { buildTariffeExportCsv } from "@/lib/tariffe/prezziarioImport";
 import { countTariffaUsage, totalTariffaUsage, countTariffaUsageBulk } from "@/lib/tariffe/tariffaUsage";
 import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDialog";
 import { TariffaUsageDialog } from "@/components/settings/TariffaUsageDialog";
+import { AnalisiPrezzoDialog } from "@/components/listino/AnalisiPrezzoDialog";
 import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
 
 
@@ -1164,7 +1165,7 @@ function StandardTariffeDialog({
 // ─── TariffeTable ────────────────────────────────────────────────────────────
 function TariffeTable({
   items, isAdmin, soglia, selectedIds, onToggleSelect, onToggleSelectAll,
-  onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage,
+  onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage, onAnalisi,
 }: {
   items: Tariffa[];
   isAdmin: boolean;
@@ -1178,6 +1179,7 @@ function TariffeTable({
   onToggleAttivo: (t: Tariffa) => void;
   onDuplica: (t: Tariffa) => void;
   onShowUsage: (t: Tariffa) => void;
+  onAnalisi: (t: Tariffa) => void;
 }) {
   // Accessori per il sort
   const accessors = useMemo(() => ({
@@ -1353,6 +1355,9 @@ function TariffeTable({
                       <DropdownMenuItem onClick={() => onShowUsage(t)}>
                         <Link2 className="h-4 w-4 mr-2" />Dove è usata
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onAnalisi(t)}>
+                        <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
                         {isAttivo ? (
                           <><Archive className="h-4 w-4 mr-2" />Archivia</>
@@ -1413,6 +1418,7 @@ export default function SettingsTariffe() {
   const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
   const [margineFilter, setMargineFilter] = useState<MargineFilter>("all");
   const [usageTariffa, setUsageTariffa] = useState<Tariffa | null>(null);
+  const [analisiTariffa, setAnalisiTariffa] = useState<Tariffa | null>(null);
   // Selezione multipla per azioni in blocco
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -2087,6 +2093,7 @@ export default function SettingsTariffe() {
                 onToggleAttivo={(t) => toggleAttivoMutation.mutate(t)}
                 onDuplica={(t) => duplicaMutation.mutate(t)}
                 onShowUsage={setUsageTariffa}
+                onAnalisi={setAnalisiTariffa}
               />
             </div>
           )}
@@ -2238,6 +2245,11 @@ export default function SettingsTariffe() {
           tariffa={usageTariffa}
         />
       )}
+
+      <AnalisiPrezzoDialog
+        tariffa={analisiTariffa}
+        onClose={() => setAnalisiTariffa(null)}
+      />
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={(v) => !v && setBulkDeleteOpen(false)}>
         <AlertDialogContent>
