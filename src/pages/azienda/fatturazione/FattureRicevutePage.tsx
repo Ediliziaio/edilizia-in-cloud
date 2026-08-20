@@ -58,6 +58,7 @@ import {
   eliminaDoppioniInterni,
   riepilogoEsiti,
   descriviRiepilogo,
+  classificaDirezione,
   type EsitoImport,
   type FileScartato,
 } from "@/lib/fatturazione/bulkXmlImport";
@@ -122,6 +123,21 @@ export default function FattureRicevutePage() {
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
+
+  const { data: partitaIvaAzienda } = useQuery({
+    queryKey: ["azienda-partita-iva", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("companies")
+        .select("vat_number")
+        .eq("id", companyId)
+        .maybeSingle();
+      return data?.vat_number ?? null;
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60_000,
+  });
 
   // ─── Data Query ──────────────────────────────────────────
 
@@ -260,21 +276,46 @@ export default function FattureRicevutePage() {
     const esiti: EsitoImport[] = [];
 
     for (const f of daImportare) {
+      // Emessa o ricevuta? Lo dice il confronto fra le partite IVA. Quando non
+      // e' chiaro NON si indovina: mandare una fattura nel posto sbagliato
+      // falserebbe ricavi o costi, e sistemarlo dopo e' molto piu' caro.
+      const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
+      if (direzione === "incerta") {
+        esiti.push({
+          nome: f.nome,
+          stato: "errore",
+          motivo: partitaIvaAzienda
+            ? "Non risulta ne' emessa ne' ricevuta da questa azienda: controlla le partite IVA nel file."
+            : "Partita IVA dell'azienda non configurata: impostala in Impostazioni per poter distinguere emesse e ricevute.",
+        });
+        setProgress({ fatte: esiti.length, totale: daImportare.length });
+        continue;
+      }
+
+      const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
+
       try {
-        const resp = await supabase.functions.invoke("ricevi-sdi", {
+        const resp = await supabase.functions.invoke(funzione, {
           body: { xml_content: f.contenuto, company_id: companyId },
         });
         if (resp.error) {
-          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.error.message });
+          // Il corpo della risposta porta il motivo vero (numero gia' esistente,
+          // cedente sbagliato); resp.error.message da solo direbbe solo "non-2xx".
+          let motivo = resp.error.message;
+          try {
+            const dettaglio = await (resp.error as { context?: Response }).context?.json?.();
+            if (dettaglio?.error) motivo = dettaglio.error;
+          } catch { /* resta il messaggio generico */ }
+          esiti.push({ nome: f.nome, stato: "errore", motivo, direzione });
         } else if (resp.data?.duplicate) {
-          esiti.push({ nome: f.nome, stato: "duplicata" });
+          esiti.push({ nome: f.nome, stato: "duplicata", direzione });
         } else if (resp.data?.success) {
-          esiti.push({ nome: f.nome, stato: "importata" });
+          esiti.push({ nome: f.nome, stato: "importata", direzione });
         } else {
-          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema." });
+          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione });
         }
       } catch (err) {
-        esiti.push({ nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto." });
+        esiti.push({ nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione });
       }
       setProgress({ fatte: esiti.length, totale: daImportare.length });
     }
@@ -282,6 +323,7 @@ export default function FattureRicevutePage() {
     setProgress(null);
     setReport({ esiti, scartati });
     queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
 
     const r = riepilogoEsiti(esiti);
     const testo = descriviRiepilogo(r);
@@ -363,6 +405,16 @@ export default function FattureRicevutePage() {
               )}
               {riepilogoEsiti(report.esiti).errori > 0 && (
                 <Badge variant="destructive">{riepilogoEsiti(report.esiti).errori} non riuscite</Badge>
+              )}
+              {report.esiti.some((e) => e.direzione === "attiva") && (
+                <Badge variant="outline">
+                  {report.esiti.filter((e) => e.direzione === "attiva" && e.stato !== "errore").length} emesse
+                </Badge>
+              )}
+              {report.esiti.some((e) => e.direzione === "passiva") && (
+                <Badge variant="outline">
+                  {report.esiti.filter((e) => e.direzione === "passiva" && e.stato !== "errore").length} ricevute
+                </Badge>
               )}
               {report.scartati.length > 0 && (
                 <Badge variant="outline">{report.scartati.length} file scartati</Badge>

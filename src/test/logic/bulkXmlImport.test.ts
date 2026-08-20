@@ -151,3 +151,76 @@ describe("riepilogoEsiti / descriviRiepilogo", () => {
     expect(descriviRiepilogo({ importate: 0, duplicate: 0, errori: 0, totale: 0 })).toMatch(/nessuna/i);
   });
 });
+
+// ─── Direzione: emessa o ricevuta? ───────────────────────────────────────
+
+import { normalizzaPartitaIva, leggiPartiteIva, classificaDirezione } from "@/lib/fatturazione/bulkXmlImport";
+
+const MIA_PIVA = "12345678901";
+const ALTRUI = "98765432109";
+
+function fattura(cedente: string, cessionario: string, prefisso = "p:"): string {
+  const ns = prefisso ? ` xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"` : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<${prefisso}FatturaElettronica versione="FPR12"${ns}>
+  <FatturaElettronicaHeader>
+    <CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${cedente}</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore>
+    <CessionarioCommittente><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${cessionario}</IdCodice></IdFiscaleIVA></DatiAnagrafici></CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody/>
+</${prefisso}FatturaElettronica>`;
+}
+
+describe("normalizzaPartitaIva", () => {
+  it("ignora spazi, maiuscole e prefisso paese", () => {
+    expect(normalizzaPartitaIva(" it12345678901 ")).toBe("12345678901");
+    expect(normalizzaPartitaIva("IT12345678901")).toBe("12345678901");
+    expect(normalizzaPartitaIva("12345678901")).toBe("12345678901");
+  });
+
+  it("regge il vuoto", () => {
+    expect(normalizzaPartitaIva(null)).toBe("");
+    expect(normalizzaPartitaIva(undefined)).toBe("");
+  });
+});
+
+describe("leggiPartiteIva", () => {
+  it("legge entrambe le parti", () => {
+    expect(leggiPartiteIva(fattura(MIA_PIVA, ALTRUI))).toEqual({ cedente: MIA_PIVA, cessionario: ALTRUI });
+  });
+
+  it("funziona anche senza prefisso di namespace", () => {
+    expect(leggiPartiteIva(fattura(MIA_PIVA, ALTRUI, ""))).toEqual({ cedente: MIA_PIVA, cessionario: ALTRUI });
+  });
+
+  it("non esplode su XML malformato", () => {
+    expect(leggiPartiteIva("<FatturaElettronica><rotto")).toEqual({ cedente: null, cessionario: null });
+  });
+});
+
+describe("classificaDirezione", () => {
+  it("se emetto io e' attiva", () => {
+    expect(classificaDirezione(fattura(MIA_PIVA, ALTRUI), MIA_PIVA)).toBe("attiva");
+  });
+
+  it("se ricevo io e' passiva", () => {
+    expect(classificaDirezione(fattura(ALTRUI, MIA_PIVA), MIA_PIVA)).toBe("passiva");
+  });
+
+  it("non si fa ingannare dal prefisso IT nella configurazione", () => {
+    expect(classificaDirezione(fattura(MIA_PIVA, ALTRUI), `IT${MIA_PIVA}`)).toBe("attiva");
+  });
+
+  it("se l'azienda non c'entra resta incerta invece di indovinare", () => {
+    expect(classificaDirezione(fattura(ALTRUI, "11111111111"), MIA_PIVA)).toBe("incerta");
+  });
+
+  it("l'autofattura non diventa un ricavo per sbaglio", () => {
+    expect(classificaDirezione(fattura(MIA_PIVA, MIA_PIVA), MIA_PIVA)).toBe("incerta");
+  });
+
+  it("senza la partita IVA dell'azienda non indovina nulla", () => {
+    expect(classificaDirezione(fattura(MIA_PIVA, ALTRUI), null)).toBe("incerta");
+    expect(classificaDirezione(fattura(MIA_PIVA, ALTRUI), "")).toBe("incerta");
+  });
+});
