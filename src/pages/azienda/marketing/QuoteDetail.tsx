@@ -8,6 +8,13 @@ import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
+import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
@@ -20,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText, FileCheck,
-  MessageCircle, Copy, HardHat, Package, StickyNote,
+  MessageCircle, Copy, HardHat, Package, StickyNote, MoreHorizontal, GitBranch,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -36,6 +43,7 @@ export default function QuoteDetail() {
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [duplicando, setDuplicando] = useState(false);
 
   const { sendForSignature, openWhatsApp, copySignatureLink } = useSignatureActions(id);
 
@@ -91,6 +99,47 @@ export default function QuoteDetail() {
   };
 
   const companyId = effectiveCompany?.id;
+
+  // Invio semplice: email col PDF allegato, senza flusso firma OTP.
+  const [inviandoPdf, setInviandoPdf] = useState(false);
+  const inviaPdfSemplice = async (email: string | null, validityDays?: number | null) => {
+    if (!id || !email || inviandoPdf) return;
+    setInviandoPdf(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-quote-signature", {
+        body: { quote_id: id, mode: "solo_pdf", expires_days: validityDays ?? undefined },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? "Invio non riuscito");
+      toast.success("Preventivo inviato in PDF", { description: `Email con allegato mandata a ${email}.` });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
+    } catch (e) {
+      toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setInviandoPdf(false);
+    }
+  };
+
+  // Duplica / Nuova revisione: la copia nasce bozza e si apre subito nel builder.
+  const eseguiCopia = async (comeRevisione: boolean) => {
+    if (!id || !companyId || duplicando) return;
+    setDuplicando(true);
+    try {
+      const nuovoId = await duplicaPreventivo(id, companyId, { comeRevisione });
+      toast.success(comeRevisione ? "Nuova revisione creata" : "Preventivo duplicato", {
+        description: comeRevisione
+          ? "La revisione parte in bozza, agganciata a questo preventivo."
+          : "La copia parte in bozza: aprila e adattala.",
+      });
+      navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
+    } catch (e) {
+      toast.error("Operazione non riuscita", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setDuplicando(false);
+    }
+  };
 
   const { data: quote, isLoading } = useQuery({
     queryKey: queryKeys.quotes.detail(id),
@@ -203,7 +252,16 @@ export default function QuoteDetail() {
         title={quote.title || "Preventivo"}
         subtitle={quote.client_name || undefined}
         icon={<FileCheck className="h-5 w-5" />}
-        stato={<Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>}
+        stato={
+          <span className="inline-flex items-center gap-1.5">
+            <Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
+            {Number((quote as Record<string, unknown>).revision_number ?? 0) > 0 && (
+              <Badge variant="secondary" className="whitespace-nowrap">
+                Rev. {Number((quote as Record<string, unknown>).revision_number)}
+              </Badge>
+            )}
+          </span>
+        }
         actions={
           <>
             <Button
@@ -218,6 +276,31 @@ export default function QuoteDetail() {
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
               <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 px-2.5" aria-label="Altre azioni" disabled={duplicando}>
+                  {duplicando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => eseguiCopia(false)}>
+                  <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => eseguiCopia(true)}>
+                  <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!quote.client_email || inviandoPdf}
+                  onClick={() => inviaPdfSemplice(quote.client_email, quote.validity_days)}
+                >
+                  {inviandoPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                  {quote.client_email
+                    ? `Invia PDF a ${quote.client_email}`
+                    : "Invia PDF (manca l'email del cliente)"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {quote.status === "bozza" && (
               <Button
@@ -582,6 +665,7 @@ export default function QuoteDetail() {
         clientEmail={quote.client_email}
         clientName={quote.client_name}
         quoteNumber={quote.quote_number}
+        validityDays={quote.validity_days}
         onSend={(params) => sendForSignature.mutateAsync(params)}
         isSending={sendForSignature.isPending}
       />

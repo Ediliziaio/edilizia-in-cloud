@@ -33,6 +33,8 @@ interface SendSignatureDialogProps {
   clientName: string | null;
   clientPhone?: string | null;
   quoteNumber: string;
+  /** Giorni di validita' scritti nel builder: unica fonte per il default. */
+  validityDays?: number | null;
   onSend: (params: SendSignatureParams) => Promise<SendSignatureResult>;
   isSending: boolean;
 }
@@ -44,13 +46,15 @@ export function SendSignatureDialog({
   clientName,
   clientPhone,
   quoteNumber,
+  validityDays,
   onSend,
   isSending,
 }: SendSignatureDialogProps) {
+  const defaultDays = validityDays && validityDays > 0 ? validityDays : 30;
   const [email, setEmail] = useState(clientEmail || "");
   const [name, setName] = useState(clientName || "");
   const [message, setMessage] = useState("");
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(defaultDays);
   const [sent, setSent] = useState(false);
   const [resultLink, setResultLink] = useState<string | null>(null);
 
@@ -60,11 +64,11 @@ export function SendSignatureDialog({
       setEmail(clientEmail || "");
       setName(clientName || "");
       setMessage("");
-      setDays(30);
+      setDays(defaultDays);
       setSent(false);
       setResultLink(null);
     }
-  }, [open, clientEmail, clientName]);
+  }, [open, clientEmail, clientName, defaultDays]);
 
   const handleSend = async () => {
     if (!email.trim()) {
@@ -157,7 +161,7 @@ export function SendSignatureDialog({
                   min={1}
                   max={365}
                   value={days}
-                  onChange={(e) => setDays(parseInt(e.target.value) || 30)}
+                  onChange={(e) => setDays(parseInt(e.target.value) || defaultDays)}
                   className="max-w-[120px]"
                 />
               </div>

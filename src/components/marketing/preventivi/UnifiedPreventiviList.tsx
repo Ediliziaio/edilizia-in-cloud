@@ -201,7 +201,7 @@ export function UnifiedPreventiviList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at")
+        .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at, revision_number")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
@@ -211,6 +211,7 @@ export function UnifiedPreventiviList() {
         id: string; quote_number: string; client_name: string | null;
         status: string; total: number | null; salesperson_id: string | null;
         created_at: string; updated_at: string | null;
+        revision_number: number | null;
       }>;
     },
   });
@@ -503,7 +504,7 @@ export function UnifiedPreventiviList() {
     for (const q of quotesData) {
       rows.push({
         id: q.id, tipo: "classico",
-        numero: q.quote_number ?? "—",
+        numero: (q.quote_number ?? "—") + (q.revision_number ? ` · Rev. ${q.revision_number}` : ""),
         cliente: q.client_name ?? "—",
         commerciale_id: q.salesperson_id,
         commerciale_nome: q.salesperson_id ? commercialeNameById.get(q.salesperson_id) ?? null : null,

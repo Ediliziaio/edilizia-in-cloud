@@ -19,6 +19,9 @@ Deno.serve(async (req) => {
       recipient_name,
       custom_message,
       expires_days,
+      // "solo_pdf": manda il preventivo in PDF via email, senza firma OTP.
+      // Additivo: il flusso firma resta identico quando mode e' assente.
+      mode,
     } = await req.json();
 
     if (!quote_id) return errorResponse("quote_id richiesto");
@@ -53,6 +56,90 @@ Deno.serve(async (req) => {
     const daysValid = expires_days && expires_days > 0 ? expires_days : 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + daysValid);
+
+    const nowIsoPdf = new Date().toISOString();
+
+    // ── Modalita' "solo PDF": email col preventivo allegato, niente firma OTP ──
+    if (mode === "solo_pdf") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+      const pdfResp = await fetchWithTimeout(
+        `${supabaseUrl}/functions/v1/generate-quote-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ quote_id }),
+        },
+        60_000,
+      );
+      if (!pdfResp.ok) {
+        return errorResponse("Generazione PDF non riuscita", 500);
+      }
+      const pdfJson = await pdfResp.json();
+      if (!pdfJson?.signed_url) return errorResponse("PDF non disponibile", 500);
+      const pdfBytes = new Uint8Array(await (await fetch(pdfJson.signed_url)).arrayBuffer());
+      // btoa a blocchi: sui PDF grossi la conversione in un colpo solo sfora lo stack.
+      let binario = "";
+      const BLOCCO = 0x8000;
+      for (let i = 0; i < pdfBytes.length; i += BLOCCO) {
+        binario += String.fromCharCode(...pdfBytes.subarray(i, i + BLOCCO));
+      }
+      const pdfBase64 = btoa(binario);
+
+      const { data: companyPdf } = await supabaseAdmin
+        .from("companies")
+        .select("name")
+        .eq("id", quote.company_id)
+        .single();
+      const nomeAzienda = companyPdf?.name || "L'azienda";
+      const totaleFmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" })
+        .format(Number(quote.total || 0));
+
+      const htmlSemplice = `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+          <p>Gentile ${finalName},</p>
+          <p>in allegato trova il preventivo <strong>${quote.quote_number}</strong>${quote.title ? ` — ${quote.title}` : ""} per un totale di <strong>${totaleFmt}</strong>.</p>
+          ${custom_message ? `<p style="white-space: pre-line;">${String(custom_message)}</p>` : ""}
+          <p>Restiamo a disposizione per qualsiasi chiarimento.</p>
+          <p>Cordiali saluti,<br/>${nomeAzienda}</p>
+        </div>`;
+
+      const invio = await sendEmailUnified({
+        companyId:    quote.company_id,
+        stream:       "transactional",
+        to:           [finalEmail],
+        subject:      `Preventivo ${quote.quote_number} — ${nomeAzienda}`,
+        html:         htmlSemplice,
+        templateName: "quote_pdf_semplice",
+        skipCredits:  false,
+        adminClient:  supabaseAdmin,
+        metadata:     { quote_id: quote.id, quote_number: quote.quote_number, mode: "solo_pdf" },
+        attachments:  [{
+          filename: `Preventivo_${quote.quote_number}.pdf`,
+          content: pdfBase64,
+          type: "application/pdf",
+        }],
+      });
+      if (!invio.ok) {
+        return errorResponse(`Errore invio email: ${JSON.stringify(invio.body)}`, 500);
+      }
+
+      // Il preventivo risulta inviato (senza retrocedere uno gia' firmato)
+      // e la scadenza parte da qui, cosi' reminder e cron la vedono.
+      const patch: Record<string, unknown> = { updated_at: nowIsoPdf, client_email: finalEmail };
+      if (quote.status === "bozza" || quote.status === "inviata") {
+        patch.status = "inviata";
+        patch.sent_at = quote.sent_at ?? nowIsoPdf;
+        patch.expires_at = expiresAt.toISOString();
+      }
+      await supabaseAdmin.from("quotes").update(patch).eq("id", quote_id);
+
+      return jsonResponse({ success: true, message: "Preventivo inviato in PDF", mode: "solo_pdf" });
+    }
 
     const signatureToken = crypto.randomUUID().replace(/-/g, "");
     const tipoFirmatario = quote.client_company || quote.client_vat_number ? "b2b" : "b2c";

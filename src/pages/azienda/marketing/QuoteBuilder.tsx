@@ -35,6 +35,7 @@ import {
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
+import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
 import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/paymentTerms";
@@ -100,6 +101,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -118,6 +120,7 @@ import {
   Save,
   FileCheck,
   Loader2,
+  Eye,
   User,
   Package,
   FileStack,
@@ -387,6 +390,13 @@ export default function QuoteBuilder() {
 
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
+  const [tariffePickerOpen, setTariffePickerOpen] = useState(false);
+  // Anteprima del PDF VERO (edge generate-quote-pdf), non del mock statico.
+  const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null);
+  const [anteprimaLoading, setAnteprimaLoading] = useState(false);
+  // Dopo l'anteprima di un preventivo NUOVO si passa in modifica: un secondo
+  // salvataggio dalla rotta /nuovo creerebbe un doppione.
+  const [pendingEditNavId, setPendingEditNavId] = useState<string | null>(null);
   // Sprint A — Preventivatore Unificato: dialog a 3 stadi dietro feature flag
   // `PREVENTIVATORE_UNIFIED_V1`. Quando ON sostituisce il cluster di 5 bottoni
   // (Listino / Bundle / Serramento / Riga libera / Altro) con un unico
@@ -1542,7 +1552,7 @@ export default function QuoteBuilder() {
   );
 
   // Save
-  const handleSave = async (status: string = "bozza") => {
+  const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean }) => {
     if (!companyId || !user) return;
     // P2 FIX: blocca double-click / submit concorrente.
     // Se c'è già un save in progress ignora chiamata duplicata per evitare
@@ -1724,7 +1734,30 @@ export default function QuoteBuilder() {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
       toast.success(isEdit ? "Preventivo aggiornato" : "Preventivo creato");
       clearQuoteDraft(); // salvato a DB → la bozza locale non serve più
-      navigate(`/azienda/marketing/preventivi/${quoteId}`);
+      if (opts?.anteprima && quoteId) {
+        setAnteprimaLoading(true);
+        try {
+          const { data: pdf, error: ePdf } = await supabase.functions.invoke(
+            "generate-quote-pdf",
+            { body: { quote_id: quoteId } },
+          );
+          if (ePdf) throw ePdf;
+          if (!pdf?.signed_url) throw new Error("PDF non disponibile");
+          const resp = await fetch(pdf.signed_url);
+          const blob = await resp.blob();
+          setAnteprimaUrl(URL.createObjectURL(blob));
+          if (!isEdit) setPendingEditNavId(quoteId);
+        } catch (ePrev: unknown) {
+          toast.error("Anteprima non riuscita", {
+            description: ePrev instanceof Error ? ePrev.message : String(ePrev),
+          });
+          navigate(`/azienda/marketing/preventivi/${quoteId}`);
+        } finally {
+          setAnteprimaLoading(false);
+        }
+      } else {
+        navigate(`/azienda/marketing/preventivi/${quoteId}`);
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Errore salvataggio";
       toast.error(errMsg);
@@ -2095,6 +2128,12 @@ export default function QuoteBuilder() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => setTariffePickerOpen(true)}>
+                            <Plus className="h-4 w-4 mr-2" /> Voce dal listino tariffe
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBundleOpen(true)}>
+                            <Layers className="h-4 w-4 mr-2" /> Bundle
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
                             <StickyNote className="h-4 w-4 mr-2" /> Nota
                           </DropdownMenuItem>
@@ -2995,7 +3034,7 @@ export default function QuoteBuilder() {
                   <FileStack className="h-10 w-10 mx-auto mb-2 opacity-50" />
                   <p>Nessun materiale disponibile.</p>
                   <p className="text-sm">
-                    Vai in Impostazioni → Materiali Preventivi per caricare PDF.
+                    Carica i PDF in Contenuti Multimediali, poi selezionali qui.
                   </p>
                 </div>
               ) : (
@@ -3594,6 +3633,23 @@ export default function QuoteBuilder() {
           )}
 
           <div className="flex gap-2 items-center shrink-0">
+            {step === STEPS.length - 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleSave("bozza", { anteprima: true })}
+                disabled={saving || anteprimaLoading || !clientName}
+                className="h-9"
+                aria-label="Anteprima PDF"
+              >
+                {anteprimaLoading ? (
+                  <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">Anteprima PDF</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -3640,6 +3696,32 @@ export default function QuoteBuilder() {
       </div>
 
       {/* ── Dialogs ── */}
+      <Dialog
+        open={!!anteprimaUrl}
+        onOpenChange={(o) => {
+          if (!o && anteprimaUrl) {
+            URL.revokeObjectURL(anteprimaUrl);
+            setAnteprimaUrl(null);
+            if (pendingEditNavId) {
+              navigate(`/azienda/marketing/preventivi/${pendingEditNavId}/modifica`, { replace: true });
+              setPendingEditNavId(null);
+            }
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-4">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>Anteprima PDF</DialogTitle>
+            <DialogDescription>
+              Questo è il PDF vero che riceverà il cliente, col template scelto.
+            </DialogDescription>
+          </DialogHeader>
+          {anteprimaUrl && (
+            <iframe title="Anteprima preventivo" src={anteprimaUrl} className="flex-1 w-full rounded-md border" />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ProductSearchDialog
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
@@ -3674,6 +3756,12 @@ export default function QuoteBuilder() {
       )}
 
       {/* FASE 10.4: Apply bundle dialog (famiglie + prodotti + tariffe) */}
+      <TariffePickerDialog
+        open={tariffePickerOpen}
+        onClose={() => setTariffePickerOpen(false)}
+        tariffe={tariffe}
+        onPick={(t) => addTariffa(t, t.tipo || "servizio")}
+      />
       <ApplyBundleDialog
         open={bundleOpen}
         onClose={() => setBundleOpen(false)}

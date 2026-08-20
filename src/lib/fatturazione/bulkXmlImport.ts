@@ -222,7 +222,7 @@ export function normalizzaPartitaIva(v: string | null | undefined): string {
  * nessuno) non cambia il risultato.
  */
 function figlioPerNome(nodo: Element | Document, nome: string): Element | null {
-  const figli = "children" in nodo ? nodo.children : [];
+  const figli: HTMLCollection | Element[] = "children" in nodo ? nodo.children : [];
   for (const f of Array.from(figli)) {
     if (f.localName === nome) return f;
   }

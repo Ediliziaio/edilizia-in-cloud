@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -10,10 +10,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  ExternalLink, TrendingUp, TrendingDown, Clock, User, FileText,
+  ExternalLink, TrendingUp, TrendingDown, Clock, User, FileText, Copy, Loader2,
   Banknote, Percent, CheckCircle2, XCircle, Send, Calendar,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { toast } from "sonner";
+import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
@@ -53,6 +55,21 @@ interface Props {
 
 export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
   const companyId = useEffectiveCompanyId();
+  const navigate = useNavigate();
+  const [duplicando, setDuplicando] = useState(false);
+  const duplica = async () => {
+    if (!quoteId || !companyId || duplicando) return;
+    setDuplicando(true);
+    try {
+      const nuovoId = await duplicaPreventivo(quoteId, companyId, { comeRevisione: false });
+      toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+      navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
+    } catch (e) {
+      toast.error("Duplicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setDuplicando(false);
+    }
+  };
   const { data: quote, isLoading } = useQuery({
     queryKey: ["quote-quickview", companyId, quoteId],
     enabled: !!companyId && !!quoteId && open,
@@ -341,6 +358,10 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
                 <Link to={`/azienda/marketing/preventivi/${quote.id}`}>
                   <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Apri
                 </Link>
+              </Button>
+              <Button size="sm" variant="outline" className="flex-1" onClick={duplica} disabled={duplicando}>
+                {duplicando ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
+                Duplica
               </Button>
               {quote.contact_id && (
                 <Button asChild size="sm" variant="outline" className="flex-1">
