@@ -3760,7 +3760,12 @@ export default function QuoteBuilder() {
         open={tariffePickerOpen}
         onClose={() => setTariffePickerOpen(false)}
         tariffe={tariffe}
-        onPick={(t) => addTariffa(t, t.tipo || "servizio")}
+        onPick={(t) => {
+          // La CHECK su quote_items.item_category ammette solo queste voci:
+          // tutto il resto (manodopera, tipi custom) viaggia come "posa".
+          const ammesse = new Set(["posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica"]);
+          addTariffa(t, ammesse.has(t.tipo) ? t.tipo : "posa");
+        }}
       />
       <ApplyBundleDialog
         open={bundleOpen}

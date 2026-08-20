@@ -12,6 +12,13 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 
+/** Gli errori PostgREST sono oggetti semplici: si estrae un messaggio leggibile. */
+function comeErrore(e: unknown, fallback: string): Error {
+  if (e instanceof Error) return e;
+  const msg = (e as { message?: string } | null)?.message;
+  return new Error(msg || fallback);
+}
+
 /** Campi che una copia NON deve mai ereditare. */
 const CAMPI_DA_AZZERARE = [
   "id",
@@ -122,7 +129,7 @@ export async function duplicaPreventivo(
     .eq("id", quoteId)
     .eq("company_id", companyId)
     .single();
-  if (eQuote || !originale) throw eQuote ?? new Error("Preventivo non trovato");
+  if (eQuote || !originale) throw comeErrore(eQuote, "Preventivo non trovato");
 
   let numeroRevisione = opts.numeroRevisione;
   if (opts.comeRevisione && numeroRevisione == null) {
@@ -148,6 +155,11 @@ export async function duplicaPreventivo(
 
   const payloadQuote = costruisciCopiaQuote(originale as Record<string, unknown>, opts);
 
+  // created_by e' NOT NULL senza default: la copia la firma chi la crea.
+  const { data: sessione } = await supabase.auth.getUser();
+  if (!sessione?.user?.id) throw new Error("Sessione scaduta: accedi di nuovo.");
+  payloadQuote.created_by = sessione.user.id;
+
   const { data: numData } = await supabase.rpc("generate_quote_number", {
     p_company_id: companyId,
   });
@@ -158,14 +170,14 @@ export async function duplicaPreventivo(
     .insert(payloadQuote)
     .select("id")
     .single();
-  if (eIns || !nuovo) throw eIns ?? new Error("Creazione copia non riuscita");
+  if (eIns || !nuovo) throw comeErrore(eIns, "Creazione copia non riuscita");
 
   const { data: righe, error: eRighe } = await supabase
     .from("quote_items")
     .select("*")
     .eq("quote_id", quoteId)
     .order("sort_order");
-  if (eRighe) throw eRighe;
+  if (eRighe) throw comeErrore(eRighe, "Lettura righe non riuscita");
 
   if ((righe ?? []).length > 0) {
     const { error: eRpc } = await supabase.rpc("save_quote_items_atomic", {
@@ -173,7 +185,7 @@ export async function duplicaPreventivo(
       p_company_id: companyId,
       p_items: costruisciPayloadRighe(righe as Array<Record<string, unknown>>),
     });
-    if (eRpc) throw eRpc;
+    if (eRpc) throw comeErrore(eRpc, "Copia righe non riuscita");
   }
 
   // Allegati PDF selezionati: si copiano i riferimenti, non i file.
