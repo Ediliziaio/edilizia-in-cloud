@@ -83,10 +83,11 @@ export function OdaAccountingCard({
         .update({ is_paid: true, paid_date: oggi })
         .eq("purchase_order_id", odaId)
         .eq("is_paid", false)
-        .select("id, name, amount, company_id, payment_method");
+        .select("id, name, amount, vat_rate, company_id, payment_method");
       if (error) throw error;
       const rows = (pagati ?? []) as Array<{
         id: string; name: string | null; amount: number | string;
+        vat_rate: number | string | null;
         company_id: string; payment_method: string | null;
       }>;
 
@@ -104,12 +105,18 @@ export function OdaAccountingCard({
         const gia = new Set(((esistenti ?? []) as Array<{ cost_id: string }>).map((e) => e.cost_id));
         const daScrivere = rows.filter((r) => !gia.has(r.id));
         if (daScrivere.length > 0) {
+          // In cassa esce il LORDO: il bonifico al fornitore include l'IVA.
+          // I costi (company_costs.amount) sono imponibili per convenzione,
+          // e le entrate da rate sono gia' lorde: senza gross-up il saldo
+          // di Prima Nota sarebbe gonfiato dell'IVA sugli acquisti.
+          const lordo = (netto: number, iva: number) =>
+            Math.round(netto * (1 + iva / 100) * 100) / 100;
           const { error: ePn } = await (supabase as any).from("prima_nota_entries").insert(
             daScrivere.map((r) => ({
               company_id: r.company_id,
               direction: "uscita",
-              amount: Number(r.amount || 0),
-              description: `Pagamento: ${r.name ?? "fornitura"}`,
+              amount: lordo(Number(r.amount || 0), Number(r.vat_rate || 0)),
+              description: `Pagamento: ${r.name ?? "fornitura"}${Number(r.vat_rate || 0) > 0 ? ` (IVA ${Number(r.vat_rate)}% inclusa)` : ""}`,
               entry_date: oggi,
               category: "Costi Aziendali",
               cost_id: r.id,

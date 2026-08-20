@@ -378,7 +378,7 @@ export function useCompanyCostsMutations({
   const scriviUscitePrimaNota = async (ids: string[], dataPagamento: string): Promise<string | null> => {
     const { data: costi, error: eCosti } = await supabase
       .from("company_costs")
-      .select("id, name, amount, company_id, payment_method")
+      .select("id, name, amount, vat_rate, company_id, payment_method")
       .in("id", ids);
     if (eCosti || !costi?.length) return eCosti ? eCosti.message : null;
 
@@ -393,19 +393,27 @@ export function useCompanyCostsMutations({
     const daScrivere = costi.filter((c) => !gia.has(c.id));
     if (daScrivere.length === 0) return null;
 
+    // In cassa esce il LORDO (bonifico IVA inclusa): i costi sono imponibili
+    // per convenzione e le entrate da rate sono gia' lorde — senza gross-up
+    // il saldo di Prima Nota sarebbe gonfiato dell'IVA sugli acquisti.
+    const lordo = (netto: number, iva: number) =>
+      Math.round(netto * (1 + iva / 100) * 100) / 100;
     const { error: ePn } = await supabase.from("prima_nota_entries").insert(
-      daScrivere.map((c) => ({
+      daScrivere.map((c) => {
+        const iva = Number((c as { vat_rate?: number | string | null }).vat_rate || 0);
+        return {
         company_id: c.company_id,
         direction: "uscita",
-        amount: Number(c.amount || 0),
-        description: `Pagamento: ${c.name ?? "costo"}`,
+        amount: lordo(Number(c.amount || 0), iva),
+        description: `Pagamento: ${c.name ?? "costo"}${iva > 0 ? ` (IVA ${iva}% inclusa)` : ""}`,
         entry_date: dataPagamento,
         category: "Costi Aziendali",
         cost_id: c.id,
         is_auto: true,
         auto_source: "company_cost_payment",
         ...(c.payment_method ? { payment_method: c.payment_method } : {}),
-      })),
+        };
+      }),
     );
     return ePn ? ePn.message : null;
   };
