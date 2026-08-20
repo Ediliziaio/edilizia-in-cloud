@@ -106,7 +106,9 @@ function leggiFattura(xml: string): FatturaAttiva | null {
 
   const cessIva = cessionario.getElementsByTagName("IdFiscaleIVA")[0];
   const sede = cessionario.getElementsByTagName("Sede")[0];
-  const contatti = body.getElementsByTagName("DatiTrasmissione")[0];
+  // DatiTrasmissione sta nell'HEADER, non nel body: cercarlo nel posto
+  // sbagliato lasciava codice destinatario e PEC del cliente sempre vuoti.
+  const trasmissione = header.getElementsByTagName("DatiTrasmissione")[0];
 
   // I riepiloghi IVA sono la fonte giusta per imponibile e imposta: sommare le
   // righe darebbe risultati diversi in presenza di arrotondamenti e sconti.
@@ -158,8 +160,8 @@ function leggiFattura(xml: string): FatturaAttiva | null {
       citta: testo(sede, "Comune") || null,
       cap: testo(sede, "CAP") || null,
       paese: testo(sede, "Nazione") || "IT",
-      pec: testo(contatti, "PECDestinatario") || null,
-      sdi: testo(contatti, "CodiceDestinatario") || null,
+      pec: testo(trasmissione, "PECDestinatario") || null,
+      sdi: testo(trasmissione, "CodiceDestinatario") || null,
     },
     imponibile: Math.round(imponibile * 100) / 100,
     imposta: Math.round(imposta * 100) / 100,

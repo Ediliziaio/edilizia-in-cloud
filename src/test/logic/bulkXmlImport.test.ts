@@ -224,3 +224,92 @@ describe("classificaDirezione", () => {
     expect(classificaDirezione(fattura(MIA_PIVA, ALTRUI), "")).toBe("incerta");
   });
 });
+
+// ─── Fattura reale (TeamSystem/Agyo, regime forfettario) ─────────────────
+//
+// Struttura presa da un XML vero. Le insidie che deve reggere:
+//   - prefisso di namespace ns3: sulla radice
+//   - QUATTRO partite IVA nell'intestazione, e la PRIMA e' dell'intermediario
+//     che trasmette (TeamSystem), non di chi emette. Un parser che prendesse
+//     il primo IdCodice classificherebbe male ogni fattura passata da Aruba.
+//   - firma XAdES annegata nel documento (file .xml, non .p7m)
+
+const PIVA_TRASMITTENTE = "01641790702"; // TeamSystem: trasmette, non fattura
+const PIVA_EMITTENTE = "02010390439";
+const PIVA_DESTINATARIO = "01941970939";
+
+const FATTURA_REALE = `<?xml version="1.0" encoding="UTF-8"?><ns3:FatturaElettronica xmlns:ns3="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#" versione="FPR12">
+    <FatturaElettronicaHeader>
+        <DatiTrasmissione>
+            <IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>${PIVA_TRASMITTENTE}</IdCodice></IdTrasmittente>
+            <ProgressivoInvio>00005i5oai</ProgressivoInvio>
+            <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+            <CodiceDestinatario>KRRH6B9</CodiceDestinatario>
+        </DatiTrasmissione>
+        <CedentePrestatore>
+            <DatiAnagrafici>
+                <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_EMITTENTE}</IdCodice></IdFiscaleIVA>
+                <Anagrafica><Denominazione>ANDRICIUC FLORIN OVIDIU</Denominazione></Anagrafica>
+                <RegimeFiscale>RF19</RegimeFiscale>
+            </DatiAnagrafici>
+        </CedentePrestatore>
+        <CessionarioCommittente>
+            <DatiAnagrafici>
+                <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_DESTINATARIO}</IdCodice></IdFiscaleIVA>
+                <Anagrafica><Denominazione>Renova Solution S.r.l.</Denominazione></Anagrafica>
+            </DatiAnagrafici>
+        </CessionarioCommittente>
+        <TerzoIntermediarioOSoggettoEmittente>
+            <DatiAnagrafici>
+                <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_TRASMITTENTE}</IdCodice></IdFiscaleIVA>
+                <Anagrafica><Denominazione>TEAMSYSTEM SERVICE SRL</Denominazione></Anagrafica>
+            </DatiAnagrafici>
+        </TerzoIntermediarioOSoggettoEmittente>
+        <SoggettoEmittente>TZ</SoggettoEmittente>
+    </FatturaElettronicaHeader>
+    <FatturaElettronicaBody>
+        <DatiGenerali><DatiGeneraliDocumento>
+            <TipoDocumento>TD01</TipoDocumento><Divisa>EUR</Divisa>
+            <Data>2026-08-14</Data><Numero>41</Numero>
+            <DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>2.00</ImportoBollo></DatiBollo>
+            <ImportoTotaleDocumento>920.37</ImportoTotaleDocumento>
+        </DatiGeneraliDocumento></DatiGenerali>
+        <DatiBeniServizi>
+            <DettaglioLinee><NumeroLinea>1</NumeroLinea><Descrizione>Consulenza Marketing mese di Luglio</Descrizione><Quantita>1.00</Quantita><PrezzoUnitario>920.37</PrezzoUnitario><PrezzoTotale>920.37</PrezzoTotale><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura></DettaglioLinee>
+            <DatiRiepilogo><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura><ImponibileImporto>920.37</ImponibileImporto><Imposta>0.00</Imposta></DatiRiepilogo>
+        </DatiBeniServizi>
+        <DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><ModalitaPagamento>MP05</ModalitaPagamento><DataScadenzaPagamento>2026-08-14</DataScadenzaPagamento><IBAN>IT00X0000000000000000000000</IBAN></DettaglioPagamento></DatiPagamento>
+    </FatturaElettronicaBody>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="id-abc"><ds:SignedInfo><ds:Reference URI=""><ds:DigestValue>tdFz7AyxL/mxbDM7OY20FbvWVJWPQqEbZaLaASuGmxM=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>aTk4pK67RKdTOButE+35T2eA</ds:SignatureValue></ds:Signature></ns3:FatturaElettronica>`;
+
+describe("fattura reale TeamSystem", () => {
+  it("passa il controllo di forma nonostante il prefisso ns3 e la firma annegata", () => {
+    expect(sembraFatturaElettronica(FATTURA_REALE)).toBe(true);
+  });
+
+  it("NON scambia l'intermediario che trasmette per chi emette", () => {
+    const p = leggiPartiteIva(FATTURA_REALE);
+    expect(p.cedente).toBe(PIVA_EMITTENTE);
+    expect(p.cedente).not.toBe(PIVA_TRASMITTENTE);
+    expect(p.cessionario).toBe(PIVA_DESTINATARIO);
+  });
+
+  it("per chi l'ha emessa e' attiva", () => {
+    expect(classificaDirezione(FATTURA_REALE, PIVA_EMITTENTE)).toBe("attiva");
+  });
+
+  it("per Renova, che la riceve, e' passiva", () => {
+    expect(classificaDirezione(FATTURA_REALE, PIVA_DESTINATARIO)).toBe("passiva");
+  });
+
+  it("per TeamSystem, che l'ha solo trasmessa, non e' ne' l'una ne' l'altra", () => {
+    expect(classificaDirezione(FATTURA_REALE, PIVA_TRASMITTENTE)).toBe("incerta");
+  });
+
+  it("sopravvive al giro completo di caricamento come file", async () => {
+    const r = await espandiXmlDaFiles([new File([FATTURA_REALE], "IT02010390439_00041.xml")]);
+    expect(r.scartati).toHaveLength(0);
+    expect(r.xml).toHaveLength(1);
+    expect(classificaDirezione(r.xml[0].contenuto, PIVA_DESTINATARIO)).toBe("passiva");
+  });
+});
