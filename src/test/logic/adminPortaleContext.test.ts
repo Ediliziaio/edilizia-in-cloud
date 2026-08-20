@@ -62,9 +62,19 @@ describe("AdminPortalePage / PortalePage admin context", () => {
   });
 
   describe("tab azienda-edile nascoste in admin", () => {
-    it("tab Procedure/Accessi/Persone wrapped in !isAdminContext", () => {
+    // 2026-08: la condizione inline {!isAdminContext && (...)} e' diventata la
+    // variabile showAuthoringMgmt (commit "Formazione: ri-allocazione tab").
+    // La protezione non e' sparita, si e' spostata — ed e' anche piu' stretta,
+    // perche' ora richiede pure mode === "builder". Il test verifica la
+    // sostanza (i tab d'azienda restano fuori dall'admin) invece della forma.
+    it("showAuthoringMgmt esclude l'admin", () => {
+      expect(portalPageSource).toContain("showAuthoringMgmt = !isAdminContext");
+    });
+
+    it("tab Procedure/Accessi/Persone gated da showAuthoringMgmt", () => {
       const tabsBlock =
-        portalPageSource.match(/\{!isAdminContext && \(\s*<>\s*<TabsTrigger value="procedure"[\s\S]+?Persone[\s\S]+?<\/>\s*\)\}/)?.[0] ?? "";
+        portalPageSource.match(/\{showAuthoringMgmt && \(\s*<>\s*<TabsTrigger value="procedure"[\s\S]+?Persone[\s\S]+?<\/>\s*\)\}/)?.[0] ?? "";
+      expect(tabsBlock).not.toBe("");
       expect(tabsBlock).toContain('value="procedure"');
       expect(tabsBlock).toContain('value="accessi"');
       expect(tabsBlock).toContain('value="persone"');
@@ -80,8 +90,8 @@ describe("AdminPortalePage / PortalePage admin context", () => {
       expect(tabsListBlock).toContain('value="corsi"');
       expect(tabsListBlock).toContain('value="builder"');
       expect(tabsListBlock).toContain('value="preview"');
-      // I tab condizionali sono dentro la TabsList
-      expect(tabsListBlock).toContain("{!isAdminContext && (");
+      // I tab condizionali sono dentro la TabsList, dietro showAuthoringMgmt
+      expect(tabsListBlock).toContain("{showAuthoringMgmt && (");
     });
   });
 

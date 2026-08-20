@@ -118,9 +118,15 @@ describe("Admin QoL improvements — round 1", () => {
       expect(bottomNavSource).toContain('href: "/admin/cs?tab=assistenza"');
     });
 
-    it("ha la voce AI come voce primary mobile", () => {
-      expect(bottomNavSource).toContain('label: "AI"');
-      expect(bottomNavSource).toContain('href: "/admin/ai"');
+    // 2026-08: l'AI non e' piu' una voce dell'elenco ma il pulsante centrale
+    // in rilievo, come nella bottom nav azienda (commit "Superadmin mobile:
+    // bottom nav azienda-style (AI al centro)"). Piu' in evidenza di prima,
+    // non rimossa: il test segue lo slot dedicato invece del vecchio NavItem.
+    it("ha l'AI come pulsante centrale in rilievo", () => {
+      expect(bottomNavSource).toContain('slot.type === "ai"');
+      expect(bottomNavSource).toContain('to="/admin/ai"');
+      // L'etichetta resta visibile sotto l'icona.
+      expect(bottomNavSource).toMatch(/>\s*AI\s*<\/span>/);
     });
 
     it("supporta matchPrefixes per active state su URL con query string", () => {
