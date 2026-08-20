@@ -53,6 +53,14 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  espandiXmlDaFiles,
+  eliminaDoppioniInterni,
+  riepilogoEsiti,
+  descriviRiepilogo,
+  type EsitoImport,
+  type FileScartato,
+} from "@/lib/fatturazione/bulkXmlImport";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -112,6 +120,8 @@ export default function FattureRicevutePage() {
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
+  const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
+  const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
 
   // ─── Data Query ──────────────────────────────────────────
 
@@ -220,46 +230,66 @@ export default function FattureRicevutePage() {
     onError: (e) => toast.error(`Errore: ${e.message}`),
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (xmlContent: string) => {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session?.session?.access_token;
-      if (!token) throw new Error("Non autenticato");
-
-      const resp = await supabase.functions.invoke("ricevi-sdi", {
-        body: { xml_content: xmlContent, company_id: companyId },
-      });
-
-      if (resp.error) throw resp.error;
-      return resp.data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      if (data?.duplicate) {
-        toast.info("Fattura già presente nel sistema");
-      } else {
-        toast.success("Fattura XML importata con successo");
-      }
-    },
-    onError: (e) => toast.error(`Errore importazione: ${e.message}`),
-  });
-
   // ─── File Upload Handler ────────────────────────────────
 
+  // Import massivo: si possono selezionare tante fatture insieme, o uno zip
+  // scaricato dal portale. Le fatture partono una alla volta perche' ognuna
+  // deve poter fallire per conto suo senza trascinarsi dietro le altre: su un
+  // carico di trecento file sapere QUALI non sono passate, e perche', e' tutto.
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (files.length === 0) return;
 
-    if (!file.name.endsWith(".xml") && !file.name.endsWith(".p7m")) {
-      toast.error("Seleziona un file XML FatturaPA (.xml o .p7m)");
+    setReport(null);
+    setProgress({ fatte: 0, totale: 0 });
+
+    const { xml, scartati } = await espandiXmlDaFiles(files);
+    const daImportare = eliminaDoppioniInterni(xml);
+
+    if (daImportare.length === 0) {
+      setProgress(null);
+      setReport({ esiti: [], scartati });
+      toast.error("Nessuna fattura da importare", {
+        description: scartati[0]?.motivo ?? "I file selezionati non contengono fatture elettroniche.",
+      });
       return;
     }
 
-    const text = await file.text();
-    uploadMutation.mutate(text);
+    setProgress({ fatte: 0, totale: daImportare.length });
+    const esiti: EsitoImport[] = [];
 
-    // Reset input
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    for (const f of daImportare) {
+      try {
+        const resp = await supabase.functions.invoke("ricevi-sdi", {
+          body: { xml_content: f.contenuto, company_id: companyId },
+        });
+        if (resp.error) {
+          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.error.message });
+        } else if (resp.data?.duplicate) {
+          esiti.push({ nome: f.nome, stato: "duplicata" });
+        } else if (resp.data?.success) {
+          esiti.push({ nome: f.nome, stato: "importata" });
+        } else {
+          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema." });
+        }
+      } catch (err) {
+        esiti.push({ nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto." });
+      }
+      setProgress({ fatte: esiti.length, totale: daImportare.length });
+    }
+
+    setProgress(null);
+    setReport({ esiti, scartati });
+    queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+
+    const r = riepilogoEsiti(esiti);
+    const testo = descriviRiepilogo(r);
+    if (r.errori > 0 || scartati.length > 0) {
+      toast.warning("Import completato con eccezioni", { description: testo });
+    } else {
+      toast.success("Import completato", { description: testo });
+    }
   };
 
   // ─── Mark as read on view ──────────────────────────────
@@ -289,24 +319,77 @@ export default function FattureRicevutePage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xml,.p7m"
+            accept=".xml,.zip"
+            multiple
             className="hidden"
             onChange={handleFileUpload}
           />
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
+            disabled={progress !== null}
           >
-            {uploadMutation.isPending ? (
+            {progress !== null ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
               <Upload className="h-4 w-4 mr-2" />
             )}
-            Importa XML
+            {progress !== null
+              ? progress.totale > 0
+                ? `Importazione ${progress.fatte} di ${progress.totale}…`
+                : "Lettura file…"
+              : "Importa XML"}
           </Button>
         </div>
       </div>
+
+      {/* Resoconto dell'ultimo import: dice quante sono passate e, soprattutto,
+          quali no e per quale motivo — cosi' si sa cosa ricaricare. */}
+      {report && (
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>Esito importazione</span>
+              <Button variant="ghost" size="sm" onClick={() => setReport(null)}>
+                Chiudi
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default">{riepilogoEsiti(report.esiti).importate} importate</Badge>
+              {riepilogoEsiti(report.esiti).duplicate > 0 && (
+                <Badge variant="secondary">{riepilogoEsiti(report.esiti).duplicate} gia&apos; presenti</Badge>
+              )}
+              {riepilogoEsiti(report.esiti).errori > 0 && (
+                <Badge variant="destructive">{riepilogoEsiti(report.esiti).errori} non riuscite</Badge>
+              )}
+              {report.scartati.length > 0 && (
+                <Badge variant="outline">{report.scartati.length} file scartati</Badge>
+              )}
+            </div>
+
+            {(report.esiti.some((e) => e.stato === "errore") || report.scartati.length > 0) && (
+              <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border bg-muted/30 p-2 text-xs">
+                {report.esiti
+                  .filter((e) => e.stato === "errore")
+                  .map((e) => (
+                    <div key={`err-${e.nome}`} className="flex gap-2">
+                      <span className="shrink-0 font-medium text-destructive">{e.nome}</span>
+                      <span className="text-muted-foreground">{e.motivo}</span>
+                    </div>
+                  ))}
+                {report.scartati.map((f) => (
+                  <div key={`scarto-${f.nome}`} className="flex gap-2">
+                    <span className="shrink-0 font-medium text-amber-700">{f.nome}</span>
+                    <span className="text-muted-foreground">{f.motivo}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI */}
       <div className="grid grid-cols-4 gap-4">
