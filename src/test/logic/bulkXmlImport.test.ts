@@ -245,23 +245,29 @@ const FATTURA_REALE = `<?xml version="1.0" encoding="UTF-8"?><ns3:FatturaElettro
             <ProgressivoInvio>00005i5oai</ProgressivoInvio>
             <FormatoTrasmissione>FPR12</FormatoTrasmissione>
             <CodiceDestinatario>KRRH6B9</CodiceDestinatario>
+            <ContattiTrasmittente><Telefono>0874-60561</Telefono></ContattiTrasmittente>
         </DatiTrasmissione>
         <CedentePrestatore>
             <DatiAnagrafici>
                 <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_EMITTENTE}</IdCodice></IdFiscaleIVA>
+                <CodiceFiscale>NDRFRN97D10Z129M</CodiceFiscale>
                 <Anagrafica><Denominazione>ANDRICIUC FLORIN OVIDIU</Denominazione></Anagrafica>
                 <RegimeFiscale>RF19</RegimeFiscale>
             </DatiAnagrafici>
+            <Sede><Indirizzo>Via Nicola Franceschini 12</Indirizzo><CAP>62025</CAP><Comune>Pioraco</Comune><Provincia>MC</Provincia><Nazione>IT</Nazione></Sede>
         </CedentePrestatore>
         <CessionarioCommittente>
             <DatiAnagrafici>
                 <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_DESTINATARIO}</IdCodice></IdFiscaleIVA>
+                <CodiceFiscale>01941970939</CodiceFiscale>
                 <Anagrafica><Denominazione>Renova Solution S.r.l.</Denominazione></Anagrafica>
             </DatiAnagrafici>
+            <Sede><Indirizzo>Via Revedole 78/B</Indirizzo><CAP>33170</CAP><Comune>Pordenone</Comune><Provincia>PN</Provincia><Nazione>IT</Nazione></Sede>
         </CessionarioCommittente>
         <TerzoIntermediarioOSoggettoEmittente>
             <DatiAnagrafici>
                 <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${PIVA_TRASMITTENTE}</IdCodice></IdFiscaleIVA>
+                <CodiceFiscale>01641790702</CodiceFiscale>
                 <Anagrafica><Denominazione>TEAMSYSTEM SERVICE SRL</Denominazione></Anagrafica>
             </DatiAnagrafici>
         </TerzoIntermediarioOSoggettoEmittente>
@@ -272,13 +278,14 @@ const FATTURA_REALE = `<?xml version="1.0" encoding="UTF-8"?><ns3:FatturaElettro
             <TipoDocumento>TD01</TipoDocumento><Divisa>EUR</Divisa>
             <Data>2026-08-14</Data><Numero>41</Numero>
             <DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>2.00</ImportoBollo></DatiBollo>
+            <DatiCassaPrevidenziale><TipoCassa>TC22</TipoCassa><AlCassa>4.00</AlCassa><ImportoContributoCassa>0.00</ImportoContributoCassa><ImponibileCassa>0.00</ImponibileCassa><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura></DatiCassaPrevidenziale>
             <ImportoTotaleDocumento>920.37</ImportoTotaleDocumento>
         </DatiGeneraliDocumento></DatiGenerali>
         <DatiBeniServizi>
             <DettaglioLinee><NumeroLinea>1</NumeroLinea><Descrizione>Consulenza Marketing mese di Luglio</Descrizione><Quantita>1.00</Quantita><PrezzoUnitario>920.37</PrezzoUnitario><PrezzoTotale>920.37</PrezzoTotale><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura></DettaglioLinee>
-            <DatiRiepilogo><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura><ImponibileImporto>920.37</ImponibileImporto><Imposta>0.00</Imposta></DatiRiepilogo>
+            <DatiRiepilogo><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura><ImponibileImporto>920.37</ImponibileImporto><Imposta>0.00</Imposta><RiferimentoNormativo>Non soggetta art. 1/54-89 L. 190/2014</RiferimentoNormativo></DatiRiepilogo>
         </DatiBeniServizi>
-        <DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><ModalitaPagamento>MP05</ModalitaPagamento><DataScadenzaPagamento>2026-08-14</DataScadenzaPagamento><IBAN>IT00X0000000000000000000000</IBAN></DettaglioPagamento></DatiPagamento>
+        <DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><Beneficiario>FLORIN OVIDIU ANDRICIUC</Beneficiario><ModalitaPagamento>MP05</ModalitaPagamento><DataScadenzaPagamento>2026-08-14</DataScadenzaPagamento><ImportoPagamento>920.37</ImportoPagamento><IBAN>IT00X0000000000000000000000</IBAN></DettaglioPagamento></DatiPagamento>
     </FatturaElettronicaBody>
 <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="id-abc"><ds:SignedInfo><ds:Reference URI=""><ds:DigestValue>tdFz7AyxL/mxbDM7OY20FbvWVJWPQqEbZaLaASuGmxM=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>aTk4pK67RKdTOButE+35T2eA</ds:SignatureValue></ds:Signature></ns3:FatturaElettronica>`;
 
@@ -311,5 +318,142 @@ describe("fattura reale TeamSystem", () => {
     expect(r.scartati).toHaveLength(0);
     expect(r.xml).toHaveLength(1);
     expect(classificaDirezione(r.xml[0].contenuto, PIVA_DESTINATARIO)).toBe("passiva");
+  });
+});
+
+// ─── Verifica contabile campo per campo ──────────────────────────────────
+//
+// Gira il LETTORE VERO — lo stesso modulo che usa la edge function in
+// produzione — sulla fattura reale, e controlla ogni valore contro quello
+// che c'e' scritto sul documento. Se qui passa, i numeri che finiscono in
+// contabilita' sono quelli giusti.
+
+import { leggiFatturaPA, arrotonda, type LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
+
+const parser = new DOMParser() as unknown as LettoreXml;
+
+describe("lettura contabile della fattura reale", () => {
+  const f = leggiFatturaPA(FATTURA_REALE, parser);
+
+  it("la legge senza arrendersi", () => {
+    expect(f).not.toBeNull();
+  });
+
+  it("identifica chi emette e chi riceve, ignorando l'intermediario", () => {
+    expect(f!.cedentePiva).toBe(PIVA_EMITTENTE);
+    expect(f!.cedenteNome).toBe("ANDRICIUC FLORIN OVIDIU");
+    expect(f!.cessionarioPiva).toBe(PIVA_DESTINATARIO);
+  });
+
+  it("prende numero, data e tipo del documento", () => {
+    expect(f!.numero).toBe("41");
+    expect(f!.data).toBe("2026-08-14");
+    expect(f!.documentType).toBe("invoice");
+  });
+
+  it("IMPORTI: imponibile 920,37 · IVA 0,00 · totale 920,37", () => {
+    expect(f!.imponibile).toBe(920.37);
+    expect(f!.imposta).toBe(0);
+    expect(f!.totale).toBe(920.37);
+  });
+
+  it("i conti tornano: imponibile + imposta = totale", () => {
+    expect(arrotonda(f!.imponibile + f!.imposta)).toBe(f!.totale);
+  });
+
+  it("la somma delle righe corrisponde all'imponibile del riepilogo", () => {
+    const somma = arrotonda(f!.righe.reduce((s, r) => s + r.line_net, 0));
+    expect(somma).toBe(f!.imponibile);
+  });
+
+  it("IVA: regime forfettario, aliquota 0 con natura N2.2 conservata", () => {
+    expect(f!.righe[0].tax_rate).toBe(0);
+    expect(f!.righe[0].tax_nature).toBe("N2.2");
+    expect(f!.righe[0].line_tax).toBe(0);
+  });
+
+  it("il bollo virtuale da 2 euro viene visto ma NON sommato al totale", () => {
+    expect(f!.bollo).toBe(2);
+    expect(f!.totale).toBe(920.37); // il documento dichiara 920,37, non 922,37
+  });
+
+  it("la cassa previdenziale a zero non inquina l'aliquota della riga", () => {
+    // DatiCassaPrevidenziale contiene un altro AliquotaIVA: se il lettore lo
+    // pescasse per sbaglio, l'IVA della riga sarebbe sbagliata.
+    expect(f!.righe).toHaveLength(1);
+    expect(f!.righe[0].tax_rate).toBe(0);
+  });
+
+  it("RIGA: descrizione, quantita' e prezzi esatti", () => {
+    const r = f!.righe[0];
+    expect(r.description).toBe("Consulenza Marketing mese di Luglio");
+    expect(r.quantity).toBe(1);
+    expect(r.unit_price).toBe(920.37);
+    expect(r.line_net).toBe(920.37);
+    expect(r.line_gross).toBe(920.37);
+    expect(r.sort_order).toBe(0);
+  });
+
+  it("CLIENTE: ragione sociale, partita IVA e indirizzo completi", () => {
+    expect(f!.cliente.nome).toBe("Renova Solution S.r.l.");
+    expect(f!.cliente.piva).toBe(PIVA_DESTINATARIO);
+    expect(f!.cliente.cf).toBe("01941970939");
+    expect(f!.cliente.indirizzo).toBe("Via Revedole 78/B");
+    expect(f!.cliente.citta).toBe("Pordenone");
+    expect(f!.cliente.cap).toBe("33170");
+    expect(f!.cliente.provincia).toBe("PN");
+    expect(f!.cliente.paese).toBe("IT");
+  });
+
+  it("il codice destinatario arriva dall'intestazione (era il bug)", () => {
+    expect(f!.cliente.sdi).toBe("KRRH6B9");
+  });
+
+  it("PAGAMENTO: scadenza, modalita' e IBAN", () => {
+    expect(f!.scadenza).toBe("2026-08-14");
+    expect(f!.modalitaPagamento).toBe("MP05");
+    expect(f!.iban).toBe("IT00X0000000000000000000000");
+  });
+});
+
+describe("il lettore non inventa mai numeri", () => {
+  it("su un file che fattura non e' ritorna null, non un oggetto a meta'", () => {
+    expect(leggiFatturaPA("<Ordine><Riga/></Ordine>", parser)).toBeNull();
+  });
+
+  it("senza numero o data si ferma", () => {
+    const senzaNumero = FATTURA_REALE.replace("<Numero>41</Numero>", "");
+    expect(leggiFatturaPA(senzaNumero, parser)).toBeNull();
+  });
+
+  it("con IVA al 22% calcola l'imposta di riga corretta", () => {
+    const conIva = FATTURA_REALE
+      .replace("<ImponibileImporto>920.37</ImponibileImporto><Imposta>0.00</Imposta>",
+               "<ImponibileImporto>1000.00</ImponibileImporto><Imposta>220.00</Imposta>")
+      .replace("<PrezzoTotale>920.37</PrezzoTotale><AliquotaIVA>0.00</AliquotaIVA>",
+               "<PrezzoTotale>1000.00</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA>")
+      .replace("<ImportoTotaleDocumento>920.37</ImportoTotaleDocumento>",
+               "<ImportoTotaleDocumento>1220.00</ImportoTotaleDocumento>");
+    const r = leggiFatturaPA(conIva, parser)!;
+    expect(r.imponibile).toBe(1000);
+    expect(r.imposta).toBe(220);
+    expect(r.totale).toBe(1220);
+    expect(r.righe[0].line_tax).toBe(220);
+    expect(r.righe[0].line_gross).toBe(1220);
+  });
+
+  it("una nota di credito TD04 non viene scambiata per una fattura", () => {
+    const nota = FATTURA_REALE.replace("<TipoDocumento>TD01</TipoDocumento>", "<TipoDocumento>TD04</TipoDocumento>");
+    expect(leggiFatturaPA(nota, parser)!.documentType).toBe("credit_note");
+  });
+
+  it("somma piu' riepiloghi IVA con aliquote diverse", () => {
+    const due = FATTURA_REALE.replace(
+      "</DatiRiepilogo>",
+      "</DatiRiepilogo><DatiRiepilogo><AliquotaIVA>22.00</AliquotaIVA><ImponibileImporto>100.00</ImponibileImporto><Imposta>22.00</Imposta></DatiRiepilogo>",
+    );
+    const r = leggiFatturaPA(due, parser)!;
+    expect(r.imponibile).toBe(1020.37);
+    expect(r.imposta).toBe(22);
   });
 });

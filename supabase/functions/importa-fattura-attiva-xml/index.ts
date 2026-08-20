@@ -18,9 +18,12 @@
  *      conflitto e non si tocca nulla: la numerazione e' materia fiscale.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DOMParser, type Element } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+// Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
+// codice verificato dai test, non una copia parallela.
+import { leggiFatturaPA, normalizzaPiva, type LettoreXml } from "../_shared/fatturapaReader.ts";
 
 const PROVIDER = "xml_import";
 
@@ -28,150 +31,6 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-
-// ─── Lettura XML ────────────────────────────────────────────────────────────
-
-function testo(el: Element | null | undefined, tag: string): string {
-  return el?.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
-}
-
-function numero(el: Element | null | undefined, tag: string): number {
-  const v = testo(el, tag);
-  if (!v) return 0;
-  const n = parseFloat(v.replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function normalizzaPiva(v: string | null | undefined): string {
-  return (v ?? "").replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
-}
-
-/** TD04/TD08 sono note di credito: vanno distinte o falsano i ricavi. */
-function tipoDocumento(td: string): "invoice" | "credit_note" {
-  return td === "TD04" || td === "TD08" ? "credit_note" : "invoice";
-}
-
-interface FatturaAttiva {
-  cedentePiva: string;
-  numero: string;
-  data: string;
-  documentType: "invoice" | "credit_note";
-  cliente: {
-    nome: string;
-    piva: string | null;
-    cf: string | null;
-    indirizzo: string | null;
-    citta: string | null;
-    cap: string | null;
-    paese: string;
-    pec: string | null;
-    sdi: string | null;
-  };
-  imponibile: number;
-  imposta: number;
-  totale: number;
-  scadenza: string | null;
-  modalitaPagamento: string | null;
-  iban: string | null;
-  righe: Array<Record<string, unknown>>;
-}
-
-function leggiFattura(xml: string): FatturaAttiva | null {
-  const doc = new DOMParser().parseFromString(xml, "text/xml");
-  if (!doc) return null;
-
-  const header = doc.getElementsByTagName("FatturaElettronicaHeader")[0];
-  const body = doc.getElementsByTagName("FatturaElettronicaBody")[0];
-  if (!header || !body) return null;
-
-  const cedente = header.getElementsByTagName("CedentePrestatore")[0];
-  const cessionario = header.getElementsByTagName("CessionarioCommittente")[0];
-  if (!cedente || !cessionario) return null;
-
-  const cedenteIva = cedente.getElementsByTagName("IdFiscaleIVA")[0];
-  const cedentePiva = normalizzaPiva(testo(cedenteIva, "IdCodice"));
-  if (!cedentePiva) return null;
-
-  const dgd = body.getElementsByTagName("DatiGeneraliDocumento")[0];
-  const numeroFattura = testo(dgd, "Numero");
-  const data = testo(dgd, "Data");
-  if (!numeroFattura || !data) return null;
-
-  // Cliente: le societa' hanno Denominazione, le persone Nome + Cognome.
-  const anagCess = cessionario.getElementsByTagName("Anagrafica")[0];
-  const denominazione = testo(anagCess, "Denominazione");
-  const nomeCliente = denominazione ||
-    `${testo(anagCess, "Nome")} ${testo(anagCess, "Cognome")}`.trim() ||
-    "Cliente";
-
-  const cessIva = cessionario.getElementsByTagName("IdFiscaleIVA")[0];
-  const sede = cessionario.getElementsByTagName("Sede")[0];
-  // DatiTrasmissione sta nell'HEADER, non nel body: cercarlo nel posto
-  // sbagliato lasciava codice destinatario e PEC del cliente sempre vuoti.
-  const trasmissione = header.getElementsByTagName("DatiTrasmissione")[0];
-
-  // I riepiloghi IVA sono la fonte giusta per imponibile e imposta: sommare le
-  // righe darebbe risultati diversi in presenza di arrotondamenti e sconti.
-  let imponibile = 0;
-  let imposta = 0;
-  for (const r of Array.from(body.getElementsByTagName("DatiRiepilogo"))) {
-    imponibile += numero(r as Element, "ImponibileImporto");
-    imposta += numero(r as Element, "Imposta");
-  }
-
-  const totaleDichiarato = numero(dgd, "ImportoTotaleDocumento");
-  const totale = totaleDichiarato || imponibile + imposta;
-
-  const pagamento = body.getElementsByTagName("DettaglioPagamento")[0];
-
-  const righe = Array.from(body.getElementsByTagName("DettaglioLinee")).map((l, i) => {
-    const el = l as Element;
-    const quantita = numero(el, "Quantita") || 1;
-    const prezzoUnitario = numero(el, "PrezzoUnitario");
-    const lineNet = numero(el, "PrezzoTotale");
-    const aliquota = numero(el, "AliquotaIVA");
-    const lineTax = Math.round(lineNet * (aliquota / 100) * 100) / 100;
-    return {
-      description: testo(el, "Descrizione") || "Voce senza descrizione",
-      product_code: testo(el, "CodiceValore") || null,
-      unit: testo(el, "UnitaMisura") || "pz",
-      quantity: quantita,
-      unit_price: prezzoUnitario,
-      discount_percent: 0,
-      tax_rate: aliquota,
-      tax_nature: testo(el, "Natura") || null,
-      line_net: lineNet,
-      line_tax: lineTax,
-      line_gross: Math.round((lineNet + lineTax) * 100) / 100,
-      sort_order: i,
-    };
-  });
-
-  return {
-    cedentePiva,
-    numero: numeroFattura,
-    data,
-    documentType: tipoDocumento(testo(dgd, "TipoDocumento")),
-    cliente: {
-      nome: nomeCliente,
-      piva: normalizzaPiva(testo(cessIva, "IdCodice")) || null,
-      cf: testo(cessionario.getElementsByTagName("DatiAnagrafici")[0], "CodiceFiscale") || null,
-      indirizzo: testo(sede, "Indirizzo") || null,
-      citta: testo(sede, "Comune") || null,
-      cap: testo(sede, "CAP") || null,
-      paese: testo(sede, "Nazione") || "IT",
-      pec: testo(trasmissione, "PECDestinatario") || null,
-      sdi: testo(trasmissione, "CodiceDestinatario") || null,
-    },
-    imponibile: Math.round(imponibile * 100) / 100,
-    imposta: Math.round(imposta * 100) / 100,
-    totale: Math.round(totale * 100) / 100,
-    scadenza: testo(pagamento, "DataScadenzaPagamento") || null,
-    modalitaPagamento: testo(pagamento, "ModalitaPagamento") || null,
-    iban: testo(pagamento, "IBAN") || null,
-    righe,
-  };
-}
 
 // ─── Handler ────────────────────────────────────────────────────────────────
 
@@ -200,7 +59,9 @@ Deno.serve(async (req) => {
       return json({ error: "Accesso negato a questa azienda" }, 403);
     }
 
-    const fattura = leggiFattura(String(xml_content));
+    // deno_dom soddisfa l'interfaccia strutturalmente; il cast serve solo a
+    // togliere di mezzo la differenza fra i tipi delle due implementazioni.
+    const fattura = leggiFatturaPA(String(xml_content), new DOMParser() as unknown as LettoreXml);
     if (!fattura) return json({ error: "XML non leggibile come fattura elettronica." }, 422);
 
     // PALETTO 1 — la direzione la stabilisce il server.
