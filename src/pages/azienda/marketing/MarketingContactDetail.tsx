@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ListinoClienteCard } from "@/components/crm/ListinoClienteCard";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
@@ -1171,7 +1172,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
                 <TabsTrigger value="dnd" className="flex-1 text-xs h-7">DND</TabsTrigger>
                 <TabsTrigger value="actions" className="flex-1 text-xs h-7">Azioni</TabsTrigger>
+                <TabsTrigger value="listino" className="flex-1 text-xs h-7">Listino</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="listino" className="mt-2">
+                {id && <ListinoClienteCard contactId={id} />}
+              </TabsContent>
 
               <TabsContent value="all_fields" className="mt-2 space-y-2">
                 {/* Search fields */}

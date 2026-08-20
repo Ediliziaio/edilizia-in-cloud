@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useQuoteFormHydration";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
+import { useListinoCliente } from "@/hooks/useListinoCliente";
 import { QuoteAdvisorPanel } from "@/components/quotes/QuoteAdvisorPanel";
 import { QuoteRenderPicker } from "@/components/render/QuoteRenderPicker";
 import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
@@ -341,6 +342,9 @@ export default function QuoteBuilder() {
 
   // Step 0: Client
   const [contactId, setContactId] = useState<string | null>(null);
+  // Sconto concordato col cliente (scheda contatto CRM): si PROPONE, si
+  // applica solo al clic. Lettura tollerante: senza tabella, niente banner.
+  const { listino: listinoCliente } = useListinoCliente(contactId);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -2650,6 +2654,25 @@ export default function QuoteBuilder() {
                             {formatCurrency(subtotal)}
                           </span>
                         </div>
+                        {!isEdit && listinoCliente?.attivo &&
+                          (listinoCliente.sconto_globale_pct ?? 0) > 0 &&
+                          discountPercent !== listinoCliente.sconto_globale_pct && (
+                          <div className="flex justify-between items-center gap-2 rounded-md bg-primary/5 border border-primary/20 px-2 py-1.5">
+                            <span className="text-xs">
+                              Listino cliente: sconto concordato{" "}
+                              <span className="font-semibold">{listinoCliente.sconto_globale_pct}%</span>
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => setDiscountPercent(listinoCliente.sconto_globale_pct)}
+                            >
+                              Applica
+                            </Button>
+                          </div>
+                        )}
                         {!isEdit && (
                           <div className="flex justify-between items-center gap-2 py-1 border-t border-dashed">
                             <span className="text-muted-foreground text-xs uppercase tracking-wide">
