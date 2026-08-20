@@ -95,16 +95,20 @@ export function parseVociIncollate(testo: string): RisultatoIncolla {
   const voci: VoceIncollata[] = [];
   const scartate: RisultatoIncolla["scartate"] = [];
 
-  const righe = (testo ?? "").split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+  // Niente trim sulla riga intera: una tab iniziale e' un codice vuoto
+  // (colonna A vuota in Excel) e va conservata, altrimenti le colonne slittano.
+  const righe = (testo ?? "").split(/\r?\n/).filter((r) => r.trim());
   for (const riga of righe) {
     const sep = riga.includes("\t") ? "\t" : riga.includes(";") ? ";" : null;
-    const celle = (sep ? riga.split(sep) : [riga]).map((c) => c.trim());
+    const celle = (sep ? riga.split(sep) : [riga.trim()]).map((c) => c.trim());
+    // Le celle vuote in coda invece sono solo tab di troppo copiati da Excel.
+    while (celle.length > 0 && celle[celle.length - 1] === "") celle.pop();
 
     // Riga d'intestazione: la si riconosce e la si salta senza segnalarla.
     const testa = normalizza(celle.join(" "));
     if (/\bdescrizione\b/.test(testa) && /\bprezzo\b/.test(testa)) continue;
 
-    let voce: VoceIncollata | null = null;
+    let voce: VoceIncollata;
     if (celle.length === 2) {
       voce = { codice: null, descrizione: celle[0], unita: null, prezzo: parseImporto(celle[1]), sconto_pct: 0 };
     } else if (celle.length === 3) {

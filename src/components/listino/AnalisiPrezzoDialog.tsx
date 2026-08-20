@@ -158,6 +158,8 @@ function AnalisiEditor({
   const [sgPct, setSgPct] = useState(() => Number(esistente.analisi?.spese_generali_pct ?? 15));
   const [utilePct, setUtilePct] = useState(() => Number(esistente.analisi?.utile_pct ?? 10));
   const [aggiornaCosto, setAggiornaCosto] = useState(true);
+  // Doppio tocco per eliminare: il primo chiede conferma, il secondo esegue.
+  const [confermaElimina, setConfermaElimina] = useState(false);
 
   const risultato = useMemo(
     () => calcolaAnalisi(righe, sgPct, utilePct),
@@ -281,6 +283,41 @@ function AnalisiEditor({
       }
     },
     onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+  });
+
+  // Elimina l'analisi salvata SENZA toccare i prezzi della voce: un prezzo
+  // gia' applicato resta valido, sparisce solo la composizione. Si ripulisce
+  // pero' la `fonte`, che altrimenti direbbe "analisi_prezzo" senza analisi.
+  const eliminaMutation = useMutation({
+    mutationFn: async () => {
+      const analisiId = esistente.analisi?.id;
+      if (!analisiId) return;
+      const { error: e1 } = await (supabase as any)
+        .from("analisi_prezzo_componenti")
+        .delete()
+        .eq("analisi_id", analisiId);
+      if (e1) throw e1;
+      const { error: e2 } = await (supabase as any)
+        .from("analisi_prezzo")
+        .delete()
+        .eq("id", analisiId);
+      if (e2) throw e2;
+      const { error: e3 } = await (supabase as any)
+        .from("tariffe_aziendali")
+        .update({ fonte: null })
+        .eq("id", tariffa.id)
+        .eq("fonte", "analisi_prezzo");
+      if (e3) throw e3;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["analisi-prezzo", tariffa.id] });
+      queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full"] });
+      toast.success("Analisi eliminata", {
+        description: "Il prezzo della voce resta com'è: è sparita solo la composizione.",
+      });
+      onClose();
+    },
+    onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
   });
 
   const um = tariffa.unita_fatturazione ?? tariffa.unita ?? null;
@@ -414,7 +451,22 @@ function AnalisiEditor({
         mostra l&apos;utile reale
       </label>
 
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1">
+        {esistente.analisi && (
+          <Button
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            disabled={eliminaMutation.isPending || salvaMutation.isPending}
+            onClick={() => {
+              if (!confermaElimina) { setConfermaElimina(true); return; }
+              eliminaMutation.mutate();
+            }}
+          >
+            {eliminaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {confermaElimina ? "Confermi? Il prezzo della voce non cambia" : "Elimina analisi"}
+          </Button>
+        )}
+        <div className="flex-1" />
         <Button variant="outline" onClick={onClose}>Chiudi</Button>
         <Button
           variant="secondary"

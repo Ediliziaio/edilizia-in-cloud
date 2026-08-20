@@ -154,14 +154,14 @@ function ListinoEditor({
     setIncollaAperto(false);
     setTestoIncolla("");
     if (scartate.length > 0) {
-      toast.warning(`${nuove.length} voci lette, ${scartate.length} scartate`, {
+      toast.warning(`${nuove.length === 1 ? "1 voce letta" : `${nuove.length} voci lette`}, ${scartate.length === 1 ? "1 scartata" : `${scartate.length} scartate`}`, {
         description: scartate
           .slice(0, 3)
           .map((s) => `«${s.riga.slice(0, 40)}»: ${s.motivo}`)
           .join(" · "),
       });
     } else if (nuove.length > 0) {
-      toast.success(`${nuove.length} voci lette. Ricorda di salvare.`);
+      toast.success(`${nuove.length === 1 ? "1 voce letta" : `${nuove.length} voci lette`}. Ricorda di salvare.`);
     } else {
       toast.error("Nessuna voce leggibile nel testo incollato.");
     }

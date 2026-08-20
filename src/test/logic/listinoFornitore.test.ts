@@ -82,6 +82,20 @@ describe("parseVociIncollate — l'incolla da Excel", () => {
     expect(scartate).toHaveLength(0);
   });
 
+  it("una tab iniziale e' un codice vuoto: le colonne non slittano", () => {
+    const { voci, scartate } = parseVociIncollate("\tGuanti da lavoro taglia L\tpaio\t3,20");
+    expect(scartate).toHaveLength(0);
+    expect(voci[0]).toMatchObject({
+      codice: null, descrizione: "Guanti da lavoro taglia L", unita: "paio", prezzo: 3.2,
+    });
+  });
+
+  it("le tab di troppo in coda non creano colonne fantasma", () => {
+    const { voci, scartate } = parseVociIncollate("Silicone neutro\t4,80\t\t");
+    expect(scartate).toHaveLength(0);
+    expect(voci[0]).toMatchObject({ codice: null, descrizione: "Silicone neutro", prezzo: 4.8 });
+  });
+
   it("la virgola non spezza mai le colonne: e' il decimale", () => {
     const { voci } = parseVociIncollate("Sabbia fine, lavata\t7,50".replace("\\t", "\t"));
     expect(voci[0].descrizione).toBe("Sabbia fine, lavata");

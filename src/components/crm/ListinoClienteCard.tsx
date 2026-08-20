@@ -73,6 +73,8 @@ function ListinoClienteEditor({
   const [sconto, setSconto] = useState(() => Number(esistente?.sconto_globale_pct ?? 0));
   const [attivo, setAttivo] = useState(() => esistente?.attivo ?? true);
   const [note, setNote] = useState(() => esistente?.note ?? "");
+  // Doppio tocco per rimuovere: il primo chiede conferma, il secondo esegue.
+  const [confermaRimuovi, setConfermaRimuovi] = useState(false);
 
   const salva = useMutation({
     mutationFn: async () => {
@@ -103,11 +105,31 @@ function ListinoClienteEditor({
       toast.success("Listino cliente salvato", {
         description:
           attivo && sconto > 0
-            ? `Il preventivatore proporra' lo sconto del ${sconto}% quando selezioni questo cliente.`
+            ? `Il preventivatore proporrà lo sconto del ${sconto}% quando selezioni questo cliente.`
             : "Nessuno sconto attivo per questo cliente.",
       });
     },
     onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+  });
+
+  // Rimozione vera della riga (non solo disattivazione): i preventivi gia'
+  // fatti non cambiano, sparisce solo la proposta futura.
+  const rimuovi = useMutation({
+    mutationFn: async () => {
+      if (!esistente) return;
+      const { error } = await (supabase as any)
+        .from("listini_cliente")
+        .delete()
+        .eq("id", esistente.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listino-cliente", contactId] });
+      toast.success("Listino rimosso", {
+        description: "Nessuno sconto verrà più proposto per questo cliente.",
+      });
+    },
+    onError: (e: Error) => toast.error("Rimozione non riuscita", { description: e.message }),
   });
 
   return (
@@ -130,14 +152,30 @@ function ListinoClienteEditor({
         <Switch checked={attivo} onCheckedChange={setAttivo} aria-label="Listino attivo" />
       </div>
       <Textarea
-        placeholder="Perche' questo sconto (es. porta tre cantieri l'anno)…"
+        placeholder="Perché questo sconto (es. porta tre cantieri l'anno)…"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
         className="text-xs"
       />
-      <div className="flex justify-end">
-        <Button size="sm" className="h-7 text-xs" disabled={salva.isPending} onClick={() => salva.mutate()}>
+      <div className="flex items-center gap-2">
+        {esistente && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-destructive hover:text-destructive px-2"
+            disabled={rimuovi.isPending || salva.isPending}
+            onClick={() => {
+              if (!confermaRimuovi) { setConfermaRimuovi(true); return; }
+              rimuovi.mutate();
+            }}
+          >
+            {rimuovi.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            {confermaRimuovi ? "Confermi la rimozione?" : "Rimuovi"}
+          </Button>
+        )}
+        <div className="flex-1" />
+        <Button size="sm" className="h-7 text-xs" disabled={salva.isPending || rimuovi.isPending} onClick={() => salva.mutate()}>
           {salva.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
           Salva
         </Button>
