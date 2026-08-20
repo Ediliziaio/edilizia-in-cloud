@@ -1,9 +1,11 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
+import { trovaVoce, prezzoNetto, type VoceListinoFornitore } from "@/lib/listino/listinoFornitore";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +70,10 @@ export default function PurchaseOrderDetail() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem } = usePurchaseOrderDetail(odaId || null);
+  // Prezzi d'acquisto del fornitore: alimentano il suggerimento sulle righe.
+  const { voci: vociFornitore } = useVociListinoFornitore(
+    (order as { supplier_id?: string | null } | undefined)?.supplier_id ?? null,
+  );
   const { updateStatus, update } = usePurchaseOrders();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState("");
@@ -373,6 +379,7 @@ export default function PurchaseOrderDetail() {
                           // quello letto all'apertura della pagina, mentre la
                           // barra di avanzamento sopra diceva un'altra cosa.
                           key={`${item.id}:${item.quantity_received}`}
+                          vociFornitore={vociFornitore}
                           item={item}
                           isEditable={isEditable}
                           showReceived={!isEditable && order.status !== "annullato"}
@@ -800,12 +807,14 @@ function ItemRow({
   showReceived,
   onUpdate,
   onDelete,
+  vociFornitore,
 }: {
   item: PurchaseOrderItem;
   isEditable: boolean;
   showReceived: boolean;
   onUpdate: (updates: Record<string, any>) => void;
   onDelete: () => void;
+  vociFornitore?: VoceListinoFornitore[];
 }) {
   const [desc, setDesc] = useState(item.description);
   const [qty, setQty] = useState(String(item.quantity));
@@ -814,6 +823,17 @@ function ItemRow({
   const [disc, setDisc] = useState(String(item.discount_percent));
   const [vat, setVat] = useState(String(item.vat_rate));
   const [received, setReceived] = useState(String(item.quantity_received));
+
+  // Suggerimento dal listino fornitore: SOLO match esatto (codice o
+  // descrizione), e resta un suggerimento — il prezzo lo conferma chi ordina.
+  const prezzoListino = useMemo(() => {
+    if (!vociFornitore || vociFornitore.length === 0) return null;
+    const voce = trovaVoce(vociFornitore, {
+      codice: (item as { sku?: string | null }).sku ?? null,
+      descrizione: desc,
+    });
+    return voce ? prezzoNetto(voce.prezzo, voce.sconto_pct) : null;
+  }, [vociFornitore, item, desc]);
 
   const handleBlur = () => {
     const updates: Record<string, any> = {};
@@ -907,7 +927,21 @@ function ItemRow({
       </td>
       <td className="p-1">
         {isEditable ? (
+          <>
           <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} onBlur={handleBlur} className="h-8 text-sm text-right w-20" />
+          {prezzoListino != null && Math.abs(prezzoListino - (Number(price) || 0)) > 0.004 && (
+            <button
+              type="button"
+              className="mt-0.5 block w-full text-right text-[11px] text-primary hover:underline"
+              onClick={() => {
+                setPrice(String(prezzoListino));
+                onUpdate({ unit_price: prezzoListino });
+              }}
+            >
+              Listino: {fmtEur(prezzoListino)}
+            </button>
+          )}
+          </>
         ) : (
           <span className="block text-right">{fmtEur(item.unit_price)}</span>
         )}

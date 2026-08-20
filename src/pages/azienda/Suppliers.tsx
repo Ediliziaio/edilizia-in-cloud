@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ListinoFornitoreTab } from "@/components/suppliers/ListinoFornitoreTab";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -308,6 +309,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
         <TabsList>
           <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
           <TabsTrigger value="oda">OdA ({oda.length})</TabsTrigger>
+          <TabsTrigger value="listino">Listino</TabsTrigger>
           <TabsTrigger value="scadenze">Scadenze ({scadenze.length})</TabsTrigger>
           <TabsTrigger value="prima-nota">Prima Nota ({primaNota.length})</TabsTrigger>
           <TabsTrigger value="stats">Statistiche</TabsTrigger>
@@ -319,6 +321,10 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
 
         <TabsContent value="oda" className="mt-4">
           <OdaTab oda={oda} isLoading={isOdaLoading} navigate={navigate} />
+        </TabsContent>
+
+        <TabsContent value="listino" className="mt-4">
+          <ListinoFornitoreTab supplierId={supplierId} />
         </TabsContent>
 
         <TabsContent value="scadenze" className="mt-4">
