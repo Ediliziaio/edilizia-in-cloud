@@ -587,11 +587,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   };
 
   const updateField = useMutation({
-    mutationFn: async ({ field, value }: { field: string; value: any }) => {
+    mutationFn: async ({ field, value, extra }: { field: string; value: any; extra?: Record<string, any> }) => {
       if (!canEditContacts) throw new Error("Non hai i permessi per modificare i contatti");
       const { error } = await supabase
         .from("marketing_contacts")
-        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .update({ [field]: value, ...(extra ?? {}), updated_at: new Date().toISOString() })
         .eq("id", id!)
         .eq("company_id", companyId!);
       if (error) throw error;
@@ -1425,7 +1425,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               <TabsContent value="dnd" className="mt-2">
                 <ContactDndTab
                   contact={contact}
-                  onUpdate={(field, value) => updateField.mutate({ field, value })}
+                  onUpdate={(field, value, extra) => updateField.mutate({ field, value, extra })}
                 />
               </TabsContent>
 

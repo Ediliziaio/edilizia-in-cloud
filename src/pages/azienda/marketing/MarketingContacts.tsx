@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
 import { getInitials, getAvatarColor, formatContactDate } from "@/lib/contactUtils";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
@@ -617,6 +618,32 @@ export default function MarketingContacts() {
   const [previewContact, setPreviewContact] = useState<MarketingContact | null>(null);
 
   const activeFilterCount = countActiveContactFilters(filters);
+
+  // Lista dinamica: salva i FILTRI correnti come lista (CON-3). La lista
+  // non materializza membri: aprirla riapplica questi filtri alla vista.
+  const [salvaListaOpen, setSalvaListaOpen] = useState(false);
+  const [nomeListaDinamica, setNomeListaDinamica] = useState("");
+  const salvaListaDinamica = useMutation({
+    mutationFn: async (nome: string) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const pulito = nome.trim();
+      if (!pulito) throw new Error("Dai un nome alla lista");
+      const { error } = await (supabase as any)
+        .from("marketing_contact_lists")
+        .insert({ company_id: companyId, name: pulito, filters });
+      if (error) throw error;
+      return pulito;
+    },
+    onSuccess: (nome) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.list(companyId) });
+      toast.success(`Lista dinamica "${nome}" salvata`, {
+        description: "La trovi nel tab Liste: aprirla riapplica questi filtri.",
+      });
+      setSalvaListaOpen(false);
+      setNomeListaDinamica("");
+    },
+    onError: (e) => toast.error("Lista non salvata", { description: e instanceof Error ? e.message : String(e) }),
+  });
   const qualityFilter = isQualityFilter(urlFilters.quality) ? urlFilters.quality : "all";
   const setQualityFilter = useCallback((value: ContactQualityFilter) => {
     setURLParams({ quality: value, page: 1 });
@@ -1807,7 +1834,14 @@ export default function MarketingContacts() {
       </Tabs>
 
       {activeTab === "lists" ? (
-        <ContactListsView />
+        <ContactListsView
+          onApplyDynamic={(f) => {
+            setFilters(f);
+            setPage(1);
+            setActiveTab("all");
+            toast.info("Filtri della lista applicati ai contatti");
+          }}
+        />
       ) : (
         <>
           {/* Mini dashboard mobile: 4 KPI compatti al posto del cockpit qualità
@@ -1990,6 +2024,12 @@ export default function MarketingContacts() {
                     </Badge>
                   )}
                 </Button>
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setSalvaListaOpen(true)}>
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Salva lista</span>
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => { setSortDirection(sortDirection === "asc" ? "desc" : "asc"); setPage(1); }}>
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   Ordina
@@ -2152,6 +2192,31 @@ export default function MarketingContacts() {
         onApply={handleApplyColumns}
         customFields={contactCustomFields}
       />
+      <Dialog open={salvaListaOpen} onOpenChange={(o) => { setSalvaListaOpen(o); if (!o) setNomeListaDinamica(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Salva come lista dinamica</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            La lista ricorda i {activeFilterCount} filtri attivi, non i contatti:
+            chi matcha entra ed esce da solo.
+          </p>
+          <Input
+            autoFocus
+            placeholder="Nome della lista…"
+            value={nomeListaDinamica}
+            onChange={(e) => setNomeListaDinamica(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && nomeListaDinamica.trim()) salvaListaDinamica.mutate(nomeListaDinamica); }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSalvaListaOpen(false)}>Annulla</Button>
+            <Button disabled={!nomeListaDinamica.trim() || salvaListaDinamica.isPending} onClick={() => salvaListaDinamica.mutate(nomeListaDinamica)}>
+              {salvaListaDinamica.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva lista"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ContactFiltersSheet
         open={filtersSheetOpen}
         onOpenChange={setFiltersSheetOpen}

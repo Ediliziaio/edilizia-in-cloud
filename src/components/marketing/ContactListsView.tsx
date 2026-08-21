@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { CreateListDialog } from "./CreateListDialog";
+import type { ContactFilters } from "./ContactFiltersSheet";
+import { countActiveContactFilters } from "./ContactFiltersSheet";
 
 interface ContactList {
   id: string;
@@ -25,6 +27,8 @@ interface ContactList {
   description: string | null;
   created_at: string;
   member_count: number;
+  /** Presente = lista DINAMICA: la lista e' i filtri, non i membri. */
+  filters: ContactFilters | null;
 }
 
 interface ListMember {
@@ -76,7 +80,7 @@ async function assertContactsBelongToCompany(contactIds: string[], companyId: st
   return allowedIds;
 }
 
-export function ContactListsView() {
+export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters: ContactFilters) => void } = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -94,7 +98,7 @@ export function ContactListsView() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_contact_lists")
-        .select("id, name, description, created_at")
+        .select("id, name, description, created_at, filters")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -114,7 +118,7 @@ export function ContactListsView() {
         countMap[c.list_id] = (countMap[c.list_id] || 0) + 1;
       });
 
-      return (data || []).map(l => ({ ...l, member_count: countMap[l.id] || 0 })) as ContactList[];
+      return ((data || []) as any[]).map(l => ({ ...l, member_count: countMap[l.id] || 0 })) as ContactList[];
     },
     enabled: !!companyId,
   });
@@ -251,7 +255,11 @@ export function ContactListsView() {
             <Card
               key={list.id}
               className="cursor-pointer hover:border-primary/50 transition-colors group"
-              onClick={() => setSelectedList({ id: list.id, name: list.name, description: list.description })}
+              onClick={() =>
+                list.filters
+                  ? onApplyDynamic?.(list.filters)
+                  : setSelectedList({ id: list.id, name: list.name, description: list.description })
+              }
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
@@ -261,9 +269,15 @@ export function ContactListsView() {
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{list.description}</p>
                     )}
                     <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" /> {list.member_count} contatti
-                      </span>
+                      {list.filters ? (
+                        <Badge variant="outline" className="h-5 text-[10px] gap-1 border-primary/40 text-primary">
+                          <Search className="h-3 w-3" /> Dinamica · {countActiveContactFilters(list.filters)} {countActiveContactFilters(list.filters) === 1 ? "filtro" : "filtri"}
+                        </Badge>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" /> {list.member_count} contatti
+                        </span>
+                      )}
                       <span>{format(new Date(list.created_at), "dd MMM yyyy", { locale: it })}</span>
                     </div>
                   </div>

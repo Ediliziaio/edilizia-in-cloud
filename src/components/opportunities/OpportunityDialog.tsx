@@ -29,6 +29,8 @@ interface Props {
   stages: { id: string; name: string; auto_status?: string | null }[];
   /** Fase pre-selezionata (quick-add "+" dalla colonna kanban). */
   initialStageId?: string | null;
+  /** Contatto pre-selezionato (deep-link "Nuova opportunità" dalla scheda contatto). */
+  initialContactId?: string | null;
 }
 
 type ContactSearchResult = {
@@ -55,7 +57,7 @@ function sanitizeSearchTerm(value: string) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
 
-export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages, initialStageId }: Props) {
+export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages, initialStageId, initialContactId }: Props) {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -92,6 +94,32 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialStageId]);
+
+  // Deep-link dalla scheda contatto: carica il contatto per id e pre-selezionalo.
+  // Fetch diretto (non la ricerca): il contatto potrebbe non stare nei primi 20.
+  useEffect(() => {
+    if (!open || !initialContactId || !companyId) return;
+    let annullato = false;
+    supabase
+      .from("marketing_contacts")
+      .select("id, first_name, last_name, email, phone, city, company_name")
+      .eq("id", initialContactId)
+      .eq("company_id", companyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (annullato || !data) return;
+        const nome = `${data.first_name} ${data.last_name || ""}`.trim();
+        setSelectedContactId(data.id);
+        setShowNewContact(false);
+        setContactSearch(nome);
+        setNewContactEmail(data.email || "");
+        setNewContactPhone(data.phone || "");
+        // L'auto-nome guarda i risultati della ricerca, dove questo contatto
+        // non c'è: il nome dell'opportunità va composto qui.
+        setOppName(data.city ? `${nome} - ${data.city}` : nome);
+      });
+    return () => { annullato = true; };
+  }, [open, initialContactId, companyId]);
 
   // Fix: sync stageId when stages load async
   useEffect(() => {
