@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, Loader2 } from "lucide-react";
+import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin } from "lucide-react";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
   entrata: { icon: LogIn, label: "Entrata", color: "text-emerald-600" },
@@ -22,7 +22,10 @@ const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: str
   fine_pausa: { icon: Coffee, label: "Fine Pausa", color: "text-blue-500" },
 };
 
-type CampoTimbraturaRow = Tables<"campo_timbrature"> & {
+// Timbrature dal cantiere che il trigger DB non ha potuto specchiare nel
+// registro HR (l'operaio non ha un profilo HR collegato). Non spariscono in
+// silenzio: restano qui finché l'ufficio non collega la persona.
+type CampoOrfanaRow = Tables<"campo_timbrature"> & {
   profile?: { first_name: string | null; last_name: string | null } | null;
   order?: { order_code: string | null; description: string | null } | null;
 };
@@ -60,10 +63,11 @@ export function TabTimbrature() {
   const { data: timbrature = [], isLoading, isError, error, refetch, isFetching } = useTimbratureAdmin(rangeFrom, rangeTo);
   const { data: liveStatus = [] } = useLiveStatus();
 
-  const { data: timbratureCampo = [], isLoading: loadingCampo, isError: isCampoError, error: campoError, refetch: refetchCampo, isFetching: isFetchingCampo } = useQuery({
-    queryKey: ["campo-timbrature-admin", companyId, rangeFrom, rangeTo],
+  const { data: orfane = [], isLoading: loadingOrfane } = useQuery({
+    queryKey: ["campo-timbrature-orfane", companyId, rangeFrom, rangeTo],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // hr_timbratura_id non è ancora nei types generati: convenzione del repo.
+      const { data, error } = await (supabase as any)
         .from("campo_timbrature")
         .select(`
           *,
@@ -71,25 +75,27 @@ export function TabTimbrature() {
           order:orders(order_code, description)
         `)
         .eq("company_id", companyId)
+        .is("hr_timbratura_id", null)
         .gte("timestamp_evento", `${rangeFrom}T00:00:00`)
         .lte("timestamp_evento", `${rangeTo}T23:59:59`)
         .order("timestamp_evento", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as CampoTimbraturaRow[];
+      return (data ?? []) as CampoOrfanaRow[];
     },
     enabled: !!companyId,
   });
   const timbratureTimedOut = useLoadingTimeout(isLoading);
-  const campoTimedOut = useLoadingTimeout(loadingCampo);
 
   const normalizedFilter = filterName.trim().toLowerCase();
 
   const filtered = (timbrature as TimbraturaAdminRow[]).filter((t) => {
     if (!normalizedFilter) return true;
-    return `${t.profilo_nome} ${t.profilo_cognome}`.toLowerCase().includes(normalizedFilter);
+    const persona = `${t.profilo_nome} ${t.profilo_cognome}`.toLowerCase();
+    const cantiere = `${t.cantiere_codice ?? ""} ${t.cantiere_descrizione ?? ""}`.toLowerCase();
+    return persona.includes(normalizedFilter) || cantiere.includes(normalizedFilter);
   });
 
-  const filteredCampo = timbratureCampo.filter((t) => {
+  const orfaneFiltrate = orfane.filter((t) => {
     if (!normalizedFilter) return true;
     const operaio = `${t.profile?.first_name ?? ""} ${t.profile?.last_name ?? ""}`.toLowerCase();
     const cantiere = `${t.order?.order_code ?? ""} ${t.order?.description ?? ""}`.toLowerCase();
@@ -176,21 +182,22 @@ export function TabTimbrature() {
                 <TableHead>Data/Ora</TableHead>
                 <TableHead>Dipendente</TableHead>
                 <TableHead>Tipo</TableHead>
+                <TableHead className="hidden md:table-cell">Cantiere</TableHead>
                 <TableHead>Fonte</TableHead>
                 <TableHead>GPS</TableHead>
-                <TableHead>Note</TableHead>
+                <TableHead className="hidden lg:table-cell">Note</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && !timbratureTimedOut ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     Caricamento...
                   </TableCell>
                 </TableRow>
               ) : isError || timbratureTimedOut ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                       <AlertCircle className="h-10 w-10 text-amber-500" aria-hidden="true" />
                       <p className="text-sm font-medium text-foreground">Timbrature non caricate</p>
@@ -205,7 +212,7 @@ export function TabTimbrature() {
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                       <Clock className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
                       <p className="text-sm font-medium text-foreground">Nessuna timbratura trovata</p>
@@ -244,6 +251,9 @@ export function TabTimbrature() {
                           {tipoInfo.label}
                         </Badge>
                       </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {t.cantiere_codice ?? "—"}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground capitalize">
                         {t.fonte || "—"}
                       </TableCell>
@@ -254,7 +264,7 @@ export function TabTimbrature() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
                         {t.note || "—"}
                       </TableCell>
                     </TableRow>
@@ -266,79 +276,63 @@ export function TabTimbrature() {
         </CardContent>
       </Card>
 
-      {/* Sezione Timbrature App Campo */}
-      <div className="mt-6">
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-base font-semibold">Timbrature App Campo</h3>
-          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-            {filteredCampo.length} timbrature
-          </Badge>
-        </div>
-        {loadingCampo && !campoTimedOut ? (
-          <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
-        ) : isCampoError || campoTimedOut ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
-            <AlertCircle className="mb-2 h-8 w-8 text-amber-500" aria-hidden="true" />
-            <p className="text-sm font-medium">Timbrature App Campo non caricate</p>
-            <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              {isCampoError ? getErrorMessage(campoError) : "La risposta sta impiegando troppo tempo. Puoi riprovare."}
+      {/* Timbrature dal cantiere rimaste fuori dal registro.
+          Prima qui c'era una seconda tabella con TUTTE le timbrature campo: la
+          stessa timbrata compariva due volte (una per tabella) senza che nulla
+          dicesse che era lo stesso evento. Ora il registro è uno solo e qui
+          resta l'unica cosa che l'ufficio deve davvero sapere: chi timbra senza
+          avere un profilo HR, e quindi non entra nelle ore né nel cedolino. */}
+      {!loadingOrfane && orfaneFiltrate.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-amber-900 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4" />
+              {orfaneFiltrate.length} timbrature senza profilo HR
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+              Queste persone hanno timbrato dall'app di cantiere ma non hanno un profilo HR
+              collegato: le loro ore non entrano nelle presenze né nel cedolino. Creane il
+              profilo in <span className="font-medium">Profili</span> (o collega l'utente al
+              dipendente in anagrafica) e le timbrature successive arriveranno da sole.
             </p>
-            <Button className="mt-3" size="sm" variant="outline" onClick={() => refetchCampo()}>
-              {isFetchingCampo ? "Forza nuovo tentativo" : "Riprova"}
-            </Button>
-          </div>
-        ) : filteredCampo.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">
-            {filterName
-              ? `Nessuna timbratura app campo per "${filterName}" nel periodo selezionato`
-              : "Nessuna timbratura dall'app campo nel periodo selezionato"}
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Operaio</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Orario</TableHead>
-                <TableHead className="hidden md:table-cell">Cantiere</TableHead>
-                <TableHead className="hidden lg:table-cell">GPS</TableHead>
-                <TableHead>Fonte</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCampo.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium text-sm">
-                    {t.profile?.first_name} {t.profile?.last_name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="capitalize text-[11px]">
-                      {t.tipo.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {new Date(t.timestamp_evento).toLocaleString("it-IT", {
-                      day: "2-digit", month: "2-digit", year: "numeric",
-                      hour: "2-digit", minute: "2-digit",
-                    })}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                    {t.order?.order_code ?? "—"}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                    {t.gps_lat != null && t.gps_lng != null ? `${t.gps_lat.toFixed(4)}, ${t.gps_lng.toFixed(4)}` : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">
-                      App Campo
-                    </Badge>
-                  </TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Persona</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Quando</TableHead>
+                  <TableHead className="hidden md:table-cell">Cantiere</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+              </TableHeader>
+              <TableBody>
+                {orfaneFiltrate.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-medium text-sm">
+                      {`${t.profile?.first_name ?? ""} ${t.profile?.last_name ?? ""}`.trim() || "Utente sconosciuto"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize text-[11px]">
+                        {t.tipo.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {new Date(t.timestamp_evento!).toLocaleString("it-IT", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      {t.order?.order_code ?? "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

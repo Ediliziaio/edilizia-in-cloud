@@ -15,12 +15,15 @@ type HrTimbraturaJoined = Tables<"hr_timbrature"> & {
     colore_avatar: string | null;
     mansione: string | null;
   } | null;
+  orders?: { order_code: string | null; description: string | null } | null;
 };
 
 export type TimbraturaAdminRow = HrTimbratura & {
   profilo_nome: string | null;
   profilo_cognome: string | null;
   profilo_colore: string | null;
+  cantiere_codice: string | null;
+  cantiere_descrizione: string | null;
 };
 
 export type LiveStatusProfilo = Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione"> & {
@@ -154,7 +157,7 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("hr_timbrature")
-        .select("*, hr_profili!hr_timbrature_profilo_id_fkey(nome, cognome, colore_avatar, mansione)")
+        .select("*, hr_profili!hr_timbrature_profilo_id_fkey(nome, cognome, colore_avatar, mansione), orders(order_code, description)")
         .eq("company_id", companyId)
         .gte("data_evento", dateFrom)
         .lte("data_evento", dateTo)
@@ -167,6 +170,8 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
         profilo_nome: t.hr_profili?.nome ?? null,
         profilo_cognome: t.hr_profili?.cognome ?? null,
         profilo_colore: t.hr_profili?.colore_avatar ?? null,
+        cantiere_codice: t.orders?.order_code ?? null,
+        cantiere_descrizione: t.orders?.description ?? null,
       })) as TimbraturaAdminRow[];
     },
     enabled: !!companyId,

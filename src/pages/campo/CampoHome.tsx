@@ -20,7 +20,6 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { useGPS } from "@/hooks/useGPS";
 import { useIsCampo } from "@/hooks/useIsCampo";
 // 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
@@ -201,8 +200,6 @@ function TimbraturaCampo() {
   const isUscito = lastTimbro?.tipo === "uscita";
   const nonHaTimbrato = !lastTimbro;
 
-  const { data: hrProfilo } = useMyHrProfilo();
-  const hrProfiloId = hrProfilo?.id ?? null;
 
   // GPS come nella pagina Timbratura dedicata: la posizione si chiede quando il
   // widget monta (non al tap, o l'operaio aspetterebbe il fix col dito a
@@ -269,27 +266,15 @@ function TimbraturaCampo() {
         fonte: "app",
       });
       if (error) throw error;
-
-      // Stessa copia HR della pagina Timbratura: prima il widget Home creava
-      // timbrature "di serie B" che l'ufficio non vedeva nel registro.
-      // data_evento/ora_evento sono GENERATED ALWAYS: mai passarle.
-      if (hrProfiloId) {
-        const { error: hrErr } = await supabase.from("hr_timbrature").insert({
-          company_id: companyId,
-          profilo_id: hrProfiloId,
-          tipo,
-          timestamp: now,
-          lat: gpsReady ? lat : null,
-          lng: gpsReady ? lng : null,
-          fonte: "app",
-          note,
-        });
-        if (hrErr) console.warn("[CampoHome] hr_timbrature sync failed:", hrErr.message);
-      }
+      // Registro HR: ci pensa il trigger DB (vedi CampoTimbratura).
     },
     onSuccess: () => {
       toast.success("Timbratura registrata");
       queryClient.invalidateQueries({ queryKey: ["campo-timbrature-oggi", companyId, user?.id, today] });
+      queryClient.invalidateQueries({ queryKey: ["hr-timbrature"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-my-timbrature-today"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-live-status"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-giornate"] });
     },
     onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
   });

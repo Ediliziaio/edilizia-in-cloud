@@ -72,7 +72,10 @@ Deno.serve(async (req) => {
             .from("campo_timbrature")
             .select("*", { count: "exact", head: true })
             .eq("order_id", cantiere.id)
-            .gte("data", new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+            // La colonna si chiama timestamp_evento: filtrando su "data"
+            // (inesistente) PostgREST rispondeva errore, il count restava null
+            // e il segnale "presenze basse" non è mai scattato.
+            .gte("timestamp_evento", new Date(Date.now() - 7 * 86400000).toISOString());
           if (presenze7d !== null && presenze7d < 5) {
             causes.push("sotto_organico");
             factors.push({

@@ -15,7 +15,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
-import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -43,8 +42,6 @@ export default function CampoTimbratura() {
   const fallbackOrderAddress = searchParams.get("order_address");
   const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
   // Profilo HR — usato per sincronizzare la timbratura anche in hr_timbrature
-  const { data: hrProfilo } = useMyHrProfilo();
-  const profiloId = hrProfilo?.id ?? null;
 
   // Request GPS on mount — requestPosition è useCallback con dep [companyId].
   // Depend solo su companyId per evitare ri-chiamate a ogni re-render.
@@ -187,30 +184,10 @@ export default function CampoTimbratura() {
         fonte: "app",
       });
       if (error) throw error;
-
-      // Sincronizzazione NON BLOCCANTE con hr_timbrature (se l'operaio ha un
-      // profilo HR). data_evento/ora_evento sono GENERATED ALWAYS nel DB: NON
-      // vanno passate (Postgres rifiuta l'insert). E il client Supabase non
-      // lancia: l'errore va letto da { error }, il try/catch da solo non
-      // intercettava nulla e la sync falliva in silenzio da sempre.
-      if (profiloId && companyId) {
-        const { error: hrErr } = await supabase.from("hr_timbrature").insert({
-          company_id: companyId,
-          profilo_id: profiloId,
-          tipo,
-          timestamp: now,
-          lat: gpsReady ? lat : null,
-          lng: gpsReady ? lng : null,
-          fonte: "app",
-          note,
-        });
-        if (hrErr) {
-          console.warn("[CampoTimbratura] hr_timbrature sync failed:", hrErr.message);
-          toast.warning("Timbratura registrata", {
-            description: "La copia sul registro HR non è riuscita: l'ufficio potrebbe non vederla subito.",
-          });
-        }
-      }
+      // La copia sul registro HR la fa il trigger DB trg_mirror_campo_timbratura,
+      // dentro questa stessa transazione: prima erano due insert separati che
+      // potevano lasciare la timbratura fuori dal registro (e quindi fuori dalle
+      // ore del cedolino) senza che nessuno se ne accorgesse.
     },
     onSuccess: (_, tipo) => {
       const labels: Record<TipoTimbratura, string> = {
@@ -222,6 +199,12 @@ export default function CampoTimbratura() {
       toast.success(labels[tipo]);
       qc.invalidateQueries({ queryKey: ["campo-timbrature-oggi"] });
       qc.invalidateQueries({ queryKey: ["campo-timbrature-storico"] });
+      // La timbratura è appena entrata anche nel registro HR: le viste
+      // dell'ufficio e le presenze devono rileggerle, non restare indietro.
+      qc.invalidateQueries({ queryKey: ["hr-timbrature"] });
+      qc.invalidateQueries({ queryKey: ["hr-my-timbrature-today"] });
+      qc.invalidateQueries({ queryKey: ["hr-live-status"] });
+      qc.invalidateQueries({ queryKey: ["hr-giornate"] });
     },
     onError: () => toast.error("Errore durante la timbratura"),
   });
