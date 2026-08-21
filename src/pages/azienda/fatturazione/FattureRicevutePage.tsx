@@ -82,10 +82,9 @@ interface FatturaRicevuta {
   imponibile_totale: number | null;
   iva_totale: number | null;
   totale_documento: number | null;
-  righe: Record<string, unknown>[];
-  riepilogo_iva: Record<string, unknown>[];
-  xml_raw: string | null;
   xml_url: string | null;
+  /** Costo generato contabilizzando: c'è = la fattura è nei conti. */
+  company_cost_id: string | null;
   stato: "non_letta" | "letta" | "contabilizzata" | "rifiutata";
   note: string | null;
   created_at: string;
@@ -146,9 +145,15 @@ export default function FattureRicevutePage() {
     queryKey: ["fatture-ricevute", companyId],
     enabled: !!companyId,
     queryFn: async () => {
+      // NIENTE select("*"): portava dentro xml_raw (l'XML INTERO, decine di KB
+      // per fattura) più righe e riepilogo_iva, per disegnare una tabella che
+      // non li usa. Con qualche centinaio di fatture erano decine di MB a ogni
+      // apertura. L'XML si carica quando lo si chiede davvero.
       const { data, error } = await supabase
         .from("fatture_ricevute" as never)
-        .select("*")
+        .select(
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id" as never,
+        )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
 
@@ -254,6 +259,31 @@ export default function FattureRicevutePage() {
       toast.success("Stato aggiornato");
     },
     onError: (e) => toast.error(`Errore: ${e.message}`),
+  });
+
+  // Contabilizzare = generare il COSTO, non cambiare un'etichetta. La RPC
+  // crea il costo dalla fattura oppure corregge quello già nato dalla
+  // ricezione dell'ODA collegato, senza mai contarlo due volte.
+  const contabilizzaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await (supabase as any).rpc("contabilizza_fattura_ricevuta", { p_fattura_id: id });
+      if (error) throw error;
+      return data as { esito: string; imponibile: number; fornitore_riconosciuto: boolean };
+    },
+    onSuccess: (esito, _id) => {
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
+      const dettaglio = esito.esito === "costo_aggiornato"
+        ? `Il costo dell'ordine collegato è stato corretto con l'importo della fattura (${formatCurrency(esito.imponibile)} imponibile).`
+        : `Creato il costo di ${formatCurrency(esito.imponibile)} imponibile${esito.fornitore_riconosciuto ? "" : " (fornitore non in anagrafica: aggiungilo per vederlo nei report fornitore)"}.`;
+      toast.success(
+        esito.esito === "gia_contabilizzata" ? "Fattura già contabilizzata" : "Fattura contabilizzata",
+        { description: esito.esito === "gia_contabilizzata" ? "Nessun costo duplicato." : dettaglio },
+      );
+      setContabilizzaFattura(null);
+    },
+    onError: (e) => toast.error("Contabilizzazione non riuscita", { description: e.message }),
   });
 
   // Collega/scollega l'ordine d'acquisto. Lo scollegamento e' reversibile in
@@ -369,13 +399,30 @@ export default function FattureRicevutePage() {
 
   // ─── Mark as read on view ──────────────────────────────
 
-  const handleViewXml = (f: FatturaRicevuta) => {
-    if (f.xml_raw) {
-      setXmlPreview(f.xml_raw);
-    }
+  // L'XML si va a prendere adesso, per QUESTA fattura: è il pezzo pesante e
+  // serve solo quando lo si guarda.
+  const handleViewXml = async (f: FatturaRicevuta) => {
     if (f.stato === "non_letta") {
       updateStatoMutation.mutate({ id: f.id, stato: "letta" });
     }
+    const { data, error } = await supabase
+      .from("fatture_ricevute" as never)
+      .select("xml_raw" as never)
+      .eq("id", f.id)
+      .eq("company_id", companyId!)
+      .maybeSingle();
+    const xml = (data as { xml_raw: string | null } | null)?.xml_raw ?? null;
+    if (error) {
+      toast.error("Impossibile leggere l'XML", { description: error.message });
+      return;
+    }
+    if (!xml) {
+      toast.info("Nessun XML per questa fattura", {
+        description: "Arriva dal gestionale, che espone i dati ma non il file originale.",
+      });
+      return;
+    }
+    setXmlPreview(xml);
   };
 
   // ─── Render ─────────────────────────────────────────────
@@ -668,16 +715,14 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {f.xml_raw && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Anteprima XML"
-                          onClick={() => handleViewXml(f)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Anteprima XML"
+                        onClick={() => void handleViewXml(f)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       {f.xml_url && (
                         <Button
                           variant="ghost"
@@ -739,7 +784,11 @@ export default function FattureRicevutePage() {
             <AlertDialogTitle>Contabilizza fattura ricevuta</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>Confermi la contabilizzazione di questa fattura passiva?</p>
+                <p>
+                  {contabilizzaFattura?.purchase_order_id
+                    ? "La fattura è collegata a un ordine: l'importo del costo già registrato alla ricezione verrà corretto con quello della fattura (nessun costo doppio)."
+                    : "Verrà creato il costo corrispondente, con imponibile e IVA della fattura, visibile in Costi e nel Previsionale."}
+                </p>
                 {contabilizzaFattura && (
                   <div className="bg-muted rounded-md p-3 text-sm space-y-1">
                     <div className="flex justify-between">
@@ -763,20 +812,12 @@ export default function FattureRicevutePage() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-green-600 hover:bg-green-700"
-              onClick={() => {
-                if (contabilizzaFattura) {
-                  updateStatoMutation.mutate(
-                    { id: contabilizzaFattura.id, stato: "contabilizzata" },
-                    {
-                      onSuccess: () => {
-                        toast.success("Fattura contabilizzata", {
-                          description: `${contabilizzaFattura.cedente_ragione_sociale} — ${formatCurrency(contabilizzaFattura.totale_documento)}`,
-                        });
-                        setContabilizzaFattura(null);
-                      },
-                    }
-                  );
-                }
+              disabled={contabilizzaMutation.isPending}
+              onClick={(e) => {
+                // Il dialog non si chiude da solo: se la RPC rifiuta (fattura
+                // senza importi) l'errore va letto, non fatto sparire.
+                e.preventDefault();
+                if (contabilizzaFattura) contabilizzaMutation.mutate(contabilizzaFattura.id);
               }}
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />

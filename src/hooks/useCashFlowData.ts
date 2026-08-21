@@ -102,8 +102,28 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     gcTime: 15 * 60 * 1000,
   });
 
+  // Articoli il cui acquisto è GIÀ un costo (ODA ricevuto o fattura del
+  // fornitore contabilizzata): vanno esclusi dalle uscite stimate, altrimenti
+  // lo stesso euro pesa due volte sulla cassa prevista — una come articolo da
+  // pagare e una come costo da pagare.
+  const { data: articoliGiaACosto = [] } = useQuery({
+    queryKey: ["articoli-gia-a-costo", companyId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("v_articoli_gia_a_costo")
+        .select("order_item_id")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return ((data ?? []) as Array<{ order_item_id: string }>).map((r) => r.order_item_id);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+  const idsGiaACosto = useMemo(() => new Set(articoliGiaACosto), [articoliGiaACosto]);
+
   // Query articoli da ordinare/ordinati
-  const { data: pendingItems = [], isLoading: loadingItems, isError: errItems } = useQuery({
+  const { data: pendingItemsRaw = [], isLoading: loadingItems, isError: errItems } = useQuery({
     queryKey: queryKeys.cashflow.pendingItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -124,6 +144,11 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+
+  const pendingItems = useMemo(
+    () => (pendingItemsRaw as Array<{ id: string }>).filter((i) => !idsGiaACosto.has(i.id)),
+    [pendingItemsRaw, idsGiaACosto],
+  );
 
   // Query supplier payment tracking (installments from order_items)
   const { data: supplierBalances = [], isLoading: loadingSupplierBalances, isError: errSupplierBalances } = useQuery({
