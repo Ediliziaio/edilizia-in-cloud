@@ -85,6 +85,8 @@ interface FatturaRicevuta {
   xml_url: string | null;
   /** Costo generato contabilizzando: c'è = la fattura è nei conti. */
   company_cost_id: string | null;
+  /** true = l'aggancio all'ordine l'ha deciso una persona, non l'automatismo. */
+  aggancio_oda_manuale: boolean;
   stato: "non_letta" | "letta" | "contabilizzata" | "rifiutata";
   note: string | null;
   created_at: string;
@@ -152,7 +154,7 @@ export default function FattureRicevutePage() {
       const { data, error } = await supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
@@ -261,6 +263,28 @@ export default function FattureRicevutePage() {
     onError: (e) => toast.error(`Errore: ${e.message}`),
   });
 
+  // La decisione umana non è una porta a senso unico: si può restituire la
+  // fattura all'aggancio automatico, che riproverà al prossimo aggiornamento.
+  const riattivaAutomaticoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from("fatture_ricevute" as never)
+        .update({ aggancio_oda_manuale: false, updated_at: new Date().toISOString() } as never)
+        .eq("id", id)
+        .eq("company_id", companyId!)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Fattura non aggiornata: non appartiene a questa azienda");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      toast.success("Aggancio automatico riattivato", {
+        description: "Al prossimo aggiornamento degli importi il sistema riproverà a trovare l'ordine.",
+      });
+    },
+    onError: (e) => toast.error("Non riuscito", { description: e.message }),
+  });
+
   // Contabilizzare = generare il COSTO, non cambiare un'etichetta. La RPC
   // crea il costo dalla fattura oppure corregge quello già nato dalla
   // ricezione dell'ODA collegato, senza mai contarlo due volte.
@@ -291,9 +315,13 @@ export default function FattureRicevutePage() {
   // da solo (scatta solo su insert/update degli importi), la scelta resta.
   const linkOdaMutation = useMutation({
     mutationFn: async ({ id, odaId }: { id: string; odaId: string | null }) => {
+      // aggancio_oda_manuale: da qui in poi l'automatismo non tocca più questa
+      // riga. Senza, scollegare un aggancio sbagliato non serviva a niente: al
+      // primo aggiornamento degli importi il trigger la riagganciava allo
+      // stesso ordine, smentendo la persona in silenzio.
       const { data, error } = await supabase
         .from("fatture_ricevute" as never)
-        .update({ purchase_order_id: odaId, updated_at: new Date().toISOString() } as never)
+        .update({ purchase_order_id: odaId, aggancio_oda_manuale: true, updated_at: new Date().toISOString() } as never)
         .eq("id", id)
         .eq("company_id", companyId!)
         .select("id");
@@ -711,6 +739,20 @@ export default function FattureRicevutePage() {
                         <Link2 className="h-3.5 w-3.5 mr-1" />
                         Collega
                       </Button>
+                    )}
+                    {/* Chi ha deciso l'aggancio si vede, e si può tornare
+                        indietro: senza questo, "scollegata a mano" era uno
+                        stato invisibile che spiegava perché il sistema non
+                        riagganciava più. */}
+                    {f.aggancio_oda_manuale && (
+                      <button
+                        type="button"
+                        className="mt-1 block text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                        title="Il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela."
+                        onClick={() => riattivaAutomaticoMutation.mutate(f.id)}
+                      >
+                        scelto a mano · riattiva automatico
+                      </button>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
