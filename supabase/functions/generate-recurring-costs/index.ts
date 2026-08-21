@@ -69,20 +69,19 @@ Deno.serve(async (req) => {
       const baseDate = new Date(cost.due_date);
       const recurrence = cost.recurrence;
       const maxLookahead = 3;
+      const horizon = new Date(now.getFullYear(), now.getMonth() + maxLookahead, 0);
 
-      let nextDate = new Date(baseDate);
+      // Giorno ANCORA dal costo base, clampato all'ultimo giorno di ogni mese:
+      // prima "31 gennaio + 1 mese" rollava al 3 marzo e da lì in poi tutte le
+      // occorrenze cadevano il 3 — un'utenza di fine mese si sfasava per sempre.
+      const anchorDay = baseDate.getDate();
+      const stepMonths = recurrence === "monthly" ? 1 : recurrence === "quarterly" ? 3 : recurrence === "yearly" ? 12 : 0;
+      if (stepMonths === 0) continue;
 
-      while (nextDate <= new Date(now.getFullYear(), now.getMonth() + maxLookahead, 0)) {
-        if (recurrence === "monthly") {
-          nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, nextDate.getDate());
-        } else if (recurrence === "quarterly") {
-          nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 3, nextDate.getDate());
-        } else if (recurrence === "yearly") {
-          nextDate = new Date(nextDate.getFullYear() + 1, nextDate.getMonth(), nextDate.getDate());
-        } else {
-          break;
-        }
-
+      for (let k = stepMonths; ; k += stepMonths) {
+        const lastDay = new Date(baseDate.getFullYear(), baseDate.getMonth() + k + 1, 0).getDate();
+        const nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + k, Math.min(anchorDay, lastDay));
+        if (nextDate > horizon) break;
         if (cost.recurrence_end_date && nextDate > new Date(cost.recurrence_end_date)) break;
         if (nextDate < new Date(now.getFullYear(), now.getMonth(), 1)) continue;
 
@@ -99,6 +98,14 @@ Deno.serve(async (req) => {
           notes: cost.notes,
           supplier_id: cost.supplier_id,
           vat_rate: cost.vat_rate,
+          // L'occorrenza porta con sé TUTTO il contesto del costo base:
+          // prima perdeva commessa, riparto, sede e categoria di tesoreria —
+          // ogni mese generato si staccava dal cantiere.
+          order_id: cost.order_id ?? null,
+          allocations: cost.allocations ?? null,
+          sede_id: cost.sede_id ?? null,
+          treasury_category_id: cost.treasury_category_id ?? null,
+          payment_method: cost.payment_method ?? null,
           recurrence_auto: false,
         });
       }
@@ -117,10 +124,13 @@ Deno.serve(async (req) => {
       createdCount = inserted?.length ?? 0;
     }
 
-    // Alert: check for overdue recurring costs (>7 days late, unpaid)
+    // Alert: check for overdue recurring costs (>7 days late, unpaid).
+    // Scoped all'azienda chiamante: prima leggeva TUTTE le aziende col
+    // service-role, per un console.log.
     const { data: overdueWarnings } = await supabase
       .from("company_costs")
       .select("id, name, amount, due_date, company_id")
+      .eq("company_id", companyId)
       .eq("is_paid", false)
       .lt("due_date", format(subDays(new Date(), 7), "yyyy-MM-dd"))
       .eq("recurrence", "monthly");

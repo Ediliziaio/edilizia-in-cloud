@@ -145,5 +145,149 @@ Deno.serve(async (req) => {
     }
   }
   console.log(`[bank-eb-cron] done accounts=${accountsDone} imported=${imported} expired=${expired}`);
-  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired, txErrors: txErrors.slice(0, 8) }), { headers: { "Content-Type": "application/json" } });
+
+  // ── Motore bank_alert_rules ────────────────────────────────────────────────
+  // La UI per configurare gli avvisi esiste da mesi; il motore che li fa
+  // scattare no: le regole si salvavano e non succedeva mai niente.
+  // Gira qui, a dati appena sincronizzati. Notifica in-app agli admin
+  // dell'azienda, con dedup 24h per regola (niente campanella-spam).
+  let alertsFired = 0;
+  try {
+    const { data: rules } = await admin
+      .from("bank_alert_rules")
+      .select("id, company_id, rule_type, threshold, days_threshold, notify_inapp, is_active")
+      .eq("is_active", true)
+      .limit(2000);
+
+    const byCompany = new Map<string, any[]>();
+    for (const r of rules || []) {
+      if (!r.notify_inapp) continue; // email non ancora supportata: onesti, non finti
+      const arr = byCompany.get(r.company_id) ?? [];
+      arr.push(r);
+      byCompany.set(r.company_id, arr);
+    }
+
+    for (const [cId, companyRules] of byCompany) {
+      // Un solo giro di dati per azienda
+      const { data: accounts } = await admin
+        .from("bank_accounts").select("current_balance")
+        .eq("company_id", cId).eq("is_active", true);
+      const saldo = (accounts || []).reduce((s: number, a: any) => s + (Number(a.current_balance) || 0), 0);
+
+      const fired: { rule: any; title: string; body: string }[] = [];
+      for (const rule of companyRules) {
+        if (rule.rule_type === "balance_below") {
+          if (saldo < Number(rule.threshold || 0)) {
+            fired.push({
+              rule,
+              title: "Saldo banca sotto soglia",
+              body: `Liquidità totale ${saldo.toFixed(2)} € — soglia impostata ${Number(rule.threshold).toFixed(2)} €.`,
+            });
+          }
+        } else if (rule.rule_type === "large_debit") {
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const { data: bigTxs } = await admin
+            .from("bank_transactions")
+            .select("id, amount, description")
+            .eq("company_id", cId)
+            .lt("amount", -Math.abs(Number(rule.threshold || 0)))
+            .gte("booking_date", since)
+            .limit(20);
+          if (bigTxs && bigTxs.length > 0) {
+            const tot = bigTxs.reduce((s: number, t: any) => s + Math.abs(Number(t.amount)), 0);
+            fired.push({
+              rule,
+              title: `${bigTxs.length} addebiti sopra ${Number(rule.threshold).toFixed(0)} €`,
+              body: `Nelle ultime 24h: ${tot.toFixed(2)} € in uscite oltre soglia. Controlla la Tesoreria.`,
+            });
+          }
+        } else if (rule.rule_type === "unreconciled_days") {
+          const days = Number(rule.days_threshold || 7);
+          const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const { count } = await admin
+            .from("bank_transactions")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", cId)
+            .eq("transaction_type", "credit")
+            .is("linked_invoice_id", null)
+            .is("linked_installment_id", null)
+            .is("linked_scadenza_id", null)
+            .lte("booking_date", cutoff)
+            .not("category", "ilike", "%giroconto%");
+          if ((count ?? 0) > 0) {
+            fired.push({
+              rule,
+              title: `${count} incassi non riconciliati da oltre ${days} giorni`,
+              body: "Apri Tesoreria → Riconciliazione per abbinarli alle fatture.",
+            });
+          }
+        } else if (rule.rule_type === "connection_expiring") {
+          const days = Number(rule.days_threshold || 15);
+          const limitDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+          const { data: expiring } = await admin
+            .from("bank_connections")
+            .select("id, institution_name, expires_at")
+            .eq("company_id", cId)
+            .eq("status", "active")
+            .not("expires_at", "is", null)
+            .lte("expires_at", limitDate)
+            .limit(10);
+          if (expiring && expiring.length > 0) {
+            const nomi = expiring.map((c: any) => c.institution_name).filter(Boolean).join(", ");
+            fired.push({
+              rule,
+              title: "Connessione bancaria in scadenza",
+              body: `${nomi || "Una connessione"} scade entro ${days} giorni: rinnovala per non perdere i movimenti.`,
+            });
+          }
+        }
+      }
+
+      if (fired.length === 0) continue;
+
+      // Admin dell'azienda + dedup: stessa regola al massimo una volta al giorno.
+      // Due query: profiles e user_roles puntano entrambe ad auth.users, non
+      // c'è FK diretta tra loro — l'embed PostgREST qui non esiste.
+      const { data: companyProfiles } = await admin
+        .from("profiles").select("id").eq("company_id", cId).limit(200);
+      const profileIds = (companyProfiles || []).map((p: any) => p.id);
+      if (profileIds.length === 0) continue;
+      const { data: adminRoles } = await admin
+        .from("user_roles").select("user_id")
+        .eq("role", "company_admin").in("user_id", profileIds).limit(20);
+      const admins = (adminRoles || []).map((r: any) => ({ id: r.user_id }));
+      if (admins.length === 0) continue;
+
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recenti } = await admin
+        .from("notifications")
+        .select("entity_id")
+        .eq("company_id", cId)
+        .eq("entity_type", "bank_alert_rule")
+        .gte("created_at", dayAgo);
+      const giaNotificate = new Set((recenti || []).map((n: any) => n.entity_id));
+
+      for (const f of fired) {
+        if (giaNotificate.has(f.rule.id)) continue;
+        const rows = admins.map((a: any) => ({
+          company_id: cId,
+          user_id: a.id,
+          type: "bank_alert",
+          title: f.title,
+          body: f.body,
+          entity_type: "bank_alert_rule",
+          entity_id: f.rule.id,
+          action_url: "/azienda/tesoreria",
+        }));
+        const { error: nErr } = await admin.from("notifications").insert(rows);
+        if (nErr) console.error("[bank-eb-cron] alert insert failed:", nErr.message);
+        else alertsFired++;
+      }
+    }
+  } catch (alertErr) {
+    console.error("[bank-eb-cron] alert engine error:", alertErr instanceof Error ? alertErr.message : String(alertErr));
+  }
+  if (alertsFired > 0) console.log(`[bank-eb-cron] alert scattati: ${alertsFired}`);
+
+  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired, alertsFired, txErrors: txErrors.slice(0, 8) }), { headers: { "Content-Type": "application/json" } });
 });

@@ -64,6 +64,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // Unlink dialog
   const [unlinkTarget, setUnlinkTarget] = useState<any>(null);
   const [unlinking, setUnlinking] = useState(false);
+  // Uscite → scadenze fornitori (riconciliazione manuale degli addebiti)
+  const [debitTxs, setDebitTxs] = useState<any[]>([]);
+  const [scadenze, setScadenze] = useState<any[]>([]);
+  const [selectedDebit, setSelectedDebit] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     if (!companyId) {
@@ -76,7 +80,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
     setLoading(true);
     try {
-      const [txRes, invRes, recRes] = await Promise.all([
+      const [txRes, invRes, recRes, debRes, scadRes] = await Promise.all([
         supabase
           .from("bank_transactions")
           .select("*, bank_accounts(display_name, account_name)")
@@ -98,16 +102,39 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .limit(1000),
         supabase
           .from("bank_reconciliations")
-          .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total)")
+          .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total), scadenze:scadenza_id(id, description, amount, suppliers(name))")
           .eq("company_id", companyId)
           .is("unmatched_at", null)
           .order("matched_at", { ascending: false })
+          .limit(1000),
+        // Addebiti LIBERI: il ramo uscite prima esisteva solo nell'auto-match.
+        (supabase as any)
+          .from("bank_transactions")
+          .select("*, bank_accounts(display_name, account_name)")
+          .eq("company_id", companyId)
+          .eq("transaction_type", "debit")
+          .is("linked_scadenza_id", null)
+          .is("linked_cost_id", null)
+          .is("linked_invoice_id", null)
+          .order("booking_date", { ascending: false })
+          .limit(1000),
+        supabase
+          .from("scadenze")
+          .select("id, description, amount, paid_amount, due_date, supplier_id, suppliers(name)")
+          .eq("company_id", companyId)
+          .eq("direction", "uscita")
+          .in("status", ["da_pagare", "parziale"])
+          .order("due_date", { ascending: true })
           .limit(1000),
       ]);
       if (txRes.error) throw txRes.error;
       if (invRes.error) throw invRes.error;
       if (recRes.error) throw recRes.error;
+      if (debRes.error) throw debRes.error;
+      if (scadRes.error) throw scadRes.error;
       setTransactions(txRes.data || []);
+      setDebitTxs((debRes.data || []).filter((t: any) => !(/giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || "")))));
+      setScadenze(scadRes.data || []);
       // (i giroconti interni restano nei dati: vengono separati a valle,
       // così KPI e anomalie parlano solo di incassi veri)
       setInvoices(invRes.data || []);
@@ -244,6 +271,68 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // Auto-match server-side (edge bank-auto-reconcile): incassi→fatture e
   // uscite→scadenze, con scoring importo/IBAN/nome. Auto solo score≥80; i match
   // a media confidenza diventano proposte AI da confermare in chat.
+  // Uscita → scadenza fornitore, manuale. Stessa disciplina dell'edge:
+  // prima il registro (senza, niente pagamento), claim atomico sul movimento
+  // (due tab non possono consumare lo stesso addebito), poi la scadenza.
+  async function confirmScadenzaMatch(tx: any, sc: any) {
+    if (matching) return;
+    setMatching(true);
+    try {
+      const residuo = Number(sc.amount || 0) - Number(sc.paid_amount || 0);
+      const matchedAmount = Math.min(Math.abs(tx.amount), residuo);
+      if (matchedAmount <= 0) {
+        toast.error("La scadenza risulta già saldata.");
+        return;
+      }
+
+      const { data: recRow, error: recErr } = await supabase.from("bank_reconciliations").insert({
+        company_id: companyId,
+        transaction_id: tx.id,
+        scadenza_id: sc.id,
+        matched_amount: matchedAmount,
+        match_type: "manual",
+        matched_by: user?.id ?? null,
+        matched_at: new Date().toISOString(),
+        notes: matchNote.trim() || null,
+      } as any).select("id").single();
+      if (recErr || !recRow?.id) throw recErr || new Error("registro non scritto");
+
+      const claimRes = await (supabase as any).from("bank_transactions")
+        .update({ linked_scadenza_id: sc.id, reconciliation_status: "reconciled", reconciled_at: new Date().toISOString() })
+        .eq("id", tx.id).eq("company_id", companyId)
+        .is("linked_scadenza_id", null)
+        .select("id");
+      if (claimRes.error || !claimRes.data || claimRes.data.length === 0) {
+        await supabase.from("bank_reconciliations").delete().eq("id", recRow.id);
+        throw claimRes.error || new Error("Movimento già abbinato da un'altra sessione");
+      }
+
+      const newPaid = Number(sc.paid_amount || 0) + matchedAmount;
+      const scRes = await supabase.from("scadenze").update({
+        paid_amount: newPaid,
+        status: newPaid >= Number(sc.amount || 0) ? "pagata" : "parziale",
+        paid_date: tx.booking_date ?? new Date().toLocaleDateString("en-CA"),
+      }).eq("id", sc.id).eq("company_id", companyId);
+      if (scRes.error) {
+        await (supabase as any).from("bank_transactions")
+          .update({ linked_scadenza_id: null, reconciliation_status: "pending", reconciled_at: null })
+          .eq("id", tx.id).eq("company_id", companyId);
+        await supabase.from("bank_reconciliations").delete().eq("id", recRow.id);
+        throw scRes.error;
+      }
+
+      toast.success(`Uscita riconciliata: ${fmtEur(matchedAmount)} su "${sc.description || "scadenza"}"`);
+      setSelectedDebit(null);
+      setMatchNote("");
+      loadData();
+    } catch (e: any) {
+      console.error("[BankReconciliation] Errore riconciliazione uscita:", e?.message);
+      toast.error(e?.message || "Errore durante la riconciliazione. Nessuna modifica salvata.");
+    } finally {
+      setMatching(false);
+    }
+  }
+
   async function runAutoMatch() {
     if (autoMatching) return;
     setAutoMatching(true);
@@ -270,6 +359,46 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       const rec = unlinkTarget;
       const txId = typeof rec.bank_transactions === "object" ? rec.bank_transactions?.id : rec.transaction_id;
       const invId = typeof rec.invoices === "object" ? rec.invoices?.id : rec.invoice_id;
+
+      // ── Riconciliazione a SCADENZA (uscita): storno dedicato ──────────────
+      // Prima le scadenze auto-matchate non si potevano scollegare da UI.
+      if (!invId && rec.scadenza_id) {
+        const { data: sc, error: scFetchErr } = await supabase
+          .from("scadenze").select("paid_amount, amount").eq("id", rec.scadenza_id).single();
+        if (scFetchErr) {
+          toast.error("Impossibile recuperare la scadenza. Riprova.");
+          setUnlinking(false);
+          return;
+        }
+        const newScPaid = Math.max(0, Number(sc?.paid_amount || 0) - Number(rec.matched_amount || 0));
+        const unlinkRes = await (supabase as any).from("bank_transactions")
+          .update({ linked_scadenza_id: null, reconciliation_status: "pending", reconciled_at: null })
+          .eq("id", txId).eq("company_id", companyId);
+        if (unlinkRes.error) throw unlinkRes.error;
+        const recRes = await supabase.from("bank_reconciliations")
+          .update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id);
+        if (recRes.error) {
+          await (supabase as any).from("bank_transactions")
+            .update({ linked_scadenza_id: rec.scadenza_id, reconciliation_status: "reconciled" })
+            .eq("id", txId).eq("company_id", companyId);
+          throw recRes.error;
+        }
+        const scRes = await supabase.from("scadenze")
+          .update({ paid_amount: newScPaid, status: newScPaid > 0 ? "parziale" : "da_pagare", paid_date: null })
+          .eq("id", rec.scadenza_id).eq("company_id", companyId);
+        if (scRes.error) {
+          await (supabase as any).from("bank_transactions")
+            .update({ linked_scadenza_id: rec.scadenza_id, reconciliation_status: "reconciled" })
+            .eq("id", txId).eq("company_id", companyId);
+          await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
+          throw scRes.error;
+        }
+        toast.success("Riconciliazione rimossa");
+        setUnlinkTarget(null);
+        loadData();
+        setUnlinking(false);
+        return;
+      }
 
       // Get current invoice to recompute paid_amount
       const { data: inv, error: invFetchErr } = await supabase.from("invoices").select("paid_amount, total, status").eq("id", invId).single();
@@ -726,6 +855,45 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         </Card>
       </div>
 
+      {/* Uscite → scadenze fornitori (riconciliazione manuale) */}
+      {(debitTxs.length > 0 || scadenze.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Banknote className="h-4 w-4 rotate-180" /> Uscite da riconciliare
+              <span className="text-xs font-normal text-muted-foreground">
+                {debitTxs.length} addebiti liberi · {scadenze.length} scadenze fornitori aperte
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-[380px] overflow-y-auto space-y-2">
+            {debitTxs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Nessun addebito libero: tutte le uscite sono già abbinate.
+              </p>
+            ) : (
+              debitTxs.map((tx) => (
+                <div
+                  key={tx.id}
+                  onClick={() => { setSelectedDebit(tx); setMatchNote(""); }}
+                  className="border rounded-lg p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{tx.description || "—"}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {tx.creditor_name || tx.merchant_name || "—"} · {formatDateIt(tx.booking_date)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-red-600 ml-2">−{fmtEur(Math.abs(tx.amount))}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent reconciliations */}
       {reconciliations.length > 0 && (
         <Card>
@@ -755,13 +923,16 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
               {reconciliations.map((rec) => {
                 const tx = rec.bank_transactions as any;
                 const inv = rec.invoices as any;
+                const scad = (rec as any).scadenze as any;
                 return (
                   <div key={rec.id} className="flex items-center gap-3 border rounded-lg p-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 text-sm">
                         <span className="font-medium truncate">{tx?.description || "Transazione"}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className="font-medium">{inv?.invoice_number || "Fattura"}</span>
+                        <span className="font-medium truncate">
+                          {inv?.invoice_number || (scad ? `${scad.suppliers?.name ? scad.suppliers.name + " — " : ""}${scad.description || "Scadenza"}` : "Documento")}
+                        </span>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {fmtEur(Number(rec.matched_amount))} ·{" "}
@@ -781,6 +952,74 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           </CardContent>
         </Card>
       )}
+
+      {/* Debit → Scadenza Dialog */}
+      <Dialog open={!!selectedDebit} onOpenChange={() => setSelectedDebit(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Riconcilia uscita</DialogTitle>
+            <DialogDescription>Abbina l'addebito a una scadenza fornitore aperta.</DialogDescription>
+          </DialogHeader>
+          {selectedDebit && (
+            <div className="space-y-3">
+              <div className="border rounded-lg p-3 bg-muted/40">
+                <p className="font-medium">{selectedDebit.description || "—"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedDebit.creditor_name || selectedDebit.merchant_name || ""} · {formatDateIt(selectedDebit.booking_date)}
+                </p>
+                <p className="font-bold text-red-600 mt-1">−{fmtEur(Math.abs(selectedDebit.amount))}</p>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto space-y-2">
+                {scadenze.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nessuna scadenza fornitore aperta.</p>
+                ) : (
+                  [...scadenze]
+                    // Prima le scadenze con residuo più vicino all'importo dell'addebito
+                    .sort((a, b) => {
+                      const target = Math.abs(selectedDebit.amount);
+                      const ra = Math.abs((Number(a.amount || 0) - Number(a.paid_amount || 0)) - target);
+                      const rb = Math.abs((Number(b.amount || 0) - Number(b.paid_amount || 0)) - target);
+                      return ra - rb;
+                    })
+                    .slice(0, 30)
+                    .map((sc) => {
+                      const residuo = Number(sc.amount || 0) - Number(sc.paid_amount || 0);
+                      const compatibile = Math.abs(residuo - Math.abs(selectedDebit.amount)) < 0.01;
+                      return (
+                        <button
+                          key={sc.id}
+                          type="button"
+                          disabled={matching}
+                          onClick={() => confirmScadenzaMatch(selectedDebit, sc)}
+                          className={cn(
+                            "w-full border rounded-lg p-3 text-left transition-colors hover:bg-accent/50",
+                            compatibile && "border-emerald-300 bg-emerald-50/60",
+                          )}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{(sc as any).suppliers?.name || "Fornitore"}</p>
+                              <p className="text-xs text-muted-foreground truncate">{sc.description || "—"} · scad. {formatDateIt(sc.due_date)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold">{fmtEur(residuo)}</p>
+                              {compatibile && <p className="text-[10px] text-emerald-700">importo esatto</p>}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                )}
+              </div>
+              {matching && (
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Riconciliazione in corso…
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Match Dialog */}
       <Dialog open={!!selectedTx} onOpenChange={() => setSelectedTx(null)}>

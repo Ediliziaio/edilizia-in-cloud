@@ -1054,19 +1054,18 @@ Deno.serve(async (req) => {
 
             const baseDate = new Date(cost.due_date);
             const maxLookahead = 3;
-            let nextDate = new Date(baseDate);
+            const horizon = new Date(rcNow.getFullYear(), rcNow.getMonth() + maxLookahead, 0);
 
-            while (nextDate <= new Date(rcNow.getFullYear(), rcNow.getMonth() + maxLookahead, 0)) {
-              if (cost.recurrence === "monthly") {
-                nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, nextDate.getDate());
-              } else if (cost.recurrence === "quarterly") {
-                nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 3, nextDate.getDate());
-              } else if (cost.recurrence === "yearly") {
-                nextDate = new Date(nextDate.getFullYear() + 1, nextDate.getMonth(), nextDate.getDate());
-              } else {
-                break;
-              }
+            // Giorno ANCORA clampato a fine mese (v. generate-recurring-costs:
+            // "31 gennaio + 1 mese" rollava al 3 marzo, per sempre).
+            const anchorDay = baseDate.getDate();
+            const stepMonths = cost.recurrence === "monthly" ? 1 : cost.recurrence === "quarterly" ? 3 : cost.recurrence === "yearly" ? 12 : 0;
+            if (stepMonths === 0) continue;
 
+            for (let k = stepMonths; ; k += stepMonths) {
+              const lastDay = new Date(baseDate.getFullYear(), baseDate.getMonth() + k + 1, 0).getDate();
+              const nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + k, Math.min(anchorDay, lastDay));
+              if (nextDate > horizon) break;
               if (cost.recurrence_end_date && nextDate > new Date(cost.recurrence_end_date)) break;
               if (nextDate < new Date(rcNow.getFullYear(), rcNow.getMonth(), 1)) continue;
 
@@ -1081,6 +1080,13 @@ Deno.serve(async (req) => {
                 notes: cost.notes,
                 supplier_id: cost.supplier_id,
                 vat_rate: cost.vat_rate,
+                // Contesto completo: senza, l'occorrenza perdeva commessa,
+                // riparto, sede e categoria di tesoreria.
+                order_id: cost.order_id ?? null,
+                allocations: cost.allocations ?? null,
+                sede_id: cost.sede_id ?? null,
+                treasury_category_id: cost.treasury_category_id ?? null,
+                payment_method: cost.payment_method ?? null,
                 recurrence_auto: false,
               });
             }
