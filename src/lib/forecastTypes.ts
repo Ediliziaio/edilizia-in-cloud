@@ -128,7 +128,7 @@ export const COST_ID_PREFIX = {
   EMPLOYEE_SALARY: "employee-salary-",
 } as const;
 
-export type CostOriginType = "manual" | "order-item" | "ext-team" | "commission";
+export type CostOriginType = "manual" | "order-item" | "ext-team" | "commission" | "employee-salary";
 
 export interface CostOrigin {
   type: CostOriginType;
@@ -172,6 +172,14 @@ export function resolveCostOrigin(costId: string, realOrderItemId?: string): Cos
     return {
       type: "commission",
       realId: costId.replace(COST_ID_PREFIX.COMMISSION, ""),
+    };
+  }
+  // Stipendi sintetici: non esistono come riga nel DB. Senza questo ramo
+  // cadevano in "manual" → UPDATE company_costs con un id non-uuid → 22P02.
+  if (costId.startsWith(COST_ID_PREFIX.EMPLOYEE_SALARY)) {
+    return {
+      type: "employee-salary",
+      realId: costId.replace(COST_ID_PREFIX.EMPLOYEE_SALARY, ""),
     };
   }
   return { type: "manual", realId: costId };

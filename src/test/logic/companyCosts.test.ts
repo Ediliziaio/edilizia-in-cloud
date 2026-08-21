@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { validateCostFormData } from "@/hooks/useCompanyCostsMutations";
-import { buildOrderItemCosts } from "@/lib/costsUtils";
+import { buildEmployeeCosts, buildOrderItemCosts } from "@/lib/costsUtils";
+import { addMonths, format, startOfMonth } from "date-fns";
 
 describe("company costs derived from order items", () => {
   it("usa le date attese degli acconti e dei saldi come scadenze", () => {
@@ -91,5 +92,46 @@ describe("company cost form validation", () => {
         recurrence_auto: false,
       }),
     ).toThrow("La data fine contratto non può precedere la prima scadenza.");
+  });
+});
+
+describe("stipendi sintetici dai dipendenti attivi", () => {
+  const emp = {
+    id: "emp-1",
+    first_name: "Mario",
+    last_name: "Rossi",
+    gross_salary: 2000,
+    inps_rate: 28,
+    // due mesi fa: lo storico parte da qui
+    created_at: format(addMonths(new Date(), -2), "yyyy-MM-dd"),
+  };
+
+  it("senza orizzonte si ferma al mese corrente (viste operative)", () => {
+    const rows = buildEmployeeCosts([emp]);
+    const meseCorrente = format(startOfMonth(new Date()), "yyyy-MM");
+    const mesi = new Set(rows.map((r) => r.due_date.slice(0, 7)));
+    expect(mesi.has(meseCorrente)).toBe(true);
+    const prossimo = format(addMonths(startOfMonth(new Date()), 1), "yyyy-MM");
+    expect(mesi.has(prossimo)).toBe(false);
+  });
+
+  it("con orizzonte proietta i mesi FUTURI, non pagati (viste di pianificazione)", () => {
+    const rows = buildEmployeeCosts([emp], 3);
+    const prossimo = format(addMonths(startOfMonth(new Date()), 1), "yyyy-MM");
+    const futuri = rows.filter((r) => r.due_date.slice(0, 7) === prossimo);
+    // stipendio + oneri INPS per il mese prossimo
+    expect(futuri).toHaveLength(2);
+    expect(futuri.every((r) => r.is_paid === false)).toBe(true);
+    // 2000 lordo + 560 oneri
+    expect(futuri.reduce((s, r) => s + r.amount, 0)).toBe(2560);
+  });
+
+  it("i mesi chiusi restano presunti pagati, il corrente no", () => {
+    const rows = buildEmployeeCosts([emp], 0);
+    const meseCorrente = format(startOfMonth(new Date()), "yyyy-MM");
+    for (const r of rows) {
+      const chiuso = r.due_date.slice(0, 7) < meseCorrente;
+      expect(r.is_paid).toBe(chiuso);
+    }
   });
 });

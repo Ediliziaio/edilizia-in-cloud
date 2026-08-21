@@ -13,8 +13,10 @@ import {
   buildMonthlyDistribution,
   sortCostsByPriority,
   buildCategoryDistribution,
+  computeCostiSenzaScadenza,
   exportCostsToCSV,
   calculateBreakEven,
+  EMPLOYEE_PROJECTION_MONTHS,
 } from "@/lib/costsUtils";
 
 export type { BreakEvenData } from "@/lib/costsUtils";
@@ -191,6 +193,14 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const orderItemsAsVariableCosts = useMemo(() => buildOrderItemCosts(orderItemCosts), [orderItemCosts]);
   const externalTeamAsVariableCosts = useMemo(() => buildExternalTeamCosts(externalTeamCosts), [externalTeamCosts]);
   const employeeAsFixedCosts = useMemo(() => buildEmployeeCosts(activeEmployees), [activeEmployees]);
+  // Stipendi PROIETTATI anche nel futuro (+12 mesi): alimentano le viste di
+  // pianificazione (Panoramica, Situazione anno, distribuzione, semaforo cassa).
+  // Le liste operative della tab Spese restano sul set storico per non
+  // riempirsi di centinaia di righe stipendio future.
+  const employeeAsFixedCostsProjected = useMemo(
+    () => buildEmployeeCosts(activeEmployees, EMPLOYEE_PROJECTION_MONTHS),
+    [activeEmployees],
+  );
   const commissionAsVariableCosts = useMemo(() => buildCommissionCosts(commissionCosts), [commissionCosts]);
 
   // All order-derived costs combined
@@ -200,6 +210,14 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     ...employeeAsFixedCosts,
     ...commissionAsVariableCosts,
   ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsFixedCosts, commissionAsVariableCosts]);
+
+  // Variante di pianificazione: identica ma con gli stipendi proiettati.
+  const allOrderDerivedCostsProjected = useMemo(() => [
+    ...orderItemsAsVariableCosts,
+    ...externalTeamAsVariableCosts,
+    ...employeeAsFixedCostsProjected,
+    ...commissionAsVariableCosts,
+  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsFixedCostsProjected, commissionAsVariableCosts]);
 
   // Filtering logic for manual costs
   const filteredCosts = useMemo(() => {
@@ -289,6 +307,29 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return filtered;
   }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, supplierFilter, categoryFilter, originFilter]);
 
+  // Fatturato del mese corrente (fatture emesse, cestinate escluse): serve al
+  // break-even, che prima riceveva un fatturato hard-coded a 0 e mostrava
+  // "Sotto break-even · 0% coperto" a vita, per qualunque azienda.
+  const monthRevenueQuery = useQuery({
+    queryKey: [...queryKeys.costs.list(companyId), "fatturato-mese"],
+    queryFn: async () => {
+      const now = new Date();
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("total")
+        .eq("company_id", companyId!)
+        .is("deleted_at", null)
+        .gte("issue_date", format(startOfMonth(now), "yyyy-MM-dd"))
+        .lte("issue_date", format(endOfMonth(now), "yyyy-MM-dd"));
+      if (error) throw error;
+      return (data || []).reduce((s: number, r: any) => s + (Number(r.total) || 0), 0);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+  const monthlyRevenue = monthRevenueQuery.data ?? 0;
+
   // Query cost categories from dedicated table
   const categoriesQuery = useQuery({
     queryKey: queryKeys.costs.categories(companyId),
@@ -309,7 +350,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   const dynamicCategories = useMemo(() => buildDynamicCategories(dbCategories, costs as any[], suppliers as any[], allOrderDerivedCosts), [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
-  const monthlyDistribution = useMemo(() => buildMonthlyDistribution(costs as any[], allOrderDerivedCosts), [costs, allOrderDerivedCosts]);
+  // Distribuzione mensile (-5…+6): usa gli stipendi proiettati, altrimenti i
+  // 6 mesi futuri del grafico "Previsto" erano vuoti di personale.
+  const monthlyDistribution = useMemo(() => buildMonthlyDistribution(costs as any[], allOrderDerivedCostsProjected), [costs, allOrderDerivedCostsProjected]);
 
   // Cost name counts for group delete
   const costNameCounts = useMemo(() => {
@@ -325,7 +368,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     let supplierUnpaid = 0;
     const allUnified = [...filteredCosts, ...filteredOrderItemCosts];
     allUnified.forEach((c: any) => {
-      const rate = Number(c.vat_rate) || 0;
+      // Stesso fallback del footer tabella (aliquota del fornitore quando il
+      // costo non la dichiara), con `??`: 0 esplicito = esente, non "manca".
+      const rate = Number(c.vat_rate ?? c.supplier?.vat_rate ?? 0) || 0;
       const vatAmount = Number(c.amount) * (rate / 100);
       vatTotale += vatAmount;
       if (!c.is_paid) {
@@ -348,10 +393,18 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   const allCostsSorted = useMemo(() => sortCostsByPriority([...filteredCosts, ...filteredOrderItemCosts]), [filteredCosts, filteredOrderItemCosts]);
 
-  // All costs unfiltered (for budget manager — not affected by active filters)
+  // All costs unfiltered (Panoramica, budget, regia — not affected by active
+  // filters). Include gli stipendi proiettati: è il dataset di PIANIFICAZIONE.
   const allCostsUnfiltered = useMemo(() =>
-    sortCostsByPriority([...(costs as any[]), ...allOrderDerivedCosts]),
-    [costs, allOrderDerivedCosts]
+    sortCostsByPriority([...(costs as any[]), ...allOrderDerivedCostsProjected]),
+    [costs, allOrderDerivedCostsProjected]
+  );
+
+  // Costi che nessun totale di periodo può contenere (scadenza assente):
+  // vengono dichiarati in Panoramica e Pianificazione invece di sparire.
+  const senzaScadenzaStats = useMemo(
+    () => computeCostiSenzaScadenza(allCostsUnfiltered as any[]),
+    [allCostsUnfiltered],
   );
 
   // Status tab pre-filtered lists
@@ -440,13 +493,17 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     };
   }, [filteredCosts, filteredOrderItemCosts]);
 
-  // Yearly stats
+  // Yearly stats — TUTTE le card "Situazione anno" leggono da qui, sullo
+  // stesso universo (costi con scadenza nell'anno, stipendi proiettati
+  // inclusi). Prima le card sotto ("Sostenuti", "Previsti"…) sommavano lo
+  // storico COMPLETO: il pagato superava il "Totale Anno" nella stessa schermata.
   const yearlyStats = useMemo(() => {
     const yearStart = startOfYear(new Date(yearForStats, 0, 1));
     const yearEnd = endOfYear(new Date(yearForStats, 0, 1));
     const now = new Date();
     const todayStart = startOfDay(now);
-    const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
+    const soonEnd = endOfDay(addDays(now, 7));
+    const allRaw = [...(costs as any[]), ...allOrderDerivedCostsProjected];
     const yearCosts = allRaw.filter((c: any) => {
       if (!c.due_date) return false;
       const d = parseCostDate(c.due_date);
@@ -460,12 +517,38 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       const dueDate = parseCostDate(c.due_date);
       return !!dueDate && dueDate < todayStart;
     });
+    const previstiItems = unpaidItems.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !!dueDate && dueDate >= todayStart;
+    });
+    const expiringItems = previstiItems.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !!dueDate && dueDate <= soonEnd;
+    });
     const totalPaid = paidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalUnpaid = unpaidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalOverdue = overdueItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalPrevisti = previstiItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalExpiringSoon = expiringItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    // IVA detraibile dell'anno, stessa regola della tabella (fallback fornitore).
+    let vatYear = 0;
+    let vatYearUnpaid = 0;
+    yearCosts.forEach((c: any) => {
+      const rate = Number(c.vat_rate ?? c.supplier?.vat_rate ?? 0) || 0;
+      const vatAmount = Number(c.amount) * (rate / 100);
+      vatYear += vatAmount;
+      if (!c.is_paid) vatYearUnpaid += vatAmount;
+    });
     const pctPaid = total > 0 ? Math.round((totalPaid / total) * 100) : 0;
-    return { total, totalPaid, totalUnpaid, totalOverdue, pctPaid, count: yearCosts.length };
-  }, [costs, allOrderDerivedCosts, yearForStats]);
+    return {
+      total, totalPaid, totalUnpaid, totalOverdue, pctPaid, count: yearCosts.length,
+      paidCount: paidItems.length,
+      totalPrevisti, previstiCount: previstiItems.length,
+      overdueCount: overdueItems.length,
+      totalExpiringSoon, expiringSoonCount: expiringItems.length,
+      vatYear, vatYearUnpaid,
+    };
+  }, [costs, allOrderDerivedCostsProjected, yearForStats]);
 
   // CSV export — delegate to shared utility to avoid duplication
   const exportCostsCSV = () => exportCostsToCSV(filteredCosts, filteredOrderItemCosts);
@@ -524,6 +607,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     commissionsQuery.error,
     ordersQuery.error,
     categoriesQuery.error,
+    monthRevenueQuery.error,
   ].filter(Boolean);
 
   const refetchAll = () => {
@@ -565,7 +649,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     refetchAll,
     exportCostsCSV,
     allCostsUnfiltered,
-    breakEvenData: calculateBreakEven(fixedCosts, 0),
+    senzaScadenzaStats,
+    monthlyRevenue,
+    breakEvenData: calculateBreakEven(fixedCosts, monthlyRevenue),
     // La query costi ha .limit(1000): se torna esattamente 1000 righe i
     // totali potrebbero essere PARZIALI — il chiamante mostra un avviso.
     costsTruncated: costs.length >= 1000,

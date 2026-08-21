@@ -11,12 +11,13 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  endOfMonth, endOfQuarter, endOfYear, format, getQuarter, isWithinInterval,
+  addMonths, endOfMonth, endOfQuarter, endOfYear, format, getQuarter, isWithinInterval,
   parseISO, startOfMonth, startOfQuarter, startOfYear, subMonths,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ArrowDownRight, ArrowUpRight, ChevronLeft, Minus, PiggyBank, ReceiptText, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, ChevronLeft, Minus, PiggyBank, ReceiptText, Wallet } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -37,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { useCompanyCostsData, type UnifiedCost } from "@/hooks/useCompanyCostsData";
+import { EMPLOYEE_PROJECTION_MONTHS, computeCostiSenzaScadenza } from "@/lib/costsUtils";
 import { MonthPicker, type PeriodMode } from "./MonthPicker";
 
 // Filtri neutri: la Panoramica lavora sempre sul dataset completo e filtra
@@ -192,6 +194,8 @@ export function buildCostsOverview(allCosts: UnifiedCost[], month: Date, mode: P
     daPagarePeriodo: totalePeriodo - pagatoPeriodo,
     totalePrec,
     trend,
+    // Fuori da ogni periodo per definizione: dichiarati, non nascosti.
+    senzaScadenza: computeCostiSenzaScadenza(allCosts),
   };
 }
 
@@ -216,10 +220,25 @@ export function CostsOverviewTab({
 
   const allCosts = data.allCostsUnfiltered as UnifiedCost[];
 
-  const { voci, totalePeriodo, pagatoPeriodo, daPagarePeriodo, totalePrec, trend } = useMemo(
+  const [, setSearchParams] = useSearchParams();
+  const { voci, totalePeriodo, pagatoPeriodo, daPagarePeriodo, totalePrec, trend, senzaScadenza } = useMemo(
     () => buildCostsOverview(allCosts, month, mode),
     [allCosts, month, mode],
   );
+
+  // Il personale è proiettato solo fino a +EMPLOYEE_PROJECTION_MONTHS mesi:
+  // oltre, un mese "leggero" non significa meno costi ma fine della proiezione.
+  const horizonEnd = endOfMonth(addMonths(new Date(), EMPLOYEE_PROJECTION_MONTHS));
+  const oltreOrizzonte = periodRange(month, mode).end > horizonEnd;
+
+  const vaiAlleSpeseSenzaScadenza = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", "spese");
+      next.set("preset", "senza_scadenza");
+      return next;
+    });
+  };
 
   const deltaPct = totalePrec > 0 ? ((totalePeriodo - totalePrec) / totalePrec) * 100 : null;
   const maxVoce = voci.length > 0 ? voci[0].totale : 0;
@@ -335,6 +354,27 @@ export function CostsOverviewTab({
           <p className="mt-1 text-xs text-muted-foreground">in scadenza nel periodo</p>
         </div>
       </div>
+
+      {/* Onestà sui limiti dei totali di periodo */}
+      {senzaScadenza.count > 0 && (
+        <button
+          type="button"
+          onClick={vaiAlleSpeseSenzaScadenza}
+          className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-left transition-colors hover:bg-amber-100/80"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+          <span className="min-w-0 text-xs text-amber-900">
+            <strong>{senzaScadenza.count} costi senza scadenza per {formatCurrency(senzaScadenza.totale)}</strong>{" "}
+            non compaiono in nessun totale di periodo. Clicca per vederli e dare loro una data.
+          </span>
+        </button>
+      )}
+      {oltreOrizzonte && (
+        <p className="text-xs text-muted-foreground">
+          Oltre {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi gli stipendi non sono proiettati: un periodo
+          così avanti mostra solo i costi già registrati.
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Ripartizione per voce */}

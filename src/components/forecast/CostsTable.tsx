@@ -29,7 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
-import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
+import { COST_ID_PREFIX, RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -189,7 +189,8 @@ export function CostsTable({
     let totalNet = 0, totalVat = 0, totalGross = 0;
     let unpaidNet = 0, unpaidGross = 0, paidNet = 0, paidGross = 0;
     items.forEach(c => {
-      const vr = Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0;
+      // `??` e non `||`: aliquota 0 esplicita = esente, non "manca il dato".
+      const vr = Number(c.vat_rate ?? (c as any).supplier?.vat_rate ?? 0) || 0;
       const { grossAmount, vatAmount } = calculateGrossFromNet(c.amount, vr);
       totalNet += c.amount;
       totalVat += vatAmount;
@@ -394,7 +395,10 @@ export function CostsTable({
             </TableHeader>
             <TableBody>
               {paginatedItems.map((cost) => {
-                const vatRate = Number(cost.vat_rate) || Number((cost as any).supplier?.vat_rate) || 0;
+                const vatRate = Number(cost.vat_rate ?? (cost as any).supplier?.vat_rate ?? 0) || 0;
+                // Riga stipendio sintetica: niente azioni di pagamento (non
+                // esiste nel DB; risulta pagata da sola a mese chiuso).
+                const isSalaryRow = cost.id.startsWith(COST_ID_PREFIX.EMPLOYEE_SALARY);
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
                 const dueDate = parseCostDate(cost.due_date);
@@ -568,7 +572,16 @@ export function CostsTable({
                         )}
                         {cost.isFromOrder && (
                           <>
-                            {!cost.is_paid ? (
+                            {isSalaryRow ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex h-7 w-7 items-center justify-center text-slate-300" aria-label="Stipendio dal contratto">
+                                    <CheckSquare className="h-3.5 w-3.5" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>Calcolato dal contratto: risulta pagato da solo a mese chiuso</TooltipContent>
+                              </Tooltip>
+                            ) : !cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">

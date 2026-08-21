@@ -127,11 +127,30 @@ export function buildExternalTeamCosts(externalTeamCosts: any[]): UnifiedCost[] 
   }));
 }
 
-/** Transform active employees into fixed monthly salary costs (one entry per month from hire_date) */
-export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
+/**
+ * Orizzonte di proiezione degli stipendi nel futuro (mesi oltre quello
+ * corrente). Serve alle viste di PIANIFICAZIONE: senza, il mese prossimo
+ * mostrava "-94% di costi" solo perché gli stipendi non venivano generati.
+ */
+export const EMPLOYEE_PROJECTION_MONTHS = 12;
+
+/**
+ * Transform active employees into fixed monthly salary costs.
+ *
+ * Una riga stipendio + una riga oneri INPS per ogni mese, dall'ingresso del
+ * dipendente fino al mese corrente + `futureMonths` (0 = solo storico, per le
+ * viste operative; EMPLOYEE_PROJECTION_MONTHS per le viste di pianificazione).
+ *
+ * Limiti DICHIARATI (la tabella employees non ha date di assunzione/cessazione):
+ * - l'inizio è `created_at` (quando è stato inserito nel gestionale);
+ * - i mesi chiusi sono PRESUNTI pagati (i pagamenti stipendi non vengono
+ *   registrati singolarmente) — lo dice anche la nota sulla riga;
+ * - lo stipendio attuale è applicato a tutti i mesi.
+ */
+export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0): UnifiedCost[] {
   const rows: UnifiedCost[] = [];
   const now = new Date();
-  const currentMonthEnd = endOfMonth(now);
+  const horizonEnd = endOfMonth(addMonths(now, futureMonths));
 
   activeEmployees.forEach((emp) => {
     const salary = Number(emp.gross_salary) || 0;
@@ -141,7 +160,7 @@ export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
     const hireDate = emp.hire_date ? new Date(emp.hire_date) : emp.created_at ? new Date(emp.created_at) : addMonths(now, -11);
     let month = startOfMonth(hireDate);
 
-    while (!isAfter(month, currentMonthEnd)) {
+    while (!isAfter(month, horizonEnd)) {
       const monthEnd = endOfMonth(month);
       const isPaid = isBefore(monthEnd, startOfMonth(now));
       const paidDate = isPaid ? format(monthEnd, "yyyy-MM-dd") : null;
@@ -157,7 +176,7 @@ export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
         due_date: format(monthEnd, "yyyy-MM-dd"),
         is_paid: isPaid,
         paid_date: paidDate,
-        notes: null,
+        notes: isPaid ? "Presunto pagato a fine mese (i pagamenti stipendi non sono registrati singolarmente)" : null,
         order_id: null,
         order: null,
         isFromOrder: true,
@@ -209,6 +228,28 @@ export function buildCommissionCosts(commissionCosts: any[]): UnifiedCost[] {
     supplierName: null,
     vat_rate: 0,
   }));
+}
+
+/**
+ * Costi DA PAGARE senza scadenza (due_date sentinella "9999-12-31" o assente).
+ * Ogni totale di periodo li esclude per forza — non hanno una data su cui
+ * cadere — quindi vanno DICHIARATI: quante righe e quanti euro restano fuori.
+ * Solo i NON pagati: un costo pagato entra comunque nei totali per data di
+ * pagamento, ed è lo stesso insieme del filtro "Senza scadenza" in Spese.
+ */
+export function computeCostiSenzaScadenza(costs: Pick<UnifiedCost, "due_date" | "amount" | "is_paid">[]): {
+  count: number;
+  totale: number;
+} {
+  let count = 0;
+  let totale = 0;
+  for (const c of costs) {
+    if (!c.is_paid && (!c.due_date || c.due_date === "9999-12-31")) {
+      count += 1;
+      totale += Number(c.amount) || 0;
+    }
+  }
+  return { count, totale };
 }
 
 /** Build dynamic categories from DB + legacy data */
@@ -335,7 +376,9 @@ export function exportCostsToCSV(filteredCosts: any[], filteredOrderItemCosts: a
   const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
   const rows = [["Nome", "Tipo", "Categoria", "Imponibile", "IVA%", "Totale Lordo", "Fornitore", "Ricorrenza", "Scadenza", "Stato", "Origine"]];
   allForExport.forEach((c: any) => {
-    const vatRate = Number(c.vat_rate) || 0;
+    // `??` e non `||`: aliquota 0 esplicita = esente, NON "manca il dato"
+    // (con || un costo esente prendeva l'aliquota del fornitore).
+    const vatRate = Number(c.vat_rate ?? c.supplier?.vat_rate ?? 0) || 0;
     const gross = calculateGrossFromNet(Number(c.amount), vatRate);
     rows.push([
       c.name,

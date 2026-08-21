@@ -22,6 +22,16 @@ interface YearlyStats {
   totalOverdue: number;
   pctPaid: number;
   count: number;
+  // Dettaglio year-scoped: TUTTE le card "Situazione anno" leggono da qui,
+  // così pagato ≤ totale e scaduti coerenti nella stessa schermata.
+  paidCount: number;
+  totalPrevisti: number;
+  previstiCount: number;
+  overdueCount: number;
+  totalExpiringSoon: number;
+  expiringSoonCount: number;
+  vatYear: number;
+  vatYearUnpaid: number;
 }
 
 interface MonthlyDistItem {
@@ -37,24 +47,7 @@ interface MonthlyDistItem {
 }
 
 interface CostsStatsCardsProps {
-  stats: {
-    totalUnpaidThisMonth: number;
-    totalPaidThisMonth: number;
-    totalOverdue: number;
-    unpaidCount: number;
-    paidCount: number;
-    overdueCount: number;
-    expiringSoonCount: number;
-    totalExpiringSoon: number;
-    totalPeriod: number;
-    totalCount: number;
-    totalPrevisti: number;
-    previstiCount: number;
-    scostamento: number;
-  };
-  vatStats: { vatDebit: number; vatUnpaid: number; supplierUnpaid: number };
   monthlyDistribution: MonthlyDistItem[];
-  periodLabel?: string;
   yearlyStats: YearlyStats;
   selectedYear: number;
   onYearChange: (year: number) => void;
@@ -64,6 +57,8 @@ interface CostsStatsCardsProps {
   availableYears?: number[];
   fixedCostsTrend?: { month: string; pctFixed: number }[];
   breakEvenData?: BreakEvenData;
+  /** Costi senza scadenza: fuori da OGNI totale di periodo, dichiarati qui. */
+  senzaScadenza?: { count: number; totale: number };
 }
 
 const currentYear = new Date().getFullYear();
@@ -73,7 +68,7 @@ const PIE_COLORS = [
   "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
 ];
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData }: CostsStatsCardsProps) {
+export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza }: CostsStatsCardsProps) {
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
@@ -166,10 +161,10 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
         >
           <div className="flex items-center gap-2 mb-1">
             <Check className="h-4 w-4 text-green-600" />
-            <span className="text-xs font-medium">Sostenuti (reali)</span>
+            <span className="text-xs font-medium">Sostenuti nel {selectedYear}</span>
           </div>
-          <p className="text-xl font-bold text-green-600 tabular-nums">{formatCurrency(stats.totalPaidThisMonth)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.paidCount} pagati</p>
+          <p className="text-xl font-bold text-green-600 tabular-nums">{formatCurrency(yearlyStats.totalPaid)}</p>
+          <p className="text-[10px] text-muted-foreground">{yearlyStats.paidCount} pagati</p>
         </button>
 
         <button
@@ -179,10 +174,10 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
         >
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-medium">Previsti (ricorrenti)</span>
+            <span className="text-xs font-medium">Previsti nel {selectedYear}</span>
           </div>
-          <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(stats.totalPrevisti)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.previstiCount} previsti</p>
+          <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(yearlyStats.totalPrevisti)}</p>
+          <p className="text-[10px] text-muted-foreground">{yearlyStats.previstiCount} da pagare, non scaduti</p>
         </button>
 
         <button
@@ -194,8 +189,8 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
             <AlertCircle className="h-4 w-4 text-red-600" />
             <span className="text-xs font-medium">Da pagare (scaduti)</span>
           </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCurrency(stats.totalOverdue)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.overdueCount} scaduti</p>
+          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCurrency(yearlyStats.totalOverdue)}</p>
+          <p className="text-[10px] text-muted-foreground">{yearlyStats.overdueCount} scaduti nel {selectedYear}</p>
         </button>
 
         <button
@@ -207,29 +202,34 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
             <Clock className="h-4 w-4 text-orange-600" />
             <span className="text-xs font-medium">In scadenza (7gg)</span>
           </div>
-          <p className="text-xl font-bold text-orange-600 tabular-nums">{formatCurrency(stats.totalExpiringSoon)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.expiringSoonCount} in scadenza</p>
+          <p className="text-xl font-bold text-orange-600 tabular-nums">{formatCurrency(yearlyStats.totalExpiringSoon)}</p>
+          <p className="text-[10px] text-muted-foreground">{yearlyStats.expiringSoonCount} in scadenza</p>
         </button>
 
         <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800">
           <div className="flex items-center gap-2 mb-1">
             <Calculator className="h-4 w-4 text-violet-600" />
-            <span className="text-xs font-medium">IVA totale detraibile</span>
+            <span className="text-xs font-medium">IVA detraibile {selectedYear}</span>
           </div>
-          <p className="text-xl font-bold text-violet-600 tabular-nums">{formatCurrency(vatStats.vatDebit)}</p>
-          <p className="text-[10px] text-muted-foreground">di cui da pagare: {formatCurrency(vatStats.vatUnpaid)}</p>
+          <p className="text-xl font-bold text-violet-600 tabular-nums">{formatCurrency(yearlyStats.vatYear)}</p>
+          <p className="text-[10px] text-muted-foreground">di cui da pagare: {formatCurrency(yearlyStats.vatYearUnpaid)}</p>
         </div>
 
-        <div className={`p-4 rounded-lg border ${stats.scostamento >= 0 ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800" : "bg-rose-50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800"}`}>
+        {/* Al posto del vecchio "Scostamento" (previsti futuri − pagato storico:
+            due grandezze non confrontabili): i costi che NESSUN totale può
+            contenere perché senza scadenza, resi visibili e cliccabili. */}
+        <button
+          type="button"
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "senza_scadenza" ? "ring-2 ring-slate-500 bg-slate-100 dark:bg-slate-900/20 border-slate-400" : "bg-slate-50 dark:bg-slate-900/10 border-slate-200 dark:border-slate-700"}`}
+          onClick={() => handleCardClick("senza_scadenza")}
+        >
           <div className="flex items-center gap-2 mb-1">
-            <ArrowUpDown className={`h-4 w-4 ${stats.scostamento >= 0 ? "text-emerald-600" : "text-rose-600"}`} />
-            <span className="text-xs font-medium">Scostamento</span>
+            <ArrowUpDown className="h-4 w-4 text-slate-600" />
+            <span className="text-xs font-medium">Senza scadenza</span>
           </div>
-          <p className={`text-xl font-bold tabular-nums ${stats.scostamento >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-            {stats.scostamento >= 0 ? "+" : ""}{formatCurrency(stats.scostamento)}
-          </p>
-          <p className="text-[10px] text-muted-foreground">Sostenuto vs previsto</p>
-        </div>
+          <p className="text-xl font-bold text-slate-700 dark:text-slate-200 tabular-nums">{formatCurrency(senzaScadenza?.totale ?? 0)}</p>
+          <p className="text-[10px] text-muted-foreground">{senzaScadenza?.count ?? 0} costi fuori dai totali di periodo</p>
+        </button>
       </div>
 
       {/* Monthly Distribution Chart */}
@@ -454,7 +454,10 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
             </div>
             <Progress value={breakEvenData.coveragePercent} className="mt-3 h-2" />
             <p className="text-xs text-muted-foreground mt-1">
-              {breakEvenData.coveragePercent.toFixed(0)}% del break-even coperto dal fatturato corrente
+              {breakEvenData.coveragePercent.toFixed(0)}% coperto dal fatturato del mese: {formatCurrency(breakEvenData.monthlyRevenue)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Ipotesi di calcolo: margine {breakEvenData.averageOrderMargin}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}
             </p>
           </CardContent>
         </Card>

@@ -101,4 +101,10 @@ describe("Panoramica Costi — periodi", () => {
     expect(r.totalePeriodo).toBeLessThan(80000);
     expect(r.trend.every(t => t.totale < 80000)).toBe(true);
   });
+
+  it("ma i costi senza scadenza vengono DICHIARATI (conteggio + euro)", () => {
+    const r = buildCostsOverview(FIXTURE, LUGLIO, "mese");
+    expect(r.senzaScadenza.count).toBe(2);          // sentinella + vuota
+    expect(r.senzaScadenza.totale).toBe(99999 + 88888);
+  });
 });

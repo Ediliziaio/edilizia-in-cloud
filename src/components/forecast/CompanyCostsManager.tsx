@@ -1,16 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import {
-  AlertTriangle, ArrowRight, Building2, CalendarIcon, ClipboardList, Download,
+  AlertTriangle, ArrowRight, CalendarIcon, ClipboardList, Download,
   FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
   Settings2, ShoppingCart, Tags, Upload, Users, WalletCards,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +60,11 @@ type CostIntegrationSummary = {
   totalAmount: number;
   manualAmount: number;
   linkedAmount: number;
+  /** Euro pianificati (con scadenza) ed euro sostenuti: le percentuali della
+   *  Regia si calcolano su QUESTI, non sul conteggio righe — 100 stipendi da
+   *  2.500 € e 1 fattura da 250.000 € non pesano uguale. */
+  scheduledAmount: number;
+  paidAmount: number;
 };
 
 type CostWithRelations = UnifiedCost & {
@@ -96,8 +100,9 @@ function CostIntegrationPanel({
   onShowMissingSuppliers: () => void;
 }) {
   const qualityIssues = missingCategory + missingSupplier + unscheduled;
-  const scheduledPct = summary.total > 0 ? Math.round((summary.scheduled / summary.total) * 100) : 100;
-  const paidPct = summary.total > 0 ? Math.round((summary.paid / summary.total) * 100) : 0;
+  // In EURO, non in righe: prima 100 stipendi contavano quanto 100 fatture.
+  const scheduledPct = summary.totalAmount > 0 ? Math.round((summary.scheduledAmount / summary.totalAmount) * 100) : 100;
+  const paidPct = summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -147,6 +152,9 @@ function CostIntegrationPanel({
           <div className="mt-2 text-lg font-semibold">{formatCurrency(summary.totalAmount)}</div>
           <p className="mt-1 text-xs text-muted-foreground">
             {summary.manual} manuali ({formatCurrency(summary.manualAmount)}) · {summary.linked} da moduli ({formatCurrency(summary.linkedAmount)})
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Storico completo + stipendi pianificati 12 mesi
           </p>
           <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-xs" onClick={onShowOrderCosts}>
             Vedi costi collegati <ArrowRight className="h-3.5 w-3.5" />
@@ -302,15 +310,6 @@ export default function CompanyCostsManager({
     periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter,
   }, selectedYear);
 
-  // Period label for stats
-  const periodLabel = periodFilter === "this_month" ? "Questo mese"
-    : periodFilter === "next_month" ? "Prossimo mese"
-    : periodFilter === "last_3_months" ? "Ultimi 3 mesi"
-    : periodFilter === "this_year" ? "Quest'anno"
-    : periodFilter === "custom" && customDateRange
-      ? `${format(customDateRange.start, "dd/MM/yy", { locale: it })} – ${format(customDateRange.end, "dd/MM/yy", { locale: it })}`
-    : "Tutti i periodi";
-
   const hasActiveFilters = periodFilter !== "all" ||
     statusFilter !== "all" ||
     searchQuery.trim().length > 0 ||
@@ -355,15 +354,19 @@ export default function CompanyCostsManager({
     const orderCosts = allCosts.filter((cost: UnifiedCost) => cost.isFromOrder);
     const sum = (items: UnifiedCost[]) => items.reduce((total, cost) => total + Number(cost.amount || 0), 0);
 
+    const scheduledCosts = allCosts.filter((cost: UnifiedCost) => cost.due_date && cost.due_date !== "9999-12-31");
+    const paidCosts = allCosts.filter((cost: UnifiedCost) => cost.is_paid);
     return {
       total: allCosts.length,
       manual: manualCosts.length,
       linked: orderCosts.length,
-      scheduled: allCosts.filter((cost: UnifiedCost) => cost.due_date && cost.due_date !== "9999-12-31").length,
-      paid: allCosts.filter((cost: UnifiedCost) => cost.is_paid).length,
+      scheduled: scheduledCosts.length,
+      paid: paidCosts.length,
       totalAmount: sum(allCosts),
       manualAmount: sum(manualCosts),
       linkedAmount: sum(orderCosts),
+      scheduledAmount: sum(scheduledCosts),
+      paidAmount: sum(paidCosts),
     };
   }, [data.allCostsUnfiltered]);
 
@@ -517,6 +520,14 @@ export default function CompanyCostsManager({
       case "commission":
         mutations.markCommissionPaidMutation.mutate({ id: origin.realId, date: paymentDate });
         break;
+      case "employee-salary":
+        // Riga sintetica calcolata dal contratto: non c'è nulla da aggiornare
+        // nel DB (prima finiva in UPDATE company_costs con id non-uuid → 22P02).
+        toast({
+          title: "Gli stipendi non si registrano da qui",
+          description: "Sono calcolati dal contratto in anagrafica e risultano pagati automaticamente a mese chiuso.",
+        });
+        break;
       default:
         mutations.markPaidMutation.mutate({ id: payingCostId, date: paymentDate, paymentMethod });
     }
@@ -599,11 +610,9 @@ export default function CompanyCostsManager({
         />
 
         <CostsStatsCards
-          stats={data.stats}
-          vatStats={data.vatStats}
           monthlyDistribution={data.monthlyDistribution}
-          periodLabel={periodLabel}
           yearlyStats={data.yearlyStats}
+          senzaScadenza={data.senzaScadenzaStats}
           selectedYear={selectedYear}
           onYearChange={setSelectedYear}
           activeStatusTab="all"
@@ -625,7 +634,9 @@ export default function CompanyCostsManager({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <CashFlowAlert upcomingCosts={data.allCostsSorted} />
+            {/* Dataset di pianificazione (stipendi proiettati inclusi): senza,
+                le finestre 60/90 giorni ignoravano gli stipendi futuri. */}
+            <CashFlowAlert upcomingCosts={data.allCostsUnfiltered} />
           </CardContent>
         </Card>
       </div>
