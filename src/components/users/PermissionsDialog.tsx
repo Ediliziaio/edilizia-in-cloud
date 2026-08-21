@@ -166,19 +166,28 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <button type="button" className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-          <div className="flex items-center gap-2">
+      {/* Lo switch "attiva tutto" NON può stare dentro il bottone che apre il
+          gruppo: un <button> dentro un <button> è HTML non valido — la
+          tastiera non raggiunge lo switch e lo screen reader legge un solo
+          comando. Ora la riga è un contenitore, e i due comandi (apri/chiudi
+          e attiva-tutto) sono fratelli. Aspetto invariato. */}
+      <div className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+        <CollapsibleTrigger asChild>
+          <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left">
             <Icon className={`h-4 w-4 ${iconColor}`} />
             <span className="text-sm font-medium">{label}</span>
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{activeCount}/{totalCount}</Badge>
-          </div>
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <Switch checked={allActive} onCheckedChange={handleToggleAll} />
-            {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-          </div>
-        </button>
-      </CollapsibleTrigger>
+          </button>
+        </CollapsibleTrigger>
+        <div className="flex items-center gap-2 pl-2">
+          <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={`Attiva tutti i permessi di ${label}`} />
+          <CollapsibleTrigger asChild>
+            <button type="button" aria-label={open ? `Comprimi ${label}` : `Espandi ${label}`} className="text-muted-foreground">
+              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </CollapsibleTrigger>
+        </div>
+      </div>
       <CollapsibleContent className="px-3 pt-2 pb-1 space-y-2">
         {sections.map(section => (
           <div key={section.viewKey} className="flex items-center justify-between py-1">

@@ -30,6 +30,15 @@ function openWizardAtStep3() {
 
 afterEach(cleanup);
 
+/**
+ * Il wizard monta l'INTERA matrice permessi (7 gruppi, ~90 moduli) a ogni
+ * render. Isolato costa mezzo secondo, ma quando la suite gira coi 250 file
+ * in parallelo e la macchina è satura si arriva oltre i 5s di default e il
+ * test cadeva per timeout — verde o rosso a seconda di quanto era occupato
+ * il portatile, che è il modo peggiore di fallire. Il tetto qui è esplicito.
+ */
+const TIMEOUT_MATRICE_PERMESSI = 30_000;
+
 describe("CreateUserWizard — step Permessi (parità con la scheda utente)", () => {
   it("arriva allo step 3 e mostra selettore economico, blocchi visibilità e ricerca", () => {
     openWizardAtStep3();
@@ -52,7 +61,7 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     // Descrizioni dei moduli renderizzate (dal registro condiviso)
     expect(screen.getByText("Gestisci ordini e commesse")).toBeInTheDocument();
     expect(screen.getByText("Può eliminare ordini e commesse")).toBeInTheDocument();
-  });
+  }, TIMEOUT_MATRICE_PERMESSI);
 
   it("il preset Venditore parte a livello economico Commerciale; click su Pieno accende i margini", () => {
     openWizardAtStep3();
@@ -71,7 +80,7 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     expect(within(margini).getByRole("switch")).toHaveAttribute("aria-checked", "true");
     const costi = screen.getByText("Costi", { selector: "span" }).closest("label")!;
     expect(within(costi).getByRole("switch")).toHaveAttribute("aria-checked", "true");
-  });
+  }, TIMEOUT_MATRICE_PERMESSI);
 
   it("la ricerca filtra i moduli e mostra l'empty state quando non c'è match", () => {
     openWizardAtStep3();
@@ -90,7 +99,7 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
 
     fireEvent.change(search, { target: { value: "" } });
     expect(screen.getByText("Magazzino")).toBeInTheDocument();
-  });
+  }, TIMEOUT_MATRICE_PERMESSI);
 
   it("le 3 chiavi economiche NON compaiono doppie nei gruppi modulo", () => {
     openWizardAtStep3();
@@ -98,5 +107,5 @@ describe("CreateUserWizard — step Permessi (parità con la scheda utente)", ()
     // non anche come riga del gruppo Cantieri (niente doppioni).
     expect(screen.getAllByText("Importi di vendita")).toHaveLength(1);
     expect(screen.getAllByText("Margini")).toHaveLength(1);
-  });
+  }, TIMEOUT_MATRICE_PERMESSI);
 });
