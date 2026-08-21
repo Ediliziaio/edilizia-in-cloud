@@ -1329,11 +1329,9 @@ export default function QuoteBuilder() {
     const hash = JSON.stringify({ clientName, itemsSignature, discountPercent });
     if (hash === lastSavedHashRef.current) return;
     try {
-      await supabase.from("quotes").update({
-        client_name: clientName,
-        discount_percent: discountPercent,
-        updated_at: new Date().toISOString(),
-      }).eq("id", id!).eq("company_id", companyId);
+      // ORDINE (fix 2026-08-21): righe PRIMA della testata, come in
+      // handleSave — se la RPC righe fallisce non va scritto niente,
+      // altrimenti la testata resta avanti rispetto alle righe.
       // P2 FIX (2026-07): l'autosave ora persiste ANCHE le righe. Prima
       // scriveva solo client_name+discount ma l'hash includeva le righe →
       // l'indicatore "Salvataggio automatico" diventava verde pur NON avendo
@@ -1375,6 +1373,11 @@ export default function QuoteBuilder() {
         });
         if (rpcErr) throw rpcErr;
       }
+      await supabase.from("quotes").update({
+        client_name: clientName,
+        discount_percent: discountPercent,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id!).eq("company_id", companyId);
       lastSavedHashRef.current = hash;
       setAutosaveFailed(false);
     } catch {
@@ -1637,7 +1640,56 @@ export default function QuoteBuilder() {
 
       let quoteId = id;
 
+      // P0-1: salvataggio atomico delle righe preventivo (stessa RPC di sempre).
+      // ORDINE (fix 2026-08-21): le RIGHE si salvano PRIMA della testata.
+      // Prima era il contrario: se la RPC righe falliva (es. CHECK violata),
+      // la testata restava salvata coi TOTALI NUOVI e le righe vecchie —
+      // totale fantasma in lista e nel dettaglio finche' non risalvavi.
+      // Con le righe prima: se falliscono, non si scrive nulla; se riescono
+      // e la testata fallisce, i totali restano quelli vecchi (conservativo)
+      // e l'errore viene comunque mostrato per il retry.
+      const salvaRigheAtomiche = async (idPreventivo: string) => {
+        if (items.length > 0) {
+          const payload = items.map((it, idx) => ({
+            sort_order: idx,
+            client_temp_id: it.client_temp_id ?? null,
+            parent_temp_id: it.parent_temp_id ?? null,
+            item_type: it.item_type,
+            name: it.name,
+            description: it.description ?? null,
+            quantity: it.quantity,
+            unit_price: it.unit_price,
+            discount_percent: it.discount_percent ?? 0,
+            vat_rate: it.vat_rate ?? 22,
+            unit_of_measure: it.unit_of_measure,
+            article_template_id: it.article_template_id ?? null,
+            item_category: it.item_category ?? "prodotto",
+            tariffa_id: it.tariffa_id ?? null,
+            prezzo_acquisto: it.prezzo_acquisto ?? 0,
+            mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+            is_optional: it.is_optional ?? false,
+            misura_x: it.misura_x ?? null,
+            misura_y: it.misura_y ?? null,
+            family_id: it.family_id ?? null,
+            axis_selections: it.axis_selections ?? null,
+            supplier_catalog_id: it.supplier_catalog_id ?? null,
+            supplier_product_line_id: it.supplier_product_line_id ?? null,
+          }));
+          const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
+            p_quote_id: idPreventivo,
+            p_company_id: companyId,
+            p_items: payload,
+          });
+          if (rpcErr) throw rpcErr;
+        } else if (isEdit) {
+          // Preventivo svuotato completamente dall'utente: nulla da inserire,
+          // cancelliamo esplicitamente le righe residue.
+          await supabase.from("quote_items").delete().eq("quote_id", idPreventivo);
+        }
+      };
+
       if (isEdit) {
+        await salvaRigheAtomiche(id!);
         const { error } = await supabase
           .from("quotes")
           .update(quoteData)
@@ -1656,51 +1708,14 @@ export default function QuoteBuilder() {
           .single();
         if (error) throw error;
         quoteId = data.id;
-      }
-
-      // P0-1: salvataggio atomico delle righe preventivo.
-      // DELETE + INSERT + UPDATE parent_item_id girano tutti dentro la stessa
-      // transazione PL/pgSQL della RPC: se un qualsiasi step fallisce viene
-      // effettuato rollback totale e nessuna riga del preventivo viene persa.
-      // Prima era possibile che la DELETE committasse e l'INSERT fallisse,
-      // svuotando il preventivo.
-      // Migration: supabase/migrations/20260423120001_quote_items_atomic_save.sql
-      if (items.length > 0) {
-        const payload = items.map((it, idx) => ({
-          sort_order: idx,
-          client_temp_id: it.client_temp_id ?? null,
-          parent_temp_id: it.parent_temp_id ?? null,
-          item_type: it.item_type,
-          name: it.name,
-          description: it.description ?? null,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          discount_percent: it.discount_percent ?? 0,
-          vat_rate: it.vat_rate ?? 22,
-          unit_of_measure: it.unit_of_measure,
-          article_template_id: it.article_template_id ?? null,
-          item_category: it.item_category ?? "prodotto",
-          tariffa_id: it.tariffa_id ?? null,
-          prezzo_acquisto: it.prezzo_acquisto ?? 0,
-          mostra_nel_pdf: it.mostra_nel_pdf ?? true,
-          is_optional: it.is_optional ?? false,
-          misura_x: it.misura_x ?? null,
-          misura_y: it.misura_y ?? null,
-          family_id: it.family_id ?? null,
-          axis_selections: it.axis_selections ?? null,
-          supplier_catalog_id: it.supplier_catalog_id ?? null,
-          supplier_product_line_id: it.supplier_product_line_id ?? null,
-        }));
-        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
-          p_quote_id: quoteId!,
-          p_company_id: companyId,
-          p_items: payload,
-        });
-        if (rpcErr) throw rpcErr;
-      } else if (isEdit) {
-        // Preventivo svuotato completamente dall'utente: nulla da inserire,
-        // cancelliamo esplicitamente le righe residue.
-        await supabase.from("quote_items").delete().eq("quote_id", quoteId!);
+        try {
+          await salvaRigheAtomiche(quoteId!);
+        } catch (eRighe) {
+          // Compensazione: la testata appena nata senza le sue righe sarebbe
+          // un mezzo preventivo coi totali sbagliati — meglio nessuno.
+          await supabase.from("quotes").delete().eq("id", quoteId!).eq("company_id", companyId);
+          throw eRighe;
+        }
       }
 
       // Attachments
