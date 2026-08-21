@@ -101,7 +101,6 @@ import { ViewAsDropdown } from "@/components/admin/ViewAsDropdown";
 import { SuperAdminCompanySwitcher } from "@/components/admin/SuperAdminCompanySwitcher";
 import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
-import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { SilvioBellPopover } from "@/components/silvio/SilvioBellPopover";
 import { MobileChatTeamButton } from "@/components/layouts/MobileChatTeamButton";
 import { MobileBrandSwitcher } from "@/components/layouts/MobileBrandSwitcher";
@@ -1864,7 +1863,6 @@ export function CompanyLayout() {
             )}
           </header>
           <OfflineBanner />
-          {deferredRealtimeReady && <LifecycleNotificationsBanner />}
           {/* overflow-x-hidden: niente scroll laterale di pagina su mobile (richiesta utente:
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo

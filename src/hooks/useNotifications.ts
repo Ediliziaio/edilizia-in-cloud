@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -98,6 +98,41 @@ export function NotificationsRealtime() {
   return null;
 }
 
+/**
+ * Avvisi "di vita dell'azienda" (cash flow negativo, trial in scadenza,
+ * inattività): stanno in lifecycle_notifications, tabella diversa e per
+ * AZIENDA invece che per utente.
+ *
+ * Fino a ieri finivano in un banner fisso in cima a OGNI pagina: un muro
+ * da scavalcare per arrivare al contenuto, ripetuto ovunque. Ora entrano
+ * qui, cioè nella campanella in alto a destra col suo pallino rosso —
+ * l'avviso si vede una volta e si legge quando si vuole.
+ */
+interface LifecycleRow {
+  id: string;
+  notification_type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+/** Prefisso che distingue un avviso lifecycle nelle liste unificate. */
+const PREFISSO_LIFECYCLE = "lifecycle:";
+
+/** Dove porta il click, quando la destinazione è certa. Niente rotte inventate. */
+const LINK_PER_TIPO: Record<string, string> = {
+  cash_flow_alert: "/azienda/previsionale",
+};
+
+/** "da 5 giorni" / "da ieri" / "da oggi": distingue il problema nuovo da quello che ti trascini. */
+function daQuando(iso: string): string {
+  const giorni = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (giorni <= 0) return "oggi";
+  if (giorni === 1) return "ieri";
+  return `${giorni} giorni`;
+}
+
 export function useNotifications() {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -126,10 +161,90 @@ export function useNotifications() {
     refetchOnWindowFocus: true,
   });
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  // ── Avvisi lifecycle (azienda) → stessa lista della campanella ──
+  const { data: righeLifecycle = [] } = useQuery<LifecycleRow[]>({
+    queryKey: queryKeys.lifecycleNotifications.byCompany(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lifecycle_notifications")
+        .select("id, notification_type, title, message, is_read, created_at")
+        .eq("company_id", companyId!)
+        .eq("is_dismissed", false)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as LifecycleRow[];
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60_000,
+    gcTime: 5 * 60_000,
+  });
+
+  /**
+   * Una voce per TIPO, non per riga: il cron gira ogni giorno e cinque
+   * giorni di cash flow negativo producevano cinque avvisi identici. Il
+   * fatto è uno solo, e va detto una volta sola — con da quando lo si
+   * sta dicendo.
+   */
+  const gruppiLifecycle = useMemo(() => {
+    const perTipo = new Map<string, { rep: LifecycleRow; ids: string[]; dal: string; nonLetta: boolean }>();
+    for (const r of righeLifecycle) {
+      const g = perTipo.get(r.notification_type);
+      if (g) {
+        g.ids.push(r.id);
+        g.dal = r.created_at; // lista ordinata dal più recente: l'ultimo è il più vecchio
+        g.nonLetta = g.nonLetta || !r.is_read;
+      } else {
+        perTipo.set(r.notification_type, { rep: r, ids: [r.id], dal: r.created_at, nonLetta: !r.is_read });
+      }
+    }
+    return Array.from(perTipo.values());
+  }, [righeLifecycle]);
+
+  /** Da id-con-prefisso al gruppo di righe che rappresenta. */
+  const idsPerGruppo = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const g of gruppiLifecycle) m.set(`${PREFISSO_LIFECYCLE}${g.rep.id}`, g.ids);
+    return m;
+  }, [gruppiLifecycle]);
+
+  const notificheUnificate = useMemo<Notification[]>(() => {
+    const daLifecycle: Notification[] = gruppiLifecycle.map((g) => ({
+      id: `${PREFISSO_LIFECYCLE}${g.rep.id}`,
+      company_id: companyId ?? "",
+      user_id: userId ?? "",
+      type: "lifecycle",
+      title: g.rep.title,
+      body: g.ids.length > 1
+        ? `${g.rep.message} · te lo segnaliamo da ${daQuando(g.dal)}`
+        : g.rep.message,
+      entity_type: null,
+      entity_id: null,
+      action_url: LINK_PER_TIPO[g.rep.notification_type] ?? null,
+      is_read: !g.nonLetta,
+      is_dismissed: false,
+      created_at: g.rep.created_at,
+    }));
+    return [...notifications, ...daLifecycle].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [notifications, gruppiLifecycle, companyId, userId]);
+
+  const unreadCount = notificheUnificate.filter((n) => !n.is_read).length;
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
+      // Gli avvisi lifecycle vivono in un'altra tabella e si segnano letti
+      // TUTTI insieme: il gruppo è un fatto solo, non N righe.
+      const idsLifecycle = idsPerGruppo.get(id);
+      if (idsLifecycle) {
+        const { error } = await supabase
+          .from("lifecycle_notifications")
+          .update({ is_read: true })
+          .in("id", idsLifecycle);
+        if (error) throw error;
+        return;
+      }
       const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
@@ -138,6 +253,13 @@ export function useNotifications() {
       if (error) throw error;
     },
     onMutate: async (id) => {
+      if (idsPerGruppo.has(id)) {
+        queryClient.setQueryData<LifecycleRow[]>(
+          queryKeys.lifecycleNotifications.byCompany(companyId),
+          (old = []) => old.map((r) => (idsPerGruppo.get(id)!.includes(r.id) ? { ...r, is_read: true } : r)),
+        );
+        return;
+      }
       queryClient.setQueryData<Notification[]>(
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
@@ -146,6 +268,7 @@ export function useNotifications() {
     onError: () => {
       // Revert optimistic update on error
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
     },
   });
 
@@ -155,21 +278,45 @@ export function useNotifications() {
         p_company_id: companyId!,
       });
       if (error) throw error;
+      // "Tutte lette" deve valere anche per gli avvisi azienda, altrimenti il
+      // pallino rosso resta acceso dopo aver dichiarato di aver letto tutto.
+      const { error: errLifecycle } = await supabase
+        .from("lifecycle_notifications")
+        .update({ is_read: true })
+        .eq("company_id", companyId!)
+        .eq("is_read", false);
+      if (errLifecycle) throw errLifecycle;
     },
     onMutate: async () => {
       queryClient.setQueryData<Notification[]>(
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => ({ ...n, is_read: true }))
       );
+      queryClient.setQueryData<LifecycleRow[]>(
+        queryKeys.lifecycleNotifications.byCompany(companyId),
+        (old = []) => old.map((r) => ({ ...r, is_read: true })),
+      );
     },
     onError: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
       toast.error("Errore", { description: "Impossibile segnare tutte le notifiche come lette." });
     },
   });
 
   const dismiss = useMutation({
     mutationFn: async (id: string) => {
+      const idsLifecycle = idsPerGruppo.get(id);
+      if (idsLifecycle) {
+        // Si chiude il GRUPPO: chiuderne una e vedersene comparire un'altra
+        // identica sotto è peggio che non poterle chiudere affatto.
+        const { error } = await supabase
+          .from("lifecycle_notifications")
+          .update({ is_dismissed: true })
+          .in("id", idsLifecycle);
+        if (error) throw error;
+        return;
+      }
       const { error } = await supabase
         .from("notifications")
         .update({ is_dismissed: true })
@@ -178,6 +325,14 @@ export function useNotifications() {
       if (error) throw error;
     },
     onMutate: async (id) => {
+      const idsLifecycle = idsPerGruppo.get(id);
+      if (idsLifecycle) {
+        queryClient.setQueryData<LifecycleRow[]>(
+          queryKeys.lifecycleNotifications.byCompany(companyId),
+          (old = []) => old.filter((r) => !idsLifecycle.includes(r.id)),
+        );
+        return;
+      }
       queryClient.setQueryData<Notification[]>(
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.filter((n) => n.id !== id)
@@ -186,11 +341,12 @@ export function useNotifications() {
     onError: () => {
       // Revert optimistic update on error
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
     },
   });
 
   return {
-    notifications,
+    notifications: notificheUnificate,
     unreadCount,
     isLoading,
     markAsRead: markAsRead.mutate,
