@@ -112,7 +112,7 @@ export function CalendarLayerPanel({
   const allTeamsVisible = externalTeams.length > 0 && externalTeams.every((t) => visibleTeams.has(t.id));
 
   const allLayersHidden = isWorkScope
-    ? !showPosa && !showLavoro && !showAppuntamento
+    ? !showPosa && !showLavoro && !showAppuntamento && !showLeaves
     : !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves && !showInterventi && !showManutenzioni;
 
   return (
@@ -259,6 +259,18 @@ export function CalendarLayerPanel({
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Ferie & Permessi: visibile anche nel Calendario Lavori (scope work) —
+              pianificare i lavori senza vedere chi e' assente era il buco, non la feature. */}
+          <div className="pt-1">
+            <LayerCheckbox
+              checked={showLeaves}
+              onCheckedChange={onToggleLeaves}
+              icon={<Palmtree className="h-3 w-3 text-amber-500" />}
+              label="Ferie & Permessi"
+              color={eventColors.leave}
+            />
+          </div>
+
           {!isWorkScope && (
             <>
               {/* Calendario Magazzino */}
@@ -280,16 +292,6 @@ export function CalendarLayerPanel({
                   />
                 </CollapsibleContent>
               </Collapsible>
-
-              <div className="pt-1">
-                <LayerCheckbox
-                  checked={showLeaves}
-                  onCheckedChange={onToggleLeaves}
-                  icon={<Palmtree className="h-3 w-3 text-amber-500" />}
-                  label="Ferie & Permessi"
-                  color={eventColors.leave}
-                />
-              </div>
 
               <div className="pt-1">
                 <LayerCheckbox

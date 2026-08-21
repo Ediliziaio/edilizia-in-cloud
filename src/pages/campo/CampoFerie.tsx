@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { assertBalanceAvailable, assertNoOverlappingRequest } from "@/hooks/useRichieste";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +70,32 @@ export default function CampoFerie() {
     mutationFn: async () => {
       if (!dataInizio || !dataFine) throw new Error("Seleziona le date");
       if (dataFine < dataInizio) throw new Error("La data fine deve essere dopo la data inizio");
+
+      // STESSE regole dell'ufficio (prima questo form le bypassava: si
+      // potevano chiedere ferie oltre il saldo o sovrapposte a richieste
+      // già approvate, e l'ufficio se ne accorgeva solo a mano).
+      const companyIdCampo = (profile as any)?.company_id as string | undefined;
+      if (hrProfilo?.id && companyIdCampo) {
+        const { data: saldi } = await supabase
+          .from("hr_profili")
+          .select("ferie_residue, permessi_residui_ore, rol_residuo_ore, ore_giornaliere")
+          .eq("id", hrProfilo.id)
+          .maybeSingle();
+        if (saldi) {
+          assertBalanceAvailable(
+            { tipo: tipo as any, data_inizio: dataInizio, data_fine: dataFine },
+            saldi as any,
+          );
+        }
+        await assertNoOverlappingRequest({
+          companyId: companyIdCampo,
+          profiloId: hrProfilo.id,
+          tipo: tipo as any,
+          dataInizio,
+          dataFine,
+          stati: ["in_attesa", "approvata"] as any,
+        });
+      }
 
       const { error } = await supabase.from("hr_richieste").insert({
         user_id: user!.id,

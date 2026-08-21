@@ -671,18 +671,31 @@ function CalendarInner() {
       if (!effectiveCompany?.id) return [];
       const timeout = createTimeoutSignal(10_000, signal);
       try {
-        const query = supabase
-          .from("leave_requests")
-          .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
+        // Fonte UNICA assenze: hr_richieste approvate (il sistema HR).
+        // La vecchia leave_requests è rimasta vuota per sempre: il layer
+        // ferie del calendario non ha mai mostrato un'assenza reale.
+        const query = (supabase as any)
+          .from("hr_richieste")
+          .select("id, tipo, data_inizio, data_fine, ore_richieste, profilo:hr_profili!hr_richieste_profilo_id_fkey(id, nome, cognome, employee_id)")
           .eq("company_id", effectiveCompany.id)
-          .eq("status", "approved")
-          .lte("start_date", calendarRangeEnd)
-          .gte("end_date", calendarRangeStart)
-          .order("start_date")
+          .eq("stato", "approvata")
+          .lte("data_inizio", calendarRangeEnd)
+          .gte("data_fine", calendarRangeStart)
+          .order("data_inizio")
           .abortSignal(timeout.signal);
         const { data, error } = await withClientTimeout(query, "Caricamento assenze calendario", 10_000);
         if (error) throw error;
-        return data ?? [];
+        // Adattatore alla forma storica usata dal resto della pagina.
+        return (data ?? []).map((r: any) => ({
+          id: r.id,
+          employee_id: r.profilo?.employee_id ?? r.profilo?.id ?? null,
+          type: r.tipo,
+          start_date: r.data_inizio,
+          end_date: r.data_fine,
+          total_days: null,
+          total_hours: r.ore_richieste ?? null,
+          employee: r.profilo ? { id: r.profilo.employee_id ?? r.profilo.id, first_name: r.profilo.nome, last_name: r.profilo.cognome } : null,
+        }));
       } finally {
         timeout.dispose();
       }

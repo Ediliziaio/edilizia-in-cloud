@@ -419,23 +419,32 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   // tutte le richieste (branch company_id = get_my_company_id()). Quindi per i
   // non-autorizzati filtriamo ESPLICITAMENTE alle proprie (employee_id).
   const { data: monthFerie = [] } = useQuery({
-    queryKey: ["calendar-ferie", myEmployeeId, companyId, monthStr, canViewPersone],
+    queryKey: ["calendar-ferie", user?.id, companyId, monthStr, canViewPersone],
     queryFn: async () => {
+      // Fonte UNICA assenze: hr_richieste approvate (leave_requests è il
+      // sistema legacy mai usato: questo layer era sempre vuoto).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q = (supabase.from("leave_requests") as any)
-        .select("id, employee_id, type, start_date, end_date, employee:employees!leave_requests_employee_id_fkey(first_name, last_name)")
+      let q = (supabase.from("hr_richieste") as any)
+        .select("id, tipo, data_inizio, data_fine, profilo:hr_profili!hr_richieste_profilo_id_fkey!inner(nome, cognome, user_id)")
         .eq("company_id", companyId!)
-        .eq("status", "approved")
-        .lte("start_date", monthEndStr)
-        .gte("end_date", monthStartStr);
+        .eq("stato", "approvata")
+        .lte("data_inizio", monthEndStr)
+        .gte("data_fine", monthStartStr);
       if (!canViewPersone) {
-        if (!myEmployeeId) return [];
-        q = q.eq("employee_id", myEmployeeId);
+        // Privacy: i non autorizzati vedono solo le PROPRIE assenze.
+        q = q.eq("profilo.user_id", user!.id);
       }
-      const { data } = await q;
-      return (data ?? []) as any[];
+      const { data, error } = await q;
+      if (error) return [];
+      return ((data ?? []) as any[]).map((r: any) => ({
+        id: r.id,
+        type: r.tipo,
+        start_date: r.data_inizio,
+        end_date: r.data_fine,
+        employee: r.profilo ? { first_name: r.profilo.nome, last_name: r.profilo.cognome } : null,
+      }));
     },
-    enabled: !!companyId && layerFeriaOn && (canViewPersone || !!myEmployeeId),
+    enabled: !!companyId && layerFeriaOn && (canViewPersone || !!user?.id),
     staleTime: 5 * 60 * 1000,
   });
 

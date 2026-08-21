@@ -152,7 +152,7 @@ function requestedHours(data: Partial<HrRichiesta>, profilo: BalanceProfilo) {
   return inclusiveDays(data.data_inizio!, data.data_fine!) * Number(profilo.ore_giornaliere || 8);
 }
 
-function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: BalanceProfilo) {
+export function assertBalanceAvailable(data: Partial<HrRichiesta>, profilo: BalanceProfilo) {
   const tipo = data.tipo ?? "ferie";
 
   if (tipo === "ferie") {
@@ -348,7 +348,7 @@ async function clearRequestGeneratedGiornate(companyId: string, richiesta: Richi
   if (deleteError) throw deleteError;
 }
 
-async function assertNoOverlappingRequest({
+export async function assertNoOverlappingRequest({
   companyId,
   profiloId,
   tipo,

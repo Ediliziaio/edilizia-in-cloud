@@ -10,6 +10,8 @@ import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +25,6 @@ import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees
 import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
 import { WorkLogsAdminTab } from "@/components/employees/WorkLogsAdminTab";
-import { LeaveAdminTab } from "@/components/employees/LeaveAdminTab";
 import { EmployeesTab } from "@/components/employees/EmployeesTab";
 import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
 import type { Employee, ExternalTeam } from "@/types/employees";
@@ -338,7 +339,25 @@ function EmployeesInner() {
             onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} />
         </TabsContent>
         <TabsContent value="worklogs"><WorkLogsAdminTab /></TabsContent>
-        <TabsContent value="leave"><LeaveAdminTab /></TabsContent>
+        <TabsContent value="leave">
+          {/* Il sistema ferie legacy (leave_requests) non è mai stato usato:
+              rimosso. La gestione vive nel sistema HR, unica fonte anche per
+              i calendari. */}
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <Palmtree className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Ferie e permessi si gestiscono in Personale &amp; HR</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Richieste, approvazioni e saldi (ferie, permessi, ROL) sono nella tab Richieste del modulo Personale.
+                </p>
+              </div>
+              <Button asChild>
+                <Link to="/azienda/personale?tab=richieste">Apri Richieste HR</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <EmployeeDialog open={employeeDialogOpen}
