@@ -48,7 +48,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export function TabTimbrature() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
   const [filterName, setFilterName] = useState("");

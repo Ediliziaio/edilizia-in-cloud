@@ -157,10 +157,17 @@ export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0): Un
     if (salary === 0) return;
 
     const inpsRate = Number(emp.inps_rate) || 28;
+    // hire_date/termination_date arrivano dall'anagrafica HR (hr_profili.
+    // data_assunzione/data_cessazione) quando compilate; il fallback resta
+    // created_at (= quando è stato inserito in piattaforma).
     const hireDate = emp.hire_date ? new Date(emp.hire_date) : emp.created_at ? new Date(emp.created_at) : addMonths(now, -11);
+    // Un dipendente cessato smette di costare dal mese dopo la cessazione.
+    const personHorizon = emp.termination_date
+      ? new Date(Math.min(horizonEnd.getTime(), endOfMonth(new Date(emp.termination_date)).getTime()))
+      : horizonEnd;
     let month = startOfMonth(hireDate);
 
-    while (!isAfter(month, horizonEnd)) {
+    while (!isAfter(month, personHorizon)) {
       const monthEnd = endOfMonth(month);
       const isPaid = isBefore(monthEnd, startOfMonth(now));
       const paidDate = isPaid ? format(monthEnd, "yyyy-MM-dd") : null;

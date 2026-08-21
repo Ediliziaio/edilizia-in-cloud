@@ -133,26 +133,50 @@ export function TabCedolini() {
       const mese = parseInt(form.mese);
       const anno = parseInt(form.anno);
       const inizioMese = `${anno}-${String(mese).padStart(2, "0")}-01`;
-      const fineMese = new Date(anno, mese, 0).toISOString().split("T")[0];
+      // Ultimo giorno del mese SENZA passare da toISOString (UTC): a
+      // mezzanotte locale la data UTC è il giorno prima e il 30/31 spariva.
+      const ultimoGiorno = new Date(anno, mese, 0).getDate();
+      const fineMese = `${anno}-${String(mese).padStart(2, "0")}-${String(ultimoGiorno).padStart(2, "0")}`;
 
-      const { data, error } = await supabase
-        .from("presenze")
-        .select("ore_lavorate, tipo")
+      // Fonte VERA: hr_giornate (consolidate dalle timbrature). La vecchia
+      // query interrogava una tabella `presenze` che non è mai esistita nel
+      // database: il bottone falliva dal primo giorno.
+      const nomeCercato = form.employee_name.trim().toLowerCase();
+      const { data: profili, error: profErr } = await supabase
+        .from("hr_profili")
+        .select("id, nome, cognome")
         .eq("company_id", companyId!)
-        .ilike("dipendente_nome", `%${form.employee_name.trim()}%`)
-        .gte("data", inizioMese)
-        .lte("data", fineMese);
-
-      if (error) { toast.error("Errore nel recupero delle presenze"); return; }
-      if (!data || data.length === 0) {
-        toast.info(`Nessuna presenza trovata per ${form.employee_name} nel ${MESI[mese - 1]} ${anno}`);
+        .eq("attivo", true);
+      if (profErr) { toast.error("Errore nel recupero dei profili"); return; }
+      const match = (profili || []).filter((p) =>
+        `${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase().includes(nomeCercato)
+        || nomeCercato.includes(`${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase()),
+      );
+      if (match.length === 0) {
+        toast.info(`Nessun profilo HR trovato per "${form.employee_name}"`);
+        return;
+      }
+      if (match.length > 1) {
+        toast.error(`Più profili corrispondono a "${form.employee_name}": scrivi nome e cognome completi`);
         return;
       }
 
-      const totalOre = data.reduce((sum: number, p: any) => sum + (p.ore_lavorate || 0), 0);
-      const oreStraordinario = data
-        .filter((p: any) => p.tipo === "straordinario")
-        .reduce((sum: number, p: any) => sum + (p.ore_lavorate || 0), 0);
+      const { data, error } = await supabase
+        .from("hr_giornate")
+        .select("ore_lavorate, ore_straordinario")
+        .eq("company_id", companyId!)
+        .eq("profilo_id", match[0].id)
+        .gte("data", inizioMese)
+        .lte("data", fineMese);
+
+      if (error) { toast.error("Errore nel recupero delle giornate"); return; }
+      if (!data || data.length === 0) {
+        toast.info(`Nessuna giornata registrata per ${form.employee_name} nel ${MESI[mese - 1]} ${anno}`);
+        return;
+      }
+
+      const totalOre = data.reduce((sum: number, p: any) => sum + (Number(p.ore_lavorate) || 0), 0);
+      const oreStraordinario = data.reduce((sum: number, p: any) => sum + (Number(p.ore_straordinario) || 0), 0);
 
       // 2026-05-27 (UX audit fix): prima il calcolo veniva mostrato solo nel
       // toast e il valore veniva perso (l'utente doveva ricopiare a mano).
@@ -188,8 +212,25 @@ export function TabCedolini() {
         throw new Error("Contributi dipendente e IRPEF non possono superare il lordo");
       }
 
+      // Aggancia il dipendente VERO quando il nome è riconoscibile: senza
+      // employee_id il cedolino non arrivava mai nell'area personale del
+      // dipendente (che filtra proprio su employee_id). E il netto si salva,
+      // non si ricalcola solo a schermo.
+      let employeeId: string | null = null;
+      const nomeCompleto = form.employee_name.trim().toLowerCase();
+      const { data: profiliMatch } = await supabase
+        .from("hr_profili")
+        .select("employee_id, nome, cognome")
+        .eq("company_id", companyId)
+        .not("employee_id", "is", null);
+      const trovati = (profiliMatch || []).filter(
+        (p) => `${p.nome ?? ""} ${p.cognome ?? ""}`.trim().toLowerCase() === nomeCompleto,
+      );
+      if (trovati.length === 1) employeeId = trovati[0].employee_id;
+
       const { error } = await supabase.from("cedolini").insert({
         company_id: companyId,
+        employee_id: employeeId,
         employee_name: form.employee_name.trim(),
         mese: parseInt(form.mese),
         anno: parseInt(form.anno),
@@ -197,9 +238,10 @@ export function TabCedolini() {
         contributi_dipendente: contributiDipendente,
         contributi_datore: contributiDatore,
         ritenute_irpef: ritenuteIrpef,
+        netto: Math.round((lordo - contributiDipendente - ritenuteIrpef) * 100) / 100,
         stato: form.stato,
         note: form.note.trim() || null,
-      });
+      } as any);
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {

@@ -96,7 +96,7 @@ function EmployeesInner() {
   const saveEmployeeMutation = useMutation({
     mutationFn: async (data: EmployeeFormData & { id?: string; role_type?: string }) => {
       if (data.id) {
-        const { error } = await supabase.from("employees").update({
+        const { data: updated, error } = await supabase.from("employees").update({
           first_name: data.first_name, last_name: data.last_name,
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
@@ -109,8 +109,9 @@ function EmployeesInner() {
                 : null),
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           area: data.area || null,
-        }).eq("id", data.id);
+        }).eq("id", data.id).eq("company_id", effectiveCompanyId!).select("id");
         if (error) throw error;
+        if (!updated || updated.length === 0) throw new Error("Nessun dipendente aggiornato: verifica i permessi.");
       } else {
         const { error } = await supabase.from("employees").insert({
           company_id: effectiveCompanyId!,
@@ -143,7 +144,7 @@ function EmployeesInner() {
 
   const deleteEmployeeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employees").delete().eq("id", id);
+      const { error } = await supabase.from("employees").delete().eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -186,7 +187,7 @@ function EmployeesInner() {
 
   const deleteTeamMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("external_teams").delete().eq("id", id);
+      const { error } = await supabase.from("external_teams").delete().eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {

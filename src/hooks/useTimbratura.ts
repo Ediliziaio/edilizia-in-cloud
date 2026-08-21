@@ -61,7 +61,9 @@ export function useMyHrProfilo() {
 /** Get today's timbrature for current user */
 export function useMyTodayTimbrature(profiloId: string | undefined) {
   const companyId = useEffectiveCompanyId();
-  const today = new Date().toISOString().slice(0, 10);
+  // data_evento è calcolata in Europe/Rome: confrontarla con la data UTC
+  // sbagliava giorno tra la mezzanotte e le 2 di notte italiane.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
   return useQuery({
     queryKey: ["hr-my-timbrature-today", companyId, profiloId, today],
@@ -176,7 +178,9 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
 /** Admin: fetch today's last timbratura per profilo for live status */
 export function useLiveStatus() {
   const companyId = useEffectiveCompanyId();
-  const today = new Date().toISOString().slice(0, 10);
+  // data_evento è calcolata in Europe/Rome: confrontarla con la data UTC
+  // sbagliava giorno tra la mezzanotte e le 2 di notte italiane.
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
   return useQuery({
     queryKey: ["hr-live-status", companyId, today],
@@ -212,7 +216,8 @@ export function useLiveStatus() {
           ...p,
           last_tipo: last?.tipo || null,
           last_ora: last?.ora_evento?.slice(0, 5) || null,
-          is_present: last?.tipo === "entrata" || last?.tipo === "pausa_fine" || last?.tipo === "fine_pausa",
+          // In pausa = ancora in azienda: contarlo assente falsava "Presenti ora".
+          is_present: last?.tipo === "entrata" || last?.tipo === "pausa_fine" || last?.tipo === "fine_pausa" || last?.tipo === "pausa_inizio" || last?.tipo === "inizio_pausa",
         };
       }) as LiveStatusProfilo[];
     },

@@ -118,3 +118,64 @@ export function useDeleteHrSede() {
     onError: (e: any) => toast.error("Errore: " + e.message),
   });
 }
+
+/**
+ * Importa in hr_sedi le "Sedi aziendali" (tabella `sedi`, quella di
+ * Impostazioni/commesse/marketing) che l'HR non vede: DUE anagrafiche
+ * parallele, e chi creava la sede "di là" si sentiva dire dall'HR che
+ * non esistevano sedi. Copia solo quelle attive non ancora presenti
+ * (match per nome), raggio GPS default 200 m.
+ */
+export function useImportaSediAziendali() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("companyId required");
+      const [{ data: aziendali, error: e1 }, { data: esistenti, error: e2 }] = await Promise.all([
+        supabase
+          .from("sedi")
+          .select("nome, indirizzo, citta, provincia, cap, lat, lng")
+          .eq("company_id", companyId)
+          .eq("attiva", true),
+        supabase.from("hr_sedi").select("nome").eq("company_id", companyId),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+
+      const nomiEsistenti = new Set((esistenti || []).map((s) => (s.nome || "").trim().toLowerCase()));
+      const daImportare = (aziendali || []).filter(
+        (s) => s.nome && !nomiEsistenti.has(s.nome.trim().toLowerCase()),
+      );
+      if (daImportare.length === 0) return 0;
+
+      const { error: insErr } = await supabase.from("hr_sedi").insert(
+        daImportare.map((s) => ({
+          company_id: companyId,
+          nome: s.nome,
+          indirizzo: s.indirizzo ?? null,
+          citta: s.citta ?? null,
+          provincia: s.provincia ?? null,
+          cap: s.cap ?? null,
+          lat: s.lat ?? null,
+          lng: s.lng ?? null,
+          raggio_mt: 200,
+          attiva: true,
+        })) as any,
+      );
+      if (insErr) throw insErr;
+      return daImportare.length;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["hr-sedi"] });
+      qc.invalidateQueries({ queryKey: ["hr-regia-sedi"] });
+      toast.success(
+        n === 0
+          ? "Nessuna sede nuova da importare"
+          : `${n} sed${n === 1 ? "e importata" : "i importate"} dalle Sedi aziendali`,
+      );
+    },
+    onError: (e: any) => toast.error("Errore import sedi: " + e.message),
+  });
+}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useHrSedi, useCreateHrSede, useUpdateHrSede, useDeleteHrSede } from "@/hooks/useHrSedi";
+import { useHrSedi, useCreateHrSede, useUpdateHrSede, useDeleteHrSede, useImportaSediAziendali } from "@/hooks/useHrSedi";
 import type { HrSede } from "@/types/hr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 export function TabSedi() {
   const { data: sedi = [], isLoading } = useHrSedi();
+  const importaMut = useImportaSediAziendali();
   const [editSede, setEditSede] = useState<HrSede | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -57,9 +58,17 @@ export function TabSedi() {
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{sedi.length} sedi configurate</p>
-        <Button size="sm" onClick={() => setShowNew(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuova Sede
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Le "Sedi aziendali" (Impostazioni) sono un'anagrafica separata:
+              chi le aveva già create si sentiva dire dall'HR che non
+              esistevano sedi. Un click e arrivano anche qui (raggio 200 m). */}
+          <Button size="sm" variant="outline" onClick={() => importaMut.mutate()} disabled={importaMut.isPending}>
+            {importaMut.isPending ? "Importo..." : "Importa da Sedi aziendali"}
+          </Button>
+          <Button size="sm" onClick={() => setShowNew(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nuova Sede
+          </Button>
+        </div>
       </div>
 
       {/* List */}

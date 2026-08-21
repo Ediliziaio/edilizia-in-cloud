@@ -139,14 +139,21 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const employeesQuery = useQuery({
     queryKey: queryKeys.costs.employees(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Le date VERE di assunzione/cessazione vivono nell'anagrafica HR
+      // (hr_profili): quando compilate, la proiezione stipendi parte e si
+      // ferma lì invece che su created_at (= onboarding piattaforma).
+      const { data, error } = await (supabase as any)
         .from("employees")
-        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate")
+        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate, data_assunzione, hr_profili(data_assunzione, data_cessazione)")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("last_name");
       if (error) throw error;
-      return data || [];
+      return (data || []).map((e: any) => ({
+        ...e,
+        hire_date: e.data_assunzione ?? e.hr_profili?.[0]?.data_assunzione ?? null,
+        termination_date: e.hr_profili?.[0]?.data_cessazione ?? null,
+      }));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
