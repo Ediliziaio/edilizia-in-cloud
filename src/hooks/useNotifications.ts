@@ -187,15 +187,14 @@ export function useNotifications() {
    * sta dicendo.
    */
   const gruppiLifecycle = useMemo(() => {
-    const perTipo = new Map<string, { rep: LifecycleRow; ids: string[]; dal: string; nonLetta: boolean }>();
+    const perTipo = new Map<string, { rep: LifecycleRow; ids: string[]; dal: string }>();
     for (const r of righeLifecycle) {
       const g = perTipo.get(r.notification_type);
       if (g) {
         g.ids.push(r.id);
         g.dal = r.created_at; // lista ordinata dal più recente: l'ultimo è il più vecchio
-        g.nonLetta = g.nonLetta || !r.is_read;
       } else {
-        perTipo.set(r.notification_type, { rep: r, ids: [r.id], dal: r.created_at, nonLetta: !r.is_read });
+        perTipo.set(r.notification_type, { rep: r, ids: [r.id], dal: r.created_at });
       }
     }
     return Array.from(perTipo.values());
@@ -221,7 +220,11 @@ export function useNotifications() {
       entity_type: null,
       entity_id: null,
       action_url: LINK_PER_TIPO[g.rep.notification_type] ?? null,
-      is_read: !g.nonLetta,
+      // Un avviso azienda NON è un messaggio: è un problema aperto. Resta
+      // "da gestire" (e quindi contato nel pallino rosso) finché non lo
+      // chiudi tu o finché la causa non rientra — averlo guardato una volta
+      // non lo risolve.
+      is_read: false,
       is_dismissed: false,
       created_at: g.rep.created_at,
     }));
@@ -230,21 +233,15 @@ export function useNotifications() {
     );
   }, [notifications, gruppiLifecycle, companyId, userId]);
 
+  /** Il numero sul pallino rosso: messaggi non letti + avvisi ancora aperti. */
   const unreadCount = notificheUnificate.filter((n) => !n.is_read).length;
+  /** Solo i messaggi veri: "Tutte lette" e l'auto-lettura lavorano su questi. */
+  const unreadMessagesCount = notifications.filter((n) => !n.is_read).length;
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
-      // Gli avvisi lifecycle vivono in un'altra tabella e si segnano letti
-      // TUTTI insieme: il gruppo è un fatto solo, non N righe.
-      const idsLifecycle = idsPerGruppo.get(id);
-      if (idsLifecycle) {
-        const { error } = await supabase
-          .from("lifecycle_notifications")
-          .update({ is_read: true })
-          .in("id", idsLifecycle);
-        if (error) throw error;
-        return;
-      }
+      // Gli avvisi azienda non si "leggono": restano finché non li chiudi.
+      if (idsPerGruppo.has(id)) return;
       const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
@@ -253,13 +250,7 @@ export function useNotifications() {
       if (error) throw error;
     },
     onMutate: async (id) => {
-      if (idsPerGruppo.has(id)) {
-        queryClient.setQueryData<LifecycleRow[]>(
-          queryKeys.lifecycleNotifications.byCompany(companyId),
-          (old = []) => old.map((r) => (idsPerGruppo.get(id)!.includes(r.id) ? { ...r, is_read: true } : r)),
-        );
-        return;
-      }
+      if (idsPerGruppo.has(id)) return;
       queryClient.setQueryData<Notification[]>(
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
@@ -278,23 +269,13 @@ export function useNotifications() {
         p_company_id: companyId!,
       });
       if (error) throw error;
-      // "Tutte lette" deve valere anche per gli avvisi azienda, altrimenti il
-      // pallino rosso resta acceso dopo aver dichiarato di aver letto tutto.
-      const { error: errLifecycle } = await supabase
-        .from("lifecycle_notifications")
-        .update({ is_read: true })
-        .eq("company_id", companyId!)
-        .eq("is_read", false);
-      if (errLifecycle) throw errLifecycle;
+      // Gli avvisi azienda restano fuori: "letto" non è "risolto", e sparire
+      // dal pallino al primo sguardo era esattamente il difetto del banner.
     },
     onMutate: async () => {
       queryClient.setQueryData<Notification[]>(
         queryKeys.notifications.list(companyId, userId),
         (old = []) => old.map((n) => ({ ...n, is_read: true }))
-      );
-      queryClient.setQueryData<LifecycleRow[]>(
-        queryKeys.lifecycleNotifications.byCompany(companyId),
-        (old = []) => old.map((r) => ({ ...r, is_read: true })),
       );
     },
     onError: () => {
@@ -348,6 +329,7 @@ export function useNotifications() {
   return {
     notifications: notificheUnificate,
     unreadCount,
+    unreadMessagesCount,
     isLoading,
     markAsRead: markAsRead.mutate,
     markAllAsRead: markAllAsRead.mutate,

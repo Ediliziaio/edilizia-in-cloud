@@ -217,6 +217,9 @@ function NotificationRow({
   onMarkRead: (id: string) => void;
 }) {
   const unread = !n.is_read;
+  // Gli avvisi azienda non si "leggono", si chiudono: la X resta sempre
+  // visibile (non solo all'hover) perché è l'unico modo di spegnerli.
+  const avviso = n.type === "lifecycle";
   return (
     <div
       className={cn(
@@ -238,8 +241,13 @@ function NotificationRow({
           {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: it })}
         </p>
       </div>
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {unread && (
+      <div
+        className={cn(
+          "absolute top-1.5 right-1.5 flex items-center gap-0.5 transition-opacity",
+          avviso ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
+      >
+        {unread && !avviso && (
           <button
             className="rounded-sm p-1 hover:bg-muted"
             onClick={(e) => {
@@ -258,8 +266,8 @@ function NotificationRow({
             e.stopPropagation();
             onDismiss(n.id);
           }}
-          title="Elimina"
-          aria-label="Elimina notifica"
+          title={avviso ? "Chiudi avviso" : "Elimina"}
+          aria-label={avviso ? "Chiudi avviso" : "Elimina notifica"}
         >
           <X className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
@@ -343,6 +351,7 @@ export function NotificationsBellPopover() {
   const {
     notifications,
     unreadCount,
+    unreadMessagesCount,
     markAsRead,
     markAllAsRead,
     dismiss,
@@ -361,11 +370,13 @@ export function NotificationsBellPopover() {
 
   // Auto mark-all-read 1.5s dopo apertura (un po' più lento del Sheet
   // originale: l'utente ha più tempo di notare le "non lette" nel popover compatto)
+  // Solo i MESSAGGI si auto-segnano letti: gli avvisi azienda restano
+  // accesi finché non li chiudi (guardarli non li risolve).
   useEffect(() => {
-    if (!open || unreadCount === 0) return;
+    if (!open || unreadMessagesCount === 0) return;
     const timer = setTimeout(() => markAllAsRead(), 1500);
     return () => clearTimeout(timer);
-  }, [open, unreadCount, markAllAsRead]);
+  }, [open, unreadMessagesCount, markAllAsRead]);
 
   const handleClick = (n: Notification) => {
     if (!n.is_read) markAsRead(n.id);
@@ -419,7 +430,7 @@ export function NotificationsBellPopover() {
             <Button
               variant="ghost"
               size="sm"
-              disabled={unreadCount === 0}
+              disabled={unreadMessagesCount === 0}
               onClick={() => markAllAsRead()}
               className="h-7 text-xs gap-1"
             >
