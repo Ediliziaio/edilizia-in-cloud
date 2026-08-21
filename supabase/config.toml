@@ -465,6 +465,14 @@ verify_jwt = false
 [functions.ricevi-sdi]
 verify_jwt = false
 
+# Gemella di ricevi-sdi per il ramo ATTIVE dell'import massivo XML: stessa
+# necessità di stare fuori dal verify_jwt del gateway (che rifiuta i token
+# ES256 prima del handler). L'autorizzazione la fa lei: getUser +
+# canAccessCompany. Senza questa voce l'import delle fatture emesse falliva
+# con un 401 generico dal gateway, mai dal codice.
+[functions.importa-fattura-attiva-xml]
+verify_jwt = false
+
 [functions.secure-impersonation]
 verify_jwt = false
 

@@ -51,6 +51,7 @@ import {
   Loader2,
   Link2,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -163,17 +164,39 @@ export default function FattureRicevutePage() {
     [fatture],
   );
   const { data: odaNumbers = {} } = useQuery({
-    queryKey: ["fatture-oda-numbers", linkedOdaIds],
-    enabled: linkedOdaIds.length > 0,
+    queryKey: ["fatture-oda-numbers", companyId, linkedOdaIds],
+    enabled: !!companyId && linkedOdaIds.length > 0,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("purchase_orders")
         .select("id, oda_number")
+        .eq("company_id", companyId!)
         .in("id", linkedOdaIds);
       if (error) throw error;
       return Object.fromEntries(
         ((data ?? []) as Array<{ id: string; oda_number: string }>).map((o) => [o.id, o.oda_number]),
       ) as Record<string, string>;
+    },
+  });
+
+  // Perché la pagina resta vuota: se il gestionale è collegato ma al token
+  // manca il permesso sui documenti ricevuti, il provider risponde 403 e
+  // l'import passive torna zero. Per mesi è sembrato "nessuna fattura da
+  // fornitori"; adesso lo diciamo, con il gesto che lo risolve.
+  const { data: integrazione } = useQuery({
+    queryKey: ["billing-integration-ricevute", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("billing_integrations")
+        .select("provider, received_scope_missing, last_sync_at")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data as { provider: string; received_scope_missing: boolean; last_sync_at: string | null } | null;
     },
   });
 
@@ -213,11 +236,18 @@ export default function FattureRicevutePage() {
 
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { error } = await supabase
+      // Il filtro sull'azienda non è pignoleria: senza, una riga fuori dal
+      // perimetro RLS fa tornare a PostgREST "0 righe aggiornate" SENZA
+      // errore, e l'utente si vedeva il toast "Stato aggiornato" su una
+      // scrittura mai avvenuta.
+      const { data, error } = await supabase
         .from("fatture_ricevute" as never)
         .update({ stato, updated_at: new Date().toISOString() } as never)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId!)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Fattura non aggiornata: non appartiene a questa azienda");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
@@ -231,11 +261,14 @@ export default function FattureRicevutePage() {
   // da solo (scatta solo su insert/update degli importi), la scelta resta.
   const linkOdaMutation = useMutation({
     mutationFn: async ({ id, odaId }: { id: string; odaId: string | null }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("fatture_ricevute" as never)
         .update({ purchase_order_id: odaId, updated_at: new Date().toISOString() } as never)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId!)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Fattura non collegata: non appartiene a questa azienda");
     },
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
@@ -385,6 +418,27 @@ export default function FattureRicevutePage() {
         </div>
       </div>
 
+      {integrazione?.received_scope_missing && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Le fatture dei fornitori non stanno arrivando
+              </p>
+              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300">
+                Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il
+                permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve
+                ricollegare l'account una volta, autorizzando anche i documenti ricevuti.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-3 border-amber-400 bg-white hover:bg-amber-100">
+                <Link to="/azienda/impostazioni/fatturazione">Ricollega il gestionale</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resoconto dell'ultimo import: dice quante sono passate e, soprattutto,
           quali no e per quale motivo — cosi' si sa cosa ricaricare. */}
       {report && (
@@ -512,7 +566,6 @@ export default function FattureRicevutePage() {
             <SelectItem value="non_letta">Non lette</SelectItem>
             <SelectItem value="letta">Lette</SelectItem>
             <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
-            <SelectItem value="rifiutata">Rifiutate</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -652,7 +705,13 @@ export default function FattureRicevutePage() {
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
-                      {f.stato === "letta" && (
+                      {/* Prima "Contabilizza" compariva SOLO su stato "letta", e
+                          l'unico modo di diventare "letta" era aprire l'anteprima
+                          XML — che esiste solo se l'XML c'è. Le fatture arrivate
+                          dal gestionale (FIC/Aruba) non ce l'hanno: restavano
+                          bloccate su "non letta" per sempre. Ora si contabilizza
+                          qualunque fattura non ancora contabilizzata. */}
+                      {f.stato !== "contabilizzata" && (
                         <Button
                           variant="ghost"
                           size="sm"

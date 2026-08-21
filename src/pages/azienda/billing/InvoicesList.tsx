@@ -143,6 +143,10 @@ export default function InvoicesList() {
         // currency/customer_id NON esistono → rimosse.
         .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider, external_status")
         .eq("company_id", companyId!)
+        // Le fatture cestinate (soft delete) restavano in lista E nei KPI:
+        // il totale "da incassare" contava documenti annullati, e cliccandoli
+        // il dettaglio — che invece filtra deleted_at — diceva "non trovata".
+        .is("deleted_at", null)
         .order("issue_date", { ascending: false, nullsFirst: false })
         .limit(500);
       if (error) throw error;
@@ -163,13 +167,17 @@ export default function InvoicesList() {
     queryFn: async () => {
       // select chirurgico — la UI usa last_sync_at + provider (badge intestazione e
       // invoke billing-import: senza, provider arrivava undefined alla function)
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("billing_integrations")
         .select("id, last_sync_at, provider")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
+      // L'errore non va ingoiato: se la lettura fallisce la pagina mostrava
+      // "Connetti il tuo gestionale" a chi ce l'ha già collegato, con
+      // Sincronizza disabilitato e nessuna spiegazione.
+      if (error) throw error;
       return data;
     },
     enabled: !!companyId,

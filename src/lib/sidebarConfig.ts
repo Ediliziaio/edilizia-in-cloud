@@ -156,7 +156,11 @@ export const macroAreas: MacroArea[] = [
       // ─── Fatturazione esterna (billing_external) ───
       { title: "Fatturazione", url: "/azienda/fatturazione", icon: Receipt, permissionKey: "canViewBilling", featureKey: "billing_external", groupLabel: "Fatturazione e Documenti" },
       { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "billing_external" },
-      { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_external" },
+      // Le fatture dei FORNITORI arrivano comunque, che tu emetta con un
+      // gestionale esterno o dal modulo nativo: marcarla "billing_external"
+      // la faceva sparire dal menu in modalità nativa, pur essendo una rotta
+      // senza BillingModeGuard e quindi funzionante. Feature giusta: documenti.
+      { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti" },
       // ─── Contabilità ───
       { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", featureKey: "prima_nota", groupLabel: "Contabilità" },
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
@@ -279,7 +283,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
   { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewScadenzario", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
-  { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
+  { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   // "Report" rimosso da internalNavItems (allineato con rimozione da sidebar principale)
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", category: "internal", subcategory: "gi_finanza" },

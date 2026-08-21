@@ -28,6 +28,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
         .from("invoices")
         .select("id, status, document_type, issue_date, due_date, subtotal, tax_amount, total, paid_amount, client_company_name, invoice_number")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)  // stesso motivo della lista: niente cestinate nei report
         .gte("issue_date", from)
         .lte("issue_date", to)
         .neq("status", "cancelled")

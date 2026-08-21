@@ -352,7 +352,9 @@ Deno.serve(async (req) => {
               body: `Fattura ${parsed.numero_fattura} da ${parsed.cedente_ragione_sociale} — €${parsed.totale_documento.toFixed(2)}`,
               entity_type: "fattura_ricevuta",
               entity_id: inserted?.id,
-              action_url: "/azienda/fatturazione/ricevute",
+              // La rotta vera: "/azienda/fatturazione/ricevute" non esiste e
+              // finiva su InvoiceDetail con id="ricevute" (dettaglio vuoto).
+              action_url: "/azienda/documenti/fatture-ricevute",
             }))
           );
         }

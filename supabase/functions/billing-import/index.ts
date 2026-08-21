@@ -229,7 +229,8 @@ Deno.serve(async (req) => {
     // fatture_ricevute. Non blocca l'import delle emesse se fallisce
     // (best-effort). Gli altri provider restano solo-emesse finché il loro
     // endpoint ricevute non è validato su account reale.
-    let received = { imported: 0, updated: 0, failed: 0 };
+    let received: { imported: number; updated: number; failed: number; noPermission?: boolean } =
+      { imported: 0, updated: 0, failed: 0 };
     if (provider === "fattureincloud" || provider === "aruba") {
       try {
         received = provider === "fattureincloud"
@@ -239,14 +240,25 @@ Deno.serve(async (req) => {
         if (importErrors.length < 5) importErrors.push(`passive: ${String(e)}`);
       }
     }
+    // Il permesso mancante è un FATTO che l'utente deve poter leggere in
+    // pagina, non una riga di log: serve un suo gesto (ricollegare l'account).
+    const permessoRicevuteMancante = received.noPermission === true;
+    if (permessoRicevuteMancante) {
+      importErrors.push(
+        "Fatture ricevute non importate: al collegamento manca il permesso sui documenti ricevuti. Ricollega l'account dalle impostazioni.",
+      );
+    }
 
     // Update last sync — lo stato riflette le fallite: "partial" se qualcosa è andato
     // storto, così l'header non mostra "success" mascherando import incompleti.
-    const syncStatus = (failed > 0 || received.failed > 0) ? "partial" : "success";
+    const syncStatus = (failed > 0 || received.failed > 0 || permessoRicevuteMancante) ? "partial" : "success";
     await supabase.from("billing_integrations").update({
       last_sync_at: new Date().toISOString(),
       last_sync_status: syncStatus,
-      last_sync_error: failed > 0 ? importErrors.join(" | ") : null,
+      // Prima l'errore veniva scritto SOLO se erano fallite delle emesse: un
+      // import passive a zero per mancanza di permesso restava muto ovunque.
+      last_sync_error: importErrors.length > 0 ? importErrors.join(" | ") : null,
+      received_scope_missing: permessoRicevuteMancante,
     }).eq("id", integ.id);
 
     // Fix #8: Use correct column names for billing_sync_log
@@ -561,7 +573,7 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
 // tabella DEDICATA `fatture_ricevute` (colonne cedente_*), non in `invoices`.
 // doc.entity qui è il FORNITORE (cedente). Dedup su (company_id, cedente_piva,
 // numero_fattura, data_fattura) come l'unique naturale della tabella.
-async function importFICReceived(integ: any, companyId: string): Promise<{ imported: number; updated: number; failed: number }> {
+async function importFICReceived(integ: any, companyId: string): Promise<{ imported: number; updated: number; failed: number; noPermission?: boolean }> {
   await ensureFreshFicToken(integ);
   const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
   const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
@@ -571,9 +583,11 @@ async function importFICReceived(integ: any, companyId: string): Promise<{ impor
   while (true) {
     const r = await fetch(`${base}/received_documents?fieldset=detailed&per_page=100&page=${page}&sort=-date`, { headers: h });
     if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Riconnetti l'account.");
-    // 403 = scope received_documents non concesso (account collegato prima dell'update):
-    // non è un errore bloccante, semplicemente non importiamo le passive.
-    if (r.status === 403) return { imported: 0, updated: 0, failed: 0 };
+    // 403 = scope received_documents non concesso (account collegato prima
+    // dell'update). Non blocca le emesse, ma NON è "zero fatture ricevute":
+    // per mesi ha restituito zeri indistinguibili dal caso legittimo, con la
+    // pagina che prometteva l'arrivo automatico dal SDI. Ora lo dichiariamo.
+    if (r.status === 403) return { imported: 0, updated: 0, failed: 0, noPermission: true };
     if (!r.ok) throw new Error(`FIC received API error: ${r.status}`);
     const d = await r.json();
     const docs = d.data || [];
