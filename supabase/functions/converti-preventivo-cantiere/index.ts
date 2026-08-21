@@ -146,6 +146,51 @@ Deno.serve(async (req) => {
       // Non blocchiamo: il cantiere è già stato creato
     }
 
+    // 7. Chiude la catena commerciale: se il preventivo era legato a un
+    // deal, la commessa lo ricorda (orders.opportunity_id) e l'opportunità
+    // ancora aperta diventa VINTA — è il momento in cui il fatto è certo,
+    // niente dati inventati. Tutto best-effort: la commessa esiste già.
+    const opportunityId = (quote as Record<string, unknown>).opportunity_id as string | null | undefined;
+    if (opportunityId) {
+      try {
+        await supabaseAdmin
+          .from("orders")
+          .update({ opportunity_id: opportunityId })
+          .eq("id", order.id);
+      } catch (eLink) {
+        console.error("Aggancio opportunità→commessa non riuscito:", eLink);
+      }
+      try {
+        const { data: opp } = await supabaseAdmin
+          .from("marketing_opportunities")
+          .select("id, status, pipeline_id")
+          .eq("id", opportunityId)
+          .eq("company_id", quote.company_id)
+          .maybeSingle();
+        if (opp && opp.status === "open") {
+          // Se la pipeline ha una fase "vinta", il kanban resta coerente.
+          const { data: faseVinta } = await supabaseAdmin
+            .from("marketing_pipeline_stages")
+            .select("id")
+            .eq("pipeline_id", opp.pipeline_id)
+            .eq("auto_status", "won")
+            .order("position")
+            .limit(1)
+            .maybeSingle();
+          await supabaseAdmin
+            .from("marketing_opportunities")
+            .update({
+              status: "won", // won_at lo mette il trigger DB
+              ...(faseVinta ? { stage_id: faseVinta.id } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", opportunityId);
+        }
+      } catch (eWin) {
+        console.error("Chiusura opportunità come vinta non riuscita:", eWin);
+      }
+    }
+
     return jsonResponse({ success: true, order_id: order.id });
   } catch (e) {
     if (e instanceof Response) return e;
