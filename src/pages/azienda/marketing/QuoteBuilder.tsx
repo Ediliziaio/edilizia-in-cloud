@@ -1566,12 +1566,15 @@ export default function QuoteBuilder() {
       // TODO IMP10: complex type — quoteData includes P03 fields not in generated types
       // Linka all'opportunità se siamo arrivati con ?opportunity_id=…
       // così il preventivo appare anche nella tab Preventivi dell'opp.
-      const urlOpportunityId = isEdit ? null : (searchParams.get("opportunity_id") || null);
+      // In MODIFICA il campo NON si tocca: prima l'update scriveva null e
+      // ogni salvataggio cancellava il legame col deal (0 preventivi
+      // agganciati in tutto il DB, verificato 2026-08-21).
+      const urlOpportunityId = searchParams.get("opportunity_id") || null;
       const quoteData: Record<string, unknown> = {
         company_id: companyId,
         status,
         contact_id: contactId,
-        opportunity_id: urlOpportunityId,
+        ...(isEdit ? {} : { opportunity_id: urlOpportunityId }),
         client_name: clientName || null,
         client_email: clientEmail || null,
         client_phone: clientPhone || null,
