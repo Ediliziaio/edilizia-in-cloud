@@ -169,7 +169,9 @@ export function LossReasonDialog({
                 dettaglio: dettaglio.trim() || null,
                 concorrente: concorrente.trim() || null,
               });
-              reset();
+              // Niente reset qui: se il salvataggio fallisce il dialog resta
+              // aperto e i campi devono sopravvivere per riprovare. Lo stato
+              // fresco alla prossima apertura lo garantisce il key del parent.
             }}
           >
             {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

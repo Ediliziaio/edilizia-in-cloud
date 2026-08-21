@@ -447,6 +447,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
       />
 
       <LossReasonDialog
+        key={perditaInSospeso?.opp?.id ?? "chiuso"}
         open={!!perditaInSospeso}
         titolo={perditaInSospeso?.opp?.name}
         inCorso={updateStage.isPending}
@@ -460,7 +461,9 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
               auto_status: perditaInSospeso.status,
               perdita: esito,
             },
-            { onSettled: () => setPerditaInSospeso(null) },
+            // Solo su successo: in errore il dialog resta aperto e si riprova
+            // (con onSettled si chiudeva buttando via il motivo appena scritto).
+            { onSuccess: () => setPerditaInSospeso(null) },
           );
         }}
       />
