@@ -37,8 +37,9 @@ export function CostiBankReconcileDialog({
   onOpenChange: (open: boolean) => void;
   companyId: string | undefined;
   unpaidCosts: UnifiedCost[];
-  /** Segna pagato il costo alla data del movimento (dispatch per origine nel manager). */
-  onPayCost: (cost: UnifiedCost, date: string) => Promise<void>;
+  /** Segna pagato il costo alla data del movimento (dispatch per origine nel
+   *  manager) e marca il movimento bancario come riconciliato al costo. */
+  onPayCost: (cost: UnifiedCost, date: string, txId: string) => Promise<void>;
 }) {
   const [confirming, setConfirming] = useState<string | null>(null); // cost.id in corso
   const [bulkRunning, setBulkRunning] = useState(false);
@@ -50,11 +51,17 @@ export function CostiBankReconcileDialog({
     staleTime: 60_000,
     queryFn: async (): Promise<BankTxLite[]> => {
       const since = format(subMonths(new Date(), 12), "yyyy-MM-dd");
-      const { data, error } = await supabase
+      // Solo addebiti LIBERI: un movimento già abbinato a una scadenza, a una
+      // fattura o a un altro costo non può essere riproposto (prima lo stesso
+      // bonifico veniva offerto per costi diversi, all'infinito).
+      const { data, error } = await (supabase as any)
         .from("bank_transactions")
         .select("id, booking_date, amount, description, creditor_name")
         .eq("company_id", companyId!)
         .lt("amount", 0)
+        .is("linked_scadenza_id", null)
+        .is("linked_cost_id", null)
+        .is("linked_invoice_id", null)
         .gte("booking_date", since)
         .order("booking_date", { ascending: false })
         .limit(2000);
@@ -72,7 +79,7 @@ export function CostiBankReconcileDialog({
   async function confirmOne(m: CostBankMatch) {
     setConfirming(m.cost.id);
     try {
-      await onPayCost(m.cost, m.tx.booking_date);
+      await onPayCost(m.cost, m.tx.booking_date, m.tx.id);
       setDone((prev) => new Set(prev).add(m.cost.id));
     } finally {
       setConfirming(null);

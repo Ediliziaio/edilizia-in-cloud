@@ -32,42 +32,39 @@ Deno.serve(async (req: Request) => {
     let importedInvoices = 0;
 
     // ── 1. Import from reconciled bank_transactions ──────────────────────────
+    // Le fatture riconciliate a un movimento bancario (registro attivo) vanno
+    // ricordate: il ramo 2 le salta, altrimenti lo stesso incasso finiva in
+    // Prima Nota due volte — una dal movimento, una dalla fattura.
+    const { data: activeRecs } = await supabaseAdmin
+      .from("bank_reconciliations")
+      .select("invoice_id")
+      .eq("company_id", company_id)
+      .is("unmatched_at", null)
+      .not("invoice_id", "is", null)
+      .limit(5000);
+    const invoicesCoveredByBank = new Set((activeRecs || []).map((r: any) => r.invoice_id));
+
     if (action === "from_banking" || action === "both") {
-      // Fetch reconciled transactions not yet linked to a prima nota entry
-      const { data: txs, error: txErr } = await supabaseAdmin
+      // (la vecchia versione tentava una subquery SQL inline dentro .not("id","in",...)
+      // che PostgREST non ha mai capito: errore garantito a ogni run e fallback
+      // sempre attivo — teniamo direttamente la strada che funziona)
+      const { data: txsFallback, error: txErr } = await supabaseAdmin
         .from("bank_transactions")
         .select("id, amount, booking_date, description, creditor_name, debtor_name, creditor_iban, debtor_iban")
         .eq("company_id", company_id)
         .eq("reconciliation_status", "reconciled")
-        .not(
-          "id",
-          "in",
-          // Subquery via inline: get already-imported bank_transaction_ids
-          `(SELECT bank_transaction_id FROM prima_nota_entries WHERE company_id = '${company_id}' AND bank_transaction_id IS NOT NULL)`
-        );
+        .limit(5000);
+      if (txErr) console.error("bank_transactions fetch error:", txErr.message);
 
-      if (txErr) {
-        console.error("bank_transactions fetch error:", txErr);
-      }
+      const { data: existingLinks } = await supabaseAdmin
+        .from("prima_nota_entries")
+        .select("bank_transaction_id")
+        .eq("company_id", company_id)
+        .not("bank_transaction_id", "is", null)
+        .limit(5000);
 
-      // Fallback: use manual deduplication if the subquery syntax fails
-      let bankTxs = txs;
-      if (txErr || !txs) {
-        const { data: txsFallback } = await supabaseAdmin
-          .from("bank_transactions")
-          .select("id, amount, booking_date, description, creditor_name, debtor_name, creditor_iban, debtor_iban")
-          .eq("company_id", company_id)
-          .eq("reconciliation_status", "reconciled");
-
-        const { data: existingLinks } = await supabaseAdmin
-          .from("prima_nota_entries")
-          .select("bank_transaction_id")
-          .eq("company_id", company_id)
-          .not("bank_transaction_id", "is", null);
-
-        const linkedIds = new Set((existingLinks || []).map((e: any) => e.bank_transaction_id));
-        bankTxs = (txsFallback || []).filter((tx: any) => !linkedIds.has(tx.id));
-      }
+      const linkedIds = new Set((existingLinks || []).map((e: any) => e.bank_transaction_id));
+      const bankTxs = (txsFallback || []).filter((tx: any) => !linkedIds.has(tx.id));
 
       for (const tx of bankTxs || []) {
         const isEntrata = (tx.amount ?? 0) >= 0;
@@ -102,12 +99,17 @@ Deno.serve(async (req: Request) => {
 
     // ── 2. Import from paid invoices ──────────────────────────────────────────
     if (action === "from_invoices" || action === "both") {
-      // Fetch paid invoices not already present in prima_nota_entries
-      const { data: paidInvoices } = await supabaseAdmin
+      // Colonne VERE: total (non total_amount) e client_company_name (non
+      // esiste contact_id/contacts). La versione precedente interrogava campi
+      // fantasma senza controllare l'errore: questo ramo importava sempre 0.
+      const { data: paidInvoices, error: invErr } = await supabaseAdmin
         .from("invoices")
-        .select("id, invoice_number, total_amount, payment_date, due_date, contact_id, contacts(first_name, last_name, company_name)")
+        .select("id, invoice_number, total, payment_date, due_date, client_company_name")
         .eq("company_id", company_id)
-        .eq("status", "paid");
+        .is("deleted_at", null)
+        .eq("status", "paid")
+        .limit(5000);
+      if (invErr) console.error("invoices fetch error:", invErr.message);
 
       const { data: existingInvoiceLinks } = await supabaseAdmin
         .from("prima_nota_entries")
@@ -121,19 +123,19 @@ Deno.serve(async (req: Request) => {
 
       for (const inv of paidInvoices || []) {
         if (linkedInvoiceIds.has(inv.id)) continue;
-        if (!inv.total_amount || inv.total_amount <= 0) continue;
+        // Incasso già rappresentato dal movimento bancario riconciliato:
+        // importarlo anche da qui = stesso euro due volte in cassa.
+        if (invoicesCoveredByBank.has(inv.id)) continue;
+        if (!inv.total || inv.total <= 0) continue;
 
-        const contact = inv.contacts as any;
-        const clienteName = contact?.company_name ||
-          [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") ||
-          "Cliente";
+        const clienteName = inv.client_company_name || "Cliente";
 
         const { error: insErr } = await supabaseAdmin.from("prima_nota_entries").insert({
           company_id,
           direction: "entrata",
           category: "incasso",
           description: `Incasso fattura ${inv.invoice_number || inv.id.slice(0, 8)} — ${clienteName}`,
-          amount: inv.total_amount,
+          amount: inv.total,
           entry_date: inv.payment_date || inv.due_date || new Date().toISOString().split("T")[0],
           payment_method: "bonifico",
           invoice_id: inv.id,

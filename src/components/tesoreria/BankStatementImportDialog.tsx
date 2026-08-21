@@ -100,7 +100,11 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
   }
 
   function buildFileRows(): ManualTxInput[] {
-    return rawRows.map((r, idx) => {
+    // Chiave di dedup dal CONTENUTO (data+importo+causale+occorrenza), non
+    // dall'indice di riga nel file: re-importare lo stesso estratto con righe
+    // in ordine o range diverso generava duplicati a ogni import.
+    const occorrenze = new Map<string, number>();
+    return rawRows.map((r) => {
       const date = parseDate(r[map.date]);
       let amount = NaN;
       if (amountMode === "single") amount = parseAmount(r[map.amount]);
@@ -110,10 +114,13 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
       }
       if (!date || !isFinite(amount) || amount === 0) return null;
       const desc = (r[map.desc] || "Movimento").slice(0, 300);
+      const base = `csv:${date}:${amount}:${desc.slice(0, 120)}`;
+      const n = occorrenze.get(base) ?? 0;
+      occorrenze.set(base, n + 1);
       return {
         account_id: account.id, booking_date: date, description: desc, amount,
         source: "import_csv" as const,
-        external_transaction_id: `csv:${date}:${amount}:${desc}:${idx}`.slice(0, 200),
+        external_transaction_id: `${base}:${n}`.slice(0, 200),
       };
     }).filter(Boolean) as ManualTxInput[];
   }
@@ -126,10 +133,16 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
         body: { file_base64: b64, mime_type: f.type || "application/pdf", account_id: account.id },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Errore AI");
-      const rows: ManualTxInput[] = (data?.transactions ?? []).map((t: { date: string; description: string; amount: number }, i: number) => ({
-        account_id: account.id, booking_date: t.date, description: t.description, amount: Number(t.amount),
-        source: "import_ai" as const, external_transaction_id: `ai:${t.date}:${t.amount}:${(t.description || "").slice(0, 40)}:${i}`.slice(0, 200),
-      })).filter((r: ManualTxInput) => r.booking_date && isFinite(r.amount) && r.amount !== 0);
+      const occAi = new Map<string, number>();
+      const rows: ManualTxInput[] = (data?.transactions ?? []).map((t: { date: string; description: string; amount: number }) => {
+        const base = `ai:${t.date}:${t.amount}:${(t.description || "").slice(0, 40)}`;
+        const n = occAi.get(base) ?? 0;
+        occAi.set(base, n + 1);
+        return {
+          account_id: account.id, booking_date: t.date, description: t.description, amount: Number(t.amount),
+          source: "import_ai" as const, external_transaction_id: `${base}:${n}`.slice(0, 200),
+        };
+      }).filter((r: ManualTxInput) => r.booking_date && isFinite(r.amount) && r.amount !== 0);
       if (!rows.length) { toast.error("L'AI non ha trovato movimenti nel documento"); return; }
       setAiRows(rows);
       toast.success(`AI: ${rows.length} movimenti riconosciuti`);

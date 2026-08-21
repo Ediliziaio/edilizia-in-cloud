@@ -98,10 +98,14 @@ Deno.serve(async (req) => {
       if (status !== 200) continue;
       const txs = data.transactions || [];
       if (txs.length) {
-        const seen = new Set<string>();
-        const rows = txs.map((t: any) => mapTx(t, acc.company_id, acc.id)).filter((r: any) => {
-          if (!r.external_transaction_id || seen.has(r.external_transaction_id)) return false;
-          seen.add(r.external_transaction_id); return true;
+        // Contatore, non scarto: due bonifici identici lo stesso giorno sono
+        // movimenti diversi (v. bank-eb) — suffisso #n stabile tra i sync.
+        const seen = new Map<string, number>();
+        const rows = txs.map((t: any) => mapTx(t, acc.company_id, acc.id)).filter((r: any) => !!r.external_transaction_id).map((r: any) => {
+          const n = seen.get(r.external_transaction_id) ?? 0;
+          seen.set(r.external_transaction_id, n + 1);
+          if (n > 0) r.external_transaction_id = `${r.external_transaction_id}#${n}`.slice(0, 200);
+          return r;
         });
         const { error: txErr } = await admin.from("bank_transactions").upsert(rows, { onConflict: "company_id,external_transaction_id" });
         if (txErr) {

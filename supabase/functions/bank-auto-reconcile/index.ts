@@ -8,6 +8,13 @@ import { requireCompanyAccess } from "../_shared/auth.ts";
  * Usa scoring (importo 50pt, IBAN 30pt, nome 20pt). Soglia auto: score >= 80.
  */
 
+// Data "di oggi" nel fuso italiano: le edge girano in UTC e a mezzanotte
+// italiana toISOString() è ancora al giorno prima — le finestre a 90 giorni e
+// le date di pagamento slittavano di un giorno rispetto al resto dell'app.
+function localDateIT(d: Date): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+}
+
 function fuzzyMatch(a: string, b: string): boolean {
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   const na = normalize(a);
@@ -173,7 +180,11 @@ Deno.serve(async (req) => {
 
     for (const cId of companyIds) {
       try {
-        // Transazioni credit booked non riconciliate degli ultimi 90 giorni
+        // Transazioni credit booked non riconciliate degli ultimi 90 giorni.
+        // I filtri linked_* sono la differenza tra "riconciliare" e "pagare
+        // due volte": un bonifico già abbinato a una rata di commessa (flusso
+        // che NON scrive bank_reconciliations) veniva riproposto qui e
+        // registrato ANCHE come pagamento fattura.
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -183,7 +194,11 @@ Deno.serve(async (req) => {
           .eq("company_id", cId)
           .eq("transaction_type", "credit")
           .eq("status", "booked")
-          .gte("booking_date", ninetyDaysAgo.toISOString().split("T")[0]);
+          .is("linked_invoice_id", null)
+          .is("linked_installment_id", null)
+          .is("linked_scadenza_id", null)
+          .gte("booking_date", localDateIT(ninetyDaysAgo))
+          .limit(2000);
 
         if (!unreconciledTxs || unreconciledTxs.length === 0) continue;
 
@@ -205,7 +220,9 @@ Deno.serve(async (req) => {
           .from("invoices")
           .select("id, total, paid_amount, client_company_name, bank_iban, external_provider, external_id, invoice_number")
           .eq("company_id", cId)
-          .not("status", "in", '("paid","cancelled","draft")');
+          .is("deleted_at", null)
+          .not("status", "in", '("paid","cancelled","draft")')
+          .limit(2000);
 
         if (!unpaidInvoices || unpaidInvoices.length === 0) continue;
 
@@ -246,7 +263,7 @@ Deno.serve(async (req) => {
               (bestMatch.invoice.total || 0) - (bestMatch.invoice.paid_amount || 0)
             );
 
-            const { data: recRow } = await supabase.from("bank_reconciliations").insert({
+            const { data: recRow, error: recErr } = await supabase.from("bank_reconciliations").insert({
               company_id: cId,
               transaction_id: tx.id,
               invoice_id: bestMatch.invoice.id,
@@ -255,17 +272,28 @@ Deno.serve(async (req) => {
               match_score: bestMatch.score,
               matched_at: new Date().toISOString(),
             }).select("id").single();
+            if (recErr || !recRow?.id) {
+              // Senza registro NIENTE pagamento: scrivere soldi senza audit è
+              // esattamente il bug che ha reso instornabili le scadenze.
+              console.error("bank_reconciliations insert (invoice) failed:", recErr?.message);
+              continue;
+            }
 
             // Registra il pagamento nel ledger (il trigger ricalcola paid_amount + status).
             // reference="recon:<id>" → alla rimozione del match lo storno è preciso.
-            await supabase.from("invoice_payments").insert({
+            const { error: payErr } = await supabase.from("invoice_payments").insert({
               invoice_id: bestMatch.invoice.id,
               amount: matchedAmount,
-              payment_date: new Date().toISOString().split("T")[0],
+              payment_date: tx.booking_date ?? localDateIT(new Date()),
               payment_method: "bonifico",
-              reference: recRow?.id ? `recon:${recRow.id}` : tx.external_transaction_id,
+              reference: `recon:${recRow.id}`,
               notes: `Auto-riconciliato (score: ${bestMatch.score}/100)`,
             });
+            if (payErr) {
+              console.error("invoice_payments insert failed:", payErr.message);
+              await supabase.from("bank_reconciliations").delete().eq("id", recRow.id);
+              continue;
+            }
 
             // Simmetria col ramo DEBIT (che imposta linked_scadenza_id): marca la
             // transazione come riconciliata così le viste/idempotenza la riconoscono
@@ -372,7 +400,9 @@ Deno.serve(async (req) => {
           .eq("transaction_type", "debit")
           .eq("status", "booked")
           .is("linked_scadenza_id", null)
-          .gte("booking_date", ninetyDaysAgo2.toISOString().split("T")[0]);
+          .is("linked_cost_id", null)
+          .gte("booking_date", localDateIT(ninetyDaysAgo2))
+          .limit(2000);
 
         if (debitTxs && debitTxs.length > 0) {
           const { data: openScadenze } = await supabase
@@ -380,7 +410,8 @@ Deno.serve(async (req) => {
             .select("id, amount, paid_amount, description, due_date, supplier_id, suppliers(name, iban)")
             .eq("company_id", cId)
             .eq("direction", "uscita")
-            .eq("status", "da_pagare");
+            .eq("status", "da_pagare")
+            .limit(2000);
 
           for (const tx of debitTxs as any[]) {
             let best: { sc: any; score: number } | null = null;
@@ -397,17 +428,31 @@ Deno.serve(async (req) => {
             const ambiguoSc = best != null && second >= best.score - 15;
             if (best && best.score >= 80 && !ambiguoSc) {
               const matchedAmount = Math.min(Math.abs(tx.amount), (best.sc.amount || 0) - (best.sc.paid_amount || 0));
-              await supabase.from("bank_reconciliations").insert({
+              // Prima il registro: se non si riesce a tracciare, NON si paga.
+              // (Questo insert falliva DA SEMPRE in silenzio: invoice_id era
+              // NOT NULL — la migration 20280214 l'ha reso nullable — e la
+              // scadenza veniva marcata pagata senza alcuna traccia.)
+              const { error: recScErr } = await supabase.from("bank_reconciliations").insert({
                 company_id: cId, transaction_id: tx.id, scadenza_id: best.sc.id,
                 matched_amount: matchedAmount, match_type: "auto", match_score: best.score, matched_at: new Date().toISOString(),
               });
-              await supabase.from("bank_transactions").update({ linked_scadenza_id: best.sc.id }).eq("id", tx.id);
+              if (recScErr) {
+                console.error("bank_reconciliations insert (scadenza) failed:", recScErr.message);
+                continue;
+              }
+              const { error: linkErr } = await supabase.from("bank_transactions").update({
+                linked_scadenza_id: best.sc.id,
+                reconciliation_status: "reconciled",
+                reconciled_at: new Date().toISOString(),
+              }).eq("id", tx.id).eq("company_id", cId);
+              if (linkErr) console.error("bank_transactions link (scadenza) failed:", linkErr.message);
               const newPaid = (best.sc.paid_amount || 0) + matchedAmount;
-              await supabase.from("scadenze").update({
+              const { error: scErr } = await supabase.from("scadenze").update({
                 paid_amount: newPaid,
                 status: newPaid >= (best.sc.amount || 0) ? "pagata" : "da_pagare",
-                paid_date: tx.booking_date ?? new Date().toISOString().split("T")[0],
-              }).eq("id", best.sc.id);
+                paid_date: tx.booking_date ?? localDateIT(new Date()),
+              }).eq("id", best.sc.id).eq("company_id", cId);
+              if (scErr) console.error("scadenze update failed:", scErr.message);
               best.sc.paid_amount = newPaid;
               totalCostsMatched++;
             }

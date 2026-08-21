@@ -190,12 +190,19 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
     if (!selectedTx) return;
     setSavingDetail(true);
     try {
-      const { error } = await supabase
+      // .select("id") + guardia: la policy di scrittura è più stretta di quella
+      // di lettura — senza, un permesso mancante dava 0 righe SENZA errore e
+      // il toast diceva "Aggiornato" su una modifica mai salvata.
+      const { data: updated, error } = await supabase
         .from("bank_transactions")
         .update({ category: editCategory, note: editNote.trim() || null })
         .eq("id", selectedTx.id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id");
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error("Modifica non salvata: servono i permessi di amministrazione sui movimenti bancari.");
+      }
       toast.success("Aggiornato");
       setTransactions((prev) =>
         prev.map((t) => (t.id === selectedTx.id ? { ...t, category: editCategory, note: editNote.trim() || null } : t))

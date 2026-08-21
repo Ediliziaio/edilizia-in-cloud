@@ -88,26 +88,28 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .is("linked_installment_id" as never, null)
           .eq("transaction_type", "credit")
           .order("booking_date", { ascending: false })
-          .limit(200),
+          .limit(1000),
         supabase
           .from("invoices")
           .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date, external_provider, external_id")
           .eq("company_id", companyId)
           .in("status", ["issued", "sent", "delivered", "overdue"])
           .order("due_date", { ascending: true })
-          .limit(200),
+          .limit(1000),
         supabase
           .from("bank_reconciliations")
           .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total)")
           .eq("company_id", companyId)
           .is("unmatched_at", null)
           .order("matched_at", { ascending: false })
-          .limit(100),
+          .limit(1000),
       ]);
       if (txRes.error) throw txRes.error;
       if (invRes.error) throw invRes.error;
       if (recRes.error) throw recRes.error;
       setTransactions(txRes.data || []);
+      // (i giroconti interni restano nei dati: vengono separati a valle,
+      // così KPI e anomalie parlano solo di incassi veri)
       setInvoices(invRes.data || []);
       setReconciliations(recRes.data || []);
     } catch (err: unknown) {
@@ -121,25 +123,32 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   useEffect(() => { void loadData(); }, [loadData, refreshKey]);
 
+  // Giroconti/transazioni interne: mai riconciliabili con una fattura.
+  // Contarli tra i "da riconciliare" produce solo lavoro finto e allarmi finti.
+  const isInternalTransfer = (t: any) =>
+    /giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || ""));
+  const reconcilableTx = useMemo(() => transactions.filter((t) => !isInternalTransfer(t)), [transactions]);
+  const internalCount = transactions.length - reconcilableTx.length;
+
   // KPIs
   const kpis = useMemo(() => {
-    const unreconciledAmount = transactions.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const unreconciledAmount = reconcilableTx.reduce((s, t) => s + Math.abs(t.amount), 0);
     const unpaidAmount = invoices.reduce((s, i) => s + (Number(i.total || 0) - Number(i.paid_amount || 0)), 0);
     const reconciledAmount = reconciliations.reduce((s, r) => s + Number(r.matched_amount || 0), 0);
     return {
-      unreconciledCount: transactions.length,
+      unreconciledCount: reconcilableTx.length,
       unreconciledAmount,
       unpaidCount: invoices.length,
       unpaidAmount,
       reconciledCount: reconciliations.length,
       reconciledAmount,
     };
-  }, [transactions, invoices, reconciliations]);
+  }, [reconcilableTx, invoices, reconciliations]);
 
   // Anomalie e segnali (sola lettura) sui dati bancari correnti
   const anomalies = useMemo(
-    () => detectReconAnomalies(transactions, invoices),
-    [transactions, invoices],
+    () => detectReconAnomalies(reconcilableTx, invoices),
+    [reconcilableTx, invoices],
   );
 
   // Anomalia selezionata come filtro — derivata dai dati correnti, così si
@@ -275,14 +284,19 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         rec.matched_amount,
       );
 
-      // Step 1: unlink transaction
-      const unlinkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId);
+      // Step 1: unlink transaction — azzera ANCHE lo stato, altrimenti
+      // sync-prima-nota reimporta in cassa una riconciliazione annullata.
+      const unlinkRes = await supabase.from("bank_transactions")
+        .update({ linked_invoice_id: null, reconciliation_status: "pending", reconciled_at: null })
+        .eq("id", txId).eq("company_id", companyId);
       if (unlinkRes.error) throw unlinkRes.error;
 
       // Step 2: mark reconciliation as unmatched
       const recRes = await supabase.from("bank_reconciliations").update({ unmatched_at: new Date().toISOString() }).eq("id", rec.id);
       if (recRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        await supabase.from("bank_transactions")
+          .update({ linked_invoice_id: invId, reconciliation_status: "reconciled" })
+          .eq("id", txId).eq("company_id", companyId);
         throw recRes.error;
       }
 
@@ -291,7 +305,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         .from("invoice_payments").delete()
         .eq("invoice_id", invId).eq("reference", `recon:${rec.id}`).select("id");
       if (delRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+        await supabase.from("bank_transactions")
+          .update({ linked_invoice_id: invId, reconciliation_status: "reconciled" })
+          .eq("id", txId).eq("company_id", companyId);
         await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
         throw delRes.error;
       }
@@ -300,7 +316,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       if (!delRes.data || delRes.data.length === 0) {
         const invRes = await supabase.from("invoices").update({ paid_amount: newPaid, status: reversedStatus }).eq("id", invId);
         if (invRes.error) {
-          await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+          await supabase.from("bank_transactions")
+            .update({ linked_invoice_id: invId, reconciliation_status: "reconciled" })
+            .eq("id", txId).eq("company_id", companyId);
           await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
           throw invRes.error;
         }
@@ -318,7 +336,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   // Filtered lists
   const filteredTx = useMemo(() => {
-    let list = transactions;
+    let list = reconcilableTx;
     if (activeInsight?.target === "tx") {
       const ids = new Set(activeInsight.ids);
       list = list.filter((t) => ids.has(t.id));
@@ -332,7 +350,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       );
     }
     return list;
-  }, [transactions, searchTx, activeInsight]);
+  }, [reconcilableTx, searchTx, activeInsight]);
 
   const filteredInv = useMemo(() => {
     let list = invoices;
@@ -563,7 +581,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           </Badge>
           <span className="text-muted-foreground">
             {activeInsight.target === "tx"
-              ? `${filteredTx.length} transazioni mostrate`
+              ? `${filteredTx.length} transazioni mostrate${internalCount > 0 ? ` · ${internalCount} giroconti interni esclusi` : ""}`
               : `${filteredInv.length} fatture mostrate`}
           </span>
         </div>
@@ -598,7 +616,11 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <CardContent className="max-h-[500px] overflow-y-auto space-y-2">
             {filteredTx.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                {transactions.length === 0 ? "Nessuna transazione da riconciliare" : "Nessun risultato con i filtri attivi"}
+                {reconcilableTx.length === 0
+                  ? internalCount > 0
+                    ? `Tutto riconciliato. ${internalCount} giroconti interni esclusi (non richiedono fattura).`
+                    : "Nessuna transazione da riconciliare"
+                  : "Nessun risultato con i filtri attivi"}
               </p>
             ) : (
               filteredTx.map((tx) => (

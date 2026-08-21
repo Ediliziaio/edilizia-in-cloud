@@ -266,10 +266,17 @@ Deno.serve(async (req) => {
           if (txs.length) {
             // Dedup intra-batch sull'external_transaction_id: due righe con la stessa
             // chiave nel medesimo upsert fanno fallire l'INSERT ("cannot affect row a second time").
-            const seen = new Set<string>();
-            const rows = txs.map((t: any) => mapTx(t, companyId, acc.id)).filter((r: any) => {
-              if (!r.external_transaction_id || seen.has(r.external_transaction_id)) return false;
-              seen.add(r.external_transaction_id); return true;
+            // Dedup intra-batch con CONTATORE, non scarto: quando la banca non
+            // manda un id vero la chiave di fallback e' data-importo-causale, e
+            // due bonifici identici lo stesso giorno sono movimenti DIVERSI —
+            // scartare il secondo significava perdere soldi dal conto.
+            // Il suffisso #n e' stabile tra sync (stesso ordine dalla banca).
+            const seen = new Map<string, number>();
+            const rows = txs.map((t: any) => mapTx(t, companyId, acc.id)).filter((r: any) => !!r.external_transaction_id).map((r: any) => {
+              const n = seen.get(r.external_transaction_id) ?? 0;
+              seen.set(r.external_transaction_id, n + 1);
+              if (n > 0) r.external_transaction_id = `${r.external_transaction_id}#${n}`.slice(0, 200);
+              return r;
             });
             const { error: txErr } = await admin.from("bank_transactions")
               .upsert(rows, { onConflict: "company_id,external_transaction_id" });

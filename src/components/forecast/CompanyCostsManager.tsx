@@ -536,7 +536,7 @@ export default function CompanyCostsManager({
   // Riconciliazione bancaria: segna pagato un costo alla data del movimento,
   // instradando sulla mutation giusta per origine (stesso dispatch del dialog
   // di pagamento manuale). async per permettere la conferma sequenziale.
-  const paySingleCostFromBank = async (cost: UnifiedCost, date: string) => {
+  const paySingleCostFromBank = async (cost: UnifiedCost, date: string, txId: string) => {
     const origin = resolveCostOrigin(cost.id, cost.realOrderItemId);
     switch (origin.type) {
       case "order-item":
@@ -548,8 +548,35 @@ export default function CompanyCostsManager({
       case "commission":
         await mutations.markCommissionPaidMutation.mutateAsync({ id: origin.realId, date });
         break;
+      case "employee-salary":
+        // Non dovrebbe mai arrivare qui (gli stipendi non entrano nel dialog),
+        // ma se succede meglio fermarsi che corrompere un uuid.
+        throw new Error("Gli stipendi non si riconciliano con la banca");
       default:
         await mutations.markPaidMutation.mutateAsync({ id: cost.id, date, paymentMethod: "bonifico" });
+    }
+
+    // La correzione vera della riconciliazione: il MOVIMENTO BANCARIO viene
+    // marcato, non solo il costo. Senza, il Controllo di Gestione contava lo
+    // stesso euro due volte (costo in company_costs + uscita bancaria "libera").
+    // linked_cost_id solo per i costi manuali (i derivati non hanno una riga
+    // in company_costs); lo stato vale per tutti.
+    const { error: txError } = await supabase
+      .from("bank_transactions")
+      .update({
+        ...(origin.type === "manual" ? { linked_cost_id: cost.id } : {}),
+        reconciliation_status: "reconciled",
+        reconciled_at: new Date().toISOString(),
+      } as never)
+      .eq("id", txId)
+      .eq("company_id", companyId!);
+    if (txError) {
+      // Il costo è già segnato pagato: avvisare senza far fallire l'operazione.
+      toast({
+        title: "Costo pagato, ma il movimento bancario non è stato marcato",
+        description: txError.message,
+        variant: "destructive",
+      });
     }
   };
 
