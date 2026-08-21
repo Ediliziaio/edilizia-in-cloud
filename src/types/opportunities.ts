@@ -3,6 +3,8 @@ export interface OpportunityStage {
   name: string;
   position: number;
   auto_status?: string | null;
+  /** Giorni oltre i quali un'opportunità ferma in questa fase è in stallo (default 14). */
+  stalled_threshold_days?: number | null;
 }
 
 export type OpportunityStatus = "open" | "won" | "lost" | "abandoned";

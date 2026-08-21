@@ -16,7 +16,8 @@ import { OpportunityListView } from "@/components/opportunities/OpportunityListV
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
-import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities } from "@/hooks/useOpportunitiesData";
+import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities, enrichPage } from "@/hooks/useOpportunitiesData";
+import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
@@ -35,7 +36,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { usePermissions } from "@/hooks/usePermissions";
-import { OpportunityStatsStrip } from "@/components/opportunities/OpportunityStatsStrip";
+import { OpportunityStatsStrip, opportunitaInStallo, azioneScaduta, costruisciSoglieStallo, type FiltroStrip } from "@/components/opportunities/OpportunityStatsStrip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import { cleanPhone } from "@/lib/contactUtils";
@@ -132,9 +133,15 @@ function MarketingOpportunitiesContent() {
   }
   const [filters, setFilters] = useState<OpportunityFilters>(initialDrillRef.current);
 
+  // Deep-link dalla scheda contatto: ?apri=<oppId> apre il dettaglio,
+  // ?nuova_contatto=<contactId> apre la creazione col contatto gia' scelto.
+  // Letti UNA volta al mount (il cleanup sotto li toglie subito dall'URL).
+  const [apriOppId, setApriOppId] = useState<string | null>(() => searchParamsRaw.get("apri"));
+  const [nuovaDaContattoId, setNuovaDaContattoId] = useState<string | null>(() => searchParamsRaw.get("nuova_contatto"));
+
   // Clean up drill-down URL params once filters are seeded (keep URL tidy)
   useEffect(() => {
-    const keysToStrip = ["status", "assigned_to", "source", "opportunity_id"];
+    const keysToStrip = ["status", "assigned_to", "source", "opportunity_id", "apri", "nuova_contatto"];
     if (keysToStrip.some((k) => searchParamsRaw.has(k))) {
       const next = new URLSearchParams(searchParamsRaw);
       keysToStrip.forEach((k) => next.delete(k));
@@ -289,8 +296,31 @@ function MarketingOpportunitiesContent() {
     [pipelines, selectedPipelineId]
   );
   const stages = useMemo(() => selectedPipeline?.marketing_pipeline_stages || [], [selectedPipeline]);
+  // Filtro azionabile della strip: "Da fare" (prossime azioni scadute) o
+  // "In stallo" (ferme oltre la soglia della fase). Un click sul KPI.
+  const [filtroStrip, setFiltroStrip] = useState<FiltroStrip>(null);
 
   const { data: opportunities = [], isLoading: loadingOpps, error: opportunitiesError, refetch: refetchOpportunities, isFetchingNextPage, hasNextPage, fetchNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
+
+  // Fetch dedicato per il deep-link ?apri=: l'opportunità potrebbe non stare
+  // nelle pagine già caricate della lista paginata, quindi niente find sull'array.
+  const { data: oppDaAprire } = useQuery({
+    queryKey: ["opportunita-deep-link", companyId, apriOppId],
+    enabled: !!apriOppId && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags, last_activity_at, created_at)")
+        .eq("id", apriOppId!)
+        .eq("company_id", companyId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const [arricchita] = await enrichPage([data], companyId!);
+      return arricchita ?? null;
+    },
+  });
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -310,10 +340,14 @@ function MarketingOpportunitiesContent() {
     });
   }, [safeSearchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
 
-  const filteredOpportunities = useMemo(
-    () => applyOpportunityFiltersAndSort(opportunities),
-    [opportunities, applyOpportunityFiltersAndSort]
-  );
+  const filteredOpportunities = useMemo(() => {
+    const base = applyOpportunityFiltersAndSort(opportunities);
+    if (!filtroStrip) return base;
+    const soglie = costruisciSoglieStallo(stages);
+    return base.filter((o: any) =>
+      filtroStrip === "stallo" ? opportunitaInStallo(o, soglie) : azioneScaduta(o),
+    );
+  }, [opportunities, applyOpportunityFiltersAndSort, filtroStrip, stages]);
 
   const fetchAllOpportunitiesForExport = useCallback(async () => {
     if (!companyId || !selectedPipelineId) return [];
@@ -672,7 +706,12 @@ function MarketingOpportunitiesContent() {
           già i totali per fase e così la pipeline resta la vista principale (più
           spazio verticale). In vista lista restano visibili. */}
       {!(isMobile && viewMode === "kanban") && (
-        <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+        <div className="shrink-0"><OpportunityStatsStrip
+          opportunities={applyOpportunityFiltersAndSort(opportunities)}
+          stages={stages}
+          filtroAttivo={filtroStrip}
+          onFiltro={setFiltroStrip}
+        /></div>
       )}
       {isFetchingNextPage && (
         <div className="flex items-center gap-2 px-1 shrink-0">
@@ -879,7 +918,18 @@ function MarketingOpportunitiesContent() {
       )}
 
       {selectedPipelineId && stages.length > 0 && (
-        <OpportunityDialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setQuickAddStageId(null); }} pipelineId={selectedPipelineId} pipelineName={selectedPipeline?.name} stages={stages} initialStageId={quickAddStageId} />
+        <>
+        <OpportunityDialog open={dialogOpen || !!nuovaDaContattoId} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setQuickAddStageId(null); setNuovaDaContattoId(null); } }} pipelineId={selectedPipelineId} pipelineName={selectedPipeline?.name} stages={stages} initialStageId={quickAddStageId} initialContactId={nuovaDaContattoId} />
+        {oppDaAprire && (
+          <OpportunityDetailDialog
+            opportunity={oppDaAprire}
+            open
+            onOpenChange={(o) => { if (!o) setApriOppId(null); }}
+            stages={stages}
+            canEdit={canEditOpportunities}
+          />
+        )}
+        </>
       )}
 
       <OpportunityFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} filters={filters} onApply={(f) => { setFilters(f); setActiveListId(null); }} staff={staff} availableTags={availableTags} />

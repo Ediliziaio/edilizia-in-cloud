@@ -28,9 +28,11 @@ interface OpportunityCardProps {
   selected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
   canEdit?: boolean;
+  /** Soglia di stallo della fase (giorni): oltre, il badge cambia colore. */
+  sogliaStalloGg?: number;
 }
 
-export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect, canEdit = true }, _ref) {
+export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect, canEdit = true, sogliaStalloGg = 14 }, _ref) {
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const contact = opportunity.marketing_contacts;
@@ -261,7 +263,16 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               </div>
             )}
             {daysInStage !== null && opportunity.status === 'open' && (
-              <span className="text-[9px] bg-muted rounded px-1 py-0.5">
+              <span
+                title={daysInStage >= sogliaStalloGg ? `In stallo: oltre la soglia di ${sogliaStalloGg}gg di questa fase` : undefined}
+                className={`text-[9px] rounded px-1 py-0.5 ${
+                  daysInStage >= sogliaStalloGg * 2
+                    ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-semibold"
+                    : daysInStage >= sogliaStalloGg
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 font-medium"
+                      : "bg-muted"
+                }`}
+              >
                 {daysInStage}gg in stage
               </span>
             )}
