@@ -18,7 +18,7 @@ export function usePipelines() {
       const { data, error } = await withClientTimeout(
         supabase
           .from("marketing_pipelines")
-          .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
+          .select("*, marketing_pipeline_stages(id, name, position, auto_status, stalled_threshold_days)")
           .eq("company_id", companyId!)
           .order("position"),
         "Caricamento pipeline opportunità",
@@ -91,7 +91,7 @@ async function countOpportunityLinks(opportunityId: string, companyId: string) {
   return counts.reduce((sum, count) => sum + count, 0);
 }
 
-async function enrichPage(data: any[], companyId: string) {
+export async function enrichPage(data: any[], companyId: string) {
   // Enrich with assigned profile names
   const assignedIds = [...new Set(data.filter((o) => o.assigned_to).map((o) => o.assigned_to))];
   const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
@@ -319,13 +319,25 @@ export function useUpdateOpportunityStage() {
   const permissions = usePermissions();
 
   return useMutation({
-    mutationFn: async ({ id, stage_id, auto_status }: { id: string; stage_id: string; auto_status?: string }) => {
+    mutationFn: async ({ id, stage_id, auto_status, perdita }: {
+      id: string; stage_id: string; auto_status?: string;
+      /** Compilato quando il drag finisce su una fase persa: il motivo
+       *  viaggia nella stessa update dello spostamento. */
+      perdita?: { categoria: string; dettaglio: string | null; concorrente: string | null };
+    }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per spostare opportunità");
       validateOpportunityPayload({ stage_id });
       const updateData: any = { stage_id };
       if (auto_status) {
         updateData.status = auto_status;
+      }
+      if (perdita) {
+        updateData.lost_reason_category = perdita.categoria;
+        updateData.lost_reason = perdita.dettaglio;
+        // Colonna legacy: automazioni e report vecchi leggono questa.
+        updateData.loss_reason = perdita.dettaglio;
+        updateData.competitor_won = perdita.concorrente;
       }
 
       const { error } = await supabase
@@ -385,7 +397,7 @@ export function useUpdateOpportunityStage() {
       // motivo (gli altri percorsi lo esigono): non inventiamo dati, ma
       // ricordiamo all'utente di completarlo — i report motivi-perdita
       // dipendono da lost_reason_category.
-      if (vars.auto_status === "lost") {
+      if (vars.auto_status === "lost" && !vars.perdita) {
         toast.info("Opportunità segnata come persa: aggiungi il motivo dal dettaglio", { duration: 6000 });
       }
     },

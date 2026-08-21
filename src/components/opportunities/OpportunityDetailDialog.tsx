@@ -137,6 +137,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
 
   // Sales OS state
+  const { motivi: motiviPerdita } = useLossReasons();
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [pendingLostStatus, setPendingLostStatus] = useState<string | null>(null);
   const [lostReason, setLostReason] = useState("");
@@ -159,6 +160,35 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const lastSyncedOppFieldsRef = useRef<string>("");
 
   // Fetch contacts for change contact combobox
+  // Catena commerciale: la commessa nata da questo deal (via preventivo
+  // convertito) e l'eventuale preventivo accettato non ancora convertito.
+  const { data: catena } = useQuery({
+    queryKey: ["opportunita-catena", opportunity?.id],
+    enabled: !!opportunity?.id && open,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [commessaRes, accettatoRes] = await Promise.all([
+        (supabase as any)
+          .from("orders")
+          .select("id, order_code")
+          .eq("opportunity_id", opportunity.id)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("quotes")
+          .select("id, quote_number")
+          .eq("opportunity_id", opportunity.id)
+          .eq("status", "accettata")
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      return {
+        commessa: (commessaRes?.data ?? null) as { id: string; order_code: string | null } | null,
+        preventivoAccettato: (accettatoRes?.data ?? null) as { id: string; quote_number: string | null } | null,
+      };
+    },
+  });
+
   const { data: searchContacts = [] } = useQuery({
     queryKey: ["marketing_contacts_search_detail", companyId, contactSearch],
     queryFn: async () => {
@@ -981,6 +1011,46 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
+                      {/* Catena commerciale: commessa nata dal deal, o vittoria da confermare */}
+                      {catena?.commessa && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/azienda/ordini/${catena.commessa!.id}`)}
+                          className="w-full flex items-center justify-between gap-2 rounded-md border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40 px-2.5 py-2 text-xs text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-950/70 transition-colors"
+                        >
+                          <span>
+                            Da questo deal è nata la commessa{" "}
+                            <span className="font-semibold">{catena.commessa.order_code ?? "—"}</span>
+                          </span>
+                          <span className="underline shrink-0">Apri</span>
+                        </button>
+                      )}
+                      {!catena?.commessa && catena?.preventivoAccettato && opportunity.status === "open" && (
+                        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
+                          <span>
+                            Il preventivo{" "}
+                            <span className="font-semibold">{catena.preventivoAccettato.quote_number ?? ""}</span>{" "}
+                            è stato accettato: questo deal è ancora aperto.
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs shrink-0"
+                            disabled={updateOpportunity.isPending || !canEditOpportunity}
+                            onClick={() => {
+                              const faseVinta = stages?.find((st: any) => st.auto_status === "won");
+                              updateOpportunity.mutate({
+                                id: opportunity.id,
+                                data: { status: "won", ...(faseVinta ? { stage_id: faseVinta.id } : {}) },
+                              });
+                            }}
+                          >
+                            Segna come vinta
+                          </Button>
+                        </div>
+                      )}
+
                       {/* Riga 2: Prossima azione + Data */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1188,13 +1258,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <SelectValue placeholder="Seleziona categoria..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
-                <SelectItem value="concorrente">Scelta concorrente</SelectItem>
-                <SelectItem value="budget_non_disponibile">Budget non disponibile</SelectItem>
-                <SelectItem value="timing">Timing non giusto</SelectItem>
-                <SelectItem value="prodotto_non_adatto">Prodotto non adatto</SelectItem>
-                <SelectItem value="nessuna_risposta">Nessuna risposta del cliente</SelectItem>
-                <SelectItem value="altro">Altro</SelectItem>
+                {motiviPerdita.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

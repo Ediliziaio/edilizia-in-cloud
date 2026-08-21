@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
+import { LossReasonDialog } from "./LossReasonDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
 import { hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
@@ -188,6 +189,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
                     selected={selectedIds.has(opp.id)}
                     onSelect={onSelect}
                     canEdit={canEdit}
+                    sogliaStalloGg={Number(stage.stalled_threshold_days ?? 14) || 14}
                   />
                 </div>
               );
@@ -220,6 +222,11 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const [initialTab, setInitialTab] = useState<string | undefined>();
   const [activeItem, setActiveItem] = useState<any>(null);
+  // Drag su una fase persa/abbandonata: lo spostamento resta in sospeso
+  // finche' non arriva il motivo — stesso obbligo del dettaglio.
+  const [perditaInSospeso, setPerditaInSospeso] = useState<{
+    opp: any; stageId: string; status: string;
+  } | null>(null);
 
   // Fasi collassate: persistite in localStorage così restano tali al reload.
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(() => {
@@ -293,6 +300,11 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
     if (activeOpp.stage_id !== targetStageId && stages.some(s => s.id === targetStageId)) {
       const targetStage = stages.find(s => s.id === targetStageId);
       const nextStatus = inferOpportunityStatusFromStage(targetStage, "open");
+      if (nextStatus === "lost" || nextStatus === "abandoned") {
+        // Niente perdita senza motivo: il drag si conferma nel dialog.
+        setPerditaInSospeso({ opp: activeOpp, stageId: targetStageId, status: nextStatus });
+        return;
+      }
       updateStage.mutate({
         id: activeOpp.id,
         stage_id: targetStageId,
@@ -432,6 +444,25 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
         stages={stages}
         initialTab={initialTab}
         canEdit={canEdit}
+      />
+
+      <LossReasonDialog
+        open={!!perditaInSospeso}
+        titolo={perditaInSospeso?.opp?.name}
+        inCorso={updateStage.isPending}
+        onClose={() => setPerditaInSospeso(null)}
+        onConfirm={(esito) => {
+          if (!perditaInSospeso) return;
+          updateStage.mutate(
+            {
+              id: perditaInSospeso.opp.id,
+              stage_id: perditaInSospeso.stageId,
+              auto_status: perditaInSospeso.status,
+              perdita: esito,
+            },
+            { onSettled: () => setPerditaInSospeso(null) },
+          );
+        }}
       />
     </>
   );
