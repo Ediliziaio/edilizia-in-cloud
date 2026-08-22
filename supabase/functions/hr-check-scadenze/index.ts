@@ -11,6 +11,12 @@
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
+// Mancava: `cronSecretValido` era usata sotto ma mai importata → ReferenceError
+// alla prima richiesta, quindi 500 a OGNI esecuzione. Il cron delle 07:30
+// risultava "succeeded" in job_run_details (pg_net accodava bene la chiamata)
+// mentre la funzione non è mai arrivata a leggere un documento: gli avvisi di
+// scadenza dei documenti del personale non sono mai partiti.
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 const CAT_LABEL: Record<string, string> = {
   contratto: "Contratto", visita_medica: "Visita medica", corso_sicurezza: "Corso sicurezza",

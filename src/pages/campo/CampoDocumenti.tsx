@@ -1,6 +1,12 @@
 /**
  * Documenti dipendente — lista sola lettura con badge scadenza.
- * Mostra documenti_dipendenti per l'utente loggato.
+ *
+ * Leggeva `documenti_dipendenti`: una TERZA tabella, diversa sia da quella su
+ * cui l'ufficio carica sia da quella che manda gli avvisi di scadenza. Il
+ * risultato era che l'operaio non avrebbe mai visto un documento caricato
+ * dall'ufficio, qualunque cosa l'ufficio facesse. Ora legge `hr_documenti`
+ * tramite il proprio profilo HR (policy self-read già in RLS): la stessa fonte
+ * della scheda in ufficio, degli avvisi e dei badge.
  */
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -13,10 +19,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
+import { calcStato, categoriaLabel } from "@/types/hrDocumenti";
 import { cn } from "@/lib/utils";
 import SubDocumenti from "./subappaltatore/SubDocumenti";
 
-const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
+const PRIVATE_DOC_BUCKET = "hr-documenti";
 const DOCUMENTI_TIMEOUT_MS = 8000;
 
 async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
@@ -33,43 +41,54 @@ async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, messag
   }
 }
 
-const TIPO_LABELS: Record<string, string> = {
-  contratto: "Contratto",
-  documento_identita: "Documento d'identità",
-  certificazione: "Certificazione",
-  corso_sicurezza: "Corso sicurezza",
-  visita_medica: "Visita medica",
-  patente: "Patente",
-  altro: "Altro",
-};
-
 export default function CampoDocumenti() {
   const { isSubappaltatore } = useIsCampo();
   return isSubappaltatore ? <SubDocumenti /> : <CampoDocumentiDipendente />;
 }
 
+interface DocOperaio {
+  id: string;
+  tipo: string;
+  nome_file: string | null;
+  url: string | null;
+  data_scadenza: string | null;
+  alert_giorni_prima: number | null;
+}
+
 function CampoDocumentiDipendente() {
   const { user, profile } = useAuth();
   const companyId = profile?.company_id ?? null;
+  const { data: hrProfilo } = useMyHrProfilo();
+  const profiloId = hrProfilo?.id ?? null;
 
-  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["campo-documenti", companyId, user?.id],
+  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery<DocOperaio[]>({
+    queryKey: ["campo-documenti-hr", companyId, profiloId],
     queryFn: async () => {
-      if (!companyId) return [];
+      if (!profiloId) return [];
       const { data, error } = await withTimeout(
         supabase
-          .from("documenti_dipendenti")
-          .select("*")
-          .eq("user_id", user!.id)
-          .eq("company_id", companyId)
+          .from("hr_documenti")
+          .select("id, categoria, titolo, file_name, file_path, data_scadenza, alert_giorni_prima")
+          .eq("hr_profilo_id", profiloId)
           .order("data_scadenza", { ascending: true, nullsFirst: false }),
         DOCUMENTI_TIMEOUT_MS,
         "Caricamento documenti troppo lento",
       );
       if (error) throw error;
-      return data ?? [];
+      type Row = {
+        id: string; categoria: string; titolo: string | null; file_name: string | null;
+        file_path: string | null; data_scadenza: string | null; alert_giorni_prima: number | null;
+      };
+      return ((data ?? []) as Row[]).map((d): DocOperaio => ({
+        id: d.id,
+        tipo: d.categoria,
+        nome_file: d.titolo || d.file_name,
+        url: d.file_path,
+        data_scadenza: d.data_scadenza,
+        alert_giorni_prima: d.alert_giorni_prima,
+      }));
     },
-    enabled: !!user?.id && !!companyId,
+    enabled: !!user?.id && !!profiloId,
     // Rete di cantiere: un solo tentativo faceva comparire l'errore anche per
     // un singolo pacchetto perso. Un retry assorbe i blip senza mascherare
     // i guasti veri.
@@ -78,13 +97,11 @@ function CampoDocumentiDipendente() {
 
   const today = new Date();
 
-  const getScadenzaStatus = (dataScadenza: string | null) => {
-    if (!dataScadenza) return "nessuna";
-    const scad = parseISO(dataScadenza);
-    const diff = differenceInDays(scad, today);
-    if (diff < 0) return "scaduto";
-    if (diff <= 30) return "in_scadenza";
-    return "valido";
+  // Stessa regola dell'ufficio e del cron: la soglia è l'`alert_giorni_prima`
+  // del documento, non un 30 fisso (una patente si avvisa a 60, un corso a 90).
+  const getScadenzaStatus = (doc: DocOperaio) => {
+    const stato = calcStato(doc.data_scadenza, doc.alert_giorni_prima);
+    return stato === "senza_scadenza" ? "nessuna" : stato;
   };
 
   const pageHeader = (
@@ -139,12 +156,8 @@ function CampoDocumentiDipendente() {
     );
   }
 
-  const scadutiCount = documenti.filter(
-    (d: any) => getScadenzaStatus(d.data_scadenza) === "scaduto"
-  ).length;
-  const inScadenzaCount = documenti.filter(
-    (d: any) => getScadenzaStatus(d.data_scadenza) === "in_scadenza"
-  ).length;
+  const scadutiCount = documenti.filter((d) => getScadenzaStatus(d) === "scaduto").length;
+  const inScadenzaCount = documenti.filter((d) => getScadenzaStatus(d) === "in_scadenza").length;
 
   const openDocumento = async (url: string) => {
     if (/^https?:\/\//i.test(url)) {
@@ -179,7 +192,7 @@ function CampoDocumentiDipendente() {
         <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
           <Clock className="w-4 h-4 text-primary shrink-0" />
           <p className="text-xs text-primary">
-            {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza entro 30 giorni
+            {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza
           </p>
         </div>
       )}
@@ -192,8 +205,8 @@ function CampoDocumentiDipendente() {
         </div>
       ) : (
         <div className="space-y-3">
-          {documenti.map((doc: any) => {
-            const status = getScadenzaStatus(doc.data_scadenza);
+          {documenti.map((doc) => {
+            const status = getScadenzaStatus(doc);
             return (
               <div
                 key={doc.id}
@@ -211,10 +224,10 @@ function CampoDocumentiDipendente() {
                     </div>
                     <div>
                       <p className="font-medium text-foreground">
-                        {doc.nome_file || TIPO_LABELS[doc.tipo] || doc.tipo}
+                        {doc.nome_file || categoriaLabel(doc.tipo)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {TIPO_LABELS[doc.tipo] || doc.tipo}
+                        {categoriaLabel(doc.tipo)}
                       </p>
                     </div>
                   </div>

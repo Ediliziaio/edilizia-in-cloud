@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { retryWithBackoff } from "@/lib/retryWithBackoff";
+import { calcStato as calcStatoHrDoc } from "@/types/hrDocumenti";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -640,10 +641,15 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
       .limit(80),
+    // Il fascicolo del personale vive in hr_documenti (bucket hr-documenti):
+    // `documenti_operai` puntava a un bucket mai creato ed è rimasta vuota
+    // ovunque, quindi il Drive non ha mai mostrato un solo documento di
+    // dipendente.
     supabase
-      .from("documenti_operai")
-      .select("id,operaio_id,nome_file,file_path,data_scadenza,stato,created_at,caricato_da,note")
+      .from("hr_documenti")
+      .select("id,hr_profilo_id,titolo,file_name,file_path,data_scadenza,alert_giorni_prima,categoria,created_at,created_by,note")
       .eq("company_id", companyId)
+      .not("file_path", "is", null)
       .order("created_at", { ascending: false })
       .limit(80),
   ]);
@@ -1043,18 +1049,18 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     buildMediaLibraryItem({
       id: `worker-doc:${row.id}`,
       source: "personnel_document",
-      fileName: row.nome_file || pathFileName(row.file_path, "Documento operaio"),
-      docType: "documento_operaio",
-      status: row.stato,
+      fileName: row.file_name || row.titolo || pathFileName(row.file_path, "Documento dipendente"),
+      docType: row.categoria,
+      status: calcStatoHrDoc(row.data_scadenza, row.alert_giorni_prima),
       createdAt: row.created_at,
       fileSize: null,
-      storageBucket: "documenti-operai",
+      storageBucket: "hr-documenti",
       storagePath: row.file_path,
-      actorId: row.caricato_da,
-      actorLabel: actorLabel(actorLabels, row.caricato_da),
-      linkedEntityLabel: "Operaio",
-      linkedEntityTable: "documenti_operai",
-      linkedEntityId: row.operaio_id,
+      actorId: row.created_by,
+      actorLabel: actorLabel(actorLabels, row.created_by),
+      linkedEntityLabel: "Dipendente",
+      linkedEntityTable: "hr_documenti",
+      linkedEntityId: row.hr_profilo_id,
       metadataFacts: compactFacts([
         row.data_scadenza ? `Scadenza: ${row.data_scadenza}` : null,
         row.note,

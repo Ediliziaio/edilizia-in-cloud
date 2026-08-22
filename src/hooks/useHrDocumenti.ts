@@ -52,6 +52,60 @@ export function useHrScadenzeCounts() {
   });
 }
 
+/**
+ * Scadenze documenti di TUTTA l'azienda, con il nome della persona.
+ * Serve alla vista "Scadenze globali" di Personale → Documenti, che prima
+ * leggeva `documenti_operai`: una tabella diversa da quella dei badge e della
+ * scheda profilo, per giunta su un bucket storage mai creato.
+ */
+export interface ScadenzaAzienda {
+  id: string;
+  hr_profilo_id: string;
+  persona: string;
+  mansione: string | null;
+  categoria: string;
+  titolo: string | null;
+  data_scadenza: string;
+  alert_giorni_prima: number;
+  stato: ReturnType<typeof calcStato>;
+  file_path: string | null;
+}
+
+export function useHrScadenzeAzienda() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["hr-scadenze-azienda", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hr_documenti")
+        .select("id, hr_profilo_id, categoria, titolo, data_scadenza, alert_giorni_prima, file_path, hr_profili!inner(nome, cognome, mansione)")
+        .eq("company_id", companyId!)
+        .not("data_scadenza", "is", null)
+        .order("data_scadenza", { ascending: true });
+      if (error) throw error;
+      type Row = {
+        id: string; hr_profilo_id: string; categoria: string; titolo: string | null;
+        data_scadenza: string; alert_giorni_prima: number; file_path: string | null;
+        hr_profili: { nome: string | null; cognome: string | null; mansione: string | null } | null;
+      };
+      return ((data ?? []) as unknown as Row[]).map((d): ScadenzaAzienda => ({
+        id: d.id,
+        hr_profilo_id: d.hr_profilo_id,
+        persona: [d.hr_profili?.nome, d.hr_profili?.cognome].filter(Boolean).join(" ") || "—",
+        mansione: d.hr_profili?.mansione ?? null,
+        categoria: d.categoria,
+        titolo: d.titolo,
+        data_scadenza: d.data_scadenza,
+        alert_giorni_prima: d.alert_giorni_prima,
+        stato: calcStato(d.data_scadenza, d.alert_giorni_prima),
+        file_path: d.file_path,
+      }));
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 /** Upload file nel bucket privato hr-documenti → ritorna { path, name }. */
 export async function uploadHrFile(companyId: string, profiloId: string, file: File): Promise<{ path: string; name: string }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
