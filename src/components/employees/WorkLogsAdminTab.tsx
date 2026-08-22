@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 
 interface WorkLog {
   id: string;
@@ -204,10 +205,10 @@ export function WorkLogsAdminTab() {
     },
   });
 
-  // Calculate hourly cost
-  const calculateHourlyCost = (grossSalary: number, monthlyHours: number) => {
-    return monthlyHours > 0 ? grossSalary / monthlyHours : 0;
-  };
+  // Il costo stimato usava il lordo diviso le ore, senza oneri: −22% rispetto
+  // a quello che la stessa persona costa nella pagina Costi e in commessa.
+  const calculateHourlyCost = (grossSalary: number, monthlyHours: number) =>
+    costoOrarioDipendente({ gross_salary: grossSalary, monthly_hours: monthlyHours });
 
   // Stats
   const stats = useMemo(() => {

@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -131,7 +132,16 @@ export function EmployeeDialog({
 
   const grossSalary = form.watch("gross_salary");
   const monthlyHours = form.watch("monthly_hours");
-  const hourlyCost = monthlyHours > 0 ? grossSalary / monthlyHours : 0;
+  const inpsRate = form.watch("inps_rate");
+  // Stesso calcolo del database: il numero suggerito qui è ESATTAMENTE quello
+  // che finirà in commessa se il campo resta vuoto. Prima il placeholder
+  // mostrava il lordo diviso le ore, senza oneri: un valore che il sistema
+  // non usava da nessuna parte.
+  const hourlyCost = costoOrarioDipendente({
+    gross_salary: grossSalary,
+    monthly_hours: monthlyHours,
+    inps_rate: inpsRate,
+  });
 
   const handleSubmit = (data: EmployeeFormData) => {
     onSave(data);
@@ -323,7 +333,9 @@ export function EmployeeDialog({
                   </FormControl>
                   <FormDescription>
                     Quando un rapportino viene approvato, le ore diventano costo di
-                    commessa a questa tariffa. Vuoto = costo calcolato dallo stipendio.
+                    commessa a questa tariffa. Se lasci vuoto si usa il costo
+                    calcolato dallo stipendio (lordo + oneri diviso le ore del mese),
+                    che è il valore suggerito qui sopra.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

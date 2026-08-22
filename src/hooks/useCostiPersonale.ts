@@ -17,6 +17,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { costoOrarioDipendente, oreContrattualiMese } from "@/lib/costoOrarioDipendente";
 
 // Ore contrattuali di fallback (CCNL edilizia ~40h/sett ≈ 173 h/mese)
 const DEFAULT_MONTHLY_HOURS = 173;
@@ -103,6 +104,7 @@ interface EmployeeRow {
   inps_rate: number | null;
   monthly_hours: number;
   ore_settimana: number | null;
+  costo_orario: number | null;
   user_id: string | null;
   is_active: boolean;
 }
@@ -156,7 +158,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, user_id, is_active",
+          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active",
         )
         .eq("company_id", companyId!)
         .eq("is_active", true)
@@ -224,11 +226,11 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       const lordo = Number(emp.gross_salary) || 0;
       const inpsRate = Number(emp.inps_rate) || DEFAULT_INPS_RATE;
       const oneri = lordo * (inpsRate / 100);
-      const oreContrattuali =
-        Number(emp.monthly_hours) ||
-        (Number(emp.ore_settimana) ? Number(emp.ore_settimana) * 4.33 : 0) ||
-        DEFAULT_MONTHLY_HOURS;
-      const costoOrario = oreContrattuali > 0 ? (lordo + oneri) / oreContrattuali : 0;
+      const oreContrattuali = oreContrattualiMese(emp);
+      // Unica formula, condivisa col database e con le altre schermate: se il
+      // dipendente ha una tariffa scritta a mano vince quella, ed è la stessa
+      // che finisce nel costo di commessa.
+      const costoOrario = costoOrarioDipendente(emp);
 
       const rapportini = emp.user_id ? (byUser.get(emp.user_id) ?? []) : [];
       if (emp.user_id) byUser.delete(emp.user_id);
