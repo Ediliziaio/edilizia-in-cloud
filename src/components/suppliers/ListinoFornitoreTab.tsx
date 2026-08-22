@@ -35,6 +35,7 @@ interface RigaVoce {
   unita: string;
   prezzo: number;
   sconto_pct: number;
+  immagine_url?: string | null;
 }
 
 interface ListinoEsistente {
@@ -60,7 +61,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
       if (!listino) return { listino: null, voci: [] };
       const { data: voci, error: e2 } = await (supabase as any)
         .from("listino_fornitore_voci")
-        .select("id, codice, descrizione, unita, prezzo, sconto_pct")
+        .select("id, codice, descrizione, unita, prezzo, sconto_pct, immagine_url")
         .eq("listino_id", listino.id)
         .order("sort_order");
       if (e2) throw e2;
@@ -73,6 +74,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
           unita: String(v.unita ?? ""),
           prezzo: Number(v.prezzo ?? 0),
           sconto_pct: Number(v.sconto_pct ?? 0),
+          immagine_url: v.immagine_url ?? null,
         })),
       };
     },
@@ -199,6 +201,7 @@ function ListinoEditor({
             unita: v.unita.trim() || null,
             prezzo: v.prezzo || 0,
             sconto_pct: v.sconto_pct || 0,
+            immagine_url: v.immagine_url ?? null,
             sort_order: i,
           };
         });
@@ -284,7 +287,17 @@ function ListinoEditor({
                     <Input value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
-                    <Input value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} className="h-8 text-sm" />
+                    <div className="flex items-center gap-2">
+                      {v.immagine_url && (
+                        <img
+                          src={v.immagine_url}
+                          alt=""
+                          loading="lazy"
+                          className="h-9 w-9 shrink-0 rounded border bg-white object-contain"
+                        />
+                      )}
+                      <Input value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} className="h-8 text-sm" />
+                    </div>
                   </td>
                   <td className="p-1">
                     <Input value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} className="h-8 text-sm" />
