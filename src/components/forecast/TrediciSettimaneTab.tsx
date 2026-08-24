@@ -24,9 +24,11 @@ import type {
 } from "@/lib/forecastTypes";
 import { buildEmployeeCosts } from "@/lib/costsUtils";
 import {
-  costruisciPianoTredici, applicaGiornoStipendi, type MovimentoPrevisto,
+  costruisciPianoTredici, applicaGiornoStipendi, sedicesimoDelMeseSuccessivo,
+  type MovimentoPrevisto,
 } from "@/lib/finanza/trediciSettimane";
 import { useGiornoStipendi } from "@/hooks/useGiornoStipendi";
+import { useFiscoPrevisto } from "@/hooks/useFiscoPrevisto";
 
 interface ScadenzaForecast {
   id: string;
@@ -60,7 +62,8 @@ const RIGHE_ENTRATE = [
 ];
 const RIGHE_USCITE = [
   { chiave: "fornitori" as const, label: "Fornitori" },
-  { chiave: "stipendi" as const, label: "Stipendi" },
+  { chiave: "stipendi" as const, label: "Stipendi (netto in busta + lordo)" },
+  { chiave: "fisco" as const, label: "F24, IVA e contributi" },
   { chiave: "squadreProvvigioni" as const, label: "Squadre e provvigioni" },
   { chiave: "altriCosti" as const, label: "Altri costi" },
 ];
@@ -89,6 +92,8 @@ export function TrediciSettimaneTab({
   const giornoQ = useGiornoStipendi(companyId ?? undefined);
   const giornoStipendi = giornoQ.data?.giorno ?? null;
   const oggi = giornoQ.data?.oggi;
+  const fiscoQ = useFiscoPrevisto(companyId);
+  const fisco = fiscoQ.data;
 
   const piano = useMemo(() => {
     if (!oggi) return null;
@@ -135,27 +140,36 @@ export function TrediciSettimaneTab({
         categoria: c.category === "Personale" ? "stipendi" : "altriCosti",
       });
     }
-    // Uscite: stipendi PROIETTATI (lordo + oneri) dal personale attivo, sul
-    // giorno di paga vero. Prudente: tutto il costo al giorno di paga; la
-    // separazione netto / F24 arriverà col collegamento al Registro IVA-F24.
+    // Uscite: stipendi PROIETTATI dal personale attivo. Il LORDO esce al
+    // giorno di paga vero; gli ONERI INPS (righe `_inps_` della proiezione)
+    // si versano in F24 il 16 del mese successivo — due momenti di cassa
+    // diversi, come nella realtà.
     const stipendi = buildEmployeeCosts(activeEmployees, 4);
     for (const r of stipendi) {
       if (r.is_paid || !r.due_date) continue;
       const fineMese = new Date(r.due_date);
       if (Number.isNaN(fineMese.getTime())) continue;
+      const eOneri = String(r.id).includes("_inps_");
       movimenti.push({
-        data: applicaGiornoStipendi(fineMese, giornoStipendi),
+        data: eOneri
+          ? sedicesimoDelMeseSuccessivo(fineMese)
+          : applicaGiornoStipendi(fineMese, giornoStipendi),
         importo: Number(r.amount) || 0,
         direzione: "out",
-        categoria: "stipendi",
+        categoria: eOneri ? "fisco" : "stipendi",
       });
+    }
+    // Uscite: F24 registrati (importi e date VERI) + stima IVA dal Registro
+    // per i mesi non ancora coperti da un F24 reale.
+    for (const u of fisco?.uscite ?? []) {
+      movimenti.push({ data: u.data, importo: u.importo, direzione: "out", categoria: "fisco" });
     }
 
     return costruisciPianoTredici(movimenti, partenza.valore, oggi, SOGLIA_GUARDIA);
   }, [
     oggi, giornoStipendi, expectedPayments, scadenzeForForecast, expectedCompanyCosts,
     expectedExpenses, expectedCommissions, expectedSupplierPayments, activeEmployees,
-    partenza.valore,
+    partenza.valore, fisco,
   ]);
 
   if (!piano) {
@@ -341,8 +355,12 @@ export function TrediciSettimaneTab({
               )}
             </p>
             <p>
-              · IVA e F24 non sono ancora nel piano: arrivano con il collegamento al Registro IVA.
-              Fino ad allora le settimane del 16 sono più ottimiste del vero.
+              · La riga F24 somma i versamenti REGISTRATI in Gestione IVA/F24
+              {fisco && fisco.nReali > 0 ? ` (${fisco.nReali} da pagare)` : " (nessuno registrato)"},
+              i contributi INPS della proiezione stipendi al 16 del mese successivo
+              {fisco && fisco.nStime > 0
+                ? ` e ${fisco.nStime} stim${fisco.nStime === 1 ? "a" : "e"} IVA dal Registro (regime mensile ipotizzato)`
+                : ""}. Lo stipendio resta il lordo al giorno di paga.
             </p>
             {senzaData.conteggio > 0 && (
               <p>

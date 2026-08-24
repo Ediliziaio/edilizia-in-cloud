@@ -15,7 +15,7 @@
 // ============================================================================
 
 export type CategoriaEntrata = "acconti" | "saldi" | "fatture" | "altreEntrate";
-export type CategoriaUscita = "fornitori" | "stipendi" | "squadreProvvigioni" | "altriCosti";
+export type CategoriaUscita = "fornitori" | "stipendi" | "fisco" | "squadreProvvigioni" | "altriCosti";
 
 export interface MovimentoPrevisto {
   /** null = senza data: NON entra nelle colonne, finisce nel cassetto "senza data". */
@@ -67,7 +67,7 @@ const ENTRATE_VUOTE = (): Record<CategoriaEntrata, number> => ({
   acconti: 0, saldi: 0, fatture: 0, altreEntrate: 0,
 });
 const USCITE_VUOTE = (): Record<CategoriaUscita, number> => ({
-  fornitori: 0, stipendi: 0, squadreProvvigioni: 0, altriCosti: 0,
+  fornitori: 0, stipendi: 0, fisco: 0, squadreProvvigioni: 0, altriCosti: 0,
 });
 
 /**
@@ -166,4 +166,12 @@ export function applicaGiornoStipendi(fineMese: Date, giorno: number | null): Da
   if (giorno === null) return fineMese;
   const ultimo = new Date(fineMese.getFullYear(), fineMese.getMonth() + 1, 0).getDate();
   return new Date(fineMese.getFullYear(), fineMese.getMonth(), Math.min(giorno, ultimo));
+}
+
+/**
+ * Il 16 del mese successivo: quando si versano in F24 i contributi del mese
+ * di paga e l'IVA della liquidazione mensile.
+ */
+export function sedicesimoDelMeseSuccessivo(meseDiCompetenza: Date): Date {
+  return new Date(meseDiCompetenza.getFullYear(), meseDiCompetenza.getMonth() + 1, 16);
 }
