@@ -9,21 +9,32 @@
  */
 
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import {
   useMarginalitaCommesse, type Semaforo, type CommessaRiga,
 } from "@/hooks/controlloGestione/useMarginalitaCommesse";
+import { useMarginData } from "@/hooks/useMarginData";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { Hammer, AlertTriangle } from "lucide-react";
+import { Hammer, AlertTriangle, Timer } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import {
+  mesiApertura, margineAlMese, mesiSostenibili, mesiRitardo, costoRitardo, fmtMesi,
+} from "@/lib/controlloGestione/tempoCommessa";
 
 interface Props {
   anno: number;
@@ -55,6 +66,45 @@ export function TabCommesse({ anno }: Props) {
   const [sortBy, setSortBy] = useState<"preventivo" | "manodopera">("preventivo");
   const statusFilter = filter === "all" ? null : filter;
   const q = useMarginalitaCommesse(anno, statusFilter);
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  // Costi fissi mensili dalla STESSA fonte di Costi e Punto di Pareggio
+  // (useMarginData): la quota struttura è fissi ÷ cantieri in corso.
+  const margin = useMarginData();
+
+  // Consegna promessa per commessa: la RPC non la espone, la leggiamo a parte
+  // (una query leggera) per calcolare il costo del ritardo. La data-ancora
+  // "oggi" viaggia col risultato: il react-compiler vieta new Date() nel render.
+  const promesseQuery = useQuery({
+    queryKey: ["cg", "commesse-promesse", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, expected_date")
+        .eq("company_id", companyId!)
+        .not("expected_date", "is", null)
+        .limit(2000);
+      if (error) throw error;
+      return {
+        perId: new Map((data || []).map((o) => [o.id as string, o.expected_date as string])),
+        oggi: new Date().toLocaleDateString("en-CA"),
+      };
+    },
+  });
+  const promesse = promesseQuery.data?.perId;
+  const oggi = promesseQuery.data?.oggi ?? "";
+
+  // Quota di struttura per cantiere: quanto "affitto" di azienda paga ogni
+  // cantiere aperto, al mese. Null (mai zero finto) finché mancano i fissi.
+  const quotaStruttura = useMemo(() => {
+    const fissi = margin.totalFixedCostsMonthly;
+    const attivi = q.data?.kpi.n_in_corso ?? 0;
+    if (!fissi || fissi <= 0 || attivi <= 0) return null;
+    return fissi / attivi;
+  }, [margin.totalFixedCostsMonthly, q.data?.kpi.n_in_corso]);
 
   const counts = useMemo(() => {
     if (!q.data) return null;
@@ -99,9 +149,10 @@ export function TabCommesse({ anno }: Props) {
   const righe = righeSorted;
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="space-y-4">
       {/* KPI bar */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
         <KPIMini
           label="Commesse"
           value={String(kpi.n_commesse)}
@@ -145,6 +196,30 @@ export function TabCommesse({ anno }: Props) {
           sub={kpi.n_in_perdita > 0 ? "Richiede attenzione" : "Tutte ok"}
           tone={kpi.n_in_perdita > 0 ? "red" : "green"}
         />
+        {quotaStruttura !== null ? (
+          <KPIMini
+            label="Quota struttura"
+            value={`${formatCurrency(quotaStruttura)}/mese`}
+            sub={`${formatCurrency(margin.totalFixedCostsMonthly)} fissi ÷ ${kpi.n_in_corso} in corso`}
+            tone="blue"
+          />
+        ) : (
+          <Card className="rounded-2xl border-dashed bg-muted/30">
+            <CardContent className="p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Quota struttura</p>
+              <p className="mt-0.5 text-lg font-bold text-muted-foreground">—</p>
+              <p className="text-[11px] text-muted-foreground">
+                {kpi.n_in_corso <= 0 ? (
+                  "Nessun cantiere in corso"
+                ) : (
+                  <Link to="/azienda/costi" className="font-medium text-primary hover:underline">
+                    Inserisci i costi fissi →
+                  </Link>
+                )}
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Filtro stato + ordinamento + semaforo summary */}
@@ -194,6 +269,8 @@ export function TabCommesse({ anno }: Props) {
             <p className="text-xs text-muted-foreground">
               Margine atteso = Preventivo − (Consuntivo / % avanzamento), stimato dal 20% di avanzamento in su
               (sotto è troppo presto → «non valutabile»). Semaforo verde se ≥ 15%, rosso se &lt; 0.
+              La colonna Tempo mostra il margine <em>al mese</em>: sotto la quota di struttura, il cantiere
+              non sta pagando l'affitto dell'azienda.
             </p>
           </div>
           <ExportButton
@@ -218,15 +295,29 @@ export function TabCommesse({ anno }: Props) {
                     { header: "Costo atteso", key: "costo_atteso", width: 14, type: "number" },
                     { header: "Margine fine", key: "margine_atteso", width: 14, type: "number" },
                     { header: "Margine fine %", key: "margine_atteso_perc", width: 12 },
+                    { header: "Mesi apertura", key: "mesi_apertura", width: 12 },
+                    { header: "Margine €/mese", key: "margine_mese", width: 14, type: "number" },
+                    { header: "Costo ritardo €", key: "costo_ritardo", width: 14, type: "number" },
                     { header: "Semaforo", key: "semaforo", width: 10 },
                   ],
-                  rows: righe.map((r) => ({
-                    ...r,
-                    pct_disp: `${(r.pct_avanzamento * 100).toFixed(0)}%`,
-                    incid_mo: r.consuntivo > 0
-                      ? `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}%`
-                      : "—",
-                  })),
+                  rows: righe.map((r) => {
+                    const mesi = oggi ? mesiApertura(r.work_start, r.work_end, oggi) : null;
+                    const alMese = mesi !== null ? margineAlMese(r.margine, mesi) : null;
+                    const rit = costoRitardo(
+                      oggi ? mesiRitardo(promesse?.get(r.id) ?? null, r.work_end, oggi) : 0,
+                      quotaStruttura,
+                    );
+                    return {
+                      ...r,
+                      pct_disp: `${(r.pct_avanzamento * 100).toFixed(0)}%`,
+                      incid_mo: r.consuntivo > 0
+                        ? `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}%`
+                        : "—",
+                      mesi_apertura: mesi !== null ? fmtMesi(mesi) : "—",
+                      margine_mese: alMese !== null ? Math.round(alMese) : null,
+                      costo_ritardo: rit !== null ? Math.round(rit) : null,
+                    };
+                  }),
                 }],
               });
             }}
@@ -253,6 +344,7 @@ export function TabCommesse({ anno }: Props) {
                     <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Consuntivo</th>
                     <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Manodopera</th>
                     <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Avanz.</th>
+                    <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Tempo</th>
                     <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine ora</th>
                     <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine fine prev.</th>
                   </tr>
@@ -317,6 +409,12 @@ export function TabCommesse({ anno }: Props) {
                           </span>
                         </div>
                       </td>
+                      <CellaTempo
+                        riga={r}
+                        promessa={promesse?.get(r.id) ?? null}
+                        oggi={oggi}
+                        quotaStruttura={quotaStruttura}
+                      />
                       <td
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
@@ -363,6 +461,106 @@ export function TabCommesse({ anno }: Props) {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * Colonna "Tempo": mesi di apertura, margine al mese (ambra se sotto la quota
+ * di struttura: il cantiere non sta pagando l'affitto dell'azienda) e costo
+ * del ritardo sulla consegna promessa. Tooltip con la scomposizione completa.
+ */
+function CellaTempo({
+  riga, promessa, oggi, quotaStruttura,
+}: {
+  riga: CommessaRiga;
+  promessa: string | null;
+  oggi: string;
+  quotaStruttura: number | null;
+}) {
+  const mesi = oggi ? mesiApertura(riga.work_start, riga.work_end, oggi) : null;
+  const alMese = mesi !== null ? margineAlMese(riga.margine, mesi) : null;
+  const ritardoMesi = oggi ? mesiRitardo(promessa, riga.work_end, oggi) : 0;
+  const ritardoEur = costoRitardo(ritardoMesi, quotaStruttura);
+  const sostenibili = mesiSostenibili(riga.margine, quotaStruttura);
+  const sottoQuota =
+    alMese !== null && quotaStruttura !== null && alMese < quotaStruttura;
+
+  if (mesi === null) {
+    return (
+      <td className="px-3 py-2 text-right">
+        <span
+          className="text-xs text-muted-foreground"
+          title="Compila la data di inizio lavori sulla commessa"
+        >
+          —
+        </span>
+      </td>
+    );
+  }
+
+  return (
+    <td className="px-3 py-2 text-right">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-flex cursor-default flex-col items-end gap-0.5">
+            <span className="inline-flex items-center gap-1 text-sm tabular-nums">
+              <Timer className="h-3 w-3 text-muted-foreground" />
+              {fmtMesi(mesi)} mesi
+            </span>
+            {alMese !== null ? (
+              <span
+                className={cn(
+                  "text-[11px] tabular-nums",
+                  sottoQuota ? "font-medium text-amber-600" : "text-muted-foreground",
+                )}
+              >
+                {formatCurrency(alMese)}/mese
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">appena aperta</span>
+            )}
+            {ritardoEur !== null && (
+              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+                ritardo −{formatCurrency(ritardoEur)}
+              </span>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="max-w-[260px] space-y-1 text-xs">
+          <p>
+            Aperta da <strong>{fmtMesi(mesi)} mesi</strong>
+            {riga.work_end ? " (chiusa)" : ""}.
+          </p>
+          {alMese !== null && quotaStruttura !== null && (
+            <p>
+              Rende <strong>{formatCurrency(alMese)}/mese</strong> contro una quota di
+              struttura di {formatCurrency(quotaStruttura)}/mese
+              {sottoQuota && " — sotto quota: il cantiere non paga l'affitto dell'azienda"}.
+            </p>
+          )}
+          {sostenibili !== null && (
+            <p>
+              Il margine attuale paga la struttura per{" "}
+              <strong>{fmtMesi(sostenibili)} mesi</strong>.
+            </p>
+          )}
+          {ritardoEur !== null && (
+            <p className="text-rose-600 dark:text-rose-400">
+              {fmtMesi(ritardoMesi)} mesi oltre la consegna promessa
+              {promessa ? ` (${formatDate(promessa)})` : ""}: ≈{formatCurrency(ritardoEur)} di
+              struttura consumata in più.
+            </p>
+          )}
+          {quotaStruttura === null && (
+            <p className="text-muted-foreground">
+              Inserisci i costi fissi in Costi per vedere quota di struttura e costo del
+              ritardo.
+            </p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </td>
   );
 }
 
