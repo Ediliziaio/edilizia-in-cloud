@@ -33,6 +33,7 @@ import { useSedeFilter } from "@/store/sedeFilterStore";
 import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
 import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
 import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
+import { IndicatoriGuida } from "@/components/cruscotto/IndicatoriGuida";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { AlertCircle, AlertTriangle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
@@ -697,6 +698,10 @@ export default function CruscottoAziendale() {
                   </SectionErrorBoundary>
                 </div>
               </div>
+
+              <SectionErrorBoundary sectionName="I numeri che comandano">
+                <IndicatoriGuida />
+              </SectionErrorBoundary>
 
               {companyTargets?.monthly_revenue_target && (
                 <SectionErrorBoundary sectionName="Target Mensile">
