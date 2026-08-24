@@ -396,6 +396,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         amount: Number(inst.amount),
         expectedDate: inst.expected_date ? new Date(inst.expected_date) : null,
         direction: "in",
+        rawType: inst.type || undefined,
       });
     });
     return payments.sort((a, b) => {

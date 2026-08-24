@@ -16,6 +16,7 @@ import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
 import { CashFlowProjectionChart } from "@/components/forecast/CashFlowProjectionChart";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { SilvioCashflowForecast } from "@/components/silvio/SilvioCashflowForecast";
+import { TrediciSettimaneTab } from "@/components/forecast/TrediciSettimaneTab";
 
 
 export default function CashFlowForecast() {
@@ -35,6 +36,7 @@ export default function CashFlowForecast() {
     scadenzeForForecast,
     primaNotaSaldo,
     dataTruncated,
+    activeEmployees,
   } = useCashFlowData();
 
   // Proiezione 90 giorni con dati reali banking + fatture
@@ -295,6 +297,7 @@ export default function CashFlowForecast() {
           <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
           <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
+          <TabsTrigger value="settimane">13 settimane</TabsTrigger>
         </TabsList>
 
         <TabsContent value="incassato" className="mt-6">
@@ -339,6 +342,21 @@ export default function CashFlowForecast() {
             </h3>
             <SilvioCashflowForecast weeks={13} applyDelay={true} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="settimane" className="mt-6">
+          <TrediciSettimaneTab
+            companyId={companyId}
+            expectedPayments={expectedPayments}
+            scadenzeForForecast={scadenzeForForecast}
+            expectedCompanyCosts={expectedCompanyCosts}
+            expectedExpenses={expectedExpenses}
+            expectedCommissions={expectedCommissions}
+            expectedSupplierPayments={expectedSupplierPayments}
+            activeEmployees={activeEmployees}
+            primaNotaSaldo={primaNotaSaldo}
+            bankBalance={bankingSummary?.bankBalance ?? null}
+          />
         </TabsContent>
       </Tabs>
     </div>

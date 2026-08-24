@@ -6,6 +6,8 @@ export interface ExpectedPayment {
   amount: number;
   expectedDate: Date | null;
   direction: "in";
+  /** Tipo grezzo della rata (deposit|balance|financing): `type` è già "sporcato" dalla label. */
+  rawType?: string;
 }
 
 export interface ExpectedExpense {
