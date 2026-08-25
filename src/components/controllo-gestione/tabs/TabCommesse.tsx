@@ -70,8 +70,44 @@ export function TabCommesse({ anno }: Props) {
   const companyId = effectiveCompany?.id;
 
   // Costi fissi mensili dalla STESSA fonte di Costi e Punto di Pareggio
-  // (useMarginData): la quota struttura è fissi ÷ cantieri in corso.
+  // (useMarginData). Per la quota struttura serve però la struttura
+  // NON-manodopera: la manodopera imputata alle commesse sta GIÀ nei
+  // consuntivi di questa tabella, contarla anche nella quota la
+  // raddoppierebbe. Manodopera = chi ha ore imputate (order_employees);
+  // il resto del personale (ufficio) è struttura.
   const margin = useMarginData();
+
+  const strutturaQuery = useQuery({
+    queryKey: ["cg", "struttura-non-manodopera", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const [operativiRes, attiviRes] = await Promise.all([
+        (supabase as any)
+          .from("order_employees")
+          .select("employee_id, orders!inner(company_id)")
+          .eq("orders.company_id", companyId!)
+          .limit(2000),
+        supabase
+          .from("employees")
+          .select("id, gross_salary, inps_rate")
+          .eq("company_id", companyId!)
+          .eq("is_active", true),
+      ]);
+      if (operativiRes.error) throw operativiRes.error;
+      if (attiviRes.error) throw attiviRes.error;
+      const operativi = new Set(
+        ((operativiRes.data ?? []) as Array<{ employee_id: string }>).map((r) => r.employee_id),
+      );
+      let stipendiUfficio = 0;
+      for (const e of attiviRes.data ?? []) {
+        if (operativi.has(e.id)) continue;
+        const lordo = Number(e.gross_salary) || 0;
+        stipendiUfficio += lordo * (1 + (Number(e.inps_rate) || 28) / 100);
+      }
+      return { stipendiUfficio, nOperativi: operativi.size };
+    },
+  });
 
   // Consegna promessa per commessa: la RPC non la espone, la leggiamo a parte
   // (una query leggera) per calcolare il costo del ritardo. La data-ancora
@@ -97,14 +133,21 @@ export function TabCommesse({ anno }: Props) {
   const promesse = promesseQuery.data?.perId;
   const oggi = promesseQuery.data?.oggi ?? "";
 
-  // Quota di struttura per cantiere: quanto "affitto" di azienda paga ogni
-  // cantiere aperto, al mese. Null (mai zero finto) finché mancano i fissi.
+  // Quota di struttura per cantiere (definizione del controllo di gestione:
+  // struttura NON-manodopera ÷ cantieri paralleli): fissi aziendali senza
+  // gli stipendi, più i soli stipendi di chi NON viene imputato ai cantieri.
+  // Null (mai zero finto) finché mancano i fissi.
+  const strutturaNonManodopera = useMemo(() => {
+    if (strutturaQuery.data === undefined) return null;
+    const fissiNonPersonale = margin.totalFixedCostsMonthly - margin.salariesMonthly;
+    return fissiNonPersonale + strutturaQuery.data.stipendiUfficio;
+  }, [margin.totalFixedCostsMonthly, margin.salariesMonthly, strutturaQuery.data]);
+
   const quotaStruttura = useMemo(() => {
-    const fissi = margin.totalFixedCostsMonthly;
     const attivi = q.data?.kpi.n_in_corso ?? 0;
-    if (!fissi || fissi <= 0 || attivi <= 0) return null;
-    return fissi / attivi;
-  }, [margin.totalFixedCostsMonthly, q.data?.kpi.n_in_corso]);
+    if (strutturaNonManodopera === null || strutturaNonManodopera <= 0 || attivi <= 0) return null;
+    return strutturaNonManodopera / attivi;
+  }, [strutturaNonManodopera, q.data?.kpi.n_in_corso]);
 
   const counts = useMemo(() => {
     if (!q.data) return null;
@@ -200,7 +243,7 @@ export function TabCommesse({ anno }: Props) {
           <KPIMini
             label="Quota struttura"
             value={`${formatCurrency(quotaStruttura)}/mese`}
-            sub={`${formatCurrency(margin.totalFixedCostsMonthly)} fissi ÷ ${kpi.n_in_corso} in corso`}
+            sub={`${formatCurrency(strutturaNonManodopera ?? 0)} struttura (senza manodopera) ÷ ${kpi.n_in_corso} in corso`}
             tone="blue"
           />
         ) : (

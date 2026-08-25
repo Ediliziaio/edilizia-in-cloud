@@ -470,6 +470,11 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   const expectedSupplierPayments = useMemo<ExpectedSupplierPayment[]>(() => {
     const payments: ExpectedSupplierPayment[] = [];
     supplierBalances.forEach((item: any) => {
+      // DEDUP uscite: se l'acquisto dell'articolo è GIÀ un costo (ODA
+      // ricevuto o fattura del fornitore contabilizzata — stessa vista usata
+      // per gli articoli da ordinare), l'uscita vera è quella registrata:
+      // contare anche l'articolo raddoppiava i fornitori nel previsionale.
+      if (idsGiaACosto.has(item.id)) return;
       const supplierName = item.supplier?.name || "Fornitore sconosciuto";
       const totalCost = (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1);
       const paymentMethod = item.payment_method;
@@ -528,7 +533,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
       if (!b.expectedDate) return -1;
       return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
-  }, [supplierBalances]);
+  }, [supplierBalances, idsGiaACosto]);
 
 
   // Stats from RPC (server-side aggregation replaces heavy client-side useMemo)
