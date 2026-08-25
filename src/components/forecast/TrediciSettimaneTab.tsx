@@ -29,12 +29,14 @@ import {
 } from "@/lib/finanza/trediciSettimane";
 import { useGiornoStipendi } from "@/hooks/useGiornoStipendi";
 import { useFiscoPrevisto } from "@/hooks/useFiscoPrevisto";
+import { useCommesseBonus, fattoreNettoRitenuta } from "@/hooks/useCommesseBonus";
 
 interface ScadenzaForecast {
   id: string;
   amount: number;
   expectedDate: Date | null;
   direction: "entrata" | "uscita";
+  orderId?: string | null;
 }
 
 interface Props {
@@ -94,17 +96,41 @@ export function TrediciSettimaneTab({
   const oggi = giornoQ.data?.oggi;
   const fiscoQ = useFiscoPrevisto(companyId);
   const fisco = fiscoQ.data;
+  const bonusQ = useCommesseBonus(companyId);
+  const commesseBonus = bonusQ.data;
 
   const piano = useMemo(() => {
     if (!oggi) return null;
     const movimenti: MovimentoPrevisto[] = [];
+
+    // Ritenuta 11% sui bonifici parlanti: sulle commesse marcate col bonus
+    // edilizio (flag scelto alla creazione della commessa) il cliente paga con
+    // bonifico parlante e la banca trattiene l'11% sull'imponibile PRIMA di
+    // accreditare. L'incasso previsto qui è il netto — quello che arriva
+    // davvero — e la trattenuta si somma a parte per dirla nel footer.
+    // Il finanziamento (erogazione della finanziaria) non è un bonifico
+    // parlante del privato: resta lordo.
+    let ritenutaOrizzonte = 0;
+    let commesseBonusToccate = 0;
+    const idsBonusToccati = new Set<string>();
+    const orizzonteMs = oggi.getTime() + 92 * 86400_000;
+    const nettoSe = (orderId: string | null | undefined, importo: number, data: Date | null): number => {
+      if (!orderId || !commesseBonus?.has(orderId)) return importo;
+      const netto = importo * fattoreNettoRitenuta(commesseBonus.get(orderId));
+      if (data && data.getTime() < orizzonteMs) ritenutaOrizzonte += importo - netto;
+      if (!idsBonusToccati.has(orderId)) {
+        idsBonusToccati.add(orderId);
+        commesseBonusToccate += 1;
+      }
+      return netto;
+    };
 
     // Entrate: rate delle commesse, con l'acconto SEPARATO dal saldo.
     // financing (erogazione finanziaria) arriva a lavoro concluso → con i saldi.
     for (const p of expectedPayments) {
       movimenti.push({
         data: p.expectedDate,
-        importo: p.amount,
+        importo: p.rawType === "financing" ? p.amount : nettoSe(p.orderId, p.amount, p.expectedDate),
         direzione: "in",
         categoria: p.rawType === "deposit" ? "acconti" : "saldi",
       });
@@ -112,7 +138,12 @@ export function TrediciSettimaneTab({
     // Entrate: scadenze attive (fatture) — già dedupate a monte dalle rate.
     for (const s of scadenzeForForecast) {
       if (s.direction === "entrata") {
-        movimenti.push({ data: s.expectedDate, importo: s.amount, direzione: "in", categoria: "fatture" });
+        movimenti.push({
+          data: s.expectedDate,
+          importo: nettoSe(s.orderId, s.amount, s.expectedDate),
+          direzione: "in",
+          categoria: "fatture",
+        });
       } else {
         movimenti.push({ data: s.expectedDate, importo: s.amount, direzione: "out", categoria: "fornitori" });
       }
@@ -165,18 +196,22 @@ export function TrediciSettimaneTab({
       movimenti.push({ data: u.data, importo: u.importo, direzione: "out", categoria: "fisco" });
     }
 
-    return costruisciPianoTredici(movimenti, partenza.valore, oggi, SOGLIA_GUARDIA);
+    return {
+      ...costruisciPianoTredici(movimenti, partenza.valore, oggi, SOGLIA_GUARDIA),
+      ritenutaOrizzonte,
+      commesseBonusToccate,
+    };
   }, [
     oggi, giornoStipendi, expectedPayments, scadenzeForForecast, expectedCompanyCosts,
     expectedExpenses, expectedCommissions, expectedSupplierPayments, activeEmployees,
-    partenza.valore, fisco,
+    partenza.valore, fisco, commesseBonus,
   ]);
 
   if (!piano) {
     return <Skeleton className="h-96 w-full rounded-2xl" />;
   }
 
-  const { settimane, primaSettimanaRossa, senzaData } = piano;
+  const { settimane, primaSettimanaRossa, senzaData, ritenutaOrizzonte, commesseBonusToccate } = piano;
   const mostraSquadre = settimane.some((s) => s.uscite.squadreProvvigioni > 0);
 
   return (
@@ -354,6 +389,15 @@ export function TrediciSettimaneTab({
                 </>
               )}
             </p>
+            {commesseBonusToccate > 0 && (
+              <p>
+                · {commesseBonusToccate} commess{commesseBonusToccate === 1 ? "a" : "e"} col bonus
+                edilizio: gli incassi previsti sono già al NETTO della ritenuta 11% sull'imponibile
+                che la banca trattiene sul bonifico parlante
+                ({formatCurrency(ritenutaOrizzonte)} trattenuti nell'orizzonte — tornano come
+                credito d'imposta, non sono persi).
+              </p>
+            )}
             <p>
               · La riga F24 somma i versamenti REGISTRATI in Gestione IVA/F24
               {fisco && fisco.nReali > 0 ? ` (${fisco.nReali} da pagare)` : " (nessuno registrato)"},

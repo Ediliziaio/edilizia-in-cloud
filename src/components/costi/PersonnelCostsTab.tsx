@@ -248,6 +248,14 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
             Saturazione
           </p>
           <SaturazioneBar value={d.saturazione} />
+          {/* Il costo orario reale: le ore non lavorate si spalmano su quelle
+              lavorate. Sotto saturazione piena l'ora vera costa più della busta. */}
+          {d.saturazione > 0.05 && d.saturazione < 1 && d.costoOrario > 0 && (
+            <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
+              ora reale {formatCurrency(d.costoOrario / d.saturazione)}
+              <span className="text-muted-foreground/70"> (busta {formatCurrency(d.costoOrario)})</span>
+            </p>
+          )}
         </div>
 
         <ChevronDown

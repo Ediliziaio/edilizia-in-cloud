@@ -159,6 +159,13 @@ export function TabIndiciAvanzati({ anno }: Props) {
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   CCC = DSO + DSI − DPO
                 </p>
+                {/* La velocità: quante volte gira il capitale in un anno.
+                    Il rendimento vero è margine × giri, non il margine da solo. */}
+                {rotazione.ccc_giorni > 0 && (
+                  <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                    = {(365 / rotazione.ccc_giorni).toFixed(1)} giri all'anno
+                  </p>
+                )}
                 <p className="mt-2 text-xs">
                   {rotazione.ccc_giorni < 60 ? "✓ Eccellente" : rotazione.ccc_giorni < 120 ? "⚠ Da migliorare" : "✗ Critico"}
                 </p>
