@@ -168,6 +168,15 @@ export function QuotePaymentTermsCard({
             </div>
           )}
         </div>
+
+        {/* La regola a monte: la commessa parte coi soldi del cliente, non
+            coi tuoi. E le stesse fasi valgono verso il sub (back-to-back). */}
+        <p className="text-[11px] text-muted-foreground">
+          Regola dell'acconto: deve coprire almeno l'acconto al fornitore più il primo mese di
+          manodopera del cantiere — così la commessa parte coi soldi del cliente, non coi tuoi.
+          E se hai subappaltatori, le stesse fasi valgono verso di loro: si pagano a SAL
+          incassato, con percentuali speculari a queste.
+        </p>
       </CardContent>
     </Card>
   );

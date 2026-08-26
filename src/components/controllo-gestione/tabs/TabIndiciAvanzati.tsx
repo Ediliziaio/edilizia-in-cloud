@@ -5,9 +5,12 @@
  * l'investitore — sono i numeri che chiede un fido o un mutuo.
  */
 
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useIndiciAvanzati } from "@/hooks/controlloGestione/useIndiciAvanzati";
 import { useImposte } from "@/hooks/controlloGestione/useImposte";
 import { formatCurrency } from "@/lib/formatters";
@@ -21,6 +24,39 @@ interface Props {
 export function TabIndiciAvanzati({ anno }: Props) {
   const q = useIndiciAvanzati(anno);
   const imp = useImposte(anno);
+  const { effectiveCompany } = useAuth();
+
+  // Giorni di installazione REALI dalle commesse chiuse: è la leva sul CCC
+  // che non si compra, si organizza (ordine partito subito, rilievo fatto,
+  // posa programmata). A parità di margine, un ciclo più lungo vuol dire
+  // solo più capitale fermo per guadagnare uguale.
+  const giorniPosa = useQuery({
+    queryKey: ["giorni-installazione", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<{ media: number; n: number } | null> => {
+      const unAnnoFa = new Date();
+      unAnnoFa.setFullYear(unAnnoFa.getFullYear() - 1);
+      const { data, error } = await supabase
+        .from("orders")
+        .select("work_start_date, work_end_date")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("status", "completato")
+        .not("work_start_date", "is", null)
+        .not("work_end_date", "is", null)
+        .gte("work_end_date", unAnnoFa.toLocaleDateString("en-CA"))
+        .limit(300);
+      if (error) throw error;
+      const giorni = (data ?? [])
+        .map((o) => (new Date(o.work_end_date!).getTime() - new Date(o.work_start_date!).getTime()) / 86400000)
+        .filter((g) => g >= 0 && g <= 730);
+      if (giorni.length === 0) return null;
+      return {
+        media: Math.round(giorni.reduce((s, g) => s + g, 0) / giorni.length),
+        n: giorni.length,
+      };
+    },
+  });
 
   if (q.isLoading) return <Skeleton className="h-96 w-full rounded-2xl" />;
   if (q.isError)   return <ErrorBlock onRetry={() => q.refetch()} />;
@@ -164,6 +200,16 @@ export function TabIndiciAvanzati({ anno }: Props) {
                 {rotazione.ccc_giorni > 0 && (
                   <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
                     = {(365 / rotazione.ccc_giorni).toFixed(1)} giri all'anno
+                  </p>
+                )}
+                {/* Cap. "30, 60, 90 o 120 giorni": a parità di margine, ogni
+                    giorno di installazione in più è solo capitale fermo. */}
+                {giorniPosa.data && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Installazione media {giorniPosa.data.media}g su {giorniPosa.data.n} commesse
+                    chiuse (12 mesi): è la parte del ciclo che non si compra, si organizza —
+                    ordine partito subito, rilievo fatto, posa programmata. Un ciclo più lungo
+                    non toglie margine: immobilizza capitale per guadagnare uguale.
                   </p>
                 )}
                 <p className="mt-2 text-xs">
