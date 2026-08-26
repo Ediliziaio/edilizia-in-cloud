@@ -37,7 +37,9 @@ export interface Indicatore {
 // ── Soglie (prassi di controllo di gestione edile) ──────────────────────────
 
 export const SOGLIE_INDICATORI = {
-  /** Giorni di liquidità a costi fissi correnti: sotto 45 è zona rossa. */
+  /** Giorni di liquidità a costi fissi correnti: sopra 60 ragioni, sotto 45
+   *  è zona rossa, sotto 30 è emergenza permanente. */
+  coperturaGiorniEmergenza: 30,
   coperturaGiorniAllarme: 45,
   coperturaGiorniAttenzione: 60,
   /** Acconti incassati ÷ saldi incassati: sopra 1,2 stai vivendo di lavoro futuro. */
@@ -106,10 +108,21 @@ export function valutaCopertura(
     giorni < s.coperturaGiorniAllarme ? "allarme"
     : giorni < s.coperturaGiorniAttenzione ? "attenzione"
     : "ok";
+  // Le tre soglie: sopra 60 puoi ragionare (e dire di no ai lavori sbagliati),
+  // sotto 45 ogni decisione è presa sotto pressione, sotto 30 non è più
+  // gestione ma emergenza permanente.
+  const lettura =
+    giorni < s.coperturaGiorniEmergenza
+      ? " Sotto i 30 giorni non è più gestione, è emergenza: agisci adesso, questo problema si risolve solo con settimane di anticipo."
+      : giorni < s.coperturaGiorniAllarme
+        ? " Zona rossa: sotto i 45 giorni ogni decisione la prendi sotto pressione."
+        : giorni < s.coperturaGiorniAttenzione
+          ? " Sotto i 60 giorni il margine di manovra si assottiglia."
+          : " Sopra i 60 giorni puoi ragionare, e permetterti di dire di no a un lavoro sbagliato.";
   return {
     valore: Math.round(giorni),
     stato,
-    dettaglio: `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} giorni senza incassare.`,
+    dettaglio: `Con ${eur(fissiMensili)} di fissi al mese, la cassa attuale regge ${Math.round(giorni)} giorni senza incassare.${lettura}`,
   };
 }
 
