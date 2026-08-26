@@ -385,7 +385,68 @@ export function CostsTable({
         </div>
       ) : (
         <>
-        <div className="rounded-md border overflow-hidden">
+        {/* MOBILE: la tabella era dentro un overflow-hidden — le colonne oltre
+            i 375px (importi, scadenze, stati) venivano TAGLIATE, non scrollate.
+            Sotto sm si passa a card: nome, lordo, scadenza, stato e azioni. */}
+        <div className="space-y-2 sm:hidden">
+          {paginatedItems.map((cost) => {
+            const vatRate = Number(cost.vat_rate ?? (cost as any).supplier?.vat_rate ?? 0) || 0;
+            const grossM = calculateGrossFromNet(Number(cost.amount) || 0, vatRate).grossAmount;
+            return (
+              <div key={cost.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{cost.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[cost.category || (cost.cost_type === "fixed" ? "Fisso" : "Variabile"), (cost as any).supplier?.name || cost.supplierName].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(grossM)}</p>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {getStatusBadge(cost)}
+                    {cost.due_date && cost.due_date !== "9999-12-31" && (
+                      <span className="text-xs text-muted-foreground">{format(parseISO(cost.due_date), "dd/MM/yyyy")}</span>
+                    )}
+                  </div>
+                  {!cost.isFromOrder && (
+                    <div className="flex shrink-0 items-center">
+                      {!cost.is_paid ? (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
+                          <CheckSquare className="h-4 w-4 text-green-600" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMarkUnpaid(cost.id)} aria-label="Riporta a non pagato">
+                          <Undo2 className="h-4 w-4 text-orange-600" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenEdit(cost)} aria-label="Modifica costo">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Altre azioni">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onOpenDuplicate(cost)}>
+                            <Copy className="h-4 w-4 mr-2" /> Duplica (+1 mese)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(cost.id)}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="hidden rounded-md border overflow-x-auto sm:block">
           {/* min-w: con table-fixed + w-full la tabella si comprimeva alla larghezza dello
               schermo (a 375px colonne da 11-30px illeggibili) invece di scrollare in orizzontale */}
           <Table className="min-w-[900px] table-fixed [&_td]:py-2.5 [&_th]:h-9">

@@ -688,8 +688,8 @@ export default function CompanyCostsManager({
             le azioni a destra. Niente riquadri: la tabella e' la protagonista. */}
         <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center divide-x divide-slate-200">
-              <div className="pr-4">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-0 sm:divide-x sm:divide-slate-200">
+              <div className="sm:pr-4">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}</p>
                 <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(sommaVoci(vociTipo))}</p>
                 <p className="text-[11px] text-muted-foreground">{vociTipo.length} voci</p>
@@ -697,7 +697,7 @@ export default function CompanyCostsManager({
               <button
                 type="button"
                 onClick={showOverdueCosts}
-                className={cn("px-4 text-left transition-colors hover:bg-orange-50/60", statusTabFilter === "in_ritardo" && "bg-orange-50")}
+                className={cn("text-left transition-colors hover:bg-orange-50/60 sm:px-4", statusTabFilter === "in_ritardo" && "bg-orange-50")}
               >
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Scaduti</p>
                 <p className={cn("text-lg font-semibold leading-tight tabular-nums", scadutiTipo.length > 0 ? "text-red-600" : "text-emerald-600")}>
@@ -709,7 +709,7 @@ export default function CompanyCostsManager({
                 <button
                   type="button"
                   onClick={() => setRicorrentiOpen(true)}
-                  className="px-4 text-left transition-colors hover:bg-slate-50"
+                  className="text-left transition-colors hover:bg-slate-50 sm:px-4"
                 >
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Ricorrenti</p>
                   <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-xs font-normal text-muted-foreground">/mese</span></p>
@@ -719,7 +719,7 @@ export default function CompanyCostsManager({
                 <button
                   type="button"
                   onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
-                  className={cn("px-4 text-left transition-colors hover:bg-slate-50", originFilter === "order" && "bg-orange-50")}
+                  className={cn("text-left transition-colors hover:bg-slate-50 sm:px-4", originFilter === "order" && "bg-orange-50")}
                 >
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da moduli</p>
                   <p className="text-lg font-semibold leading-tight tabular-nums">{daModuliTipo.length}</p>
@@ -730,7 +730,7 @@ export default function CompanyCostsManager({
                 <button
                   type="button"
                   onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
-                  className={cn("px-4 text-left transition-colors hover:bg-slate-50", supplierFilter === "none" && "bg-orange-50")}
+                  className={cn("text-left transition-colors hover:bg-slate-50 sm:px-4", supplierFilter === "none" && "bg-orange-50")}
                 >
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</p>
                   <p className="text-lg font-semibold leading-tight tabular-nums text-amber-600">{senzaFornitoreTipo.length}</p>
@@ -953,7 +953,7 @@ export default function CompanyCostsManager({
           })()}
 
           <CostsTable
-                  leftSlot={<div className="flex gap-1 flex-wrap">
+                  leftSlot={<div className="flex gap-1 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&>button]:shrink-0">
             {([
               // Conteggi del SOLO tipo di questa tab: la tab gemella ha i suoi.
               { value: "all" as StatusTabFilter, label: "Tutti", count: getItemsForTab(typeLock).length },
