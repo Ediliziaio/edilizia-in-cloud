@@ -1055,7 +1055,12 @@ export default function CompanyCostsManager({
         open={bankReconcileOpen}
         onOpenChange={setBankReconcileOpen}
         companyId={companyId}
-        unpaidCosts={((data.allCostsUnfiltered || []) as UnifiedCost[]).filter((c) => !c.is_paid)}
+        unpaidCosts={((data.allCostsUnfiltered || []) as UnifiedCost[]).filter(
+          // Niente stipendi tra le proposte: non si riconciliano con la banca
+          // (il pagamento e' presunto a fine mese) e la conferma li rifiuta —
+          // proporli significava far esplodere il "Conferma tutti" a meta'.
+          (c) => !c.is_paid && resolveCostOrigin(c.id, c.realOrderItemId).type !== "employee-salary",
+        )}
         onPayCost={paySingleCostFromBank}
       />
     </>
