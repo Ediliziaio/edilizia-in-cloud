@@ -430,8 +430,11 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const manualVariableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
   const orderDerivedFixed = filteredOrderItemCosts.filter((c) => c.cost_type === "fixed");
   const orderDerivedVariable = filteredOrderItemCosts.filter((c) => c.cost_type === "variable");
-  const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
-  const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
+  // Stesso ordinamento della vista "Tutti": scaduti prima, poi in scadenza,
+  // poi previsti, e il pagato in fondo — senza, le viste Fissi/Variabili
+  // aprivano con lo storico 2024 gia' pagato in cima.
+  const fixedCosts = sortCostsByPriority([...manualFixedCosts, ...orderDerivedFixed]);
+  const variableCostsWithOrders = sortCostsByPriority([...manualVariableCosts, ...orderDerivedVariable]);
 
   const allCostsSorted = useMemo(() => sortCostsByPriority([...filteredCosts, ...filteredOrderItemCosts]), [filteredCosts, filteredOrderItemCosts]);
 
