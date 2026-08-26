@@ -3,9 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths, endOfMonth, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, ChevronLeft, ChevronRight, Download,
-  FilterX, Landmark, ListChecks, Plus, Search,
-  Settings2, Upload, Users, WalletCards,
+  AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, ChevronLeft, ChevronRight, Download, FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search, Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
 
 import { useQuery } from "@tanstack/react-query";
@@ -687,84 +685,140 @@ export default function CompanyCostsManager({
 
   return (
     <>
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        {/* Testata unica: i numeri che contano a sinistra (nudi, cliccabili),
-            le azioni a destra. Niente riquadri: la tabella e' la protagonista. */}
-        <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-0 sm:divide-x sm:divide-slate-200">
-              <div className="sm:pr-4">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}</p>
-                <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(sommaVoci(vociTipo))}</p>
-                <p className="text-[11px] text-muted-foreground">{vociTipo.length} voci</p>
-              </div>
-              <button
-                type="button"
-                onClick={showOverdueCosts}
-                className={cn("text-left transition-colors hover:bg-orange-50/60 sm:px-4", statusTabFilter === "in_ritardo" && "bg-orange-50")}
-              >
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Scaduti</p>
-                <p className={cn("text-lg font-semibold leading-tight tabular-nums", scadutiTipo.length > 0 ? "text-red-600" : "text-emerald-600")}>
-                  {scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">{scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno"}</p>
-              </button>
-              {typeLock === "fixed" ? (
-                <button
-                  type="button"
-                  onClick={() => setRicorrentiOpen(true)}
-                  className="text-left transition-colors hover:bg-slate-50 sm:px-4"
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Ricorrenti</p>
-                  <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-xs font-normal text-muted-foreground">/mese</span></p>
-                  <p className="text-[11px] text-muted-foreground">{ricorrentiSintesi.data?.attive ?? 0} voci · gestisci</p>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
-                  className={cn("text-left transition-colors hover:bg-slate-50 sm:px-4", originFilter === "order" && "bg-orange-50")}
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da moduli</p>
-                  <p className="text-lg font-semibold leading-tight tabular-nums">{daModuliTipo.length}</p>
-                  <p className="text-[11px] text-muted-foreground">ordini, team, provvigioni</p>
-                </button>
-              )}
-              {typeLock === "variable" && senzaFornitoreTipo.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
-                  className={cn("text-left transition-colors hover:bg-slate-50 sm:px-4", supplierFilter === "none" && "bg-orange-50")}
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</p>
-                  <p className="text-lg font-semibold leading-tight tabular-nums text-amber-600">{senzaFornitoreTipo.length}</p>
-                  <p className="text-[11px] text-muted-foreground">da completare</p>
-                </button>
-              )}
+      <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm">
+        {/* Testata NAVY in stile "Riepilogo commesse": il blu scuro fa da
+            contrasto e le card bordate portano i numeri che contano. Ogni
+            card cliccabile filtra (anello arancio quando attiva). Le azioni
+            vivono nella riga dei filtri, sotto. */}
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              {typeLock === "fixed" ? <Landmark className="h-4 w-4 sm:h-5 sm:w-5" /> : <ReceiptText className="h-4 w-4 sm:h-5 sm:w-5" />}
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {data.statusTabLists.inRitardo.some((c: { cost_type?: string }) => c.cost_type === typeLock) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBankReconcileOpen(true)}
-                  className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
-                >
-                  <Landmark className="h-4 w-4" /> Riconcilia banca
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
-                <Upload className="h-4 w-4" /> Importa
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="gap-1">
-                <Download className="h-4 w-4" /> Esporta
-              </Button>
-              <Button size="sm" onClick={() => openCreate(typeLock)} className="gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
-              </Button>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">
+                {typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}
+              </p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">
+                {typeLock === "fixed" ? "La struttura: li paghi comunque" : "I cantieri: nascono col lavoro"}
+              </h2>
             </div>
           </div>
-        </CardHeader>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                  <WalletCards className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Totale</span>
+                  <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(sommaVoci(vociTipo))}</span>
+                  <span className="mt-0.5 block text-xs text-blue-50/70">{vociTipo.length} voci nel periodo</span>
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={showOverdueCosts}
+              className={cn(
+                "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
+                statusTabFilter === "in_ritardo" && "ring-2 ring-orange-400",
+              )}
+            >
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", scadutiTipo.length > 0 ? "text-orange-300" : "text-emerald-200")}>
+                  <AlertTriangle className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Scaduti</span>
+                  <span className={cn("block truncate text-lg font-bold xl:text-xl", scadutiTipo.length > 0 ? "text-orange-300" : "text-white")}>
+                    {scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-blue-50/70">{scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno in ritardo"}</span>
+                </span>
+              </div>
+            </button>
+            {typeLock === "fixed" ? (
+              <button
+                type="button"
+                onClick={() => setRicorrentiOpen(true)}
+                className="rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4"
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
+                    <Repeat className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Ricorrenti</span>
+                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">{ricorrentiSintesi.data?.attive ?? 0} voci · gestisci</span>
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
+                className={cn(
+                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
+                  originFilter === "order" && "ring-2 ring-orange-400",
+                )}
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
+                    <Link2 className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da moduli</span>
+                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{daModuliTipo.length}</span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">ordini, team, provvigioni</span>
+                  </span>
+                </div>
+              </button>
+            )}
+            {typeLock === "fixed" ? (
+              <button
+                type="button"
+                onClick={() => setStatusTabFilter(statusTabFilter === "sostenuti" ? "all" : "sostenuti")}
+                className={cn(
+                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
+                  statusTabFilter === "sostenuti" && "ring-2 ring-orange-400",
+                )}
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-200">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Pagato</span>
+                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(sommaVoci(perTipo(data.statusTabLists.sostenuti) as { amount?: number | string | null }[]))}</span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">{perTipo(data.statusTabLists.sostenuti).length} voci sostenute</span>
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
+                className={cn(
+                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
+                  supplierFilter === "none" && "ring-2 ring-orange-400",
+                )}
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", senzaFornitoreTipo.length > 0 ? "text-amber-200" : "text-emerald-200")}>
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Senza fornitore</span>
+                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{senzaFornitoreTipo.length}</span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">{senzaFornitoreTipo.length > 0 ? "da completare" : "tutti assegnati"}</span>
+                  </span>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
         <CardContent className="space-y-4 pt-4">
           {data.isError && (
             <Alert className="border-red-200 bg-red-50 text-red-900">
@@ -906,6 +960,28 @@ export default function CompanyCostsManager({
                 <FilterX className="h-3.5 w-3.5" /> Pulisci
               </Button>
             )}
+            {/* Azioni a destra della stessa riga: la testata navy e' solo numeri. */}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {scadutiTipo.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBankReconcileOpen(true)}
+                  className="h-9 gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <Landmark className="h-4 w-4" /> Riconcilia banca
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-1">
+                <Upload className="h-4 w-4" /> Importa
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="h-9 gap-1">
+                <Download className="h-4 w-4" /> Esporta
+              </Button>
+              <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
+              </Button>
+            </div>
           </div>
 
           {/* Andamento mensile in stile Commesse: barre blu (spese del mese),
