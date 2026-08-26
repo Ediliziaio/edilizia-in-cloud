@@ -874,57 +874,32 @@ export default function CompanyCostsManager({
             ))}
           </div>
 
-          {/* Una sola tabella: il tipo (Tutti/Fissi/Variabili) e' un selettore
-              compatto, e accanto la DIVISIONE in euro del set filtrato — la
-              barra dice quanto pesa la struttura e quanto i cantieri, e in una
-              riga cosa significa. Cliccare un segmento filtra per tipo. */}
+          {/* Una sola tabella: il selettore del tipo porta direttamente i
+              TOTALI in euro del set filtrato — la divisione fissi/variabili
+              si legge nei soldi, senza barre ne' spiegazioni. */}
           {(() => {
             const eurFissi = getItemsForTab("fixed").reduce((sum: number, c: { amount?: number | string | null }) => sum + (Number(c.amount) || 0), 0);
             const eurVariabili = getItemsForTab("variable").reduce((sum: number, c: { amount?: number | string | null }) => sum + (Number(c.amount) || 0), 0);
-            const eurTot = eurFissi + eurVariabili;
-            const pctFissi = eurTot > 0 ? Math.round((eurFissi / eurTot) * 100) : 0;
             const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
             return (
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                <div className="flex w-fit items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-                  {([["all", "Tutti"], ["fixed", `Fissi (${getItemsForTab("fixed").length})`], ["variable", `Variabili (${getItemsForTab("variable").length})`]] as const).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setTypeTab(val)}
-                      className={cn(
-                        "rounded-md px-3 py-1 text-sm transition-colors",
-                        typeTab === val ? "bg-white font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {eurTot > 0 && (
-                  <div className="min-w-[260px] max-w-xl flex-1">
-                    <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
-                      <button
-                        type="button"
-                        aria-label={`Fissi ${eur0(eurFissi)}, filtra`}
-                        onClick={() => setTypeTab("fixed")}
-                        className="h-full cursor-pointer bg-slate-500 transition-opacity hover:opacity-80"
-                        style={{ width: `${pctFissi}%` }}
-                      />
-                      <button
-                        type="button"
-                        aria-label={`Variabili ${eur0(eurVariabili)}, filtra`}
-                        onClick={() => setTypeTab("variable")}
-                        className="h-full cursor-pointer bg-orange-400 transition-opacity hover:opacity-80"
-                        style={{ width: `${100 - pctFissi}%` }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] leading-tight text-muted-foreground">
-                      <span className="font-medium text-slate-700">Fissi {eur0(eurFissi)} ({pctFissi}%)</span> — li paghi comunque, lavori o no ·{" "}
-                      <span className="font-medium text-orange-700">Variabili {eur0(eurVariabili)} ({100 - pctFissi}%)</span> — nascono coi cantieri
-                    </p>
-                  </div>
-                )}
+              <div className="flex w-fit items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+                {([
+                  ["all", "Tutti", eurFissi + eurVariabili],
+                  ["fixed", "Fissi", eurFissi],
+                  ["variable", "Variabili", eurVariabili],
+                ] as const).map(([val, label, eur]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setTypeTab(val)}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-sm transition-colors",
+                      typeTab === val ? "bg-white font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label} <span className="tabular-nums font-semibold">{eur0(eur)}</span>
+                  </button>
+                ))}
               </div>
             );
           })()}
