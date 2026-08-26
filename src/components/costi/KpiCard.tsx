@@ -59,3 +59,53 @@ export function KpiCard({
   }
   return <div className={baseClass}>{inner}</div>;
 }
+
+/**
+ * NavyStatCard — la card "in vetro" della testata blu navy (stile Riepilogo
+ * commesse), condivisa da Spese fisse, Spese variabili e Personale.
+ * Con `onClick` filtra (anello arancio quando attiva).
+ */
+export function NavyStatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  tone = "text-blue-100",
+  onClick,
+  active = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  icon: LucideIcon;
+  /** Colore dell'icona sul navy (es. text-orange-300 per gli allarmi). */
+  tone?: string;
+  onClick?: () => void;
+  active?: boolean;
+}) {
+  const inner = (
+    <div className="flex items-center gap-2 sm:gap-3">
+      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", tone)}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{label}</span>
+        <span className="block truncate text-lg font-bold text-white xl:text-xl">{value}</span>
+        {sub && <span className="mt-0.5 block text-xs text-blue-50/70">{sub}</span>}
+      </span>
+    </div>
+  );
+  const base = "rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4";
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(base, "text-left transition-colors hover:bg-white/15", active && "ring-2 ring-orange-400")}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className={base}>{inner}</div>;
+}

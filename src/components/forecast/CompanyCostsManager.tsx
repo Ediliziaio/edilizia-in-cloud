@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { CostiBankReconcileDialog } from "@/components/costi/CostiBankReconcileDialog";
 import { RicorrentiDialog } from "@/components/costi/RicorrentiDialog";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -705,117 +706,60 @@ export default function CompanyCostsManager({
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
-            <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
-                  <WalletCards className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Totale</span>
-                  <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(sommaVoci(vociTipo))}</span>
-                  <span className="mt-0.5 block text-xs text-blue-50/70">{vociTipo.length} voci nel periodo</span>
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
+            <NavyStatCard
+              label="Totale"
+              value={eur0(sommaVoci(vociTipo))}
+              sub={`${vociTipo.length} voci nel periodo`}
+              icon={WalletCards}
+              tone="text-orange-100"
+            />
+            <NavyStatCard
+              label="Scaduti"
+              value={scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
+              sub={scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno in ritardo"}
+              icon={AlertTriangle}
+              tone={scadutiTipo.length > 0 ? "text-orange-300" : "text-emerald-200"}
               onClick={showOverdueCosts}
-              className={cn(
-                "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
-                statusTabFilter === "in_ritardo" && "ring-2 ring-orange-400",
-              )}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", scadutiTipo.length > 0 ? "text-orange-300" : "text-emerald-200")}>
-                  <AlertTriangle className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Scaduti</span>
-                  <span className={cn("block truncate text-lg font-bold xl:text-xl", scadutiTipo.length > 0 ? "text-orange-300" : "text-white")}>
-                    {scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-blue-50/70">{scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno in ritardo"}</span>
-                </span>
-              </div>
-            </button>
+              active={statusTabFilter === "in_ritardo"}
+            />
             {typeLock === "fixed" ? (
-              <button
-                type="button"
+              <NavyStatCard
+                label="Ricorrenti"
+                value={<>{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></>}
+                sub={`${ricorrentiSintesi.data?.attive ?? 0} voci · gestisci`}
+                icon={Repeat}
                 onClick={() => setRicorrentiOpen(true)}
-                className="rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4"
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
-                    <Repeat className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Ricorrenti</span>
-                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">{ricorrentiSintesi.data?.attive ?? 0} voci · gestisci</span>
-                  </span>
-                </div>
-              </button>
+              />
             ) : (
-              <button
-                type="button"
+              <NavyStatCard
+                label="Da moduli"
+                value={String(daModuliTipo.length)}
+                sub="ordini, team, provvigioni"
+                icon={Link2}
                 onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
-                className={cn(
-                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
-                  originFilter === "order" && "ring-2 ring-orange-400",
-                )}
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
-                    <Link2 className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da moduli</span>
-                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{daModuliTipo.length}</span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">ordini, team, provvigioni</span>
-                  </span>
-                </div>
-              </button>
+                active={originFilter === "order"}
+              />
             )}
             {typeLock === "fixed" ? (
-              <button
-                type="button"
+              <NavyStatCard
+                label="Pagato"
+                value={eur0(sommaVoci(perTipo(data.statusTabLists.sostenuti) as { amount?: number | string | null }[]))}
+                sub={`${perTipo(data.statusTabLists.sostenuti).length} voci sostenute`}
+                icon={CheckCircle2}
+                tone="text-emerald-200"
                 onClick={() => setStatusTabFilter(statusTabFilter === "sostenuti" ? "all" : "sostenuti")}
-                className={cn(
-                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
-                  statusTabFilter === "sostenuti" && "ring-2 ring-orange-400",
-                )}
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-200">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Pagato</span>
-                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{eur0(sommaVoci(perTipo(data.statusTabLists.sostenuti) as { amount?: number | string | null }[]))}</span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">{perTipo(data.statusTabLists.sostenuti).length} voci sostenute</span>
-                  </span>
-                </div>
-              </button>
+                active={statusTabFilter === "sostenuti"}
+              />
             ) : (
-              <button
-                type="button"
+              <NavyStatCard
+                label="Senza fornitore"
+                value={String(senzaFornitoreTipo.length)}
+                sub={senzaFornitoreTipo.length > 0 ? "da completare" : "tutti assegnati"}
+                icon={Users}
+                tone={senzaFornitoreTipo.length > 0 ? "text-amber-200" : "text-emerald-200"}
                 onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
-                className={cn(
-                  "rounded-xl border border-white/12 bg-white/9 p-2.5 text-left transition-colors hover:bg-white/15 sm:p-4",
-                  supplierFilter === "none" && "ring-2 ring-orange-400",
-                )}
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", senzaFornitoreTipo.length > 0 ? "text-amber-200" : "text-emerald-200")}>
-                    <Users className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Senza fornitore</span>
-                    <span className="block truncate text-lg font-bold text-white xl:text-xl">{senzaFornitoreTipo.length}</span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">{senzaFornitoreTipo.length > 0 ? "da completare" : "tutti assegnati"}</span>
-                  </span>
-                </div>
-              </button>
+                active={supplierFilter === "none"}
+              />
             )}
           </div>
         </div>

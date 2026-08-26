@@ -37,7 +37,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "@/components/costi/KpiCard";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency } from "@/lib/formatters";
 import { MonthPicker } from "./MonthPicker";
 import {
@@ -511,40 +511,52 @@ export function PersonnelCostsTab({
         </Alert>
       )}
 
-      {/* KPI del mese */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Costo personale"
-          value={formatCurrency(totali.costoTotale)}
-          sub={`${formatCurrency(totali.lordoTotale)} lordi + ${formatCurrency(totali.oneriTotali)} oneri`}
-          icon={Users}
-          accent="bg-orange-500"
-        />
-        <KpiCard
-          label="Ore lavorate"
-          value={fmtOre(totali.oreLavorate)}
-          sub={`${totali.dipendentiConOre} su ${totali.dipendentiAttivi} dipendenti con rapportini`}
-          icon={Clock}
-          accent="bg-sky-500"
-        />
-        <KpiCard
-          label="Straordinari"
-          value={fmtOre(totali.oreStraordinario)}
-          sub={
-            totali.costoStraordinari > 0
-              ? `≈ ${formatCurrency(totali.costoStraordinari)} stimati`
-              : "nessuno straordinario registrato"
-          }
-          icon={Zap}
-          accent="bg-amber-500"
-        />
-        <KpiCard
-          label="Dipendenti attivi"
-          value={String(totali.dipendentiAttivi)}
-          sub="con contratto attivo in anagrafica"
-          icon={HardHat}
-          accent="bg-emerald-500"
-        />
+      {/* Testata navy di famiglia (stessa delle Spese fisse/variabili). */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <HardHat className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Personale</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Le persone: ore vere, costo vero</h2>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            <NavyStatCard
+              label="Costo personale"
+              value={formatCurrency(totali.costoTotale)}
+              sub={`${formatCurrency(totali.lordoTotale)} lordi + ${formatCurrency(totali.oneriTotali)} oneri`}
+              icon={Users}
+              tone="text-orange-100"
+            />
+            <NavyStatCard
+              label="Ore lavorate"
+              value={fmtOre(totali.oreLavorate)}
+              sub={`${totali.dipendentiConOre} su ${totali.dipendentiAttivi} dipendenti con rapportini`}
+              icon={Clock}
+            />
+            <NavyStatCard
+              label="Straordinari"
+              value={fmtOre(totali.oreStraordinario)}
+              sub={
+                totali.costoStraordinari > 0
+                  ? `≈ ${formatCurrency(totali.costoStraordinari)} stimati`
+                  : "nessuno straordinario registrato"
+              }
+              icon={Zap}
+              tone={totali.oreStraordinario > 0 ? "text-amber-200" : "text-blue-100"}
+            />
+            <NavyStatCard
+              label="Dipendenti attivi"
+              value={String(totali.dipendentiAttivi)}
+              sub="con contratto attivo in anagrafica"
+              icon={HardHat}
+              tone="text-emerald-200"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Elenco dipendenti */}
