@@ -326,6 +326,40 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   const [ownerRole, setOwnerRole] = useState("da_assegnare");
   const [correctiveAction, setCorrectiveAction] = useState("");
 
+  // Il registro errori vale come strumento aziendale, non di singola
+  // commessa: il costo annuo dell'errore ripetuto e DOVE nasce di più.
+  // L'ancora temporale sta nella queryFn (niente date nel render).
+  const { data: registroAnnuale } = useQuery({
+    queryKey: ["errori-azienda-12m", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const unAnnoFa = new Date();
+      unAnnoFa.setFullYear(unAnnoFa.getFullYear() - 1);
+      const { data, error } = await supabase
+        .from("order_errors")
+        .select("amount, process_origin")
+        .eq("company_id", effectiveCompany!.id)
+        .gte("error_date", unAnnoFa.toLocaleDateString("en-CA"))
+        .limit(2000);
+      if (error) throw error;
+      const righe = data ?? [];
+      const perOrigine = new Map<string, number>();
+      let totale = 0;
+      for (const r of righe) {
+        const importo = Number(r.amount) || 0;
+        totale += importo;
+        const chiave = r.process_origin || "da_verificare";
+        perOrigine.set(chiave, (perOrigine.get(chiave) ?? 0) + importo);
+      }
+      let top: { origine: string; costo: number } | null = null;
+      for (const [origine, costo] of perOrigine) {
+        if (!top || costo > top.costo) top = { origine, costo };
+      }
+      return { totale, conteggio: righe.length, top };
+    },
+  });
+
   const { data: errors = [] } = useQuery({
     queryKey: ["order-errors", orderId],
     queryFn: async () => {
@@ -638,6 +672,22 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
+        {registroAnnuale && registroAnnuale.conteggio > 0 && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            In azienda, ultimi 12 mesi: <span className="font-semibold text-foreground">{registroAnnuale.conteggio} errori</span> per{" "}
+            <span className="font-semibold text-destructive">{formatCurrency(registroAnnuale.totale)}</span>
+            {registroAnnuale.top && registroAnnuale.top.costo > 0 && (
+              <>
+                {" "}— nascono soprattutto da{" "}
+                <span className="font-medium text-foreground">
+                  {PROCESS_ORIGINS.find((o) => o.value === registroAnnuale.top!.origine)?.label ?? registroAnnuale.top.origine}
+                </span>{" "}
+                ({formatCurrency(registroAnnuale.top.costo)})
+              </>
+            )}
+            . Prima lo scopri, meno costa: lo stesso errore vale 0 € al ricontrollo del rilievo e il 67% del margine se lo segnala il cliente.
+          </p>
+        )}
         {errors.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun errore registrato</p>
         ) : (
