@@ -244,8 +244,14 @@ export function useCompanyCostsMutations({
             const existingDates = new Set((existing || []).map((r: any) => r.due_date));
             const datesToInsert = allDates.filter(d => !existingDates.has(d));
             if (datesToInsert.length > 0) {
+              // Le occorrenze nascono "once": la voce ricorrente e' UNA (quella
+              // editata). Se ereditassero "monthly", il run-rate dei fissi le
+              // conterebbe tutte come voci mensili piene (il xN delle demo).
               const { error: insertErr } = await supabase.from("company_costs").insert(
-                datesToInsert.map(d => ({ ...basePayload, due_date: d, is_paid: false }))
+                datesToInsert.map(d => ({
+                  ...basePayload, recurrence: "once", recurrence_auto: false,
+                  recurrence_end_date: null, due_date: d, is_paid: false,
+                }))
               );
               if (insertErr) throw insertErr;
               additionalCreated = datesToInsert.length;
@@ -275,8 +281,14 @@ export function useCompanyCostsMutations({
         const existingDates = new Set((existing || []).map((r: any) => r.due_date));
         const datesToInsert = allDates.filter(d => !existingDates.has(d));
         if (datesToInsert.length > 0) {
+          // Solo la prima riga e' la voce ricorrente (la "madre"); le
+          // occorrenze successive nascono "once", altrimenti ognuna conta
+          // come costo mensile pieno nel run-rate dei fissi.
           const { error } = await supabase.from("company_costs").insert(
-            datesToInsert.map(d => ({ ...basePayload, due_date: d, is_paid: false }))
+            datesToInsert.map(d => (d === allDates[0]
+              ? { ...basePayload, due_date: d, is_paid: false }
+              : { ...basePayload, recurrence: "once", recurrence_auto: false,
+                  recurrence_end_date: null, due_date: d, is_paid: false }))
           );
           if (error) throw error;
           created = datesToInsert.length;

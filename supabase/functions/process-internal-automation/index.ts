@@ -223,11 +223,18 @@ Deno.serve(async (req) => {
             }
 
             case "add_cost_record": {
+              // La colonna si chiama "name" (description non esiste: l'insert
+              // falliva da sempre) e name/due_date sono NOT NULL senza default.
+              // recurrence esplicita: il default DB e' "monthly" e un costo
+              // da automazione non deve diventare ricorrente per sbaglio.
               const { error } = await supabase.from("company_costs").insert({
                 company_id: job.company_id,
-                description: interpolate(config.cost_description || "Costo automatico", context),
+                name: interpolate(config.cost_description || "Costo automatico", context),
                 amount: Number(config.cost_amount) || 0,
+                cost_type: "variable",
                 category: config.cost_category || "automazione",
+                recurrence: "once",
+                due_date: new Date().toISOString().split("T")[0],
                 order_id: job.entity_type === "order" ? job.entity_id : null,
               });
               if (error) throw error;

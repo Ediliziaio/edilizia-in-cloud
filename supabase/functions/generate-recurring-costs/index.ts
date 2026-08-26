@@ -93,7 +93,11 @@ Deno.serve(async (req) => {
           cost_type: cost.cost_type,
           amount: cost.amount,
           category: cost.category,
-          recurrence: cost.recurrence,
+          // L'occorrenza è la materializzazione di UN mese: nasce "once".
+          // Se ereditasse "monthly", il run-rate dei fissi la conterebbe come
+          // un costo mensile pieno in più a ogni giro del cron (madre + N
+          // occorrenze = N+1 volte la stessa voce — il ×6 trovato nelle demo).
+          recurrence: "once",
           due_date: dueDateStr,
           notes: cost.notes,
           supplier_id: cost.supplier_id,
