@@ -673,7 +673,7 @@ export default function CompanyCostsManager({
 
   // ── Vista SPESE: gestione operativa (filtri, tabella, pagamenti) ───────────
   // Numeri della fascia in testata: pochi, nudi, cliccabili. Seguono i filtri.
-  const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   const vociTipo = getItemsForTab(typeLock) as { amount?: number | string | null; isFromOrder?: boolean; supplier_id?: string | null; supplierName?: string | null }[];
   const sommaVoci = (list: { amount?: number | string | null }[]) => list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   const perTipo = (list: { cost_type?: string }[]) => list.filter((c) => c.cost_type === typeLock);
@@ -922,14 +922,15 @@ export default function CompanyCostsManager({
                   <p className="text-[11px] text-muted-foreground">clicca un mese per filtrarlo</p>
                 </div>
                 <div className="flex h-24 items-end gap-1.5">
-                  {serie.map((m) => {
+                  {serie.map((m, i) => {
                     const attivo = selYm === m.ym;
+                    const corrente = i === serie.length - 1;
                     return (
                       <button
                         key={m.ym}
                         type="button"
                         onClick={() => (attivo ? resetFilters() : vaiAlMese(new Date(`${m.ym}-01T00:00:00`)))}
-                        title={`${m.label} · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(m.valore)}`}
+                        title={`${m.label} · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(m.valore)}`}
                         className="group flex h-full flex-1 flex-col items-center justify-end gap-0.5"
                       >
                         <span className={cn("text-[9px] tabular-nums leading-none", attivo ? "font-semibold text-orange-600" : "text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100", m.valore === 0 && "hidden")}>
@@ -942,7 +943,7 @@ export default function CompanyCostsManager({
                           )}
                           style={{ height: `${Math.max((m.valore / max) * 100, m.valore > 0 ? 3 : 1)}%` }}
                         />
-                        <span className={cn("text-[10px] leading-none", attivo ? "font-semibold text-orange-600" : "text-muted-foreground")}>{m.label}</span>
+                        <span className={cn("text-[10px] leading-none", attivo ? "font-semibold text-orange-600" : corrente ? "font-semibold text-foreground" : "text-muted-foreground")}>{m.label}</span>
                       </button>
                     );
                   })}
@@ -951,8 +952,8 @@ export default function CompanyCostsManager({
             );
           })()}
 
-          {/* Status Tabs */}
-          <div className="flex gap-1 flex-wrap">
+          <CostsTable
+                  leftSlot={<div className="flex gap-1 flex-wrap">
             {([
               // Conteggi del SOLO tipo di questa tab: la tab gemella ha i suoi.
               { value: "all" as StatusTabFilter, label: "Tutti", count: getItemsForTab(typeLock).length },
@@ -961,7 +962,7 @@ export default function CompanyCostsManager({
               { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
               { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
               { value: "senza_scadenza" as StatusTabFilter, label: "Senza scadenza", count: data.statusTabLists.senzaScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
-            ]).map(tab => (
+            ]).filter(tab => tab.count > 0 || tab.value === "all" || tab.value === statusTabFilter).map(tab => (
               <Button
                 key={tab.value}
                 variant={statusTabFilter === tab.value ? "default" : "outline"}
@@ -977,9 +978,7 @@ export default function CompanyCostsManager({
                 {tab.label} ({tab.count})
               </Button>
             ))}
-          </div>
-
-          <CostsTable
+          </div>}
                   items={getItemsForTab(typeLock)}
                   type={typeLock}
                   selectedIds={selectedIds}

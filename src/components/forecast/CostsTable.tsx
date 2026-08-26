@@ -56,6 +56,9 @@ function getCategoryColor(category: string): string {
 }
 
 interface CostsTableProps {
+  /** Contenuto a sinistra della riga strumenti (i chip di stato): cosi'
+      filtri e menu Colonne condividono UNA riga invece di due. */
+  leftSlot?: React.ReactNode;
   items: UnifiedCost[];
   type: string;
   selectedIds: Set<string>;
@@ -107,6 +110,7 @@ export function CostsTable({
   costNameCounts,
   onToggleSelect,
   onToggleSelectAll,
+  leftSlot,
   onClearSelection,
   onOpenCreate,
   onOpenEdit,
@@ -299,7 +303,8 @@ export function CostsTable({
     <div className="space-y-4">
       {/* "Aggiungi Costo Fisso" rimosso: doppiava "Nuovo Costo" nella toolbar
           a pochi centimetri. La CTA contestuale resta solo a lista vuota. */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">{leftSlot}</div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" className="gap-1">
@@ -329,7 +334,17 @@ export function CostsTable({
 
       {someSelected && (
         <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border">
-          <span className="text-sm font-medium">{selectedIds.size} costi selezionati</span>
+          <span className="text-sm font-medium">
+            {selectedIds.size} costi selezionati
+            <span className="ml-1.5 tabular-nums text-muted-foreground">
+              · {formatCurrency(items
+                .filter((c) => selectedIds.has(c.id))
+                .reduce((sum, c) => {
+                  const rate = Number((c as any).vat_rate ?? (c as any).supplier?.vat_rate ?? 0) || 0;
+                  return sum + calculateGrossFromNet(Number(c.amount) || 0, rate).grossAmount;
+                }, 0))} lordi
+            </span>
+          </span>
           <div className="flex items-center gap-1.5 ml-auto">
             <Button
               size="sm" variant="outline"
@@ -373,7 +388,7 @@ export function CostsTable({
         <div className="rounded-md border overflow-hidden">
           {/* min-w: con table-fixed + w-full la tabella si comprimeva alla larghezza dello
               schermo (a 375px colonne da 11-30px illeggibili) invece di scrollare in orizzontale */}
-          <Table className="min-w-[900px] table-fixed">
+          <Table className="min-w-[900px] table-fixed [&_td]:py-2.5 [&_th]:h-9">
               <TableHeader>
               <TableRow>
                 <TableHead className="w-[3%]">
