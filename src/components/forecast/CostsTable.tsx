@@ -297,13 +297,9 @@ export function CostsTable({
 
   return (
     <div className="space-y-4">
+      {/* "Aggiungi Costo Fisso" rimosso: doppiava "Nuovo Costo" nella toolbar
+          a pochi centimetri. La CTA contestuale resta solo a lista vuota. */}
       <div className="flex items-center justify-end gap-2">
-        {type !== "all" && (
-          <Button size="sm" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
-            <Plus className="h-4 w-4" />
-            Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
-          </Button>
-        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" className="gap-1">

@@ -2,17 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths } from "date-fns";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, ClipboardList, Download,
-  FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
-  Settings2, ShoppingCart, Tags, Upload, Users, WalletCards,
+  AlertTriangle, ArrowRight, CalendarIcon, Download,
+  FilterX, Landmark, Link2, ListChecks, Plus, Repeat, Search,
+  Settings2, Tags, Upload, Users, WalletCards,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -36,7 +35,6 @@ import { CostsTable } from "./CostsTable";
 import { CostFormDialog } from "./CostFormDialog";
 import { CostsDialogs } from "./CostsDialogs";
 import { CostBudgetManager } from "./CostBudgetManager";
-import { CashFlowAlert } from "./CashFlowAlert";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
@@ -115,28 +113,6 @@ function CostIntegrationPanel({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-1">
-            <Link to="/azienda/ordini">
-              <ClipboardList className="h-4 w-4" /> Ordini
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm" className="gap-1">
-            <Link to="/azienda/previsionale">
-              <WalletCards className="h-4 w-4" /> Previsionale
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm" className="gap-1">
-            <Link to="/azienda/prima-nota">
-              <ReceiptText className="h-4 w-4" /> Prima nota
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm" className="gap-1">
-            <Link to="/azienda/analisi-acquisti">
-              <ShoppingCart className="h-4 w-4" /> Analisi acquisti
-            </Link>
-          </Button>
-        </div>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -267,6 +243,7 @@ export default function CompanyCostsManager({
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
   const [ricorrentiOpen, setRicorrentiOpen] = useState(false);
+  const [typeTab, setTypeTab] = useState<"all" | "fixed" | "variable">("all");
 
   // Filters (inizializzati dall'eventuale preset in URL)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -650,18 +627,12 @@ export default function CompanyCostsManager({
 
         <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              Semaforo Cassa — Proiezione 30/60/90 giorni
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Dataset di pianificazione (stipendi proiettati inclusi): senza,
-                le finestre 60/90 giorni ignoravano gli stipendi futuri. */}
-            <CashFlowAlert upcomingCosts={data.allCostsUnfiltered} />
-          </CardContent>
-        </Card>
+        {/* Il "Semaforo Cassa 30/60/90" rifaceva qui il lavoro del Previsionale
+            (che ha anche le 13 settimane): un rimando basta. */}
+        <p className="text-sm text-muted-foreground">
+          La proiezione di cassa (30/60/90 giorni e 13 settimane) vive nel{" "}
+          <Link to="/azienda/previsionale" className="font-medium text-primary underline-offset-2 hover:underline">Previsionale</Link>.
+        </p>
       </div>
     );
   }
@@ -783,10 +754,7 @@ export default function CompanyCostsManager({
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da moduli collegati</span>
                 <Link2 className="h-4 w-4 text-primary" />
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xl font-semibold">{operationalControl.linkedToOrders}</span>
-                {operationalControl.unscheduled > 0 && <Badge variant="outline">{operationalControl.unscheduled} senza scadenza</Badge>}
-              </div>
+              <div className="mt-2 text-xl font-semibold">{operationalControl.linkedToOrders}</div>
               <p className="mt-1 text-xs text-muted-foreground">ordini, team, personale e provvigioni</p>
             </button>
           </div>
@@ -872,14 +840,8 @@ export default function CompanyCostsManager({
                 ))}
               </SelectContent>
             </Select>
-            <Select value={originFilter} onValueChange={(v) => setOriginFilter(v as "all" | "manual" | "order")}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Origine" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte le origini</SelectItem>
-                <SelectItem value="manual">Manuale</SelectItem>
-                <SelectItem value="order">Da moduli collegati</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Select "Origine" rimosso: faceva la stessa cosa della card
+                "Da moduli collegati" qui sopra. Lo stato resta per i preset. */}
             <Button variant="outline" onClick={resetFilters} disabled={!hasActiveFilters} className="gap-2">
               <FilterX className="h-4 w-4" /> Pulisci filtri
             </Button>
@@ -912,18 +874,27 @@ export default function CompanyCostsManager({
             ))}
           </div>
 
-          {/* Type Tabs */}
-          <Tabs defaultValue="all">
-            <TabsList>
-              <TabsTrigger value="all">Tutti ({getItemsForTab("all").length})</TabsTrigger>
-              <TabsTrigger value="fixed">Fissi ({getItemsForTab("fixed").length})</TabsTrigger>
-              <TabsTrigger value="variable">Variabili ({getItemsForTab("variable").length})</TabsTrigger>
-            </TabsList>
-            {["all", "fixed", "variable"].map((tab) => (
-              <TabsContent key={tab} value={tab}>
-                <CostsTable
-                  items={getItemsForTab(tab)}
-                  type={tab}
+          {/* Una sola tabella: il tipo (Tutti/Fissi/Variabili) e' un selettore
+              compatto qui sotto, senza una seconda riga di tab col suo
+              "Tutti (N)" fotocopia di quello dei chip di stato. */}
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5 w-fit">
+            {([["all", "Tutti"], ["fixed", `Fissi (${getItemsForTab("fixed").length})`], ["variable", `Variabili (${getItemsForTab("variable").length})`]] as const).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setTypeTab(val)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm transition-colors",
+                  typeTab === val ? "bg-white font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <CostsTable
+                  items={getItemsForTab(typeTab)}
+                  type={typeTab}
                   selectedIds={selectedIds}
                   costNameCounts={data.costNameCounts}
                   onToggleSelect={toggleSelect}
@@ -944,9 +915,6 @@ export default function CompanyCostsManager({
                   bulkMarkPaidPending={mutations.bulkMarkPaidMutation.isPending}
                   bulkMarkUnpaidPending={mutations.bulkMarkUnpaidMutation.isPending}
                 />
-              </TabsContent>
-            ))}
-          </Tabs>
         </CardContent>
       </Card>
 
