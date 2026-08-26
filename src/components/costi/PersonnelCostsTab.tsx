@@ -17,6 +17,7 @@ import {
   Clock,
   HardHat,
   Info,
+  Scale,
   UserRound,
   Users,
   Zap,
@@ -26,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -319,6 +321,176 @@ function RigaOperatore({ o }: { o: OperatoreEsterno }) {
   );
 }
 
+/** "1.400" o "1400,50" → numero (formato italiano). */
+function parseImportoIt(raw: string): number {
+  const n = Number(raw.trim().replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// Squadra interna o subappalto: il punto di indifferenza è il numero di
+// commesse al mese oltre il quale la squadra interna (costo fisso) batte il
+// sub (costo variabile). Si sposta con la quota del sub, quindi la quota la
+// scrive il titolare quando arrivano i listini nuovi — non la inventiamo.
+// Il confronto per commessa usa la saturazione REALE dai rapportini: sotto
+// saturazione piena l'ora interna costa più della busta.
+function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
+  const [open, setOpen] = useState(false);
+  const [quotaSubRaw, setQuotaSubRaw] = useState("");
+  const [orePosaRaw, setOrePosaRaw] = useState("");
+
+  // La squadra di campo del mese: chi ha ore nei rapportini e un contratto.
+  const squadra = dipendenti.filter(
+    (d) => d.oreLavorate + d.oreStraordinario > 0 && d.lordoMensile > 0,
+  );
+  const costoMensileSquadra = squadra.reduce((s, d) => s + d.lordoMensile + d.oneriMensili, 0);
+  const oreContrattuali = squadra.reduce((s, d) => s + d.oreContrattuali, 0);
+  const oreFatte = squadra.reduce((s, d) => s + d.oreLavorate + d.oreStraordinario, 0);
+  const saturazione = oreContrattuali > 0 ? oreFatte / oreContrattuali : 0;
+  const costoOrarioNominale = oreContrattuali > 0 ? costoMensileSquadra / oreContrattuali : 0;
+
+  const quotaSub = parseImportoIt(quotaSubRaw);
+  const orePosa = parseImportoIt(orePosaRaw);
+
+  const puntoIndifferenza = quotaSub > 0 ? costoMensileSquadra / quotaSub : 0;
+  const costoInternoCommessa =
+    orePosa > 0 && saturazione > 0.05 ? (costoOrarioNominale * orePosa) / saturazione : 0;
+  const deltaSub =
+    quotaSub > 0 && costoInternoCommessa > 0
+      ? (quotaSub - costoInternoCommessa) / costoInternoCommessa
+      : null;
+
+  return (
+    <Card className="rounded-2xl border-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <Scale className="h-4 w-4 shrink-0 text-slate-500" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900">Squadra interna o subappalto?</p>
+          <p className="truncate text-xs text-muted-foreground">
+            Quante commesse al mese servono perché la squadra convenga rispetto al sub
+          </p>
+        </div>
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")}
+        />
+      </button>
+
+      {open && (
+        <CardContent className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+          {squadra.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Questo mese nessun dipendente ha ore nei rapportini di campo: il calcolo parte dal
+              costo e dalla saturazione reali della squadra, quindi serve almeno un mese di
+              rapportini registrati.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                La tua squadra di campo questo mese: {squadra.length}{" "}
+                {squadra.length === 1 ? "persona" : "persone"},{" "}
+                <strong className="text-slate-700">{formatCurrency(costoMensileSquadra)}</strong> al
+                mese di busta e oneri, saturazione reale{" "}
+                <strong className="text-slate-700">{Math.round(saturazione * 100)}%</strong> dai
+                rapportini.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium text-slate-700">
+                  Quanto ti quota il sub una commessa tipo (€)
+                  <Input
+                    inputMode="decimal"
+                    placeholder="es. 1.400"
+                    value={quotaSubRaw}
+                    onChange={(e) => setQuotaSubRaw(e.target.value)}
+                    className="h-9"
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-700">
+                  Ore di posa della tua squadra su quella commessa
+                  <Input
+                    inputMode="decimal"
+                    placeholder="es. 40"
+                    value={orePosaRaw}
+                    onChange={(e) => setOrePosaRaw(e.target.value)}
+                    className="h-9"
+                  />
+                </label>
+              </div>
+
+              {puntoIndifferenza > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
+                  <p>
+                    Punto di indifferenza:{" "}
+                    <strong>
+                      {puntoIndifferenza.toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
+                      commesse al mese
+                    </strong>
+                    . Sotto conviene il sub — la squadra è un costo fisso che non riesci a saturare.
+                    Sopra conviene la squadra, che diventa margine su ogni commessa in più.
+                  </p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Il posatore in più lo assumi quando il lavoro <em>sicuro</em> supera quel
+                    numero, non quando lo tocchi nei mesi buoni. Il nucleo interno si dimensiona
+                    sul mese peggiore dell'anno; i sub assorbono i picchi. Ricalcola quando
+                    arrivano i listini nuovi del sub.
+                  </p>
+                </div>
+              )}
+
+              {orePosa > 0 && saturazione <= 0.05 && (
+                <p className="text-xs text-muted-foreground">
+                  Con una saturazione del {Math.round(saturazione * 100)}% il confronto per
+                  commessa non è affidabile: questo mese ci sono troppo poche ore nei rapportini.
+                  Scegli un mese pieno dal selettore qui sopra.
+                </p>
+              )}
+
+              {costoInternoCommessa > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
+                  <p>
+                    Alla saturazione reale del {Math.round(saturazione * 100)}%, quella commessa
+                    fatta in casa ti costa{" "}
+                    <strong>{formatCurrency(costoInternoCommessa)}</strong> di manodopera
+                    {deltaSub !== null && (
+                      <>
+                        {" "}
+                        —{" "}
+                        {deltaSub > 0.005 ? (
+                          <>
+                            il sub a {formatCurrency(quotaSub)} è più caro del{" "}
+                            <strong>{Math.round(deltaSub * 100)}%</strong>
+                          </>
+                        ) : deltaSub < -0.005 ? (
+                          <>
+                            il sub a {formatCurrency(quotaSub)} è{" "}
+                            <strong>già più economico</strong> della tua squadra
+                          </>
+                        ) : (
+                          <>il sub a {formatCurrency(quotaSub)} costa praticamente uguale</>
+                        )}
+                      </>
+                    )}
+                    .
+                  </p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Le ore non fatturate non spariscono: si spalmano su quelle fatturate. A busta
+                    paga l'ora vale {formatCurrency(costoOrarioNominale)}, alla saturazione reale{" "}
+                    {formatCurrency(saturazione > 0 ? costoOrarioNominale / saturazione : 0)}.
+                    Assumere conviene solo se poi tieni la squadra piena.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function PersonnelCostsTab({
   month,
   onMonthChange,
@@ -476,6 +648,9 @@ export function PersonnelCostsTab({
           ))}
         </div>
       )}
+
+      {/* Interno o sub: il conto si fa sui dati veri della squadra del mese */}
+      {dipendenti.length > 0 && <PuntoIndifferenza dipendenti={dipendenti} />}
     </div>
   );
 }
