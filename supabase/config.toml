@@ -121,6 +121,12 @@ verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
 
+# Chiamata dal cron e dallo stripe-webhook con x-cron-secret, senza JWT.
+# Con il default (true) il gateway rispondeva 401 prima ancora di
+# eseguire la funzione: nessun sollecito e' mai partito.
+[functions.process-dunning]
+verify_jwt = false
+
 # Checkout pubblico offerte (trattativa): endpoint pubblico, fa validazione propria
 # + allowlist piani + prezzo server-side. Nessun login richiesto.
 [functions.public-checkout]

@@ -20,6 +20,14 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { resolveSender } from "../_shared/resolveSender.ts";
+
+// Stesso numero del bottone WhatsApp del sito pubblico (WhatsAppFab.tsx),
+// verificato su WhatsApp Business. wa.me vuole il formato internazionale
+// senza "+". Chi ha la carta rifiutata vuole parlare con qualcuno, non
+// aprire un ticket.
+const SUPPORT_WHATSAPP = "390287198520";
 
 interface WalletDef {
   /** wallet_type in company_auto_topup */
@@ -122,7 +130,7 @@ Deno.serve(async (req) => {
     // FONTE DI VERITÀ: company_auto_topup enabled con carta salvata
     let query = supabase
       .from("company_auto_topup")
-      .select("id, company_id, wallet_type, threshold_eur, topup_amount_eur, stripe_payment_method_id, last_topup_at")
+      .select("id, company_id, wallet_type, threshold_eur, topup_amount_eur, stripe_payment_method_id, last_topup_at, failure_count, first_failure_at, next_attempt_at, retries_exhausted_at")
       .eq("enabled", true)
       .not("stripe_payment_method_id", "is", null);
     if (targetCompanyId) query = query.eq("company_id", targetCompanyId);
@@ -139,6 +147,17 @@ Deno.serve(async (req) => {
     // legge nessuno. Nessun dato sensibile: id azienda, wallet e messaggio
     // Stripe, che e' gia' quello mostrato in fattura.
     const failures: Array<{ company_id: string; wallet: string; reason: string }> = [];
+    // Un'azienda ha tre borsellini (email, ai, whatsapp) e la carta e' UNA: se
+    // viene rifiutata falliscono tutti e tre nello stesso giro. Senza questo
+    // insieme partivano tre email identiche a distanza di un secondo.
+    const gia_avvisate = new Set<string>();
+
+    // Mittente: la PIATTAFORMA, non l'azienda. resolveSender, se gli passi il
+// companyId, sceglie l'identita' del cliente: il sollecito di pagamento
+// arrivava cosi' "da Domus Group" a Domus Group, con Reply-To a Domus Group.
+// companyId resta valorizzato per il log e l'associazione, ma il From lo
+// forziamo su quello di piattaforma.
+    const mittente = await resolveSender(null, "transactional", supabase);
 
     for (const config of configs as Array<Record<string, unknown>>) {
       const walletType = String(config.wallet_type);
@@ -151,6 +170,13 @@ Deno.serve(async (req) => {
         if (age < DEBOUNCE_MS) continue;
       }
 
+      // Calendario dei ritentativi. Prima si ripassava ogni ora all'infinito:
+      // il cliente non lo sapeva e la carta collezionava rifiuti, che i
+      // circuiti contano. Ora uno al giorno per 5 giorni, poi uno a settimana
+      // per due mesi, poi si smette e serve che il cliente cambi carta.
+      if (config.retries_exhausted_at) continue;
+      if (config.next_attempt_at && new Date(String(config.next_attempt_at)) > new Date()) continue;
+
       const companyId = String(config.company_id);
       const threshold = Number(config.threshold_eur ?? 5);
       const amount = Number(config.topup_amount_eur ?? 25);
@@ -160,7 +186,7 @@ Deno.serve(async (req) => {
 
       const { data: company } = await supabase
         .from("companies")
-        .select("stripe_customer_id")
+        .select("stripe_customer_id, name, email")
         .eq("id", companyId)
         .maybeSingle();
       const customerId = (company as { stripe_customer_id?: string } | null)?.stripe_customer_id;
@@ -169,8 +195,9 @@ Deno.serve(async (req) => {
       // Idempotency-Key oraria per-(company,wallet): retry/cron accavallati
       // ritornano lo stesso PaymentIntent → nessun doppio addebito.
       const now = new Date();
-      const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}${String(now.getUTCHours()).padStart(2, "0")}`;
-      const idempotencyKey = `autotopup_${companyId}_${walletType}_${stamp}`;
+      const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}`;
+      const tentativo = Number(config.failure_count ?? 0) + 1;
+      const idempotencyKey = `autotopup_${companyId}_${walletType}_${stamp}_t${tentativo}`;
 
       let piRes: Response;
       try {
@@ -218,6 +245,76 @@ Deno.serve(async (req) => {
         } catch (rpcErr) {
           console.error(`[auto-topup] increment_payment_failure_count fallita ${companyId}:`, (rpcErr as Error).message);
         }
+
+        // Calendario del prossimo tentativo: la regola sta nel database
+        // (auto_topup_next_attempt), non duplicata qui.
+        let prossimo: string | null = null;
+        try {
+          const { data } = await supabase.rpc("auto_topup_next_attempt", { p_failure_count: tentativo });
+          prossimo = (data as string | null) ?? null;
+        } catch (rpcErr) {
+          console.error(`[auto-topup] calcolo prossimo tentativo fallito ${companyId}:`, (rpcErr as Error).message);
+        }
+        const esaurito = prossimo === null;
+
+        await supabase.from("company_auto_topup").update({
+          failure_count: tentativo,
+          first_failure_at: config.first_failure_at ?? new Date().toISOString(),
+          last_failure_at: new Date().toISOString(),
+          last_failure_reason: String(reason).slice(0, 500),
+          next_attempt_at: prossimo,
+          retries_exhausted_at: esaurito ? new Date().toISOString() : null,
+        }).eq("id", config.id as string);
+
+        // Avvisare il cliente e' il punto: prima l'unica traccia era un
+        // console.error che non legge nessuno, e intanto le funzioni gli si
+        // spegnevano senza spiegazione.
+        const destinatario = (company as { email?: string } | null)?.email;
+        if (destinatario && !gia_avvisate.has(companyId)) {
+          gia_avvisate.add(companyId);
+          const nomeAzienda = (company as { name?: string } | null)?.name ?? "";
+          const quando = esaurito
+            ? "Non faremo altri tentativi: per riattivare la ricarica automatica serve aggiornare la carta."
+            : `Riproveremo ${tentativo <= 5 ? "domani" : "fra una settimana"}.`;
+          try {
+            await sendEmailUnified({
+              companyId,
+              stream: "transactional",
+              senderOverride: {
+                from: mittente.from,
+                replyTo: mittente.replyTo,
+                usingCustomDomain: false,
+                source: "platform_default",
+              },
+              to: [destinatario],
+              subject: esaurito
+                ? "Ricarica automatica sospesa — aggiorna il metodo di pagamento"
+                : "Ricarica automatica non riuscita",
+              // Testo sulla CARTA, non sul singolo borsellino: la carta e' una
+              // sola e quando viene rifiutata si ferma tutta la ricarica
+              // automatica, non solo il wallet che e' arrivato per primo.
+              html: `<p>Ciao ${nomeAzienda},</p>
+<p>La tua carta è stata rifiutata e non siamo riusciti a eseguire la ricarica automatica del credito.</p>
+<p>Motivo comunicato dalla banca: <em>${String(reason)}</em></p>
+<p>${quando}</p>
+<p>Finché il credito resta a zero le funzioni che lo consumano restano sospese. Puoi aggiornare la carta dalle impostazioni dell'abbonamento.</p>
+<p style="margin-top:20px;">
+  <a href="https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent("Ciao, la mia ricarica automatica non e' andata a buon fine e mi serve aiuto.")}"
+     style="display:inline-block;background:#25D366;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:14px;">
+    Scrivici su WhatsApp
+  </a>
+</p>`,
+              templateName: "auto_topup_failed",
+              // La paga la piattaforma: se il wallet a secco e' proprio quello
+              // delle email, addebitarla qui significherebbe non poter avvisare.
+              skipCredits: true,
+              adminClient: supabase,
+              metadata: { wallet: walletType, tentativo, esaurito },
+            });
+          } catch (mailErr) {
+            console.error(`[auto-topup] email fallimento non inviata ${companyId}:`, (mailErr as Error).message);
+          }
+        }
         continue;
       }
 
@@ -252,7 +349,17 @@ Deno.serve(async (req) => {
         }
         await supabase
           .from("company_auto_topup")
-          .update({ last_topup_at: new Date().toISOString() })
+          .update({
+            last_topup_at: new Date().toISOString(),
+            // Ricarica riuscita: il calendario dei ritentativi riparte da zero,
+            // altrimenti un next_attempt_at vecchio bloccherebbe le ricariche
+            // successive per giorni.
+            failure_count: 0,
+            first_failure_at: null,
+            last_failure_reason: null,
+            next_attempt_at: null,
+            retries_exhausted_at: null,
+          })
           .eq("id", config.id as string);
         byService[walletType] = (byService[walletType] ?? 0) + 1;
         totalProcessed++;

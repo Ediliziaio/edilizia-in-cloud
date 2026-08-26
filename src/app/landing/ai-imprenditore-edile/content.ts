@@ -1,7 +1,10 @@
 export const cta = {
   primaryHref: "/demo",
   secondaryHref: "/prezzi",
-  whatsappHref: "https://wa.me/3902xxxxxxxx", // TODO: inserire numero WhatsApp ufficio definitivo.
+  // Numero verificato su WhatsApp Business, lo stesso del FAB del sito
+  // (WhatsAppFab.tsx). Prima era il segnaposto "3902xxxxxxxx": il pulsante
+  // WhatsApp di questa landing portava a un numero inesistente.
+  whatsappHref: "https://wa.me/390287198520",
   primaryLabel: "Prenota Consulenza Gratuita 30 min",
 };
 

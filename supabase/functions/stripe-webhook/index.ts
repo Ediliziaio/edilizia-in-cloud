@@ -715,7 +715,8 @@ async function handleInvoicePaid(
 
 async function handleInvoicePaymentFailed(
   supabase: ReturnType<typeof createClient>,
-  invoice: any
+  invoice: any,
+  stripeSecretKey: string
 ) {
   const stripeCustomerId = invoice.customer;
   if (!stripeCustomerId) return;
@@ -733,6 +734,29 @@ async function handleInvoicePaymentFailed(
     .eq("id", company.id)
     .single();
 
+  // PERCHE' e' stato rifiutato. Senza questo restava solo "pagamento fallito
+  // (tentativo #3)", e carta scaduta, fondi insufficienti e 3D Secure mancante
+  // chiedono tre azioni diverse: non distinguerli significa non poter fare
+  // niente di utile. L'invoice porta solo l'id del PaymentIntent, il motivo sta
+  // dentro il PaymentIntent.
+  let motivoRifiuto: string | null = null;
+  const piId = typeof invoice.payment_intent === "string" ? invoice.payment_intent : null;
+  if (piId && stripeSecretKey) {
+    try {
+      const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${piId}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+      const pi = await piRes.json();
+      const err = pi?.last_payment_error;
+      if (err) {
+        motivoRifiuto = [err.decline_code, err.code, err.message]
+          .filter(Boolean).join(" | ").slice(0, 500);
+      }
+    } catch (e) {
+      console.error("[stripe-webhook] motivo rifiuto non recuperato:", (e as Error).message);
+    }
+  }
+
   const failureCount = (current?.payment_failure_count || 0) + 1;
   let dunningStatus = "warning"; // 1st failure
   if (failureCount >= 3) dunningStatus = "critical";
@@ -743,6 +767,7 @@ async function handleInvoicePaymentFailed(
     dunning_status: dunningStatus,
     stripe_subscription_status: "past_due",
     last_payment_failure_at: new Date().toISOString(),
+    last_payment_failure_reason: motivoRifiuto,
   };
   if (failureCount === 1) {
     updateData.dunning_started_at = new Date().toISOString();
@@ -754,7 +779,8 @@ async function handleInvoicePaymentFailed(
     company_id: company.id,
     event_type: "payment_failed",
     new_status: "past_due",
-    notes: `Pagamento fallito (tentativo #${failureCount}) - ${invoice.id}`,
+    notes: `Pagamento fallito (tentativo #${failureCount}) - ${invoice.id}`
+      + (motivoRifiuto ? ` — ${motivoRifiuto}` : ""),
   });
 
   // Trigger dunning immediately — non bloccare: errori non critici
@@ -1179,7 +1205,7 @@ Deno.serve(async (req) => {
           await handleInvoicePaid(supabase, obj, stripeSecretKey);
           break;
         case "invoice.payment_failed":
-          await handleInvoicePaymentFailed(supabase, obj);
+          await handleInvoicePaymentFailed(supabase, obj, stripeSecretKey);
           break;
         case "customer.subscription.deleted":
           await handleSubscriptionDeleted(supabase, obj);

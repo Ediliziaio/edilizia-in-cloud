@@ -107,6 +107,17 @@ Deno.serve(async (req) => {
           customer: stripeCustomerId,
           mode: "setup",
           "payment_method_types[0]": "card",
+          // 3D Secure FORZATO, non "quando lo chiede la banca" (default
+          // automatic). Questa carta servira' per addebiti off-session
+          // (rinnovi e ricariche automatiche): se la si salva senza che il
+          // titolare abbia autenticato, l'addebito successivo puo' tornare
+          // indietro come authentication_required, e a quel punto non c'e'
+          // nessuno davanti allo schermo che possa confermare. Meglio la
+          // verifica adesso, mentre l'utente sta guardando.
+          "payment_method_options[card][request_three_d_secure]": "any",
+          // Dichiara a Stripe che la carta verra' usata a cliente assente:
+          // fa raccogliere il mandato giusto insieme all'autenticazione.
+          "setup_intent_data[usage]": "off_session",
           success_url: `${appUrl}${returnTo}?card=success`,
           cancel_url: `${appUrl}${returnTo}?card=cancelled`,
           "metadata[company_id]": company_id,

@@ -11,7 +11,7 @@
  *   Day 7  → annullamento: account sospeso automaticamente (comped/regalati ESENTI)
  *
  * Trial expiry sequence:
- *   Day -3 → "Il tuo trial scade tra 3 giorni" upsell
+ *   Day -3 → "Il tuo trial scade fra 3 giorni" upsell
  *   Day  0 → "Trial scaduto" conversion
  *
  * Retry logic:
@@ -21,15 +21,31 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { resolveSender } from "../_shared/resolveSender.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
-const SUPPORT_PHONE = "+39 0424 123456";
+// Stesso numero del bottone WhatsApp del sito pubblico (WhatsAppFab.tsx):
+// e' quello verificato su WhatsApp Business, l'unico che risponde davvero.
+// wa.me vuole il formato internazionale SENZA "+".
+const SUPPORT_WHATSAPP = "390287198520";
+const SUPPORT_PHONE = "+39 02 8719 8520";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000; // 2 hours
 // Grace period (giorni) dopo la scadenza abbonamento prima dell'annullamento
 // (sospensione accesso). Gli account "comped"/regalati sono ESENTI.
 const GRACE_DAYS = 7;
+
+// Oltre questa eta' un sollecito di trial scaduto non si manda piu'.
+const TRIAL_STALE_DAYS = 14;
+
+// I traguardi della sequenza, in ordine. Si guarda "quanti giorni sono
+// passati", non "e' esattamente il giorno N": vedi il commento nel ciclo.
+const MILESTONES: Array<{ day: number; type: string }> = [
+  { day: 0, type: "dunning_day0" },
+  { day: 3, type: "dunning_day3" },
+  { day: 7, type: "dunning_day7" },
+];
 
 // Metodi "regalo" (accesso gratuito per policy) — esenti dall'annullamento.
 // Mirror di GIFTED_EXEMPT_METHODS in src/lib/paymentStatus.ts ("comped" canonico
@@ -75,10 +91,19 @@ function emailFooter(utmCampaign: string): string {
   return `
           </td></tr>
           <tr><td style="background:#f1f5f9;padding:20px 32px;border-top:1px solid #e2e8f0;">
+            <p style="margin:0 0 12px;font-family:sans-serif;font-size:13px;color:#64748b;line-height:1.6;">
+              Hai bisogno di aiuto? Scrivici su WhatsApp: ti risponde una persona.
+            </p>
+            <p style="margin:0 0 12px;">
+              <a href="https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(`Ciao, ho ricevuto un avviso di pagamento e mi serve aiuto.`)}"
+                 style="display:inline-block;background:#25D366;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:14px;">
+                Scrivici su WhatsApp
+              </a>
+            </p>
             <p style="margin:0;font-family:sans-serif;font-size:13px;color:#64748b;line-height:1.6;">
-              Hai bisogno di aiuto? Chiama <strong>${SUPPORT_PHONE}</strong> o rispondi a questa email.<br>
+              Oppure chiama <strong>${SUPPORT_PHONE}</strong>, rispondi a questa email o
               <a href="${APP_URL}/azienda/supporto?utm_source=dunning&utm_medium=email&utm_campaign=${utmCampaign}"
-                 style="color:#1e40af;">Apri ticket di supporto</a>
+                 style="color:#1e40af;">apri un ticket</a>.
             </p>
           </td></tr>
         </table>
@@ -87,24 +112,56 @@ function emailFooter(utmCampaign: string): string {
   `;
 }
 
-function buildExpiredEmail(company: any, daysExpired: number, _dunningDay: string): string {
+function buildExpiredEmail(
+  company: any,
+  daysExpired: number,
+  _dunningDay: string,
+  opts: { payUrl?: string | null; importo?: string | null; sospensioneAttiva?: boolean } = {},
+): string {
   const utmCampaign = `day_${daysExpired}`;
-  const renewUrl = `${APP_URL}/azienda/impostazioni/abbonamento?utm_source=dunning&utm_medium=email&utm_campaign=${utmCampaign}`;
+  const impostazioniUrl = `${APP_URL}/azienda/impostazioni/abbonamento?utm_source=dunning&utm_medium=email&utm_campaign=${utmCampaign}`;
+  // Il bottone porta al pagamento della fattura vera; la pagina impostazioni
+  // resta come ripiego se per qualche motivo la fattura non ce l'abbiamo.
+  const ctaUrl = opts.payUrl || impostazioniUrl;
+  const ctaLabel = opts.payUrl
+    ? (opts.importo ? `Paga ${opts.importo} ora` : "Paga ora")
+    : "Rinnova abbonamento";
+
+  // Quanti giorni mancano DAVVERO alla sospensione. Prima era `7 - daysExpired`
+  // senza pavimento: a giorno 10 l'email diceva "sospeso tra -3 giorni".
+  const giorniAllaSospensione = Math.max(0, GRACE_DAYS - daysExpired);
+  const quando = giorniAllaSospensione === 0
+    ? "oggi"
+    : giorniAllaSospensione === 1
+    ? "domani"
+    : `fra ${giorniAllaSospensione} giorni`;
+
+  // Se l'annullamento automatico e' spento non si promette una sospensione che
+  // non arrivera': si dice che l'accesso e' a rischio, che e' vero.
+  const frase = opts.sospensioneAttiva === false
+    ? "Il tuo accesso è a rischio sospensione."
+    : `Il tuo accesso verrà sospeso ${quando}.`;
 
   const urgencyBlock =
-    daysExpired >= 7
-      ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#dc2626;">Ultimo avviso: il tuo account verra' sospeso tra ${7 - daysExpired} giorni.</p></div>`
+    daysExpired >= GRACE_DAYS
+      ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#dc2626;">Ultimo avviso. ${frase}</p></div>`
       : daysExpired >= 3
-      ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#ea580c;">Il tuo accesso verra' sospeso tra ${7 - daysExpired} giorni se non rinnovi.</p></div>`
-      : `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;color:#1e40af;">Il tuo abbonamento e' scaduto. Rinnova ora per continuare senza interruzioni.</p></div>`;
+      ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#ea580c;">${frase}</p></div>`
+      : `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;color:#1e40af;">Il tuo abbonamento è scaduto. Rinnova ora per continuare senza interruzioni.</p></div>`;
+
+  const rigaImporto = opts.importo
+    ? `<p style="margin:0 0 4px;font-family:sans-serif;font-size:14px;color:#6b7280;">Importo da saldare: <strong>${opts.importo}</strong></p>`
+    : "";
 
   return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@media(max-width:600px){table{width:100%!important}td{padding:16px!important}}</style></head><body style="margin:0;padding:0;background:#f8fafc;">
     ${emailHeader()}
-    <h2 style="margin:0 0 8px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">Abbonamento scaduto</h2>
+    <h2 style="margin:0 0 8px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">Pagamento non riuscito</h2>
     <p style="margin:0 0 4px;font-family:sans-serif;font-size:14px;color:#6b7280;">Account: <strong>${company.name}</strong></p>
+    ${rigaImporto}
     ${urgencyBlock}
-    <p style="font-family:sans-serif;font-size:15px;color:#374151;line-height:1.6;">Il tuo abbonamento e' scaduto da <strong>${daysExpired} ${daysExpired === 1 ? "giorno" : "giorni"}</strong>. Per continuare ad usare tutti i servizi senza interruzioni, effettua il rinnovo.</p>
-    <div style="text-align:center;margin:32px 0;"><a href="${renewUrl}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:16px;">Rinnova abbonamento</a></div>
+    <p style="font-family:sans-serif;font-size:15px;color:#374151;line-height:1.6;">Non siamo riusciti a incassare il rinnovo del tuo abbonamento, scaduto da <strong>${daysExpired} ${daysExpired === 1 ? "giorno" : "giorni"}</strong>. Puoi saldare in un minuto dal link qui sotto: la pagina è quella sicura di Stripe e accetta anche una carta diversa.</p>
+    <div style="text-align:center;margin:32px 0;"><a href="${ctaUrl}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:16px;">${ctaLabel}</a></div>
+    <p style="font-family:sans-serif;font-size:13px;color:#6b7280;text-align:center;">Se preferisci, puoi aggiornare il metodo di pagamento <a href="${impostazioniUrl}" style="color:#1e40af;">dalle impostazioni del tuo account</a>.</p>
     ${emailFooter(utmCampaign)}
     </body></html>`;
 }
@@ -114,10 +171,10 @@ function buildTrialEmail(company: any, daysLeft: number): string {
   const ctaUrl = `${APP_URL}/azienda/impostazioni/abbonamento?utm_source=dunning&utm_medium=email&utm_campaign=${utmCampaign}`;
 
   const content = daysLeft <= 0
-    ? `<h2 style="margin:0 0 16px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">Il tuo periodo di prova e' terminato</h2>
-       <p style="font-family:sans-serif;font-size:15px;color:#374151;line-height:1.6;">Il periodo di prova gratuito di <strong>${company.name}</strong> e' terminato. Scegli il piano piu' adatto.</p>
+    ? `<h2 style="margin:0 0 16px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">Il tuo periodo di prova è terminato</h2>
+       <p style="font-family:sans-serif;font-size:15px;color:#374151;line-height:1.6;">Il periodo di prova gratuito di <strong>${company.name}</strong> è terminato. Scegli il piano più adatto.</p>
        <div style="text-align:center;margin:32px 0;"><a href="${ctaUrl}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:16px;">Scegli un piano</a></div>`
-    : `<h2 style="margin:0 0 16px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">Il tuo trial scade tra ${daysLeft} ${daysLeft === 1 ? "giorno" : "giorni"}</h2>
+    : `<h2 style="margin:0 0 16px;font-family:sans-serif;font-size:22px;font-weight:bold;color:#111827;">La tua prova gratuita scade fra ${daysLeft} ${daysLeft === 1 ? "giorno" : "giorni"}</h2>
        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:0 0 20px;"><p style="margin:0;font-family:sans-serif;font-size:15px;color:#92400e;">Mancano solo <strong>${daysLeft} ${daysLeft === 1 ? "giorno" : "giorni"}</strong> alla scadenza del tuo periodo di prova.</p></div>
        <p style="font-family:sans-serif;font-size:15px;color:#374151;line-height:1.6;">Non perdere l'accesso alle tue funzionalita' — attiva subito il tuo abbonamento.</p>
        <div style="text-align:center;margin:32px 0;"><a href="${ctaUrl}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:16px;">Attiva abbonamento</a></div>`;
@@ -127,6 +184,32 @@ function buildTrialEmail(company: any, daysLeft: number): string {
 }
 
 // ─── Retry Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Il link che porta DIRETTAMENTE al pagamento di quella fattura.
+ *
+ * E' la pagina ospitata da Stripe (hosted_invoice_url): paga l'importo esatto,
+ * gestisce il 3D Secure e non richiede di entrare nel gestionale e cercare la
+ * sezione abbonamento. La salviamo gia' in subscription_invoices.invoice_url.
+ */
+async function getPagamentoDiretto(companyId: string): Promise<{ url: string | null; importo: string | null }> {
+  const { data } = await supabase
+    .from("subscription_invoices")
+    .select("invoice_url, amount_due")
+    .eq("company_id", companyId)
+    .neq("status", "paid")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.invoice_url) return { url: null, importo: null };
+  const cents = Number(data.amount_due ?? 0);
+  return {
+    url: String(data.invoice_url),
+    importo: cents > 0
+      ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(cents / 100)
+      : null,
+  };
+}
 
 async function hasAlreadySent(companyId: string, dunningDay: string): Promise<boolean> {
   const { data } = await supabase
@@ -194,7 +277,7 @@ async function notifySuperAdmin(companyId: string, companyName: string, dunningD
       stream:       "transactional",
       to:           adminEmails,
       subject:      `Dunning fallita permanentemente — ${companyName}`,
-      html:         `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2 style="color:#dc2626;">Email Dunning Fallita</h2><p>Dopo ${MAX_RETRIES} tentativi, la email dunning per <strong>${companyName}</strong> (${dunningDay}) non e' stata inviata.</p><p>Errore: <code>${errorMessage}</code></p><p><a href="${APP_URL}/admin/aziende/${companyId}">Vai all'azienda</a></p></div>`,
+      html:         `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2 style="color:#dc2626;">Email Dunning Fallita</h2><p>Dopo ${MAX_RETRIES} tentativi, la email dunning per <strong>${companyName}</strong> (${dunningDay}) non è stata inviata.</p><p>Errore: <code>${errorMessage}</code></p><p><a href="${APP_URL}/admin/aziende/${companyId}">Vai all'azienda</a></p></div>`,
       templateName: "dunning_admin_alert",
       skipCredits:  true,
       adminClient:  supabase,
@@ -250,6 +333,28 @@ Deno.serve(async (req) => {
   const now = new Date();
   const results = { processed: 0, emails_sent: 0, suspended: 0, errors: 0, retries_processed: 0 };
 
+  // L'annullamento automatico si accende da platform_settings, non da un
+  // deploy: sospendere un cliente che paga e' irreversibile dal suo punto di
+  // vista (perde l'accesso), quindi la leva deve stare in mano a chi guarda i
+  // conti, non a chi rilascia. Spento se la chiave non c'e'.
+  const { data: suspendFlag } = await supabase
+    .from("platform_settings").select("value")
+    .eq("key", "dunning_auto_suspend_enabled").maybeSingle();
+  const autoSuspendEnabled = String(suspendFlag?.value ?? "false").toLowerCase() === "true";
+
+  // Mittente: la PIATTAFORMA, non l'azienda. resolveSender, se gli passi il
+// companyId, sceglie l'identita' del cliente: il sollecito di pagamento
+// arrivava cosi' "da Domus Group" a Domus Group, con Reply-To a Domus Group.
+// companyId resta valorizzato per il log e l'associazione, ma il From lo
+// forziamo su quello di piattaforma.
+  const mittente = await resolveSender(null, "transactional", supabase);
+  const senderOverride = {
+    from: mittente.from,
+    replyTo: mittente.replyTo,
+    usingCustomDomain: false,
+    source: "platform_default",
+  };
+
   try {
     // ── Process pending retries first ──────────────────────────────────────
     {
@@ -272,29 +377,39 @@ Deno.serve(async (req) => {
           if (attempt.dunning_day.startsWith("trial_")) {
             const daysLeft = company.trial_ends_at ? daysUntil(company.trial_ends_at) : 0;
             html = buildTrialEmail(company, daysLeft);
-            subject = daysLeft <= 0 ? "Il tuo periodo di prova e' terminato" : `Il tuo trial scade tra ${daysLeft} giorni`;
+            subject = daysLeft <= 0 ? "Il tuo periodo di prova è terminato" : `La tua prova gratuita scade fra ${daysLeft} giorni`;
           } else {
             const { data: sub } = await supabase.from("company_subscriptions")
               .select("current_period_end").eq("company_id", company.id)
               .order("created_at", { ascending: false }).limit(1).maybeSingle();
             const daysExpired = sub?.current_period_end ? daysDiff(sub.current_period_end) : 0;
-            html = buildExpiredEmail(company, daysExpired, attempt.dunning_day);
+            const pagamento = await getPagamentoDiretto(company.id);
+            html = buildExpiredEmail(company, daysExpired, attempt.dunning_day, {
+              payUrl: pagamento.url,
+              importo: pagamento.importo,
+            });
+            const conImporto = pagamento.importo ? ` di ${pagamento.importo}` : "";
             const subjects: Record<string, string> = {
-              dunning_day0: "Il tuo abbonamento e' scaduto",
-              dunning_day3: "Rinnova il tuo abbonamento — accesso a rischio",
-              dunning_day7: "Ultimo avviso: account verra' sospeso tra 7 giorni",
+              dunning_day0: `Pagamento${conImporto} non riuscito — rinnova l'abbonamento`,
+              dunning_day3: `Sollecito: abbonamento scaduto, il tuo accesso è a rischio`,
+              dunning_day7: `Ultimo avviso: abbonamento scaduto da ${daysExpired} giorni`,
             };
-            subject = subjects[attempt.dunning_day] || "Abbonamento — azione richiesta";
+            subject = subjects[attempt.dunning_day] || "Abbonamento — serve la tua attenzione";
           }
 
           const retryResult = await sendEmailUnified({
             companyId:    company.id,
             stream:       "transactional",
+            senderOverride,
             to:           [company.email],
             subject,
             html,
             templateName: `dunning_${attempt.dunning_day}`,
-            skipCredits:  false,
+            // La paga la piattaforma, non il cliente. Addebitare il sollecito
+            // sul borsellino email di chi e' in arretrato significa non poterlo
+            // avvisare proprio quando serve: senza credito l'invio falliva con
+            // "Crediti email insufficienti" e il cliente non sapeva nulla.
+            skipCredits:  true,
             adminClient:  supabase,
             metadata:     { dunning_day: attempt.dunning_day, retry_count: attempt.retry_count },
           });
@@ -318,7 +433,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Companies with expired subscriptions (grace period 0-14 days) ──
     const { data: expiredCompanies } = await supabase
-      .from("companies").select("id, name, email, status, subscription_plan_id, payment_method")
+      .from("companies").select("id, name, email, status, subscription_plan_id, payment_method, dunning_started_at")
       .in("status", ["active", "trial"]).not("subscription_plan_id", "is", null);
 
     for (const company of expiredCompanies || []) {
@@ -333,45 +448,58 @@ Deno.serve(async (req) => {
         if (!sub || sub.status === "active") continue;
         if (!sub.current_period_end) continue;
 
-        const daysExpired = daysDiff(sub.current_period_end);
+        // Da quanti giorni questa azienda e' in sollecito.
+        //
+        // La fine del periodo pagato NON e' un buon ancoraggio. Quando Stripe
+        // non riesce a incassare il rinnovo mette l'abbonamento in past_due ma
+        // current_period_end resta nel FUTURO: daysDiff torna negativo e
+        // l'azienda veniva scartata dal filtro sotto, cioe' proprio il caso per
+        // cui la sequenza esiste non entrava mai. L'ancoraggio giusto e'
+        // dunning_started_at, scritto dal webhook al primo pagamento fallito e
+        // fermo per tutta la sequenza (last_payment_failure_at invece si sposta
+        // a ogni retry di Stripe, e farebbe ripartire i solleciti da capo).
+        const anchor = (company as { dunning_started_at?: string | null }).dunning_started_at
+          ?? sub.current_period_end;
+        const daysExpired = daysDiff(anchor);
         if (daysExpired < 0 || daysExpired > 30) continue;
 
         results.processed++;
 
-        // Grace di GRACE_DAYS giorni, poi annullamento (sospensione accesso reale).
-        if (daysExpired >= GRACE_DAYS) {
-          await supabase.from("companies").update({ status: "suspended" }).eq("id", company.id);
-          await logDunningEvent(company.id, "dunning_suspended", `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
-          results.suspended++;
-          await notifySuperAdmin(company.id, company.name, "auto_suspension",
-            `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
-          continue;
-        }
+        // Traguardo RAGGIUNTO, non "esattamente oggi". Con l'uguaglianza secca
+        // bastava che il cron saltasse un giorno — o che partisse quando
+        // l'azienda era gia' oltre — perche' il sollecito non uscisse mai piu'.
+        // L'idempotenza la garantisce hasAlreadySent, non il calendario.
+        const emailType = (MILESTONES.filter((m) => daysExpired >= m.day).pop() ?? null)?.type ?? null;
 
-        const emailType =
-          daysExpired === 0 ? "dunning_day0" :
-          daysExpired === 3 ? "dunning_day3" :
-          daysExpired === 7 ? "dunning_day7" : null;
-
-        if (!emailType) continue;
-        if (await hasAlreadySent(company.id, emailType)) continue;
-
-        if (company.email) {
-          const html = buildExpiredEmail(company, daysExpired, emailType);
+        if (emailType && !(await hasAlreadySent(company.id, emailType)) && company.email) {
+          const pagamento = await getPagamentoDiretto(company.id);
+          const html = buildExpiredEmail(company, daysExpired, emailType, {
+            payUrl: pagamento.url,
+            importo: pagamento.importo,
+            sospensioneAttiva: autoSuspendEnabled,
+          });
+          // Oggetti: dicono cosa e' successo e quanto, senza promettere una
+          // sospensione con un numero di giorni sbagliato.
+          const conImporto = pagamento.importo ? ` di ${pagamento.importo}` : "";
           const subjects: Record<string, string> = {
-            dunning_day0: "Il tuo abbonamento e' scaduto",
-            dunning_day3: "Rinnova il tuo abbonamento — accesso a rischio",
-            dunning_day7: "Ultimo avviso: account verra' sospeso tra 7 giorni",
+            dunning_day0: `Pagamento${conImporto} non riuscito — rinnova l'abbonamento`,
+            dunning_day3: `Sollecito: abbonamento scaduto, il tuo accesso è a rischio`,
+            dunning_day7: `Ultimo avviso: abbonamento scaduto da ${daysExpired} giorni`,
           };
           try {
             const sendResult = await sendEmailUnified({
               companyId:    company.id,
               stream:       "transactional",
+              senderOverride,
               to:           [company.email],
               subject:      subjects[emailType],
               html,
               templateName: `dunning_${emailType}`,
-              skipCredits:  false,
+              // La paga la piattaforma, non il cliente. Addebitare il sollecito
+            // sul borsellino email di chi e' in arretrato significa non poterlo
+            // avvisare proprio quando serve: senza credito l'invio falliva con
+            // "Crediti email insufficienti" e il cliente non sapeva nulla.
+            skipCredits:  true,
               adminClient:  supabase,
               metadata:     { dunning_day: emailType, days_expired: daysExpired },
             });
@@ -386,8 +514,20 @@ Deno.serve(async (req) => {
             await logDunningAttempt(company.id, emailType, "failed", errMsg, 1);
             results.errors++;
           }
+          await logDunningEvent(company.id, emailType, `Email dunning inviata (giorno ${daysExpired})`);
         }
-        await logDunningEvent(company.id, emailType, `Email dunning inviata (giorno ${daysExpired})`);
+
+        // Annullamento: DOPO l'ultimo avviso, mai al posto suo. Prima la
+        // sospensione veniva prima con un `continue`, quindi al giorno 7
+        // l'account spariva senza che il cliente avesse ricevuto l'email che
+        // gliela annunciava. E si esegue solo se l'interruttore e' acceso.
+        if (daysExpired >= GRACE_DAYS && autoSuspendEnabled && company.status !== "suspended") {
+          await supabase.from("companies").update({ status: "suspended" }).eq("id", company.id);
+          await logDunningEvent(company.id, "dunning_suspended", `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
+          results.suspended++;
+          await notifySuperAdmin(company.id, company.name, "auto_suspension",
+            `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
+        }
       } catch (err) {
         console.error(`Dunning error for company ${company.id}:`, err);
         results.errors++;
@@ -404,6 +544,12 @@ Deno.serve(async (req) => {
       try {
         if (!company.trial_ends_at) continue;
         const daysLeft = daysUntil(company.trial_ends_at);
+
+        // Finestra come nel ramo abbonamenti: un "il tuo trial e' scaduto"
+        // spedito settimane dopo non recupera nessuno, fa solo la figura di un
+        // sistema che si e' appena svegliato. Se il trial e' vecchio, si tace.
+        if (daysLeft < -TRIAL_STALE_DAYS) continue;
+
         results.processed++;
 
         const emailType = daysLeft <= 0 ? "trial_expired_email" : "trial_expiring_3d";
@@ -415,11 +561,16 @@ Deno.serve(async (req) => {
             const sendResult = await sendEmailUnified({
               companyId:    company.id,
               stream:       "transactional",
+              senderOverride,
               to:           [company.email],
-              subject:      daysLeft <= 0 ? "Il tuo periodo di prova e' terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
+              subject:      daysLeft <= 0 ? "Il tuo periodo di prova è terminato" : `La tua prova gratuita scade fra ${daysLeft} giorni`,
               html,
               templateName: `dunning_${emailType}`,
-              skipCredits:  false,
+              // La paga la piattaforma, non il cliente. Addebitare il sollecito
+            // sul borsellino email di chi e' in arretrato significa non poterlo
+            // avvisare proprio quando serve: senza credito l'invio falliva con
+            // "Crediti email insufficienti" e il cliente non sapeva nulla.
+            skipCredits:  true,
               adminClient:  supabase,
               metadata:     { dunning_day: emailType, days_left: daysLeft },
             });
@@ -435,7 +586,7 @@ Deno.serve(async (req) => {
             results.errors++;
           }
         }
-        await logDunningEvent(company.id, emailType, `Email trial ${daysLeft <= 0 ? "scaduto" : `scade tra ${daysLeft} giorni`} inviata`);
+        await logDunningEvent(company.id, emailType, `Email trial ${daysLeft <= 0 ? "scaduto" : `scade fra ${daysLeft} giorni`} inviata`);
       } catch (err) {
         console.error(`Trial dunning error for company ${company.id}:`, err);
         results.errors++;
