@@ -37,6 +37,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/costi/KpiCard";
 import { formatCurrency } from "@/lib/formatters";
 import { MonthPicker } from "./MonthPicker";
 import {
@@ -48,34 +49,6 @@ import {
 
 const fmtOre = (n: number) =>
   Number.isInteger(n) ? `${n}h` : `${n.toFixed(1).replace(".", ",")}h`;
-
-function KpiCard({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: typeof Clock;
-  accent: string;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 shadow-sm">
-      <div className={cn("absolute inset-y-0 left-0 w-1", accent)} />
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-        <Icon className="h-4 w-4 text-slate-500" />
-      </div>
-      <div className="mt-2 text-xl font-semibold text-slate-900">{value}</div>
-      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  );
-}
 
 function CommesseChips({ commesse }: { commesse: CommessaLavorata[] }) {
   if (commesse.length === 0) return <span className="text-xs text-muted-foreground">—</span>;

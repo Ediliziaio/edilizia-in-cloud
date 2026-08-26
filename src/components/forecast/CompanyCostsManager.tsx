@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths } from "date-fns";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, Download,
-  FilterX, Landmark, Link2, ListChecks, Plus, Repeat, Search,
-  Settings2, Tags, Upload, Users, WalletCards,
+  AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, Download,
+  FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
+  Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
 
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { CostiBankReconcileDialog } from "@/components/costi/CostiBankReconcileDialog";
 import { RicorrentiDialog } from "@/components/costi/RicorrentiDialog";
+import { KpiCard } from "@/components/costi/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -194,12 +196,19 @@ const STATUS_TAB_PRESETS: StatusTabFilter[] = ["sostenuti", "previsti", "in_rita
 
 export default function CompanyCostsManager({
   view = "spese",
+  typeLock = "fixed",
 }: {
   /**
    * "spese"          → gestione operativa (filtri, tabella, pagamenti, import)
-   * "pianificazione" → regia integrazioni, statistiche, budget e semaforo cassa
+   * "pianificazione" → regia integrazioni, statistiche, budget
    */
   view?: "spese" | "pianificazione";
+  /**
+   * La vista spese vive in DUE tab gemelle: "fixed" (la struttura: affitti,
+   * leasing, utenze, ricorrenti) e "variable" (i cantieri: materiali,
+   * subappalti, provvigioni). Ogni tab ha la sua testata KPI e la sua lista.
+   */
+  typeLock?: "fixed" | "variable";
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -212,11 +221,26 @@ export default function CompanyCostsManager({
   );
 
   /** Naviga alla tab Spese applicando un preset di filtro. */
-  const goToSpese = (p: SpesePreset) => {
+  const goToSpese = (p: SpesePreset, target?: "spese-fisse" | "spese-variabili") => {
+    // Senza target esplicito: i preset "strutturali" (moduli, fornitori,
+    // categorie) vivono tra le variabili; per quelli di stato si atterra
+    // dove ci sono piu' voci che combaciano.
+    let tab = target;
+    if (!tab) {
+      if (["order", "unscheduled", "missing-suppliers", "missing-categories"].includes(p)) {
+        tab = "spese-variabili";
+      } else {
+        const lists = data.statusTabLists as Record<string, { cost_type?: string }[]>;
+        const key = p === "sostenuti" ? "sostenuti" : p === "previsti" ? "previsti" : p === "in_ritardo" ? "inRitardo" : p === "in_scadenza" ? "inScadenza" : "senzaScadenza";
+        const list = lists[key] ?? [];
+        const fissi = list.filter((c) => c.cost_type === "fixed").length;
+        tab = fissi >= list.length - fissi ? "spese-fisse" : "spese-variabili";
+      }
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        next.set("tab", "spese");
+        next.set("tab", tab!);
         next.set("preset", p);
         return next;
       },
@@ -243,7 +267,6 @@ export default function CompanyCostsManager({
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
   const [ricorrentiOpen, setRicorrentiOpen] = useState(false);
-  const [typeTab, setTypeTab] = useState<"all" | "fixed" | "variable">("all");
 
   // Filters (inizializzati dall'eventuale preset in URL)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -354,38 +377,8 @@ export default function CompanyCostsManager({
     setStatusTabFilter("in_ritardo");
   };
 
-  const showMissingCategories = () => {
-    setPeriodFilter("all");
-    setSearchQuery("");
-    setCustomDateRange(null);
-    setOriginFilter("manual");
-    setStatusFilter("all");
-    setSupplierFilter("all");
-    setStatusTabFilter("all");
-    setCategoryFilter("none");
-  };
 
-  const showMissingSuppliers = () => {
-    setPeriodFilter("all");
-    setSearchQuery("");
-    setCustomDateRange(null);
-    setOriginFilter("manual");
-    setStatusFilter("all");
-    setCategoryFilter("all");
-    setStatusTabFilter("all");
-    setSupplierFilter("none");
-  };
 
-  const showOrderCosts = () => {
-    setPeriodFilter("all");
-    setSearchQuery("");
-    setCustomDateRange(null);
-    setOriginFilter("order");
-    setStatusFilter("all");
-    setSupplierFilter("all");
-    setCategoryFilter("all");
-    setStatusTabFilter("all");
-  };
 
   // Mutations hook
   const mutations = useCompanyCostsMutations({
@@ -583,6 +576,32 @@ export default function CompanyCostsManager({
     return data.allCostsSorted;
   };
 
+  // Sintesi ricorrenti per la testata della tab Spese fisse: quante voci
+  // madri attive e quanto valgono al mese (annuali /12, trimestrali /3).
+  const ricorrentiSintesi = useQuery({
+    queryKey: ["costi-ricorrenti-sintesi", companyId],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("company_costs")
+        .select("amount, recurrence, recurrence_end_date")
+        .eq("company_id", companyId!)
+        .neq("recurrence", "once");
+      if (error) throw error;
+      const oggi = new Date();
+      let mensile = 0;
+      let attive = 0;
+      (rows || []).forEach((r: { amount: number | string | null; recurrence: string; recurrence_end_date: string | null }) => {
+        if (r.recurrence_end_date && new Date(r.recurrence_end_date) < oggi) return;
+        attive += 1;
+        const div = r.recurrence === "monthly" ? 1 : r.recurrence === "quarterly" ? 3 : 12;
+        mensile += (Number(r.amount) || 0) / div;
+      });
+      return { attive, mensile };
+    },
+    enabled: !!companyId && view === "spese" && typeLock === "fixed",
+    staleTime: 60 * 1000,
+  });
+
   if (data.isLoading) {
     return (
       <Card>
@@ -647,17 +666,29 @@ export default function CompanyCostsManager({
         <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => setRicorrentiOpen(true)} className="gap-1">
-                <Repeat className="h-4 w-4" /> Ricorrenti
-              </Button>
+              {data.statusTabLists.inRitardo.some((c: { cost_type?: string }) => c.cost_type === typeLock) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBankReconcileOpen(true)}
+                  className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <Landmark className="h-4 w-4" /> Riconcilia banca
+                </Button>
+              )}
+              {typeLock === "fixed" && (
+                <Button variant="outline" size="sm" onClick={() => setRicorrentiOpen(true)} className="gap-1">
+                  <Repeat className="h-4 w-4" /> Ricorrenti
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
                 <Upload className="h-4 w-4" /> Importa
               </Button>
               <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="gap-1">
                 <Download className="h-4 w-4" /> Esporta
               </Button>
-              <Button size="sm" onClick={() => openCreate("fixed")} className="gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                <Plus className="h-4 w-4" /> Nuovo Costo
+              <Button size="sm" onClick={() => openCreate(typeLock)} className="gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
               </Button>
             </div>
           </div>
@@ -688,76 +719,81 @@ export default function CompanyCostsManager({
             </Alert>
           )}
 
-          <div className="grid gap-3 md:grid-cols-4">
-            {/* Unica voce "scaduti" della vista: click filtra, il bottone riconcilia
-                (il vecchio banner arancione diceva le stesse cose una seconda volta) */}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={showOverdueCosts}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") showOverdueCosts(); }}
-              className={`relative cursor-pointer overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${operationalControl.overdueCount > 0 ? "border-orange-300 bg-orange-50/60 hover:border-orange-400" : "border-slate-200 bg-slate-50/40 opacity-80 hover:border-slate-300"}`}
-            >
-              <div className={`absolute inset-y-0 left-0 w-1 ${operationalControl.overdueCount > 0 ? "bg-orange-500" : "bg-emerald-500"}`} />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scaduti</span>
-                <AlertTriangle className={`h-4 w-4 ${operationalControl.overdueCount > 0 ? "text-orange-600" : "text-emerald-600"}`} />
+          {/* Testata KPI della tab, stessa lingua visiva della scheda
+              Personale: totale del tipo, scaduti, e le due leve specifiche
+              (ricorrenti per la struttura, moduli/fornitori per i cantieri).
+              I numeri seguono i filtri attivi; le card cliccabili filtrano. */}
+          {(() => {
+            const items = getItemsForTab(typeLock) as { amount?: number | string | null; is_paid?: boolean; isFromOrder?: boolean; supplier_id?: string | null; supplierName?: string | null }[];
+            const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+            const somma = (list: { amount?: number | string | null }[]) => list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+            const perTipo = (list: { cost_type?: string }[]) => list.filter((c) => c.cost_type === typeLock);
+            const scaduti = perTipo(data.statusTabLists.inRitardo);
+            const pagati = perTipo(data.statusTabLists.sostenuti);
+            const daModuli = items.filter((c) => c.isFromOrder);
+            const senzaFornitore = items.filter((c) => !c.isFromOrder && !c.supplier_id && !c.supplierName);
+            return (
+              <div className="grid gap-3 md:grid-cols-4">
+                <KpiCard
+                  label={typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}
+                  value={eur0(somma(items))}
+                  sub={`${items.length} voci nel periodo scelto`}
+                  icon={typeLock === "fixed" ? Landmark : ReceiptText}
+                  accent="bg-orange-500"
+                />
+                <KpiCard
+                  label="Scaduti"
+                  value={String(scaduti.length)}
+                  sub={scaduti.length > 0 ? `${eur0(somma(scaduti as { amount?: number | string | null }[]))} da gestire` : "nessun pagamento in ritardo"}
+                  icon={AlertTriangle}
+                  accent={scaduti.length > 0 ? "bg-red-500" : "bg-emerald-500"}
+                  onClick={showOverdueCosts}
+                  active={statusTabFilter === "in_ritardo"}
+                />
+                {typeLock === "fixed" ? (
+                  <KpiCard
+                    label="Ricorrenti"
+                    value={`${ricorrentiSintesi.data?.attive ?? 0} voci`}
+                    sub={`valgono ${eur0(ricorrentiSintesi.data?.mensile ?? 0)}/mese — clicca per gestirle`}
+                    icon={Repeat}
+                    accent="bg-sky-500"
+                    onClick={() => setRicorrentiOpen(true)}
+                  />
+                ) : (
+                  <KpiCard
+                    label="Da moduli collegati"
+                    value={String(daModuli.length)}
+                    sub="ordini, team e provvigioni"
+                    icon={Link2}
+                    accent="bg-sky-500"
+                    onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
+                    active={originFilter === "order"}
+                  />
+                )}
+                {typeLock === "fixed" ? (
+                  <KpiCard
+                    label="Pagato"
+                    value={eur0(somma(pagati as { amount?: number | string | null }[]))}
+                    sub={`${pagati.length} voci sostenute`}
+                    icon={CheckCircle2}
+                    accent="bg-emerald-500"
+                    onClick={() => setStatusTabFilter(statusTabFilter === "sostenuti" ? "all" : "sostenuti")}
+                    active={statusTabFilter === "sostenuti"}
+                  />
+                ) : (
+                  <KpiCard
+                    label="Senza fornitore"
+                    value={String(senzaFornitore.length)}
+                    sub={senzaFornitore.length > 0 ? "voci manuali da completare" : "tutti assegnati"}
+                    icon={Users}
+                    accent={senzaFornitore.length > 0 ? "bg-amber-500" : "bg-emerald-500"}
+                    onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
+                    active={supplierFilter === "none"}
+                  />
+                )}
               </div>
-              <div className="mt-2 text-xl font-semibold">{operationalControl.overdueCount}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.overdueCount === 0 ? "nessun pagamento in ritardo" : `${formatCurrency(operationalControl.overdueAmount)} da gestire`}</p>
-              {operationalControl.overdueCount > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 h-7 border-orange-400 px-2 text-xs text-orange-700 hover:bg-orange-100"
-                  onClick={(e) => { e.stopPropagation(); setBankReconcileOpen(true); }}
-                >
-                  Riconcilia con banca
-                </Button>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={showMissingCategories}
-              disabled={operationalControl.missingCategory === 0}
-              className={`relative overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all ${operationalControl.missingCategory === 0 ? "border-slate-200 bg-slate-50/40 opacity-70" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"}`}
-            >
-              <div className={`absolute inset-y-0 left-0 w-1 ${operationalControl.missingCategory === 0 ? "bg-emerald-500" : "bg-blue-500"}`} />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza categoria</span>
-                <Tags className={`h-4 w-4 ${operationalControl.missingCategory === 0 ? "text-emerald-600" : "text-blue-600"}`} />
-              </div>
-              <div className="mt-2 text-xl font-semibold">{operationalControl.missingCategory}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.missingCategory === 0 ? "tutti classificati" : "da classificare per report"}</p>
-            </button>
-            <button
-              type="button"
-              onClick={showMissingSuppliers}
-              disabled={operationalControl.missingSupplier === 0}
-              className={`relative overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all ${operationalControl.missingSupplier === 0 ? "border-slate-200 bg-slate-50/40 opacity-70" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"}`}
-            >
-              <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</span>
-                <Users className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div className="mt-2 text-xl font-semibold">{operationalControl.missingSupplier}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.missingSupplier === 0 ? "tutti assegnati" : "costi variabili manuali"}</p>
-            </button>
-            <button
-              type="button"
-              onClick={showOrderCosts}
-              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-            >
-              <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da moduli collegati</span>
-                <Link2 className="h-4 w-4 text-primary" />
-              </div>
-              <div className="mt-2 text-xl font-semibold">{operationalControl.linkedToOrders}</div>
-              <p className="mt-1 text-xs text-muted-foreground">ordini, team, personale e provvigioni</p>
-            </button>
-          </div>
+            );
+          })()}
 
           {/* Filters */}
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row flex-wrap">
@@ -850,12 +886,13 @@ export default function CompanyCostsManager({
           {/* Status Tabs */}
           <div className="flex gap-1 flex-wrap">
             {([
-              { value: "all" as StatusTabFilter, label: "Tutti", count: data.allCostsSorted.length },
-              { value: "sostenuti" as StatusTabFilter, label: "Sostenuti", count: data.statusTabLists.sostenuti.length },
-              { value: "previsti" as StatusTabFilter, label: "Previsti", count: data.statusTabLists.previsti.length },
-              { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.length },
-              { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.length },
-              { value: "senza_scadenza" as StatusTabFilter, label: "Senza scadenza", count: data.statusTabLists.senzaScadenza.length },
+              // Conteggi del SOLO tipo di questa tab: la tab gemella ha i suoi.
+              { value: "all" as StatusTabFilter, label: "Tutti", count: getItemsForTab(typeLock).length },
+              { value: "sostenuti" as StatusTabFilter, label: "Sostenuti", count: data.statusTabLists.sostenuti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "previsti" as StatusTabFilter, label: "Previsti", count: data.statusTabLists.previsti.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
+              { value: "senza_scadenza" as StatusTabFilter, label: "Senza scadenza", count: data.statusTabLists.senzaScadenza.filter((c: { cost_type?: string }) => c.cost_type === typeLock).length },
             ]).map(tab => (
               <Button
                 key={tab.value}
@@ -874,38 +911,9 @@ export default function CompanyCostsManager({
             ))}
           </div>
 
-          {/* Una sola tabella: il selettore del tipo porta direttamente i
-              TOTALI in euro del set filtrato — la divisione fissi/variabili
-              si legge nei soldi, senza barre ne' spiegazioni. */}
-          {(() => {
-            const eurFissi = getItemsForTab("fixed").reduce((sum: number, c: { amount?: number | string | null }) => sum + (Number(c.amount) || 0), 0);
-            const eurVariabili = getItemsForTab("variable").reduce((sum: number, c: { amount?: number | string | null }) => sum + (Number(c.amount) || 0), 0);
-            const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
-            return (
-              <div className="flex w-fit items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-                {([
-                  ["all", "Tutti", eurFissi + eurVariabili],
-                  ["fixed", "Fissi", eurFissi],
-                  ["variable", "Variabili", eurVariabili],
-                ] as const).map(([val, label, eur]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setTypeTab(val)}
-                    className={cn(
-                      "rounded-md px-3 py-1 text-sm transition-colors",
-                      typeTab === val ? "bg-white font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {label} <span className="tabular-nums font-semibold">{eur0(eur)}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
           <CostsTable
-                  items={getItemsForTab(typeTab)}
-                  type={typeTab}
+                  items={getItemsForTab(typeLock)}
+                  type={typeLock}
                   selectedIds={selectedIds}
                   costNameCounts={data.costNameCounts}
                   onToggleSelect={toggleSelect}

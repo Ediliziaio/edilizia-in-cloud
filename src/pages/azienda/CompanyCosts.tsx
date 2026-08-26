@@ -1,32 +1,39 @@
 // ============================================================================
 // /azienda/costi — Costi aziendali in 4 viste
 // ============================================================================
-//   Panoramica     → dove vanno i soldi, mese per mese (ripartizione per voce)
-//   Personale      → costo per dipendente: orario, ore, straordinari, commesse
-//   Spese          → gestione operativa (tabella, filtri, pagamenti, import)
-//   Pianificazione → regia integrazioni, statistiche, budget, semaforo cassa
+//   Panoramica       → dove vanno i soldi, mese per mese (ripartizione per voce)
+//   Personale        → costo per dipendente: orario, ore, straordinari, commesse
+//   Spese fisse      → la struttura: affitti, leasing, utenze, ricorrenti
+//   Spese variabili  → i cantieri: materiali, subappalti, provvigioni
+//   Pianificazione   → regia integrazioni, statistiche, budget
 // La tab attiva è sincronizzata in URL (?tab=) per link condivisibili.
 // ============================================================================
 
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { startOfMonth } from "date-fns";
-import { HardHat, PieChart, ReceiptText, Target, TrendingDown } from "lucide-react";
+import { HardHat, Landmark, PieChart, ReceiptText, Target, TrendingDown } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompanyCostsManager from "@/components/forecast/CompanyCostsManager";
 import CostsOverviewTab from "@/components/costi/CostsOverviewTab";
 import PersonnelCostsTab from "@/components/costi/PersonnelCostsTab";
 
-const VALID_TABS = ["panoramica", "personale", "spese", "pianificazione"] as const;
+const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili", "pianificazione"] as const;
 type CostsTab = (typeof VALID_TABS)[number];
 
 export default function CompanyCosts() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const activeTab: CostsTab = VALID_TABS.includes(rawTab as CostsTab)
-    ? (rawTab as CostsTab)
-    : "panoramica";
+  // La vecchia tab unica "spese" ora e' divisa in due: i link storici
+  // atterrano sulle variabili se portavano un preset operativo, sulle
+  // fisse altrimenti.
+  const legacySpese: CostsTab = searchParams.get("preset") ? "spese-variabili" : "spese-fisse";
+  const activeTab: CostsTab = rawTab === "spese"
+    ? legacySpese
+    : VALID_TABS.includes(rawTab as CostsTab)
+      ? (rawTab as CostsTab)
+      : "panoramica";
 
   // Mese condiviso tra Panoramica e Personale: cambi mese in una tab e lo
   // ritrovi nell'altra.
@@ -68,8 +75,11 @@ export default function CompanyCosts() {
           <TabsTrigger value="personale" className="gap-1.5 rounded-lg">
             <HardHat className="h-4 w-4" /> Personale
           </TabsTrigger>
-          <TabsTrigger value="spese" className="gap-1.5 rounded-lg">
-            <ReceiptText className="h-4 w-4" /> Spese
+          <TabsTrigger value="spese-fisse" className="gap-1.5 rounded-lg">
+            <Landmark className="h-4 w-4" /> Spese fisse
+          </TabsTrigger>
+          <TabsTrigger value="spese-variabili" className="gap-1.5 rounded-lg">
+            <ReceiptText className="h-4 w-4" /> Spese variabili
           </TabsTrigger>
           <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg">
             <Target className="h-4 w-4" /> Pianificazione
@@ -82,8 +92,11 @@ export default function CompanyCosts() {
         <TabsContent value="personale" className="mt-4">
           <PersonnelCostsTab month={month} onMonthChange={setMonth} />
         </TabsContent>
-        <TabsContent value="spese" className="mt-4">
-          <CompanyCostsManager view="spese" />
+        <TabsContent value="spese-fisse" className="mt-4">
+          <CompanyCostsManager view="spese" typeLock="fixed" />
+        </TabsContent>
+        <TabsContent value="spese-variabili" className="mt-4">
+          <CompanyCostsManager view="spese" typeLock="variable" />
         </TabsContent>
         <TabsContent value="pianificazione" className="mt-4">
           <CompanyCostsManager view="pianificazione" />
