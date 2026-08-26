@@ -453,7 +453,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data: rows, error } = await supabase
         .from("company_costs")
-        .select("due_date, amount, cost_type")
+        .select("due_date, amount, cost_type, is_paid")
         .eq("company_id", companyId!)
         .not("due_date", "is", null)
         .limit(3000);
@@ -465,23 +465,40 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
   const andamentoMensile = useMemo(() => {
     const fine = startOfMonth(new Date());
-    const mesi: { ym: string; label: string; fixed: number; variable: number }[] = [];
+    type MeseAndamento = {
+      ym: string; label: string;
+      fixed: number; fixedPagato: number; fixedN: number;
+      variable: number; variablePagato: number; variableN: number;
+    };
+    const mesi: MeseAndamento[] = [];
     for (let k = 11; k >= 0; k -= 1) {
       const d = subMonths(fine, k);
-      mesi.push({ ym: format(d, "yyyy-MM"), label: format(d, "MMM", { locale: it }), fixed: 0, variable: 0 });
+      mesi.push({
+        ym: format(d, "yyyy-MM"), label: format(d, "MMM ''yy", { locale: it }),
+        fixed: 0, fixedPagato: 0, fixedN: 0, variable: 0, variablePagato: 0, variableN: 0,
+      });
     }
     const byYm = new Map(mesi.map((m) => [m.ym, m]));
-    const somma = (rows: { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]) => {
+    type RigaCosto = { due_date?: string | null; amount?: number | string | null; cost_type?: string; is_paid?: boolean | null };
+    const somma = (rows: RigaCosto[]) => {
       rows.forEach((r) => {
         if (!r.due_date) return;
         const slot = byYm.get(String(r.due_date).slice(0, 7));
         if (!slot) return;
-        if (r.cost_type === "fixed") slot.fixed += Number(r.amount) || 0;
-        else slot.variable += Number(r.amount) || 0;
+        const importo = Number(r.amount) || 0;
+        if (r.cost_type === "fixed") {
+          slot.fixed += importo;
+          slot.fixedN += 1;
+          if (r.is_paid) slot.fixedPagato += importo;
+        } else {
+          slot.variable += importo;
+          slot.variableN += 1;
+          if (r.is_paid) slot.variablePagato += importo;
+        }
       });
     };
-    somma((costsAllQuery.data || []) as { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]);
-    somma(allOrderDerivedCosts as { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]);
+    somma((costsAllQuery.data || []) as RigaCosto[]);
+    somma(allOrderDerivedCosts as RigaCosto[]);
     return mesi;
   }, [costsAllQuery.data, allOrderDerivedCosts]);
 

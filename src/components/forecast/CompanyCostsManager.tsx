@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 
 import { useQuery } from "@tanstack/react-query";
+import {
+  Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer,
+  Tooltip as RechartsTooltip, XAxis, YAxis,
+} from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -904,49 +908,111 @@ export default function CompanyCostsManager({
             )}
           </div>
 
-          {/* Andamento mensile: 12 barre, una per mese. Cliccare una barra
-              filtra quel mese (stessa via delle frecce); la serie e' stabile,
-              non si restringe coi filtri. */}
+          {/* Andamento mensile in stile Commesse: barre blu (spese del mese),
+              barre arancio (gia' pagato), linea nera (numero voci, asse destro).
+              Cliccare la barra di un mese lo filtra; ricliccarla toglie il
+              filtro. La serie e' stabile, non si restringe coi filtri. */}
           {(() => {
-            const serie = data.andamentoMensile.map((m: { ym: string; label: string; fixed: number; variable: number }) => ({
-              ...m, valore: typeLock === "fixed" ? m.fixed : m.variable,
+            const serie = data.andamentoMensile.map((m: { ym: string; label: string; fixed: number; fixedPagato: number; fixedN: number; variable: number; variablePagato: number; variableN: number }) => ({
+              ym: m.ym,
+              label: m.label,
+              totale: typeLock === "fixed" ? m.fixed : m.variable,
+              pagato: typeLock === "fixed" ? m.fixedPagato : m.variablePagato,
+              n: typeLock === "fixed" ? m.fixedN : m.variableN,
             }));
-            const max = Math.max(...serie.map((m) => m.valore), 1);
+            if (serie.every((m) => m.totale === 0)) return null;
             const selYm = selectedMonth ? format(selectedMonth, "yyyy-MM") : null;
-            const kFmt = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v > 0 ? String(Math.round(v)) : "");
-            if (serie.every((m) => m.valore === 0)) return null;
+            const clickMese = (ym: string | undefined) => {
+              if (!ym) return;
+              if (selYm === ym) resetFilters();
+              else vaiAlMese(new Date(`${ym}-01T00:00:00`));
+            };
             return (
-              <div>
-                <div className="mb-1 flex items-baseline justify-between">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Andamento ultimi 12 mesi</p>
-                  <p className="text-[11px] text-muted-foreground">clicca un mese per filtrarlo</p>
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
+                    <h3 className="mt-0.5 text-base font-semibold text-slate-950">
+                      {typeLock === "fixed" ? "Spese fisse e pagamenti" : "Spese variabili e pagamenti"}
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-600" /> Spese</span>
+                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Pagato</span>
+                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-900" /> N. voci</span>
+                    <span className="text-muted-foreground">clicca un mese per filtrarlo</span>
+                  </div>
                 </div>
-                <div className="flex h-24 items-end gap-1.5">
-                  {serie.map((m, i) => {
-                    const attivo = selYm === m.ym;
-                    const corrente = i === serie.length - 1;
-                    return (
-                      <button
-                        key={m.ym}
-                        type="button"
-                        onClick={() => (attivo ? resetFilters() : vaiAlMese(new Date(`${m.ym}-01T00:00:00`)))}
-                        title={`${m.label} · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(m.valore)}`}
-                        className="group flex h-full flex-1 flex-col items-center justify-end gap-0.5"
+                <div className="mt-3 h-[220px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={serie} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                      <YAxis
+                        yAxisId="money"
+                        tickLine={false}
+                        axisLine={false}
+                        fontSize={10}
+                        stroke="#94a3b8"
+                        tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                      />
+                      <YAxis
+                        yAxisId="count"
+                        orientation="right"
+                        tickLine={false}
+                        axisLine={false}
+                        fontSize={10}
+                        stroke="#94a3b8"
+                        allowDecimals={false}
+                      />
+                      <RechartsTooltip
+                        cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                        contentStyle={{
+                          borderRadius: 12,
+                          border: "1px solid #e2e8f0",
+                          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                        }}
+                        formatter={(value, name) => {
+                          if (name === "n") return [Number(value).toLocaleString("it-IT"), "N. voci"];
+                          return [
+                            Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                            name === "totale" ? "Spese" : "Pagato",
+                          ];
+                        }}
+                        labelFormatter={(label) => `Mese: ${label}`}
+                      />
+                      <Bar
+                        yAxisId="money"
+                        dataKey="totale"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={22}
+                        className="cursor-pointer"
+                        onClick={(entry: { ym?: string; payload?: { ym?: string } }) => clickMese(entry?.ym ?? entry?.payload?.ym)}
                       >
-                        <span className={cn("text-[9px] tabular-nums leading-none", attivo ? "font-semibold text-orange-600" : "text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100", m.valore === 0 && "hidden")}>
-                          {kFmt(m.valore)}
-                        </span>
-                        <span
-                          className={cn(
-                            "w-full rounded-t-sm transition-colors",
-                            attivo ? "bg-orange-500" : "bg-slate-300 group-hover:bg-orange-300",
-                          )}
-                          style={{ height: `${Math.max((m.valore / max) * 100, m.valore > 0 ? 3 : 1)}%` }}
-                        />
-                        <span className={cn("text-[10px] leading-none", attivo ? "font-semibold text-orange-600" : corrente ? "font-semibold text-foreground" : "text-muted-foreground")}>{m.label}</span>
-                      </button>
-                    );
-                  })}
+                        {serie.map((m) => (
+                          <Cell key={m.ym} fill={selYm === m.ym ? "#1e3a8a" : "#2563eb"} />
+                        ))}
+                      </Bar>
+                      <Bar
+                        yAxisId="money"
+                        dataKey="pagato"
+                        fill="#f97316"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={22}
+                        className="cursor-pointer"
+                        onClick={(entry: { ym?: string; payload?: { ym?: string } }) => clickMese(entry?.ym ?? entry?.payload?.ym)}
+                      />
+                      <Line
+                        yAxisId="count"
+                        type="monotone"
+                        dataKey="n"
+                        stroke="#0f172a"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             );
