@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { format, addMonths } from "date-fns";
+import { format, addMonths, endOfMonth, startOfMonth } from "date-fns";
+import { it } from "date-fns/locale";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, Download,
+  AlertTriangle, ArrowRight, CalendarIcon, ChevronLeft, ChevronRight, Download,
   FilterX, Landmark, ListChecks, Plus, Search,
   Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
@@ -266,6 +267,10 @@ export default function CompanyCostsManager({
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
   const [ricorrentiOpen, setRicorrentiOpen] = useState(false);
+  // Mese selezionato con le frecce o dal grafico: filtra tramite il canale
+  // "custom" gia' esistente (query-side), cosi' fascia, chip e tabella
+  // restano coerenti da soli.
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null);
 
   // Filters (inizializzati dall'eventuale preset in URL)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -314,7 +319,18 @@ export default function CompanyCostsManager({
     statusTabFilter !== "all" ||
     !!customDateRange;
 
+  const vaiAlMese = (mese: Date) => {
+    const inizio = startOfMonth(mese);
+    setSelectedMonth(inizio);
+    setPeriodFilter("custom");
+    setCustomDateRange({ start: inizio, end: endOfMonth(inizio) });
+  };
+  const stepMese = (delta: number) => {
+    vaiAlMese(addMonths(selectedMonth ?? startOfMonth(new Date()), selectedMonth ? delta : delta > 0 ? 0 : delta));
+  };
+
   const resetFilters = () => {
+    setSelectedMonth(null);
     setPeriodFilter("all");
     setStatusFilter("all");
     setSearchQuery("");
@@ -778,11 +794,22 @@ export default function CompanyCostsManager({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-9" />
             </div>
-            <Select value={periodFilter} onValueChange={(v) => {
-              setPeriodFilter(v as PeriodFilter);
-              if (v !== "custom") setCustomDateRange(null);
-            }}>
-              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
+            <div className="flex items-center gap-0.5">
+              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label="Mese precedente" onClick={() => stepMese(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Select value={periodFilter} onValueChange={(v) => {
+                setSelectedMonth(null);
+                setPeriodFilter(v as PeriodFilter);
+                if (v !== "custom") setCustomDateRange(null);
+              }}>
+                <SelectTrigger className="h-9 w-[150px]">
+                  <SelectValue placeholder="Periodo">
+                    {selectedMonth
+                      ? format(selectedMonth, "MMMM yyyy", { locale: it }).replace(/^./, (c) => c.toUpperCase())
+                      : undefined}
+                  </SelectValue>
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i periodi</SelectItem>
                 <SelectItem value="this_month">Questo mese</SelectItem>
@@ -791,8 +818,12 @@ export default function CompanyCostsManager({
                 <SelectItem value="this_year">Quest'anno</SelectItem>
                 <SelectItem value="custom">Personalizzato</SelectItem>
               </SelectContent>
-            </Select>
-            {periodFilter === "custom" && (
+              </Select>
+              <Button variant="ghost" size="icon" className="h-9 w-7" aria-label="Mese successivo" onClick={() => stepMese(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            {periodFilter === "custom" && !selectedMonth && (
               <div className="flex items-center gap-1.5">
                 <Popover>
                   <PopoverTrigger asChild>
@@ -872,6 +903,53 @@ export default function CompanyCostsManager({
               </Button>
             )}
           </div>
+
+          {/* Andamento mensile: 12 barre, una per mese. Cliccare una barra
+              filtra quel mese (stessa via delle frecce); la serie e' stabile,
+              non si restringe coi filtri. */}
+          {(() => {
+            const serie = data.andamentoMensile.map((m: { ym: string; label: string; fixed: number; variable: number }) => ({
+              ...m, valore: typeLock === "fixed" ? m.fixed : m.variable,
+            }));
+            const max = Math.max(...serie.map((m) => m.valore), 1);
+            const selYm = selectedMonth ? format(selectedMonth, "yyyy-MM") : null;
+            const kFmt = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v > 0 ? String(Math.round(v)) : "");
+            if (serie.every((m) => m.valore === 0)) return null;
+            return (
+              <div>
+                <div className="mb-1 flex items-baseline justify-between">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Andamento ultimi 12 mesi</p>
+                  <p className="text-[11px] text-muted-foreground">clicca un mese per filtrarlo</p>
+                </div>
+                <div className="flex h-24 items-end gap-1.5">
+                  {serie.map((m) => {
+                    const attivo = selYm === m.ym;
+                    return (
+                      <button
+                        key={m.ym}
+                        type="button"
+                        onClick={() => (attivo ? resetFilters() : vaiAlMese(new Date(`${m.ym}-01T00:00:00`)))}
+                        title={`${m.label} · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(m.valore)}`}
+                        className="group flex h-full flex-1 flex-col items-center justify-end gap-0.5"
+                      >
+                        <span className={cn("text-[9px] tabular-nums leading-none", attivo ? "font-semibold text-orange-600" : "text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100", m.valore === 0 && "hidden")}>
+                          {kFmt(m.valore)}
+                        </span>
+                        <span
+                          className={cn(
+                            "w-full rounded-t-sm transition-colors",
+                            attivo ? "bg-orange-500" : "bg-slate-300 group-hover:bg-orange-300",
+                          )}
+                          style={{ height: `${Math.max((m.valore / max) * 100, m.valore > 0 ? 3 : 1)}%` }}
+                        />
+                        <span className={cn("text-[10px] leading-none", attivo ? "font-semibold text-orange-600" : "text-muted-foreground")}>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Status Tabs */}
           <div className="flex gap-1 flex-wrap">

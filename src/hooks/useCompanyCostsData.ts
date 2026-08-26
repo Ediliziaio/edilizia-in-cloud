@@ -445,6 +445,46 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     [costs, allOrderDerivedCostsProjected]
   );
 
+  // Serie mensile per il grafico andamento (12 mesi): base STABILE che non
+  // segue il filtro periodo — query leggera su tutte le company_costs + i
+  // derivati (stipendi, ordini, provvigioni) che non sono filtrati per data.
+  const costsAllQuery = useQuery({
+    queryKey: ["costs-andamento-base", companyId],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("company_costs")
+        .select("due_date, amount, cost_type")
+        .eq("company_id", companyId!)
+        .not("due_date", "is", null)
+        .limit(3000);
+      if (error) throw error;
+      return rows || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const andamentoMensile = useMemo(() => {
+    const fine = startOfMonth(new Date());
+    const mesi: { ym: string; label: string; fixed: number; variable: number }[] = [];
+    for (let k = 11; k >= 0; k -= 1) {
+      const d = subMonths(fine, k);
+      mesi.push({ ym: format(d, "yyyy-MM"), label: format(d, "MMM", { locale: it }), fixed: 0, variable: 0 });
+    }
+    const byYm = new Map(mesi.map((m) => [m.ym, m]));
+    const somma = (rows: { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]) => {
+      rows.forEach((r) => {
+        if (!r.due_date) return;
+        const slot = byYm.get(String(r.due_date).slice(0, 7));
+        if (!slot) return;
+        if (r.cost_type === "fixed") slot.fixed += Number(r.amount) || 0;
+        else slot.variable += Number(r.amount) || 0;
+      });
+    };
+    somma((costsAllQuery.data || []) as { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]);
+    somma(allOrderDerivedCosts as { due_date?: string | null; amount?: number | string | null; cost_type?: string }[]);
+    return mesi;
+  }, [costsAllQuery.data, allOrderDerivedCosts]);
+
   // Costi che nessun totale di periodo può contenere (scadenza assente):
   // vengono dichiarati in Panoramica e Pianificazione invece di sparire.
   const senzaScadenzaStats = useMemo(
@@ -667,6 +707,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   };
 
   return {
+    andamentoMensile,
     costs,
     suppliers,
     orders,
