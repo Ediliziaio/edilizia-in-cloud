@@ -29,7 +29,10 @@ export const defaultFormData: CostFormData = {
   cost_type: "fixed",
   amount: "",
   category: "",
-  recurrence: "monthly",
+  // "once": la maggior parte dei costi registrati a mano sono spese singole
+  // (F24 di marzo, una fornitura, una parcella). Col vecchio default "monthly"
+  // chi non toccava il campo creava ricorrenze eterne senza volerlo.
+  recurrence: "once",
   due_date: "",
   notes: "",
   order_id: "",

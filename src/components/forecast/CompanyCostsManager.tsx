@@ -22,12 +22,9 @@ import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip as UITooltip, TooltipContent as UITooltipContent,
-  TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger,
-} from "@/components/ui/tooltip";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { CostiBankReconcileDialog } from "@/components/costi/CostiBankReconcileDialog";
+import { RicorrentiDialog } from "@/components/costi/RicorrentiDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,7 +98,6 @@ function CostIntegrationPanel({
 }) {
   const qualityIssues = missingCategory + missingSupplier + unscheduled;
   // In EURO, non in righe: prima 100 stipendi contavano quanto 100 fatture.
-  const scheduledPct = summary.totalAmount > 0 ? Math.round((summary.scheduledAmount / summary.totalAmount) * 100) : 100;
   const paidPct = summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0;
 
   return (
@@ -270,7 +266,7 @@ export default function CompanyCostsManager({
   const [deleteGroupName, setDeleteGroupName] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
-  const [generatingRecurring, setGeneratingRecurring] = useState(false);
+  const [ricorrentiOpen, setRicorrentiOpen] = useState(false);
 
   // Filters (inizializzati dall'eventuale preset in URL)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -680,52 +676,9 @@ export default function CompanyCostsManager({
         <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <UITooltipProvider>
-                <UITooltip>
-                  <UITooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={generatingRecurring}
-                      onClick={async () => {
-                        if (generatingRecurring) return;
-                        setGeneratingRecurring(true);
-                        try {
-                          const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
-                            body: { company_id: companyId },
-                          });
-                          if (error) throw error;
-                          data.refetchAll();
-                          const created = result?.created || 0;
-                          toast(
-                            created > 0
-                              ? { title: `Generati ${created} costi ricorrenti` }
-                              : {
-                                  title: "Nessun costo da generare",
-                                  description: "I costi ricorrenti di questo mese sono già stati creati.",
-                                },
-                          );
-                        } catch (err) {
-                          toast({
-                            title: "Errore nella generazione",
-                            description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
-                            variant: "destructive",
-                          });
-                        } finally {
-                          setGeneratingRecurring(false);
-                        }
-                      }}
-                      className="gap-1"
-                    >
-                      <Repeat className="h-4 w-4" />
-                      {generatingRecurring ? "Generazione..." : "Genera ricorrenti"}
-                    </Button>
-                  </UITooltipTrigger>
-                  <UITooltipContent side="bottom" className="max-w-[240px] text-xs">
-                    I costi ricorrenti vengono generati automaticamente il 1° del mese. Clicca solo se hai bisogno di generarli manualmente ora.
-                  </UITooltipContent>
-                </UITooltip>
-              </UITooltipProvider>
+              <Button variant="outline" size="sm" onClick={() => setRicorrentiOpen(true)} className="gap-1">
+                <Repeat className="h-4 w-4" /> Ricorrenti
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
                 <Upload className="h-4 w-4" /> Importa
               </Button>
@@ -772,15 +725,15 @@ export default function CompanyCostsManager({
               tabIndex={0}
               onClick={showOverdueCosts}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") showOverdueCosts(); }}
-              className={`relative cursor-pointer overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${operationalControl.overdueCount > 0 ? "border-orange-300 bg-orange-50/60 hover:border-orange-400" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:border-slate-300"}`}
+              className={`relative cursor-pointer overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${operationalControl.overdueCount > 0 ? "border-orange-300 bg-orange-50/60 hover:border-orange-400" : "border-slate-200 bg-slate-50/40 opacity-80 hover:border-slate-300"}`}
             >
-              <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
+              <div className={`absolute inset-y-0 left-0 w-1 ${operationalControl.overdueCount > 0 ? "bg-orange-500" : "bg-emerald-500"}`} />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scaduti</span>
-                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertTriangle className={`h-4 w-4 ${operationalControl.overdueCount > 0 ? "text-orange-600" : "text-emerald-600"}`} />
               </div>
               <div className="mt-2 text-xl font-semibold">{operationalControl.overdueCount}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(operationalControl.overdueAmount)} da gestire</p>
+              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.overdueCount === 0 ? "nessun pagamento in ritardo" : `${formatCurrency(operationalControl.overdueAmount)} da gestire`}</p>
               {operationalControl.overdueCount > 0 && (
                 <Button
                   variant="outline"
@@ -795,20 +748,22 @@ export default function CompanyCostsManager({
             <button
               type="button"
               onClick={showMissingCategories}
-              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+              disabled={operationalControl.missingCategory === 0}
+              className={`relative overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all ${operationalControl.missingCategory === 0 ? "border-slate-200 bg-slate-50/40 opacity-70" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"}`}
             >
-              <div className="absolute inset-y-0 left-0 w-1 bg-blue-500" />
+              <div className={`absolute inset-y-0 left-0 w-1 ${operationalControl.missingCategory === 0 ? "bg-emerald-500" : "bg-blue-500"}`} />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza categoria</span>
-                <Tags className="h-4 w-4 text-blue-600" />
+                <Tags className={`h-4 w-4 ${operationalControl.missingCategory === 0 ? "text-emerald-600" : "text-blue-600"}`} />
               </div>
               <div className="mt-2 text-xl font-semibold">{operationalControl.missingCategory}</div>
-              <p className="mt-1 text-xs text-muted-foreground">da classificare per report</p>
+              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.missingCategory === 0 ? "tutti classificati" : "da classificare per report"}</p>
             </button>
             <button
               type="button"
               onClick={showMissingSuppliers}
-              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+              disabled={operationalControl.missingSupplier === 0}
+              className={`relative overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all ${operationalControl.missingSupplier === 0 ? "border-slate-200 bg-slate-50/40 opacity-70" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"}`}
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
               <div className="flex items-center justify-between gap-2">
@@ -816,7 +771,7 @@ export default function CompanyCostsManager({
                 <Users className="h-4 w-4 text-emerald-600" />
               </div>
               <div className="mt-2 text-xl font-semibold">{operationalControl.missingSupplier}</div>
-              <p className="mt-1 text-xs text-muted-foreground">costi variabili manuali</p>
+              <p className="mt-1 text-xs text-muted-foreground">{operationalControl.missingSupplier === 0 ? "tutti assegnati" : "costi variabili manuali"}</p>
             </button>
             <button
               type="button"
@@ -840,7 +795,7 @@ export default function CompanyCostsManager({
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca costo, fornitore, categoria, ordine o note..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
             <Select value={periodFilter} onValueChange={(v) => {
               setPeriodFilter(v as PeriodFilter);
@@ -910,7 +865,7 @@ export default function CompanyCostsManager({
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-[150px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="all">Tutte le categorie</SelectItem>
                 <SelectItem value="none">Senza categoria</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
@@ -1036,6 +991,12 @@ export default function CompanyCostsManager({
 
       <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title="Importa Costi" fields={COST_IMPORT_FIELDS} onImport={mutations.handleCostsImport} />
 
+      <RicorrentiDialog
+        open={ricorrentiOpen}
+        onOpenChange={setRicorrentiOpen}
+        companyId={companyId}
+        onGenerated={() => data.refetchAll()}
+      />
       <CostiBankReconcileDialog
         open={bankReconcileOpen}
         onOpenChange={setBankReconcileOpen}
