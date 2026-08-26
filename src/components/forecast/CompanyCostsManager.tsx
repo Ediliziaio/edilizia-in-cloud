@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths } from "date-fns";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, Download,
-  FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
+  AlertTriangle, ArrowRight, CalendarIcon, Download,
+  FilterX, Landmark, ListChecks, Plus, Search,
   Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
 
@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { CostiBankReconcileDialog } from "@/components/costi/CostiBankReconcileDialog";
 import { RicorrentiDialog } from "@/components/costi/RicorrentiDialog";
-import { KpiCard } from "@/components/costi/KpiCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -657,14 +656,72 @@ export default function CompanyCostsManager({
   }
 
   // ── Vista SPESE: gestione operativa (filtri, tabella, pagamenti) ───────────
+  // Numeri della fascia in testata: pochi, nudi, cliccabili. Seguono i filtri.
+  const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  const vociTipo = getItemsForTab(typeLock) as { amount?: number | string | null; isFromOrder?: boolean; supplier_id?: string | null; supplierName?: string | null }[];
+  const sommaVoci = (list: { amount?: number | string | null }[]) => list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  const perTipo = (list: { cost_type?: string }[]) => list.filter((c) => c.cost_type === typeLock);
+  const scadutiTipo = perTipo(data.statusTabLists.inRitardo) as { amount?: number | string | null }[];
+  const daModuliTipo = vociTipo.filter((c) => c.isFromOrder);
+  const senzaFornitoreTipo = vociTipo.filter((c) => !c.isFromOrder && !c.supplier_id && !c.supplierName);
+
   return (
     <>
       <Card className="rounded-2xl border-slate-200 shadow-sm">
-        {/* Titolo interno "Controllo Costi Aziendali" rimosso: ripeteva
-            l'intestazione di pagina "Costi Aziendali". La CardHeader resta come
-            barra azioni pulita (Genera, Importa, Esporta, Nuovo Costo). */}
+        {/* Testata unica: i numeri che contano a sinistra (nudi, cliccabili),
+            le azioni a destra. Niente riquadri: la tabella e' la protagonista. */}
         <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30 py-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center divide-x divide-slate-200">
+              <div className="pr-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}</p>
+                <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(sommaVoci(vociTipo))}</p>
+                <p className="text-[11px] text-muted-foreground">{vociTipo.length} voci</p>
+              </div>
+              <button
+                type="button"
+                onClick={showOverdueCosts}
+                className={cn("px-4 text-left transition-colors hover:bg-orange-50/60", statusTabFilter === "in_ritardo" && "bg-orange-50")}
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Scaduti</p>
+                <p className={cn("text-lg font-semibold leading-tight tabular-nums", scadutiTipo.length > 0 ? "text-red-600" : "text-emerald-600")}>
+                  {scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{scadutiTipo.length > 0 ? `${scadutiTipo.length} da gestire` : "nessuno"}</p>
+              </button>
+              {typeLock === "fixed" ? (
+                <button
+                  type="button"
+                  onClick={() => setRicorrentiOpen(true)}
+                  className="px-4 text-left transition-colors hover:bg-slate-50"
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Ricorrenti</p>
+                  <p className="text-lg font-semibold leading-tight tabular-nums">{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-xs font-normal text-muted-foreground">/mese</span></p>
+                  <p className="text-[11px] text-muted-foreground">{ricorrentiSintesi.data?.attive ?? 0} voci · gestisci</p>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
+                  className={cn("px-4 text-left transition-colors hover:bg-slate-50", originFilter === "order" && "bg-orange-50")}
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da moduli</p>
+                  <p className="text-lg font-semibold leading-tight tabular-nums">{daModuliTipo.length}</p>
+                  <p className="text-[11px] text-muted-foreground">ordini, team, provvigioni</p>
+                </button>
+              )}
+              {typeLock === "variable" && senzaFornitoreTipo.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
+                  className={cn("px-4 text-left transition-colors hover:bg-slate-50", supplierFilter === "none" && "bg-orange-50")}
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</p>
+                  <p className="text-lg font-semibold leading-tight tabular-nums text-amber-600">{senzaFornitoreTipo.length}</p>
+                  <p className="text-[11px] text-muted-foreground">da completare</p>
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               {data.statusTabLists.inRitardo.some((c: { cost_type?: string }) => c.cost_type === typeLock) && (
                 <Button
@@ -674,11 +731,6 @@ export default function CompanyCostsManager({
                   className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
                 >
                   <Landmark className="h-4 w-4" /> Riconcilia banca
-                </Button>
-              )}
-              {typeLock === "fixed" && (
-                <Button variant="outline" size="sm" onClick={() => setRicorrentiOpen(true)} className="gap-1">
-                  <Repeat className="h-4 w-4" /> Ricorrenti
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
@@ -693,7 +745,7 @@ export default function CompanyCostsManager({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 pt-4">
           {data.isError && (
             <Alert className="border-red-200 bg-red-50 text-red-900">
               <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -719,93 +771,18 @@ export default function CompanyCostsManager({
             </Alert>
           )}
 
-          {/* Testata KPI della tab, stessa lingua visiva della scheda
-              Personale: totale del tipo, scaduti, e le due leve specifiche
-              (ricorrenti per la struttura, moduli/fornitori per i cantieri).
-              I numeri seguono i filtri attivi; le card cliccabili filtrano. */}
-          {(() => {
-            const items = getItemsForTab(typeLock) as { amount?: number | string | null; is_paid?: boolean; isFromOrder?: boolean; supplier_id?: string | null; supplierName?: string | null }[];
-            const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
-            const somma = (list: { amount?: number | string | null }[]) => list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-            const perTipo = (list: { cost_type?: string }[]) => list.filter((c) => c.cost_type === typeLock);
-            const scaduti = perTipo(data.statusTabLists.inRitardo);
-            const pagati = perTipo(data.statusTabLists.sostenuti);
-            const daModuli = items.filter((c) => c.isFromOrder);
-            const senzaFornitore = items.filter((c) => !c.isFromOrder && !c.supplier_id && !c.supplierName);
-            return (
-              <div className="grid gap-3 md:grid-cols-4">
-                <KpiCard
-                  label={typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}
-                  value={eur0(somma(items))}
-                  sub={`${items.length} voci nel periodo scelto`}
-                  icon={typeLock === "fixed" ? Landmark : ReceiptText}
-                  accent="bg-orange-500"
-                />
-                <KpiCard
-                  label="Scaduti"
-                  value={String(scaduti.length)}
-                  sub={scaduti.length > 0 ? `${eur0(somma(scaduti as { amount?: number | string | null }[]))} da gestire` : "nessun pagamento in ritardo"}
-                  icon={AlertTriangle}
-                  accent={scaduti.length > 0 ? "bg-red-500" : "bg-emerald-500"}
-                  onClick={showOverdueCosts}
-                  active={statusTabFilter === "in_ritardo"}
-                />
-                {typeLock === "fixed" ? (
-                  <KpiCard
-                    label="Ricorrenti"
-                    value={`${ricorrentiSintesi.data?.attive ?? 0} voci`}
-                    sub={`valgono ${eur0(ricorrentiSintesi.data?.mensile ?? 0)}/mese — clicca per gestirle`}
-                    icon={Repeat}
-                    accent="bg-sky-500"
-                    onClick={() => setRicorrentiOpen(true)}
-                  />
-                ) : (
-                  <KpiCard
-                    label="Da moduli collegati"
-                    value={String(daModuli.length)}
-                    sub="ordini, team e provvigioni"
-                    icon={Link2}
-                    accent="bg-sky-500"
-                    onClick={() => setOriginFilter(originFilter === "order" ? "all" : "order")}
-                    active={originFilter === "order"}
-                  />
-                )}
-                {typeLock === "fixed" ? (
-                  <KpiCard
-                    label="Pagato"
-                    value={eur0(somma(pagati as { amount?: number | string | null }[]))}
-                    sub={`${pagati.length} voci sostenute`}
-                    icon={CheckCircle2}
-                    accent="bg-emerald-500"
-                    onClick={() => setStatusTabFilter(statusTabFilter === "sostenuti" ? "all" : "sostenuti")}
-                    active={statusTabFilter === "sostenuti"}
-                  />
-                ) : (
-                  <KpiCard
-                    label="Senza fornitore"
-                    value={String(senzaFornitore.length)}
-                    sub={senzaFornitore.length > 0 ? "voci manuali da completare" : "tutti assegnati"}
-                    icon={Users}
-                    accent={senzaFornitore.length > 0 ? "bg-amber-500" : "bg-emerald-500"}
-                    onClick={() => { setSupplierFilter(supplierFilter === "none" ? "all" : "none"); setOriginFilter("manual"); }}
-                    active={supplierFilter === "none"}
-                  />
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Filters */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
+          {/* Filtri: una riga nuda — cerca, periodo, e il resto in un popover.
+              Niente scatola dentro la scatola: la tabella deve iniziare subito. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-9" />
             </div>
             <Select value={periodFilter} onValueChange={(v) => {
               setPeriodFilter(v as PeriodFilter);
               if (v !== "custom") setCustomDateRange(null);
             }}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i periodi</SelectItem>
                 <SelectItem value="this_month">Questo mese</SelectItem>
@@ -852,12 +829,23 @@ export default function CompanyCostsManager({
                 </Popover>
               </div>
             )}
-            {/* Dropdown "Stato pagamento" rimosso: era ridondante con la barra
-                tab di stato qui sotto (Tutti/Sostenuti/Previsti/In ritardo/…),
-                più chiara e con i conteggi. statusFilter resta "all" (non filtra):
-                tutto lo status filtering passa dalle tab. */}
+            {/* Fornitore e categoria vivono nel popover: usati di rado,
+                non meritano una riga fissa. Il badge dice se sono attivi. */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                  <FilterX className="h-3.5 w-3.5" />
+                  Filtri
+                  {(supplierFilter !== "all" || categoryFilter !== "all") && (
+                    <Badge className="h-4 min-w-4 rounded-full bg-orange-500 px-1 text-[10px]">
+                      {(supplierFilter !== "all" ? 1 : 0) + (categoryFilter !== "all" ? 1 : 0)}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64 space-y-2 p-3">
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Fornitore" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i fornitori</SelectItem>
                 <SelectItem value="none">Senza fornitore</SelectItem>
@@ -867,7 +855,7 @@ export default function CompanyCostsManager({
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[175px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutte le categorie</SelectItem>
                 <SelectItem value="none">Senza categoria</SelectItem>
@@ -876,11 +864,13 @@ export default function CompanyCostsManager({
                 ))}
               </SelectContent>
             </Select>
-            {/* Select "Origine" rimosso: faceva la stessa cosa della card
-                "Da moduli collegati" qui sopra. Lo stato resta per i preset. */}
-            <Button variant="outline" onClick={resetFilters} disabled={!hasActiveFilters} className="gap-2">
-              <FilterX className="h-4 w-4" /> Pulisci filtri
-            </Button>
+              </PopoverContent>
+            </Popover>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9 gap-1.5 text-muted-foreground">
+                <FilterX className="h-3.5 w-3.5" /> Pulisci
+              </Button>
+            )}
           </div>
 
           {/* Status Tabs */}
