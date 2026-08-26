@@ -320,6 +320,15 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         )}
       </div>
 
+      {/* Il punto che vale tutto il capitolo: il SAL è una misura del lavoro
+          eseguito, non una scadenza sul calendario. */}
+      <p className="text-xs text-muted-foreground">
+        Il SAL non è una data: è una misura del lavoro eseguito. Se il cantiere non avanza il SAL
+        non si può emettere e la cassa si ferma, mentre gli stipendi no — per questo un cantiere
+        rallentato è peggio di uno non iniziato: consuma senza incassare. Tra un SAL e l'altro
+        più i denti sono larghi, più vai a fondo.
+      </p>
+
       {/* Avanzamento incassi: riporta qui il piano rate della commessa (lo
           stesso Riepilogo Finanziario di creazione/modifica) così lo stato
           finanziario è visibile direttamente nella sezione SAL. */}

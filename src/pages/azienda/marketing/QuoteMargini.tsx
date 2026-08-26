@@ -258,6 +258,18 @@ export default function QuoteMargini() {
                   </Tooltip>
                 </div>
               </div>
+
+              {/* Il terzo strato del prezzo: gli imprevisti, in % per tipo di
+                  lavoro. Non spesi, diventano utile; non messi, il preventivo
+                  lavora gratis. */}
+              <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+                Dentro questo margine devono starci anche gli imprevisti, che dipendono dal tipo
+                di lavoro: serramenti 2-3%, bagni 5-8%, ristrutturazioni pesanti 8-10% del prezzo.
+                Metterli non ti rende caro, non metterli ti rende gratis — e se il cantiere fila,
+                gli imprevisti non spesi diventano utile. Occhio alle voci fantasma (smaltimento,
+                trasporto, ponteggio, ripristini, pratiche): «piccole» una per una, insieme
+                valgono il 4-6% del prezzo, cioè metà dell'utile.
+              </p>
             </CardContent>
           </Card>
         )}
