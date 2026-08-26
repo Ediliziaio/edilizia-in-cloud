@@ -100,14 +100,18 @@ function CommesseChips({ commesse }: { commesse: CommessaLavorata[] }) {
 function SaturazioneBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const clamped = Math.min(pct, 100);
+  // Soglie del manuale: sotto il 65% la squadra costa piu' di quel che rende,
+  // tra 65 e 75 ci si salva appena, dal 75 in su il costo orario regge.
   const color =
     pct === 0
       ? "bg-slate-300"
-      : pct < 60
-        ? "bg-amber-400"
-        : pct <= 105
-          ? "bg-emerald-500"
-          : "bg-orange-500";
+      : pct < 65
+        ? "bg-red-400"
+        : pct < 75
+          ? "bg-amber-400"
+          : pct <= 105
+            ? "bg-emerald-500"
+            : "bg-orange-500";
   return (
     <div className="flex items-center gap-2">
       <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
