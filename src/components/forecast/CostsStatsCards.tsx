@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
+import { Clock, Calculator, TrendingUp, ArrowUpDown, Eye, BarChart3, AlertTriangle, CheckCircle2, Target, WalletCards } from "lucide-react";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,90 +89,85 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
 
   return (
     <>
-      {/* Annual Summary */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold">Situazione {selectedYear}</h3>
-          </div>
-          {availableYears.length > 2 ? (
-            <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))}>
-              <SelectTrigger className="w-[100px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableYears.map((y) => (
-                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex gap-1">
-              <Button
-                variant={selectedYear === currentYear ? "default" : "outline"}
-                size="sm"
-                onClick={() => onYearChange(currentYear)}
-              >
-                {currentYear}
-              </Button>
-              <Button
-                variant={selectedYear === currentYear - 1 ? "default" : "outline"}
-                size="sm"
-                onClick={() => onYearChange(currentYear - 1)}
-              >
-                {currentYear - 1}
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground font-medium">Totale Anno</p>
-              <p className="text-2xl font-bold text-primary tabular-nums">{formatCurrency(yearlyStats.total)}</p>
-              <p className="text-[10px] text-muted-foreground">{yearlyStats.count} costi</p>
-            </CardContent>
-          </Card>
-          {/* Cliccabile: filtra la lista Spese sui pagati (prima c'era una
-              card doppia "Sostenuti" con lo stesso numero). */}
-          <Card
-            role="button"
-            tabIndex={0}
-            onClick={() => handleCardClick("sostenuti")}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCardClick("sostenuti"); }}
-            className={`cursor-pointer transition-all hover:shadow-md border-green-500/20 bg-green-500/5 ${activeStatusTab === "sostenuti" ? "ring-2 ring-green-500" : ""}`}
-          >
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground font-medium">Pagato</p>
-              <p className="text-2xl font-bold text-green-600 tabular-nums">{formatCurrency(yearlyStats.totalPaid)}</p>
-              <div className="mt-1.5">
-                <Progress value={yearlyStats.pctPaid} className="h-1.5" />
-                <p className="text-[10px] text-muted-foreground mt-0.5">{yearlyStats.pctPaid}% del totale · {yearlyStats.paidCount} pagati</p>
+      {/* Testata navy di famiglia: la situazione dell'anno in quattro card
+          in vetro, col selettore anno in chiaro sul blu. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+                <Target className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-            </CardContent>
-          </Card>
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground font-medium">Da Pagare</p>
-              <p className="text-2xl font-bold text-red-600 tabular-nums">{formatCurrency(yearlyStats.totalUnpaid)}</p>
-              <p className="text-[10px] text-muted-foreground">{100 - yearlyStats.pctPaid}% rimanente</p>
-            </CardContent>
-          </Card>
-          <Card
-            role="button"
-            tabIndex={0}
-            onClick={() => handleCardClick("in_ritardo")}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCardClick("in_ritardo"); }}
-            className={`cursor-pointer transition-all hover:shadow-md border-orange-500/20 bg-orange-500/5 ${activeStatusTab === "in_ritardo" ? "ring-2 ring-orange-500" : ""}`}
-          >
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground font-medium">Scaduti</p>
-              <p className="text-2xl font-bold text-orange-600 tabular-nums">{formatCurrency(yearlyStats.totalOverdue)}</p>
-              <p className="text-[10px] text-muted-foreground">{yearlyStats.overdueCount} da saldare</p>
-            </CardContent>
-          </Card>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Pianificazione</p>
+                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Situazione {selectedYear}</h2>
+              </div>
+            </div>
+            {availableYears.length > 2 ? (
+              <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))}>
+                <SelectTrigger className="h-9 w-[100px] border-white/20 bg-white/10 text-white [&>svg]:text-white/70">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={selectedYear === currentYear ? "border-white bg-white text-[#173b67] hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  onClick={() => onYearChange(currentYear)}
+                >
+                  {currentYear}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={selectedYear === currentYear - 1 ? "border-white bg-white text-[#173b67] hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  onClick={() => onYearChange(currentYear - 1)}
+                >
+                  {currentYear - 1}
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            <NavyStatCard
+              label={`Totale ${selectedYear}`}
+              value={formatCurrency(yearlyStats.total)}
+              sub={`${yearlyStats.count} costi`}
+              icon={WalletCards}
+              tone="text-orange-100"
+            />
+            <NavyStatCard
+              label="Pagato"
+              value={formatCurrency(yearlyStats.totalPaid)}
+              sub={`${yearlyStats.pctPaid}% del totale · ${yearlyStats.paidCount} pagati`}
+              icon={CheckCircle2}
+              tone="text-emerald-200"
+              onClick={() => handleCardClick("sostenuti")}
+              active={activeStatusTab === "sostenuti"}
+            />
+            <NavyStatCard
+              label="Da pagare"
+              value={formatCurrency(yearlyStats.totalUnpaid)}
+              sub={`${100 - yearlyStats.pctPaid}% rimanente`}
+              icon={Clock}
+            />
+            <NavyStatCard
+              label="Scaduti"
+              value={formatCurrency(yearlyStats.totalOverdue)}
+              sub={`${yearlyStats.overdueCount} da saldare`}
+              icon={AlertTriangle}
+              tone={yearlyStats.overdueCount > 0 ? "text-orange-300" : "text-emerald-200"}
+              onClick={() => handleCardClick("in_ritardo")}
+              active={activeStatusTab === "in_ritardo"}
+            />
+          </div>
         </div>
       </div>
 
