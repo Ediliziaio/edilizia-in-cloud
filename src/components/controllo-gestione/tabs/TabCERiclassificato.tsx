@@ -333,8 +333,8 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
               value={dol !== null ? `×${dol.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "—"}
               sub={
                 dol !== null
-                  ? `ricavi −10% → EBIT −${Math.round(dol * 10)}%. Tanta struttura = leva alta, annate amplificate; tanto sub = leva bassa e stabile`
-                  : "con EBIT a zero o negativo la leva non si calcola: prima si torna sopra lo zero"
+                  ? `ricavi −10% → EBIT −${Math.round(dol * 10)}%: più struttura hai, più l'utile oscilla`
+                  : "con EBIT a zero o negativo non si calcola: prima si torna sopra lo zero"
               }
               tone="blue"
             />

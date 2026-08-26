@@ -489,17 +489,15 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               </div>
               {utileVoluto > 0 && breakEvenData.averageOrderMargin > 0 && (
                 <p className="mt-2 text-xs text-slate-700">
-                  Fissi annui {formatCurrency(breakEvenData.monthlyFixedCosts * 12)} (questo mese × 12) più{" "}
-                  {formatCurrency(utileVoluto)} di utile, al margine del {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}%:
-                  fatturato obiettivo{" "}
+                  Servono{" "}
                   <strong>
                     {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100))}
                   </strong>{" "}
-                  all'anno, {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100) / 12)} al mese
+                  all'anno ({formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100) / 12)} al mese)
                   {breakEvenData.averageOrderValue > 0 && (
                     <>
                       {" "}
-                      —{" "}
+                      →{" "}
                       <strong>
                         {(
                           (breakEvenData.monthlyFixedCosts * 12 + utileVoluto) /
@@ -508,8 +506,8 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                           breakEvenData.averageOrderValue
                         ).toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
                         commesse al mese
-                      </strong>{" "}
-                      da {formatCurrency(breakEvenData.averageOrderValue)}. Il numero da dire alla squadra il lunedì.
+                      </strong>
+                      . Il numero da dire alla squadra il lunedì.
                     </>
                   )}
                   {breakEvenData.averageOrderValue <= 0 && "."}

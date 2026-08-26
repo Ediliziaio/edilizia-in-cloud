@@ -685,7 +685,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                 ({formatCurrency(registroAnnuale.top.costo)})
               </>
             )}
-            . Prima lo scopri, meno costa: lo stesso errore vale 0 € al ricontrollo del rilievo e il 67% del margine se lo segnala il cliente.
+            . Prima lo scopri, meno costa: da 0 € al ricontrollo del rilievo al 67% del margine sul reclamo.
           </p>
         )}
         {errors.length === 0 ? (

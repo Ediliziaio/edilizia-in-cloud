@@ -417,11 +417,8 @@ export function TrediciSettimaneTab({
                 pagato tardi rallenta e ti quota di più — è il finanziamento
                 più caro che esiste, anche se sembra gratis. */}
             <p>
-              · Se una settimana va rossa, l'ordine è questo: dipendenti e subappaltatori si
-              pagano puntuali, sempre — il circolante si tira dai fornitori di merce o dalla
-              banca, dove costa il 6% e non il 40-60% implicito del sub pagato tardi. E il sub
-              si paga a SAL incassato, non a fattura: se il cliente ritarda, il ritardo scorre
-              lungo la catena invece di fermarsi sulla tua cassa.
+              · Se una settimana va rossa: dipendenti e sub si pagano sempre, il circolante si
+              tira da fornitori di merce o banca. E il sub si paga a SAL incassato, non a fattura.
             </p>
           </div>
         </CardContent>

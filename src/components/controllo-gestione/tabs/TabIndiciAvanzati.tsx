@@ -207,9 +207,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
                 {giorniPosa.data && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     Installazione media {giorniPosa.data.media}g su {giorniPosa.data.n} commesse
-                    chiuse (12 mesi): è la parte del ciclo che non si compra, si organizza —
-                    ordine partito subito, rilievo fatto, posa programmata. Un ciclo più lungo
-                    non toglie margine: immobilizza capitale per guadagnare uguale.
+                    chiuse: è la parte del ciclo che si organizza, non si compra.
                   </p>
                 )}
                 <p className="mt-2 text-xs">

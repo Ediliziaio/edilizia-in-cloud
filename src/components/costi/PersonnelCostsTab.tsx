@@ -423,19 +423,15 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               {puntoIndifferenza > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
                   <p>
-                    Punto di indifferenza:{" "}
+                    Sotto{" "}
                     <strong>
                       {puntoIndifferenza.toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
                       commesse al mese
-                    </strong>
-                    . Sotto conviene il sub — la squadra è un costo fisso che non riesci a saturare.
-                    Sopra conviene la squadra, che diventa margine su ogni commessa in più.
+                    </strong>{" "}
+                    conviene il sub, sopra la squadra.
                   </p>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Il posatore in più lo assumi quando il lavoro <em>sicuro</em> supera quel
-                    numero, non quando lo tocchi nei mesi buoni. Il nucleo interno si dimensiona
-                    sul mese peggiore dell'anno; i sub assorbono i picchi. Ricalcola quando
-                    arrivano i listini nuovi del sub.
+                    Si assume sul lavoro <em>sicuro</em>, non sui mesi buoni.
                   </p>
                 </div>
               )}
@@ -451,35 +447,30 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               {costoInternoCommessa > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
                   <p>
-                    Alla saturazione reale del {Math.round(saturazione * 100)}%, quella commessa
-                    fatta in casa ti costa{" "}
+                    In casa quella commessa ti costa{" "}
                     <strong>{formatCurrency(costoInternoCommessa)}</strong> di manodopera
                     {deltaSub !== null && (
                       <>
-                        {" "}
-                        —{" "}
+                        {": "}
                         {deltaSub > 0.005 ? (
                           <>
-                            il sub a {formatCurrency(quotaSub)} è più caro del{" "}
-                            <strong>{Math.round(deltaSub * 100)}%</strong>
+                            il sub è più caro del <strong>{Math.round(deltaSub * 100)}%</strong>
                           </>
                         ) : deltaSub < -0.005 ? (
                           <>
-                            il sub a {formatCurrency(quotaSub)} è{" "}
-                            <strong>già più economico</strong> della tua squadra
+                            il sub è <strong>già più economico</strong>
                           </>
                         ) : (
-                          <>il sub a {formatCurrency(quotaSub)} costa praticamente uguale</>
+                          <>il sub costa praticamente uguale</>
                         )}
                       </>
                     )}
                     .
                   </p>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Le ore non fatturate non spariscono: si spalmano su quelle fatturate. A busta
-                    paga l'ora vale {formatCurrency(costoOrarioNominale)}, alla saturazione reale{" "}
+                    A busta l'ora vale {formatCurrency(costoOrarioNominale)}, alla saturazione
+                    reale del {Math.round(saturazione * 100)}% ne costa{" "}
                     {formatCurrency(saturazione > 0 ? costoOrarioNominale / saturazione : 0)}.
-                    Assumere conviene solo se poi tieni la squadra piena.
                   </p>
                 </div>
               )}
