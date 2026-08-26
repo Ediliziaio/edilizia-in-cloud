@@ -194,6 +194,11 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
     const ebitda = findVoce(ce.data.voci, "E");
     const ebit = findVoce(ce.data.voci, "F");
     const utile = findVoce(ce.data.voci, "L");
+    // Leva operativa: DOL = margine di contribuzione ÷ EBIT, sulla stessa
+    // scala (voce D) così numeratore e denominatore hanno lo stesso perimetro.
+    // Ha senso solo con EBIT positivo.
+    const margineOperativo = findVoce(ce.data.voci, "D");
+    const dol = ebit > 0 && margineOperativo > 0 ? margineOperativo / ebit : null;
     const ebitdaPctPil = pil !== 0 ? (ebitda / pil) * 100 : 0;
     const ebitPctPil = pil !== 0 ? (ebit / pil) * 100 : 0;
     const costoMaterie = findVoce(ce.data.voci, "B");
@@ -322,6 +327,16 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
               value={formatCurrency(ebit)}
               sub={pil !== 0 ? `${((ebit / pil) * 100).toFixed(1)}% del PIL` : undefined}
               tone={ebit >= 0 ? "green" : "red"}
+            />
+            <KPIBox
+              label="Leva operativa (DOL)"
+              value={dol !== null ? `×${dol.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "—"}
+              sub={
+                dol !== null
+                  ? `ricavi −10% → EBIT −${Math.round(dol * 10)}%. Tanta struttura = leva alta, annate amplificate; tanto sub = leva bassa e stabile`
+                  : "con EBIT a zero o negativo la leva non si calcola: prima si torna sopra lo zero"
+              }
+              tone="blue"
             />
             <KPIBox
               label="Utile di bilancio"
