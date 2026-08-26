@@ -420,13 +420,17 @@ export interface BreakEvenData {
   monthlyRevenue: number;
   coveragePercent: number;
   status: "above" | "near" | "below";
+  /** true se margine e commessa media vengono dalle commesse vere (ultimi 12
+   *  mesi), false se sono le ipotesi di ripiego 30% / 15.000 €. */
+  ipotesiDaDati: boolean;
 }
 
 export function calculateBreakEven(
   fixedCosts: any[],
   monthlyRevenue: number,
   averageOrderValue: number = 15000,
-  marginPercent: number = 30
+  marginPercent: number = 30,
+  ipotesiDaDati: boolean = false
 ): BreakEvenData {
   const now = new Date();
   const monthStart = startOfMonth(now);
@@ -453,5 +457,6 @@ export function calculateBreakEven(
     monthlyRevenue,
     coveragePercent,
     status,
+    ipotesiDaDati,
   };
 }

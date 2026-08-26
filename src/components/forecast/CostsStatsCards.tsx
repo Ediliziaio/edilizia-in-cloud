@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +70,14 @@ const PIE_COLORS = [
 ];
 
 export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza }: CostsStatsCardsProps) {
+  // Il budget in quattro righe: fissi annui + utile voluto → fatturato
+  // obiettivo → commesse al mese. L'utile è una scelta del titolare, non una
+  // previsione: si scrive qui e non si salva da nessuna parte.
+  const [utileVolutoRaw, setUtileVolutoRaw] = useState("");
+  const utileVoluto = (() => {
+    const n = Number(utileVolutoRaw.trim().replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  })();
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
@@ -457,8 +466,62 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               {breakEvenData.coveragePercent.toFixed(0)}% coperto dal fatturato del mese: {formatCurrency(breakEvenData.monthlyRevenue)}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Ipotesi di calcolo: margine {breakEvenData.averageOrderMargin}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}
+              {breakEvenData.ipotesiDaDati
+                ? <>Dalle tue commesse degli ultimi 12 mesi: margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>
+                : <>Ipotesi di ripiego (nessuna commessa consuntivata negli ultimi 12 mesi): margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>}
             </p>
+
+            {/* Il budget in quattro righe: sopra il pareggio c'è l'obiettivo.
+                Fatturato obiettivo = (fissi annui + utile voluto) ÷ margine%. */}
+            <div className="mt-3 border-t border-slate-200/70 pt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="utile-voluto" className="text-xs font-medium">
+                  Il pareggio non basta: quanto utile vuoi quest'anno?
+                </label>
+                <Input
+                  id="utile-voluto"
+                  inputMode="decimal"
+                  placeholder="es. 100.000"
+                  value={utileVolutoRaw}
+                  onChange={(e) => setUtileVolutoRaw(e.target.value)}
+                  className="h-8 w-32 bg-white"
+                />
+              </div>
+              {utileVoluto > 0 && breakEvenData.averageOrderMargin > 0 && (
+                <p className="mt-2 text-xs text-slate-700">
+                  Fissi annui {formatCurrency(breakEvenData.monthlyFixedCosts * 12)} (questo mese × 12) più{" "}
+                  {formatCurrency(utileVoluto)} di utile, al margine del {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}%:
+                  fatturato obiettivo{" "}
+                  <strong>
+                    {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100))}
+                  </strong>{" "}
+                  all'anno, {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100) / 12)} al mese
+                  {breakEvenData.averageOrderValue > 0 && (
+                    <>
+                      {" "}
+                      —{" "}
+                      <strong>
+                        {(
+                          (breakEvenData.monthlyFixedCosts * 12 + utileVoluto) /
+                          (breakEvenData.averageOrderMargin / 100) /
+                          12 /
+                          breakEvenData.averageOrderValue
+                        ).toLocaleString("it-IT", { maximumFractionDigits: 1 })}{" "}
+                        commesse al mese
+                      </strong>{" "}
+                      da {formatCurrency(breakEvenData.averageOrderValue)}. Il numero da dire alla squadra il lunedì.
+                    </>
+                  )}
+                  {breakEvenData.averageOrderValue <= 0 && "."}
+                </p>
+              )}
+              {utileVoluto > 0 && breakEvenData.averageOrderMargin <= 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Serve il margine medio delle commesse per fare la divisione: chiudi qualche commessa
+                  con costi registrati e il numero appare da solo.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -179,6 +179,41 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const { data: commissionCosts = [], isLoading: isLoadingCommissions } = commissionsQuery;
 
   // Query orders for linking
+  // Margine e valore medio VERI dalle commesse degli ultimi 12 mesi (stessa
+  // vista di scheda commessa e CdG). Attenzione ai nomi della vista: il
+  // ricavo è preventivo_totale (contratto + variazioni approvate) e
+  // "consuntivo" è la SOMMA DEI COSTI, non il fatturato. Contano solo le
+  // commesse con entrambe le facce (>0); senza, si torna alle ipotesi
+  // 30% / 15.000 €, ma dichiarandolo.
+  const margineRealeQuery = useQuery({
+    queryKey: ["break-even-margini", companyId],
+    queryFn: async (): Promise<{ marginePerc: number; commessaMedia: number } | null> => {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      const { data, error } = await (supabase as any)
+        .from("v_ordine_marginalita")
+        .select("preventivo_totale, consuntivo")
+        .eq("company_id", companyId!)
+        .gt("preventivo_totale", 0)
+        .gt("consuntivo", 0)
+        .gte("created_at", cutoff.toISOString())
+        .limit(500);
+      if (error) throw error;
+      const rows = (data ?? []) as { preventivo_totale: number | null; consuntivo: number | null }[];
+      if (rows.length === 0) return null;
+      const ricavi = rows.reduce((s, r) => s + (Number(r.preventivo_totale) || 0), 0);
+      const costi = rows.reduce((s, r) => s + (Number(r.consuntivo) || 0), 0);
+      if (ricavi <= 0) return null;
+      return {
+        marginePerc: Math.round(((ricavi - costi) / ricavi) * 1000) / 10,
+        commessaMedia: Math.round(ricavi / rows.length),
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const margineReale = margineRealeQuery.data ?? null;
+
   const ordersQuery = useQuery({
     queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
@@ -658,7 +693,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     allCostsUnfiltered,
     senzaScadenzaStats,
     monthlyRevenue,
-    breakEvenData: calculateBreakEven(fixedCosts, monthlyRevenue),
+    breakEvenData: margineReale
+      ? calculateBreakEven(fixedCosts, monthlyRevenue, margineReale.commessaMedia, margineReale.marginePerc, true)
+      : calculateBreakEven(fixedCosts, monthlyRevenue),
     // La query costi ha .limit(1000): se torna esattamente 1000 righe i
     // totali potrebbero essere PARZIALI — il chiamante mostra un avviso.
     costsTruncated: costs.length >= 1000,
