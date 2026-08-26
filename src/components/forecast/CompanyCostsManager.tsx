@@ -109,13 +109,13 @@ function CostIntegrationPanel({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-950">Regia integrazioni costi</h3>
+            <h3 className="text-sm font-semibold text-slate-950">I costi, in ordine</h3>
             <Badge variant={qualityIssues > 0 ? "outline" : "secondary"} className={qualityIssues > 0 ? "border-orange-300 text-orange-700" : ""}>
-              {qualityIssues > 0 ? `${qualityIssues} controlli aperti` : "Dati allineati"}
+              {qualityIssues > 0 ? `${qualityIssues} da sistemare` : "Tutto in ordine"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Origine, qualità dati e impatto cassa in un unico punto operativo.
+            Da dove arrivano, cosa manca, quanto è già pagato.
           </p>
         </div>
 
@@ -146,15 +146,15 @@ function CostIntegrationPanel({
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Origine costi</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da dove arrivano</span>
             <Landmark className="h-4 w-4 text-slate-500" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{formatCurrency(summary.totalAmount)}</div>
+          <div className="mt-2 text-lg font-semibold">{summary.manual + summary.linked} costi registrati</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {summary.manual} manuali ({formatCurrency(summary.manualAmount)}) · {summary.linked} da moduli ({formatCurrency(summary.linkedAmount)})
+            {summary.manual} inseriti a mano · {summary.linked} arrivati da ordini, personale e provvigioni
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Storico completo + stipendi pianificati 12 mesi
+            {formatCurrency(summary.totalAmount)} in tutto lo storico, stipendi prossimi 12 mesi inclusi
           </p>
           <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-xs" onClick={onShowOrderCosts}>
             Vedi costi collegati <ArrowRight className="h-3.5 w-3.5" />
@@ -163,10 +163,10 @@ function CostIntegrationPanel({
 
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Qualità dati</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da sistemare</span>
             <ListChecks className="h-4 w-4 text-slate-500" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{scheduledPct}% pianificati</div>
+          <div className="mt-2 text-lg font-semibold">{qualityIssues > 0 ? `${qualityIssues} costi incompleti` : "Niente da sistemare"}</div>
           <p className="mt-1 text-xs text-muted-foreground">
             {missingCategory} senza categoria · {missingSupplier} senza fornitore · {unscheduled} senza scadenza
           </p>
@@ -174,18 +174,18 @@ function CostIntegrationPanel({
             {missingCategory > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingCategories}>Categorie</Button>}
             {missingSupplier > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingSuppliers}>Fornitori</Button>}
             {unscheduled > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowUnscheduled}>Scadenze</Button>}
-            {qualityIssues === 0 && <span className="text-xs text-emerald-700">Nessuna anomalia operativa.</span>}
+            {qualityIssues === 0 && <span className="text-xs text-emerald-700">Tutti i costi hanno categoria, fornitore e scadenza.</span>}
           </div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Impatto cassa</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Già pagato</span>
             <WalletCards className="h-4 w-4 text-slate-500" />
           </div>
-          <div className="mt-2 text-lg font-semibold">{paidPct}% sostenuti</div>
+          <div className="mt-2 text-lg font-semibold">{paidPct}% del totale</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Allineato a previsionale e prima nota tramite pagamenti registrati.
+            Dai pagamenti registrati; il resto è ancora da pagare.
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
@@ -718,7 +718,7 @@ export default function CompanyCostsManager({
                       className="gap-1"
                     >
                       <Repeat className="h-4 w-4" />
-                      {generatingRecurring ? "Generazione..." : "Genera ora (auto: 1° del mese)"}
+                      {generatingRecurring ? "Generazione..." : "Genera ricorrenti"}
                     </Button>
                   </UITooltipTrigger>
                   <UITooltipContent side="bottom" className="max-w-[240px] text-xs">
@@ -764,40 +764,15 @@ export default function CompanyCostsManager({
             </Alert>
           )}
 
-          {/* Alert Banner — Overdue payments */}
-          {data.stats.overdueCount > 0 && (
-            <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              <AlertDescription className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-orange-800 dark:text-orange-300">
-                  Hai <strong>{data.stats.overdueCount}</strong> pagament{data.stats.overdueCount === 1 ? "o scaduto" : "i scaduti"} per un totale di <strong>{formatCurrency(data.stats.totalOverdue)}</strong>
-                </span>
-                <span className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-orange-400 text-orange-700 hover:bg-orange-100 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
-                    onClick={showOverdueCosts}
-                  >
-                    Visualizza
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-orange-500 text-white hover:bg-orange-600"
-                    onClick={() => setBankReconcileOpen(true)}
-                  >
-                    Riconcilia con banca
-                  </Button>
-                </span>
-              </AlertDescription>
-            </Alert>
-          )}
-
           <div className="grid gap-3 md:grid-cols-4">
-            <button
-              type="button"
+            {/* Unica voce "scaduti" della vista: click filtra, il bottone riconcilia
+                (il vecchio banner arancione diceva le stesse cose una seconda volta) */}
+            <div
+              role="button"
+              tabIndex={0}
               onClick={showOverdueCosts}
-              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") showOverdueCosts(); }}
+              className={`relative cursor-pointer overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${operationalControl.overdueCount > 0 ? "border-orange-300 bg-orange-50/60 hover:border-orange-400" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80 hover:border-slate-300"}`}
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
               <div className="flex items-center justify-between gap-2">
@@ -806,7 +781,17 @@ export default function CompanyCostsManager({
               </div>
               <div className="mt-2 text-xl font-semibold">{operationalControl.overdueCount}</div>
               <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(operationalControl.overdueAmount)} da gestire</p>
-            </button>
+              {operationalControl.overdueCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-7 border-orange-400 px-2 text-xs text-orange-700 hover:bg-orange-100"
+                  onClick={(e) => { e.stopPropagation(); setBankReconcileOpen(true); }}
+                >
+                  Riconcilia con banca
+                </Button>
+              )}
+            </div>
             <button
               type="button"
               onClick={showMissingCategories}
