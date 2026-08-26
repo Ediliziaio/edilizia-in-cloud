@@ -464,7 +464,7 @@ export function CostsOverviewTab({
                         <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
                           {formatCurrency(v.totale)}
                           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                            {pct.toFixed(0)}%
+                            {pct >= 0.5 ? `${pct.toFixed(0)}%` : "<1%"}
                           </span>
                         </span>
                       </div>

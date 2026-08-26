@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
+import { Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,13 +134,21 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               <p className="text-[10px] text-muted-foreground">{yearlyStats.count} costi</p>
             </CardContent>
           </Card>
-          <Card className="border-green-500/20 bg-green-500/5">
+          {/* Cliccabile: filtra la lista Spese sui pagati (prima c'era una
+              card doppia "Sostenuti" con lo stesso numero). */}
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => handleCardClick("sostenuti")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCardClick("sostenuti"); }}
+            className={`cursor-pointer transition-all hover:shadow-md border-green-500/20 bg-green-500/5 ${activeStatusTab === "sostenuti" ? "ring-2 ring-green-500" : ""}`}
+          >
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground font-medium">Pagato</p>
               <p className="text-2xl font-bold text-green-600 tabular-nums">{formatCurrency(yearlyStats.totalPaid)}</p>
               <div className="mt-1.5">
                 <Progress value={yearlyStats.pctPaid} className="h-1.5" />
-                <p className="text-[10px] text-muted-foreground mt-0.5">{yearlyStats.pctPaid}% del totale</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{yearlyStats.pctPaid}% del totale · {yearlyStats.paidCount} pagati</p>
               </div>
             </CardContent>
           </Card>
@@ -151,31 +159,26 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               <p className="text-[10px] text-muted-foreground">{100 - yearlyStats.pctPaid}% rimanente</p>
             </CardContent>
           </Card>
-          <Card className="border-orange-500/20 bg-orange-500/5">
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => handleCardClick("in_ritardo")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCardClick("in_ritardo"); }}
+            className={`cursor-pointer transition-all hover:shadow-md border-orange-500/20 bg-orange-500/5 ${activeStatusTab === "in_ritardo" ? "ring-2 ring-orange-500" : ""}`}
+          >
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground font-medium">Scaduti</p>
               <p className="text-2xl font-bold text-orange-600 tabular-nums">{formatCurrency(yearlyStats.totalOverdue)}</p>
-              <p className="text-[10px] text-muted-foreground">Da saldare</p>
+              <p className="text-[10px] text-muted-foreground">{yearlyStats.overdueCount} da saldare</p>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Period Stats — Clickable Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <button
-          type="button"
-          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "sostenuti" ? "ring-2 ring-green-500 bg-green-100 dark:bg-green-900/20 border-green-400" : "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"}`}
-          onClick={() => handleCardClick("sostenuti")}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <Check className="h-4 w-4 text-green-600" />
-            <span className="text-xs font-medium">Sostenuti nel {selectedYear}</span>
-          </div>
-          <p className="text-xl font-bold text-green-600 tabular-nums">{formatCurrency(yearlyStats.totalPaid)}</p>
-          <p className="text-[10px] text-muted-foreground">{yearlyStats.paidCount} pagati</p>
-        </button>
-
+      {/* Card periodo cliccabili. "Sostenuti" e "Da pagare (scaduti)" non ci
+          sono più: erano gli stessi numeri di "Pagato" e "Scaduti" qui sopra,
+          che ora sono cliccabili loro. Dieci riquadri → otto. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <button
           type="button"
           className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "previsti" ? "ring-2 ring-blue-500 bg-blue-100 dark:bg-blue-900/20 border-blue-400" : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800"}`}
@@ -187,19 +190,6 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
           </div>
           <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(yearlyStats.totalPrevisti)}</p>
           <p className="text-[10px] text-muted-foreground">{yearlyStats.previstiCount} da pagare, non scaduti</p>
-        </button>
-
-        <button
-          type="button"
-          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "in_ritardo" ? "ring-2 ring-red-500 bg-red-100 dark:bg-red-900/20 border-red-400" : "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800"}`}
-          onClick={() => handleCardClick("in_ritardo")}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <span className="text-xs font-medium">Da pagare (scaduti)</span>
-          </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCurrency(yearlyStats.totalOverdue)}</p>
-          <p className="text-[10px] text-muted-foreground">{yearlyStats.overdueCount} scaduti nel {selectedYear}</p>
         </button>
 
         <button
