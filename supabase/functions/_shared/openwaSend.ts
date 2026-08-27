@@ -52,14 +52,34 @@ function romeHour(): number {
   return parseInt(h, 10) || 0;
 }
 
-/** True se ORA è fuori dalla finestra oraria "umana" [start, end). */
+/** Giorno della settimana a Roma: 1 = lunedì … 7 = domenica. */
+function romeWeekday(): number {
+  const g = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", weekday: "short" }).format(new Date());
+  const map: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+  return map[g] ?? 1;
+}
+
+/**
+ * True se ORA è fuori dalla finestra di invio "umana".
+ *
+ * Guarda l'ora E il giorno. Prima controllava solo l'ora: un messaggio
+ * commerciale a freddo la domenica mattina è una segnalazione quasi garantita,
+ * e nessun cap giornaliero ti protegge da quello. Il weekend si può
+ * riaprire da platform_settings (openwa_invia_weekend = "true") per chi
+ * scrive a un pubblico che il sabato lavora — nell'edilizia capita.
+ */
 export async function outsideQuietHours(): Promise<boolean> {
   const start = parseInt((await getPlatformSetting("openwa_quiet_start")) || "8", 10);
   const end = parseInt((await getPlatformSetting("openwa_quiet_end")) || "21", 10);
   const h = romeHour();
   const s = Number.isFinite(start) ? start : 8;
   const e = Number.isFinite(end) ? end : 21;
-  return h < s || h >= e;
+  if (h < s || h >= e) return true;
+
+  const weekendAperto = ((await getPlatformSetting("openwa_invia_weekend")) || "false").toLowerCase() === "true";
+  if (!weekendAperto && romeWeekday() >= 6) return true;
+
+  return false;
 }
 
 /** Ritardo "umano" proporzionale alla lunghezza del testo, con jitter. Cap ~4.5s. */
@@ -144,6 +164,14 @@ export interface SendParams {
   contactTags?: string[];
   /** Invii MANUALI (inbox/contatto): saltano la finestra oraria. Default false. */
   bypassQuietHours?: boolean;
+  /**
+   * Primo contatto a freddo: accoda l'istruzione per farsi rimuovere.
+   * Lo STOP funziona da sempre, ma se non lo scrivi la gente non lo usa —
+   * ti blocca e basta, e il blocco pesa sul punteggio del numero molto piu'
+   * di una richiesta di cancellazione. NON va messo nelle risposte in
+   * conversazione, dove sarebbe fuori luogo.
+   */
+  coldOutreach?: boolean;
   /** Simula "sta scrivendo…" + ritardo umano prima di inviare. Default true. */
   simulateTyping?: boolean;
   /** Media in uscita: path bucket openwa-media (o URL http). `text` = caption. */
@@ -218,7 +246,15 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   }
 
   // Anti-ban #2: varia il testo (spintax) — evita l'impronta "stesso messaggio".
-  const text = applySpintax(rawText);
+  let text = applySpintax(rawText);
+  if (params.coldOutreach) {
+    const nota = (await getPlatformSetting("openwa_nota_optout"))
+      || "Se preferisci non ricevere altri messaggi, rispondi STOP.";
+    // Solo se non l'ha gia' scritta l'autore del messaggio.
+    if (nota && !text.toUpperCase().includes("STOP")) {
+      text = `${text}\n\n${nota}`;
+    }
+  }
 
   const { data: numbers } = await admin
     .from("openwa_numbers")

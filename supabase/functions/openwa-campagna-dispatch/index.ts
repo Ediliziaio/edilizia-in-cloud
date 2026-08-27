@@ -70,6 +70,9 @@ Deno.serve(async (req) => {
         contactId: m.contact_id,
         text: testo,
         contactTags: m.tags_numeri ?? [],
+        // Primo contatto E follow-up sono entrambi non richiesti: in tutti e
+        // due i casi la persona deve poter dire basta con una parola.
+        coldOutreach: true,
       });
 
       if (res.ok) {

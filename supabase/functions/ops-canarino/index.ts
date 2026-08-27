@@ -31,6 +31,7 @@ const SEZIONI: Array<{ key: string; titolo: string }> = [
   { key: "dunning_fermo", titolo: "Aziende in mancato pagamento SENZA solleciti" },
   { key: "cron_silenti", titolo: "Cron giornalieri che non girano da 26 ore" },
   { key: "http_errori_24h", titolo: "Errori HTTP dei cron (ultime 24h)" },
+  { key: "whatsapp_numeri_bannati", titolo: "Numeri WhatsApp BANNATI (campagne in pausa)" },
   { key: "oauth_provider_giu", titolo: "Credenziali OAuth di piattaforma da controllare" },
   { key: "integrazioni_scadute", titolo: "Credenziali integrazioni scadute" },
   { key: "ricariche_esaurite", titolo: "Ricariche automatiche esaurite (serve il cliente)" },
