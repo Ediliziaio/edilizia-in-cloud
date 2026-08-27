@@ -57,7 +57,11 @@ async function getCompanyByStripeCustomer(
 ) {
   const { data } = await supabase
     .from("companies")
-    .select("id, status, stripe_subscription_status")
+    // `name` serve a TUTTI gli avvisi che questa funzione alimenta: senza,
+    // l'avviso di incasso arrivava con "Azienda: —" e oggetto "Incasso 127,00
+    // EUR — cliente", e l'email al referrer diceva "Nuova azienda". Il codice
+    // scriveva company.name ?? "—" e il fallback copriva il campo mai letto.
+    .select("id, name, status, stripe_subscription_status")
     .eq("stripe_customer_id", stripeCustomerId)
     .maybeSingle();
   return data;
