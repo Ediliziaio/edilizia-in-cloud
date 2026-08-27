@@ -26,6 +26,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { formatShare } from "@/lib/procurement/spendAnalysis";
 import {
@@ -38,38 +39,6 @@ import {
   TrendingDown,
 } from "lucide-react";
 
-function Kpi({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent?: "default" | "green" | "amber";
-}) {
-  const valueColor =
-    accent === "green"
-      ? "text-green-600"
-      : accent === "amber"
-        ? "text-amber-600"
-        : "text-foreground";
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <Icon className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <p className={`mt-1 text-xl font-semibold tracking-tight ${valueColor}`}>{value}</p>
-        {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 function EmptyState({ icon: Icon, title, hint }: { icon: React.ComponentType<{ className?: string }>; title: string; hint: string }) {
   return (
@@ -89,6 +58,8 @@ export default function AnalisiAcquisti() {
   const totalSaving = benchmark?.totalSaving ?? 0;
   const invoiceRanked = invoiceSpend?.ranked ?? [];
   const hasInvoices = (invoiceSpend?.invoiceCount ?? 0) > 0;
+  // Testata senza centesimi: piu' leggibile, mai troncata.
+  const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
@@ -98,49 +69,65 @@ export default function AnalisiAcquisti() {
         badge={<Badge variant="secondary" className="font-normal">Sola lettura</Badge>}
       />
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[88px] w-full rounded-xl" />)
-        ) : (
-          <>
-            <Kpi
-              label="Spesa ordini d'acquisto"
-              value={formatCurrency(supplierSpend?.totalSpend ?? 0)}
-              hint={`${supplierSpend?.totalOrders ?? 0} ordini`}
-              icon={ShoppingCart}
-            />
-            <Kpi
-              label="Fornitori attivi"
-              value={String(supplierSpend?.supplierCount ?? 0)}
-              hint={
-                supplierSpend?.topSupplier
-                  ? `Top: ${supplierSpend.topSupplier.name} (${formatShare(supplierSpend.topSupplier.share)})`
-                  : undefined
-              }
-              icon={Building2}
-            />
-            <Kpi
-              label="Valore medio ordine"
-              value={formatCurrency(supplierSpend?.avgOrderValue ?? 0)}
-              icon={BarChart3}
-            />
-            <Kpi
-              label="Scaduto aperto"
-              value={formatCurrency(supplierSpend?.totalOpenDue ?? 0)}
-              hint="Da scadenze pagamento fornitore"
-              icon={AlertTriangle}
-              accent={supplierSpend && supplierSpend.totalOpenDue > 0 ? "amber" : "default"}
-            />
-            <Kpi
-              label="Risparmio potenziale"
-              value={formatCurrency(totalSaving)}
-              hint={benchmarks.length > 0 ? `${benchmarks.length} articoli con varianza` : "Serve dettaglio righe"}
-              icon={PiggyBank}
-              accent={totalSaving > 0 ? "green" : "default"}
-            />
-          </>
-        )}
+      {/* Testata navy di famiglia: la spesa acquisti in cinque card in vetro. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Analisi acquisti</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Da chi compri, a che prezzo</h2>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-5">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-20 animate-pulse rounded-xl border border-white/12 bg-white/9" />
+              ))
+            ) : (
+              <>
+                <NavyStatCard
+                  label="Spesa ordini d'acquisto"
+                  value={eur0(supplierSpend?.totalSpend ?? 0)}
+                  sub={`${supplierSpend?.totalOrders ?? 0} ordini`}
+                  icon={ShoppingCart}
+                  tone="text-orange-100"
+                />
+                <NavyStatCard
+                  label="Fornitori attivi"
+                  value={String(supplierSpend?.supplierCount ?? 0)}
+                  sub={
+                    supplierSpend?.topSupplier
+                      ? `Top: ${supplierSpend.topSupplier.name} (${formatShare(supplierSpend.topSupplier.share)})`
+                      : undefined
+                  }
+                  icon={Building2}
+                />
+                <NavyStatCard
+                  label="Valore medio ordine"
+                  value={eur0(supplierSpend?.avgOrderValue ?? 0)}
+                  icon={BarChart3}
+                />
+                <NavyStatCard
+                  label="Scaduto aperto"
+                  value={eur0(supplierSpend?.totalOpenDue ?? 0)}
+                  sub="da scadenze pagamento fornitore"
+                  icon={AlertTriangle}
+                  tone={supplierSpend && supplierSpend.totalOpenDue > 0 ? "text-orange-300" : "text-emerald-200"}
+                />
+                <NavyStatCard
+                  label="Risparmio potenziale"
+                  value={eur0(totalSaving)}
+                  sub={benchmarks.length > 0 ? `${benchmarks.length} articoli con varianza` : "serve dettaglio righe"}
+                  icon={PiggyBank}
+                  tone={totalSaving > 0 ? "text-emerald-200" : "text-blue-100"}
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Spesa per fornitore */}
