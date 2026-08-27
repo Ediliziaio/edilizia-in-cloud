@@ -128,16 +128,18 @@ export default function AnalisiPreventivi() {
     queryKey: ["preventivo-impostazioni", companyId],
     enabled: !!companyId,
     queryFn: async () => {
+      // Colonne reali di preventivo_impostazioni: prima margine_minimo/target
+      // _percentuale (inesistenti → 400, target margine sempre al fallback).
       const { data } = await (supabase.from("preventivo_impostazioni") as any)
-        .select("margine_minimo_percentuale, margine_target_percentuale")
+        .select("margine_target_default, soglia_margine_visibile")
         .eq("company_id", companyId)
         .maybeSingle();
-      return data as { margine_minimo_percentuale: number | null; margine_target_percentuale: number | null } | null;
+      return data as { margine_target_default: number | null; soglia_margine_visibile: number | null } | null;
     },
   });
 
-  const margineTarget = impostazioni?.margine_target_percentuale ?? 25;
-  const margineMin = impostazioni?.margine_minimo_percentuale ?? 15;
+  const margineTarget = impostazioni?.margine_target_default ?? 25;
+  const margineMin = impostazioni?.soglia_margine_visibile ?? 15;
 
   // ─── Carica KPI / dati strutturati al cambio periodo ──────────────────────
   useEffect(() => {
