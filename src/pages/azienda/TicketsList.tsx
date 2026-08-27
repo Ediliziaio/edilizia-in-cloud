@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -546,49 +547,58 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         })}
       </div>
 
-      {/* KPI metrics — 5 card sempre visibili, clickable come filtri veloci */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard
-          icon={<ClipboardList className="h-4 w-4" />}
-          label="Totale"
-          value={metrics.totale}
-          accent="bg-primary/10 text-primary"
-          badge={totalUnread > 0 ? totalUnread : undefined}
-          active={statusFilter === "all"}
-          onClick={() => setStatusFilter("all")}
-        />
-        <KpiCard
-          icon={<MessageSquare className="h-4 w-4" />}
-          label="Aperti"
-          value={metrics.aperti}
-          accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-          active={statusFilter === "aperto"}
-          onClick={() => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto")}
-        />
-        <KpiCard
-          icon={<AlertTriangle className="h-4 w-4" />}
-          label="Urgenti / Alta"
-          value={metrics.urgenti}
-          accent="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-          active={priorityFilter === "urgente" || priorityFilter === "alta"}
-          onClick={() => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente")}
-        />
-        <KpiCard
-          icon={<CalendarClock className="h-4 w-4" />}
-          label="In scadenza"
-          value={metrics.inScadenza}
-          accent="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-          active={scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana"}
-          onClick={() => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi")}
-        />
-        <KpiCard
-          icon={<UserX className="h-4 w-4" />}
-          label="Non assegnati"
-          value={metrics.nonAssegnati}
-          accent="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
-          active={assegnatoFilter === "unassigned"}
-          onClick={() => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned")}
-        />
+      {/* Testata navy famiglia (come Costi/Commesse/Personale): i cinque numeri
+          dell'assistenza, ognuno un filtro veloce cliccabile. I segnali d'azione
+          (urgenti, in scadenza, non assegnati) si accendono d'arancio se > 0. */}
+      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Assistenza</p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5 sm:gap-3">
+          <NavyStatCard
+            label="Totale"
+            value={metrics.totale}
+            sub={totalUnread > 0 ? `${totalUnread} non lett${totalUnread === 1 ? "o" : "i"}` : "tutti letti"}
+            icon={ClipboardList}
+            tone={totalUnread > 0 ? "text-orange-300" : "text-blue-100"}
+            active={statusFilter === "all"}
+            onClick={() => setStatusFilter("all")}
+          />
+          <NavyStatCard
+            label="Aperti"
+            value={metrics.aperti}
+            sub={metrics.aperti > 0 ? "da lavorare" : "nessuno aperto"}
+            icon={MessageSquare}
+            tone="text-blue-100"
+            active={statusFilter === "aperto"}
+            onClick={() => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto")}
+          />
+          <NavyStatCard
+            label="Urgenti / Alta"
+            value={metrics.urgenti}
+            sub={metrics.urgenti > 0 ? "priorità alta" : "niente urgenze"}
+            icon={AlertTriangle}
+            tone={metrics.urgenti > 0 ? "text-red-300" : "text-blue-100"}
+            active={priorityFilter === "urgente" || priorityFilter === "alta"}
+            onClick={() => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente")}
+          />
+          <NavyStatCard
+            label="In scadenza"
+            value={metrics.inScadenza}
+            sub={metrics.inScadenza > 0 ? "entro oggi/settimana" : "nessuna scadenza"}
+            icon={CalendarClock}
+            tone={metrics.inScadenza > 0 ? "text-orange-300" : "text-blue-100"}
+            active={scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana"}
+            onClick={() => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi")}
+          />
+          <NavyStatCard
+            label="Non assegnati"
+            value={metrics.nonAssegnati}
+            sub={metrics.nonAssegnati > 0 ? "senza responsabile" : "tutti assegnati"}
+            icon={UserX}
+            tone={metrics.nonAssegnati > 0 ? "text-orange-300" : "text-blue-100"}
+            active={assegnatoFilter === "unassigned"}
+            onClick={() => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned")}
+          />
+        </div>
       </div>
 
       {selectedTicketIds.size > 0 && (
@@ -782,46 +792,6 @@ export default TicketsList;
 // =============================================================================
 // Componenti atomici
 // =============================================================================
-
-function KpiCard({ icon, label, value, accent, badge, active, onClick }: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  accent: string;
-  badge?: number;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <Card
-      className={cn(
-        "relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all",
-        onClick && "cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
-        active && "border-orange-200 ring-2 ring-orange-200/80"
-      )}
-      onClick={onClick}
-    >
-      <div className={cn(
-        "absolute inset-y-0 left-0 w-1",
-        accent.includes("red") ? "bg-red-500" : accent.includes("amber") ? "bg-amber-400" : accent.includes("orange") ? "bg-orange-500" : accent.includes("blue") ? "bg-blue-500" : "bg-slate-300"
-      )} />
-      <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg shrink-0 ring-1 ring-inset", accent)}>{icon}</div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
-          <div className="flex items-center gap-1.5">
-            <p className="text-lg sm:text-2xl font-bold">{value}</p>
-            {badge !== undefined && badge > 0 && (
-              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                {badge}
-              </span>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function SortableTableHead({
   children,
