@@ -19,6 +19,7 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Progress } from "@/components/ui/progress";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useLiveStatus } from "@/hooks/useTimbratura";
@@ -192,11 +193,44 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard title="Profili attivi" value={metrics.totaleAttivi} icon={Users} loading={loading} />
-        <MetricCard title="Presenti ora" value={metrics.presentiOra} icon={UserRoundCheck} loading={loading} />
-        <MetricCard title="Richieste aperte" value={richiestePendenti.length} icon={CalendarCheck} loading={loading} />
-        <MetricCard title="Sedi attive" value={metrics.sediAttive} icon={MapPin} loading={loading} />
+      {/* Testata navy famiglia (come Costi/Commesse): i quattro numeri di
+          controllo HR, cliccabili → portano al tab che li gestisce. */}
+      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Regia HR</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <NavyStatCard
+            label="Profili attivi"
+            value={loading ? "…" : metrics.totaleAttivi}
+            sub={metrics.senzaSede > 0 ? `${metrics.senzaSede} senza sede` : "anagrafiche a posto"}
+            icon={Users}
+            tone={metrics.senzaSede > 0 ? "text-orange-300" : "text-blue-100"}
+            onClick={() => onNavigate?.("profili")}
+          />
+          <NavyStatCard
+            label="Presenti ora"
+            value={loading ? "…" : metrics.presentiOra}
+            sub={`su ${metrics.totaleAttivi} attivi`}
+            icon={UserRoundCheck}
+            tone="text-emerald-300"
+            onClick={() => onNavigate?.("timbrature")}
+          />
+          <NavyStatCard
+            label="Richieste aperte"
+            value={loading ? "…" : richiestePendenti.length}
+            sub={richiestePendenti.length > 0 ? "da approvare" : "nessuna in attesa"}
+            icon={CalendarCheck}
+            tone={richiestePendenti.length > 0 ? "text-orange-300" : "text-blue-100"}
+            onClick={() => onNavigate?.("richieste")}
+          />
+          <NavyStatCard
+            label="Sedi attive"
+            value={loading ? "…" : metrics.sediAttive}
+            sub={metrics.sediAttive === 0 ? "nessuna sede" : "operative"}
+            icon={MapPin}
+            tone={metrics.sediAttive === 0 && metrics.totaleAttivi > 0 ? "text-orange-300" : "text-blue-100"}
+            onClick={() => onNavigate?.("sedi")}
+          />
+        </div>
       </div>
 
       <Card>
@@ -307,28 +341,3 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
   );
 }
 
-function MetricCard({
-  title,
-  value,
-  icon: Icon,
-  loading,
-}: {
-  title: string;
-  value: number;
-  icon: typeof Users;
-  loading?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="rounded-lg bg-orange-50 p-2 text-orange-600">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-slate-950">{loading ? "..." : value}</p>
-          <p className="text-xs text-muted-foreground">{title}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
