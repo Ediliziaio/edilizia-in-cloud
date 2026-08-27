@@ -118,8 +118,15 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  // silvio_invoke_edge (pg_cron/trigger) manda l'header x-internal-cron-secret
+  // col valore INTERNAL_CRON_SECRET, e mette il Bearer service-role SOLO se la
+  // chiave e' nel vault (oggi non lo e'). Accettiamo tutte le forme legittime,
+  // altrimenti il runner rifiutava 401 ogni 30s da sempre.
+  const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
+  const xInternal = req.headers.get("x-internal-cron-secret") ?? req.headers.get("x-cron-secret") ?? "";
   const isServiceRole = token === SERVICE_ROLE_KEY;
-  const isCron = cronSecret && token === cronSecret;
+  const isCron = (cronSecret && token === cronSecret)
+    || (internalSecret && xInternal === internalSecret);
   if (!isServiceRole && !isCron) {
     console.warn("[silvio-action-runner] unauthorized request rejected");
     return jsonRes({ error: "Unauthorized" }, 401);
