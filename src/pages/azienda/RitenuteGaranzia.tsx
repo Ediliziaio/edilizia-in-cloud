@@ -48,6 +48,7 @@ interface Ritenuta {
   note: string | null;
   created_at: string;
   orders?: { order_code: string | null; description: string | null } | null;
+  contratti_subappalto?: { subappaltatori_sicurezza: { ragione_sociale: string | null } | null } | null;
 }
 
 const OGGI = () => new Date().toISOString().slice(0, 10);
@@ -65,7 +66,7 @@ export default function RitenuteGaranzia() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('ritenute_garanzia')
-        .select('id, contratto_id, order_id, direzione, controparte, importo, percentuale_applicata, stato, data_svincolo_prevista, data_svincolo_effettiva, fideiussione, note, created_at, orders(order_code, description)')
+        .select('id, contratto_id, order_id, direzione, controparte, importo, percentuale_applicata, stato, data_svincolo_prevista, data_svincolo_effettiva, fideiussione, note, created_at, orders(order_code, description), contratti_subappalto(subappaltatori_sicurezza(ragione_sociale))')
         .eq('company_id', companyId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -227,7 +228,7 @@ export default function RitenuteGaranzia() {
                     <TableRow key={r.id} className={scaduta ? 'bg-orange-50/60' : undefined}>
                       <TableCell>
                         <p className="font-medium">
-                          {r.orders?.order_code ?? r.controparte ?? '—'}
+                          {r.orders?.order_code ?? r.contratti_subappalto?.subappaltatori_sicurezza?.ragione_sociale ?? r.controparte ?? '—'}
                           {r.fideiussione && <Badge variant="outline" className="ml-2 border-sky-300 text-[10px] text-sky-700">fideiussione</Badge>}
                         </p>
                         <p className="max-w-[260px] truncate text-xs text-muted-foreground">
