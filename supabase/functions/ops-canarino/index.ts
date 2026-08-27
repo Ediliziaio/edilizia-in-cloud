@@ -1,6 +1,9 @@
 /**
  * ops-canarino — il rapporto mattutino sui segnali vitali della piattaforma.
  *
+ * Il nome interno resta "canarino" (canary in the coal mine); quello che legge
+ * il super-admin si chiama "Stato piattaforma".
+ *
  * Esiste perche' qui i guasti muoiono in silenzio: il dunning non e' mai
  * partito per quattro mesi, la CI e' rimasta in 401 per giorni, un cron
  * rispondeva 500 mentre il registro diceva "succeeded". Nessuno di questi
@@ -24,7 +27,7 @@ const supabase = createClient(
 
 // Etichette in italiano per le sezioni del rapporto, nell'ordine di gravita'.
 const SEZIONI: Array<{ key: string; titolo: string }> = [
-  { key: "snapshot_vecchio", titolo: "Il canarino stesso: raccolta dati ferma" },
+  { key: "snapshot_vecchio", titolo: "Il controllo stesso: raccolta dati ferma" },
   { key: "dunning_fermo", titolo: "Aziende in mancato pagamento SENZA solleciti" },
   { key: "cron_silenti", titolo: "Cron giornalieri che non girano da 26 ore" },
   { key: "http_errori_24h", titolo: "Errori HTTP dei cron (ultime 24h)" },
@@ -86,8 +89,8 @@ Deno.serve(async (req) => {
     }
 
     const subject = totale === 0
-      ? "Canarino EiC — tutto regolare"
-      : `Canarino EiC — ${totale} segnali da guardare`;
+      ? "Stato piattaforma — tutto regolare"
+      : `Stato piattaforma — ${totale} segnali da guardare`;
 
     const corpo = totale === 0
       ? `<p style="font-family:sans-serif;font-size:14px;color:#374151;">Nessun segnale nelle ultime 24 ore: cron eseguiti, nessun errore HTTP rilevante, caselle e integrazioni attive, solleciti in corso dove servono.</p>`
@@ -99,8 +102,8 @@ Deno.serve(async (req) => {
       <h2 style="font-family:sans-serif;font-size:18px;color:#111827;">${subject}</h2>
       ${corpo}
       <p style="font-family:sans-serif;font-size:11px;color:#9ca3af;margin-top:24px;">
-        Rapporto generato alle ${String(vitali?.generato_alle ?? "")} — ops-canarino, ogni mattina alle 05:00 UTC.
-        Questo rapporto arriva anche quando e' tutto regolare: se smette di arrivare, e' il canarino ad avere un problema.
+        Rapporto generato alle ${String(vitali?.generato_alle ?? "")} — ogni mattina alle 05:00 UTC.
+        Arriva anche quando e' tutto regolare: se smette di arrivare, il problema e' il controllo stesso.
       </p>
     </div>`;
 
