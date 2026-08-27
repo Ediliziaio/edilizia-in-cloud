@@ -40,6 +40,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { useCompanyCostsData, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { EMPLOYEE_PROJECTION_MONTHS, computeCostiSenzaScadenza } from "@/lib/costsUtils";
 import { MonthPicker, type PeriodMode } from "./MonthPicker";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 
 // Filtri neutri: la Panoramica lavora sempre sul dataset completo e filtra
 // per periodo lato client (le query sono condivise con la tab Spese).
@@ -316,42 +317,40 @@ export function CostsOverviewTab({
         )}
       </div>
 
-      {/* KPI periodo */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 shadow-sm">
-          <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Totale {labelPeriodo}
-            </span>
-            <Wallet className="h-4 w-4 text-slate-500" />
+      {/* Testata navy di famiglia: il periodo scelto in tre card in vetro. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Panoramica</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Dove vanno i soldi · {labelPeriodo}</h2>
+            </div>
           </div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totalePeriodo)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {voci.length} voci · periodo prec. {formatCurrency(totalePrec)}
-          </p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 shadow-sm">
-          <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Già pagato
-            </span>
-            <PiggyBank className="h-4 w-4 text-slate-500" />
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
+            <NavyStatCard
+              label={`Totale ${labelPeriodo}`}
+              value={formatCurrency(totalePeriodo)}
+              sub={`${voci.length} voci · prima ${formatCurrency(totalePrec)}`}
+              icon={Wallet}
+              tone="text-orange-100"
+            />
+            <NavyStatCard
+              label="Già pagato"
+              value={formatCurrency(pagatoPeriodo)}
+              sub={`${vocePagataPct}% del periodo`}
+              icon={PiggyBank}
+              tone="text-emerald-200"
+            />
+            <NavyStatCard
+              label="Da pagare"
+              value={formatCurrency(daPagarePeriodo)}
+              sub="in scadenza nel periodo"
+              icon={ReceiptText}
+            />
           </div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(pagatoPeriodo)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{vocePagataPct}% del periodo</p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 shadow-sm">
-          <div className="absolute inset-y-0 left-0 w-1 bg-sky-500" />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Da pagare
-            </span>
-            <ReceiptText className="h-4 w-4 text-slate-500" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(daPagarePeriodo)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">in scadenza nel periodo</p>
         </div>
       </div>
 
