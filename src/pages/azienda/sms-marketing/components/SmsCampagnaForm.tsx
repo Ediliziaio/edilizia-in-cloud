@@ -231,7 +231,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
               <div className="flex justify-between"><span>Mittente:</span><span className="font-medium text-foreground">{form.mittente}</span></div>
               <div className="flex justify-between"><span>Destinatari:</span><span className="font-medium text-foreground">{(nDestinatari ?? 0).toLocaleString("it-IT")}</span></div>
               <div className="flex justify-between"><span>SMS per destinatario:</span><span className="font-medium text-foreground">{smsInfo.parti} ({smsInfo.tipoCharset})</span></div>
-              <div className="flex justify-between"><span>Stima costo:</span><span className="font-medium text-foreground">~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(stimaCosto)}</span></div>
+              <div className="flex justify-between"><span>Stima costo:</span><span className="font-medium text-foreground">~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto)}</span></div>
             </div>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
@@ -268,7 +268,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
               <strong>{form.tipo === "immediata" ? (nDestinatari ?? 0).toLocaleString("it-IT") : new Date(form.programmata_per ?? "").toLocaleString("it-IT")}</strong>
               {form.tipo === "immediata" ? " contatti." : "."}<br />
               SMS stimati: <strong>{((nDestinatari ?? 0) * smsInfo.parti).toLocaleString("it-IT")}</strong>.<br />
-              Costo stimato: <strong>~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(stimaCosto)}</strong>.<br />
+              Costo stimato: <strong>~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(stimaCosto)}</strong>.<br />
               {form.tipo === "immediata" ? "L'azione non puo' essere interrotta una volta avviata." : "L'invio reale sara' gestito dalla pianificazione."}
             </AlertDialogDescription>
           </AlertDialogHeader>

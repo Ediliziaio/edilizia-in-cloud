@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 
 const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(v);
 
 interface ServizioRow {
   key: string;

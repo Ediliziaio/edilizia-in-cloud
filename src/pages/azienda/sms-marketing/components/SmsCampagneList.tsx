@@ -93,7 +93,7 @@ export function SmsCampagneList() {
                     <span>✅ {c.consegnati.toLocaleString("it-IT")} consegnati</span>
                     {c.errori > 0 && <span className="text-destructive">❌ {c.errori.toLocaleString("it-IT")} errori</span>}
                     {c.costo_totale > 0 && (
-                      <span>💶 {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c.costo_totale)}</span>
+                      <span>💶 {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(c.costo_totale)}</span>
                     )}
                     <span>{format(new Date(c.created_at), "d MMM yyyy", { locale: it })}</span>
                   </div>

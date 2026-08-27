@@ -65,7 +65,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
     { label: "Campagne inviate", value: dashboard.campagneInviate.toLocaleString("it-IT"), icon: MessageSquare, color: "text-blue-600" },
     { label: "SMS inviati", value: dashboard.smsTotali.toLocaleString("it-IT"), icon: Send, color: "text-violet-600" },
     { label: "Tasso consegna", value: `${dashboard.tassoConsegnaMedio.toFixed(1).replace(".", ",")}%`, icon: CheckCircle2, color: "text-emerald-600" },
-    { label: "Costo totale", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(dashboard.costoTotale), icon: Euro, color: "text-orange-600" },
+    { label: "Costo totale", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(dashboard.costoTotale), icon: Euro, color: "text-orange-600" },
   ];
 
   return (
@@ -77,7 +77,7 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
             <div className="flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold tabular-nums">
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(creditiResidui)}
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
                 </span>
                 <span className="text-sm text-muted-foreground">crediti disponibili</span>
               </div>

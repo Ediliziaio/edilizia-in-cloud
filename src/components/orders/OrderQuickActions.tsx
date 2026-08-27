@@ -60,7 +60,7 @@ interface Props {
   onOpenFirma?: () => void;
 }
 
-const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 

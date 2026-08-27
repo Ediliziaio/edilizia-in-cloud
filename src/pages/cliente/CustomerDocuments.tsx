@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 
 const fmtCur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 const CUSTOMER_STORAGE_BUCKETS = new Set([
   "order-attachments",

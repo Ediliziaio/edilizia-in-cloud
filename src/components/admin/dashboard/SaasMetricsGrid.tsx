@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CacInputModal } from "./CacInputModal";
 import { useSaasMetrics } from "@/hooks/useSaasMetrics";
 
-const fmtEur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const fmtEur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 const fmtMesi = (v: number) => `${v.toFixed(1)} mesi`;
 

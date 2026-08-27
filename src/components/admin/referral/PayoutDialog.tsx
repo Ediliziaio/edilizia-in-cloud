@@ -176,7 +176,7 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
               Registra Pagamento
             </Button>
             <p className="text-xs text-muted-foreground">
-              Saldo disponibile: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(availableBalance)}
+              Saldo disponibile: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(availableBalance)}
             </p>
           </form>
         </Form>

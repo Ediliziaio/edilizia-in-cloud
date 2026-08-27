@@ -133,7 +133,7 @@ export default function FeatureBundles() {
   }, [filteredFlags]);
 
   const formatEuro = (n: number | null | undefined) =>
-    n == null ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+    n == null ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
   return (
     <div className="min-h-screen bg-background">

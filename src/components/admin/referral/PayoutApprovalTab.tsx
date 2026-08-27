@@ -556,7 +556,7 @@ export function PayoutApprovalTab() {
               <p>
                 Importo:{" "}
                 <strong className="text-foreground">
-                  {approveConfirmData ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(approveConfirmData.amount) : "—"}
+                  {approveConfirmData ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(approveConfirmData.amount) : "—"}
                 </strong>
               </p>
               <p className="text-destructive font-medium">

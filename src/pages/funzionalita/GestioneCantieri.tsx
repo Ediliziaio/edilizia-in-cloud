@@ -283,7 +283,7 @@ const config: FunzionalitaPageConfig = {
     outputLabel: "Margine recuperato stimato/anno",
     computeOutput: (a, b) => Math.round(a * b * 0.03),
     computeSecondary: (a, b) => [
-      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
+      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * b) },
       { label: "Ore titolare risparmiate/anno", value: `${Math.round(a * 12)} h` },
       { label: "Ore capocantiere/anno (report)", value: `${Math.round(a * 36)} h` },
     ],

@@ -53,7 +53,7 @@ const BRAND = {
 };
 
 const formatEuro = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
 export function exportOfferPdf(input: OfferPdfInput): void {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });

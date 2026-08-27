@@ -63,7 +63,7 @@ const SECTORS = [
   { value: "altro", label: "Altro" },
 ];
 
-const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(n);
+const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0, useGrouping: "always" }).format(n);
 
 export default function OffertaCheckout() {
   const { slug = "" } = useParams();

@@ -174,7 +174,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
               </span>
               <span className="text-muted-foreground">Totale:</span>
               <span className="font-bold text-primary">
-                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(state.totale_da_pagare ?? 0)}
+                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(state.totale_da_pagare ?? 0)}
               </span>
             </div>
           </div>

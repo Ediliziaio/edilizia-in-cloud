@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const fmtCur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 interface Installment {
   id: string;

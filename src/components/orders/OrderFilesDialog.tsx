@@ -58,7 +58,7 @@ function fiscalTypeLabel(t?: string | null) {
   }
 }
 const fmtEur = (n?: number | null) =>
-  typeof n === "number" ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n) : "";
+  typeof n === "number" ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n) : "";
 
 export function OrderFilesDialog({
   open, onOpenChange, fatture, documenti, items, onOpenDocumento, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy,

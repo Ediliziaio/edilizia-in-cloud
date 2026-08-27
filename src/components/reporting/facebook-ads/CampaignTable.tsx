@@ -15,7 +15,7 @@ interface Props {
 }
 
 const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
-const fmtCurrency = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+const fmtCurrency = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
 
 type ColumnDef = { key: string; label: string; format: (r: NormalizedCampaignRow) => string; align?: string };
@@ -227,7 +227,7 @@ const CampaignTable = ({ report }: Props) => {
       {!report.isLoading && report.rows.length > 0 && (
         <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/20 text-xs text-muted-foreground">
           <span>{report.rows.length} {report.level === "ad" ? "annunci" : report.level === "adset" ? "gruppi inserzioni" : "campagne"}</span>
-          <span>Totale: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(report.rows.reduce((s, r) => s + r.spend, 0))}</span>
+          <span>Totale: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(report.rows.reduce((s, r) => s + r.spend, 0))}</span>
         </div>
       )}
     </Card>

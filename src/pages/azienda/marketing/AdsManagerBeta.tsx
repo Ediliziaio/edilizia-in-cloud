@@ -637,8 +637,7 @@ function formatEuro(cents: number) {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
+    maximumFractionDigits: 0, useGrouping: "always" }).format(cents / 100);
 }
 
 /**

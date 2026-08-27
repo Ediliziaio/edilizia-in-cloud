@@ -79,7 +79,7 @@ function KpiCard({
 function PlatformKPIs({ stats, loading }: { stats: PlatformStats | undefined; loading: boolean }) {
   const fmt = (n?: number) => (n ?? 0).toLocaleString("it-IT");
   const fmtEur = (n?: number) =>
-    (n ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+    (n ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
 
   const activeRate = useMemo(() => {
     if (!stats?.totalCompanies || !stats?.activeCompanies) return null;

@@ -5,7 +5,7 @@
 
 /** Formatta un numero come valuta EUR in italiano */
 export const formatCurrency = (n: number): string =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 /** Formatta una percentuale con 2 decimali in italiano */
 export const formatPercent = (n: number): string =>

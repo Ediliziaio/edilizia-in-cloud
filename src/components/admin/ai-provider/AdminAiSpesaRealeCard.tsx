@@ -37,9 +37,9 @@ interface RigaLedger {
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 const eur4 = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 4 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 4, useGrouping: "always" }).format(n);
 
 function aggrega(righe: RigaLedger[], chiave: (r: RigaLedger) => string) {
   const m = new Map<string, { nome: string; n: number; speso: number; incassato: number }>();

@@ -192,7 +192,7 @@ function ScadenzeSection({ emailId }: { emailId: string }) {
               )}
             </div>
             <p className="text-[12px] text-slate-800">
-              <b>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(s.amount)}</b>
+              <b>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(s.amount)}</b>
               {" · "}entro il {new Date(s.due_date).toLocaleDateString("it-IT")}
               {s.descrizione ? ` · ${s.descrizione}` : ""}
             </p>

@@ -6,7 +6,7 @@ import type { FinanceData, CashFlowForecastData } from "@/hooks/useCruscottoData
 import { useNavigate } from "react-router-dom";
 
 function fmtEur(n: number) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 }
 
 interface Props {

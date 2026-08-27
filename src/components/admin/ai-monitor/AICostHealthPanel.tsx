@@ -42,8 +42,7 @@ const eur = (n: number) =>
   new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: Math.abs(n ?? 0) < 1 ? 4 : 2,
-  }).format(n ?? 0);
+    maximumFractionDigits: Math.abs(n ?? 0) < 1 ? 4 : 2, useGrouping: "always" }).format(n ?? 0);
 
 export function AICostHealthPanel() {
   const { data, isLoading, isError } = useQuery({

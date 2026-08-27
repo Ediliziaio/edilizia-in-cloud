@@ -50,8 +50,7 @@ const VALID_TABS = new Set(["abbonamenti", "pagamenti", "portafoglio", "notifich
 function formatEurCents(centesimi: number, currency = "eur"): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
-    currency: currency.toUpperCase(),
-  }).format(centesimi / 100);
+    currency: currency.toUpperCase(), useGrouping: "always" }).format(centesimi / 100);
 }
 
 function formatPeriod(start: string | null, end: string | null): string {

@@ -113,8 +113,7 @@ export function ModuloLockedDialog({ view, open, onOpenChange }: ModuloLockedDia
                 {new Intl.NumberFormat("it-IT", {
                   style: "currency",
                   currency: "EUR",
-                  maximumFractionDigits: 0,
-                }).format(modulo.prezzoMensile)}
+                  maximumFractionDigits: 0, useGrouping: "always" }).format(modulo.prezzoMensile)}
                 <span className="ml-1 text-sm font-normal text-muted-foreground">/mese</span>
               </span>
             </div>

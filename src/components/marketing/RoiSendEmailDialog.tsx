@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Send, Loader2, FileText } from "lucide-react";
 
 const EUR = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(
     Number.isFinite(n) ? n : 0,
   );
 

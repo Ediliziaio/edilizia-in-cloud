@@ -42,14 +42,13 @@ import { it } from "date-fns/locale";
 // ── Formatter ──────────────────────────────────────────────────────────────
 
 const eur = (v: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v || 0);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(v || 0);
 const eur4 = (v: number) =>
   new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-  }).format(v || 0);
+    maximumFractionDigits: 4, useGrouping: "always" }).format(v || 0);
 const num = (v: number) =>
   new Intl.NumberFormat("it-IT").format(v || 0);
 

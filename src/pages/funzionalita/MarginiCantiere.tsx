@@ -284,7 +284,7 @@ const config: FunzionalitaPageConfig = {
     outputLabel: "Margine recuperato stimato/anno",
     computeOutput: (a, b) => Math.round(a * b * 0.04),
     computeSecondary: (a, b) => [
-      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
+      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * b) },
       { label: "Cantieri salvati da rosso (stima)", value: `${Math.max(1, Math.round(a * 0.15))}` },
       { label: "Ore controller risparmiate/anno", value: `${Math.round(a * 60)} h` },
     ],

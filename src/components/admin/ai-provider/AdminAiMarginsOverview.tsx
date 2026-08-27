@@ -196,8 +196,7 @@ const fmtEur = (v: number, forceDecimals?: number) => {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(v);
+    maximumFractionDigits: decimals, useGrouping: "always" }).format(v);
 };
 
 const fmtNum = (v: number) =>

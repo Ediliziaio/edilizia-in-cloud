@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 const formatMoney = (value: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value || 0);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(value || 0);
 
 function SupplierReportsPanel() {
   const { suppliers, isLoading } = useOperationalSuppliers();

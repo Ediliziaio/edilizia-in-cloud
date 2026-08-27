@@ -333,8 +333,7 @@ function RoiCalculator({
     new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
-      maximumFractionDigits: 0,
-    }).format(n);
+      maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
   return (
     <div className="rounded-2xl border border-orange-200 bg-white p-6 shadow-lg sm:p-8">

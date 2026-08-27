@@ -19,8 +19,7 @@ interface ForecastChartProps {
 const currencyFormatter = new Intl.NumberFormat("it-IT", {
   style: "currency",
   currency: "EUR",
-  maximumFractionDigits: 0,
-});
+  maximumFractionDigits: 0, useGrouping: "always" });
 
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload || payload.length === 0) return null;

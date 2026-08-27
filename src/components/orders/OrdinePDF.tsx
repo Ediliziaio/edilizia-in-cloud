@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
 /* ── Helpers ─────────────────────────────────────────────── */
 const fmt = (n: number | null | undefined) => {
   if (n == null) return "—";
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 };
 
 const fmtDate = (d: string | null | undefined) => {

@@ -68,7 +68,7 @@ import {
 } from "@/lib/fotovoltaico/collegaListino";
 
 const eur = (n: number | null | undefined) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n ?? 0);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n ?? 0);
 
 type TipoFv =
   | "pannello"

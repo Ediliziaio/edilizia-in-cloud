@@ -41,7 +41,7 @@ import {
 } from "@/lib/adminRevenue";
 
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 function fmtCompact(value: number): string {
@@ -49,8 +49,7 @@ function fmtCompact(value: number): string {
     style: "currency",
     currency: "EUR",
     notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
+    maximumFractionDigits: 1, useGrouping: "always" }).format(value);
 }
 
 // ─── Types ────────────────────────────────────────────────

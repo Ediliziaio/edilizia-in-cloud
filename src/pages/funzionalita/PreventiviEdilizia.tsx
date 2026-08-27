@@ -287,7 +287,7 @@ const config: FunzionalitaPageConfig = {
       { label: "Preventivi inviati/anno", value: `${a * 12}` },
       { label: "Ore tecnico risparmiate/anno", value: `${Math.round(a * 12 * 4)} h` },
       { label: "Trattative aggiuntive chiuse/anno", value: `${Math.round(a * 12 * 0.12)}` },
-      { label: "Volume gestito/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * 12 * b) },
+      { label: "Volume gestito/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 12 * b) },
     ],
     closingPitch:
       "Stima prudenziale basata su +12 punti percentuali di chiusura. La maggior parte dei nostri clienti registra tra il +10% e il +18% nei primi 12 mesi.",

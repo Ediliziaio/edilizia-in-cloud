@@ -321,7 +321,7 @@ export default function FirmaOdV() {
                   <div>
                     <p className="text-xs text-muted-foreground">Importo aggiuntivo</p>
                     <p className="font-semibold text-sm">
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(odv.impatto_economico)}
+                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv.impatto_economico)}
                     </p>
                   </div>
                 </div>
@@ -417,7 +417,7 @@ export default function FirmaOdV() {
                 <AlertDialogTitle>Conferma rifiuto</AlertDialogTitle>
                 <AlertDialogDescription>
                   Stai rifiutando l'ordine di variazione <strong>"{odv?.titolo}"</strong> da{" "}
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(odv?.impatto_economico || 0)}.
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv?.impatto_economico || 0)}.
                   L'azienda sarà notificata e i lavori non potranno procedere.
                 </AlertDialogDescription>
               </AlertDialogHeader>

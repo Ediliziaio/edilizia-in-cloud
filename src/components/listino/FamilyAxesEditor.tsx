@@ -2054,8 +2054,7 @@ function PricePreviewRow({
     new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
-      maximumFractionDigits: 2,
-    }).format(n);
+      maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 
   if (tipo === "percentuale") {
     const base = 1000;

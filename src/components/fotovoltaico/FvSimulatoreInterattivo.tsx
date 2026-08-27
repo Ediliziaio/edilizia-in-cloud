@@ -22,8 +22,7 @@ const eur = (v: number) =>
   new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(v);
+    maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 

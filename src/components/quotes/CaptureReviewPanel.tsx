@@ -232,7 +232,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const totalIva = subtotal * 0.22;
   const total = subtotal + totalIva;
   const formatter = useMemo(
-    () => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }),
+    () => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }),
     [],
   );
 

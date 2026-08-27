@@ -8,7 +8,7 @@ import { format, subDays } from "date-fns";
 import type { TodayData } from "@/hooks/useCruscottoData";
 
 function fmtEur(n: number) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 }
 
 type FocusPreset = "today" | "yesterday" | "last7" | "last30";

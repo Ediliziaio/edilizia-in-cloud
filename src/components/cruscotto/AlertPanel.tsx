@@ -27,7 +27,7 @@ interface Props {
 }
 
 function fmtEur(n: number) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 }
 
 function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: FinanceData, today: TodayData | null, billing?: DashboardBillingKPI | null): AlertItem[] {

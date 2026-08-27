@@ -38,7 +38,7 @@ interface CreaProformaDialogProps {
 // ── Helpers ──────────────────────────────────────────────────────
 
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 // ── Component ────────────────────────────────────────────────────

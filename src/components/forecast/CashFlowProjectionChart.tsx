@@ -108,7 +108,7 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
             />
             <Tooltip
               cursor={{ stroke: "rgba(15, 23, 42, 0.15)" }}
-              formatter={(value: number) => [value.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }), "Saldo"]}
+              formatter={(value: number) => [value.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }), "Saldo"]}
               contentStyle={{
                 borderRadius: 12,
                 border: "1px solid #e2e8f0",

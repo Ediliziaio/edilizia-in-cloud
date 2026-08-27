@@ -46,7 +46,7 @@ const STATI = [
   { value: "parziale", label: "Parziale" },
   { value: "incassato", label: "Incassato" },
 ];
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 const monthLabel = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("it-IT", { month: "short", year: "numeric" });
 const toMonthInput = (d?: string) => (d ? d.slice(0, 7) : "");
 const fromMonthInput = (m: string) => (m ? `${m}-01` : "");

@@ -11,7 +11,7 @@ import { AlertTriangle, CalendarClock, Copy, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export const fmtEur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 export interface MatchSuggestion {
   invoice: any;

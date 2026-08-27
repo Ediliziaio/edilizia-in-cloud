@@ -32,7 +32,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 /** Riga documento da un articolo (id stabile = item.id → la selezione non salta). */

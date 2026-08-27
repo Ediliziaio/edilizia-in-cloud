@@ -28,7 +28,7 @@ const eurCompact = (n: number) => {
   const v = Math.round(n || 0);
   if (Math.abs(v) >= 1_000_000) return `€ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
   if (Math.abs(v) >= 1000) return `€ ${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1).replace(".", ",")}k`;
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 };
 
 const shortDate = (iso: string | null) => {

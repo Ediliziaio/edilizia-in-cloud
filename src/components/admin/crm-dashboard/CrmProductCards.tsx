@@ -35,7 +35,7 @@ const DEFAULTS: ProductLine[] = [
 
 const ICONS: Record<string, typeof Cloud> = { Cloud, Megaphone, Trophy, BarChart3, Handshake, Package };
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 
 export function CrmProductCards({ companyId }: { companyId: string }) {
   const q = useQuery({

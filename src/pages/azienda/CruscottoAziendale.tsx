@@ -180,7 +180,7 @@ export default function CruscottoAziendale() {
 
   const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
     const eur = (v: number) =>
-      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
     return [
       { key: "venduto", label: "Venduto", color: "hsl(var(--chart-1))", formatter: eur },
       { key: "incassato", label: "Incassato", color: "hsl(var(--chart-3))", formatter: eur },

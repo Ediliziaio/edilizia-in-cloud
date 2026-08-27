@@ -39,7 +39,7 @@ const RICORRENZE = [
   { value: "annuale", label: "Annuale" },
   { value: "una_tantum", label: "Una-tantum" },
 ];
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 
 type Draft = Partial<ProductPackage>;
 

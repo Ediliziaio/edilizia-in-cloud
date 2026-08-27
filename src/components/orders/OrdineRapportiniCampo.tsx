@@ -393,7 +393,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {stato === "approvato" && Number(r.costo_manodopera) > 0 && (
                           <div className="text-xs font-medium text-emerald-700">
                             Costo manodopera registrato:{" "}
-                            {Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                            {Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}
                           </div>
                         )}
                       </div>

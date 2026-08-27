@@ -71,7 +71,7 @@ function isValidTab(value: string | null): value is FatturatoTab {
 }
 
 const fmtCurrency = (n: number) =>
-  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
 
 /** Riepilogo top-level fatturato — versione "leggera" del dashboard revenue. */
 function useFatturatoSnapshot() {
@@ -365,7 +365,7 @@ export default function AdminFatturatoHub() {
                     formatter={(value, name) => {
                       if (name === "aziende") return [Number(value).toLocaleString("it-IT"), "Aziende"];
                       return [
-                        Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                        Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
                         name === "mrrStripe" ? "MRR Stripe" : "MRR Interno",
                       ];
                     }}

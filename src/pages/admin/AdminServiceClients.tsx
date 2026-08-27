@@ -71,7 +71,7 @@ const RICORRENZE = [
   { value: "una_tantum", label: "Una-tantum" },
 ];
 const STATI: Record<string, string> = { attivo: "bg-emerald-100 text-emerald-700", pausa: "bg-amber-100 text-amber-700", cessato: "bg-slate-200 text-slate-600" };
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 
 type Draft = Partial<ServiceClient>;
 const EMPTY: Draft = { billing_model: "retainer_fisso", ricorrenza: "mensile", stato: "attivo", importo: 0, data_inizio: new Date().toISOString().slice(0, 10) };

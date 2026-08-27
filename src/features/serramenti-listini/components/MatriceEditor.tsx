@@ -58,8 +58,7 @@ const fmtEur = (n: number) =>
   new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 2,
-  }).format(n);
+    maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 
 export function MatriceEditor({
   familyId,

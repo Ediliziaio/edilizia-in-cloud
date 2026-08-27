@@ -18,7 +18,7 @@ import { AlarmClock, ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface Overdue { id: string; name: string; next_action: string | null; next_action_date: string; value: number | null; }
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n));
 
 export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
   const [todayMs] = useState(() => Date.now());

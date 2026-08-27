@@ -34,7 +34,7 @@ export function SmsWalletBadge({ onRicarica }: SmsWalletBadgeProps) {
         <Wallet className="h-4 w-4 shrink-0" />
       )}
       <span className="font-medium tabular-nums">
-        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(creditiResidui)}
+        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiResidui)}
       </span>
       {isWarning && (
         <Button

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Euro, Loader2, Plus, Trash2 } from "lucide-react";
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 
 // Data locale (Europe/Rome), NON toISOString (UTC scala di un giorno la sera).
 const todayLocal = () => new Date().toLocaleDateString("en-CA");

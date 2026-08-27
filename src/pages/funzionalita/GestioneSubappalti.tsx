@@ -282,8 +282,8 @@ const config: FunzionalitaPageConfig = {
     outputLabel: "Rischio evitato + margine recuperato/anno",
     computeOutput: (a, b) => Math.round(a * b * 0.02),
     computeSecondary: (a, b) => [
-      { label: "Volume subappalti gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
-      { label: "Ritenuta 4% gestita/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b * 0.04) },
+      { label: "Volume subappalti gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * b) },
+      { label: "Ritenuta 4% gestita/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * b * 0.04) },
       { label: "DURC verificati/anno", value: `${a * 4}` },
       { label: "Ore amministrative risparmiate", value: `${Math.round(a * 24)} h` },
     ],

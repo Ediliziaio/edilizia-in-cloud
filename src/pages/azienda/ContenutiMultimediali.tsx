@@ -917,7 +917,7 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         linkedEntityId: row.id,
         metadataFacts: compactFacts([
           row.title ? `Titolo: ${row.title}` : null,
-          typeof row.total === "number" ? `Totale: ${row.total.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}` : null,
+          typeof row.total === "number" ? `Totale: ${row.total.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}` : null,
           row.opportunity_id ? `Opportunita: ${row.opportunity_id}` : null,
           row.contact_id ? `Contatto: ${row.contact_id}` : null,
           row.status ? `Stato preventivo: ${row.status}` : null,

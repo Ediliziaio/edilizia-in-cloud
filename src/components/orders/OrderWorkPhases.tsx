@@ -79,7 +79,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
 const STATUS_OPTIONS: { value: PhaseStatus; label: string; dot: string; badge: string }[] = [
   {

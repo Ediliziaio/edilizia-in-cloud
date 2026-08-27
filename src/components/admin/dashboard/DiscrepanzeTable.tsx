@@ -12,7 +12,7 @@ interface DiscrepanzeTableProps {
   discrepanze: DiscrepanzaRow[];
 }
 
-const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
 export function DiscrepanzeTable({ discrepanze }: DiscrepanzeTableProps) {
   if (discrepanze.length === 0) return null;

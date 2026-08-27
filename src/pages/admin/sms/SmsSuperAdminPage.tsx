@@ -249,7 +249,7 @@ function SmsTenantTable() {
             ) : (
               tenants.map((t) => {
                 const eur = (v: number) =>
-                  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+                  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(v);
                 return (
                   <TableRow key={t.company_id}>
                     <TableCell className="font-medium">{t.company_name}</TableCell>
@@ -300,7 +300,7 @@ function SmsPLChart() {
             <XAxis dataKey="mese" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={50}
               tickFormatter={(v: number) => `€${v.toFixed(0)}`} />
-            <Tooltip formatter={(v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v)} />
+            <Tooltip formatter={(v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(v)} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Line type="monotone" dataKey="fatturato" name="Fatturato" stroke="#8b5cf6" strokeWidth={2} dot={false} />
           </LineChart>
@@ -344,14 +344,14 @@ export default function SmsSuperAdminPage() {
     },
     {
       title: "Fatturato SMS (mese)",
-      value: isLoadingPL ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(plStats?.fatturato_totale ?? 0),
+      value: isLoadingPL ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(plStats?.fatturato_totale ?? 0),
       sub: "Ricariche crediti",
       icon: Euro,
       color: "text-emerald-600",
     },
     {
       title: "Margine (mese)",
-      value: isLoadingPL ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(plStats?.margine_totale ?? 0),
+      value: isLoadingPL ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(plStats?.margine_totale ?? 0),
       sub: plStats ? `${plStats.margine_percentuale.toFixed(1)}% del fatturato` : undefined,
       icon: TrendingUp,
       color: "text-orange-600",

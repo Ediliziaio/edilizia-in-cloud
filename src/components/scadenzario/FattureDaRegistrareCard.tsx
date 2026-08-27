@@ -7,7 +7,7 @@ import { useConfermaScadenza, useScartaScadenza, useScadenzeBozzeDaRegistrare } 
 import { Button } from "@/components/ui/button";
 import { Check, X, FileText, Loader2 } from "lucide-react";
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n || 0);
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n || 0);
 const fmtDate = (iso: string) => {
   try {
     return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });

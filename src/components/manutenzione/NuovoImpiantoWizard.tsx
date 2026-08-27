@@ -334,7 +334,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                             <>
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="font-semibold text-teal-700">
-                                  {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                                  {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}
                                 </span>
                                 {prezzoListino.iva != null && (
                                   <span className="text-xs text-muted-foreground">+ IVA {prezzoListino.iva}%</span>

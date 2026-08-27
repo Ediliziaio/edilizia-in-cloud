@@ -707,8 +707,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                   <strong className="text-orange-600">
                     {new Intl.NumberFormat("it-IT", {
                       style: "currency",
-                      currency: "EUR",
-                    }).format(
+                      currency: "EUR", useGrouping: "always" }).format(
                       vociLocali
                         .filter((v) => v._isIncluded)
                         .reduce((s, v) => s + v._importoImpresa, 0)

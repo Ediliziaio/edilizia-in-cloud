@@ -286,7 +286,7 @@ const config: FunzionalitaPageConfig = {
     computeOutput: (a, b) => Math.round(a * 0.7 * 50 * b),
     computeSecondary: (a, b) => [
       { label: "Ore recuperate/anno", value: `${Math.round(a * 0.7 * 50)} h` },
-      { label: "Costo attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * 50 * b) },
+      { label: "Costo attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 50 * b) },
       { label: "Equivale a FTE risparmiato", value: `${(a * 0.7 / 40).toFixed(2)} FTE` },
     ],
     closingPitch:

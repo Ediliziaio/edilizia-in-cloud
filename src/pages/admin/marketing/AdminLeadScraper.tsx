@@ -160,7 +160,7 @@ function stimaCostoRicerca(source: string, n: number): { testo: string } {
   switch (source) {
     case "company_search": {
       const eur = n * 0.03; // ricerca + dettaglio IT-advanced openapi.it
-      return { testo: `~${eur.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })} (${n} aziende × ~€0,03)` };
+      return { testo: `~${eur.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" })} (${n} aziende × ~€0,03)` };
     }
     case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
     case "apify_maps": return { testo: "usa il piano Apify ($5 free/mese, poi a consumo)" };

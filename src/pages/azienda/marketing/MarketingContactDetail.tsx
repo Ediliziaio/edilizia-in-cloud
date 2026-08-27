@@ -727,7 +727,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     ? format(new Date(lastActivity), "d MMM yyyy", { locale: it })
     : "—";
   const fmtMoney = (n: number) =>
-    n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+    n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
 
   const aiScore = contact.ai_score as number | null | undefined;
   const aiTier = contact.ai_score_tier as string | null | undefined;
@@ -2166,7 +2166,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     indirizzo: "Indirizzo", comune: "Comune", provincia: "Provincia", cap: "CAP",
                     dipendenti: "Dipendenti", fatturato: "Fatturato", utile: "Utile", anno_bilancio: "Anno bilancio",
                   };
-                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+                  const fmtMoneyIt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
                   const rows = Object.entries(LABELS)
                     .filter(([k]) => vis[k] != null && String(vis[k]).trim() !== "")
                     .map(([k]) => {
@@ -2264,7 +2264,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               comune: "Comune", provincia: "Provincia", cap: "CAP", dipendenti: "Dipendenti", fatturato: "Fatturato",
               utile: "Utile", anno_bilancio: "Anno bilancio",
             };
-            const money = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+            const money = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
             const rowV = (label: string, value: React.ReactNode) => (
               <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
                 <span className="w-32 shrink-0 text-muted-foreground">{label}</span>

@@ -35,7 +35,7 @@ import { getTimeLeft, MESI } from "@/lib/urgencyUtils";
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
 const fmtNum = (n: number) =>
   new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);

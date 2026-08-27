@@ -3600,7 +3600,7 @@ function Step5Configurazione({
                                 </div>
                                 {k.prezzo_offerta != null && (
                                   <p className="mt-2 text-lg font-extrabold text-slate-900">
-                                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(k.prezzo_offerta))}
+                                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Number(k.prezzo_offerta))}
                                   </p>
                                 )}
                                 <p className="mt-1 text-[11px] text-slate-400">{selected ? "Selezionato" : "Click per applicare"}</p>

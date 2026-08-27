@@ -11,8 +11,7 @@ import type { ForecastResult } from "@/types/dashboard";
 const currencyFormatter = new Intl.NumberFormat("it-IT", {
   style: "currency",
   currency: "EUR",
-  maximumFractionDigits: 0,
-});
+  maximumFractionDigits: 0, useGrouping: "always" });
 
 function ForecastTab({ result }: { result: ForecastResult | undefined }) {
   if (!result) return null;

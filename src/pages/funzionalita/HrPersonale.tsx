@@ -289,7 +289,7 @@ const config: FunzionalitaPageConfig = {
     computeSecondary: (a, b) => [
       { label: "Ore HR risparmiate/anno", value: `${Math.round(a * 1.5 * 0.8 * 50)} h` },
       { label: "Errori busta paga evitati/anno (stima)", value: `${Math.max(2, Math.round(a * 0.5))}` },
-      { label: "Costo HR attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * 1.5 * 50 * b) },
+      { label: "Costo HR attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 1.5 * 50 * b) },
     ],
     closingPitch:
       "Stima prudenziale basata su 1,5h HR/operaio/settimana risparmiate (-80% con timbrature digitali). Le imprese più strutturate registrano riduzioni fino al 90%.",

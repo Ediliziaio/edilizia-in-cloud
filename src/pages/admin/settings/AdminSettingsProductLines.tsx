@@ -72,7 +72,7 @@ const ICONE = ["Package", "Cloud", "Megaphone", "Trophy", "BarChart3", "Handshak
 const ICON_MAP: Record<string, typeof Package> = { Package, Cloud, Megaphone, Trophy, BarChart3, Handshake };
 const COLORI = [1, 2, 3, 4, 5].map((n) => `hsl(var(--chart-${n}))`);
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 const catMeta = (c: string) => CATEGORIE.find((x) => x.value === c) ?? { value: c, label: c, badge: "bg-muted text-muted-foreground" };
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 

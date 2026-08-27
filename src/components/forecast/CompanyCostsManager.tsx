@@ -995,7 +995,7 @@ export default function CompanyCostsManager({
                         formatter={(value, name) => {
                           if (name === "n") return [Number(value).toLocaleString("it-IT"), "N. voci"];
                           return [
-                            Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                            Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
                             name === "totale" ? "Spese" : "Pagato",
                           ];
                         }}

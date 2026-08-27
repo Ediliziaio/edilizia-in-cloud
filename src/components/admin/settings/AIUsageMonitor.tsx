@@ -281,8 +281,7 @@ function AIUsageThresholdsPanel() {
 const EUR = new Intl.NumberFormat("it-IT", {
   style: "currency",
   currency: "EUR",
-  maximumFractionDigits: 4,
-});
+  maximumFractionDigits: 4, useGrouping: "always" });
 const NUM = new Intl.NumberFormat("it-IT");
 
 function KpiCard({

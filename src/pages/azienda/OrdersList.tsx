@@ -1903,10 +1903,10 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                          media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                       </>
                     )}
@@ -1929,10 +1929,10 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                          media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                       </>
                     )}
@@ -1955,7 +1955,7 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
@@ -1992,7 +1992,7 @@ function OrdersListInner() {
                   <Skeleton className="mt-1 h-5 w-20" />
                 ) : (
                   <p className="mt-0.5 text-base font-bold text-slate-950">
-                    {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                    {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                   </p>
                 )}
               </div>
@@ -2002,7 +2002,7 @@ function OrdersListInner() {
                   <Skeleton className="mt-1 h-5 w-20" />
                 ) : (
                   <p className="mt-0.5 text-base font-bold text-orange-600">
-                    {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                    {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                   </p>
                 )}
               </div>
@@ -2059,7 +2059,7 @@ function OrdersListInner() {
                           return [Number(value).toLocaleString("it-IT"), "N. commesse"];
                         }
                         return [
-                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
                           name === "venduto" ? "Venduto" : "Incassato",
                         ];
                       }}

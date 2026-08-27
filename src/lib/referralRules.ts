@@ -238,7 +238,7 @@ export function evaluateReferralPayoutEligibility({
   if (safeAmount <= 0) blockers.push("Importo payout non valido");
 
   if (safeAmount < normalizedPolicy.minPayoutAmount) {
-    blockers.push(`Importo sotto soglia minima ${normalizedPolicy.minPayoutAmount.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`);
+    blockers.push(`Importo sotto soglia minima ${normalizedPolicy.minPayoutAmount.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}`);
   }
 
   if (normalizedPolicy.requireAcceptedTerms && !referrer?.has_accepted_terms) {

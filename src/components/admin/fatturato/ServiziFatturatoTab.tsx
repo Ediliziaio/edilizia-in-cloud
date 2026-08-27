@@ -16,7 +16,7 @@ import { Loader2, Package, TrendingUp, Wallet, Building2, Repeat, Users, PiggyBa
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = () => supabase as any;
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n || 0));
 const monthKey = (d: string) => d.slice(0, 7);
 const monthShort = (k: string) => new Date(k + "-01T00:00:00").toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
 

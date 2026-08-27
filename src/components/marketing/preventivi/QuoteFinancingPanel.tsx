@@ -56,7 +56,7 @@ interface Props {
 }
 
 const fmtEur = (n: number) =>
-  n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
 export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
   const [enabled, setEnabled] = useState(!!value);

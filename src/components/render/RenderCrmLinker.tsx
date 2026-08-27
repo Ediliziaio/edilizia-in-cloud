@@ -224,7 +224,7 @@ export function RenderCrmLinker({
                             <div className="text-sm font-medium">{o.name}</div>
                             {o.value != null && o.value > 0 && (
                               <div className="text-[11px] text-muted-foreground">
-                                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(o.value)}
+                                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(o.value)}
                               </div>
                             )}
                           </div>

@@ -312,7 +312,7 @@ export default function CreateLavoroAppaltatore() {
     ? parseDecimalIT(totalAmount)
     : 0;
   const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
-    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalForSummary)
+    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalForSummary)
     : null;
   const durationDays = useMemo(() => {
     if (!workStartDate || !workEndDate || dateError) return null;
@@ -723,25 +723,25 @@ export default function CreateLavoroAppaltatore() {
                 <div>
                   <div className="text-slate-500">Totale</div>
                   <div className="font-semibold text-slate-800">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalNum)}
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalNum)}
                   </div>
                 </div>
                 <div>
                   <div className="text-slate-500">Acconti</div>
                   <div className="font-semibold text-slate-800">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(depositsSum)}
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(depositsSum)}
                   </div>
                 </div>
                 <div>
                   <div className="text-slate-500">Saldo residuo</div>
                   <div className="font-semibold text-orange-600">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(balanceComputed)}
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(balanceComputed)}
                   </div>
                 </div>
                 <div>
                   <div className="text-slate-500">Già incassato</div>
                   <div className="font-semibold text-emerald-600">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(
                       installments
                         .map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i))
                         .filter((i) => i.is_paid)
@@ -845,7 +845,7 @@ export default function CreateLavoroAppaltatore() {
                         )}
                       </span>
                       <span className="font-medium text-slate-800 shrink-0">
-                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amt)}
+                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(amt)}
                       </span>
                     </div>
                   );

@@ -139,8 +139,7 @@ const fmtEUR = new Intl.NumberFormat("it-IT", {
   style: "currency",
   currency: "EUR",
   minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+  maximumFractionDigits: 2, useGrouping: "always" });
 
 /**
  * Deriva i numeri economici "al pezzo" dalla famiglia, riusando la stessa

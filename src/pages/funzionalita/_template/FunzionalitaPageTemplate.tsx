@@ -94,8 +94,7 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
     new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
-      maximumFractionDigits: 0,
-    }).format(n);
+      maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">

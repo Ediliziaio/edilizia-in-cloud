@@ -65,7 +65,7 @@ function Reveal({ children, className }: { children: ReactNode; className?: stri
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(
     Math.round(n || 0),
   );
 const eurCompact = (n: number) => {

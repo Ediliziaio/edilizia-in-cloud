@@ -71,7 +71,7 @@ export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } =
         <AlertDescription className="flex items-center justify-between gap-3">
           <span>
             <strong>Crediti email in esaurimento</strong> — saldo{" "}
-            {balance.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}: con un
+            {balance.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}: con un
             invio grande potrebbe non bastare.
           </span>
           <Link

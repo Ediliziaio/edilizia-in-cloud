@@ -329,7 +329,7 @@ export default function CompanyPacchettoCustom() {
   };
 
   const formatEuro = (n: number) =>
-    new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+    new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 
   if (!companyId) {
     return <div className="p-6">ID azienda mancante</div>;

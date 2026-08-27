@@ -297,8 +297,7 @@ function eur(n: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n);
+    maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 }
 
 function fmtOre(n: number): string {

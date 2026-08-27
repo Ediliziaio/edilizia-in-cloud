@@ -17,7 +17,7 @@ import { exportToCSV } from "@/lib/csvExport";
 
 interface Opp { status: string; value: number | null; probability: number | null; created_at: string; updated_at: string; }
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n));
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(n));
 
 type Tone = "default" | "good" | "accent";
 

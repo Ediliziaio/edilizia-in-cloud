@@ -291,7 +291,7 @@ const config: FunzionalitaPageConfig = {
     computeSecondary: (a, b) => [
       { label: "Ore amministrative risparmiate/anno", value: `${Math.round(a * 12 * 0.25)} h` },
       { label: "Fatture/anno gestite automaticamente", value: `${a * 12}` },
-      { label: "Costo manuale eliminato/mese", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * 0.25 * b) },
+      { label: "Costo manuale eliminato/mese", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(a * 0.25 * b) },
     ],
     closingPitch:
       "Stima conservativa: 15 minuti risparmiati per fattura. Non include i benefici sulla riduzione DSO, gli incassi anticipati e il taglio dei costi del commercialista.",

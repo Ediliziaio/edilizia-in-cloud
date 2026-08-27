@@ -383,7 +383,7 @@ export function NuovoInterventoDialog({
                     <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                       <div className="flex flex-col">
                         <span className="font-medium">
-                          {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}
                           {prezzoListino.unita ? <span className="font-normal text-muted-foreground"> / {prezzoListino.unita}</span> : null}
                         </span>
                         {prezzoListino.iva != null && (

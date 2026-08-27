@@ -119,7 +119,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold">
-                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(p.importo_eur)}
+                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(p.importo_eur)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         ≈ €{(p.importo_eur / (p.sms_stimati ?? 1)).toFixed(4)}/SMS
@@ -143,13 +143,13 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Crediti da accreditare</span>
                 <span className="font-medium">
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(creditiAccreditati)}
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiAccreditati)}
                 </span>
               </div>
               <div className="border-t pt-2 flex justify-between">
                 <span className="text-muted-foreground">Totale</span>
                 <span className="font-bold">
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(pacchettoScelto.importo_eur)}
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(pacchettoScelto.importo_eur)}
                 </span>
               </div>
             </div>
@@ -164,7 +164,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
               </Button>
               <Button className="flex-1" onClick={handleSimulaPagamento} disabled={isRicaricando}>
                 {isRicaricando ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                Paga {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(pacchettoScelto.importo_eur)}
+                Paga {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(pacchettoScelto.importo_eur)}
               </Button>
             </div>
           </div>
@@ -179,7 +179,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
             <div>
               <p className="text-lg font-bold">Crediti accreditati!</p>
               <p className="text-muted-foreground text-sm mt-1">
-                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(creditiAccreditati)} aggiunti al tuo wallet
+                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(creditiAccreditati)} aggiunti al tuo wallet
               </p>
             </div>
             {isPrimaRicarica && (

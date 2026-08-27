@@ -6,7 +6,7 @@ import type { KPISummary, DailyPoint } from "@/lib/metaInsightsNormalizer";
 const fmtNum = (n: number) =>
   new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 }).format(n);
 const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2, useGrouping: "always" }).format(n);
 const fmtPct = (n: number) =>
   new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
 

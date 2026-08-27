@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DiscrepanzeTable } from "./DiscrepanzeTable";
 import { useMrrReconciliation } from "@/hooks/useMrrReconciliation";
 
-const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
 export function MrrReconciliationCard() {
   const { latest, isLoading, syncMutation } = useMrrReconciliation();

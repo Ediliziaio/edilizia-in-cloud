@@ -58,7 +58,7 @@ interface FeOverview {
 }
 
 const eur = (n: number | null | undefined) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(n ?? 0));
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(Number(n ?? 0));
 const dateIt = (s: string | null) => (s ? new Date(s).toLocaleDateString("it-IT") : "—");
 
 function StatoBadge({ stato }: { stato: string }) {

@@ -283,7 +283,7 @@ const config: FunzionalitaPageConfig = {
     outputLabel: "Risparmio interessi passivi/anno",
     computeOutput: (a, b) => Math.round(a * (b / 100) * 0.7),
     computeSecondary: (a, b) => [
-      { label: "Interessi passivi attuali/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(a * (b / 100))) },
+      { label: "Interessi passivi attuali/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(Math.round(a * (b / 100))) },
       { label: "Riduzione attesa scoperti", value: "70%" },
       { label: "Ore amministrative risparmiate/anno", value: "~120 h" },
     ],
