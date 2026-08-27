@@ -9,7 +9,7 @@
  * "Azioni" raggruppato (Comunica / Gestisci). Su mobile/iPad c'è solo il
  * dropdown compatto + "Chiedi a Silvio" → una sola riga a ogni breakpoint.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -48,6 +48,9 @@ interface Props {
   getPdfBlob: () => Promise<{ blob: Blob; filename: string } | null>;
   /** Importo/scadenza da sollecitare (prossima rata non pagata). */
   paymentDue?: { amount: number; dueDate?: string | null; label?: string | null } | null;
+  /** Ponte imperativo: l'alert "rata scaduta" di OrderDetail apre il sollecito
+   *  precompilato senza duplicarne la logica (ref riempita a ogni render). */
+  sollecitoRef?: React.MutableRefObject<(() => void) | null>;
   /** Apre il popup "Responsabile commessa" (chi segue la commessa). */
   onOpenOps?: () => void;
   /** Slot per il bottone "Chiedi a Silvio" contestuale (renderizzato in coda alla barra). */
@@ -84,7 +87,7 @@ type QuickAction = {
 };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio,
+  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -117,6 +120,14 @@ export function OrderQuickActions({
       attachments: undefined,
     });
   };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- riempita a ogni render: openSollecito cambia identità
+  useEffect(() => {
+    if (sollecitoRef) sollecitoRef.current = openSollecito;
+    return () => {
+      if (sollecitoRef) sollecitoRef.current = null;
+    };
+  });
 
   const handleCall = () => {
     if (!customer?.phone) return;

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -93,6 +93,9 @@ interface OrderAlert {
   title: string;
   description: string;
   icon: React.ReactNode;
+  /** true = alert rata scaduta: mostra il bottone "Sollecita ora" (apre il
+   *  sollecito precompilato di OrderQuickActions via sollecitoRef). */
+  sollecitabile?: boolean;
 }
 
 function parseValidOrderDate(value: string | null): Date | null {
@@ -126,6 +129,7 @@ function getOrderAlerts(
           title: `Rata scaduta da ${Math.abs(giorni)} giorn${Math.abs(giorni) === 1 ? 'o' : 'i'}`,
           description: `${prossima.label} di ${formatCurrency(prossima.amount)} era previsto il ${format(dataRata, "dd/MM/yyyy")} — sollecita l'incasso.`,
           icon: <AlertTriangle className="h-4 w-4" />,
+          sollecitabile: true,
         });
       } else if (giorni <= 14) {
         alerts.push({
@@ -706,6 +710,9 @@ function OrderDetailInner() {
   // order_installments), inserirebbero DUE volte tutte le rate = pagamenti
   // raddoppiati. Il ref blocca la seconda chiamata nello stesso tick.
   const paymentTogglingRef = useRef(false);
+  // Ponte verso il "Sollecita pagamento" di OrderQuickActions: l'alert rata
+  // scaduta lo apre a un click, senza cercarlo nel menu azioni.
+  const sollecitoRef = useRef<(() => void) | null>(null);
   const handleInstallmentPaidToggle = (installment: Installment, paid: boolean) => {
     if (paymentTogglingRef.current || updatePaymentMutation.isPending) return;
     paymentTogglingRef.current = true;
@@ -1230,6 +1237,7 @@ function OrderDetailInner() {
             const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
             return { amount: next?.amount ?? residuo, dueDate: next?.expected_date ?? null, label: next?.label ?? null };
           })()}
+          sollecitoRef={sollecitoRef}
           onOpenOps={() => setOpsOpen(true)}
           onOpenFiles={() => setFilesOpen(true)}
           onOpenNotes={() => setNotesOpen(true)}
@@ -1360,6 +1368,16 @@ function OrderDetailInner() {
                 {alert.icon}
                 <AlertTitle>{alert.title}</AlertTitle>
                 <AlertDescription>{alert.description}</AlertDescription>
+                {alert.sollecitabile && (order.customer?.phone || order.customer?.email) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7 border-red-300 bg-white text-xs text-red-700 hover:bg-red-50"
+                    onClick={() => sollecitoRef.current?.()}
+                  >
+                    <BellRing className="mr-1 h-3.5 w-3.5" /> Sollecita ora
+                  </Button>
+                )}
               </Alert>
             ))}
           </div>
