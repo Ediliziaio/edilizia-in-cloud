@@ -88,8 +88,10 @@ interface MarginAnomaly {
 
 interface MarginSettings {
   overhead_percentuale?: number | null;
-  margine_minimo_percentuale?: number | null;
-  margine_target_percentuale?: number | null;
+  // Colonna reale di preventivo_impostazioni: prima si chiedevano
+  // margine_minimo/target_percentuale (inesistenti → 400, KPI margine muto).
+  margine_target_default?: number | null;
+  soglia_margine_visibile?: number | null;
 }
 
 type SortDirection = "asc" | "desc";
@@ -268,7 +270,7 @@ export default function MarginalitaCantieri() {
     queryKey: ["preventivo-impostazioni-margin", companyId],
     queryFn: async () => {
       const { data, error } = await (supabase.from("preventivo_impostazioni") as any)
-        .select("overhead_percentuale, margine_minimo_percentuale, margine_target_percentuale")
+        .select("overhead_percentuale, margine_target_default, soglia_margine_visibile")
         .eq("company_id", companyId!)
         .maybeSingle();
       if (error) throw error;
@@ -283,7 +285,7 @@ export default function MarginalitaCantieri() {
     if (marginSettings.overhead_percentuale != null) {
       setOverheadPct(clampPercentage(Number(marginSettings.overhead_percentuale)));
     }
-    const dbTarget = marginSettings.margine_target_percentuale ?? marginSettings.margine_minimo_percentuale;
+    const dbTarget = marginSettings.margine_target_default ?? marginSettings.soglia_margine_visibile;
     if (dbTarget != null) {
       setTargetMarginPct(clampPercentage(Number(dbTarget)));
     }

@@ -426,7 +426,8 @@ export function UnifiedPreventiviList() {
         .from("pav_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
-        .is("deleted_at", null)
+        // pav_progetti non ha soft-delete: il filtro deleted_at dava 400 e la
+        // lista preventivi restava senza i progetti pavimenti.
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;

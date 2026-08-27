@@ -23,7 +23,10 @@ Deno.serve(async (req) => {
     await requireCompanyAccess(supabaseAdmin, userId, company_id, getCorsHeaders(req))
     const supabase = supabaseAdmin
 
-    // Query KPI per sede dalla vista materializzata
+    // KPI per sede dalla vista materializzata. NIENTE embed sedi!inner: una
+    // materialized view non ha foreign key, e PostgREST rispondeva PGRST200
+    // ("no relationship between mv_analytics_sede and sedi") → 500, cruscotto
+    // sede muto. Si leggono le due tabelle separate e si uniscono in memoria.
     let query = supabase
       .from('mv_analytics_sede')
       .select(`
@@ -37,16 +40,29 @@ Deno.serve(async (req) => {
         preventivi_vinti,
         n_lead,
         spesa_ads,
-        cpl,
-        sedi!inner(nome, tipo, colore, citta, attiva, principale)
+        cpl
       `)
       .eq('company_id', company_id)
 
     if (da)       query = query.gte('mese', da)
     if (a)        query = query.lte('mese', a)
-    if (tipo_sede) query = query.eq('sedi.tipo', tipo_sede)
 
-    const { data: rows, error } = await query
+    // Anagrafica sedi (nome/tipo/colore/città) letta a parte e indicizzata.
+    const { data: sediRows, error: sediError } = await supabase
+      .from('sedi')
+      .select('id, nome, tipo, colore, citta, attiva, principale')
+      .eq('company_id', company_id)
+
+    if (sediError) {
+      console.error('[get-sede-analytics] sedi error:', sediError)
+      return new Response(
+        JSON.stringify({ error: sediError }),
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+    const sediById = new Map((sediRows ?? []).map((s: any) => [s.id, s]))
+
+    const { data: rowsRaw, error } = await query
 
     if (error) {
       console.error('[get-sede-analytics] query error:', error)
@@ -56,6 +72,11 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Il filtro per tipo sede (prima 'sedi.tipo' nell'embed) ora è in memoria.
+    const rows = tipo_sede
+      ? (rowsRaw ?? []).filter((r: any) => sediById.get(r.sede_id)?.tipo === tipo_sede)
+      : (rowsRaw ?? [])
+
     // Calcola totali azienda per incidenza
     const totRicavi  = (rows ?? []).reduce((s: number, r: any) => s + (r.ricavi  || 0), 0)
     const totMargine = (rows ?? []).reduce((s: number, r: any) => s + (r.margine || 0), 0)
@@ -64,13 +85,14 @@ Deno.serve(async (req) => {
     // Aggrega per sede e aggiungi incidenza
     const bySede: Record<string, any> = {}
     for (const r of rows ?? []) {
+      const sede = sediById.get(r.sede_id)
       if (!bySede[r.sede_id]) {
         bySede[r.sede_id] = {
           sede_id:       r.sede_id,
-          nome:          r.sedi?.nome,
-          tipo:          r.sedi?.tipo,
-          colore:        r.sedi?.colore,
-          citta:         r.sedi?.citta,
+          nome:          sede?.nome,
+          tipo:          sede?.tipo,
+          colore:        sede?.colore,
+          citta:         sede?.citta,
           ricavi:        0,
           costi:         0,
           margine:       0,
