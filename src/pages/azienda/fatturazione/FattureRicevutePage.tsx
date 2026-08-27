@@ -52,7 +52,9 @@ import {
   Link2,
   X,
   AlertTriangle,
+  Euro,
 } from "lucide-react";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { toast } from "sonner";
 import {
   espandiXmlDaFiles,
@@ -572,53 +574,35 @@ export default function FattureRicevutePage() {
         </Card>
       )}
 
-      {/* KPI */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Totale ricevute
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpi.totale}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Da leggere
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{kpi.nonLette}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Contabilizzate
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{kpi.contabilizzate}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Importo totale
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(kpi.importoTotale)}</div>
-            {kpi.senzaImporto > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {kpi.senzaImporto} {kpi.senzaImporto === 1 ? "fattura" : "fatture"} senza importo (non conteggiat{kpi.senzaImporto === 1 ? "a" : "e"})
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      {/* Testata navy di famiglia. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <Inbox className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Fatture ricevute</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Quello che i fornitori ti mandano</h2>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            <NavyStatCard label="Totale ricevute" value={String(kpi.totale)} icon={Inbox} tone="text-orange-100" />
+            <NavyStatCard
+              label="Da leggere"
+              value={String(kpi.nonLette)}
+              icon={Eye}
+              tone={kpi.nonLette > 0 ? "text-orange-300" : "text-emerald-200"}
+            />
+            <NavyStatCard label="Contabilizzate" value={String(kpi.contabilizzate)} icon={CheckCircle2} tone="text-emerald-200" />
+            <NavyStatCard
+              label="Importo totale"
+              value={formatCurrency(kpi.importoTotale)}
+              sub={kpi.senzaImporto > 0 ? `${kpi.senzaImporto} senza importo (non conteggiate)` : undefined}
+              icon={Euro}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
