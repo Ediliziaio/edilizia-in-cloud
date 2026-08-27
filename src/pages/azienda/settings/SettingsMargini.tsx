@@ -22,18 +22,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresholdsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-// DB columns for preventivo_impostazioni:
-// id, company_id, overhead_percentuale, margine_minimo_percentuale, margine_target_percentuale,
+// DB columns for preventivo_impostazioni (nomi REALI, verificati via pg_attribute):
+// id, company_id, overhead_percentuale, margine_minimo_percentuale, margine_target_default,
+// soglia_margine_visibile, margini_target_categorie, visibilita_margini,
 // aggiungi_posa_automatica, chiedi_smaltimento, chiedi_piano_installazione, chiedi_trasporto,
 // pdf_mostra_prezzi_per_riga, pdf_mostra_solo_totale, pdf_mostra_sconti, pdf_mostra_immagini,
-// pdf_includi_schede_tecniche, firma_digitale_abilitata, soglia_margine_visibile,
-// numero_prefisso, numero_formato
+// pdf_includi_schede_tecniche, firma_digitale_abilitata, numero_prefisso, numero_formato
 interface PreventivoImpostazioni {
   id?: string;
   company_id: string;
   overhead_percentuale?: number | null;
   margine_minimo_percentuale?: number | null;
-  margine_target_percentuale?: number | null;
+  margine_target_default?: number | null;
   soglia_margine_visibile?: number | null;
   aggiungi_posa_automatica?: boolean;
   chiedi_piano_installazione?: boolean;
@@ -264,7 +264,7 @@ function MarginiPdfTab({
     if (!imp) return;
     setOverheadPct(imp.overhead_percentuale != null ? String(imp.overhead_percentuale) : "");
     setMargineMin(imp.margine_minimo_percentuale != null ? String(imp.margine_minimo_percentuale) : "");
-    setMargineTarget(imp.margine_target_percentuale != null ? String(imp.margine_target_percentuale) : "");
+    setMargineTarget(imp.margine_target_default != null ? String(imp.margine_target_default) : "");
     setSoglia(imp.soglia_margine_visibile != null ? String(imp.soglia_margine_visibile) : "");
     setAggPosa(!!imp.aggiungi_posa_automatica);
     setChiediPiano(!!imp.chiedi_piano_installazione);
@@ -314,7 +314,7 @@ function MarginiPdfTab({
     return {
       overhead_percentuale: s.overheadPct.trim() !== "" ? parseFloat(s.overheadPct) : null,
       margine_minimo_percentuale: s.margineMin.trim() !== "" ? parseFloat(s.margineMin) : null,
-      margine_target_percentuale: s.margineTarget.trim() !== "" ? parseFloat(s.margineTarget) : null,
+      margine_target_default: s.margineTarget.trim() !== "" ? parseFloat(s.margineTarget) : null,
       soglia_margine_visibile: s.soglia.trim() !== "" ? parseFloat(s.soglia) : null,
       aggiungi_posa_automatica: s.aggPosa,
       chiedi_piano_installazione: s.chiediPiano,

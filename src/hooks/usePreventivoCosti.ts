@@ -46,7 +46,8 @@ export interface PreventivoImpostazioni {
   company_id?: string;
   overhead_percentuale?: number | null;
   margine_minimo_percentuale?: number | null;
-  margine_target_percentuale?: number | null;
+  // Nome reale DB: margine_target_default (non margine_target_percentuale).
+  margine_target_default?: number | null;
   soglia_margine_visibile?: number | null;
   aggiungi_posa_automatica?: boolean;
   chiedi_smaltimento?: boolean;
