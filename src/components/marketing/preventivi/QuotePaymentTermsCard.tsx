@@ -175,6 +175,23 @@ export function QuotePaymentTermsCard({
           Regola dell'acconto: copre l'acconto al fornitore più il primo mese di manodopera —
           la commessa parte coi soldi del cliente. Verso i sub: stesse fasi, pagate a SAL incassato.
         </p>
+
+        {/* Le sei clausole del manuale (pag. 75): da scrivere nel contratto,
+            non da chiedere al telefono. Chiuse di default: chi prepara il
+            contratto le apre e le copia. */}
+        <details className="group rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+          <summary className="cursor-pointer select-none text-xs font-medium text-slate-700 marker:content-none">
+            Le sei clausole che valgono più di uno sconto — da scrivere nel contratto
+          </summary>
+          <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <li><strong className="text-slate-700">Acconto minimo 25-30%</strong>, incassato prima di ordinare qualunque materiale.</li>
+            <li><strong className="text-slate-700">SAL a cadenza fissa mensile</strong>, contabilizzati a misura sul lavoro eseguito — non milestone tipo «a tetto finito», che si prestano a discussione.</li>
+            <li><strong className="text-slate-700">Pagamento del SAL a 30 giorni dall'emissione</strong>, non dall'accettazione: sennò il committente allunga i tempi semplicemente non firmando.</li>
+            <li><strong className="text-slate-700">Sospensione lavori automatica</strong> a 15 giorni dal mancato incasso di un SAL, con ripresa dei termini. Nero su bianco.</li>
+            <li><strong className="text-slate-700">Ritenuta di garanzia svincolata a 6 mesi</strong> dalla fine lavori, non a 12 o 24 — o sostituita da una polizza fideiussoria che costa centinaia di euro e ti lascia i soldi in cassa.</li>
+            <li><strong className="text-slate-700">Back-to-back sui subappalti</strong>: il sub si paga quando incassi il SAL che copre il suo lavoro.</li>
+          </ul>
+        </details>
       </CardContent>
     </Card>
   );
