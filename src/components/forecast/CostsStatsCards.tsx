@@ -49,6 +49,8 @@ interface MonthlyDistItem {
 }
 
 interface CostsStatsCardsProps {
+  /** Rate mensili dei finanziamenti attivi (cg_loans): secondo pareggio. */
+  rateFinanziamenti?: number;
   monthlyDistribution: MonthlyDistItem[];
   yearlyStats: YearlyStats;
   selectedYear: number;
@@ -70,7 +72,7 @@ const PIE_COLORS = [
   "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
 ];
 
-export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza }: CostsStatsCardsProps) {
+export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza, rateFinanziamenti = 0 }: CostsStatsCardsProps) {
   // Il budget in quattro righe: fissi annui + utile voluto → fatturato
   // obiettivo → commesse al mese. L'utile è una scelta del titolare, non una
   // previsione: si scrive qui e non si salva da nessuna parte.
@@ -468,6 +470,23 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 ? <>Dalle tue commesse degli ultimi 12 mesi: margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>
                 : <>Ipotesi di ripiego (nessuna commessa consuntivata negli ultimi 12 mesi): margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>}
             </p>
+
+            {/* Il secondo pareggio (cap. 31): dal conto corrente escono anche
+                le rate dei finanziamenti, che nel conto economico non ci sono.
+                "Per non perdere" e' il primo numero; "per non finire in banca"
+                e' questo. */}
+            {rateFinanziamenti > 0 && breakEvenData.averageOrderMargin > 0 && (() => {
+              const beFinanziario = (breakEvenData.monthlyFixedCosts + rateFinanziamenti) / (breakEvenData.averageOrderMargin / 100);
+              return (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Il secondo pareggio: con le rate dei finanziamenti ({formatCurrency(rateFinanziamenti)}/mese)
+                  il fatturato per non finire in banca sale a{" "}
+                  <strong className="text-foreground">{formatCurrency(beFinanziario)}/mese</strong>
+                  {breakEvenData.averageOrderValue > 0 && <> ({Math.ceil(beFinanziario / breakEvenData.averageOrderValue)} commesse)</>}.
+                  Imposte e sostituzione mezzi escluse: non sono ancora tracciate.
+                </p>
+              );
+            })()}
 
             {/* Il budget in quattro righe: sopra il pareggio c'è l'obiettivo.
                 Fatturato obiettivo = (fissi annui + utile voluto) ÷ margine%. */}

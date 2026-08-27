@@ -214,6 +214,24 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   });
   const margineReale = margineRealeQuery.data ?? null;
 
+  // Rate mensili dei finanziamenti attivi (cg_loans): servono al "secondo
+  // pareggio" del manuale (cap. 31) — il break-even che copre anche la banca.
+  const rateFinanziamentiQuery = useQuery({
+    queryKey: ["cg-loans-rate-mensili", companyId],
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await (supabase as any)
+        .from("cg_loans")
+        .select("rata_mensile")
+        .eq("company_id", companyId!)
+        .eq("is_active", true);
+      if (error) throw error;
+      return ((data ?? []) as { rata_mensile: number | null }[])
+        .reduce((s, r) => s + (Number(r.rata_mensile) || 0), 0);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const ordersQuery = useQuery({
     queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
@@ -724,6 +742,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   };
 
   return {
+    rateFinanziamenti: rateFinanziamentiQuery.data ?? 0,
     andamentoMensile,
     costs,
     suppliers,

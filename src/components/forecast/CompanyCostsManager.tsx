@@ -660,6 +660,7 @@ export default function CompanyCostsManager({
           availableYears={data.availableYears}
           fixedCostsTrend={data.fixedCostsTrend}
           breakEvenData={data.breakEvenData}
+          rateFinanziamenti={data.rateFinanziamenti}
         />
 
         <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
