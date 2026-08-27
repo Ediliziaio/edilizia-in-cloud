@@ -127,6 +127,10 @@ verify_jwt = false
 [functions.process-dunning]
 verify_jwt = false
 
+# Riepilogo settimanale/mensile: solo cron con x-cron-secret.
+[functions.ops-riepilogo]
+verify_jwt = false
+
 # Dispatcher campagne WhatsApp Locale: solo cron con x-cron-secret.
 [functions.openwa-campagna-dispatch]
 verify_jwt = false
