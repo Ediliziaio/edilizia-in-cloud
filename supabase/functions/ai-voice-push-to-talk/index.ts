@@ -39,7 +39,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 interface Payload {
   audio_url: string;
@@ -120,12 +120,12 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let intents: any = null;
     try {
-      const nluRes = await claudeMessages({
+      const nluRes = await claudeMessagesBilled({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
         system: NLU_SYSTEM_PROMPT,
         messages: [{ role: "user", content: transcription }],
-      });
+      }, { supabase: supabaseAdmin, companyId, taskKind: "voice_push_to_talk" });
       const nluJson = await nluRes.json();
       const text = nluJson?.content?.[0]?.text ?? "{}";
       const match = text.match(/\{[\s\S]*\}/);

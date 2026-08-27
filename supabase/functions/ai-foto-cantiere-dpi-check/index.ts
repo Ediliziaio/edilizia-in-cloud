@@ -29,7 +29,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 interface Payload {
   photo_url: string;
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
   // Chiama Claude vision
   let visionResult: VisionResult | null = null;
   try {
-    const r = await claudeMessages({
+    const r = await claudeMessagesBilled({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
       system: VISION_SYSTEM_PROMPT,
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
           { type: "text", text: "Analizza questa foto di cantiere e restituisci il JSON." },
         ],
       }],
-    });
+    }, { supabase, companyId: body.company_id ?? null, taskKind: "foto_cantiere_dpi_check" });
     if (!r.ok) {
       const errBody = await r.text();
       return new Response(JSON.stringify({ ok: false, error: `Claude error: ${errBody.slice(0, 300)}` }), {

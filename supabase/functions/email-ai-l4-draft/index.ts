@@ -26,7 +26,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -245,7 +245,7 @@ ISTRUZIONE: scrivi la bozza seguendo la playbook "${playbook.key}". Output SOLO 
 
     // ─── Chiamata Sonnet (statico cached + variabile) ───────────────────────
     const apiStart = Date.now();
-    const response = await claudeMessages({
+    const response = await claudeMessagesBilled({
       model: SONNET_MODEL,
       max_tokens: 1500,
       system: [
@@ -253,7 +253,7 @@ ISTRUZIONE: scrivi la bozza seguendo la playbook "${playbook.key}". Output SOLO 
       ],
       messages: [{ role: "user", content: bloccoVariabile }],
       temperature: 0.4,
-    });
+    }, { supabase, companyId: email.company_id, taskKind: "email_ai_l4_draft" });
 
     if (!response.ok) {
       const errText = await response.text();

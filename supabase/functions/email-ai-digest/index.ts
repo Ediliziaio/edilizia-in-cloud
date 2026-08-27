@@ -12,7 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -67,22 +67,24 @@ Deno.serve(async (req) => {
       ...((scadenze as any[]) || []).map((s) => `- ${s.direction === "entrata" ? "incasso" : "pagamento"} di ${Number(s.amount).toLocaleString("it-IT", { maximumFractionDigits: 0 })} € entro ${s.due_date} — ${s.description || ""}`),
     ].join("\n");
 
+    // L'azienda: dal primo record utile o dal body. Dichiarata QUI perche'
+    // serve sia all'addebito della chiamata AI sia al log del digest.
+    const companyId = ((priorita as any[])?.[0]?.company_id) ?? ((scadenze as any[])?.[0]?.company_id) ?? body.company_id ?? null;
+
     let digest: any = { titolo: "La tua giornata", righe: ["Nessuna urgenza: casella sotto controllo."] };
     if (((priorita as any[])?.length || 0) > 0 || ((scadenze as any[])?.length || 0) > 0) {
-      const resp = await claudeMessages({
+        const resp = await claudeMessagesBilled({
         model: SONNET_MODEL, max_tokens: 500,
         system: [{ type: "text", text: SYSTEM_DIGEST, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: ctx }],
         temperature: 0.3,
-      });
+      }, { supabase, companyId, taskKind: "email_ai_digest" });
       if (resp.ok) {
         const d = await resp.json();
         try { const m = (d.content?.[0]?.text || "{}").match(/\{[\s\S]*\}/); if (m) digest = JSON.parse(m[0]); } catch { /* fallback sopra */ }
       }
     }
 
-    // Salva (service role: company dell'utente dal primo record o da get_effective via RPC non disponibile qui).
-    const companyId = ((priorita as any[])?.[0]?.company_id) ?? ((scadenze as any[])?.[0]?.company_id) ?? body.company_id ?? null;
     // contenuto comunque restituito; log best-effort
     await supabase.from("digest_log").insert({
       company_id: companyId, utente_id: u.user.id, contenuto: digest,

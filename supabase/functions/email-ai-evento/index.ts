@@ -13,7 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -71,13 +71,13 @@ Deno.serve(async (req) => {
     const dataRif = (email.received_at || new Date().toISOString()).slice(0, 10);
     const corpo = `${email.subject || ""}\n${stripHtml(email.raw_text, email.raw_html)}`.slice(0, 5000).trim();
 
-    const resp = await claudeMessages({
+    const resp = await claudeMessagesBilled({
       model: HAIKU_MODEL,
       max_tokens: 400,
       system: [{ type: "text", text: SYSTEM_EVENTO, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: `Data di riferimento (data email): ${dataRif}\n\n${corpo}` }],
       temperature: 0,
-    });
+    }, { supabase, companyId: email.company_id, taskKind: "email_ai_evento" });
     if (!resp.ok) return json({ error: `haiku_error_${resp.status}` }, 502, cors);
     const data = await resp.json();
     let ext: any = {};

@@ -33,7 +33,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
+import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 import {
   persistClassification,
   learnSender,
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
 
     // ─── Chiamata Haiku con prompt cache ───────────────────────────────────
     const apiStart = Date.now();
-    const response = await claudeMessages({
+    const response = await claudeMessagesBilled({
       model: HAIKU_MODEL,
       max_tokens: 4096,
       system: [
@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
         },
       ],
       temperature: 0,
-    });
+    }, { supabase, companyId: body.company_id ?? null, taskKind: "email_ai_l3_batch" });
 
     if (!response.ok) {
       const errText = await response.text();

@@ -217,3 +217,101 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
     headers: { "content-type": "application/json" },
   });
 }
+
+
+// ── Variante con billing integrato ───────────────────────────────────────────
+//
+// claudeMessages() e' un proxy puro: non sa di che azienda e' la chiamata e
+// non tocca i crediti. Risultato: 7 delle 11 funzioni che lo usano chiamavano
+// l'AI GRATIS — nessuno scalo, nessun blocco a saldo zero, costo a carico
+// della piattaforma. Le altre 4 si facevano i conti a mano, ognuna a modo suo.
+//
+// Questa variante mette blocco e addebito nel posto dove passa la chiamata:
+//   1. precallCheck PRIMA (a saldo zero → 402, la chiamata non parte proprio);
+//   2. la chiamata vera;
+//   3. addebito stimato dai token di usage, DOPO.
+// L'addebito che fallisce non rompe la funzionalita': si logga e si va avanti
+// (meglio un consumo non fatturato una tantum che una feature morta).
+
+import { precallCheck as _precallCheck } from "./ai-provider/billing.ts";
+import { chargeAndLogDirect as _chargeAndLogDirect, estimateTokenCostUsd as _estimateTokenCostUsd } from "./ai-provider/directApi.ts";
+
+export interface ClaudeBillingCtx {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  /** Azienda a cui scalare i crediti. NULL per i batch multi-azienda o le
+   *  chiamate di piattaforma: niente blocco, addebito solo come log (la RPC
+   *  a company_id null registra il consumo senza scalare nessuno). */
+  companyId: string | null;
+  /** Identificativo del task in ai_model_usage_log (es. "email_ai_digest"). */
+  taskKind: string;
+  /** Stima prudente per il blocco pre-chiamata. */
+  estimatedTokensTotal?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export async function claudeMessagesBilled(
+  body: ClaudeMessagesBody,
+  billing: ClaudeBillingCtx,
+): Promise<Response> {
+  // 1. Blocco a saldo insufficiente: stessa forma d'errore del proxy, cosi'
+  //    i chiamanti che gia' gestiscono !ok mostrano un messaggio sensato.
+  //    Senza azienda non c'e' saldo da controllare: si passa al log-only.
+  const pre = !billing.companyId ? { allow: true } as { allow: boolean; user_message_it?: string } : await _precallCheck(billing.supabase, {
+    company_id: billing.companyId,
+    task_kind: billing.taskKind,
+    estimated_tokens_total: billing.estimatedTokensTotal ?? 4000,
+  });
+  if (!pre.allow) {
+    return new Response(
+      JSON.stringify({
+        error: {
+          type: "insufficient_credits",
+          message: pre.user_message_it ||
+            "Crediti AI esauriti: ricarica il borsellino per continuare a usare le funzioni AI.",
+        },
+      }),
+      { status: 402, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  // 2. La chiamata vera.
+  const t0 = Date.now();
+  const resp = await claudeMessages(body);
+  if (!resp.ok) return resp;
+
+  // 3. Addebito dai token effettivi. La risposta e' sempre in forma Anthropic
+  //    (entrambi i path del proxy la garantiscono), quindi usage c'e'.
+  const json = await resp.json() as {
+    usage?: { input_tokens?: number; output_tokens?: number };
+    model?: string;
+  };
+  try {
+    const tokensIn = json.usage?.input_tokens ?? 0;
+    const tokensOut = json.usage?.output_tokens ?? 0;
+    await _chargeAndLogDirect({
+      supabase: billing.supabase,
+      company_id: billing.companyId,
+      task_kind: billing.taskKind,
+      model_used: `anthropic/${body.model}`,
+      cost_usd_real: _estimateTokenCostUsd({
+        provider: "anthropic",
+        model: body.model,
+        inputTokens: tokensIn,
+        outputTokens: tokensOut,
+        fallbackCostUsd: 0.01,
+      }),
+      cost_is_estimated: true,
+      tokens_prompt: tokensIn,
+      tokens_completion: tokensOut,
+      metadata: { latency_ms: Date.now() - t0, via: "claudeMessagesBilled", ...(billing.metadata ?? {}) },
+    });
+  } catch (err) {
+    console.error(`[claudeMessagesBilled] addebito fallito (${billing.taskKind}):`, (err as Error).message);
+  }
+
+  return new Response(JSON.stringify(json), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
