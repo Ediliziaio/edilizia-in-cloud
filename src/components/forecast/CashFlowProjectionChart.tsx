@@ -82,30 +82,37 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            {/* Assi e tooltip nello stile di famiglia (v. grafico Commesse). */}
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
             <XAxis
               dataKey="dateLabel"
-              tick={{ fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              fontSize={11}
+              stroke="#64748b"
               interval={range === 30 ? 4 : range === 60 ? 9 : 14}
             />
             <YAxis
-              tick={{ fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              fontSize={10}
+              stroke="#94a3b8"
               tickFormatter={(v) => {
-                // Sotto i 1.000€ la formattazione "k" mostrava €0k su tutte le
+                // Sotto i 1.000€ la formattazione "k" mostrava 0k su tutte le
                 // tacche: passa a valore intero quando la scala è piccola.
                 const abs = Math.abs(v);
-                if (abs >= 1000) return `€${(v / 1000).toFixed(0)}k`;
-                return `€${Math.round(v)}`;
+                if (abs >= 1000) return `${(v / 1000).toFixed(0)}k`;
+                return `${Math.round(v)}`;
               }}
               domain={[Math.min(minBalance * 1.1, -100), maxBalance * 1.1]}
             />
             <Tooltip
-              formatter={(value: number) => [`€${value.toLocaleString("it-IT")}`, "Saldo"]}
-              labelStyle={{ color: "hsl(var(--foreground))" }}
+              cursor={{ stroke: "rgba(15, 23, 42, 0.15)" }}
+              formatter={(value: number) => [value.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }), "Saldo"]}
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
+                borderRadius: 12,
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
               }}
             />
             {hasNegative && <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="4 2" />}
@@ -113,7 +120,7 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
               type="monotone"
               dataKey="balanceK"
               name="Saldo"
-              stroke="hsl(var(--primary))"
+              stroke="#2563eb"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}

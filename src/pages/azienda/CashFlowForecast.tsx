@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
 import { CashFlowProjectionChart } from "@/components/forecast/CashFlowProjectionChart";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { SilvioCashflowForecast } from "@/components/silvio/SilvioCashflowForecast";
 import { TrediciSettimaneTab } from "@/components/forecast/TrediciSettimaneTab";
 
@@ -253,24 +253,37 @@ export default function CashFlowForecast() {
         </div>
       )}
       {bankingSummary && (
-        // 4 colonne solo da lg: sotto i 1024px le card restano larghe abbastanza
-        // da mostrare l'importo INTERO (es. €259.728) senza troncarlo a "€…".
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { label: "Saldo Banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "blue" as const, hint: "saldo reale conti" },
-            { label: "Entrate Attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "green" as const, hint: "incassi aperti" },
-            { label: "Uscite Attese", value: bankingSummary.pendingExpenses, icon: TrendingDown, tone: "red" as const, hint: "pagamenti previsti" },
-            { label: "Forecast 30gg", value: bankingSummary.forecast30, icon: CalendarClock, tone: bankingSummary.forecast30 >= 0 ? "green" as const : "red" as const, hint: "saldo stimato" },
-          ].map((kpi) => (
-            <OperationalKpiCard
-              key={kpi.label}
-              icon={kpi.icon}
-              label={kpi.label}
-              value={`€${kpi.value.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-              hint={kpi.hint}
-              tone={kpi.tone}
-            />
-          ))}
+        // Testata navy di famiglia. Formato euro standard it-IT ("52.942 €",
+        // non "€52.942"): come nel resto del gestionale.
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+          <div className="bg-[#173b67] p-4 text-white sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+                <CalendarClock className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Previsionale</p>
+                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa che verrà</h2>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+              {[
+                { label: "Saldo banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "text-blue-100", hint: "saldo reale conti" },
+                { label: "Entrate attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "text-emerald-200", hint: "incassi aperti" },
+                { label: "Uscite attese", value: bankingSummary.pendingExpenses, icon: TrendingDown, tone: "text-rose-300", hint: "pagamenti previsti" },
+                { label: "Forecast 30gg", value: bankingSummary.forecast30, icon: CalendarClock, tone: bankingSummary.forecast30 >= 0 ? "text-emerald-200" : "text-rose-300", hint: "saldo stimato" },
+              ].map((kpi) => (
+                <NavyStatCard
+                  key={kpi.label}
+                  icon={kpi.icon}
+                  label={kpi.label}
+                  value={new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(kpi.value)}
+                  sub={kpi.hint}
+                  tone={kpi.tone}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
