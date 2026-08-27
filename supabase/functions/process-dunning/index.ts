@@ -362,8 +362,20 @@ Deno.serve(async (req) => {
       for (const attempt of pendingRetries) {
         results.retries_processed++;
         try {
+          // Un tentativo fallito resta in coda ANCHE se nel frattempo il giro
+          // principale e' riuscito a inviare (es. fallito alle 16:03 per
+          // crediti, riuscito alle 16:06 dopo il fix): senza questa guardia il
+          // retry notturno mandava il doppione. Il traguardo conta una volta.
+          if (await hasAlreadySent(attempt.company_id, attempt.dunning_day)) {
+            await supabase.from("dunning_attempts").update({
+              permanently_failed: true,
+              next_retry_at: null,
+              error_message: "superato: email gia' inviata dal percorso principale",
+            }).eq("id", attempt.id);
+            continue;
+          }
           const { data: company } = await supabase
-            .from("companies").select("id, name, email, trial_ends_at, subscription_plan_id")
+            .from("companies").select("id, name, email, trial_ends_at, subscription_plan_id, dunning_started_at")
             .eq("id", attempt.company_id).maybeSingle();
 
           if (!company?.email) {
@@ -382,11 +394,17 @@ Deno.serve(async (req) => {
             const { data: sub } = await supabase.from("company_subscriptions")
               .select("current_period_end").eq("company_id", company.id)
               .order("created_at", { ascending: false }).limit(1).maybeSingle();
-            const daysExpired = sub?.current_period_end ? daysDiff(sub.current_period_end) : 0;
+            // Stesso ancoraggio del giro principale. Qui era rimasto
+            // current_period_end: su past_due sta nel FUTURO, e alle 02:30 del
+            // 27/08 e' partito un oggetto "scaduto da -20 giorni".
+            const anchor = (company as { dunning_started_at?: string | null }).dunning_started_at
+              ?? sub?.current_period_end;
+            const daysExpired = anchor ? Math.max(0, daysDiff(anchor)) : 0;
             const pagamento = await getPagamentoDiretto(company.id);
             html = buildExpiredEmail(company, daysExpired, attempt.dunning_day, {
               payUrl: pagamento.url,
               importo: pagamento.importo,
+              sospensioneAttiva: autoSuspendEnabled,
             });
             const conImporto = pagamento.importo ? ` di ${pagamento.importo}` : "";
             const subjects: Record<string, string> = {
