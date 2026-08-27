@@ -42,22 +42,22 @@ describe("formatCurrency", () => {
 
 describe("formatCurrencyCompact", () => {
   it("formatta valori < 1000 come interi", () => {
-    expect(formatCurrencyCompact(800)).toBe("€800");
+    expect(formatCurrencyCompact(800)).toBe("800 €");
   });
 
   it("formatta migliaia come k", () => {
-    expect(formatCurrencyCompact(45_000)).toBe("€45k");
+    expect(formatCurrencyCompact(45_000)).toBe("45k €");
   });
 
   it("formatta milioni come M", () => {
-    expect(formatCurrencyCompact(1_200_000)).toBe("€1.2M");
+    expect(formatCurrencyCompact(1_200_000)).toBe("1.2M €");
   });
 
   it("gestisce valori negativi", () => {
-    expect(formatCurrencyCompact(-45_000)).toBe("-€45k");
+    expect(formatCurrencyCompact(-45_000)).toBe("-45k €");
   });
 
   it("gestisce zero", () => {
-    expect(formatCurrencyCompact(0)).toBe("€0");
+    expect(formatCurrencyCompact(0)).toBe("0 €");
   });
 });
