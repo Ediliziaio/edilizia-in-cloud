@@ -23,10 +23,16 @@ WITH
 clienti AS (
   SELECT * FROM public.companies WHERE NOT COALESCE(is_platform_admin_company, false)
 ),
+-- "Incassato" vuol dire soldi entrati, quindi si guarda paid_at e non la data
+-- di emissione: una fattura emessa il 31 e pagata il 1° appartiene al mese in
+-- cui e' stata pagata. Il fallback su created_at serve alle righe storiche
+-- senza paid_at — meglio contarle nel mese sbagliato che perderle.
 incassi AS (
   SELECT count(*) AS n, COALESCE(sum(amount_paid), 0) / 100.0 AS eur
   FROM public.subscription_invoices
-  WHERE status = 'paid' AND created_at >= p_da AND created_at < p_a
+  WHERE status = 'paid'
+    AND COALESCE(paid_at, created_at) >= p_da
+    AND COALESCE(paid_at, created_at) < p_a
 ),
 -- Periodo precedente della STESSA lunghezza: senza confronto un numero da
 -- solo non dice se e' un buon periodo o un brutto periodo.
@@ -34,7 +40,8 @@ incassi_prec AS (
   SELECT count(*) AS n, COALESCE(sum(amount_paid), 0) / 100.0 AS eur
   FROM public.subscription_invoices
   WHERE status = 'paid'
-    AND created_at >= p_da - (p_a - p_da) AND created_at < p_da
+    AND COALESCE(paid_at, created_at) >= p_da - (p_a - p_da)
+    AND COALESCE(paid_at, created_at) < p_da
 ),
 -- MRR = solo quello che si incassa davvero. Gli accessi regalati hanno un
 -- piano a listino ma nessuno li fattura: sommarli fa un numero che descrive
@@ -60,6 +67,21 @@ SELECT jsonb_build_object(
   'nuove_aziende', (SELECT count(*) FROM clienti WHERE created_at >= p_da AND created_at < p_a),
   'aziende_attive', (SELECT count(*) FROM clienti WHERE status = 'active'),
   'trial_attivi',   (SELECT count(*) FROM clienti WHERE status = 'trial'),
+
+  'incassi_da', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object('azienda', azienda, 'eur', eur, 'n', n) ORDER BY eur DESC)
+    FROM (
+      SELECT COALESCE(c.name, '(azienda sconosciuta)') AS azienda,
+             sum(si.amount_paid) / 100.0 AS eur,
+             count(*) AS n
+      FROM public.subscription_invoices si
+      LEFT JOIN public.companies c ON c.id = si.company_id
+      WHERE si.status = 'paid'
+        AND COALESCE(si.paid_at, si.created_at) >= p_da
+        AND COALESCE(si.paid_at, si.created_at) < p_a
+      GROUP BY c.name
+    ) s
+  ), '[]'::jsonb),
 
   'incassi_n',      (SELECT n FROM incassi),
   'incassi_eur',    (SELECT eur FROM incassi),

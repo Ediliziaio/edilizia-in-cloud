@@ -113,6 +113,7 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
     return new Response(JSON.stringify({ ok: false, reason: "nessun super_admin con email" }), { headers: corsH });
   }
 
+  const incassiDa = (r?.incassi_da ?? []) as Array<Record<string, unknown>>;
   const difficolta = (r?.in_difficolta ?? []) as Array<Record<string, unknown>>;
   const scadenza = (r?.trial_in_scadenza ?? []) as Array<Record<string, unknown>>;
 
@@ -123,9 +124,15 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
     </p>
 
     <table style="width:100%;border-collapse:collapse;">
-      ${riga("Incassato nel periodo", eur(r?.incassi_eur), `${r?.incassi_n ?? 0} fatture · ${variazione(r?.incassi_eur, r?.incassi_eur_prec)} sul periodo precedente`)}
+      ${riga("Incassato nel periodo", eur(r?.incassi_eur),
+             `${r?.incassi_n ?? 0} ${Number(r?.incassi_n ?? 0) === 1 ? "fattura" : "fatture"} · ${variazione(r?.incassi_eur, r?.incassi_eur_prec)} sul periodo precedente`)}
+      ${incassiDa.length
+        ? `<tr><td colspan="2" style="padding:2px 0 10px;font-family:sans-serif;font-size:12px;color:#9ca3af;border-bottom:1px solid #e5e7eb;">
+             da ${incassiDa.map((i) => `${i.azienda} ${eur(i.eur)}`).join(" · ")}
+           </td></tr>`
+        : ""}
       ${riga("MRR fatturato", eur(r?.mrr_eur),
-             `${r?.aziende_paganti ?? 0} aziende paganti${r?.mrr_eur_prec ? ` · ${variazione(r?.mrr_eur, r?.mrr_eur_prec)}` : ""}`)}
+             `${r?.aziende_paganti ?? 0} ${Number(r?.aziende_paganti ?? 0) === 1 ? "azienda pagante" : "aziende paganti"}${r?.mrr_eur_prec ? ` · ${variazione(r?.mrr_eur, r?.mrr_eur_prec)}` : ""}`)}
       ${Number(r?.mrr_regalato_eur ?? 0) > 0
         ? riga("Di cui regalato", eur(r?.mrr_regalato_eur),
                `${r?.aziende_regalate ?? 0} accessi omaggio · fuori dal MRR`)
@@ -141,6 +148,13 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
                Number(r?.wa_inviati) > 0 ? `${Math.round((Number(r?.wa_risposte) / Number(r?.wa_inviati)) * 100)}% di risposta` : "")
         : ""}
     </table>
+
+    ${Number(r?.incassi_eur ?? 0) > 0 && Number(r?.incassi_eur ?? 0) !== Number(r?.mrr_eur ?? 0)
+      ? `<p style="font-family:sans-serif;font-size:12px;color:#6b7280;margin:14px 0 0;">
+           L'incassato è la cassa del periodo, il MRR è quanto rientra ogni mese <em>oggi</em>:
+           se il primo è più alto, qualcuno che ha pagato nel periodo adesso non paga più.
+         </p>`
+      : ""}
 
     ${r?.mrr_affidabile === false
       ? `<p style="font-family:sans-serif;font-size:12px;color:#92400e;background:#fef3c7;padding:10px 12px;border-radius:6px;margin:16px 0 0;">
