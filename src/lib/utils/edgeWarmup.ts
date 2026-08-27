@@ -31,7 +31,8 @@ const WARMUP_FUNCTIONS = [
   "maps-proxy",                     // pagine cantiere con mappa
   "google-calendar-sync",           // calendario
   "email-poll-inbox",               // /azienda/email (route hot)
-  "check-api-health",               // diagnostica health bar
+  // check-api-health tolto: e' super_admin-only (legge platform_settings) →
+  // per ogni utente azienda il warmup tornava 403. Lo scalda chi lo usa.
   "billing-connect",                // pagina abbonamenti
   "silvio-action-runner",           // Silvio AI panel
 ] as const;

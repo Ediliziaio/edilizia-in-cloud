@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { logger } from "@/utils/logger";
 
@@ -24,8 +25,15 @@ const defaultServices: ApiServices = {
 };
 
 export function useApiHealth() {
+  const { role } = useAuth();
+  // check-api-health legge platform_settings (chiavi Stripe/Meta/email della
+  // PIATTAFORMA) → è gated a super_admin lato edge. Chiamandola da utente
+  // azienda tornava 403 a ogni load (rumore in console, banner sempre "sano"
+  // sul fallback). La interroghiamo solo per chi può davvero leggerla.
+  const isSuperAdmin = role === "super_admin";
   const { data: services = defaultServices, isLoading } = useQuery({
     queryKey: queryKeys.apiHealth.all,
+    enabled: isSuperAdmin,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("check-api-health");
       if (error) {
@@ -39,5 +47,5 @@ export function useApiHealth() {
     retry: 1,
   });
 
-  return { services, isLoading };
+  return { services, isLoading: isSuperAdmin ? isLoading : false };
 }
