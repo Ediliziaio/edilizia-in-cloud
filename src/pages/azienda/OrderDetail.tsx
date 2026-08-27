@@ -11,7 +11,7 @@ import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
-import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
+import { CassaVerdettoBand, EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
@@ -1115,6 +1115,24 @@ function OrderDetailInner() {
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = phaseProgress?.avgPct ?? null;
 
+  // Navigazione dalla fascia verdetto: porta alla tab Finanza e scrolla
+  // all'ancora richiesta (stessa logica del bottone "Registra incasso").
+  const vaiAllaFinanza = (anchor?: string) => {
+    const mobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+    if (mobile) {
+      setMobileTab("finanza");
+      setTimeout(() => {
+        const panel = document.querySelector('[role="tabpanel"][data-state="active"]');
+        (panel ?? document.querySelector('[role="tablist"]'))?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    } else {
+      setDesktopTab("finanza");
+      setTimeout(() => {
+        document.getElementById(anchor ?? "section-pagamenti")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    }
+  };
+
   // ── Cassa della commessa ───────────────────────────────────────────────────
   // Timeline acconto → materiali → saldo. Evidenzia il fabbisogno di anticipo
   // quando l'acconto incassato non copre il costo dei fornitori (capitale
@@ -1345,6 +1363,25 @@ function OrderDetailInner() {
               </Alert>
             ))}
           </div>
+        )}
+
+        {/* ── Fascia verdetto cassa: chi finanzia, incassato, da incassare.
+               Stesso linguaggio delle testate navy di Costi/Finanza. ── */}
+        {permissions.canViewOrderAmounts && (
+          <ErrorBoundary fallback={<></>}>
+            <CassaVerdettoBand
+              orderId={id!}
+              totalAmount={order.total_amount}
+              vatRate={order.vat_rate || 22}
+              financingCost={order.financing_cost ?? 0}
+              installments={displayInstallments}
+              collectedGross={collectedGross}
+              cashTotalGross={cashTotalGross}
+              canViewCosts={permissions.canViewCosts}
+              onVaiPagamenti={() => vaiAllaFinanza("section-pagamenti")}
+              onVaiEsposizione={() => vaiAllaFinanza("esposizione-commessa")}
+            />
+          </ErrorBoundary>
         )}
 
         {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
@@ -2092,6 +2129,25 @@ function OrderDetailInner() {
               )}
             </div>
 
+            {/* Chi finanzia il cantiere: cassa consuntiva — prima della previsione
+                qui sotto (quando ci sono movimenti, il consuntivo conta di più).
+                Vendite+costi → entrambi i permessi. L'ancora serve alla fascia
+                verdetto in testata (solo qui: il mount mobile resta senza id). */}
+            {permissions.canViewOrderAmounts && permissions.canViewCosts && (
+              <ErrorBoundary fallback={<></>}>
+                <EsposizioneCommessa
+                  orderId={id!}
+                  totalAmount={order.total_amount}
+                  vatRate={order.vat_rate || 22}
+                  financingCost={order.financing_cost ?? 0}
+                  installments={displayInstallments}
+                  cashTotalGross={cashTotalGross}
+                  avanzamentoPct={avanzamentoPct}
+                  anchorId="esposizione-commessa"
+                />
+              </ErrorBoundary>
+            )}
+
             {/* Cassa della commessa — timeline acconto → materiali → saldo.
                 Mostra l'eventuale anticipo da sostenere (capitale circolante)
                 quando l'acconto non copre i fornitori. Additiva, non tocca il
@@ -2147,22 +2203,6 @@ function OrderDetailInner() {
                   <p className="text-[11px] text-muted-foreground">Stima sui materiali · manodopera e altre spese escluse.</p>
                 </div>
               </QuoteCard>
-            )}
-
-            {/* Chi finanzia il cantiere: cassa consuntiva, il gemello reale
-                della previsione qui sopra. Vendite+costi → entrambi i permessi. */}
-            {permissions.canViewOrderAmounts && permissions.canViewCosts && (
-              <ErrorBoundary fallback={<></>}>
-                <EsposizioneCommessa
-                  orderId={id!}
-                  totalAmount={order.total_amount}
-                  vatRate={order.vat_rate || 22}
-                  financingCost={order.financing_cost ?? 0}
-                  installments={displayInstallments}
-                  cashTotalGross={cashTotalGross}
-                  avanzamentoPct={avanzamentoPct}
-                />
-              </ErrorBoundary>
             )}
 
             <OrderErrors orderId={id!} />

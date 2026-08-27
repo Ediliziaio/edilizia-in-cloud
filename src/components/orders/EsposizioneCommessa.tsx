@@ -18,11 +18,12 @@ import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
-import { HandCoins, TrendingDown } from "lucide-react";
+import { Banknote, CalendarClock, HandCoins, TrendingDown } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
 
@@ -38,6 +39,121 @@ const fmtData = (iso: string) => {
   return `${d}/${m}/${y.slice(2)}`;
 };
 
+/**
+ * CassaVerdettoBand — la fascia navy in testa alla commessa: il verdetto di
+ * cassa a colpo d'occhio, nello stesso linguaggio delle testate di Costi e
+ * Finanza. Tre numeri, tutti cliccabili: Chi finanzia (→ card esposizione),
+ * Incassato e Da incassare con la prossima rata (→ piano rate). Niente
+ * margine qui: quello resta al Conto economico qui sotto — la fascia parla
+ * solo di soldi veri, entrati e usciti.
+ */
+export function CassaVerdettoBand({
+  orderId,
+  totalAmount,
+  vatRate,
+  financingCost,
+  installments,
+  collectedGross,
+  cashTotalGross,
+  canViewCosts,
+  onVaiPagamenti,
+  onVaiEsposizione,
+}: {
+  orderId: string;
+  totalAmount: number;
+  vatRate: number;
+  financingCost: number;
+  installments: RataEsposizione[];
+  /** Incassato lordo del piano rate (stesso numero del Riepilogo). */
+  collectedGross: number;
+  cashTotalGross: number;
+  /** Senza costi niente "Chi finanzia": restano incassato e da incassare. */
+  canViewCosts: boolean;
+  onVaiPagamenti: () => void;
+  onVaiEsposizione: () => void;
+}) {
+  const { esposizione } = useEsposizioneCommessa({
+    orderId,
+    totalAmount,
+    vatRate,
+    financingCost,
+    installments,
+    enabled: canViewCosts,
+  });
+
+  const daIncassare = Math.max(0, cashTotalGross - collectedGross);
+  const incassataPct = cashTotalGross > 0 ? Math.round(Math.min(100, (collectedGross / cashTotalGross) * 100)) : 0;
+
+  // Prossima rata non pagata (per data attesa): il "quando" del da incassare.
+  const prossimaRata = useMemo(() => {
+    const unpaid = installments.filter((i) => !i.is_paid && (Number(i.amount) || 0) > 0 && i.type !== "financing");
+    if (unpaid.length === 0) return null;
+    const next = [...unpaid].sort((a, b) => (a.expected_date ?? "9999").localeCompare(b.expected_date ?? "9999"))[0];
+    if (!next?.expected_date) return null;
+    return { date: next.expected_date, scaduta: next.expected_date < new Date().toISOString().slice(0, 10) };
+  }, [installments]);
+
+  const saldo = esposizione.saldoOggi;
+  const clienteFinanzia = saldo >= 0;
+
+  // Commessa senza importi (totale 0): "0% su 0 €" non dice niente — meglio niente.
+  if (cashTotalGross <= 0 && !esposizione.hasMovimenti) return null;
+
+  return (
+    <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">
+        La cassa di questa commessa
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        {canViewCosts && (
+          <div className="col-span-2 sm:col-span-1">
+            <NavyStatCard
+              label="Chi finanzia il cantiere"
+              value={
+                esposizione.hasMovimenti
+                  ? `${clienteFinanzia ? "+" : "−"}${formatCurrencyCompact(Math.abs(saldo))}`
+                  : "—"
+              }
+              sub={
+                esposizione.hasMovimenti
+                  ? clienteFinanzia
+                    ? "il cliente: incassato più che pagato"
+                    : "tu: pagato più che incassato"
+                  : "nessun movimento ancora"
+              }
+              icon={HandCoins}
+              tone={esposizione.hasMovimenti && !clienteFinanzia ? "text-red-300" : "text-emerald-300"}
+              onClick={onVaiEsposizione}
+            />
+          </div>
+        )}
+        <NavyStatCard
+          label="Incassato"
+          value={formatCurrencyCompact(collectedGross)}
+          sub={`${incassataPct}% su ${formatCurrencyCompact(cashTotalGross)}`}
+          icon={Banknote}
+          tone="text-blue-100"
+          onClick={onVaiPagamenti}
+        />
+        <NavyStatCard
+          label="Da incassare"
+          value={formatCurrencyCompact(daIncassare)}
+          sub={
+            daIncassare <= 0
+              ? "tutto incassato"
+              : prossimaRata
+                ? `${prossimaRata.scaduta ? "rata scaduta il" : "prossima rata il"} ${fmtData(prossimaRata.date)}`
+                : "nessuna scadenza fissata"
+          }
+          icon={CalendarClock}
+          tone={prossimaRata?.scaduta && daIncassare > 0 ? "text-orange-300" : "text-blue-100"}
+          onClick={onVaiPagamenti}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function EsposizioneCommessa({
   orderId,
   totalAmount,
@@ -46,6 +162,7 @@ export function EsposizioneCommessa({
   installments,
   cashTotalGross,
   avanzamentoPct,
+  anchorId,
 }: {
   orderId: string;
   totalAmount: number;
@@ -56,6 +173,9 @@ export function EsposizioneCommessa({
   cashTotalGross: number;
   /** Media % delle fasi lavorazione; null se la commessa non ha fasi. */
   avanzamentoPct: number | null;
+  /** id DOM per lo scroll dalla fascia verdetto (solo sul mount desktop:
+   *  mobile e desktop sono entrambi nel DOM, un id doppio punterebbe al nodo nascosto). */
+  anchorId?: string;
 }) {
   const { esposizione, isLoading } = useEsposizioneCommessa({
     orderId,
@@ -80,7 +200,7 @@ export function EsposizioneCommessa({
   const clienteFinanzia = saldoOggi >= 0;
 
   return (
-    <Card className={`border-l-4 ${clienteFinanzia ? "border-l-emerald-500" : "border-l-red-500"}`}>
+    <Card id={anchorId} className={`scroll-mt-24 border-l-4 ${clienteFinanzia ? "border-l-emerald-500" : "border-l-red-500"}`}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <HandCoins className={`h-4 w-4 ${clienteFinanzia ? "text-emerald-500" : "text-red-500"}`} />
