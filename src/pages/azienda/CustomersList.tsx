@@ -54,7 +54,7 @@ import {
   CustomerImportDialog,
   type ImportOptions,
 } from "@/components/clients/CustomerImportDialog";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { logger } from "@/utils/logger";
 // MP-CAN-001 Fase 2 — types/constants/formatters/anomalies estratti
 import type {
@@ -74,45 +74,6 @@ import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
 
 
 /* ─── KPI Card ──────────────────────────────────────────────────── */
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  accentClass,
-  trend,
-  hint,
-}: {
-  label: string;
-  value: number | string;
-  icon: React.ComponentType<{ className?: string }>;
-  accentClass: string;
-  trend?: { value: number; positive: boolean } | null;
-  hint?: string;
-}) {
-  const tone = accentClass.includes("emerald")
-    ? "green"
-    : accentClass.includes("amber")
-      ? "amber"
-      : accentClass.includes("red") || accentClass.includes("destructive")
-        ? "red"
-        : accentClass.includes("blue")
-          ? "blue"
-          : "orange";
-  const trendHint = trend !== undefined && trend !== null
-    ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso`
-    : undefined;
-
-  return (
-    <OperationalKpiCard
-      icon={Icon}
-      label={label}
-      value={value}
-      hint={trendHint ?? hint}
-      tone={tone}
-    />
-  );
-}
-
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
   const navigate = useNavigate();
@@ -933,67 +894,63 @@ function CustomersListInner() {
         </div>
       </div>
 
-      {/* KPI Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Testata navy famiglia (come Costi/Commesse/Personale/Assistenza):
+          i numeri dell'anagrafica clienti. "Con ordini"/"Solo anagrafica"
+          restano nascosti su mobile (una riga pulita coi 2 principali). */}
+      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Clienti</p>
         {statsLoading ? (
-          [...Array(4)].map((_, i) => (
-            <Card key={i} className="border-l-4 border-l-muted">
-              <CardContent className="pt-5 pb-4">
-                <Skeleton className="h-3 w-20 mb-2" />
-                <Skeleton className="h-7 w-12" />
-              </CardContent>
-            </Card>
-          ))
-        ) : statsError ? (
-          <Card className="col-span-2 lg:col-span-4 border-l-4 border-l-destructive">
-            <CardContent className="pt-5 pb-4 text-sm text-destructive">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Dashboard non disponibile</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {statsError instanceof Error ? statsError.message : "Errore statistiche"}
-                  </p>
-                </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+                <Skeleton className="mb-2 h-3 w-20 bg-white/20" />
+                <Skeleton className="h-6 w-12 bg-white/20" />
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+        ) : statsError ? (
+          <div className="flex items-start gap-2 rounded-xl border border-white/12 bg-white/9 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
+            <div>
+              <p className="font-semibold text-white">Dashboard non disponibile</p>
+              <p className="mt-1 text-xs text-blue-100">
+                {statsError instanceof Error ? statsError.message : "Errore statistiche"}
+              </p>
+            </div>
+          </div>
         ) : (
-          <>
-            <KpiCard
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            <NavyStatCard
               label="Totale clienti"
               value={stats?.total ?? 0}
+              sub="in anagrafica"
               icon={Users}
-              accentClass="border-l-primary"
-              hint="In anagrafica"
+              tone="text-blue-100"
             />
-            <KpiCard
+            <NavyStatCard
               label="Nuovi questo mese"
               value={stats?.month_current ?? 0}
+              sub={trend != null ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso` : "vs mese scorso"}
               icon={UserPlus}
-              accentClass="border-l-emerald-500"
-              trend={trend}
-              hint="vs mese scorso"
+              tone="text-emerald-300"
             />
-            {/* "Con ordini" e "Solo anagrafica": info da scrivania → su mobile
-                si tengono solo i 2 KPI principali (una riga pulita). */}
             <div className="hidden sm:contents">
-              <KpiCard
+              <NavyStatCard
                 label="Con ordini"
                 value={stats?.with_orders ?? 0}
+                sub="almeno 1 ordine"
                 icon={ShoppingBag}
-                accentClass="border-l-blue-500"
-                hint="Almeno 1 ordine"
+                tone="text-blue-100"
               />
-              <KpiCard
+              <NavyStatCard
                 label="Solo anagrafica"
                 value={stats?.portal_disabled ?? 0}
+                sub="senza portale"
                 icon={ShieldOff}
-                accentClass="border-l-amber-500"
-                hint="Senza portale"
+                tone="text-blue-100"
               />
             </div>
-          </>
+          </div>
         )}
       </div>
 
