@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
 } from "lucide-react";
 import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -27,7 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -174,6 +173,9 @@ function PrimaNotaInner() {
     }
   };
 
+  // Nei KPI di testata i centesimi non servono e troncano: 0 decimali
+  // come nel pannello navy delle Commesse.
+  const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -231,34 +233,81 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      {/* Saldo Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <OperationalKpiCard icon={TrendingUp} label="Entrate" value={isSaldoLoading ? "..." : formatCurrency(saldo?.entrate || 0)} hint="periodo filtrato" tone="green" />
-        <OperationalKpiCard icon={TrendingDown} label="Uscite" value={isSaldoLoading ? "..." : formatCurrency(saldo?.uscite || 0)} hint="periodo filtrato" tone="red" />
-        <OperationalKpiCard icon={Wallet} label="Saldo netto" value={isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)} hint="entrate meno uscite" tone={(saldo?.saldo || 0) >= 0 ? "green" : "red"} />
+      {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
+          i tre numeri della cassa in card di vetro, senza troncamenti. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Prima Nota</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa, giorno per giorno</h2>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
+            <NavyStatCard
+              label="Entrate"
+              value={isSaldoLoading ? "..." : eurTondo(saldo?.entrate || 0)}
+              sub="periodo filtrato"
+              icon={TrendingUp}
+              tone="text-emerald-200"
+            />
+            <NavyStatCard
+              label="Uscite"
+              value={isSaldoLoading ? "..." : eurTondo(saldo?.uscite || 0)}
+              sub="periodo filtrato"
+              icon={TrendingDown}
+              tone="text-rose-300"
+            />
+            <NavyStatCard
+              label="Saldo netto"
+              value={isSaldoLoading ? "..." : eurTondo(saldo?.saldo || 0)}
+              sub="entrate meno uscite"
+              icon={Wallet}
+              tone={(saldo?.saldo || 0) >= 0 ? "text-emerald-200" : "text-rose-300"}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Chart andamento 6 mesi: vetrina → non su mobile (i 3 KPI Entrate/
           Uscite/Saldo sopra bastano). */}
       {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
-        <Card>
-          <CardContent className="pt-4 pb-2">
-            <p className="text-sm font-medium mb-3">Andamento ultimi 6 mesi</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={chartData}>
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
+        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase text-slate-500">Andamento 6 mesi</p>
+              <h3 className="mt-0.5 text-base font-semibold text-slate-950">Entrate e uscite di cassa</h3>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Entrate</span>
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
+            </div>
+          </div>
+          <div className="mt-3 h-[200px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" tickFormatter={formatCurrencyCompact} />
                 <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  labelStyle={{ fontWeight: 600 }}
+                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                  }}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name === "entrate" ? "Entrate" : "Uscite"]}
+                  labelFormatter={(label) => `Mese: ${label}`}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="entrate" name="Entrate" fill="hsl(142, 71%, 45%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="uscite" name="Uscite" fill="hsl(0, 84%, 60%)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="entrate" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                <Bar dataKey="uscite" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Filters */}
