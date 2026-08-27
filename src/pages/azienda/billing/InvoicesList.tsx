@@ -1,4 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
+import { NavyStatCard } from "@/components/costi/KpiCard";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle, CircleAlert, Receipt, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
@@ -493,49 +494,51 @@ export default function InvoicesList() {
         </TabsList>
 
         <TabsContent value="fatture" className="space-y-6 mt-4">
-          {/* KPI Cards — "Da incassare" e "Fatture scadute" sono azionabili:
-              cliccandole filtrano la lista (pattern GHL, il numero diventa un
-              punto d'ingresso invece di una decorazione). Toggle: ri-cliccare
+          {/* Testata navy di famiglia — "Da incassare" e "Fatture scadute"
+              restano azionabili: cliccandole filtrano la lista, ri-cliccare
               torna a "Tutte". */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <button
-              type="button"
-              onClick={() => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid"))}
-              className="text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-pressed={statusFilter === "unpaid"}
-            >
-              <Card className={`h-full transition-colors hover:border-primary/50 ${statusFilter === "unpaid" ? "border-primary ring-1 ring-primary/30" : ""}`}>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-xs text-muted-foreground">Da incassare</p>
-                  <p className="text-xl font-bold">{fmtEur(kpis.receivable)}</p>
-                </CardContent>
-              </Card>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue"))}
-              className="text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-pressed={statusFilter === "overdue"}
-            >
-              <Card className={`h-full transition-colors ${kpis.overdueCount > 0 ? "border-destructive" : ""} ${statusFilter === "overdue" ? "ring-1 ring-destructive/40" : "hover:border-destructive/50"}`}>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-xs text-muted-foreground">Fatture scadute</p>
-                  <p className="text-xl font-bold text-destructive">{kpis.overdueCount} ({fmtEur(kpis.overdueAmount)})</p>
-                </CardContent>
-              </Card>
-            </button>
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Emesse questo mese</p>
-                <p className="text-xl font-bold">{kpis.issuedThisMonth}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Totale fatture {yearFilter !== "all" ? yearFilter : ""}</p>
-                <p className="text-xl font-bold">{kpis.total}</p>
-              </CardContent>
-            </Card>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-[#173b67] p-4 text-white sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+                  <Receipt className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Fatturazione</p>
+                  <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Quanto hai fatturato, quanto ti devono</h2>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+                <NavyStatCard
+                  label="Da incassare"
+                  value={fmtEur(kpis.receivable)}
+                  sub="clicca per filtrare le aperte"
+                  icon={CircleAlert}
+                  tone="text-orange-100"
+                  onClick={() => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid"))}
+                  active={statusFilter === "unpaid"}
+                />
+                <NavyStatCard
+                  label="Fatture scadute"
+                  value={`${kpis.overdueCount}`}
+                  sub={kpis.overdueCount > 0 ? `${fmtEur(kpis.overdueAmount)} da recuperare` : "nessuna scaduta"}
+                  icon={CircleAlert}
+                  tone={kpis.overdueCount > 0 ? "text-orange-300" : "text-emerald-200"}
+                  onClick={() => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue"))}
+                  active={statusFilter === "overdue"}
+                />
+                <NavyStatCard
+                  label="Emesse questo mese"
+                  value={String(kpis.issuedThisMonth)}
+                  icon={Send}
+                />
+                <NavyStatCard
+                  label={`Totale fatture ${yearFilter !== "all" ? yearFilter : ""}`}
+                  value={String(kpis.total)}
+                  icon={FileText}
+                />
+              </div>
+            </div>
           </div>
 
           {/* RECUPERO CREDITI — appare solo se c'è credito scaduto. Traduce il
