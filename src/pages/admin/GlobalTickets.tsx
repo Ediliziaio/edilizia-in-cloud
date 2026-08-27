@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 interface ConversationRow {
   company_id: string;
   status: string;
-  last_message_at?: string | null;
+  updated_at?: string | null;
   created_at?: string | null;
 }
 
@@ -43,7 +43,7 @@ function useSupportStats(enabled: boolean) {
         sp.rpc("admin_support_last_message_by_company").limit(5000),
         supabase
           .from("support_conversations")
-          .select("company_id, status, last_message_at, created_at")
+          .select("company_id, status, updated_at, created_at")
           .in("status", ["open", "in_progress", "pending"])
           .limit(500),
       ]);
@@ -100,8 +100,8 @@ function useSupportStats(enabled: boolean) {
 
       const avgWaitingHours = responseSamples > 0 ? totalResponseHours / responseSamples : 0;
 
-      // Conversazioni chiuse oggi (approssimato dal last_message_at)
-      // NOTE: senza colonna closed_at reale, usiamo last_message_at su convs closed.
+      // Conversazioni chiuse oggi (approssimato dal updated_at)
+      // NOTE: senza colonna closed_at reale, usiamo updated_at su convs closed.
       // Per semplicità, calcoliamo solo su quelle non-closed qui.
       return {
         activeCount,

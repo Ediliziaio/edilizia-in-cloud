@@ -45,9 +45,9 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
       since.setHours(0, 0, 0, 0);
       const { data, error } = await supabase
         .from("email_delivery_log")
-        .select("created_at")
+        .select("sent_at")
         .eq("company_id", companyId).eq("stream", "marketing")
-        .gte("created_at", since.toISOString())
+        .gte("sent_at", since.toISOString())
         .limit(5000);
       if (error) return [];
       const buckets = new Map<string, number>();
@@ -60,8 +60,8 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
         days.push({ key, label: `${WD[d.getDay()]} ${d.getDate()}` });
         buckets.set(key, 0);
       }
-      for (const row of (data ?? []) as { created_at: string }[]) {
-        const key = new Date(row.created_at).toLocaleDateString("en-CA");
+      for (const row of (data ?? []) as { sent_at: string }[]) {
+        const key = new Date(row.sent_at).toLocaleDateString("en-CA");
         if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
       }
       return days.map((d) => ({ label: d.label, value: buckets.get(d.key) ?? 0 }));

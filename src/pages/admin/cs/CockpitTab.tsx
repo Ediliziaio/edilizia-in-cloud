@@ -140,18 +140,20 @@ export function CockpitTab() {
       const sp = supabase as any;
       const { data } = await sp
         .from("silvio_pending_approvals")
-        .select("id, preview_md, expires_at, created_at, action_type, risk_level")
+        .select("id, preview_md, expires_at, created_at, context")
         .eq("status", "awaiting")
         .order("created_at", { ascending: false })
         .limit(10);
-      return (data ?? []) as Array<{
-        id: string;
-        preview_md: string;
-        expires_at: string;
-        created_at: string;
-        action_type: string | null;
-        risk_level: string | null;
-      }>;
+      // action_type e risk_level NON sono colonne: vivono nel jsonb context
+      // (la vecchia select falliva → cockpit senza le approvazioni pendenti).
+      return ((data ?? []) as Array<{ id: string; preview_md: string; expires_at: string; created_at: string; context: Record<string, unknown> | null }>).map((r) => ({
+        id: r.id,
+        preview_md: r.preview_md,
+        expires_at: r.expires_at,
+        created_at: r.created_at,
+        action_type: (r.context?.action_type as string | undefined) ?? null,
+        risk_level: (r.context?.risk_level as string | undefined) ?? null,
+      }));
     },
     refetchInterval: 30_000,
     staleTime: 15_000,

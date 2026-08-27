@@ -438,15 +438,15 @@ function StripeEventsTab() {
       let query = (supabase as any)
         .from("stripe_events_log")
         .select("*")
-        .order("created_at", { ascending: false })
+        .order("processed_at", { ascending: false })
         .limit(100);
 
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
 
       const now = new Date();
-      if (dateRange === "day") query = query.gte("created_at", new Date(now.getTime() - 86400000).toISOString());
-      else if (dateRange === "week") query = query.gte("created_at", new Date(now.getTime() - 7 * 86400000).toISOString());
-      else query = query.gte("created_at", new Date(now.getTime() - 30 * 86400000).toISOString());
+      if (dateRange === "day") query = query.gte("processed_at", new Date(now.getTime() - 86400000).toISOString());
+      else if (dateRange === "week") query = query.gte("processed_at", new Date(now.getTime() - 7 * 86400000).toISOString());
+      else query = query.gte("processed_at", new Date(now.getTime() - 30 * 86400000).toISOString());
 
       const { data, error } = await query;
       if (error) throw error;
@@ -457,7 +457,7 @@ function StripeEventsTab() {
         company_id: string | null;
         status: string;
         error_message: string | null;
-        created_at: string;
+        processed_at: string;
       }>;
     },
     refetchInterval: 60_000,
@@ -542,7 +542,7 @@ function StripeEventsTab() {
                   )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {format(new Date(e.created_at), "dd/MM HH:mm:ss")}
+                  {format(new Date(e.processed_at), "dd/MM HH:mm:ss")}
                 </TableCell>
                 <TableCell className="max-w-[240px] truncate text-xs text-destructive">
                   {e.error_message ?? "—"}
