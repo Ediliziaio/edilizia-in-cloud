@@ -124,7 +124,12 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
 
     <table style="width:100%;border-collapse:collapse;">
       ${riga("Incassato nel periodo", eur(r?.incassi_eur), `${r?.incassi_n ?? 0} fatture · ${variazione(r?.incassi_eur, r?.incassi_eur_prec)} sul periodo precedente`)}
-      ${riga("MRR", eur(r?.mrr_eur), r?.mrr_eur_prec ? variazione(r?.mrr_eur, r?.mrr_eur_prec) : "")}
+      ${riga("MRR fatturato", eur(r?.mrr_eur),
+             `${r?.aziende_paganti ?? 0} aziende paganti${r?.mrr_eur_prec ? ` · ${variazione(r?.mrr_eur, r?.mrr_eur_prec)}` : ""}`)}
+      ${Number(r?.mrr_regalato_eur ?? 0) > 0
+        ? riga("Di cui regalato", eur(r?.mrr_regalato_eur),
+               `${r?.aziende_regalate ?? 0} accessi omaggio · fuori dal MRR`)
+        : ""}
       ${riga("Aziende attive", String(r?.aziende_attive ?? 0), `${r?.nuove_aziende ?? 0} nuove nel periodo`)}
       ${riga("Prove in corso", String(r?.trial_attivi ?? 0))}
       ${riga("Commesse create", String(r?.commesse_create ?? 0), "dai clienti")}
@@ -136,6 +141,14 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
                Number(r?.wa_inviati) > 0 ? `${Math.round((Number(r?.wa_risposte) / Number(r?.wa_inviati)) * 100)}% di risposta` : "")
         : ""}
     </table>
+
+    ${r?.mrr_affidabile === false
+      ? `<p style="font-family:sans-serif;font-size:12px;color:#92400e;background:#fef3c7;padding:10px 12px;border-radius:6px;margin:16px 0 0;">
+           Il MRR di questo riepilogo viene dall'ultima fotografia disponibile, calcolata prima
+           della correzione che esclude gli accessi regalati: leggilo come indicativo. Dal
+           prossimo giro notturno il numero è quello fatturato davvero.
+         </p>`
+      : ""}
 
     ${elenco("Aziende che non stanno pagando", difficolta,
       (i) => `<strong>${i.azienda}</strong> — da ${i.da_giorni} giorni`)}

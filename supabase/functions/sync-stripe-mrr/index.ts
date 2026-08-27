@@ -66,6 +66,7 @@ type InternalCompany = {
   name: string | null;
   status: string | null;
   payment_method: string | null;
+  stripe_customer_id: string | null;
   stripe_subscription_status: string | null;
   subscription_plans: {
     price_monthly: number | null;
@@ -78,6 +79,10 @@ type InternalCompany = {
   }> | null;
 };
 
+// Deve restare allineata a NON_PAYING_METHODS in src/lib/adminRevenue.ts:
+// e' la stessa domanda ("questo cliente lo sto fatturando?") posta in due
+// runtime diversi. Il valore canonico scritto dalla UI e' "comped" — mancava,
+// e siccome e' l'unico che la UI produce, TUTTI i regalati entravano in MRR.
 const NON_PAYING_METHODS = new Set([
   "",
   "none",
@@ -90,6 +95,7 @@ const NON_PAYING_METHODS = new Set([
   "manual_free",
   "complimentary",
   "comp",
+  "comped",
 ]);
 
 function norm(value: string | null | undefined): string {
@@ -111,9 +117,24 @@ function companyMrrCents(company: InternalCompany): number {
   return Math.round(monthly * 100);
 }
 
+/**
+ * Entra in MRR solo chi paga davvero.
+ *
+ * Il metodo di pagamento decide per PRIMO: marcare un'azienda come regalata e'
+ * una dichiarazione esplicita ("questa non la fatturo"), e deve battere
+ * qualunque residuo Stripe rimasto attivo da un abbonamento precedente.
+ * Prima il controllo Stripe veniva prima, quindi bastava una sottoscrizione
+ * dimenticata per far rientrare un regalo nel fatturato.
+ */
 function countsAsPaidRevenue(company: InternalCompany): boolean {
   if (company.status !== "active") return false;
   if (companyMrrCents(company) <= 0) return false;
+
+  // Un metodo "regalo" DICHIARATO batte tutto. Il metodo vuoto invece non
+  // dichiara niente: la' decide Stripe, altrimenti un pagante a cui non e'
+  // stato compilato il campo sparirebbe dal fatturato.
+  const paymentMethod = norm(company.payment_method);
+  if (paymentMethod && NON_PAYING_METHODS.has(paymentMethod)) return false;
 
   const stripeStatus = norm(company.stripe_subscription_status);
   const hasActiveStripeSub =
@@ -123,8 +144,17 @@ function countsAsPaidRevenue(company: InternalCompany): boolean {
   if (stripeStatus === "active" || hasActiveStripeSub) return true;
   if (["canceled", "cancelled", "unpaid", "past_due"].includes(stripeStatus)) return false;
 
-  const paymentMethod = norm(company.payment_method);
-  return !!paymentMethod && !NON_PAYING_METHODS.has(paymentMethod) && paymentMethod !== "stripe";
+  // Metodo manuale configurato (bonifico, SDD...): si fattura fuori da Stripe.
+  // "stripe" senza abbonamento attivo invece non incassa niente.
+  return !!paymentMethod && paymentMethod !== "stripe";
+}
+
+/** Regalata: ha un piano a pagamento, ma per scelta non le viene chiesto nulla. */
+function isRegalata(company: InternalCompany): boolean {
+  if (company.status !== "active") return false;
+  if (companyMrrCents(company) <= 0) return false;
+  const method = norm(company.payment_method);
+  return !!method && NON_PAYING_METHODS.has(method);
 }
 
 Deno.serve(async (req: Request) => {
@@ -164,14 +194,21 @@ Deno.serve(async (req: Request) => {
     // ma non devono entrare in MRR, ARR o riconciliazione revenue.
     const { data: companies } = await supabase
       .from("companies")
-      .select("id, name, status, payment_method, stripe_subscription_status, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_subscriptions(status, stripe_subscription_id, billing_period)")
+      .select("id, name, status, payment_method, stripe_customer_id, stripe_subscription_status, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_subscriptions(status, stripe_subscription_id, billing_period)")
       .eq("status", "active")
       .eq("is_platform_admin_company", false);
 
-    const paidCompanies = ((companies ?? []) as InternalCompany[]).filter(countsAsPaidRevenue);
-    const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
+    const attive = (companies ?? []) as InternalCompany[];
 
+    const paidCompanies = attive.filter(countsAsPaidRevenue);
+    const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
     const aziendeAttivaInterno = paidCompanies.length;
+
+    // Quanto vale, a listino, quello che stiamo regalando. Non e' fatturato e
+    // non deve sommarsi al MRR, ma senza questo numero non si sa se un mese
+    // piatto e' un mercato fermo o troppa generosita'.
+    const regalate = attive.filter(isRegalata);
+    const mrrRegalato = regalate.reduce((s, c) => s + companyMrrCents(c), 0);
 
     // Breakdown per piano (Stripe metadata.plan_name)
     const breakdownPerPiano: Record<string, number> = {};
@@ -179,6 +216,54 @@ Deno.serve(async (req: Request) => {
       const planName = sub.metadata?.plan_name ?? "sconosciuto";
       breakdownPerPiano[planName] = (breakdownPerPiano[planName] ?? 0) + calcMrrCents(sub);
     });
+
+    // Riconciliazione per azienda: dov'e' che Stripe e noi diciamo cose diverse.
+    // Questo campo e' sempre stato scritto vuoto, ed e' il motivo per cui il
+    // divario Stripe/interno non era spiegabile da nessuna parte.
+    //
+    // L'account Stripe e' CONDIVISO con gli altri prodotti AEDIX: le
+    // sottoscrizioni che non risalgono a nessuna azienda non sono un errore
+    // nostro, sono di un altro prodotto, e vanno etichettate come tali invece
+    // di finire in un elenco di anomalie da inseguire.
+    const perCustomer = new Map<string, InternalCompany>();
+    for (const c of attive) {
+      if (c.stripe_customer_id) perCustomer.set(c.stripe_customer_id, c);
+    }
+    const dettaglioDiscrepanze: Array<{
+      company_id: string; nome: string; mrr_stripe: number; mrr_interno: number; motivo: string;
+    }> = [];
+    const visteSuStripe = new Set<string>();
+
+    for (const sub of subscriptions) {
+      const c = perCustomer.get(sub.customer);
+      const mrrSub = calcMrrCents(sub);
+      if (!c) {
+        dettaglioDiscrepanze.push({
+          company_id: "", nome: sub.metadata?.plan_name ?? sub.customer,
+          mrr_stripe: mrrSub, mrr_interno: 0, motivo: "altro prodotto AEDIX",
+        });
+        continue;
+      }
+      visteSuStripe.add(c.id);
+      const mrrNostro = countsAsPaidRevenue(c) ? companyMrrCents(c) : 0;
+      if (mrrNostro !== mrrSub) {
+        dettaglioDiscrepanze.push({
+          company_id: c.id, nome: c.name ?? "(senza nome)",
+          mrr_stripe: mrrSub, mrr_interno: mrrNostro,
+          motivo: mrrNostro === 0 ? "non contata come pagante" : "prezzo diverso dal piano",
+        });
+      }
+    }
+    // Chi contiamo noi ma su cui Stripe non incassa: e' il caso piu' pericoloso,
+    // perche' gonfia il MRR senza che arrivi un euro.
+    for (const c of paidCompanies) {
+      if (visteSuStripe.has(c.id)) continue;
+      dettaglioDiscrepanze.push({
+        company_id: c.id, nome: c.name ?? "(senza nome)",
+        mrr_stripe: 0, mrr_interno: companyMrrCents(c),
+        motivo: "nessun abbonamento attivo su Stripe",
+      });
+    }
 
     const oggi = new Date().toISOString().split("T")[0];
 
@@ -190,8 +275,13 @@ Deno.serve(async (req: Request) => {
         mrr_interno_cents: mrrInterno,
         aziende_attive_stripe: aziendeAttivaStripe,
         aziende_attive_interno: aziendeAttivaInterno,
+        // Scritto da questa versione, quella che esclude i regalati: gli
+        // snapshot piu' vecchi restano marcati inattendibili.
+        calcolo_affidabile: true,
+        mrr_regalato_cents: mrrRegalato,
+        aziende_regalate: regalate.length,
         breakdown_per_piano: breakdownPerPiano,
-        dettaglio_discrepanze: [],
+        dettaglio_discrepanze: dettaglioDiscrepanze,
       },
       { onConflict: "data" }
     );
@@ -203,6 +293,8 @@ Deno.serve(async (req: Request) => {
         ok: true,
         mrr_stripe: mrrStripe,
         mrr_interno: mrrInterno,
+        mrr_regalato: mrrRegalato,
+        aziende_regalate: regalate.length,
         discrepanza: mrrStripe - mrrInterno,
         aziende_stripe: aziendeAttivaStripe,
         data: oggi,

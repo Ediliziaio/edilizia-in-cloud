@@ -3,15 +3,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export interface MrrSnapshot {
-  id: string;
+  /** Chiave primaria della tabella: uno snapshot al giorno. */
   data: string;
   mrr_stripe_cents: number;
   mrr_interno_cents: number;
+  mrr_regalato_cents: number;
+  aziende_regalate: number;
   discrepanza_cents: number;
   aziende_attive_stripe: number;
   aziende_attive_interno: number;
+  calcolo_affidabile: boolean;
   breakdown_per_piano: Record<string, number>;
-  dettaglio_discrepanze: Array<{ company_id: string; nome: string; mrr_stripe: number; mrr_interno: number }>;
+  dettaglio_discrepanze: Array<{
+    company_id: string;
+    nome: string;
+    mrr_stripe: number;
+    mrr_interno: number;
+    motivo?: string;
+  }>;
   created_at: string;
 }
 
@@ -24,7 +33,7 @@ export function useMrrReconciliation() {
       const { data, error } = await supabase
         .from("mrr_snapshots")
         .select(
-          "id, data, mrr_stripe_cents, mrr_interno_cents, discrepanza_cents, aziende_attive_stripe, aziende_attive_interno, breakdown_per_piano, dettaglio_discrepanze, created_at"
+          "data, mrr_stripe_cents, mrr_interno_cents, mrr_regalato_cents, aziende_regalate, discrepanza_cents, aziende_attive_stripe, aziende_attive_interno, calcolo_affidabile, breakdown_per_piano, dettaglio_discrepanze, created_at"
         )
         .order("data", { ascending: false })
         .limit(30);

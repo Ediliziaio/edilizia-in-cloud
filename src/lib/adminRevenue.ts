@@ -127,6 +127,12 @@ export function getAdminRevenueState(company: AdminRevenueCompanyLike): AdminRev
   const monthlyRevenue = getCompanyMonthlyRevenue(company);
   if (monthlyRevenue <= 0) return "free_plan";
 
+  // Marcare un'azienda come regalata e' una decisione esplicita ("questa non la
+  // fatturo") e batte un eventuale abbonamento Stripe rimasto attivo da prima.
+  // Il metodo vuoto non dichiara niente: quello lo decide Stripe piu' sotto.
+  const declaredMethod = normalize(company.payment_method);
+  if (declaredMethod && NON_PAYING_METHODS.has(declaredMethod)) return "complimentary";
+
   if (hasPaidStripeSubscription(company) || hasConfiguredManualPayment(company)) {
     return "paying";
   }

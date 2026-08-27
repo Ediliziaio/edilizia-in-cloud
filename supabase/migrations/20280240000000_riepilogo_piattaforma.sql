@@ -36,10 +36,20 @@ incassi_prec AS (
   WHERE status = 'paid'
     AND created_at >= p_da - (p_a - p_da) AND created_at < p_da
 ),
+-- MRR = solo quello che si incassa davvero. Gli accessi regalati hanno un
+-- piano a listino ma nessuno li fattura: sommarli fa un numero che descrive
+-- un'azienda che non esiste. Restano accanto, come cifra separata, perche'
+-- sapere quanto si sta regalando e' un'informazione, non un errore.
 mrr AS (
   SELECT mrr_interno_cents / 100.0 AS ora,
+         mrr_regalato_cents / 100.0 AS regalato,
+         aziende_regalate,
+         aziende_attive_interno AS paganti,
+         calcolo_affidabile,
+         data AS il_giorno,
          (SELECT m2.mrr_interno_cents / 100.0 FROM public.mrr_snapshots m2
           WHERE m2.data < (SELECT max(data) FROM public.mrr_snapshots)
+            AND m2.calcolo_affidabile
           ORDER BY m2.data DESC LIMIT 1) AS prima
   FROM public.mrr_snapshots
   ORDER BY data DESC LIMIT 1
@@ -56,8 +66,13 @@ SELECT jsonb_build_object(
   'incassi_n_prec', (SELECT n FROM incassi_prec),
   'incassi_eur_prec',(SELECT eur FROM incassi_prec),
 
-  'mrr_eur',        (SELECT ora FROM mrr),
-  'mrr_eur_prec',   (SELECT prima FROM mrr),
+  'mrr_eur',            (SELECT ora FROM mrr),
+  'mrr_eur_prec',       (SELECT prima FROM mrr),
+  'mrr_regalato_eur',   (SELECT regalato FROM mrr),
+  'aziende_regalate',   (SELECT aziende_regalate FROM mrr),
+  'aziende_paganti',    (SELECT paganti FROM mrr),
+  'mrr_affidabile',     (SELECT calcolo_affidabile FROM mrr),
+  'mrr_del_giorno',     (SELECT il_giorno FROM mrr),
 
   -- Chi rischia di andarsene: e' la parte azionabile del rapporto.
   'in_difficolta', COALESCE((
