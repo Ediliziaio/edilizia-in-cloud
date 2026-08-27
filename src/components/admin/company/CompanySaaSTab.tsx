@@ -46,9 +46,13 @@ export function CompanySaaSTab({
   const { data: storageData } = useQuery({
     queryKey: ['company-storage', companyId],
     queryFn: async () => {
-      const [ordersRes, customersRes] = await Promise.all([
+      // La tabella 'customers' NON esiste: la vecchia query dava sempre errore
+      // e il tab mostrava 0 clienti per ogni azienda (e has_customers sempre
+      // falso nel punteggio salute). I clienti veri sono i profili company_id
+      // con ruolo customer, contati da una RPC gated lato piattaforma.
+      const [ordersRes, customerCountRes] = await Promise.all([
         supabase.from('orders').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
-        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+        supabase.rpc('get_company_customer_count', { p_company_id: companyId }),
       ]);
       let storageMb = 0;
       let fileCount = 0;
@@ -67,7 +71,7 @@ export function CompanySaaSTab({
       }
       return {
         ordersCount: ordersRes.count ?? 0,
-        customersCount: customersRes.count ?? 0,
+        customersCount: (customerCountRes.data as number | null) ?? 0,
         fileCount,
         storageMb: Math.round(storageMb * 10) / 10,
       };
