@@ -13,7 +13,10 @@ export function toFiniteAmount(value: unknown, fallback = 0): number {
 export function formatTreasuryCurrency(value: unknown, fallback = "—"): string {
   const amount = toFiniteAmount(value, Number.NaN);
   if (!Number.isFinite(amount)) return fallback;
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amount);
+  // useGrouping "always": il CLDR italiano omette il punto delle migliaia
+  // sotto le 5 cifre (8597,21 accanto a 52.941,81 sembrava un refuso) —
+  // stessa scelta di lib/formatters.ts.
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(amount);
 }
 
 export function parsePositiveAmount(value: string): number | null {
