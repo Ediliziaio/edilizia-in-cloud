@@ -206,7 +206,7 @@ export default function Scadenzario() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setNewOpen(true)}>
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Plus className="h-4 w-4 mr-1" /> Nuova Scadenza
           </Button>
         </div>
