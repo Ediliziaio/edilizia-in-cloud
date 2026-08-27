@@ -232,6 +232,55 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
   });
 
+  // Capitale circolante a regime (cap. 26): (uscite mensili - acconti
+  // mensili) x mesi di ciclo. Acconti medi e ciclo di cassa REALE dalle
+  // rate incassate degli ultimi 12 mesi (primo acconto -> ultimo saldo).
+  const circolanteQuery = useQuery({
+    queryKey: ["capitale-circolante-base", companyId],
+    queryFn: async () => {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      const { data, error } = await (supabase as any)
+        .from("order_installments")
+        .select("order_id, type, amount, paid_date, is_paid, orders!inner(company_id)")
+        .eq("orders.company_id", companyId!)
+        .eq("is_paid", true)
+        .not("paid_date", "is", null)
+        .gte("paid_date", cutoff.toISOString().slice(0, 10))
+        .limit(2000);
+      if (error) throw error;
+      type Rata = { order_id: string; type: string; amount: number | string | null; paid_date: string };
+      const rate = (data ?? []) as Rata[];
+      // Acconti incassati al mese (media sui mesi con almeno un incasso)
+      const acconti = rate.filter((r) => r.type === "deposit");
+      const mesiConAcconti = new Set(acconti.map((r) => r.paid_date.slice(0, 7)));
+      const accontiMese = mesiConAcconti.size > 0
+        ? acconti.reduce((s, r) => s + (Number(r.amount) || 0), 0) / mesiConAcconti.size
+        : 0;
+      // Ciclo di cassa: primo acconto -> ultimo saldo, per commessa
+      const perOrdine = new Map<string, { primo: number; ultimo: number; haSaldo: boolean }>();
+      rate.forEach((r) => {
+        const t = new Date(r.paid_date).getTime();
+        const cur = perOrdine.get(r.order_id) ?? { primo: t, ultimo: t, haSaldo: false };
+        cur.primo = Math.min(cur.primo, t);
+        cur.ultimo = Math.max(cur.ultimo, t);
+        if (r.type === "balance") cur.haSaldo = true;
+        perOrdine.set(r.order_id, cur);
+      });
+      const cicli = [...perOrdine.values()]
+        .filter((v) => v.haSaldo && v.ultimo > v.primo)
+        .map((v) => (v.ultimo - v.primo) / 86400000 / 30.44);
+      if (cicli.length < 3 || accontiMese <= 0) return null;
+      return {
+        accontiMese,
+        mesiCiclo: Math.round((cicli.reduce((s, c) => s + c, 0) / cicli.length) * 10) / 10,
+        commesse: cicli.length,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const ordersQuery = useQuery({
     queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
@@ -742,6 +791,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   };
 
   return {
+    circolante: circolanteQuery.data ?? null,
     rateFinanziamenti: rateFinanziamentiQuery.data ?? 0,
     andamentoMensile,
     costs,

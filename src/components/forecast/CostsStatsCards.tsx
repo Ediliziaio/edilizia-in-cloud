@@ -51,6 +51,10 @@ interface MonthlyDistItem {
 interface CostsStatsCardsProps {
   /** Rate mensili dei finanziamenti attivi (cg_loans): secondo pareggio. */
   rateFinanziamenti?: number;
+  /** Dati per il capitale circolante (cap. 26): acconti medi e ciclo reale. */
+  circolante?: { accontiMese: number; mesiCiclo: number; commesse: number } | null;
+  /** Uscite medie mensili (fissi + variabili, ultimi mesi con dati). */
+  mediaUsciteMensili?: number;
   monthlyDistribution: MonthlyDistItem[];
   yearlyStats: YearlyStats;
   selectedYear: number;
@@ -72,7 +76,7 @@ const PIE_COLORS = [
   "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
 ];
 
-export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza, rateFinanziamenti = 0 }: CostsStatsCardsProps) {
+export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza, rateFinanziamenti = 0, circolante = null, mediaUsciteMensili = 0 }: CostsStatsCardsProps) {
   // Il budget in quattro righe: fissi annui + utile voluto → fatturato
   // obiettivo → commesse al mese. L'utile è una scelta del titolare, non una
   // previsione: si scrive qui e non si salva da nessuna parte.
@@ -484,6 +488,22 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                   <strong className="text-foreground">{formatCurrency(beFinanziario)}/mese</strong>
                   {breakEvenData.averageOrderValue > 0 && <> ({Math.ceil(beFinanziario / breakEvenData.averageOrderValue)} commesse)</>}.
                   Imposte e sostituzione mezzi escluse: non sono ancora tracciate.
+                </p>
+              );
+            })()}
+
+            {/* Capitale circolante a regime (cap. 26): (uscite - acconti) x
+                mesi di ciclo. Non e' una voce di bilancio: serve a
+                dimensionare il fido PRIMA che serva. */}
+            {circolante && mediaUsciteMensili > 0 && (() => {
+              const capitale = Math.max(0, (mediaUsciteMensili - circolante.accontiMese) * circolante.mesiCiclo);
+              if (capitale <= 0) return null;
+              return (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Capitale circolante a regime ≈ <strong className="text-foreground">{formatCurrency(capitale)}</strong>:
+                  ({formatCurrency(mediaUsciteMensili)} di uscite − {formatCurrency(circolante.accontiMese)} di acconti al mese)
+                  × {circolante.mesiCiclo.toLocaleString("it-IT")} mesi di ciclo reale (da {circolante.commesse} commesse incassate).
+                  È il fido da dimensionare prima che serva.
                 </p>
               );
             })()}

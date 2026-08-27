@@ -661,6 +661,13 @@ export default function CompanyCostsManager({
           fixedCostsTrend={data.fixedCostsTrend}
           breakEvenData={data.breakEvenData}
           rateFinanziamenti={data.rateFinanziamenti}
+          circolante={data.circolante}
+          mediaUsciteMensili={(() => {
+            // Media (fissi+variabili) sugli ultimi 6 mesi CON dati della serie
+            // stabile: e' l'"uscite mensili" della formula del circolante.
+            const ultimi = data.andamentoMensile.slice(-7, -1).map((m: { fixed: number; variable: number }) => m.fixed + m.variable).filter((v: number) => v > 0);
+            return ultimi.length >= 3 ? ultimi.reduce((s: number, v: number) => s + v, 0) / ultimi.length : 0;
+          })()}
         />
 
         <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsUnfiltered} />
