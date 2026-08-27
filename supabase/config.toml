@@ -127,6 +127,10 @@ verify_jwt = false
 [functions.process-dunning]
 verify_jwt = false
 
+# Canarino mattutino: lo chiama solo il cron con x-cron-secret.
+[functions.ops-canarino]
+verify_jwt = false
+
 # Checkout pubblico offerte (trattativa): endpoint pubblico, fa validazione propria
 # + allowlist piani + prezzo server-side. Nessun login richiesto.
 [functions.public-checkout]
