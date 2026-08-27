@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { AlertTriangle, CircleDot, Percent, Trophy, XCircle, Ban, Euro, TrendingUp, BellRing } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { OpportunityStage } from "@/types/opportunities";
 
@@ -80,7 +79,9 @@ export function OpportunityStatsStrip({ opportunities, stages, filtroAttivo, onF
   }, [opportunities, soglie]);
 
   const fmt = (v: number, isCurrency: boolean) =>
-    isCurrency ? formatCurrency(v) : String(v);
+    // Senza centesimi: nella strip compatta "814.695,50 €" troncava a
+    // "814.695,...". I decimali qui non decidono niente.
+    isCurrency ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v) : String(v);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-2">

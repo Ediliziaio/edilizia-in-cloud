@@ -776,7 +776,7 @@ function EmptyState({
           : "Registra il primo DDT per tracciare le ricezioni merce con allegati, dati corriere e verifica qualità."}
       </p>
       {canCreate && !hasFilter && (
-        <Button onClick={onCreate} className="mt-2">
+        <Button onClick={onCreate} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
           <Plus className="h-4 w-4 mr-1" /> Registra primo DDT
         </Button>
       )}
