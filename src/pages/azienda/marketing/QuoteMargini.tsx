@@ -268,6 +268,17 @@ export default function QuoteMargini() {
                 E le voci fantasma (smaltimento, trasporto, ponteggio, ripristini, pratiche):
                 insieme valgono il 4-6%.
               </p>
+              {/* Effetto-sconto (cap. 6 del manuale): lo sconto esce tutto
+                  dall'utile, non dal prezzo. Col margine attuale, il conto. */}
+              {breakdown.margine_totale_pct > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Effetto sconto: con questo margine, un 5% di sconto al cliente brucia il{" "}
+                  <strong className={5 / breakdown.margine_totale_pct >= 0.3 ? "text-orange-700" : "text-foreground"}>
+                    {Math.round((5 / breakdown.margine_totale_pct) * 100)}% dell'utile
+                  </strong>{" "}
+                  della commessa. Lo sconto si decide coi numeri, non a sensazione.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

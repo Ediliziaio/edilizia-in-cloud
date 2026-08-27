@@ -51,7 +51,7 @@ function EmptyState({ icon: Icon, title, hint }: { icon: React.ComponentType<{ c
 }
 
 export default function AnalisiAcquisti() {
-  const { supplierSpend, benchmark, invoiceSpend, isLoading } = useProcurementAnalysis();
+  const { supplierSpend, benchmark, invoiceSpend, firmaOrdine, isLoading } = useProcurementAnalysis();
 
   const ranked = supplierSpend?.ranked ?? [];
   const benchmarks = benchmark?.benchmarks ?? [];
@@ -129,6 +129,19 @@ export default function AnalisiAcquisti() {
           </div>
         </div>
       </div>
+
+      {/* Il tempo tra firma e primo ordine (capp. Tempi del manuale): ogni
+          giorno di attesa e' materiale che arriva tardi e cantiere fermo. */}
+      {firmaOrdine && (
+        <p className="text-sm text-muted-foreground">
+          Dalla firma della commessa al primo ordine d'acquisto passano in media{" "}
+          <strong className={firmaOrdine.mediaGiorni > 7 ? "text-orange-700" : "text-foreground"}>
+            {firmaOrdine.mediaGiorni} giorni
+          </strong>{" "}
+          (su {firmaOrdine.commesse} commesse degli ultimi 12 mesi).
+          {firmaOrdine.mediaGiorni > 7 && " Ogni giorno di attesa è materiale che arriva tardi e cantiere fermo: l'ordine si fa alla firma."}
+        </p>
+      )}
 
       {/* Spesa per fornitore */}
       <Card>

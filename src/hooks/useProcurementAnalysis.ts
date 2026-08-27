@@ -103,6 +103,45 @@ export function useProcurementAnalysis() {
     },
   });
 
+  // ── Giorni firma → primo ordine d'acquisto (capp. Tempi del manuale) ─────
+  // Tra la firma della commessa e il primo ODA passano giorni che sono
+  // margine che si scioglie: materiali che arrivano tardi, cantiere fermo.
+  // Media sulle commesse degli ultimi 12 mesi che hanno almeno un ODA.
+  const leadTimeQuery = useQuery({
+    queryKey: ["procurement", "firma-ordine", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    queryFn: async () => {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("order_id, created_at, orders!inner(id, created_at, company_id)")
+        .eq("orders.company_id", companyId!)
+        .not("order_id", "is", null)
+        .gte("created_at", cutoff.toISOString())
+        .limit(1000);
+      if (error) throw error;
+      type Riga = { order_id: string; created_at: string; orders: { created_at: string } };
+      const primoOda = new Map<string, { firma: number; ordine: number }>();
+      ((data ?? []) as unknown as Riga[]).forEach((r) => {
+        const firma = new Date(r.orders.created_at).getTime();
+        const ordine = new Date(r.created_at).getTime();
+        const cur = primoOda.get(r.order_id);
+        if (!cur || ordine < cur.ordine) primoOda.set(r.order_id, { firma, ordine });
+      });
+      const giorni = [...primoOda.values()]
+        .map((v) => (v.ordine - v.firma) / 86400000)
+        .filter((g) => g >= 0 && g <= 365);
+      if (giorni.length < 3) return null;
+      return {
+        mediaGiorni: Math.round(giorni.reduce((s, g) => s + g, 0) / giorni.length),
+        commesse: giorni.length,
+      };
+    },
+  });
+
   const invoiceSpendQuery = useQuery({
     queryKey: ["procurement", "invoice-spend", companyId],
     enabled: !!companyId,
@@ -122,6 +161,7 @@ export function useProcurementAnalysis() {
   });
 
   return {
+    firmaOrdine: leadTimeQuery.data ?? null,
     supplierSpend: supplierSpendQuery.data ?? null,
     benchmark: benchmarkQuery.data ?? null,
     invoiceSpend: invoiceSpendQuery.data ?? null,

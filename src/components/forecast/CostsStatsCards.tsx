@@ -451,6 +451,18 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <p className="text-xs text-muted-foreground mt-1">
               {breakEvenData.coveragePercent.toFixed(0)}% coperto dal fatturato del mese: {formatCurrency(breakEvenData.monthlyRevenue)}
             </p>
+            {/* Margine di sicurezza (cap. 4 del manuale): quanto puo' calare il
+                fatturato prima di finire sotto il pareggio. Sotto il 20% ogni
+                commessa rimandata e' un mese in perdita. */}
+            {breakEvenData.monthlyRevenue > 0 && breakEvenData.coveragePercent >= 100 && (() => {
+              const sicurezza = Math.round(((breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue) / breakEvenData.monthlyRevenue) * 100);
+              return (
+                <p className={cn("mt-1 text-xs", sicurezza < 20 ? "font-medium text-orange-700" : "text-muted-foreground")}>
+                  Margine di sicurezza {sicurezza}%: il fatturato può calare di {formatCurrency(breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue)} prima di andare in perdita.
+                  {sicurezza < 20 && " Sotto il 20% basta una commessa rimandata per chiudere il mese in rosso."}
+                </p>
+              );
+            })()}
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {breakEvenData.ipotesiDaDati
                 ? <>Dalle tue commesse degli ultimi 12 mesi: margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>
