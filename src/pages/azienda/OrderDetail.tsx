@@ -11,6 +11,7 @@ import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
+import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
@@ -444,10 +445,16 @@ function OrderDetailInner() {
       // misuravano due cose diverse (10 fasi al 90% = "0/10 completate").
       const completata = (p: { status: string; percentuale: number | null }) =>
         p.status === "completata" || Number(p.percentuale) >= 100;
+      // Avanzamento fisico = media % delle fasi (una fase "completata" senza
+      // percentuale vale 100): alimenta eseguito-vs-incassato e la proiezione
+      // del margine a fine lavori.
+      const pctDi = (p: { status: string; percentuale: number | null }) =>
+        completata(p) ? 100 : Math.min(100, Math.max(0, Number(p.percentuale) || 0));
       return {
         total: rows.length,
         done: rows.filter(completata).length,
         inCorso: rows.filter((p) => !completata(p) && (p.status === "in_corso" || Number(p.percentuale) > 0)).length,
+        avgPct: rows.length > 0 ? rows.reduce((s, p) => s + pctDi(p), 0) / rows.length : null,
       };
     },
     enabled: !!id,
@@ -1105,6 +1112,8 @@ function OrderDetailInner() {
     0,
     (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100) - (order.financing_cost ?? 0),
   );
+  // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
+  const avanzamentoPct = phaseProgress?.avgPct ?? null;
 
   // ── Cassa della commessa ───────────────────────────────────────────────────
   // Timeline acconto → materiali → saldo. Evidenzia il fabbisogno di anticipo
@@ -1353,6 +1362,7 @@ function OrderDetailInner() {
             cashCollected={collectedGross}
             cashTotal={cashTotalGross}
             itemsLoading={orderItemsPending}
+            avanzamentoPct={avanzamentoPct}
           />
         </ErrorBoundary>
         )}
@@ -1506,6 +1516,21 @@ function OrderDetailInner() {
                 conPrimaNota={permissions.canViewPrimaNota}
                 clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
               />
+              )}
+              {/* Chi finanzia il cantiere: cassa consuntiva (incassato vs pagato).
+                  Mescola vendite e costi → servono entrambi i permessi. */}
+              {permissions.canViewOrderAmounts && permissions.canViewCosts && (
+                <ErrorBoundary fallback={<></>}>
+                  <EsposizioneCommessa
+                    orderId={id!}
+                    totalAmount={order.total_amount}
+                    vatRate={order.vat_rate || 22}
+                    financingCost={order.financing_cost ?? 0}
+                    installments={displayInstallments}
+                    cashTotalGross={cashTotalGross}
+                    avanzamentoPct={avanzamentoPct}
+                  />
+                </ErrorBoundary>
               )}
               {/* Fatturazione e documenti */}
               <QuoteCard
@@ -2122,6 +2147,22 @@ function OrderDetailInner() {
                   <p className="text-[11px] text-muted-foreground">Stima sui materiali · manodopera e altre spese escluse.</p>
                 </div>
               </QuoteCard>
+            )}
+
+            {/* Chi finanzia il cantiere: cassa consuntiva, il gemello reale
+                della previsione qui sopra. Vendite+costi → entrambi i permessi. */}
+            {permissions.canViewOrderAmounts && permissions.canViewCosts && (
+              <ErrorBoundary fallback={<></>}>
+                <EsposizioneCommessa
+                  orderId={id!}
+                  totalAmount={order.total_amount}
+                  vatRate={order.vat_rate || 22}
+                  financingCost={order.financing_cost ?? 0}
+                  installments={displayInstallments}
+                  cashTotalGross={cashTotalGross}
+                  avanzamentoPct={avanzamentoPct}
+                />
+              </ErrorBoundary>
             )}
 
             <OrderErrors orderId={id!} />

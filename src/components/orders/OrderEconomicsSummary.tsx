@@ -46,7 +46,20 @@ interface OrderEconomicsSummaryProps {
   /** true mentre la query order_items del genitore è in corso: evita di mostrare
    *  un "Margine 100% / Costi 0" fuorviante prima che i costi articoli arrivino. */
   itemsLoading?: boolean;
+  /** Avanzamento fisico (media % fasi lavorazione). Con ≥15% sblocca la
+   *  proiezione del margine a fine lavori: costi a finire = consuntivo/avanzamento. */
+  avanzamentoPct?: number | null;
 }
+
+/** Percentuale it-IT a 1 decimale: 36,1 (virgola, non punto). */
+const pct1 = (n: number) => n.toFixed(1).replace(".", ",");
+
+/** "al 50%" ma "all'80%" / "all'8%" / "all'11%": articolo giusto davanti al numero. */
+const alPct = (n: number) => {
+  const r = Math.round(n);
+  const apostrofo = r === 8 || r === 11 || (r >= 80 && r <= 89) || (r >= 800 && r <= 899);
+  return `${apostrofo ? "all'" : "al "}${r}%`;
+};
 
 const CHART = {
   articoli: "hsl(var(--chart-1))",
@@ -65,6 +78,7 @@ export function OrderEconomicsSummary({
   cashCollected,
   cashTotal,
   itemsLoading = false,
+  avanzamentoPct = null,
 }: OrderEconomicsSummaryProps) {
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
 
@@ -323,7 +337,7 @@ export function OrderEconomicsSummary({
           Conto economico
         </CardTitle>
         <Badge variant="outline" className={`text-xs font-semibold ${marginBadge}`}>
-          Margine {econ.marginPct.toFixed(1)}%
+          Margine {pct1(econ.marginPct)}%
         </Badge>
       </CardHeader>
       <CardContent>
@@ -348,8 +362,8 @@ export function OrderEconomicsSummary({
             {econ.costsTot > econ.itemsNet && econ.margin >= 0 && (
               <p className="text-xs text-muted-foreground">
                 Margine pianificato: su soli materiali{" "}
-                <strong className="text-foreground">{econ.attesoMaterialiPct.toFixed(1)}%</strong> → completo{" "}
-                <strong className={marginColor}>{econ.marginPct.toFixed(1)}%</strong>{" "}
+                <strong className="text-foreground">{pct1(econ.attesoMaterialiPct)}%</strong> → completo{" "}
+                <strong className={marginColor}>{pct1(econ.marginPct)}%</strong>{" "}
                 <span className="text-amber-600 dark:text-amber-400">
                   (manodopera/provvigioni/errori: −{formatCurrency(econ.costsTot - econ.itemsNet)})
                 </span>
@@ -396,7 +410,7 @@ export function OrderEconomicsSummary({
                       {consuntivo.scostamento > 0 ? "+" : ""}
                       {formatCurrency(consuntivo.scostamento)}
                       {Math.abs(consuntivo.scostamentoPct) >= 0.1 &&
-                        ` (${consuntivo.scostamento > 0 ? "+" : ""}${consuntivo.scostamentoPct.toFixed(1)}%)`}
+                        ` (${consuntivo.scostamento > 0 ? "+" : ""}${pct1(consuntivo.scostamentoPct)}%)`}
                     </span>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
@@ -413,7 +427,7 @@ export function OrderEconomicsSummary({
                             : "text-red-600 dark:text-red-400"
                       }`}
                     >
-                      {formatCurrency(consuntivo.consuntivoMargin)} · {consuntivo.consuntivoMarginPct.toFixed(1)}%
+                      {formatCurrency(consuntivo.consuntivoMargin)} · {pct1(consuntivo.consuntivoMarginPct)}%
                     </span>
                   </div>
                 </>
@@ -422,6 +436,37 @@ export function OrderEconomicsSummary({
                   Nessun ordine fornitore (ODA) ancora emesso → consuntivo materiali in corso.
                 </p>
               )}
+              {/* Proiezione a fine lavori: costi a finire = consuntivo/avanzamento.
+                  Solo con avanzamento ≥15% (sotto, la stima è rumore) e costi reali.
+                  "Di questo passo": se i materiali sono stati ordinati tutti subito,
+                  la proiezione è prudente per costruzione. */}
+              {(() => {
+                if (avanzamentoPct == null || avanzamentoPct < 15 || consuntivo.consuntivoCost <= 0) return null;
+                const ricavoTot = totalAmount + consuntivo.variazioniTot;
+                if (ricavoTot <= 0) return null;
+                const costiAFine = consuntivo.consuntivoCost / (avanzamentoPct / 100);
+                const margineProiettato = ricavoTot - costiAFine;
+                const pct = (margineProiettato / ricavoTot) * 100;
+                return (
+                  <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
+                    <span className="font-medium text-foreground">
+                      Di questo passo, a fine lavori
+                      <span className="ml-1 font-normal text-muted-foreground">· lavori {alPct(avanzamentoPct)}</span>
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        pct >= 20
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : pct >= 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {formatCurrency(margineProiettato)} · {pct1(pct)}%
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Cassa */}
@@ -483,7 +528,7 @@ export function OrderEconomicsSummary({
                 animationDuration={0.9}
                 activeLabel={hoverSeg?.label ?? null}
                 onSegmentHover={handleSegmentHover}
-                aria-label={`Margine ${econ.marginPct.toFixed(0)}%`}
+                aria-label={`Margine ${Math.round(econ.marginPct)}%`}
                 centerContent={
                   hoverSeg ? (
                     <div className="flex flex-col items-center text-center">
@@ -500,7 +545,7 @@ export function OrderEconomicsSummary({
                   ) : (
                     <div className="flex flex-col items-center">
                       <span className={`text-lg font-bold leading-none ${marginColor}`}>
-                        {econ.marginPct.toFixed(1)}%
+                        {pct1(econ.marginPct)}%
                       </span>
                       <span className="text-[10px] text-muted-foreground">margine</span>
                     </div>
