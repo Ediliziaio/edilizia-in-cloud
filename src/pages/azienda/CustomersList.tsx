@@ -1334,14 +1334,24 @@ function CustomersListInner() {
               const isSelected = selectedIds.has(customer.id);
               return (
                 <div key={customer.id} className="flex items-center gap-2 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
-                  {/* Hit area 44×44 (touch target Apple HIG / Material). Checkbox 16px centrato dentro */}
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); toggleRow(customer.id); }}
+                  {/* Hit area 44×44 (touch target Apple HIG / Material). Checkbox 16px
+                      centrato dentro. È uno <span role=checkbox>, NON un <button>:
+                      la Checkbox interna è già un <button> Radix, e button-dentro-button
+                      è HTML invalido (warning validateDOMNesting). Tastiera gestita a mano. */}
+                  <span
+                    role="checkbox"
+                    tabIndex={0}
                     aria-label={`Seleziona ${fullName}`}
                     aria-checked={isSelected}
-                    role="checkbox"
-                    className="flex h-11 w-11 shrink-0 items-center justify-center -ml-2"
+                    onClick={(e) => { e.stopPropagation(); toggleRow(customer.id); }}
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleRow(customer.id);
+                      }
+                    }}
+                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center -ml-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Checkbox
                       checked={isSelected}
@@ -1349,7 +1359,7 @@ function CustomersListInner() {
                       aria-hidden="true"
                       className="pointer-events-none"
                     />
-                  </button>
+                  </span>
                   <Link to={`/azienda/clienti/${customer.id}`} className="flex-1 flex items-center gap-3 min-w-0">
                     <Avatar className={`h-10 w-10 shrink-0 ${avatarColor}`}>
                       <AvatarFallback className="text-sm font-bold text-white bg-transparent">
