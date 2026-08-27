@@ -322,6 +322,54 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Evento per il motore automazioni ────────────────────────────────────
+    // Il nodo "Aspetta risposta WhatsApp" (wait_for_event →
+    // whatsapp_message_received) esisteva gia' nel builder, ma su questo canale
+    // NESSUNO emetteva l'evento: il flusso restava in attesa fino al timeout e
+    // il follow-up partiva ANCHE verso chi aveva gia' risposto. Oltre a essere
+    // sbagliato, insistere con chi ti ha risposto e' il modo piu' rapido di
+    // farsi segnalare come spam — cioe' l'opposto del ridurre i ban.
+    //
+    // Stesso nome evento del canale Meta (bot_operativo.ts): un unico nodo nel
+    // builder copre entrambi i canali. Si emette ANCHE sugli opt-out: uno STOP
+    // deve fermare la sequenza, non solo bloccare il singolo invio.
+    if (contactId) {
+      // try/catch VERO: il query builder di supabase-js e' un Thenable, non una
+      // Promise — non espone .catch(), e usarlo qui farebbe esplodere il
+      // webhook proprio sul percorso di gestione dell'errore.
+      try {
+        await admin.from("automation_trigger_events").insert({
+          company_id: PLATFORM_COMPANY_ID,
+          trigger_event: "whatsapp_message_received",
+          entity_id: contactId,
+          entity_type: "contact",
+          payload: {
+            from: phoneDigits,
+            message: text || null,
+            channel: "whatsapp_locale",
+            wa_chat_id: chatId,
+            openwa_number_id: number?.id ?? null,
+            optout: didOptOut,
+          },
+        });
+      } catch (e) {
+        // Non deve far fallire il webhook: il messaggio e' gia' salvato e la
+        // risposta al gateway deve restare 200, altrimenti OpenWA ritenta.
+        console.error("[openwa-webhook] trigger automazioni:", (e as Error)?.message);
+      }
+    }
+
+    // Una risposta chiude il contatto in TUTTE le campagne attive: da qui in
+    // poi non riceve piu' follow-up. E' la meta' dell'anello anti-spam —
+    // l'altra e' l'evento per le automazioni qui sopra.
+    if (contactId) {
+      try {
+        await admin.rpc("openwa_campagna_segna_risposta", { p_contact_id: contactId });
+      } catch (e) {
+        console.error("[openwa-webhook] segna risposta campagne:", (e as Error)?.message);
+      }
+    }
+
     // Motore regole (auto-risposta / tag / assegna / notifica / blocco).
     // Saltato se il messaggio era un opt-out (non si risponde a chi dice STOP).
     if (!didOptOut) {
