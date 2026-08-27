@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   }
 
   const siteUrl = ((await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "").replace(/\/$/, "");
-  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, invite_expired: 0, renewal_upcoming: 0, task_assigned: 0, errors: [] as string[] };
+  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, invite_expired: 0, renewal_upcoming: 0, task_assigned: 0, casella_scollegata: 0, errors: [] as string[] };
   const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
   // dedup-then-send: inserisce il guard PRIMA dell'invio (no doppioni in caso di
@@ -276,6 +276,61 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     result.errors.push(`task_assigned job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+
+  // ── Job — Casella email scollegata ─────────────────────────────────────────
+  // Il token Gmail/Outlook scade e la sincronizzazione si ferma: il poller lo
+  // registrava e basta. Il guasto e' dell'azienda — riconnettere richiede il
+  // login Google di chi ha collegato la casella — quindi l'avviso va a LUI,
+  // non al super-admin che non puo' farci niente.
+  try {
+    const { data: cands, error } = await admin.rpc("email_connessioni_da_avvisare", { p_min_ore: 6 });
+    if (error) throw error;
+    for (const c of (cands ?? []) as Array<{
+      connection_id: string; company_id: string; company_name: string;
+      destinatario: string; nome_destinatario: string; email_address: string;
+      provider: string; motivo: string;
+    }>) {
+      // ref_id = connection_id + istante del guasto: se si riscollega e si
+      // rompe di nuovo, e' un avviso nuovo e non un doppione soppresso.
+      const ok = await guardedSend(
+        "casella_scollegata",
+        `${c.connection_id}:${new Date().toISOString().slice(0, 10)}`,
+        c.company_id,
+        c.destinatario,
+        async () => {
+          const provider = c.provider === "gmail" ? "Gmail" : "Outlook";
+          return {
+            subject: `La casella ${c.email_address} non e' piu' collegata`,
+            html: `<div style="max-width:560px;margin:0 auto;padding:24px;font-family:sans-serif;">
+              <h2 style="font-size:18px;color:#111827;">La sincronizzazione si e' interrotta</h2>
+              <p style="font-size:14px;color:#374151;line-height:1.6;">Ciao ${c.nome_destinatario},<br>
+              la casella <strong>${c.email_address}</strong> (${provider}) non e' piu' collegata a Edilizia in Cloud:
+              <em>${c.motivo}</em>.</p>
+              <p style="font-size:14px;color:#374151;line-height:1.6;">Finche' resta scollegata, le email in arrivo su
+              quell'indirizzo <strong>non entrano</strong> nel gestionale: niente lettura automatica, niente allegati
+              agganciati alle commesse, niente risposte alle richieste d'offerta.</p>
+              <p style="font-size:14px;color:#374151;line-height:1.6;">Per rimetterla a posto basta ricollegarla dalle
+              impostazioni: serve il tuo accesso ${provider}, per questo non possiamo farlo noi al posto tuo.</p>
+              <div style="text-align:center;margin:28px 0;">
+                <a href="${siteUrl ? `${siteUrl}/azienda/email` : "#"}"
+                   style="display:inline-block;background:#1e40af;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">
+                  Ricollega la casella
+                </a>
+              </div>
+            </div>`,
+            text: `Ciao ${c.nome_destinatario}, la casella ${c.email_address} (${provider}) non e' piu' collegata a Edilizia in Cloud: ${c.motivo}. Finche' resta scollegata le email in arrivo non entrano nel gestionale. Ricollegala dalle impostazioni: ${siteUrl ? `${siteUrl}/azienda/email` : ""}`,
+          };
+        },
+      );
+      if (ok) {
+        await admin.rpc("email_connessione_avvisata", { p_connection_id: c.connection_id });
+        result.casella_scollegata++;
+      }
+    }
+  } catch (e) {
+    result.errors.push(`casella_scollegata job: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return new Response(JSON.stringify({ ok: true, ...result }), {

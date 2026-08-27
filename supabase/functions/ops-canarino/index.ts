@@ -31,7 +31,7 @@ const SEZIONI: Array<{ key: string; titolo: string }> = [
   { key: "dunning_fermo", titolo: "Aziende in mancato pagamento SENZA solleciti" },
   { key: "cron_silenti", titolo: "Cron giornalieri che non girano da 26 ore" },
   { key: "http_errori_24h", titolo: "Errori HTTP dei cron (ultime 24h)" },
-  { key: "caselle_email_giu", titolo: "Caselle email collegate che non funzionano" },
+  { key: "oauth_provider_giu", titolo: "Credenziali OAuth di piattaforma da controllare" },
   { key: "integrazioni_scadute", titolo: "Credenziali integrazioni scadute" },
   { key: "ricariche_esaurite", titolo: "Ricariche automatiche esaurite (serve il cliente)" },
 ];
@@ -101,6 +101,16 @@ Deno.serve(async (req) => {
     const html = `<div style="max-width:640px;margin:0 auto;padding:24px;">
       <h2 style="font-family:sans-serif;font-size:18px;color:#111827;">${subject}</h2>
       ${corpo}
+      ${(() => {
+        const rotte = Number(vitali?.["caselle_scollegate_totale"] ?? 0);
+        const tot = Number(vitali?.["caselle_collegate_totale"] ?? 0);
+        if (!tot) return "";
+        // Conteggio, non elenco: le singole caselle le riconnettono le aziende
+        // (avvisate da system-emails-tick), il super-admin non puo' farlo.
+        return `<p style="font-family:sans-serif;font-size:13px;color:#6b7280;margin-top:16px;">
+          Caselle email collegate: <strong>${tot - rotte}/${tot}</strong> attive${rotte > 0 ? ` — ${rotte} scollegate, le aziende sono state avvisate` : ""}.
+        </p>`;
+      })()}
       <p style="font-family:sans-serif;font-size:11px;color:#9ca3af;margin-top:24px;">
         Rapporto generato alle ${String(vitali?.generato_alle ?? "")} — ogni mattina alle 05:00 UTC.
         Arriva anche quando e' tutto regolare: se smette di arrivare, il problema e' il controllo stesso.
