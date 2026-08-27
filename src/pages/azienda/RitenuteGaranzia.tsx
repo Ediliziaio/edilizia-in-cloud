@@ -160,7 +160,8 @@ export default function RitenuteGaranzia() {
 
       {/* La regola del manuale, in una riga. */}
       <p className="text-sm text-muted-foreground">
-        La ritenuta fiscale torna sempre; quella di garanzia torna solo se il rapporto finisce bene — e tocca a te andarla a riprendere.
+        Nel privato la ritenuta <strong className="text-foreground">non è obbligatoria</strong>: esiste solo se è scritta
+        nel contratto, e si negozia come tutto il resto. Quando c'è, torna solo se il rapporto finisce bene — e tocca a te andarla a riprendere.
         Le tre mosse: negozia la <strong className="text-foreground">durata</strong> (6 mesi, non 24), offri una{' '}
         <strong className="text-foreground">fideiussione</strong> al posto della trattenuta, mettila a budget con probabilità d'incasso al 70%.
       </p>

@@ -146,7 +146,10 @@ NON inventare dati: usa solo quello che hai.`,
           // Calcoli stimati (placeholder: in produzione carica da computo metrico)
           const importoLordo = (order.total_amount ?? 0) * 0.15; // 15% del contratto come progress placeholder
           const ritenutaLegge296 = importoLordo * 0.005;
-          const ritenuteGaranzia = importoLordo * ((c.sal_ritenute_garanzia_pct as number ?? 0.5) / 100);
+          // La ritenuta di garanzia NON e' obbligatoria nei lavori privati:
+          // esiste solo se e' scritta nel contratto. Nessun fallback implicito —
+          // si applica solo se l'azienda ha configurato la percentuale.
+          const ritenuteGaranzia = importoLordo * ((c.sal_ritenute_garanzia_pct as number ?? 0) / 100);
           const importoNetto = importoLordo - ritenutaLegge296 - ritenuteGaranzia;
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
