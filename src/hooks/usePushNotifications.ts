@@ -8,6 +8,7 @@
  *   npx web-push generate-vapid-keys
  */
 import { useState, useEffect, useCallback } from "react";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -80,8 +81,15 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     })();
   }, [supported, user]);
 
+  // Lo staff di piattaforma (super_admin, ruoli platform_*) non ha un'azienda:
+  // profile.company_id e' NULL. Prima il subscribe usciva subito e in SILENZIO,
+  // quindi il super-admin non poteva iscriversi alle notifiche nemmeno
+  // premendo il pulsante. Le sue iscrizioni si intestano alla company della
+  // piattaforma, che e' esattamente cosa sono.
+  const companyIdIscrizione = profile?.company_id ?? PLATFORM_ADMIN_COMPANY_ID;
+
   const subscribe = useCallback(async () => {
-    if (!supported || !user || !profile?.company_id || !vapidKey) return;
+    if (!supported || !user || !vapidKey) return;
     setIsLoading(true);
     try {
       // 1. Richiedi permesso
@@ -108,7 +116,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         .upsert(
           {
             user_id: user.id,
-            company_id: profile.company_id,
+            company_id: companyIdIscrizione,
             endpoint: sub.endpoint,
             p256dh: arrayBufferToBase64url(rawKey),
             auth_key: arrayBufferToBase64url(rawAuth),

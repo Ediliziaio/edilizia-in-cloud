@@ -8,6 +8,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/openwaSend.ts";
 
@@ -367,6 +368,26 @@ Deno.serve(async (req) => {
         await admin.rpc("openwa_campagna_segna_risposta", { p_contact_id: contactId });
       } catch (e) {
         console.error("[openwa-webhook] segna risposta campagne:", (e as Error)?.message);
+      }
+    }
+
+    // Avviso a chi presidia: una risposta a freddo vale finche' e' calda.
+    // Fuori dagli opt-out, dove non c'e' niente da presidiare.
+    if (!didOptOut) {
+      try {
+        const chi = contactName || (phoneDigits ? `+${phoneDigits}` : "un contatto");
+        await avvisaSuperAdmin(admin, {
+          tipo: "whatsapp_risposta",
+          titolo: `Risposta WhatsApp da ${chi}`,
+          testo: (text || "(messaggio senza testo)").slice(0, 160),
+          url: "/admin/marketing/whatsapp-locale",
+          // Stesso tag per chat: se scrive tre volte non vibra tre volte.
+          tag: `openwa-${chatId}`,
+          entityType: contactId ? "marketing_contact" : null,
+          entityId: contactId,
+        });
+      } catch (e) {
+        console.error("[openwa-webhook] avviso staff:", (e as Error)?.message);
       }
     }
 

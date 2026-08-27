@@ -20,9 +20,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Send, Plus, MessageCircle, Smartphone, RefreshCw, Paperclip, UserPlus } from "lucide-react";
+import { Send, Plus, MessageCircle, Smartphone, RefreshCw, Paperclip, UserPlus, Bell, BellOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 interface OpenWaMessage {
   id: string;
@@ -105,6 +106,17 @@ export default function AdminWhatsappLocaleInbox() {
   const queryClient = useQueryClient();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  // Avviso sul telefono quando arriva una risposta. Web push: funziona nel
+  // browser del telefono o nella PWA in home, NON dentro l'app nativa
+  // (il WebView non implementa la Push API).
+  const {
+    supported: pushSupportato,
+    isSubscribed: pushAttivo,
+    isLoading: pushInCorso,
+    subscribe: attivaPush,
+    unsubscribe: disattivaPush,
+  } = usePushNotifications();
+
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newText, setNewText] = useState("");
@@ -297,9 +309,27 @@ export default function AdminWhatsappLocaleInbox() {
             Conversazioni del canale non-ufficiale. Le risposte arrivano in tempo reale.
           </p>
         </div>
-        <Button className="shrink-0 self-start sm:self-auto" onClick={() => setNewOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nuovo messaggio
-        </Button>
+        <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
+          {/* Le risposte a freddo valgono finché sono calde: qui si attiva
+              l'avviso sul telefono, una volta per dispositivo. */}
+          {pushSupportato && (
+            <Button
+              variant={pushAttivo ? "outline" : "secondary"}
+              disabled={pushInCorso}
+              onClick={() => (pushAttivo ? disattivaPush() : attivaPush())}
+              title={pushAttivo
+                ? "Non ricevere più l'avviso su questo dispositivo"
+                : "Ricevi un avviso sul telefono quando qualcuno risponde"}
+            >
+              {pushAttivo
+                ? <><BellOff className="mr-2 h-4 w-4" /> Avvisi attivi</>
+                : <><Bell className="mr-2 h-4 w-4" /> Avvisami</>}
+            </Button>
+          )}
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Nuovo messaggio
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
