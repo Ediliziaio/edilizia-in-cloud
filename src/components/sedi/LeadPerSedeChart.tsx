@@ -65,7 +65,7 @@ export function LeadPerSedeChart() {
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
             <Tooltip
               formatter={(val: number, name: string) =>
-                name === 'CPL (€)' ? `€${val}` : val
+                name === 'CPL (€)' ? `${val} €` : val
               }
             />
             <Legend />

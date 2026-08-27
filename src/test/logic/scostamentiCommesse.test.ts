@@ -226,9 +226,9 @@ describe("summarizeScostamenti", () => {
 
 describe("formatEuroCompact / semaforoEmoji", () => {
   it("formatta in EUR all'italiana senza decimali", () => {
-    expect(formatEuroCompact(1234567)).toBe("€ 1.234.567");
-    expect(formatEuroCompact(25160)).toBe("€ 25.160");
-    expect(formatEuroCompact(-440)).toBe("€ -440");
+    expect(formatEuroCompact(1234567)).toBe("1.234.567 €");
+    expect(formatEuroCompact(25160)).toBe("25.160 €");
+    expect(formatEuroCompact(-440)).toBe("-440 €");
   });
   it("mappa i semafori a emoji", () => {
     expect(semaforoEmoji("rosso")).toBe("🔴");

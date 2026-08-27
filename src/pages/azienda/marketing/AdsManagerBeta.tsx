@@ -2662,7 +2662,7 @@ function KpiBar({
             prompt={
               `Analizza le mie campagne pubblicitarie. ` +
               `Mese in corso: spesa €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead, ` +
-              `CPL ${costPerLead ? `€${(costPerLead / 100).toFixed(2)}` : "n/d"}, ROAS ${roas.toFixed(2)}x. ` +
+              `CPL ${costPerLead ? `${(costPerLead / 100).toFixed(2).replace(".", ",")} €` : "n/d"}, ROAS ${roas.toFixed(2)}x. ` +
               `Forecast fine mese: €${(monthlySpendForecast / 100).toFixed(0)}. ` +
               `Diagnostica: identifica top 3 cause di inefficienza e dimmi cosa fare nei prossimi 7 giorni. ` +
               `Tono diretto, italiano colloquiale per imprenditore edile.`

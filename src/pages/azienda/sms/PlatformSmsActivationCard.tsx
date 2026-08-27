@@ -77,7 +77,7 @@ export function PlatformSmsActivationCard() {
             <Badge variant="secondary">super admin</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Account piattaforma: <strong>nessun canone</strong> — il prezzo €30/mese è
+            Account piattaforma: <strong>nessun canone</strong> — il prezzo di 30 €/mese è
             quello rivenduto alle aziende. I tuoi costi sono quelli wholesale Telnyx.
           </p>
         </div>

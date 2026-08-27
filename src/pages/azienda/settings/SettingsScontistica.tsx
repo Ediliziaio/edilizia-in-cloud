@@ -804,7 +804,7 @@ function RuleRow({
       </TableCell>
       <TableCell className="text-sm">
         €{(rule.importo_min ?? 0).toLocaleString("it-IT")} –{" "}
-        {rule.importo_max ? `€${rule.importo_max.toLocaleString("it-IT")}` : "∞"}
+        {rule.importo_max ? `${rule.importo_max.toLocaleString("it-IT")} €` : "∞"}
       </TableCell>
       <TableCell className="text-right">{rule.margine_min_pct}%</TableCell>
       <TableCell className="text-right font-medium">{rule.sconto_max_pct}%</TableCell>
@@ -896,7 +896,7 @@ function RuleCard({
 
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>
-          €{(rule.importo_min ?? 0).toLocaleString("it-IT")} – {rule.importo_max ? `€${rule.importo_max.toLocaleString("it-IT")}` : "∞"}
+          {(rule.importo_min ?? 0).toLocaleString("it-IT")} € – {rule.importo_max ? `${rule.importo_max.toLocaleString("it-IT")} €` : "∞"}
         </span>
         <span>prio {rule.priority}</span>
       </div>

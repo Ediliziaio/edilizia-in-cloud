@@ -405,7 +405,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
       const cat = tmpl.product_category;
       const parts: string[] = [];
       if (cat) parts.push(cat);
-      if (price !== null && price !== undefined) parts.push(`€${Number(price).toFixed(2)}${tmpl.product_unit ? `/${tmpl.product_unit}` : ""}`);
+      if (price !== null && price !== undefined) parts.push(`${Number(price).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €${tmpl.product_unit ? `/${tmpl.product_unit}` : ""}`);
       return parts.join(" · ") || "Scheda prodotto";
     }
     if (kind === 'copertina') return "Pagina cover";

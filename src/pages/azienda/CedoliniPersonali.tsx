@@ -268,7 +268,7 @@ export default function CedoliniPersonali() {
                           <p className="text-xs text-muted-foreground">Contributi dip.</p>
                           <p className="font-medium">
                             {c.contributi_dipendente != null
-                              ? `€${c.contributi_dipendente.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                              ? `${c.contributi_dipendente.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`
                               : "—"}
                           </p>
                         </div>
@@ -276,7 +276,7 @@ export default function CedoliniPersonali() {
                           <p className="text-xs text-muted-foreground">IRPEF</p>
                           <p className="font-medium">
                             {c.ritenute_irpef != null
-                              ? `€${c.ritenute_irpef.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                              ? `${c.ritenute_irpef.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`
                               : "—"}
                           </p>
                         </div>

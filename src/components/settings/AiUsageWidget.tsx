@@ -57,7 +57,7 @@ export function AiUsageWidget({ days = 30 }: { days?: number }) {
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Chiamate" value={data.totalCallsMonth.toString()} />
           <Stat label="Token" value={data.totalTokensMonth.toLocaleString()} />
-          <Stat label="Costo" value={`€${euro}`} />
+          <Stat label="Costo" value={`${euro} €`} />
         </div>
 
         {Object.keys(data.callsByFunction).length > 0 && (

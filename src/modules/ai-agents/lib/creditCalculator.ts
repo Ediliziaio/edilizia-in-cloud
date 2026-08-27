@@ -49,7 +49,7 @@ export function estimateConversationsRemaining(
 }
 
 export function formatEur(amount: number, decimals = 2): string {
-  return `€${amount.toFixed(decimals)}`;
+  return `${amount.toFixed(decimals).replace(".", ",")} €`;
 }
 
 export function formatMinutes(minutes: number): string {

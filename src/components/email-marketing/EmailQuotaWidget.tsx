@@ -28,7 +28,7 @@ type EmailQuota = {
 const fmtInt = (n: number | null | undefined) =>
   Number(n ?? 0).toLocaleString("it-IT");
 const fmtEur = (n: number | null | undefined) =>
-  `€${Number(n ?? 0).toLocaleString("it-IT", {
+  `${Number(n ?? 0).toLocaleString("it-IT", {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   })}`;

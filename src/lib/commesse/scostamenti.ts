@@ -272,7 +272,7 @@ export function summarizeScostamenti(rows: OrdineMarginalitaRow[]): ScostamentiS
 
 /** Formatta un importo in EUR all'italiana, senza decimali (compatto per chat/UI). */
 export function formatEuroCompact(n: number): string {
-  return "€ " + Math.round(num(n)).toLocaleString("it-IT");
+  return Math.round(num(n)).toLocaleString("it-IT") + " €";
 }
 
 /** Emoji semaforo per messaggi di chat (Silvio / WhatsApp). */

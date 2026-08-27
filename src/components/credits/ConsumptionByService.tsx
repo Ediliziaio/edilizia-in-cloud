@@ -220,7 +220,7 @@ export function ConsumptionByService() {
                       tickLine={false}
                       axisLine={false}
                       width={50}
-                      tickFormatter={(v: number) => `€${v}`}
+                      tickFormatter={(v: number) => `${v} €`}
                     />
                     <Tooltip
                       formatter={(v: number) => [formatEur(v), "Spesa"]}

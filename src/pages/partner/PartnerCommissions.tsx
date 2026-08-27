@@ -109,7 +109,7 @@ export default function PartnerCommissions() {
         esc(l.subscription_plan_name || "---"),
         esc(l.plan_mrr?.toFixed(2) || "0"),
         esc(l.commission_type || "---"),
-        esc(l.commission_type === "percentage" ? `${l.commission_rate}%` : `€${l.commission_rate}`),
+        esc(l.commission_type === "percentage" ? `${l.commission_rate}%` : `${l.commission_rate} €`),
         esc(`x${l.tier_multiplier}`),
         esc(l.commission_amount?.toFixed(2) || "0"),
         esc(l.status || "pending"),

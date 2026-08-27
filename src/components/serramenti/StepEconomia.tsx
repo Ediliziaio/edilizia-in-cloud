@@ -1615,7 +1615,7 @@ function RoiChart({
             />
             <YAxis
               tick={{ fontSize: 11, fill: "#64748b" }}
-              tickFormatter={(v) => `€${Math.round(v).toLocaleString("it-IT")}`}
+              tickFormatter={(v) => `${Math.round(v).toLocaleString("it-IT")} €`}
               domain={[0, maxY]}
               width={70}
             />

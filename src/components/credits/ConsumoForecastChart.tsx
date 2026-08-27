@@ -179,7 +179,7 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
             <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v.toFixed(0)}`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v.toFixed(0)} €`} />
               <Tooltip
                 formatter={(v: number) => formatEur(v)}
                 labelFormatter={(l) => `Giorno ${l}`}

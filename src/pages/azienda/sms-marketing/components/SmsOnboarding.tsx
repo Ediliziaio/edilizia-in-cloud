@@ -112,7 +112,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
               </ul>
             </div>
             <div className="border rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold">€30<span className="text-sm font-normal text-muted-foreground">/mese</span></p>
+              <p className="text-2xl font-bold">30 €<span className="text-sm font-normal text-muted-foreground">/mese</span></p>
               <p className="text-xs text-muted-foreground">Include il numero — SMS addebitati a consumo</p>
             </div>
             <Button className="w-full" onClick={() => setStep(2)}>
@@ -244,7 +244,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
               </div>
               <div className="border-t pt-3 flex justify-between">
                 <span className="text-sm text-muted-foreground">Canone mensile</span>
-                <span className="font-bold">€30,00/mese</span>
+                <span className="font-bold">30,00 €/mese</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
