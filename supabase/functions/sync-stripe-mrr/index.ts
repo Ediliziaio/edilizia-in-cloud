@@ -134,6 +134,18 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders, status: 204 });
   }
 
+  // Auth: cron secret (chiamata schedulata) oppure verify_jwt del gateway per
+  // il pulsante "Sync ora" del super-admin. Senza questo, con verify_jwt=false
+  // la funzione sarebbe pubblica.
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  const authz = req.headers.get("Authorization");
+  const isCron = !!cronSecret && reqSecret === cronSecret;
+  if (!isCron && !authz?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   try {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {

@@ -127,6 +127,9 @@ verify_jwt = false
 [functions.process-dunning]
 verify_jwt = false
 
+[functions.sync-stripe-mrr]
+verify_jwt = false
+
 # Canarino mattutino: lo chiama solo il cron con x-cron-secret.
 [functions.ops-canarino]
 verify_jwt = false
