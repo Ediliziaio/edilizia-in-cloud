@@ -72,14 +72,11 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
-  const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
-  const apiKey = await getPlatformSetting("elevenlabs_api_key", "ELEVENLABS_API_KEY");
-  if (!webhookSecret || !apiKey) {
-    // Config incompleta: rumore, non silenzio — questo errore finisce nei log
-    // del cron e in cron_http_failures, non in un catch muto.
-    return json({ error: "ELEVENLABS_WEBHOOK_SECRET o API key mancanti" }, 503);
-  }
-
+  // PRIMA il lavoro, POI la config. Questo sweeper urlava 503 novantasei
+  // volte al giorno per una feature vocale mai configurata E mai usata (zero
+  // conversazioni da sempre): rumore che copre i segnali veri. La config
+  // mancante e' un problema SOLO se esistono chiamate appese da riconciliare
+  // — in quel caso il 503 resta, forte e giustificato.
   const cutoff = new Date(Date.now() - GRACE_MINUTES * 60_000).toISOString();
   const { data: stuck, error: qErr } = await admin
     .from("ai_agent_conversations")
@@ -90,6 +87,14 @@ Deno.serve(async (req) => {
     .limit(MAX_PER_RUN);
   if (qErr) return json({ error: qErr.message }, 500);
   if (!stuck || stuck.length === 0) return json({ ok: true, swept: 0 });
+
+  const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
+  const apiKey = await getPlatformSetting("elevenlabs_api_key", "ELEVENLABS_API_KEY");
+  if (!webhookSecret || !apiKey) {
+    // Config incompleta CON chiamate appese: rumore, non silenzio — qui il
+    // 503 e' sacrosanto, ci sono soldi non riconciliati.
+    return json({ error: "ELEVENLABS_WEBHOOK_SECRET o API key mancanti", stuck: stuck.length }, 503);
+  }
 
   const hardTimeoutMs = HARD_TIMEOUT_HOURS * 3_600_000;
   let reconciled = 0, failed = 0, stillRunning = 0, errors = 0;

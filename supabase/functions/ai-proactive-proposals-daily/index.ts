@@ -1018,7 +1018,10 @@ Deno.serve(async (req) => {
   let companiesQ = (supa as any)
     .from("companies")
     .select("id, name")
-    .eq("is_active", true);
+    // companies non ha MAI avuto is_active: la colonna e' status. Questo
+    // .eq("is_active") faceva 500 a ogni giro dal giorno in cui il cron e'
+    // stato riarmato — la funzione risultava "attiva" ma moriva sulla soglia.
+    .in("status", ["active", "trial"]);
   if (body.company_id) {
     companiesQ = companiesQ.eq("id", body.company_id);
   }
