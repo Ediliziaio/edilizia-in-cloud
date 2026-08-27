@@ -57,6 +57,7 @@ import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, getOrderMargin } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
+import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
@@ -1967,6 +1968,14 @@ function OrdersListInner() {
               </div>
               </>)}
             </div>
+            {/* Cantieri finanziati dall'azienda: appare solo quando esiste il
+                problema (saldo cassa negativo su commesse aperte). */}
+            {orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
+              <EsposizioneFlotta
+                companyId={effectiveCompany?.id}
+                excludeStatusIds={[lastStatusId]}
+              />
+            )}
           </div>
 
           {orderPerms.canViewOrderAmounts && !isMobile && (
