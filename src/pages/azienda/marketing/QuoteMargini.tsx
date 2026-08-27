@@ -148,7 +148,7 @@ export default function QuoteMargini() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, numero, stato, data_emissione, contact_id, contacts(nome, cognome, company_name)")
+        .select("id, numero, stato, data_emissione, contact_id, payment_phases, contacts(nome, cognome, company_name)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -268,6 +268,23 @@ export default function QuoteMargini() {
                 E le voci fantasma (smaltimento, trasporto, ponteggio, ripristini, pratiche):
                 insieme valgono il 4-6%.
               </p>
+              {/* Check dell'acconto (clausola 1): minimo 25-30%, incassato
+                  prima di ordinare qualunque materiale. Se le fasi di
+                  pagamento sono compilate, il controllo e' automatico. */}
+              {(() => {
+                const fasi = (quote as { payment_phases?: { type?: string; percent?: number }[] } | null)?.payment_phases;
+                if (!Array.isArray(fasi) || fasi.length === 0) return null;
+                const acconto = fasi.filter((f) => f.type === "deposit").reduce((s2, f) => s2 + (Number(f.percent) || 0), 0);
+                if (acconto >= 25) return null;
+                return (
+                  <p className="mt-2 text-xs font-medium text-orange-700">
+                    Acconto al {acconto.toLocaleString("it-IT")}%: sotto il minimo del 25-30%.
+                    L'acconto si incassa prima di ordinare qualunque materiale — il cliente che
+                    non lo dà è quasi sempre lo stesso che poi contesta il saldo.
+                  </p>
+                );
+              })()}
+
               {/* Effetto-sconto (cap. 6 del manuale): lo sconto esce tutto
                   dall'utile, non dal prezzo. Col margine attuale, il conto. */}
               {breakdown.margine_totale_pct > 0 && (
