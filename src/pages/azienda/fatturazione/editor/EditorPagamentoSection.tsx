@@ -184,7 +184,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 disabled={disabled}
               />
               {!disabled && (
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => dispatch({ type: "REMOVE_SCADENZA", index: i })}>
+                <Button variant="ghost" size="icon" aria-label="Rimuovi la scadenza" className="h-5 w-5" onClick={() => dispatch({ type: "REMOVE_SCADENZA", index: i })}>
                   <Trash2 className="h-2.5 w-2.5 text-destructive" />
                 </Button>
               )}

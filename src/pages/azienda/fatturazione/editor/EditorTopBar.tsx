@@ -127,7 +127,7 @@ export function EditorTopBar({
     <>
       <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
         {/* Back */}
-        <Button
+        <Button aria-label="Torna ai documenti"
           variant="ghost"
           size="icon"
           className="h-9 w-9 rounded-full"
@@ -262,7 +262,7 @@ export function EditorTopBar({
           {/* More menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" aria-label="Altre azioni sul documento" className="h-8 w-8">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

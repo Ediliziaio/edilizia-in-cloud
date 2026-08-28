@@ -705,7 +705,7 @@ export default function FattureRicevutePage() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          title="Scollega dall'ordine"
+                          title="Scollega dall'ordine" aria-label="Scollega dall'ordine"
                           disabled={linkOdaMutation.isPending}
                           onClick={() => linkOdaMutation.mutate({ id: f.id, odaId: null })}
                         >
@@ -744,7 +744,7 @@ export default function FattureRicevutePage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Anteprima XML"
+                        title="Anteprima XML" aria-label="Anteprima XML"
                         onClick={() => void handleViewXml(f)}
                       >
                         <Eye className="h-4 w-4" />
@@ -753,7 +753,7 @@ export default function FattureRicevutePage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Scarica XML"
+                          title="Scarica XML" aria-label="Scarica XML"
                           onClick={async () => {
                             try {
                               const { data, error } = await supabase.storage

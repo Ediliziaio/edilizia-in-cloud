@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { useNavigate } from "react-router-dom";
 import { useAnagraficheNative } from "@/hooks/useAnagraficheNative";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -250,7 +251,7 @@ function AnagraficheTable() {
                         {a.tipo_cliente}
                       </Badge>
                     </td>
-                    <td className="p-3 text-right font-mono">€ {(a.fatturato_totale ?? 0).toFixed(2)}</td>
+                    <td className="p-3 text-right font-mono">{formatCurrency(a.fatturato_totale ?? 0)}</td>
                     <td className="p-3 text-right">{a.numero_fatture ?? 0}</td>
                     <td className="p-3 text-xs text-muted-foreground">
                       {a.ultima_fattura_at ? a.ultima_fattura_at.substring(0, 10) : "—"}

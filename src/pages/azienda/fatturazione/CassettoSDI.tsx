@@ -313,14 +313,14 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                             <>
                               <Button
                                 variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
-                                title="Visualizza XML"
+                                title="Visualizza XML" aria-label="Visualizza XML"
                                 onClick={() => handlePreviewXml(doc.sdi_file_xml_url, doc.numero)}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
-                                title="Scarica XML"
+                                title="Scarica XML" aria-label="Scarica XML"
                                 onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
                               >
                                 <Download className="h-3.5 w-3.5" />
@@ -328,16 +328,16 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                             </>
                           )}
                           {doc.sdi_ricevuta_url && (
-                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Scarica ricevuta" aria-label="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {isInvioInCorso(doc) ? (
-                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Invio in corso" disabled>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Invio in corso" aria-label="Invio in corso" disabled>
                               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                             </Button>
                           ) : puoReinviare(doc) ? (
-                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)} disabled={reinviandoId === doc.id}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" aria-label="Reinvia" onClick={() => handleReinvia(doc.id)} disabled={reinviandoId === doc.id}>
                               <RefreshCw className={`h-3.5 w-3.5 ${reinviandoId === doc.id ? "animate-spin" : ""}`} />
                             </Button>
                           ) : null}

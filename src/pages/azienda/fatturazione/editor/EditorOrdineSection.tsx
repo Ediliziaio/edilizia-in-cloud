@@ -98,13 +98,13 @@ export function EditorOrdineSection({ state, disabled }: Props) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                    <Button variant="ghost" size="icon" aria-label="Apri la commessa collegata" className="h-7 w-7" asChild>
                       <Link to={`/azienda/ordini/${ordine.id}`}>
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Link>
                     </Button>
                     {!disabled && (
-                      <Button
+                      <Button aria-label="Scollega la commessa"
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"

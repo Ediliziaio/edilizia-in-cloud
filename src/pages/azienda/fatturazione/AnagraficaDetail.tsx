@@ -71,7 +71,7 @@ export default function AnagraficaDetail() {
     <div className="space-y-6 p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" aria-label="Torna indietro" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Avatar className="h-14 w-14">

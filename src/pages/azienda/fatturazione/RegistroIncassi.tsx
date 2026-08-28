@@ -323,7 +323,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                         <td className="p-3">{m.riferimento ?? "—"}</td>
                         <td className="p-3 text-muted-foreground">{m.note ?? "—"}</td>
                         <td className="p-3">
-                          <Button
+                          <Button aria-label="Elimina movimento"
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"

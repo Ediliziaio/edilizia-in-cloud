@@ -1,4 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { formatCurrency } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
@@ -225,7 +226,7 @@ export default function DocumentoDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" aria-label="Torna indietro" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -362,10 +363,10 @@ export default function DocumentoDetail() {
               <CardHeader className="pb-3"><CardTitle className="text-sm">Pagamenti</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><p className="text-xs text-muted-foreground">Totale</p><p className="font-semibold">€ {doc.totale_documento.toFixed(2)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Da pagare</p><p className="font-semibold">€ {doc.totale_da_pagare.toFixed(2)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">€ {doc.importo_pagato.toFixed(2)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>€ {residuo.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Totale</p><p className="font-semibold">{formatCurrency(doc.totale_documento)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Da pagare</p><p className="font-semibold">{formatCurrency(doc.totale_da_pagare)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
                 </div>
                 <Progress value={paymentProgress} className="h-2" />
                 <p className="text-xs text-muted-foreground text-center">{Math.round(paymentProgress)}% incassato</p>

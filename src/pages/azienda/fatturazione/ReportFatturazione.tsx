@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { escapeCsvCell } from "@/lib/csvExport";
@@ -153,7 +154,7 @@ export default function ReportFatturazione() {
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="mese" className="text-xs" />
               <YAxis className="text-xs" />
-              <Tooltip formatter={(v: number) => `€ ${v.toFixed(2)}`} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
               <Legend />
               <Area type="monotone" dataKey="fatturato" name="Fatturato" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" />
               <Area type="monotone" dataKey="incassato" name="Incassato" fill="hsl(142 76% 36% / 0.2)" stroke="hsl(142, 76%, 36%)" />
@@ -172,7 +173,7 @@ export default function ReportFatturazione() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" className="text-xs" />
                 <YAxis dataKey="name" type="category" width={120} className="text-xs" />
-                <Tooltip formatter={(v: number) => `€ ${v.toFixed(2)}`} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Bar dataKey="fatturato" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -186,17 +187,17 @@ export default function ReportFatturazione() {
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">IVA a debito (vendite)</span>
-                <span className="font-mono font-semibold">€ {ivaSummary.debito.toFixed(2)}</span>
+                <span className="font-mono font-semibold">{formatCurrency(ivaSummary.debito)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">IVA a credito (NC)</span>
-                <span className="font-mono font-semibold">€ {ivaSummary.credito.toFixed(2)}</span>
+                <span className="font-mono font-semibold">{formatCurrency(ivaSummary.credito)}</span>
               </div>
               <hr />
               <div className="flex justify-between text-sm">
                 <span className="font-medium">Saldo IVA</span>
                 <span className={`font-mono font-bold ${ivaSummary.saldo > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                  € {ivaSummary.saldo.toFixed(2)}
+                  {formatCurrency(ivaSummary.saldo)}
                 </span>
               </div>
             </div>

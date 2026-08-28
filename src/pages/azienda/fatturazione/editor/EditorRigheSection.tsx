@@ -281,7 +281,7 @@ function SortableRowImpl({
                 </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
-                  <Button
+                  <Button aria-label="Espandi o riduci la riga"
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 md:h-7 md:w-7"
@@ -725,9 +725,9 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   {calcoloNetto !== null && (
                     <div className="bg-muted/50 rounded p-2 text-center">
                       <p className="text-[10px] text-muted-foreground">Prezzo netto</p>
-                      <p className="text-base font-bold tabular-nums">€ {calcoloNetto.toFixed(4)}</p>
+                      <p className="text-base font-bold tabular-nums">{calcoloNetto.toLocaleString("it-IT", { minimumFractionDigits: 4, maximumFractionDigits: 4, useGrouping: true })} €</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        IVA {calcoloAliquota}% = € {((parseFloat(calcoloLordo) || 0) - calcoloNetto).toFixed(2)}
+                        IVA {calcoloAliquota}% = {formatCurrency((parseFloat(calcoloLordo) || 0) - calcoloNetto)}
                       </p>
                     </div>
                   )}
