@@ -183,6 +183,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Aliquota IVA a zero SENZA Natura: lo SDI scarta la fattura (errore 00400 /
+    // 00401). L'editor lo impedisce gia' — il pulsante "Emetti" resta disabilitato
+    // — ma un documento puo' arrivare qui da altre strade (creazione da commessa
+    // con un articolo esente, accettazione preventivo, chiamate dirette): meglio
+    // fermarlo prima di bruciare il numero e prendersi lo scarto.
+    (Array.isArray(doc.righe) ? doc.righe : []).forEach((r: any, i: number) => {
+      const al = r?.aliquota_iva;
+      const alZero = al !== undefined && al !== null && al !== "" && Number(al) === 0;
+      if (alZero && !r?.natura_iva) {
+        validationErrors.push(
+          `Riga ${i + 1} con IVA 0% senza Natura: indica la natura (es. N2.2 non soggette, N4 esenti) o applica un'aliquota`
+        );
+      }
+    });
+    (Array.isArray(doc.riepilogo_iva) ? doc.riepilogo_iva : []).forEach((r: any) => {
+      const al = r?.aliquota;
+      const alZero = al !== undefined && al !== null && al !== "" && Number(al) === 0;
+      if (alZero && !r?.natura) {
+        validationErrors.push(
+          "Riepilogo IVA con aliquota 0% senza Natura: lo SDI scarterebbe la fattura"
+        );
+      }
+    });
+
     if (!snap.partita_iva && !snap.codice_fiscale) {
       validationErrors.push("Il cliente deve avere Partita IVA o Codice Fiscale");
     }
