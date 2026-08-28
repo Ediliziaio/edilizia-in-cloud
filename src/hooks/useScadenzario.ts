@@ -61,6 +61,9 @@ export interface ScadenzarioFilters {
   status?: string | null;
   dateFrom?: string | null;
   dateTo?: string | null;
+  /** Testo cercato: filtra sulla descrizione LATO SERVER, cosi' la ricerca
+   *  guarda tutte le scadenze e non solo quelle della pagina caricata. */
+  search?: string | null;
 }
 
 export function useScadenzario(page: number = 1, pageSize: number = 50, filters: ScadenzarioFilters = {}) {
@@ -68,10 +71,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo } = filters;
+  const { direction, status, dateFrom, dateTo, search } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search],
     queryFn: async () => {
       let query = supabase
         .from("scadenze")
@@ -85,6 +88,9 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
         .eq("company_id", companyId!)
         .order("due_date", { ascending: true });
 
+      // La descrizione delle scadenze automatiche porta numero fattura e
+      // nominativo ("FT-2026-0026 — Mario Rossi"), quindi copre quasi tutto.
+      if (search && search.trim()) query = query.ilike("description", `%${search.trim()}%`);
       if (direction) query = query.eq("direction", direction);
       if (status) query = query.eq("status", status);
       if (dateFrom) query = query.gte("due_date", dateFrom);

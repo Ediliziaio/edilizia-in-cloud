@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,12 +101,30 @@ export default function Scadenzario() {
     return null;
   }, [datePreset, customFrom, customTo, yearFilter]);
 
+  // La ricerca va al server con un attimo di attesa: prima filtrava solo le
+  // righe gia' scaricate, quindi cercare una fattura finita in seconda pagina
+  // rispondeva "nessuna scadenza trovata" pur essendoci.
+  const [searchServer, setSearchServer] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      // Nuova ricerca = si riparte dalla prima pagina, altrimenti restando su
+      // pagina 3 di un elenco piu' corto si vedrebbe il vuoto.
+      setSearchServer((prev) => {
+        const next = search.trim();
+        if (next !== prev) setPage(1);
+        return next;
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     direction: tabDirection,
     status: filterStatus && filterStatus !== "all" ? filterStatus : tabStatus,
     dateFrom: serverDateRange?.from ?? null,
     dateTo: serverDateRange?.to ?? null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange]);
+    search: searchServer || null,
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer]);
 
   const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
   const { effectiveCompany } = useAuth();
