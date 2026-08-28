@@ -10,9 +10,9 @@ import { it } from 'date-fns/locale';
 
 interface RiskCompany {
   company_id: string;
-  health_status: string;
+  health: string;
   score: number;
-  updated_at: string;
+  calculated_at: string;
   company: { name: string; status: string } | null;
 }
 
@@ -23,9 +23,11 @@ export function AdminChurnAlerts() {
       const { data, error } = await supabase
         .from('company_health_scores' as never)
         .select(
-          'company_id, health_status, score, updated_at, company:companies!company_id(name,status)' as never
+          // Le colonne sono `health` e `calculated_at`: prima si chiedevano
+          // health_status e updated_at, che non esistono, e la query falliva.
+          'company_id, health, score, calculated_at, company:companies!company_id(name,status)' as never
         )
-        .in('health_status' as never, ['at_risk', 'critical'] as never)
+        .in('health' as never, ['at_risk', 'critical'] as never)
         .order('score' as never, { ascending: true })
         .limit(10);
       if (error) throw error;
@@ -82,15 +84,15 @@ export function AdminChurnAlerts() {
                 <p className="text-sm font-medium">{companyData?.name ?? 'Azienda'}</p>
                 <p className="text-xs text-muted-foreground">
                   Aggiornato{' '}
-                  {formatDistanceToNow(new Date(r.updated_at), { addSuffix: true, locale: it })}
+                  {formatDistanceToNow(new Date(r.calculated_at), { addSuffix: true, locale: it })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge
-                  variant={r.health_status === 'critical' ? 'destructive' : 'secondary'}
+                  variant={r.health === 'critical' ? 'destructive' : 'secondary'}
                   className="text-xs"
                 >
-                  {r.health_status === 'critical' ? 'Critico' : 'A rischio'} {r.score}
+                  {r.health === 'critical' ? 'Critico' : 'A rischio'} {r.score}
                 </Badge>
                 <Button asChild variant="ghost" size="icon" className="h-7 w-7">
                   <Link to={`/admin/aziende/${r.company_id}`}>

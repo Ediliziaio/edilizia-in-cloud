@@ -27,7 +27,10 @@ Deno.serve(async (req) => {
     const { data: companies, error: compErr } = await supabase
       .from("companies")
       .select("id, name, status, trial_ends_at, created_at, subscription_plan_id")
-      .in("status", ["active", "trial"]);
+      .in("status", ["active", "trial"])
+      // La company di piattaforma non e' un cliente: senza questo filtro
+      // compariva in cima agli "a rischio di abbandono" con punteggio 0.
+      .eq("is_platform_admin_company", false);
 
     if (compErr) throw compErr;
     if (!companies?.length) return jsonResponse({ processed: 0 });

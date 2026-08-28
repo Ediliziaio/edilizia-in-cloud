@@ -20,15 +20,14 @@ type OutboxStatus = "all" | "queued" | "processing" | "sent" | "failed" | "dead"
 interface OutboxRow {
   id: string;
   company_id: string | null;
-  stream: string;
-  recipient: string;
+  to_emails: string[] | null;
   subject: string;
   status: string;
   attempts: number;
   max_attempts: number;
-  provider: string | null;
+  provider_message_id: string | null;
   last_error: string | null;
-  scheduled_at: string;
+  scheduled_for: string | null;
   created_at: string;
 }
 
@@ -90,7 +89,10 @@ export function EmailOutboxPanel() {
     queryFn: async () => {
       let query = supabase
         .from("email_outbox" as never)
-        .select("id, company_id, stream, recipient, subject, status, attempts, max_attempts, provider, last_error, scheduled_at, created_at")
+        // Colonne reali della tabella: prima si chiedevano stream, recipient,
+        // provider e scheduled_at — nessuna delle quattro esiste, e la query
+        // falliva a ogni apertura del pannello.
+        .select("id, company_id, to_emails, subject, status, attempts, max_attempts, provider_message_id, last_error, scheduled_for, created_at")
         .order("created_at" as never, { ascending: false })
         .limit(200);
       if (status !== "all") query = query.eq("status" as never, status as never);
@@ -192,11 +194,10 @@ export function EmailOutboxPanel() {
                 <TableRow>
                   <TableHead>Data</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead>Stream</TableHead>
                   <TableHead>Destinatario</TableHead>
                   <TableHead>Oggetto</TableHead>
                   <TableHead>Tentativi</TableHead>
-                  <TableHead>Provider</TableHead>
+                  <TableHead>ID messaggio</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,7 +207,7 @@ export function EmailOutboxPanel() {
                       className="whitespace-nowrap text-xs"
                       title={`Creata: ${format(new Date(row.created_at), "dd MMM yy HH:mm", { locale: it })}`}
                     >
-                      {format(new Date(row.scheduled_at || row.created_at), "dd MMM yy HH:mm", { locale: it })}
+                      {format(new Date(row.scheduled_for || row.created_at), "dd MMM yy HH:mm", { locale: it })}
                     </TableCell>
                     <TableCell>
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", STATUS_STYLES[row.status] ?? "bg-muted text-muted-foreground")}>
@@ -218,11 +219,10 @@ export function EmailOutboxPanel() {
                         </p>
                       )}
                     </TableCell>
-                    <TableCell>{row.stream}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.recipient}</TableCell>
+                    <TableCell className="font-mono text-xs">{(row.to_emails ?? []).join(", ") || "-"}</TableCell>
                     <TableCell className="max-w-[280px] truncate" title={row.subject}>{row.subject}</TableCell>
                     <TableCell>{row.attempts}/{row.max_attempts}</TableCell>
-                    <TableCell>{row.provider || "-"}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.provider_message_id ?? "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

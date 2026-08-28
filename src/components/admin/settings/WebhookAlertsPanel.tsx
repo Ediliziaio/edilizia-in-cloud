@@ -84,7 +84,7 @@ function WebhookRow({
 }) {
   const cfg = STATUS_CONFIG[log.status] ?? STATUS_CONFIG.received;
   const Icon = cfg.icon;
-  const timeAgo = formatDistanceToNow(new Date(log.created_at), {
+  const timeAgo = formatDistanceToNow(new Date(log.received_at), {
     addSuffix: true,
     locale: it,
   });
@@ -102,17 +102,17 @@ function WebhookRow({
           <Badge variant={cfg.variant} className="text-xs">
             {cfg.label}
           </Badge>
-          {log.attempts > 1 && (
-            <span className="text-xs text-muted-foreground">#{log.attempts}</span>
+          {log.fail_count > 1 && (
+            <span className="text-xs text-muted-foreground">#{log.fail_count}</span>
           )}
         </div>
       </div>
-      {log.error_message && (
+      {log.last_fail_reason && (
         <span
           className="text-xs text-destructive truncate max-w-[180px]"
-          title={log.error_message}
+          title={log.last_fail_reason}
         >
-          {log.error_message.slice(0, 80)}
+          {log.last_fail_reason.slice(0, 80)}
         </span>
       )}
       {log.status === "failed" && (

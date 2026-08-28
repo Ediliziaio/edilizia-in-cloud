@@ -40,10 +40,12 @@ export default function AdminInvoiceHistory() {
     queryKey: ['admin-invoice-history', monthFilter],
     queryFn: async () => {
       const q = supabase
-        .from('email_credit_topups' as never)
-        .select('*, company:companies!company_id(name,vat_number)' as never)
-        .eq('status' as never, 'completed' as never)
-        .order('created_at' as never, { ascending: false });
+        // email_credit_topups non e' mai esistita: le ricariche col numero di
+        // fattura stanno in ai_credit_topups, stessi campi e stesso significato.
+        .from('ai_credit_topups')
+        .select('id, amount_eur, invoice_number, created_at, company:companies!company_id(name,vat_number)')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false });
 
       const { data: rows, error } = await q;
       if (error) throw error;
