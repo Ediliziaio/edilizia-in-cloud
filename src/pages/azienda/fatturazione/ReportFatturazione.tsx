@@ -112,13 +112,24 @@ export default function ReportFatturazione() {
 
   const handleExportCSV = () => {
     const header = "Numero;Data;Tipo;Cliente;P.IVA;Imponibile;IVA;Totale\n";
+    // Numero all'italiana: separatore di colonna ";" e virgola decimale, come
+    // se lo aspetta Excel in italiano (col punto leggeva 1234.56 come 123456).
+    const num = (v: number) => v.toFixed(2).replace(".", ",");
     const rows = docs
-      .filter((d) => ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_credito"].includes(d.tipo) && d.stato !== "bozza")
-      .map((d) => [
-        d.numero, d.data_emissione, d.tipo,
-        d.cliente_snapshot?.ragione_sociale ?? "", d.cliente_snapshot?.partita_iva ?? "",
-        d.imponibile_totale.toFixed(2), d.iva_totale.toFixed(2), d.totale_documento.toFixed(2),
-      ].map((v) => escapeCsvCell(v as string | number, ";")).join(";"))
+      // Le annullate restano fuori, come nel registro a schermo: prima finivano
+      // nel file mandato al commercialista e gonfiavano l'IVA a debito.
+      .filter((d) => ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_credito"].includes(d.tipo)
+        && !["bozza", "annullata"].includes(d.stato))
+      .map((d) => {
+        // La nota di credito storna: va col segno meno, come nel registro.
+        const segno = d.tipo === "nota_credito" ? -1 : 1;
+        return [
+          d.numero, d.data_emissione, d.tipo,
+          d.cliente_snapshot?.ragione_sociale ?? "", d.cliente_snapshot?.partita_iva ?? "",
+          num(segno * Math.abs(d.imponibile_totale)), num(segno * Math.abs(d.iva_totale)),
+          num(segno * Math.abs(d.totale_documento)),
+        ].map((v) => escapeCsvCell(v as string | number, ";")).join(";");
+      })
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

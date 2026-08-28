@@ -53,13 +53,16 @@ function formatDataIT(dateStr: string): string {
   return y && m && d ? `${d}/${m}/${y}` : s;
 }
 
+const num = (v: number) => (Number(v) || 0).toFixed(2).replace(".", ",");
+
 function exportCSV(rows: any[], filename: string) {
   const headers = ["Data", "Numero", "Controparte", "Imponibile", "IVA", "Totale", "Aliquota IVA", "Natura"];
   const lines = [
     headers.join(";"),
     ...rows.map((r) =>
-      [formatDataIT(r.data), r.numero, r.controparte, r.imponibile.toFixed(2), r.iva.toFixed(2),
-        r.totale.toFixed(2), r.aliquota, r.natura || ""]
+      // Virgola decimale: col punto Excel in italiano legge 1234.56 come 123456
+      [formatDataIT(r.data), r.numero, r.controparte, num(r.imponibile), num(r.iva),
+        num(r.totale), r.aliquota, r.natura || ""]
         .map((v) => escapeCsvCell(v as string | number, ";")).join(";")
     ),
   ];
