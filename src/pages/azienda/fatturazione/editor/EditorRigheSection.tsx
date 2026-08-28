@@ -193,8 +193,12 @@ function SortableRowImpl({
 
             {/* Contenuto principale — grid stabile, no flex-wrap */}
             <div className="flex-1 min-w-0 space-y-3">
-              {/* TOP ROW — grid 7 colonne: 6 dati + 3 icone azioni a destra */}
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem_auto] gap-2">
+              {/* TOP ROW — 7 colonne (6 dati + azioni) solo quando c'e' spazio.
+                  Le cinque colonne a larghezza fissa mangiano ~390px + spazi: su
+                  un portatile con la barra laterale aperta al campo Descrizione
+                  restavano 26px, illeggibile. Sotto lg le celle si impilano a due
+                  per riga (Codice+Descrizione, Quantita'+U.M., Prezzo+Importo). */}
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem_auto]">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
