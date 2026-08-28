@@ -23,6 +23,14 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     throw new Error("Solo proforma e preventivi possono essere convertiti");
   }
 
+  // A conversione fatta l'originale viene annullato: se lo e' gia', qualcuno
+  // sta convertendo due volte lo stesso documento e ne uscirebbero DUE fatture
+  // (con due numeri fiscali). L'interfaccia nasconde gia' il pulsante, questa
+  // e' la rete sotto.
+  if (doc.stato === "annullata") {
+    throw new Error("Questo documento risulta gia' convertito in fattura");
+  }
+
   const companyId = doc.company_id as string;
 
   // Generate new number

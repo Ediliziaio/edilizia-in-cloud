@@ -9,7 +9,10 @@ function escHtml(s: string | null | undefined): string {
 }
 
 function fmtEur(n: number): string {
-  return `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Simbolo DOPO il numero, come si scrive in italiano e come fa il resto del
+  // gestionale ("1.220,00 €"). Il PDF e' il documento che vede il cliente:
+  // scriverlo all'inglese stonava con tutto il resto.
+  return `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 function fmtDate(d: string | null): string {
