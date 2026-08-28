@@ -155,7 +155,7 @@ export const macroAreas: MacroArea[] = [
       // Le pagine restano intatte e raggiungibili dall'header della pagina Fatture.
       // ─── Fatturazione esterna (billing_external) ───
       { title: "Fatturazione", url: "/azienda/fatturazione", icon: Receipt, permissionKey: "canViewBilling", featureKey: "billing_external", groupLabel: "Fatturazione e Documenti" },
-      { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "billing_external" },
+      { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "fatturazione" },
       // Le fatture dei FORNITORI arrivano comunque, che tu emetta con un
       // gestionale esterno o dal modulo nativo: marcarla "billing_external"
       // la faceva sparire dal menu in modalità nativa, pur essendo una rotta
@@ -282,7 +282,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewCosts", moduleKey: "forecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
-  { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewScadenzario", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
+  { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewScadenzario", featureKey: "fatturazione", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatture Ricevute", url: "/azienda/documenti/fatture-ricevute", icon: FileText, permissionKey: "canViewBilling", featureKey: "documenti", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   // "Report" rimosso da internalNavItems (allineato con rimozione da sidebar principale)

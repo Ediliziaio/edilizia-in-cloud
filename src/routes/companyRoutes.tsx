@@ -664,7 +664,11 @@ export default function CompanyRoutesContainer() {
         {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
         <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>)} />
         <Route path="fatturazione/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="scadenzario" element={withCompanyPermission("canViewScadenzario", <ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></FeatureRoute></ErrorBoundary>)} />
+        {/* Scadenzario: NON legato alla modalita' di fatturazione. Contiene anche
+            pagamenti fornitori, costi e scadenze fiscali, che esistono in entrambe
+            le modalita'; e sette punti dell'app ci rimandano (cruscotto, previsionale,
+            fornitori, menu). Vincolarlo a "external" li mandava tutti a vuoto. */}
+        <Route path="scadenzario" element={withCompanyPermission("canViewScadenzario", <ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><Scadenzario /></FeatureRoute></ErrorBoundary>)} />
 
         {/* Native billing routes — gated: documenti (core) + billing mode native */}
         <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
