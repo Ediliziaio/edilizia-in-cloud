@@ -258,20 +258,45 @@ export function useCreateDocumento() {
         .maybeSingle();
 
       if (!anaExists) {
+        // Il profilo fiscale nasce dai dati VERI dell'azienda, non da segnaposto:
+        // partita IVA, sede, PEC e codice SDI sono gia' in companies (raccolti in
+        // fase di registrazione). Prima venivano ignorati e la prima fattura usciva
+        // intestata a "Da configurare" con partita IVA 00000000000.
+        // I campi hanno vincoli di lunghezza esatti a database (P.IVA 11, CAP 5,
+        // SDI 7, provincia 2): se un dato non e' conforme si ricade sul segnaposto,
+        // perche' un insert rifiutato bloccherebbe del tutto la fatturazione.
+        const { data: azienda } = await supabase
+          .from("companies")
+          .select("name, vat_number, fiscal_code, legal_address, legal_city, legal_province, legal_postal_code, pec, sdi_code")
+          .eq("id", companyId)
+          .maybeSingle();
+
+        const soloCifre = (v?: string | null) => (v ?? "").replace(/\D/g, "");
+        const piva = soloCifre(azienda?.vat_number);
+        const cf = (azienda?.fiscal_code ?? "").trim().toUpperCase();
+        const cap = soloCifre(azienda?.legal_postal_code);
+        const prov = (azienda?.legal_province ?? "").trim().toUpperCase();
+        const sdi = (azienda?.sdi_code ?? "").trim().toUpperCase();
+        const pivaValida = piva.length === 11 ? piva : "00000000000";
+
         const { error: anaError } = await supabase
           .from("anagrafica_azienda" as never)
           .insert({
             company_id: companyId,
-            ragione_sociale: "Da configurare",
-            partita_iva: "00000000000",
-            codice_fiscale: "00000000000",
+            ragione_sociale: azienda?.name?.trim() || "Da configurare",
+            partita_iva: pivaValida,
+            // Per le societa' il codice fiscale coincide con la partita IVA:
+            // meglio quello del segnaposto se il campo dedicato e' vuoto.
+            codice_fiscale: cf.length === 11 || cf.length === 16 ? cf : pivaValida,
             regime_fiscale: "RF01",
             forma_giuridica: "SRL",
-            indirizzo_via: "Da configurare",
-            indirizzo_cap: "00000",
-            indirizzo_comune: "Da configurare",
-            indirizzo_provincia: "XX",
+            indirizzo_via: azienda?.legal_address?.trim() || "Da configurare",
+            indirizzo_cap: cap.length === 5 ? cap : "00000",
+            indirizzo_comune: azienda?.legal_city?.trim() || "Da configurare",
+            indirizzo_provincia: prov.length === 2 ? prov : "XX",
             indirizzo_nazione: "IT",
+            ...(sdi.length === 7 && { codice_sdi: sdi }),
+            ...(azienda?.pec?.trim() && { pec: azienda.pec.trim() }),
           } as never);
         if (anaError) throw new Error("Impossibile creare il profilo di fatturazione: " + anaError.message);
       }
