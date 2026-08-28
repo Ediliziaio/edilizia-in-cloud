@@ -173,6 +173,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Un documento senza righe non e' trasmissibile: la FatturaPA vuole almeno
+    // un DettaglioLinee, e lo SDI lo scarterebbe. Senza questo controllo la
+    // fattura vuota partiva lo stesso, tornava "rifiutata" e bruciava il numero
+    // (in produzione ci sono documenti inviati e rifiutati con zero righe).
+    if (!Array.isArray(doc.righe) || doc.righe.length === 0) {
+      validationErrors.push(
+        "Il documento non ha righe: aggiungi almeno una voce prima di inviarlo allo SDI"
+      );
+    }
+
     if (!snap.partita_iva && !snap.codice_fiscale) {
       validationErrors.push("Il cliente deve avere Partita IVA o Codice Fiscale");
     }
