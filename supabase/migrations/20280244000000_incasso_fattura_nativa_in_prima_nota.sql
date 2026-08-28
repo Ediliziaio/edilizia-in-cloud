@@ -23,8 +23,9 @@
 -- automatica (una riga scritta a mano non si tocca mai) e la scadenza torna
 -- aperta per l'importo corrispondente.
 --
--- La nota di credito resta fuori dalla cassa: non e' un incasso. Continua a
--- comparire nello scadenzario come storno (importo negativo).
+-- La nota di credito resta FUORI da tutto: non e' un credito da incassare, e
+-- scadenze accetta solo importi positivi (CHECK amount > 0) — provare a
+-- inserirla come storno negativo faceva fallire l'emissione del documento.
 -- ============================================================================
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_prima_nota_documento_fiscale_auto
@@ -48,7 +49,9 @@ DECLARE
   v_residuo numeric;
   v_pn_amount numeric;
 BEGIN
-  IF NEW.tipo NOT IN ('fattura', 'fattura_pa', 'nota_credito') THEN
+  -- Solo fatture: la nota di credito non genera un credito da incassare
+  -- (e scadenze vieta gli importi negativi).
+  IF NEW.tipo NOT IN ('fattura', 'fattura_pa') THEN
     RETURN NEW;
   END IF;
 
@@ -82,11 +85,9 @@ BEGIN
   END IF;
 
   v_due := COALESCE(NEW.data_scadenza, NEW.data_emissione + 30, CURRENT_DATE + 30);
-  v_amount := CASE WHEN NEW.tipo = 'nota_credito'
-                   THEN -1 * COALESCE(NEW.totale_documento, 0)
-                   ELSE COALESCE(NEW.totale_da_pagare, NEW.totale_documento, 0) END;
+  v_amount := COALESCE(NEW.totale_da_pagare, NEW.totale_documento, 0);
 
-  IF v_amount = 0 THEN
+  IF v_amount <= 0 THEN
     RETURN NEW;
   END IF;
 
@@ -114,8 +115,8 @@ BEGIN
     v_scad_amount := v_amount;
   END IF;
 
-  -- ── Registrazione dell'incasso in cassa (solo fatture, non note credito) ─
-  IF NEW.tipo IN ('fattura', 'fattura_pa') THEN
+  -- ── Registrazione dell'incasso in cassa ─────────────────────────────────
+  IF TRUE THEN
 
     IF NEW.stato = 'pagata' THEN
       v_residuo := v_scad_amount - v_scad_paid;

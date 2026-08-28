@@ -10,12 +10,12 @@
 -- ancora emesse in volume, ma il buco era strutturale: da chiudere prima che
 -- qualcuno fatturi davvero col nativo.
 --
--- Trigger: quando una fattura/NC nativa passa a uno stato emesso (non piu'
--- bozza, non annullata) crea — o aggiorna se gia' c'e' — la scadenza di
--- incasso. Idempotente (upsert logico via numero nelle note); segue la
--- fattura se cambia importo/scadenza finche' non e' incassata a mano.
---   fattura → credito positivo (incasso_cliente, direction 'entrata' generata)
---   nota_credito → storno (importo negativo, riduce il dovuto)
+-- Trigger: quando una fattura nativa passa a uno stato emesso (non piu' bozza,
+-- non annullata) crea — o aggiorna se gia' c'e' — la scadenza di incasso
+-- (incasso_cliente, direction 'entrata' generata). Idempotente (ancora nelle
+-- note); segue la fattura se cambia importo/scadenza finche' non e' incassata.
+-- La nota di credito resta fuori: non e' un credito, e scadenze accetta solo
+-- importi positivi (CHECK amount > 0).
 -- Data scadenza: data_scadenza del documento, altrimenti +30gg dall'emissione.
 -- Solo la nativa cliente: proforma/preventivo/ddt non sono crediti fiscali.
 -- ============================================================================
@@ -32,8 +32,8 @@ DECLARE
   v_amount numeric;
   v_tag text;
 BEGIN
-  -- Solo fatture e note di credito, non i documenti non fiscali
-  IF NEW.tipo NOT IN ('fattura', 'fattura_pa', 'nota_credito') THEN
+  -- Solo fatture, non i documenti non fiscali ne' le note di credito
+  IF NEW.tipo NOT IN ('fattura', 'fattura_pa') THEN
     RETURN NEW;
   END IF;
 
@@ -50,12 +50,9 @@ BEGIN
   END IF;
 
   v_due := COALESCE(NEW.data_scadenza, NEW.data_emissione + 30, CURRENT_DATE + 30);
-  -- Nota di credito = storno: importo negativo
-  v_amount := CASE WHEN NEW.tipo = 'nota_credito'
-                   THEN -1 * COALESCE(NEW.totale_documento, 0)
-                   ELSE COALESCE(NEW.totale_da_pagare, NEW.totale_documento, 0) END;
+  v_amount := COALESCE(NEW.totale_da_pagare, NEW.totale_documento, 0);
 
-  IF v_amount = 0 THEN
+  IF v_amount <= 0 THEN
     RETURN NEW;
   END IF;
 
@@ -99,15 +96,14 @@ INSERT INTO public.scadenze (company_id, tipo, description, amount, due_date,
        status, order_id, is_auto_generated, auto_source, notes, created_at)
 SELECT d.company_id, 'incasso_cliente',
        d.numero || ' — ' || COALESCE(d.cliente_snapshot->>'ragione_sociale', 'Cliente'),
-       CASE WHEN d.tipo = 'nota_credito' THEN -1 * COALESCE(d.totale_documento, 0)
-            ELSE COALESCE(d.totale_da_pagare, d.totale_documento, 0) END,
+       COALESCE(d.totale_da_pagare, d.totale_documento, 0),
        COALESCE(d.data_scadenza, d.data_emissione + 30, CURRENT_DATE + 30),
        CASE WHEN d.stato = 'pagata' THEN 'pagata' ELSE 'da_pagare' END,
        d.ordine_id, true, 'documento_fiscale', '[DOC:' || d.id::text || ']', now()
 FROM public.documenti_fiscali d
-WHERE d.tipo IN ('fattura', 'fattura_pa', 'nota_credito')
+WHERE d.tipo IN ('fattura', 'fattura_pa')
   AND d.stato NOT IN ('bozza', 'annullata')
-  AND COALESCE(d.totale_da_pagare, d.totale_documento, 0) <> 0
+  AND COALESCE(d.totale_da_pagare, d.totale_documento, 0) > 0
   AND NOT EXISTS (
     SELECT 1 FROM public.scadenze s
     WHERE s.company_id = d.company_id
