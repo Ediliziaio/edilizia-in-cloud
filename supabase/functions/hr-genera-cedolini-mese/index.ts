@@ -11,11 +11,26 @@
  * Defensive: mancanza modulo HR → ritorno 0 senza errori.
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST" && req.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Apre un client service_role e lavora su tutte le aziende. Non aveva
+  // nessun controllo, e il gateway non ne chiede (verify_jwt spento): era
+  // raggiungibile da chiunque, senza credenziali. Nessun chiamante nel
+  // frontend e nessun cron: le uniche invocazioni legittime sono interne.
+  {
+    const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!cronSecretValido(req) && !(chiave && bearer === chiave)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   const supabase = createClient(
