@@ -80,7 +80,7 @@ const TIPO_TABS: {
   { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
-  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui. Dopo 14 giorni vengono cancellati definitivamente." },
+  { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "cestinati", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui. Dopo 14 giorni vengono cancellati definitivamente." },
 ];
 
 const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];

@@ -8,7 +8,10 @@ export interface DocumentCounts {
   nota_credito: number;
   ddt: number;
   preventivo: number;
+  /** Stato fiscale 'annullata' (non e' il cestino) */
   annullate: number;
+  /** Documenti nel cestino (deleted_at valorizzato): e' cio' che la scheda mostra */
+  cestinati: number;
 }
 
 export function useDocumentCounts() {
