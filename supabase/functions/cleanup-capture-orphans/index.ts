@@ -9,12 +9,13 @@
  *
  * Strategia:
  *   1. Trova runs con status IN ('failed','pending','analyzing_images')
- *      AND updated_at < now() - 7 days AND image_paths IS NOT NULL
+ *      AND updated_at < now() - 7 days AND image_storage_paths IS NOT NULL
  *   2. Per ogni run: rimuovi file da storage (batch remove)
  *   3. Cancella i runs dalla tabella
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 const ORPHAN_DAYS = 7;
 const BATCH_SIZE = 50;
@@ -28,16 +29,17 @@ Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-  // Verifica che sia una chiamata cron o admin (x-cron-secret header)
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  if (cronSecret) {
-    const providedSecret = req.headers.get("x-cron-secret");
-    if (providedSecret !== cronSecret) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
-    }
+  // Il segreto del cron ha tre nomi diversi in giro per il progetto e questa
+  // ne confrontava uno solo: bastava che il chiamante ne usasse un altro per
+  // prendere 401. cronSecretValido() li accetta tutti.
+  //
+  // Il controllo era anche fail-open: stava dentro `if (cronSecret)`, quindi
+  // con la variabile non impostata la funzione restava aperta a chiunque.
+  if (!cronSecretValido(req)) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
   }
 
   const cutoff = new Date(Date.now() - ORPHAN_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -51,7 +53,10 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orphanRuns, error: fetchErr } = await (supabase as any)
       .from("preventivo_da_foto_runs")
-      .select("id, image_paths, audio_path, company_id")
+      // I nomi veri delle colonne sono image_storage_paths / audio_storage_path
+      // (e c'e' anche sketch_storage_paths, che non veniva mai ripulito):
+      // con i nomi sbagliati la query falliva e nessun file e' mai stato tolto.
+      .select("id, image_storage_paths, sketch_storage_paths, audio_storage_path, company_id")
       .in("status", ["failed", "pending", "analyzing_images"])
       .lt("updated_at", cutoff)
       .limit(BATCH_SIZE);
@@ -67,11 +72,14 @@ Deno.serve(async (req) => {
     // 2. Raccoglie tutti i path storage da eliminare
     const allPaths: string[] = [];
     for (const run of orphanRuns) {
-      if (Array.isArray(run.image_paths)) {
-        allPaths.push(...run.image_paths.filter(Boolean));
+      if (Array.isArray(run.image_storage_paths)) {
+        allPaths.push(...run.image_storage_paths.filter(Boolean));
       }
-      if (run.audio_path) {
-        allPaths.push(run.audio_path);
+      if (Array.isArray(run.sketch_storage_paths)) {
+        allPaths.push(...run.sketch_storage_paths.filter(Boolean));
+      }
+      if (run.audio_storage_path) {
+        allPaths.push(run.audio_storage_path);
       }
     }
 

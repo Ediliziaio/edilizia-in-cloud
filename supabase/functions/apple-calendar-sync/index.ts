@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, decrypt } from "../_shared/encryption.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 
 function getSupabaseAdmin() {
@@ -570,12 +571,15 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { action } = body;
 
-    // Cron full-sync: accept service role key
+    // Cron full-sync: serve la service_role o il segreto dei cron.
+    //
+    // Prima era accettata anche la chiave ANON, che non e' un segreto: sta
+    // dentro il bundle del sito ed e' leggibile da chiunque apra il browser.
+    // Bastava quella per far partire la sincronizzazione di tutti i calendari.
     if (action === "cron-full-sync") {
       const token = authHeader.replace("Bearer ", "");
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      if (token !== serviceRoleKey && token !== anonKey) {
+      if (token !== serviceRoleKey && !cronSecretValido(req)) {
         return json({ error: "Unauthorized for cron" }, 403);
       }
       return cronFullSync();

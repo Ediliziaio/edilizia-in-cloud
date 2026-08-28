@@ -10,6 +10,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 interface CantiereLite {
   id: string;
@@ -22,6 +23,20 @@ interface CantiereLite {
 Deno.serve(async (req) => {
   if (req.method !== "POST" && req.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Gira in service_role su tutte le aziende e chiama l'AI (che si paga a
+  // consumo). Non aveva nessun controllo: la proteggeva solo il verify_jwt del
+  // gateway, che fa passare qualunque utente autenticato — quindi chiunque
+  // avesse un account poteva far partire il batch, e la spesa.
+  {
+    const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!cronSecretValido(req) && !(chiave && bearer === chiave)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   const supabase = createClient(

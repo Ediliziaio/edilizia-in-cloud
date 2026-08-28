@@ -26,6 +26,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 type AlertType = "negative_margin" | "high_cost_per_render" | "zero_revenue_usage";
 type Severity = "info" | "warning" | "critical";
@@ -212,13 +213,33 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: cors });
   }
 
-  // Auth: cron secret oppure JWT super_admin
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const requestCronSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
-  const hasCronAuth = cronSecret && requestCronSecret === cronSecret;
-  const hasBearer = authHeader?.startsWith("Bearer ");
-  if (!hasCronAuth && !hasBearer) {
+  // Auth: segreto del cron oppure un vero super_admin.
+  //
+  // Il commento diceva gia' "JWT super_admin", ma il codice si limitava a
+  // `authHeader.startsWith("Bearer ")`: passava QUALUNQUE token, quindi ogni
+  // utente autenticato poteva far girare il monitor. E il segreto veniva
+  // confrontato solo con CRON_SECRET, mentre i job ne mandano un altro dei tre
+  // nomi in uso: cronSecretValido() li accetta tutti.
+  const authHeader = req.headers.get("authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  let autorizzato = cronSecretValido(req);
+
+  if (!autorizzato && token) {
+    const url = Deno.env.get("SUPABASE_URL");
+    const chiaveServizio = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (chiaveServizio && token === chiaveServizio) {
+      autorizzato = true;
+    } else if (url && chiaveServizio) {
+      const admin = createClient(url, chiaveServizio);
+      const { data: utente } = await admin.auth.getUser(token);
+      if (utente?.user) {
+        const { data: ruoli } = await admin
+          .from("user_roles").select("role").eq("user_id", utente.user.id);
+        autorizzato = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
+      }
+    }
+  }
+  if (!autorizzato) {
     return errorResponse("Unauthorized", 401, cors);
   }
 

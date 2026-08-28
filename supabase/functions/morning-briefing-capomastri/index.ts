@@ -42,6 +42,23 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // Questa funzione gira in service_role su TUTTE le aziende e spedisce i
+  // briefing. Non aveva nessun controllo suo: la proteggeva solo il verify_jwt
+  // del gateway, che pero' fa passare qualunque utente autenticato — quindi
+  // chiunque avesse un account poteva farla partire per tutti. Ora serve il
+  // segreto del cron oppure la chiave service_role, come nelle altre.
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const segretoRicevuto = req.headers.get("x-cron-secret") ?? req.headers.get("x-internal-cron-secret");
+  const daCron = !!cronSecret && segretoRicevuto === cronSecret;
+  const daServizio = !!serviceKey && bearer === serviceKey;
+  if (!daCron && !daServizio) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
