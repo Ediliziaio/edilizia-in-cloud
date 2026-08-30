@@ -1,170 +1,111 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { FirmaDigitaleCanvas } from "@/components/firma/FirmaDigitaleCanvas";
-import { FileSignature, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileSignature, Clock, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { toast } from "sonner";
+
+/**
+ * Firma documenti — portale cliente.
+ *
+ * Questa pagina leggeva "order_signature_requests", una tabella mai esistita:
+ * l'errore veniva ingoiato e al cliente compariva sempre "Nessun documento da
+ * firmare", anche con richieste in attesa. La tabella vera e' signature_requests.
+ *
+ * Qui si ELENCA soltanto. La firma resta sulla pagina pubblica /firma/<token>,
+ * che e' quella con valore legale (consenso, OTP, IP, hash del documento):
+ * duplicarla qui con una tela da disegno avrebbe prodotto firme piu' deboli.
+ *
+ * L'ambito e' garantito dalla RLS customer_view_own_signature_requests (sola
+ * lettura, richieste indirizzate alla propria email): nessun filtro per utente
+ * serve nel codice.
+ */
 
 interface SignatureRequest {
   id: string;
-  order_id: string;
-  company_id: string;
-  signer_email: string;
-  signer_name: string;
   token: string;
   status: string;
-  signature_url: string | null;
+  signer_name: string | null;
   signed_at: string | null;
   expires_at: string | null;
   created_at: string;
-  orders: {
-    id: string;
-    description: string;
-    order_code: string;
-  };
+  tipo_documento: string | null;
+  note: string | null;
+  order: { order_code: string | null; description: string | null } | null;
+}
+
+/** Una richiesta e' scaduta anche se lo stato non e' stato ancora aggiornato. */
+function isScaduta(r: SignatureRequest): boolean {
+  if (r.status === "signed") return false;
+  if (r.status === "expired" || r.status === "cancelled") return true;
+  return !!r.expires_at && new Date(r.expires_at) < new Date();
+}
+
+function statusBadge(r: SignatureRequest) {
+  if (r.status === "signed") {
+    return (
+      <Badge variant="outline" className="gap-1 text-green-700 border-green-300 bg-green-50">
+        <CheckCircle2 className="h-3 w-3" /> Firmato
+      </Badge>
+    );
+  }
+  if (r.status === "refused") {
+    return (
+      <Badge variant="outline" className="gap-1 text-red-700 border-red-300 bg-red-50">
+        <AlertCircle className="h-3 w-3" /> Rifiutato
+      </Badge>
+    );
+  }
+  if (isScaduta(r)) {
+    return (
+      <Badge variant="outline" className="gap-1 text-red-700 border-red-300 bg-red-50">
+        <AlertCircle className="h-3 w-3" /> {r.status === "cancelled" ? "Annullato" : "Scaduto"}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300 bg-amber-50">
+      <Clock className="h-3 w-3" /> Da firmare
+    </Badge>
+  );
+}
+
+/** Titolo leggibile: la commessa se c'e', altrimenti il tipo di documento. */
+function titoloRichiesta(r: SignatureRequest): string {
+  if (r.order?.order_code) return r.order.order_code;
+  if (r.tipo_documento === "order") return "Documento di commessa";
+  if (r.tipo_documento === "quote") return "Preventivo";
+  return "Documento da firmare";
 }
 
 export default function CustomerFirma() {
-  const { profile, company } = useAuth();
-  const queryClient = useQueryClient();
-  const [signingRequest, setSigningRequest] = useState<SignatureRequest | null>(null);
+  const { user } = useAuth();
 
-  const customerId = profile?.id;
-  const companyId = company?.id;
-
-  const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["customer-signature-requests", customerId],
-    queryFn: async () => {
-      if (!customerId || !companyId) return [];
-
+  const { data: requests = [], isLoading, isError } = useQuery({
+    queryKey: ["customer-signature-requests", user?.id],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<SignatureRequest[]> => {
       const { data, error } = await supabase
-        .from("order_signature_requests")
-        .select(`
-          *,
-          orders!inner(id, description, order_code)
-        `)
-        .eq("orders.customer_id", customerId)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
-
+        .from("signature_requests")
+        .select(
+          "id, token, status, signer_name, signed_at, expires_at, created_at, tipo_documento, note, " +
+            "order:orders!signature_requests_order_id_fkey(order_code, description)",
+        )
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return (data ?? []) as unknown as SignatureRequest[];
     },
-    enabled: !!customerId && !!companyId,
   });
 
-  const signMutation = useMutation({
-    mutationFn: async ({
-      requestId,
-      dataUrl,
-    }: {
-      requestId: string;
-      dataUrl: string;
-    }) => {
-      // Convert data URL to blob
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const fileName = `signatures/${companyId}/${requestId}_${Date.now()}.png`;
-
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from("signatures")
-        .upload(fileName, blob, {
-          contentType: "image/png",
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL — safe destructuring (bucket privato → data può essere null)
-      const urlResult = supabase.storage.from("signatures").getPublicUrl(fileName);
-      const publicUrl = urlResult?.data?.publicUrl;
-      if (!publicUrl) {
-        throw new Error("Impossibile ottenere l'URL della firma. Contatta l'assistenza.");
-      }
-
-      // Update request status
-      const { error: updateError } = await supabase
-        .from("order_signature_requests")
-        .update({
-          status: "signed",
-          signature_url: publicUrl,
-          signed_at: new Date().toISOString(),
-        })
-        .eq("id", requestId);
-
-      if (updateError) throw updateError;
-
-      return publicUrl;
-    },
-    onSuccess: () => {
-      toast.success("Documento firmato con successo!");
-      setSigningRequest(null);
-      queryClient.invalidateQueries({
-        queryKey: ["customer-signature-requests"],
-      });
-    },
-    onError: (err: Error) => {
-      toast.error("Errore durante la firma: " + err.message);
-    },
-  });
-
-  const pendingRequests = requests.filter((r) => r.status === "pending");
-  const signedRequests = requests.filter((r) => r.status === "signed");
-  const otherRequests = requests.filter(
-    (r) => r.status !== "pending" && r.status !== "signed"
+  const daFirmare = requests.filter((r) => r.status !== "signed" && r.status !== "refused" && !isScaduta(r));
+  const firmate = requests.filter((r) => r.status === "signed");
+  const altre = requests.filter(
+    (r) => !daFirmare.includes(r) && !firmate.includes(r),
   );
-
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 bg-amber-50">
-            <Clock className="h-3 w-3" />
-            In attesa
-          </Badge>
-        );
-      case "signed":
-        return (
-          <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
-            <CheckCircle2 className="h-3 w-3" />
-            Firmato
-          </Badge>
-        );
-      case "expired":
-        return (
-          <Badge variant="outline" className="gap-1 text-red-600 border-red-300 bg-red-50">
-            <AlertCircle className="h-3 w-3" />
-            Scaduto
-          </Badge>
-        );
-      case "cancelled":
-        return (
-          <Badge variant="outline" className="gap-1 text-gray-500 border-gray-300 bg-gray-50">
-            Annullato
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const signerFullName =
-    profile?.first_name && profile?.last_name
-      ? `${profile.first_name} ${profile.last_name}`
-      : undefined;
 
   if (isLoading) {
     return (
@@ -179,54 +120,59 @@ export default function CustomerFirma() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Firma Documenti</h1>
         <p className="text-muted-foreground">
-          Visualizza e firma i documenti che richiedono la tua approvazione.
+          Qui trovi i documenti che ti sono stati inviati da firmare.
         </p>
       </div>
 
-      {/* Pending signatures */}
-      {pendingRequests.length > 0 && (
+      {/* Errore esplicito: meglio dirlo che fingere che non ci sia nulla */}
+      {isError && (
+        <Card className="border-red-200">
+          <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+            <AlertCircle className="h-10 w-10 text-red-400 mb-3" />
+            <h3 className="text-lg font-medium">Non riusciamo a caricare i documenti</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Riprova tra qualche istante. Se hai ricevuto un'email con il link di firma,
+              puoi firmare direttamente da lì.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Da firmare */}
+      {daFirmare.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-500" />
-            Da firmare ({pendingRequests.length})
+            Da firmare ({daFirmare.length})
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
-            {pendingRequests.map((req) => (
-              <Card key={req.id} className="border-amber-200">
+            {daFirmare.map((r) => (
+              <Card key={r.id} className="border-amber-200">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-base">
-                      {req.orders.order_code}
-                    </CardTitle>
-                    {statusBadge(req.status)}
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base">{titoloRichiesta(r)}</CardTitle>
+                    {statusBadge(r)}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {req.orders.description || "Nessuna descrizione"}
-                  </p>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>
-                      Richiesta il{" "}
-                      {format(new Date(req.created_at), "d MMMM yyyy", {
-                        locale: it,
-                      })}
+                  {(r.order?.description || r.note) && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {r.order?.description || r.note}
                     </p>
-                    {req.expires_at && (
-                      <p>
-                        Scade il{" "}
-                        {format(new Date(req.expires_at), "d MMMM yyyy", {
-                          locale: it,
-                        })}
-                      </p>
+                  )}
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Richiesta il {format(new Date(r.created_at), "d MMMM yyyy", { locale: it })}</p>
+                    {r.expires_at && (
+                      <p>Da firmare entro il {format(new Date(r.expires_at), "d MMMM yyyy", { locale: it })}</p>
                     )}
                   </div>
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => setSigningRequest(req)}
-                  >
-                    <FileSignature className="h-4 w-4" />
-                    Firma
+                  {/* La firma avviene sulla pagina ufficiale, con consenso e OTP */}
+                  <Button asChild className="w-full gap-2">
+                    <a href={`/firma/${r.token}`}>
+                      <FileSignature className="h-4 w-4" />
+                      Vai alla firma
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
                   </Button>
                 </CardContent>
               </Card>
@@ -235,44 +181,27 @@ export default function CustomerFirma() {
         </div>
       )}
 
-      {/* Already signed */}
-      {signedRequests.length > 0 && (
+      {/* Firmati */}
+      {firmate.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
-            Firmati ({signedRequests.length})
+            Firmati ({firmate.length})
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
-            {signedRequests.map((req) => (
-              <Card key={req.id} className="border-green-200">
+            {firmate.map((r) => (
+              <Card key={r.id} className="border-green-200">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-base">
-                      {req.orders.order_code}
-                    </CardTitle>
-                    {statusBadge(req.status)}
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base">{titoloRichiesta(r)}</CardTitle>
+                    {statusBadge(r)}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {req.orders.description || "Nessuna descrizione"}
-                  </p>
-                  {req.signed_at && (
+                <CardContent>
+                  {r.signed_at && (
                     <p className="text-xs text-muted-foreground">
-                      Firmato il{" "}
-                      {format(new Date(req.signed_at), "d MMMM yyyy 'alle' HH:mm", {
-                        locale: it,
-                      })}
+                      Firmato il {format(new Date(r.signed_at), "d MMMM yyyy 'alle' HH:mm", { locale: it })}
                     </p>
-                  )}
-                  {req.signature_url && (
-                    <div className="border rounded-md p-2 bg-white">
-                      <img loading="lazy"
-                        src={req.signature_url}
-                        alt="Firma"
-                        className="max-h-20 mx-auto"
-                      />
-                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -281,24 +210,22 @@ export default function CustomerFirma() {
         </div>
       )}
 
-      {/* Expired / Cancelled */}
-      {otherRequests.length > 0 && (
+      {/* Scaduti / annullati / rifiutati */}
+      {altre.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Altro ({otherRequests.length})</h2>
+          <h2 className="text-lg font-semibold">Altro ({altre.length})</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            {otherRequests.map((req) => (
-              <Card key={req.id} className="opacity-70">
+            {altre.map((r) => (
+              <Card key={r.id} className="opacity-70">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-base">
-                      {req.orders.order_code}
-                    </CardTitle>
-                    {statusBadge(req.status)}
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base">{titoloRichiesta(r)}</CardTitle>
+                    {statusBadge(r)}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2">
-                    {req.orders.description || "Nessuna descrizione"}
+                    {r.order?.description || r.note || "—"}
                   </p>
                 </CardContent>
               </Card>
@@ -307,46 +234,19 @@ export default function CustomerFirma() {
         </div>
       )}
 
-      {/* Empty state */}
-      {requests.length === 0 && (
+      {/* Vuoto — solo se la query è andata a buon fine */}
+      {!isError && requests.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <FileSignature className="h-12 w-12 text-muted-foreground/40 mb-4" />
             <h3 className="text-lg font-medium">Nessun documento da firmare</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Non ci sono richieste di firma al momento.
+              Quando la tua impresa ti invierà un documento da firmare lo troverai qui,
+              e riceverai anche un'email con il link.
             </p>
           </CardContent>
         </Card>
       )}
-
-      {/* Signature dialog */}
-      <Dialog
-        open={!!signingRequest}
-        onOpenChange={(open) => {
-          if (!open) setSigningRequest(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Firma documento - {signingRequest?.orders.order_code}
-            </DialogTitle>
-          </DialogHeader>
-          {signingRequest && (
-            <FirmaDigitaleCanvas
-              onFirmaCompleta={(dataUrl) =>
-                signMutation.mutate({
-                  requestId: signingRequest.id,
-                  dataUrl,
-                })
-              }
-              onAnnulla={() => setSigningRequest(null)}
-              nomeTecnico={signerFullName}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
