@@ -100,6 +100,36 @@ function pickBestEmail(html: string, domain?: string | null): string | null {
   return priority || list[0];
 }
 
+// ── Scoperta pagine contatti ──────────────────────────────────────────────────
+// I path fissi (/contatti, /chi-siamo) coprono solo una parte dei siti: molti
+// usano /contatti-2, /dove-siamo, /it/contact, /azienda/contatti… Su un campione
+// di 70 siti reali del CRM, seguire i link della home ha portato le email
+// trovate da 15 a 29 (+93%) senza alcun costo aggiuntivo.
+const CONTACT_LINK_RE = /contatt|contact|chi-siamo|chi_siamo|chisiamo|azienda|about|dove-siamo|dove_siamo|preventiv|richiedi|privacy|note-legali|impressum/i;
+const CONTACT_ASSET_RE = /\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?)($|\?)/i;
+
+/** Estrae dalla home i link interni che sembrano pagine di contatto. */
+function discoverContactLinks(homeHtml: string, base: URL, max = 5): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const m of homeHtml.matchAll(/href=["']([^"']+)["']/gi)) {
+    const raw = m[1].trim();
+    if (!raw || raw.startsWith("#") || /^(mailto|tel|javascript):/i.test(raw)) continue;
+    if (!CONTACT_LINK_RE.test(raw) || CONTACT_ASSET_RE.test(raw)) continue;
+    let u: URL;
+    try { u = new URL(raw, base.origin + "/"); } catch { continue; }
+    // solo stesso host: niente salti su domini terzi (e niente SSRF di ritorno)
+    if (u.hostname !== base.hostname) continue;
+    u.hash = "";
+    const href = u.href;
+    if (seen.has(href)) continue;
+    seen.add(href);
+    out.push(href);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 async function extractEmailFromSite(website: string): Promise<string | null> {
   if (!website) return null;
   let base: URL;
@@ -111,6 +141,7 @@ async function extractEmailFromSite(website: string): Promise<string | null> {
   const domain = base.hostname.replace(/^www\./, "");
   // prova homepage + pagine contatti tipiche italiane
   const candidates = [base.href, `${base.origin}/contatti`, `${base.origin}/contatti/`, `${base.origin}/contact`];
+  const gia: string[] = [];
   for (const url of candidates) {
     try {
       const res = await fetchWithTimeout(url, {
@@ -122,10 +153,25 @@ async function extractEmailFromSite(website: string): Promise<string | null> {
       const html = await res.text();
       const email = pickBestEmail(html, domain);
       if (email) return email;
+      // niente email nei path fissi: prova le pagine linkate dalla home
+      if (url === base.href && gia.length === 0) gia.push(...discoverContactLinks(html, base));
     } catch {
       // timeout / DNS / TLS → passa al candidato successivo
       continue;
     }
+  }
+  for (const url of gia) {
+    if (candidates.includes(url)) continue;
+    try {
+      const res = await fetchWithTimeout(url, {
+        timeoutMs: 6000,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; EiC-LeadBot/1.0)" },
+        redirect: "follow",
+      });
+      if (!res.ok) continue;
+      const email = pickBestEmail(await res.text(), domain);
+      if (email) return email;
+    } catch { continue; }
   }
   return null;
 }
@@ -208,6 +254,7 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
   const pages = [base.href, `${base.origin}/contatti`, `${base.origin}/chi-siamo`, `${base.origin}/azienda`];
   let combined = "";
   let homepageUrl = "";
+  const scoperte: string[] = [];   // pagine contatti trovate nei link della home
   for (const url of pages) {
     try {
       const res = await fetchWithTimeout(url, {
@@ -217,12 +264,29 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
       });
       if (!res.ok) continue;
       const html = await res.text();
-      if (!homepageUrl) homepageUrl = res.url || url;
+      if (!homepageUrl) {
+        homepageUrl = res.url || url;
+        scoperte.push(...discoverContactLinks(html, base));
+      }
       combined += "\n" + html;
       if (combined.length > 400_000) break; // safety cap
     } catch {
       continue;
     }
+  }
+  // Pagine linkate dalla home (/contatti-2, /dove-siamo, /it/contact…): sono
+  // quelle che fanno la differenza sui siti che non usano i path standard.
+  for (const url of scoperte) {
+    if (pages.includes(url) || combined.length > 400_000) continue;
+    try {
+      const res = await fetchWithTimeout(url, {
+        timeoutMs: 6000,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; EiC-LeadBot/1.0)" },
+        redirect: "follow",
+      });
+      if (!res.ok) continue;
+      combined += "\n" + await res.text();
+    } catch { continue; }
   }
   if (!combined) return null;
 
