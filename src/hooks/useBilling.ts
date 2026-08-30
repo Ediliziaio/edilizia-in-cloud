@@ -330,3 +330,75 @@ export function useStartCardSetup() {
     },
   });
 }
+
+// ─── HOOK: STATO RICARICA AUTOMATICA FALLITA ────────────────────────────────────
+// Quando il credito scende sotto la soglia, auto-topup-trigger prova ad addebitare
+// la carta. Se la carta viene rifiutata il tentativo resta registrato SOLO qui
+// (company_auto_topup.failure_count > 0) e l'unico segnale che l'utente riceveva
+// era l'email "Ricarica automatica non riuscita": in app non si vedeva NULLA.
+// Questo hook espone lo stato "carta rifiutata" cosi' la pagina Abbonamento puo'
+// mostrarlo con l'azione per aggiornare la carta. Aggrega i wallet (email/ai/
+// whatsapp) in un solo stato: la carta e' una sola, il rifiuto e' lo stesso.
+export interface AutoTopupFailure {
+  failureCount: number;
+  reason: string | null;
+  lastFailureAt: string | null;
+  nextAttemptAt: string | null;
+  exhausted: boolean;
+}
+
+interface AutoTopupFailureRow {
+  failure_count: number | null;
+  last_failure_reason: string | null;
+  last_failure_at: string | null;
+  next_attempt_at: string | null;
+  retries_exhausted_at: string | null;
+}
+
+export function useAutoTopupFailure() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["auto-topup-failure", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<AutoTopupFailure | null> => {
+      // Colonne di fallimento assenti dai type generati (tabella aggiornata dopo):
+      // stesso motivo per cui UnifiedAutoTopupCard usa il cast. Vedi types.ts.
+      const { data, error } = await supabase
+        .from("company_auto_topup" as any)
+        .select("failure_count, last_failure_reason, last_failure_at, next_attempt_at, retries_exhausted_at")
+        .eq("company_id", companyId!)
+        .gt("failure_count", 0);
+      if (error) {
+        console.error("[useAutoTopupFailure]", error);
+        return null;
+      }
+      const rows = (data ?? []) as AutoTopupFailureRow[];
+      if (rows.length === 0) return null;
+
+      let failureCount = 0;
+      let lastFailureAt: string | null = null;
+      let reason: string | null = null;
+      let nextAttemptAt: string | null = null;
+      let allExhausted = true;
+      for (const r of rows) {
+        if ((r.failure_count ?? 0) > failureCount) failureCount = r.failure_count ?? 0;
+        // Il motivo segue il fallimento piu' recente
+        if (r.last_failure_at && (!lastFailureAt || r.last_failure_at > lastFailureAt)) {
+          lastFailureAt = r.last_failure_at;
+          reason = r.last_failure_reason ?? reason;
+        }
+        // Prossimo tentativo = il piu' vicino tra i wallet non ancora esauriti
+        if (!r.retries_exhausted_at) {
+          allExhausted = false;
+          if (r.next_attempt_at && (!nextAttemptAt || r.next_attempt_at < nextAttemptAt)) {
+            nextAttemptAt = r.next_attempt_at;
+          }
+        }
+      }
+      return { failureCount, reason, lastFailureAt, nextAttemptAt, exhausted: allExhausted };
+    },
+  });
+}

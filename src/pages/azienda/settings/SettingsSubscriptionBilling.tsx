@@ -31,7 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Pencil } from "lucide-react";
-import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, useStripePaymentMethod } from "@/hooks/useBilling";
+import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, useStripePaymentMethod, useAutoTopupFailure } from "@/hooks/useBilling";
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
@@ -866,6 +866,79 @@ function TabNotifiche() {
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN — Page con header + tabs
 ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNER — RICARICA AUTOMATICA FALLITA (carta rifiutata)
+   Il tentativo di addebito falliva in silenzio: registrato solo su
+   company_auto_topup, invisibile in app. L'utente vedeva solo l'email. Qui lo
+   mostriamo sulla pagina a cui l'email rimanda, con l'azione per aggiornare la
+   carta (portale Stripe: la sezione "Metodo di pagamento").
+═══════════════════════════════════════════════════════════════════════════ */
+/** Traduce in italiano i messaggi di rifiuto piu' comuni di Stripe (in inglese). */
+function localizzaMotivoRifiuto(reason: string | null): string {
+  const r = (reason ?? "").toLowerCase();
+  if (!r) return "la carta è stata rifiutata";
+  if (r.includes("insufficient funds")) return "la carta non aveva fondi sufficienti";
+  if (r.includes("expired")) return "la carta risulta scaduta";
+  if (r.includes("security code") || r.includes("cvc")) return "il codice di sicurezza della carta non era corretto";
+  if (r.includes("incorrect number") || r.includes("card number")) return "il numero della carta non era corretto";
+  if (r.includes("do not honor") || r.includes("does not support") || r.includes("not support"))
+    return "la banca ha rifiutato il pagamento";
+  if (r.includes("declined")) return "la carta è stata rifiutata";
+  return "la carta è stata rifiutata";
+}
+
+function AutoTopupFailureBanner() {
+  const { data: failure } = useAutoTopupFailure();
+  const { mutate: openPortal, isPending } = useOpenBillingPortal();
+
+  if (!failure) return null;
+
+  const motivo = localizzaMotivoRifiuto(failure.reason);
+  const ultimo = failure.lastFailureAt
+    ? format(new Date(failure.lastFailureAt), "d MMM yyyy 'alle' HH:mm", { locale: it })
+    : null;
+  const prossimo = failure.nextAttemptAt
+    ? format(new Date(failure.nextAttemptAt), "d MMM yyyy", { locale: it })
+    : null;
+
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
+        <div className="flex-1 space-y-2">
+          <div>
+            <h3 className="font-semibold text-rose-900 dark:text-rose-100">Ricarica automatica non riuscita</h3>
+            <p className="text-sm text-rose-800 dark:text-rose-200">
+              Abbiamo provato ad addebitare la tua carta per ricaricare il credito, ma {motivo}
+              {failure.failureCount > 1 ? ` (${failure.failureCount} tentativi)` : ""}.
+              {ultimo ? ` Ultimo tentativo il ${ultimo}.` : ""}
+            </p>
+            <p className="mt-1 text-sm text-rose-800 dark:text-rose-200">
+              {failure.exhausted
+                ? "Abbiamo sospeso i tentativi automatici: aggiorna il metodo di pagamento per riattivarli."
+                : prossimo
+                  ? `Riproveremo automaticamente il ${prossimo}. Per non aspettare, aggiorna subito la carta.`
+                  : "Aggiorna il metodo di pagamento per riprovare subito."}
+            </p>
+          </div>
+          <Button
+            onClick={() => openPortal()}
+            disabled={isPending}
+            className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
+          >
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+            Aggiorna il metodo di pagamento
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsSubscriptionBilling() {
   const { isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
   const [params, setParams] = useSearchParams();
@@ -925,6 +998,8 @@ export default function SettingsSubscriptionBilling() {
   return (
     <div className="space-y-5">
       {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
+      {/* Carta rifiutata sulla ricarica automatica: sopra ai tab, sempre visibile */}
+      <AutoTopupFailureBanner />
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="abbonamenti" className="gap-1.5">
