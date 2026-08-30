@@ -297,8 +297,14 @@ Deno.serve(async (req) => {
 <p>La tua carta è stata rifiutata e non siamo riusciti a eseguire la ricarica automatica del credito.</p>
 <p>Motivo comunicato dalla banca: <em>${String(reason)}</em></p>
 <p>${quando}</p>
-<p>Finché il credito resta a zero le funzioni che lo consumano restano sospese. Puoi aggiornare la carta dalle impostazioni dell'abbonamento.</p>
+<p>Finché il credito resta a zero le funzioni che lo consumano restano sospese. Aggiorna il metodo di pagamento per riprovare subito, senza aspettare il prossimo tentativo automatico.</p>
 <p style="margin-top:20px;">
+  <a href="https://app.ediliziaincloud.com/azienda/impostazioni/abbonamento"
+     style="display:inline-block;background:#F97316;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:14px;">
+    Aggiorna il metodo di pagamento
+  </a>
+</p>
+<p style="margin-top:10px;">
   <a href="https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent("Ciao, la mia ricarica automatica non e' andata a buon fine e mi serve aiuto.")}"
      style="display:inline-block;background:#25D366;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:600;font-size:14px;">
     Scrivici su WhatsApp
