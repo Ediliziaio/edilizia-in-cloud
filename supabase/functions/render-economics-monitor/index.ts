@@ -252,25 +252,15 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Se l'invocazione è JWT-based (non cron), verifica esplicitamente il ruolo.
-    if (!hasCronAuth && hasBearer) {
-      const jwt = authHeader!.replace("Bearer ", "");
-      const userClient = createClient(supabaseUrl, serviceKey, {
-        global: { headers: { Authorization: `Bearer ${jwt}` } },
-      });
-      const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
-      if (userErr || !userData?.user) {
-        return errorResponse("Invalid token", 401, cors);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: hasRole, error: roleErr } = await (supabase as any).rpc("has_role", {
-        _user_id: userData.user.id,
-        _role: "super_admin",
-      });
-      if (roleErr || !hasRole) {
-        return errorResponse("Super-admin role required", 403, cors);
-      }
-    }
+    // Nota: qui c'era una seconda verifica del ruolo super_admin che leggeva
+    // `hasCronAuth` e `hasBearer`. Il refactor dell'auth (commit b67869c4d,
+    // 2026-08-28) ha sostituito quelle variabili con authHeader/token/
+    // autorizzato ma ha lasciato indietro questa riga: essendo binding mai
+    // dichiarati, in strict mode ogni chiamata AUTORIZZATA finiva in
+    // ReferenceError, catturato dal catch in fondo e restituito come 500.
+    // Il controllo era comunque ridondante: il blocco di autenticazione sopra
+    // ammette solo cron secret, service key o un vero super_admin, e altrimenti
+    // esce con 401 prima di arrivare qui.
 
     // Parse body (config opzionale)
     let body: Record<string, unknown> | null = null;

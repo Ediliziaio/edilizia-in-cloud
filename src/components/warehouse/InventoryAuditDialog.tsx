@@ -128,7 +128,7 @@ export default function InventoryAuditDialog({ open, onOpenChange, stockItem, co
               <div key={a.id} className="flex items-center justify-between p-2 rounded border text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground">
-                    Sistema: {a.system_quantity} → Reale: {a.actual_quantity}
+                    Sistema: {a.expected_quantity} → Reale: {a.counted_quantity}
                   </span>
                   {a.difference !== 0 && (
                     <Badge
@@ -142,7 +142,7 @@ export default function InventoryAuditDialog({ open, onOpenChange, stockItem, co
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground">
-                    {new Date(a.audited_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                    {new Date(a.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
                   </span>
                   {a.adjustment_applied ? (
                     <Badge variant="outline" className="text-[10px] text-green-700 border-green-300">

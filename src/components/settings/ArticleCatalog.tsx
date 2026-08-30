@@ -518,13 +518,19 @@ function ArticleDialog({
 
   const uploadMedia = async (file: File, type: "img" | "pdf") => {
     if (!editingArticle?.id) { toast.error("Salva prima il prodotto per caricare media"); return; }
-    const path = `${companyId}/${editingArticle.id}/${type === "img" ? "immagine" : "scheda.pdf"}`;
+    // Il bucket "listino-media" non e' mai esistito: ogni upload di immagine o
+    // scheda tecnica falliva con "Bucket not found". I media degli articoli
+    // stanno su article-images / article-pdfs (entrambi pubblici, con la stessa
+    // RLS: si scrive solo se la prima cartella e' il company_id — qui lo e').
+    const bucket = type === "img" ? "article-images" : "article-pdfs";
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? (type === "img" ? "jpg" : "pdf");
+    const path = `${companyId}/${editingArticle.id}/${type === "img" ? `immagine.${ext}` : "scheda.pdf"}`;
     const setter = type === "img" ? setUploadingImg : setUploadingPdf;
     setter(true);
     try {
-      const { error } = await supabase.storage.from("listino-media").upload(path, file, { upsert: true });
+      const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
       if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("listino-media").getPublicUrl(path);
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
       if (type === "img") setImgUrl(publicUrl);
       else setPdfUrl(publicUrl);
       toast.success("File caricato");

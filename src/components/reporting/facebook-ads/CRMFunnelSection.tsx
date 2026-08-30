@@ -71,13 +71,19 @@ export default function CRMFunnelSection({ dateRange, isConnected }: Props) {
       let preventiviCount = 0;
       let preventiviAccettati = 0;
       if (contactIds.length > 0) {
+        // La tabella "marketing_quotes" non esiste: i preventivi stanno su
+        // "quotes". Con l'errore ingoiato il funnel Meta mostrava sempre 0.
         const { data: quotes } = await supabase
-          .from("marketing_quotes")
+          .from("quotes")
           .select("id, status")
           .eq("company_id", companyId)
           .in("contact_id", contactIds);
         preventiviCount = quotes?.length || 0;
-        preventiviAccettati = (quotes || []).filter((q) => q.status === "accepted").length;
+        // Gli stati sono in italiano: con "accepted" il conteggio restava a 0
+        // anche a tabella corretta. "firmato" e' accettato a tutti gli effetti.
+        preventiviAccettati = (quotes || []).filter(
+          (q) => q.status === "accettato" || q.status === "firmato",
+        ).length;
       }
 
       // 5. Speed-to-lead: media secondi tra received_at e created_at del contatto

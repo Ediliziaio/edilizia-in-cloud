@@ -61,8 +61,11 @@ export default function TecnicoRapportino() {
         .from("scorte_furgone")
         .select("*")
         .eq("tecnico_id", authUser!.id)
-        .eq("attivo", true)
-        .order("nome_materiale");
+        // Schema reale di scorte_furgone: descrizione / quantita.
+        // Il codice usava nome_materiale, quantita_attuale e un filtro
+        // su "attivo": tre colonne inesistenti, quindi la query falliva
+        // e (senza check sull'errore) la lista restava sempre vuota.
+        .order("descrizione");
       return data ?? [];
     },
     enabled: !!authUser,
@@ -73,7 +76,7 @@ export default function TecnicoRapportino() {
 
   // Scorte con disponibilità > 0 per questa sessione
   const scorteDisponibili = scorte.filter(
-    (s: any) => (s.quantita_attuale - (decrementiFurgone[s.id] ?? 0)) > 0
+    (s: any) => (s.quantita - (decrementiFurgone[s.id] ?? 0)) > 0
   );
 
   // Canvas firma helpers
@@ -162,20 +165,20 @@ export default function TecnicoRapportino() {
 
   // Materiale da scorte (con verifica disponibilità e tracking decremento)
   const addMaterialeScorta = (scorta: any) => {
-    const available = (scorta.quantita_attuale ?? 0) - (decrementiFurgone[scorta.id] ?? 0);
+    const available = (scorta.quantita ?? 0) - (decrementiFurgone[scorta.id] ?? 0);
     if (available <= 0) {
       toast.error("Scorta esaurita per questo intervento");
       return;
     }
     setDecrementiFurgone((prev) => ({ ...prev, [scorta.id]: (prev[scorta.id] ?? 0) + 1 }));
     setMateriali((prev) => {
-      const existing = prev.findIndex((m) => m.descrizione === scorta.nome_materiale);
+      const existing = prev.findIndex((m) => m.descrizione === scorta.descrizione);
       if (existing >= 0) {
         return prev.map((m, i) =>
           i === existing ? { ...m, quantita: m.quantita + 1 } : m,
         );
       }
-      return [...prev, { descrizione: scorta.nome_materiale, quantita: 1, unita: scorta.unita_misura ?? "pz" }];
+      return [...prev, { descrizione: scorta.descrizione, quantita: 1, unita: scorta.unita_misura ?? "pz" }];
     });
   };
 
@@ -278,10 +281,10 @@ export default function TecnicoRapportino() {
         if (usedQty <= 0) continue;
         const scorta = scorteMap.get(scortaId);
         if (!scorta) continue;
-        const newQty = Math.max(0, (scorta.quantita_attuale ?? 0) - usedQty);
+        const newQty = Math.max(0, (scorta.quantita ?? 0) - usedQty);
         await supabase
           .from("scorte_furgone")
-          .update({ quantita_attuale: newQty })
+          .update({ quantita: newQty })
           .eq("id", scortaId);
       }
     },
@@ -393,7 +396,7 @@ export default function TecnicoRapportino() {
                 ) : (
                   <div className="space-y-2">
                     {scorteDisponibili.map((s: any) => {
-                      const rimanenti = (s.quantita_attuale ?? 0) - (decrementiFurgone[s.id] ?? 0);
+                      const rimanenti = (s.quantita ?? 0) - (decrementiFurgone[s.id] ?? 0);
                       return (
                         <button
                           key={s.id}
@@ -401,7 +404,7 @@ export default function TecnicoRapportino() {
                           className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center justify-between text-left active:bg-slate-700"
                         >
                           <div>
-                            <p className="text-white font-medium">{s.nome_materiale}</p>
+                            <p className="text-white font-medium">{s.descrizione}</p>
                             <p className="text-slate-400 text-sm">
                               Disponibili: {rimanenti} {s.unita_misura ?? "pz"}
                             </p>

@@ -193,7 +193,10 @@ export default function GoogleAdsReport() {
       if (!companyId) return null;
       const { data } = await supabase
         .from("integrations")
-        .select("id, status, meta_data")
+        // "meta_data" non esiste su integrations: la query falliva, l'errore
+        // era ingoiato e il badge mostrava sempre "non connesso" anche a
+        // integrazione attiva. Non serviva: qui si leggono solo id e status.
+        .select("id, status")
         .eq("company_id", companyId)
         .eq("provider", "google_ads")
         .maybeSingle();

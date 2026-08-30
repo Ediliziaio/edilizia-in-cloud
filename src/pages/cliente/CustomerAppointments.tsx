@@ -20,7 +20,6 @@ interface Appointment {
   is_completed: boolean;
   formatted_address: string | null;
   address_city: string | null;
-  contact_email: string | null;
 }
 
 const EXCLUDED_TYPES = ["preventivo", "telefonata", "consulenza", "videocall", "meeting"];
@@ -103,9 +102,14 @@ export default function CustomerAppointments() {
 
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, is_completed, formatted_address, address_city, contact_email")
+        // "contact_email" non esiste su appointments (il legame e'
+        // contact_id): selezionarla e filtrarci sopra faceva fallire la
+        // query e la pagina Appuntamenti del cliente restava vuota.
+        // Il filtro per cliente non serve nel codice: ci pensa la RLS
+        // customer_view_own_appointments, che confronta l'email del
+        // contatto collegato con quella dell'utente autenticato.
+        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, is_completed, formatted_address, address_city")
         .eq("company_id", companyId)
-        .eq("contact_email", profile.email)
         .not("appointment_type", "in", `(${EXCLUDED_TYPES.join(",")})`)
         .order("appointment_date", { ascending: false })
         .limit(100);

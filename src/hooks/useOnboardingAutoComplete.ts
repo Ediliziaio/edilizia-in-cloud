@@ -105,11 +105,11 @@ export function useOnboardingAutoComplete(
           .select("vat_number, name, billing_mode_set_at, logo_url, status, stripe_customer_id" as any)
           .eq("id", companyId!)
           .maybeSingle(),
-        // 2. Clienti
-        supabase
-          .from("customers")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!),
+        // 2. Clienti — la tabella "customers" non esiste: l'errore veniva
+        // ingoiato e has_first_customer restava FALSO per sempre, quindi lo
+        // step "primo cliente" non si completava mai da solo. Il conteggio
+        // buono (profiles con ruolo 'customer') e' nella RPC get_customer_stats.
+        supabase.rpc("get_customer_stats" as never, { p_company_id: companyId! } as never),
         // 3. Ordini
         supabase
           .from("orders")
@@ -146,7 +146,7 @@ export function useOnboardingAutoComplete(
       const profile = profileRes.data as any;
       return {
         has_company_profile: !!(profile?.vat_number && profile?.name),
-        has_first_customer: (custRes.count ?? 0) > 0,
+        has_first_customer: (((custRes.data as { total?: number } | null)?.total) ?? 0) > 0,
         has_first_order: (ordRes.count ?? 0) > 0,
         has_team_member: (teamRes.count ?? 0) > 1,
         has_first_quote: (quoteRes.count ?? 0) > 0,

@@ -17,8 +17,11 @@ export default function TecnicoFurgone() {
         .from("scorte_furgone")
         .select("*")
         .eq("tecnico_id", user!.id)
-        .eq("attivo", true)
-        .order("nome_materiale");
+        // Schema reale di scorte_furgone: descrizione / quantita.
+        // Il codice usava nome_materiale, quantita_attuale e un filtro
+        // su "attivo": tre colonne inesistenti, quindi la query falliva
+        // e (senza check sull'errore) la lista restava sempre vuota.
+        .order("descrizione");
       return data ?? [];
     },
     enabled: !!user,
@@ -28,10 +31,10 @@ export default function TecnicoFurgone() {
     mutationFn: async ({ id, delta }: { id: string; delta: number }) => {
       const scorta = scorte.find((s: any) => s.id === id) as any;
       if (!scorta) throw new Error("Scorta non trovata");
-      const newQta = Math.max(0, (scorta.quantita_attuale ?? 0) + delta);
+      const newQta = Math.max(0, (scorta.quantita ?? 0) + delta);
       const { error } = await supabase
         .from("scorte_furgone")
-        .update({ quantita_attuale: newQta })
+        .update({ quantita: newQta })
         .eq("id", id);
       if (error) throw error;
     },
@@ -51,8 +54,8 @@ export default function TecnicoFurgone() {
 
       const { error } = await supabase.from("tasks").insert({
         company_id: profile?.company_id,
-        title: `Riordino: ${scorta.nome_materiale}`,
-        notes: `Scorta in esaurimento sul furgone del tecnico. Quantità attuale: ${scorta.quantita_attuale} ${scorta.unita_misura ?? "pz"}`,
+        title: `Riordino: ${scorta.descrizione}`,
+        notes: `Scorta in esaurimento sul furgone del tecnico. Quantità attuale: ${scorta.quantita} ${scorta.unita_misura ?? "pz"}`,
         category: "riordino_materiali",
         assigned_to: user!.id,
         created_by: user!.id,
@@ -72,7 +75,7 @@ export default function TecnicoFurgone() {
   });
 
   const scarseCount = scorte.filter(
-    (s: any) => s.quantita_attuale <= (s.quantita_minima ?? 1),
+    (s: any) => s.quantita <= (s.quantita_minima ?? 1),
   ).length;
 
   return (
@@ -106,7 +109,7 @@ export default function TecnicoFurgone() {
       ) : (
         <div className="space-y-3">
           {scorte.map((s: any) => {
-            const scarso = s.quantita_attuale <= (s.quantita_minima ?? 1);
+            const scarso = s.quantita <= (s.quantita_minima ?? 1);
             return (
               <div
                 key={s.id}
@@ -117,7 +120,7 @@ export default function TecnicoFurgone() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-white font-semibold text-base">{s.nome_materiale}</p>
+                      <p className="text-white font-semibold text-base">{s.descrizione}</p>
                       {scarso && (
                         <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
                           Scarso
@@ -133,13 +136,13 @@ export default function TecnicoFurgone() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQtaMutation.mutate({ id: s.id, delta: -1 })}
-                      disabled={updateQtaMutation.isPending || s.quantita_attuale <= 0}
+                      disabled={updateQtaMutation.isPending || s.quantita <= 0}
                       className="w-11 h-11 bg-slate-700 rounded-xl flex items-center justify-center text-white active:bg-slate-600 disabled:opacity-40"
                     >
                       <Minus className="h-5 w-5" />
                     </button>
                     <span className="text-white font-bold text-xl w-10 text-center">
-                      {s.quantita_attuale ?? 0}
+                      {s.quantita ?? 0}
                     </span>
                     <button
                       onClick={() => updateQtaMutation.mutate({ id: s.id, delta: 1 })}

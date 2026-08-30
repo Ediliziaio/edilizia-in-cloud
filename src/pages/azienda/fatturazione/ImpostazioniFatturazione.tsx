@@ -178,13 +178,19 @@ export default function ImpostazioniFatturazione() {
     setUploadingLogo(true);
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
-      const path = `logos/${effectiveCompany.id}/logo.${ext}`;
+      // Bucket "company-logos": e' l'unico bucket loghi che esiste davvero ed e'
+      // pubblico, quindi l'URL regge nel PDF fattura (generate-native-pdf lo
+      // incorpora come <img src>). La sua RLS ammette la scrittura solo se la
+      // PRIMA cartella e' il company_id: percorso "logos/<id>/..." verrebbe
+      // rifiutato. Sottocartella dedicata per non finire sotto la pulizia che
+      // LogoUploader fa sui file in radice quando cambia il logo aziendale.
+      const path = `${effectiveCompany.id}/fatturazione/logo.${ext}`;
       const { error: uploadError } = await supabase.storage
-        .from("public-assets")
+        .from("company-logos")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from("public-assets").getPublicUrl(path);
+      const { data: urlData } = supabase.storage.from("company-logos").getPublicUrl(path);
       const logoUrl = urlData.publicUrl + "?t=" + Date.now();
       updateField("logo_url", logoUrl);
       toast.success("Logo caricato");

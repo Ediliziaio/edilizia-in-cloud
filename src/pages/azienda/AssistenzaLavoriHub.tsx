@@ -163,7 +163,10 @@ export default function AssistenzaLavoriHub() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("piani_manutenzione")
-        .select("id, titolo, prossima_scadenza, stato, frequenza_tipo")
+        // "stato" non esiste su piani_manutenzione (il flag e' "attivo") e
+        // faceva fallire l'intera query: la card "Manutenzioni in scadenza"
+        // restava in errore. Non serviva comunque: qui non viene mai letto.
+        .select("id, titolo, prossima_scadenza, frequenza_tipo")
         .eq("company_id", effectiveCompany.id)
         .not("prossima_scadenza", "is", null)
         .lte("prossima_scadenza", in7Days)

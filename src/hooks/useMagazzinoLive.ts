@@ -114,9 +114,8 @@ export interface LotBatch {
   stock_item_id: string;
   lot_number: string;
   supplier_id: string | null;
-  delivery_date: string | null;
-  quantity_received: number;
-  quantity_remaining: number;
+  received_date: string | null;
+  quantity: number;
   unit_cost: number | null;
   notes: string | null;
   created_at: string;
@@ -126,14 +125,13 @@ export interface LotBatch {
 export interface InventoryAuditItem {
   id: string;
   stock_item_id: string;
-  system_quantity: number;
-  actual_quantity: number;
+  expected_quantity: number;
+  counted_quantity: number;
   difference: number;
   adjustment_applied: boolean;
   notes: string | null;
-  audited_by: string | null;
-  audited_at: string;
-  applied_at: string | null;
+  performed_by: string | null;
+  created_at: string;
   stock_item?: { name: string; quantity: number } | null;
 }
 
@@ -237,7 +235,9 @@ export function useLotBatches(companyId: string | null, stockItemId?: string) {
         .from("warehouse_lot_batches")
         .select("*, supplier:suppliers(name)")
         .eq("company_id", companyId!)
-        .order("delivery_date", { ascending: false });
+        // La colonna e' received_date: "delivery_date" non esiste su
+        // warehouse_lot_batches e faceva fallire tutta la query (lotti vuoti).
+        .order("received_date", { ascending: false });
 
       if (stockItemId) {
         query = query.eq("stock_item_id", stockItemId);
@@ -260,7 +260,8 @@ export function useInventoryAudits(companyId: string | null) {
         .from("inventory_audits")
         .select("*, stock_item:warehouse_stock(name, quantity)")
         .eq("company_id", companyId!)
-        .order("audited_at", { ascending: false })
+        // inventory_audits ha solo created_at: "audited_at" non esiste.
+        .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
       return (data ?? []) as any;
@@ -366,7 +367,9 @@ export function useAddLotBatchMutation() {
         .from("warehouse_stock")
         .update({
           last_lot_number: batch.lot_number,
-          last_delivery_date: batch.delivery_date,
+          // Su warehouse_stock la colonna si chiama last_delivery_date, sul
+          // lotto received_date: nomi diversi, stesso dato.
+          last_delivery_date: batch.received_date,
           updated_at: new Date().toISOString(),
         } as any)
         .eq("id", batch.stock_item_id);
@@ -400,14 +403,16 @@ export function useCreateInventoryAuditMutation() {
       notes?: string;
       auditedBy: string;
     }) => {
+      // Nomi reali della tabella: expected/counted_quantity e performed_by.
+      // Con system_quantity/actual_quantity/audited_by/audited_at l'inserimento
+      // veniva rifiutato e nessun inventario e' mai stato registrato.
       const { error } = await supabase.from("inventory_audits").insert({
         company_id: companyId,
         stock_item_id: stockItemId,
-        system_quantity: systemQuantity,
-        actual_quantity: actualQuantity,
+        expected_quantity: systemQuantity,
+        counted_quantity: actualQuantity,
         notes: notes ?? null,
-        audited_by: auditedBy,
-        audited_at: new Date().toISOString(),
+        performed_by: auditedBy,
       } as any);
       if (error) throw error;
     },

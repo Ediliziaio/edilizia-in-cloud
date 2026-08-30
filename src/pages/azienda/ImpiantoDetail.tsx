@@ -113,9 +113,13 @@ export default function ImpiantoDetail() {
       if (!esecuzioneForm.data) throw new Error("La data è obbligatoria");
       if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
 
+      // esecuzioni_manutenzione NON ha company_id, per scelta: la RLS
+      // (esecuzioni_company) ricava l'azienda dal piano collegato. Passarlo
+      // faceva rifiutare ogni inserimento con PGRST204, quindi "Registra
+      // esecuzione" non ha mai funzionato. L'ambito resta garantito dal
+      // piano_id, che qui e' obbligatorio.
       const { error } = await supabase.from("esecuzioni_manutenzione").insert({
         piano_id: selectedPianoId,
-        company_id: effectiveCompany.id,
         tecnico_id: user?.id ?? null,
         data_esecuzione: esecuzioneForm.data,
         esito: esecuzioneForm.esito,

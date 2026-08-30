@@ -115,9 +115,13 @@ export function useCompanyDetail(id: string | undefined) {
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id),
         // Count tickets aperti (server-side filter via .neq)
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id).neq("status", "risolto"),
-        // Clienti VERI (tabella customers): prima customersCount copiava il
-        // count dei profiles e "Clienti" mostrava in realtà gli utenti.
-        supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", id),
+        // Clienti VERI: prima customersCount copiava il count dei profiles e
+        // "Clienti" mostrava in realtà gli utenti. Poi si è puntato a una
+        // tabella "customers" che NON esiste: errore ingoiato e contatore
+        // fermo a 0. La definizione buona di cliente (profiles con ruolo
+        // 'customer') sta già nella RPC get_customer_stats, che ammette il
+        // super admin via user_can_access_company.
+        supabase.rpc("get_customer_stats" as never, { p_company_id: id } as never),
       ]);
       if (!companyRes.data) return null;
       const company = companyRes.data as unknown as Company;
@@ -128,7 +132,7 @@ export function useCompanyDetail(id: string | undefined) {
       const stats: CompanyStats = {
         ordersCount: ordersCountRes.count || 0,
         ordersValue,
-        customersCount: customersCountRes.count || 0,
+        customersCount: (customersCountRes.data as { total?: number } | null)?.total ?? 0,
         ticketsCount: ticketsCountRes.count || 0,
         openTicketsCount: openTicketsCountRes.count || 0,
         teamCount: profilesCountRes.count || 0,

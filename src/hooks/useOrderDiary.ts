@@ -149,7 +149,9 @@ export function useOrderDiary(orderId: string | undefined) {
           .from("order_attachments")
           .select("id, file_name, file_type, file_size, uploaded_by, visible_to_customer, created_at")
           .eq("order_id", orderId!)
-          .eq("company_id", effectiveCompany!.id)
+          // order_attachments non ha company_id: il filtro faceva fallire la
+          // query e il diario perdeva gli allegati. L'ambito e' gia' dato
+          // dall'order_id (e dalla RLS che passa per la commessa).
           .order("created_at", { ascending: false }),
         supabase
           .from("foto_cantiere")

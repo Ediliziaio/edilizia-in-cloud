@@ -343,7 +343,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           .eq("contact_id", id)
           .eq("company_id", companyId),
         supabase
-          .from("marketing_appointments")
+          // "marketing_appointments" non esiste: la tabella e' "appointments".
+          .from("appointments")
           .select("id, status", { count: "exact", head: true })
           .eq("contact_id", id)
           .eq("company_id", companyId),

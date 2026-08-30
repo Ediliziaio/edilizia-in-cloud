@@ -254,7 +254,10 @@ export default function CompanyCustomerDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, title, status, created_at, priority")
+        // La colonna "title" non esiste: il titolo del ticket sta in "subject"
+        // (valorizzato su tutti i ticket, a differenza di "titolo"). Alias per
+        // non toccare TicketRow e i componenti che lo consumano.
+        .select("id, title:subject, status, created_at, priority")
         .eq("customer_id", id!)
         .eq("company_id", effectiveCompany!.id)
         .order("created_at", { ascending: false });

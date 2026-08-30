@@ -148,7 +148,14 @@ export default function QuoteMargini() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, numero, stato, data_emissione, contact_id, payment_phases, contacts(nome, cognome, company_name)")
+        // Quattro nomi su cinque erano inventati: su quotes le colonne sono
+        // quote_number/status/created_at, e la tabella dei contatti e'
+        // marketing_contacts (con first_name/last_name), non "contacts".
+        // L'intestazione della pagina Margini andava sempre in errore.
+        // Alias per non toccare i punti che leggono quote.numero e
+        // quote.contacts.nome/cognome. stato e data_emissione non erano
+        // usati da nessuna parte: non li richiediamo piu'.
+        .select("id, numero:quote_number, contact_id, payment_phases, contacts:marketing_contacts(nome:first_name, cognome:last_name, company_name)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw new Error(error.message);
