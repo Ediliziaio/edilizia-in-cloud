@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Euro, Check, Loader2 } from "lucide-react";
+import { Euro, Check, Loader2, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,10 @@ import { TICKET_MOTIVI_GRATUITO } from "@/types/tickets";
 const METODI = ["Bonifico", "Contanti", "Carta", "Assegno", "Altro"];
 
 export interface TicketPagamento {
+  customer_id?: string | null;
+  order_id?: string | null;
+  subject?: string | null;
+  scadenza_id?: string | null;
   a_pagamento?: boolean | null;
   motivo_gratuito?: string | null;
   importo_preventivato?: number | null;
@@ -30,7 +34,7 @@ export interface TicketPagamento {
   note_pagamento?: string | null;
 }
 
-export function TicketPagamentoCard({ ticketId, ticket }: { ticketId: string; ticket: TicketPagamento }) {
+export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId: string; ticket: TicketPagamento; companyId: string }) {
   const qc = useQueryClient();
   const [aPagamento, setAPagamento] = useState(!!ticket.a_pagamento);
   const [motivo, setMotivo] = useState(ticket.motivo_gratuito ?? "garanzia");
@@ -62,6 +66,49 @@ export function TicketPagamentoCard({ ticketId, ticket }: { ticketId: string; ti
       toast.success("Pagamento aggiornato");
     },
     onError: (e: Error) => toast.error(e.message || "Non sono riuscito a salvare il pagamento"),
+  });
+
+  /**
+   * Porta l'importo nello scadenzario come incasso atteso. Senza questo passo
+   * il "da incassare" resta un'annotazione sul ticket: non entra nei conti
+   * dell'azienda e nessuno lo insegue.
+   */
+  const mandaAScadenzario = useMutation({
+    mutationFn: async () => {
+      const importo = Number(finale || preventivato || 0);
+      if (!importo) throw new Error("Indica prima l'importo dell'intervento");
+      const scadenzaFra30 = new Date();
+      scadenzaFra30.setDate(scadenzaFra30.getDate() + 30);
+      const { data, error } = await supabase
+        .from("scadenze")
+        .insert({
+          company_id: companyId,
+          ticket_id: ticketId,
+          order_id: ticket.order_id ?? null,
+          contact_id: ticket.customer_id ?? null,
+          tipo: "incasso_cliente",
+          direction: "entrata",
+          description: `Assistenza — ${ticket.subject ?? "intervento"}`,
+          amount: importo,
+          due_date: scadenzaFra30.toISOString().slice(0, 10),
+          status: "da_pagare",
+          notes: "Generata dalla scheda assistenza",
+        } as never)
+        .select("id")
+        .single();
+      if (error) throw error;
+      const { error: tErr } = await supabase
+        .from("tickets")
+        .update({ scadenza_id: (data as { id: string }).id, status: "da_fatturare" } as never)
+        .eq("id", ticketId);
+      if (tErr) throw tErr;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
+      qc.invalidateQueries({ queryKey: ["scadenze"] });
+      toast.success("Incasso messo a scadenzario (30 giorni)");
+    },
+    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a creare la scadenza"),
   });
 
   const incassa = () => {
@@ -157,6 +204,22 @@ export function TicketPagamentoCard({ ticketId, ticket }: { ticketId: string; ti
             </Button>
           )}
         </div>
+
+        {aPagamento && !pagato && (
+          ticket.scadenza_id ? (
+            <p className="text-center text-[11px] text-muted-foreground">
+              Incasso già a scadenzario.
+            </p>
+          ) : (
+            <Button size="sm" variant="ghost" className="w-full text-xs"
+                    onClick={() => mandaAScadenzario.mutate()} disabled={mandaAScadenzario.isPending}>
+              {mandaAScadenzario.isPending
+                ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                : <CalendarClock className="mr-1 h-3.5 w-3.5" />}
+              Metti a scadenzario (30 gg)
+            </Button>
+          )
+        )}
       </CardContent>
     </Card>
   );

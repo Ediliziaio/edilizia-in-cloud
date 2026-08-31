@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { TICKET_STATI_CHIUSI } from "@/types/tickets";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,7 +68,7 @@ export default function CustomerOrders() {
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
         .eq("customer_id", user!.id)
-        .in("status", ["aperto", "in_lavorazione"]);
+        .not("status", "in", `(${TICKET_STATI_CHIUSI.join(",")})`);
       if (error) throw error;
       return count || 0;
     },

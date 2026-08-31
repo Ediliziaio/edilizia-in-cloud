@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
 import { TicketMerceCard } from "@/components/tickets/TicketMerceCard";
+import { TicketCostiCard } from "@/components/tickets/TicketCostiCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +91,8 @@ export default function TicketDetail() {
           assigned_to, category, internal_notes,
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
+          ore_effettive, costo_orario_applicato, costo_trasferta, costo_materiale, scadenza_id,
+          updated_at, last_message_at,
           data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento, durata_ore, note_tecnico,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
           order:orders(id, description)
@@ -517,6 +520,16 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Da quanto è ferma: la prima cosa da sapere aprendo un'assistenza */}
+              {(() => {
+                const fermo = calcolaFermo(ticket as never);
+                return fermo ? (
+                  <p className={`text-right text-[11px] ${CLASSI_FERMO[fermo.livello]}`}>
+                    {fermo.etichetta}
+                    {fermo.livello !== "ok" ? ` — oltre i ${fermo.soglia} giorni previsti` : ""}
+                  </p>
+                ) : null;
+              })()}
               {/* Cosa vuol dire lo stato scelto: 15 stati sono troppi da tenere a mente */}
               {TICKET_STATI.find((st) => st.value === ticket.status)?.desc && (
                 <p className="-mt-1 text-right text-[11px] leading-tight text-muted-foreground">
@@ -630,7 +643,10 @@ export default function TicketDetail() {
 
           {/* Pagamento e merce: le due domande che l'ufficio si fa su ogni
               assistenza — chi paga, e quando arriva il pezzo. */}
-          <TicketPagamentoCard ticketId={ticket.id} ticket={ticket as never} />
+          <TicketPagamentoCard ticketId={ticket.id} ticket={ticket as never} companyId={effectiveCompany?.id ?? ""} />
+          {effectiveCompany?.id && (
+            <TicketCostiCard ticketId={ticket.id} ticket={ticket as never} companyId={effectiveCompany.id} />
+          )}
           {effectiveCompany?.id && (
             <TicketMerceCard
               ticketId={ticket.id}

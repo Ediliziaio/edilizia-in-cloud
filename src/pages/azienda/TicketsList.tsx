@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
+import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +46,7 @@ import {
   CheckSquare,
   Euro,
   BriefcaseBusiness,
+  Hourglass
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
@@ -255,6 +257,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   // Filtri client-side: fonte, scadenza, assegnato, ricerca testuale
   const filteredTickets = useMemo(() => tickets.filter((ticket) => {
+    if (soloFerme) {
+      const f = calcolaFermo(ticket as never);
+      if (!f || f.livello === "ok") return false;
+    }
     if (fonteFilter !== "tutti" && ticket.fonte !== fonteFilter) return false;
     if (assegnatoFilter === "unassigned" && ticket.assigned_to) return false;
     if (assegnatoFilter !== "tutti" && assegnatoFilter !== "unassigned" && ticket.assigned_to !== assegnatoFilter) return false;
@@ -278,7 +284,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       ticket.assignee?.last_name?.toLowerCase().includes(q) ||
       ticket.order?.description?.toLowerCase().includes(q)
     );
-  }), [tickets, fonteFilter, assegnatoFilter, scadenzaFilter, searchQuery]);
+  }), [tickets, fonteFilter, assegnatoFilter, scadenzaFilter, searchQuery, soloFerme]);
 
   const sortedTickets = useMemo(() => {
     const priorityRank: Record<string, number> = { urgente: 4, alta: 3, normale: 2, media: 2, bassa: 1 };
@@ -422,6 +428,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   };
 
   // Metriche aggregate (basate su TUTTI i ticket azienda, non filtrati)
+  // Filtro "ferme": non è uno stato, è una condizione di tempo — sta a parte.
+  const [soloFerme, setSoloFerme] = useState(false);
   const metrics = useMemo(() => {
     const aperti = tickets.filter(t => t.status === "aperto" || t.status === "in_lavorazione").length;
     const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
@@ -432,7 +440,21 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     }).length;
     const nonAssegnati = tickets.filter(t => !t.assigned_to && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
     const risolti = tickets.filter(t => t.status === "risolto").length;
-    return { totale: tickets.length, aperti, urgenti, inScadenza, nonAssegnati, risolti };
+    // "aperti" da solo non dice niente quando sono 137: quello che serve sapere
+    // è quante stanno ferme oltre il tempo che ci si è dati.
+    const ferme = tickets.filter(t => {
+      const f = calcolaFermo(t as never);
+      return f !== null && f.livello !== "ok";
+    }).length;
+    // Soldi fermi: interventi a pagamento eseguiti e non ancora incassati.
+    const daIncassare = tickets
+      .filter(t => (t as never as { a_pagamento?: boolean; pagato?: boolean }).a_pagamento
+                && !(t as never as { pagato?: boolean }).pagato)
+      .reduce((sum, t) => {
+        const x = t as never as { importo_finale?: number; importo_preventivato?: number };
+        return sum + Number(x.importo_finale ?? x.importo_preventivato ?? 0);
+      }, 0);
+    return { totale: tickets.length, aperti, urgenti, inScadenza, nonAssegnati, risolti, ferme, daIncassare };
   }, [tickets]);
 
   const statusCounts = useMemo(() => ({
@@ -608,6 +630,24 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             tone={metrics.inScadenza > 0 ? "text-orange-300" : "text-blue-100"}
             active={scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana"}
             onClick={() => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi")}
+          />
+          <NavyStatCard
+            label="Ferme troppo"
+            value={metrics.ferme}
+            sub={metrics.ferme > 0 ? "oltre il tempo previsto" : "nessuna in ritardo"}
+            icon={Hourglass}
+            tone={metrics.ferme > 0 ? "text-red-300" : "text-blue-100"}
+            active={soloFerme}
+            onClick={() => setSoloFerme(v => !v)}
+          />
+          <NavyStatCard
+            label="Da incassare"
+            value={metrics.daIncassare > 0
+              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+              : "—"}
+            sub={metrics.daIncassare > 0 ? "interventi a pagamento" : "niente in sospeso"}
+            icon={Euro}
+            tone={metrics.daIncassare > 0 ? "text-orange-300" : "text-blue-100"}
           />
           <NavyStatCard
             label="Non assegnati"
@@ -925,7 +965,12 @@ function MobileTicketRow({
             {ticket.customer?.first_name} {ticket.customer?.last_name}
           </p>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span>{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>
+            {(() => {
+              const fermo = calcolaFermo(ticket as never);
+              return fermo
+                ? <span className={CLASSI_FERMO[fermo.livello]}>{fermo.etichetta}</span>
+                : <span>{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>;
+            })()}
             {scadenza && <ScadenzaCell iso={scadenza} />}
           </div>
         </div>

@@ -11,6 +11,8 @@ import { LifeBuoy, Wrench, Settings, Plus, ChevronRight, AlertTriangle, CheckCir
 import { format, addDays, isToday, isTomorrow } from "date-fns";
 import { it } from "date-fns/locale";
 import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDialog";
+import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
+import { TICKET_STATI_CHIUSI } from "@/types/tickets";
 
 // ── TicketColumn subcomponent ─────────────────────────────────────────────────
 interface ColumnItem {
@@ -116,19 +118,20 @@ export default function AssistenzaLavoriHub() {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  // Query ticket aperti
+  // Tutte le assistenze non chiuse: prima la query prendeva solo "aperto" e
+  // "in_lavorazione", quindi con gli stati nuovi (in attesa merce, programmato,
+  // preventivo da approvare…) le lavorazioni sparivano da questa pagina.
   const { data: tickets = [], isLoading: loadingTickets, isError: ticketsError } = useQuery({
-    queryKey: ["hub-tickets", effectiveCompany?.id],
+    queryKey: ["hub-pipeline", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, subject, status, priority, tipo, created_at")
+        .select("id, subject, status, priority, tipo, created_at, updated_at, last_message_at, a_pagamento, pagato, importo_finale, importo_preventivato, merce_richiesta, customer:profiles!tickets_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
-        .in("status", ["aperto", "in_lavorazione"])
-        .in("tipo", ["supporto"])
-        .order("created_at", { ascending: false })
-        .limit(20);
+        .not("status", "in", `(${TICKET_STATI_CHIUSI.join(",")})`)
+        .order("updated_at", { ascending: true })
+        .limit(200);
       if (error) throw error;
       return data ?? [];
     },
@@ -146,7 +149,7 @@ export default function AssistenzaLavoriHub() {
         .select("id, subject, status, priority, data_intervento_prevista, assigned_to")
         .eq("company_id", effectiveCompany.id)
         .in("tipo", ["intervento", "emergenza"])
-        .in("status", ["aperto", "in_lavorazione"])
+        .not("status", "in", `(${TICKET_STATI_CHIUSI.join(",")})`)
         .order("data_intervento_prevista", { ascending: true, nullsFirst: false })
         .limit(20);
       if (error) throw error;
@@ -291,22 +294,32 @@ export default function AssistenzaLavoriHub() {
         </Card>
       </div>
 
-      {/* 3-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <TicketColumn
-          icon={LifeBuoy}
-          title="Ticket"
-          count={tickets.length}
-          items={ticketItems}
-          accentColor="bg-blue-500"
-          onNewClick={() => navigate("/azienda/assistenza/nuovo")}
-          newLabel="Ticket"
+      {/* Pipeline per fase: le lavorazioni aperte, ordinate per quanto sono ferme */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Lavorazioni aperte</h2>
+          <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                  onClick={() => navigate("/azienda/assistenza/nuovo")}>
+            <Plus className="h-3 w-3" /> Nuova
+          </Button>
+        </div>
+        <AssistenzaPipeline
+          tickets={tickets as never}
           isLoading={loadingTickets}
-          isError={ticketsError}
         />
+        {ticketsError && (
+          <p className="text-xs text-red-600">
+            Non sono riuscito a caricare le lavorazioni. Ricarica la pagina.
+          </p>
+        )}
+      </div>
+
+      {/* Le manutenzioni programmate restano un blocco a parte: non sono
+          assistenze in corso ma appuntamenti che maturano nel tempo. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TicketColumn
           icon={Wrench}
-          title="Interventi"
+          title="Interventi in agenda"
           count={interventi.length}
           items={interventiItems}
           accentColor="bg-orange-500"
