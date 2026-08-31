@@ -74,6 +74,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
   const { suppliers } = useOperationalSuppliers();
   const { data: linked = new Set<string>() } = useOdaCoverage(items);
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
+  const [creatingAll, setCreatingAll] = useState(false);
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Fornitore";
 
@@ -149,9 +150,13 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["po-item-coverage-panel"] });
-      toast.success(`OdA creato per ${supplierName(supplierId)} (${n} articoli)`, {
-        action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${poId}`) },
-      });
+      // Dentro "Crea tutti" il riepilogo lo fa il chiamante: un toast per
+      // fornitore sarebbe una raffica.
+      if (!creatingAll) {
+        toast.success(`OdA creato per ${supplierName(supplierId)} (${n} articoli)`, {
+          action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${poId}`) },
+        });
+      }
     },
     onError: (e) => toast.error("Errore nella creazione dell'OdA", {
       description: e instanceof Error ? e.message : String(e),
@@ -159,42 +164,78 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     onSettled: () => setCreatingFor(null),
   });
 
+  const creaTutti = async () => {
+    setCreatingAll(true);
+    let ok = 0, ko = 0;
+    // In sequenza, non in parallelo: la numerazione OdA e' un contatore seriale.
+    for (const [sid] of gruppi) {
+      try { await creaOda.mutateAsync(sid); ok++; } catch { ko++; }
+    }
+    setCreatingAll(false);
+    if (ok > 0) toast.success(`${ok} OdA creati, uno per fornitore`, {
+      action: { label: "Vedi OdA", onClick: () => navigate("/azienda/ordini-acquisto") },
+    });
+    if (ko > 0) toast.error(`${ko} OdA non creati: riprova dai singoli fornitori`);
+  };
+
   if (gruppi.length === 0 && senzaFornitore.length === 0) return null;
 
+  const totale = gruppi.reduce((s2, [, g]) =>
+    s2 + g.reduce((x, i) => x + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0), 0);
+  const nArticoli = gruppi.reduce((s2, [, g]) => s2 + g.length, 0);
+
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Package className="h-4 w-4 text-blue-600" />
-        Da ordinare ai fornitori
+    <div className="overflow-hidden rounded-lg border">
+      {/* Testata: il quadro e l'azione che risparmia piu' tempo. Prima erano
+          quattro bottoni primari identici in colonna: nessuna gerarchia e
+          nessun modo di ordinare tutto insieme. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          <Package className="h-4 w-4 shrink-0 text-blue-600" />
+          <span className="font-semibold">Da ordinare ai fornitori</span>
+          <span className="text-muted-foreground">
+            {nArticoli} {nArticoli === 1 ? "articolo" : "articoli"} · {gruppi.length} {gruppi.length === 1 ? "fornitore" : "fornitori"} · <span className="tabular-nums">{eur.format(totale)}</span>
+          </span>
+        </div>
+        {gruppi.length > 1 && (
+          <Button size="sm" className="shrink-0 gap-1.5" disabled={creatingAll || creaOda.isPending} onClick={creaTutti}>
+            {creatingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+            Crea tutti gli OdA ({gruppi.length})
+          </Button>
+        )}
       </div>
-      <div className="space-y-1.5">
+
+      {/* Una riga per fornitore: nome, articoli e totale sulla stessa linea,
+          azione secondaria a destra. Il dettaglio delle righe sta gia'
+          nell'elenco articoli qui sotto: non va ripetuto due volte. */}
+      <div className="divide-y">
         {gruppi.map(([sid, gruppo]) => {
-          const tot = gruppo.reduce((s, i) => s + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+          const tot = gruppo.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+          const busy = (creaOda.isPending && creatingFor === sid) || creatingAll;
           return (
-            <div key={sid} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card px-3 py-2">
-              <div className="min-w-0 text-sm">
+            <div key={sid} className="flex items-center justify-between gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">{supplierName(sid)}</span>
-                <span className="text-muted-foreground"> — {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)}</span>
-                <div className="truncate text-xs text-muted-foreground">
+                <span className="text-muted-foreground"> · <span className="tabular-nums">{eur.format(tot)}</span></span>
+                <span className="ml-2 hidden truncate text-xs text-muted-foreground sm:inline">
                   {gruppo.map((i) => i.name).join(" · ")}
-                </div>
+                </span>
               </div>
               <Button
                 size="sm"
-                className="shrink-0 gap-1.5"
-                disabled={creaOda.isPending}
+                variant="outline"
+                className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
+                disabled={creaOda.isPending || creatingAll}
                 onClick={() => { setCreatingFor(sid); creaOda.mutate(sid); }}
               >
-                {creaOda.isPending && creatingFor === sid
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Package className="h-4 w-4" />}
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" />}
                 Crea OdA
               </Button>
             </div>
           );
         })}
         {senzaFornitore.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+          <div className="flex items-center gap-2 bg-amber-50/60 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             {senzaFornitore.length} {senzaFornitore.length === 1 ? "articolo senza fornitore" : "articoli senza fornitore"}: assegnalo (matita sulla riga) per poterli ordinare.
           </div>
