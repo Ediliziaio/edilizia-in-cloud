@@ -1855,7 +1855,7 @@ function OrderDetailInner() {
               </TabsTrigger>
               <TabsTrigger value="articoli" className="text-sm">
                 <Package className="w-4 h-4 mr-1.5" />
-                Articoli e lavori
+                Articoli e manodopera
               </TabsTrigger>
               <TabsTrigger value="finanza" className="text-sm">
                 <Wallet className="w-4 h-4 mr-1.5" />
@@ -1951,7 +1951,7 @@ function OrderDetailInner() {
                 "Altro" mobile. */}
           </TabsContent>
 
-          {/* Tab: Articoli e lavori */}
+          {/* Tab: Articoli e manodopera */}
           <TabsContent value="articoli" className="space-y-6 mt-4">
             {/* Articoli */}
             <OrdineArticoli
