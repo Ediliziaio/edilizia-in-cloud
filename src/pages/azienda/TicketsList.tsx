@@ -255,6 +255,12 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
+  // Filtro "ferme": non è uno stato, è una condizione di tempo — sta a parte.
+  // Va dichiarato QUI, sopra filteredTickets che lo legge: dichiararlo più in
+  // basso lo rende inaccessibile durante il render (temporal dead zone) e la
+  // pagina esplode senza che TypeScript possa accorgersene.
+  const [soloFerme, setSoloFerme] = useState(false);
+
   // Filtri client-side: fonte, scadenza, assegnato, ricerca testuale
   const filteredTickets = useMemo(() => tickets.filter((ticket) => {
     if (soloFerme) {
@@ -428,8 +434,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   };
 
   // Metriche aggregate (basate su TUTTI i ticket azienda, non filtrati)
-  // Filtro "ferme": non è uno stato, è una condizione di tempo — sta a parte.
-  const [soloFerme, setSoloFerme] = useState(false);
   const metrics = useMemo(() => {
     const aperti = tickets.filter(t => t.status === "aperto" || t.status === "in_lavorazione").length;
     const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
@@ -1072,8 +1076,24 @@ function DesktopTicketRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-        {formatRelativeTime(ticket.last_message_at || ticket.updated_at)}
+      <TableCell className="hidden md:table-cell text-sm">
+        {(() => {
+          // Sulle lavorazioni aperte conta da quanto sono ferme, non la data in
+          // sé: "5 mesi fa" non dice se qualcuno se ne sta occupando.
+          const fermo = calcolaFermo(ticket as never);
+          if (!fermo) {
+            return (
+              <span className="text-muted-foreground">
+                {formatRelativeTime(ticket.last_message_at || ticket.updated_at)}
+              </span>
+            );
+          }
+          return (
+            <span className={`text-xs ${CLASSI_FERMO[fermo.livello]}`} title={`Soglia ${fermo.soglia} giorni per priorità ${ticket.priority ?? "normale"}`}>
+              {fermo.etichetta}
+            </span>
+          );
+        })()}
       </TableCell>
       <TableCell>
         <Button variant="ghost" size="icon" asChild>
