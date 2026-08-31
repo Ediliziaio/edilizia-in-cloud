@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip, LifeBuoy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -45,6 +45,7 @@ import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCasc
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { OrderAssistenzaTab } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
@@ -1856,6 +1857,10 @@ function OrderDetailInner() {
                 <Wallet className="w-4 h-4 mr-1.5" />
                 Finanza
               </TabsTrigger>
+              <TabsTrigger value="assistenza" className="text-sm">
+                <LifeBuoy className="w-4 h-4 mr-1.5" />
+                Assistenza
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -2233,6 +2238,10 @@ function OrderDetailInner() {
             {effectiveCompany?.id && (
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
             )}
+          </TabsContent>
+
+          <TabsContent value="assistenza" className="space-y-4 mt-4">
+            <OrderAssistenzaTab orderId={id!} />
           </TabsContent>
 
         </Tabs>

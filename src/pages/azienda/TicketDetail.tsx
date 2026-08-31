@@ -32,8 +32,7 @@ import {
 } from "@/lib/formatters";
 import {
   Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TicketChat } from "@/components/tickets/TicketChat";
@@ -41,7 +40,8 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
-import { SUPPORT_PRIORITIES } from "@/types/tickets";
+import { SUPPORT_PRIORITIES, TICKET_STATI, TICKET_FASI } from "@/types/tickets";
+import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
