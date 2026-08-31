@@ -1939,11 +1939,12 @@ function OrderDetailInner() {
               )}
             </div>
 
-            {/* Documenti e fatturazione (spostati qui dal vecchio tab "Documenti e firma") */}
+            {/* Allegati operativi del cantiere: foto, disegni, permessi. Le
+                fatture stanno in Finanza, con gli altri soldi. */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Documenti e fatturazione</h2>
+                <h2 className="text-base font-semibold">Documenti di cantiere</h2>
               </div>
 
               {/* ≥xl: allegati e fatturazione affiancati (card correlate); sotto xl impilati. */}
@@ -1952,130 +1953,6 @@ function OrderDetailInner() {
               <OrderAttachments orderId={id!} editable={true} />
 
               {/* Fatturazione e documenti fiscali collegati */}
-              <QuoteCard
-                title={
-                  <span className="flex items-center gap-2">
-                    Fatturazione e Documenti
-                    {linkedDocumentsCount > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
-                    )}
-                  </span>
-                }
-                icon={<Receipt className="h-4 w-4" />}
-              >
-                <div className="space-y-3">
-                  {fattureCollegate.length > 0 ? (
-                    <div className="space-y-2">
-                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
-                        <div
-                          key={f.id}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
-                        >
-                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium truncate">{f.numero}</span>
-                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {formatStatoFiscale(f.stato)}
-                            </Badge>
-                          </Link>
-                          <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {formatCurrency(f.totale_da_pagare)}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={`Scarica ${f.numero}`}
-                              onClick={() => handleDownloadFiscalDocument(f)}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="pt-1 border-t flex justify-between text-sm">
-                        <span className="text-muted-foreground">Totale fatturato</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            fattureCollegate.reduce(
-                              (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      Nessun documento fiscale collegato
-                    </p>
-                  )}
-                  {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
-                      su tutta la card larga desktop). flex-wrap li tiene compatti. */}
-                  <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaFatturaOpen(true);
-                        } else {
-                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Receipt className="h-3.5 w-3.5 mr-1" />
-                      Fattura
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaProformaOpen(true);
-                        } else {
-                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      Proforma
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaDDTOpen(true);
-                        } else {
-                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Truck className="h-3.5 w-3.5 mr-1" />
-                      DDT
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaNotaCreditoOpen(true);
-                        } else {
-                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileWarning className="h-3.5 w-3.5 mr-1" />
-                      N. Credito
-                    </Button>
-                  </div>
-                </div>
-              </QuoteCard>
               </div>
             </div>
 
@@ -2104,14 +1981,6 @@ function OrderDetailInner() {
             />
             {/* Lavorazioni / Manodopera — sempre sotto gli Articoli */}
             <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
-            {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
-            {permissions.canViewCosts && (
-              <SupplierPaymentsCard
-                items={orderItems}
-                companyId={effectiveCompany?.id || ""}
-                orderId={id!}
-              />
-            )}
             <OrderUsciteCard orderId={id!} />
             {permissions.canViewCosts && (
             <LinkedPurchaseOrdersCard
@@ -2238,6 +2107,142 @@ function OrderDetailInner() {
             {effectiveCompany?.id && (
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
             )}
+
+            {/* Soldi in uscita: i pagamenti ai fornitori stavano in "Articoli e
+                lavori", lontani dagli incassi. Qui il quadro è completo. */}
+            {permissions.canViewCosts && (
+              <SupplierPaymentsCard
+                items={orderItems}
+                companyId={effectiveCompany?.id || ""}
+                orderId={id!}
+              />
+            )}
+            {/* Fatture e documenti fiscali della commessa: stavano nella
+                Panoramica, lontani da incassi e scadenze a cui appartengono. */}
+              <QuoteCard
+                title={
+                  <span className="flex items-center gap-2">
+                    Fatturazione e Documenti
+                    {linkedDocumentsCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
+                    )}
+                  </span>
+                }
+                icon={<Receipt className="h-4 w-4" />}
+              >
+                <div className="space-y-3">
+                  {fattureCollegate.length > 0 ? (
+                    <div className="space-y-2">
+                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
+                        <div
+                          key={f.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
+                        >
+                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium truncate">{f.numero}</span>
+                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {formatStatoFiscale(f.stato)}
+                            </Badge>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {formatCurrency(f.totale_da_pagare)}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Scarica ${f.numero}`}
+                              onClick={() => handleDownloadFiscalDocument(f)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-1 border-t flex justify-between text-sm">
+                        <span className="text-muted-foreground">Totale fatturato</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            fattureCollegate.reduce(
+                              (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nessun documento fiscale collegato
+                    </p>
+                  )}
+                  {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
+                      su tutta la card larga desktop). flex-wrap li tiene compatti. */}
+                  <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaFatturaOpen(true);
+                        } else {
+                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Receipt className="h-3.5 w-3.5 mr-1" />
+                      Fattura
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaProformaOpen(true);
+                        } else {
+                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      Proforma
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaDDTOpen(true);
+                        } else {
+                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Truck className="h-3.5 w-3.5 mr-1" />
+                      DDT
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaNotaCreditoOpen(true);
+                        } else {
+                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileWarning className="h-3.5 w-3.5 mr-1" />
+                      N. Credito
+                    </Button>
+                  </div>
+                </div>
+              </QuoteCard>
           </TabsContent>
 
           <TabsContent value="assistenza" className="space-y-4 mt-4">
