@@ -1878,27 +1878,39 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Riga 1: Cliente · Tempistiche e date chiave (a colpo d'occhio) */}
+            {/* Cliente, pianificazione e date chiave.
+                Prima erano due righe da due colonne: ma "Tempistiche" e' alta
+                il triplo di "Cliente" (611px contro 274px, misurati), quindi
+                sotto Cliente restava un buco bianco di ~340px e la riga sotto
+                ripartiva sfalsata. Qui la colonna destra la occupa solo
+                Tempistiche, che si affianca alla pila delle tre card corte:
+                le due colonne si chiudono quasi pari (630px contro 611px).
+                L'ordine nel DOM NON cambia, quindi su mobile la sequenza resta
+                Cliente → Tempistiche → Appuntamenti → Rilievi. */}
             <div className="grid gap-6 lg:grid-cols-2 items-start">
-              <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
-              <OrdineTempistiche
-                orderId={order.id}
-                expectedDate={order.expected_date}
-                warehouseArrivalDate={order.warehouse_arrival_date}
-                workStartDate={order.work_start_date}
-                workEndDate={order.work_end_date}
-                orderCode={order.order_code}
-                orderDescription={order.description}
-                defaultAddress={order.work_address || order.customer?.address}
-              />
-            </div>
-
-            {/* Riga 2: Appuntamenti · Rilievi e sopralluoghi (pianificazione) */}
-            <div className="grid gap-6 lg:grid-cols-2 items-start">
-              <LinkedAppointments orderId={id!} />
-              <ErrorBoundary fallback={<></>}>
-                <OrderSurveysCard orderId={id!} />
-              </ErrorBoundary>
+              <div className="lg:col-start-1 lg:row-start-1">
+                <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
+              </div>
+              <div className="lg:col-start-2 lg:row-start-1 lg:row-span-3">
+                <OrdineTempistiche
+                  orderId={order.id}
+                  expectedDate={order.expected_date}
+                  warehouseArrivalDate={order.warehouse_arrival_date}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                  orderCode={order.order_code}
+                  orderDescription={order.description}
+                  defaultAddress={order.work_address || order.customer?.address}
+                />
+              </div>
+              <div className="lg:col-start-1 lg:row-start-2">
+                <LinkedAppointments orderId={id!} />
+              </div>
+              <div className="lg:col-start-1 lg:row-start-3">
+                <ErrorBoundary fallback={<></>}>
+                  <OrderSurveysCard orderId={id!} />
+                </ErrorBoundary>
+              </div>
             </div>
 
             {/* Comunicazioni e attività: feed unico cliente + commessa (email, SMS,
@@ -1933,7 +1945,23 @@ function OrderDetailInner() {
                   altezze indipendenti (nessuno stiramento). */}
               {effectiveCompany?.id && (
                 <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-                  <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                  {/* La timeline rende testo nudo (nessuna Card), mentre i
+                      rapportini accanto sono una Card: affiancati sembravano
+                      due cose scollegate, con la scritta "Nessun aggiornamento"
+                      che fluttuava nel vuoto. La incorniciamo QUI e non dentro
+                      TimelineCantiere, che il portale cliente monta gia' dentro
+                      una sua Card: cambiarlo la' avrebbe prodotto un doppio bordo. */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <HardHat className="h-4 w-4 text-muted-foreground" />
+                        Timeline cantiere
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                    </CardContent>
+                  </Card>
                   <OrdineRapportiniCampo orderId={id!} />
                 </div>
               )}
@@ -1947,13 +1975,11 @@ function OrderDetailInner() {
                 <h2 className="text-base font-semibold">Documenti di cantiere</h2>
               </div>
 
-              {/* ≥xl: allegati e fatturazione affiancati (card correlate); sotto xl impilati. */}
-              <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-              {/* Documenti Commessa (allegati/file) */}
+              {/* Una colonna sola: la card "Fatturazione e documenti fiscali"
+                  che stava a destra e' passata al tab Finanza, ma la griglia a
+                  due colonne era rimasta con la cella vuota — gli allegati
+                  occupavano meta' larghezza e l'altra meta' era bianca. */}
               <OrderAttachments orderId={id!} editable={true} />
-
-              {/* Fatturazione e documenti fiscali collegati */}
-              </div>
             </div>
 
             {/* Card "Note Interne" (orders.internal_notes) rimossa dalla Panoramica:
