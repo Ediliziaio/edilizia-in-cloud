@@ -190,6 +190,17 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
           </CardTitle>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* La via semplice viene PRIMA: chi lavora e quanto costa, anche a
+                corpo, senza dover creare fasi. Le fasi restano per i cantieri
+                che ne hanno bisogno. */}
+            <AddAssignmentDialog
+              phaseId={null}
+              employees={employees}
+              externalTeams={externalTeams}
+              triggerLabel="Aggiungi manodopera"
+              triggerVariant="default"
+              onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
+            />
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
@@ -306,7 +317,9 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
           </div>
         </div>
 
-        {/* Totals strip */}
+        {/* Totals strip — solo quando c'e' qualcosa da sommare: tre "0,00 €"
+            sopra lo stato vuoto erano rumore che spingeva in basso il resto. */}
+        {(phases.length > 0 || unassigned.length > 0) && (
         <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/40 p-3 text-center">
           <div>
             <p className="text-xs text-muted-foreground">Preventivo</p>
@@ -348,6 +361,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
             </div>
           )}
         </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3">
@@ -368,16 +382,9 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
         ) : phases.length === 0 && unassigned.length === 0 ? (
           // Riga compatta: a commessa senza lavorazioni questo blocco occupava
           // 663px. L'azione resta, sulla stessa riga.
-          <EmptyRow
-            icon={HardHat}
-            action={
-              <Button size="sm" onClick={() => setNewPhaseOpen(true)}>
-                <ListPlus className="mr-1 h-4 w-4" />
-                Aggiungi lavorazioni
-              </Button>
-            }
-          >
-            Nessuna lavorazione: aggiungi le fasi per assegnare operai e seguire i costi
+          <EmptyRow icon={HardHat}>
+            Nessuna manodopera: aggiungila qui sopra — anche a corpo, senza fasi.
+            Le lavorazioni a fasi servono solo per i cantieri lunghi.
           </EmptyRow>
         ) : (
           <>
@@ -409,6 +416,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
 
             {unassigned.length > 0 && (
               <UnassignedCard
+                hasPhases={phases.length > 0}
                 assignments={unassigned}
                 employees={employees}
                 externalTeams={externalTeams}
@@ -961,10 +969,16 @@ function PhaseCard({
 }
 
 /* ------------------------------------------------------------------ */
-/* "Senza fase" group (manodopera legacy / pre-esistente)              */
+/* Manodopera senza fase. NON e' un residuo legacy: in produzione e'   */
+/* l'88% delle assegnazioni (lavori brevi, subappalti a corpo). Quando */
+/* la commessa non ha fasi, questo gruppo E' la manodopera e si        */
+/* presenta come tale; l'etichetta "Senza fase" compare solo quando    */
+/* esistono anche fasi, per distinguere.                               */
 /* ------------------------------------------------------------------ */
 
 interface UnassignedCardProps {
+  /** True se la commessa ha almeno una fase: cambia solo l'intestazione. */
+  hasPhases: boolean;
   assignments: PhaseAssignment[];
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
@@ -973,6 +987,7 @@ interface UnassignedCardProps {
 }
 
 function UnassignedCard({
+  hasPhases,
   assignments,
   employees,
   externalTeams,
@@ -995,10 +1010,14 @@ function UnassignedCard({
       <CardHeader className="gap-3 pb-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-semibold text-muted-foreground">Senza fase</span>
-            <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-              Manodopera non assegnata
-            </Badge>
+            <span className="truncate font-semibold text-muted-foreground">
+              {hasPhases ? "Senza fase" : "Manodopera"}
+            </span>
+            {hasPhases && (
+              <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+                Manodopera non assegnata
+              </Badge>
+            )}
           </div>
           <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
             Prev: {eur.format(subtotals.prev)} · Cons: {eur.format(subtotals.cons)}
@@ -1151,9 +1170,17 @@ function AssignmentRow({
 /* ------------------------------------------------------------------ */
 
 interface AddAssignmentDialogProps {
-  phaseId: string;
+  /** null = manodopera senza fase: il caso semplice (lavoro breve, subappalto
+      a corpo). In produzione e' l'88% della manodopera reale (138 assegnazioni
+      su 156 sono senza fase): non un residuo, il modo normale di lavorare di
+      un serramentista con pose da 1-3 giorni. */
+  phaseId: string | null;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
+  /** Etichetta del bottone che apre il dialog (default "Aggiungi esecutore"). */
+  triggerLabel?: string;
+  /** Variante del bottone trigger (default "outline"). */
+  triggerVariant?: "default" | "outline";
   onAdd: (
     payload: AddAssignmentPayload,
     opts?: { onSuccess?: () => void; onError?: () => void }
@@ -1176,6 +1203,8 @@ function AddAssignmentDialog({
   phaseId,
   employees,
   externalTeams,
+  triggerLabel = "Aggiungi esecutore",
+  triggerVariant = "outline",
   onAdd,
 }: AddAssignmentDialogProps) {
   const { effectiveCompany } = useAuth();
@@ -1283,9 +1312,9 @@ function AddAssignmentDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="mt-1">
+        <Button variant={triggerVariant} size="sm" className="mt-1">
           <Plus className="mr-1 h-4 w-4" />
-          Aggiungi esecutore
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

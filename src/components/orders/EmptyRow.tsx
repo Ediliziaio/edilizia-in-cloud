@@ -32,7 +32,10 @@ export function EmptyRow({ icon: Icon, children, action, className = "" }: Empty
     >
       <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
         {Icon && <Icon className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />}
-        <span className="truncate">{children}</span>
+        {/* line-clamp-2, non truncate: una frase appena piu' lunga veniva
+            tagliata con "…" a meta' parola (visto a schermo). Due righe bastano
+            e la riga resta compatta. */}
+        <span className="line-clamp-2">{children}</span>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

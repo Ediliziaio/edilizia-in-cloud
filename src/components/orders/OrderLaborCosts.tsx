@@ -265,10 +265,17 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
               )}
             </div>
           ) : (
+            // Testo rivisto: quello di prima ("nominalo per attivare il diario")
+            // si leggeva come "senza capocantiere niente rapportini" — falso.
+            // I rapportini si fanno comunque, ognuno il suo (verificato in
+            // CampoRapportino: nessun blocco). Il capocantiere aggiunge il
+            // rapportino UNICO di squadra e, una volta nominato, riserva a lui
+            // la dichiarazione di avanzamento delle fasi.
             <p className="text-xs text-amber-600/70 mt-1">
-              Nessun capocantiere: nominalo per attivare il diario di squadra —
-              un solo rapportino al giorno con presenze, ore di tutti e
-              avanzamento fasi. Può essere anche un subappaltatore.
+              Facoltativo: senza capocantiere ogni operaio fa il proprio rapportino
+              come sempre. Nominandone uno (anche un subappaltatore), lui può fare
+              un <strong>unico rapportino di squadra</strong> al giorno — presenze e
+              ore di tutti — e diventa l'unico a dichiarare l'avanzamento delle fasi.
             </p>
           )}
         </div>

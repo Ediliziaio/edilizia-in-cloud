@@ -61,9 +61,17 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
         {isLoading ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Caricamento…</div>
         ) : uscite.length === 0 ? (
-          <div className="px-4 pb-4 text-sm text-muted-foreground">
-            Nessuna uscita registrata. La registri da <strong>Magazzino → Uscita merce</strong> scegliendo
-            questa commessa come destinazione (Cantiere).
+          /* Prima diceva solo "vai in Magazzino → Uscita merce": un'istruzione
+             senza il modo di eseguirla. Ora il collegamento c'e'. */
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-4">
+            <p className="text-sm text-muted-foreground">
+              Nessuna uscita registrata. Scegli questa commessa come destinazione (Cantiere).
+            </p>
+            <Button variant="outline" size="sm" className="shrink-0 gap-1.5"
+              onClick={() => navigate("/azienda/magazzino")}>
+              <ArrowUpFromLine className="h-4 w-4" />
+              Vai al magazzino
+            </Button>
           </div>
         ) : (
           <div className="divide-y">

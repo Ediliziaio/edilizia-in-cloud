@@ -55,7 +55,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_arrivo' | 'in_magazzino' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_lavorazione' | 'in_arrivo' | 'in_magazzino' | 'installato';
 
 export const PAYMENT_METHODS = [
   { value: "bonifico_unico", label: "Bonifico unico" },
@@ -161,6 +161,15 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
     badgeColor: "bg-cyan-500 text-white hover:bg-cyan-500",
     borderColor: "border-l-4 border-l-cyan-500 bg-cyan-50 dark:bg-cyan-950/20"
   },
+  in_lavorazione: {
+    // Stato realmente in uso (14 righe in produzione) ma mai censito qui: senza
+    // una voce corrispondente <SelectValue> non trovava l'etichetta e il menu
+    // restava VUOTO — un riquadro colorato e illeggibile. Ambra come il
+    // fallback che mostrava finora, cosi' le righe non cambiano colore.
+    label: "In Lavorazione",
+    badgeColor: "bg-amber-600 text-white hover:bg-amber-600",
+    borderColor: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20"
+  },
   in_arrivo: {
     label: "In Arrivo",
     badgeColor: "bg-indigo-500 text-white hover:bg-indigo-500",
@@ -177,6 +186,22 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
     borderColor: "border-l-4 border-l-gray-400 bg-gray-50 dark:bg-gray-950/20"
   },
 };
+
+/**
+ * Configurazione di uno stato, con ripiego leggibile.
+ * Se domani nascesse un altro stato non censito, il menu mostrerebbe il valore
+ * grezzo reso leggibile invece di restare muto come e' successo con
+ * "in_lavorazione".
+ */
+function statusConfig(status?: string | null) {
+  if (status && STATUS_CONFIG[status as OrderItemStatus]) return STATUS_CONFIG[status as OrderItemStatus];
+  if (!status) return STATUS_CONFIG.da_ordinare;
+  return {
+    label: status.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+    badgeColor: "bg-slate-500 text-white hover:bg-slate-500",
+    borderColor: "border-l-4 border-l-slate-400 bg-slate-50 dark:bg-slate-950/20",
+  };
+}
 
 interface Supplier {
   id: string;
@@ -1415,7 +1440,7 @@ export function OrderItemsList({
                 return (
               <div
                 key={item.id || index}
-                className={`p-3 rounded-lg flex flex-col gap-2 sm:flex-row sm:items-start ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
+                className={`p-3 rounded-lg flex flex-col gap-2 sm:flex-row sm:items-start ${statusConfig(item.status).borderColor}`}
               >
                 {/* Item info (left) */}
                 <div className="flex-1 min-w-0">
@@ -1611,11 +1636,11 @@ export function OrderItemsList({
                       >
                         <SelectTrigger className={cn(
                           "flex-1 sm:flex-none sm:w-36 h-8 text-xs font-medium border",
-                          STATUS_CONFIG[item.status]
-                            ? STATUS_CONFIG[item.status].badgeColor.replace(/hover:\S+/g, '')
-                            : STATUS_CONFIG.da_ordinare.badgeColor.replace(/hover:\S+/g, '')
+                          statusConfig(item.status).badgeColor.replace(/hover:\S+/g, '')
                         )}>
-                          <SelectValue placeholder="Seleziona stato..." />
+                          {/* Etichetta esplicita: <SelectValue> da solo resta muto
+                              se lo stato non ha una voce nell'elenco. */}
+                          <span className="truncate">{statusConfig(item.status).label}</span>
                         </SelectTrigger>
                         <SelectContent>
                           {Object.entries(STATUS_CONFIG).map(([status, config]) => (
@@ -1629,8 +1654,8 @@ export function OrderItemsList({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
-                        {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
+                      <Badge className={statusConfig(item.status).badgeColor}>
+                        {statusConfig(item.status).label}
                       </Badge>
                     )}
                     {(editable || allowEdit) && (

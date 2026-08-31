@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -1953,6 +1953,38 @@ function OrderDetailInner() {
 
           {/* Tab: Articoli e manodopera */}
           <TabsContent value="articoli" className="space-y-6 mt-4">
+            {/* Riepilogo del tab: quanto vale in tutto quello che si compra.
+                Prima i costi erano solo riga per riga (6.200 + 3.500 + 1.700…)
+                e il totale si trovava unicamente nel Conto economico, sopra i
+                tab: chi lavorava qui non aveva mai il quadro d'insieme. */}
+            {permissions.canViewCosts && displayItems.length > 0 && (() => {
+              const tot = displayItems.reduce(
+                (sum, i) => sum + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+              const daOrdinare = displayItems.filter((i) => i.status === "da_ordinare").length;
+              const arrivati = displayItems.filter((i) => i.status === "in_magazzino").length;
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">
+                      <strong className="text-foreground">{displayItems.length}</strong> articoli
+                    </span>
+                    {daOrdinare > 0 && (
+                      <span className="text-muted-foreground">
+                        <strong className="text-amber-600">{daOrdinare}</strong> da ordinare
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">
+                      <strong className="text-emerald-600">{arrivati}</strong> in magazzino
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Costo d'acquisto </span>
+                    <strong className="tabular-nums">{formatCurrency(tot)}</strong>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Articoli */}
             <OrdineArticoli
               orderId={id!}
@@ -1968,8 +2000,22 @@ function OrderDetailInner() {
               showAttachments={false}
               showSupplierPayments={false}
             />
-            {/* Lavorazioni / Manodopera — sempre sotto gli Articoli */}
-            <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
+            {/* Lavorazioni / Manodopera — sempre sotto gli Articoli.
+                Le lavorazioni si pianificano QUI ma il loro avanzamento (SAL,
+                timeline, rapportini) vive nel tab Cantiere: senza un rimando
+                si pianificava in un posto e si verificava in un altro, senza
+                che nulla lo dicesse. */}
+            <div className="space-y-2">
+              <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground"
+                  onClick={() => setDesktopTab("cantiere")}>
+                  <HardHat className="h-4 w-4" />
+                  Vedi l'avanzamento in Cantiere
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <OrderUsciteCard orderId={id!} />
             {permissions.canViewCosts && (
             <LinkedPurchaseOrdersCard
