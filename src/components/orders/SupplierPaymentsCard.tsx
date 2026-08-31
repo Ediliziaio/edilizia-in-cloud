@@ -238,28 +238,30 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
             const deadlineInfo = getDeadlineInfo(group.nextDeadline);
 
             return (
-              <div key={group.supplierId} className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium truncate max-w-[160px]">
-                    {group.supplierName}
-                  </span>
-                  <StatusBadge paidPercent={paidPercent} />
-                </div>
-                <Progress value={paidPercent} className="h-2" />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {formatCurrency(group.paid)} / {formatCurrency(group.total)}
-                  </span>
-                  {group.paymentMethod && (
-                    <span>
-                      {PAYMENT_METHODS.find((m) => m.value === group.paymentMethod)?.label || group.paymentMethod}
+              /* Riga compatta: nome, stato e importi sulla STESSA linea invece di
+                 quattro righe impilate. Con cinque fornitori si passa da ~107px
+                 a ~60px ciascuno, senza perdere un dato. */
+              <div key={group.supplierId} className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{group.supplierName}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {formatCurrency(group.paid)} / {formatCurrency(group.total)}
                     </span>
-                  )}
+                    <StatusBadge paidPercent={paidPercent} />
+                  </div>
                 </div>
-                {deadlineInfo && (
-                  <div className={`flex items-center gap-1 text-xs ${deadlineInfo.colorClass}`}>
-                    <AlertTriangle className="h-3 w-3" />
-                    <span>{deadlineInfo.label}</span>
+                <Progress value={paidPercent} className="h-1.5" />
+                {(group.paymentMethod || deadlineInfo) && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className={deadlineInfo ? `flex items-center gap-1 ${deadlineInfo.colorClass}` : ""}>
+                      {deadlineInfo && <><AlertTriangle className="h-3 w-3" />{deadlineInfo.label}</>}
+                    </span>
+                    {group.paymentMethod && (
+                      <span className="shrink-0 text-muted-foreground">
+                        {PAYMENT_METHODS.find((m) => m.value === group.paymentMethod)?.label || group.paymentMethod}
+                      </span>
+                    )}
                   </div>
                 )}
                 {orderId && (() => {

@@ -133,30 +133,36 @@ export function RitenuteTab({ orderId }: Props) {
     <div className="space-y-6">
       {/* Lato attivo (committente → te): una riga, gestione nel registro */}
       <RitenuteAttiveLine orderId={orderId} />
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Totale Ritenuto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCurrency(totaleRitenuto)}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Totale Svincolato
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCurrency(totaleSvincolato)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Totali. A zero — il caso normale finche' non ci sono subappalti — due
+          card grandi occupavano 266px per mostrare "0,00 €" due volte: qui
+          diventano una riga sola. Coi numeri veri restano due card leggibili. */}
+      {totaleRitenuto === 0 && totaleSvincolato === 0 ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/20 px-3 py-2.5 text-sm">
+          <span className="text-muted-foreground">Nessuna ritenuta di garanzia su questa commessa</span>
+          <span className="shrink-0 font-medium tabular-nums text-muted-foreground">
+            Ritenuto {formatCurrency(0)} · Svincolato {formatCurrency(0)}
+          </span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Totale Ritenuto</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{formatCurrency(totaleRitenuto)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Totale Svincolato</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{formatCurrency(totaleSvincolato)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* No contratti warning */}
       {noContratti && (

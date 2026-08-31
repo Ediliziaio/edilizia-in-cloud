@@ -1849,13 +1849,13 @@ function OrderDetailInner() {
                 <LayoutDashboard className="w-4 h-4 mr-1.5" />
                 Panoramica
               </TabsTrigger>
-              <TabsTrigger value="articoli" className="text-sm">
-                <Package className="w-4 h-4 mr-1.5" />
-                Articoli e lavori
-              </TabsTrigger>
               <TabsTrigger value="cantiere" className="text-sm">
                 <HardHat className="w-4 h-4 mr-1.5" />
                 Cantiere
+              </TabsTrigger>
+              <TabsTrigger value="articoli" className="text-sm">
+                <Package className="w-4 h-4 mr-1.5" />
+                Articoli e lavori
               </TabsTrigger>
               <TabsTrigger value="finanza" className="text-sm">
                 <Wallet className="w-4 h-4 mr-1.5" />

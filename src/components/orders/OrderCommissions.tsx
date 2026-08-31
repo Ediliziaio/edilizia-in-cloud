@@ -118,6 +118,10 @@ export function OrderCommissions({
   const [selectedPaidDate, setSelectedPaidDate] = useState<Date>(new Date());
 
   // Dialog for adding a new salesperson
+  /** Provvigione col form di modifica aperto (null = tutte compatte).
+      Il form era SEMPRE aperto: 319px di campi per un solo venditore, su una
+      provvigione gia' decisa. Ora si apre solo quando serve davvero. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedSalespersonId, setSelectedSalespersonId] = useState("");
 
@@ -473,6 +477,15 @@ export function OrderCommissions({
                         </div>
                         <Button
                           variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          aria-label={`${editingId === sp.id ? "Chiudi" : "Modifica"} la provvigione di ${sp.salesperson?.first_name} ${sp.salesperson?.last_name}`}
+                          onClick={() => setEditingId(editingId === sp.id ? null : sp.id)}
+                        >
+                          {editingId === sp.id ? "Chiudi" : "Modifica"}
+                        </Button>
+                        <Button
+                          variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                           aria-label={`Rimuovi provvigione di ${sp.salesperson?.first_name} ${sp.salesperson.last_name}`}
@@ -502,7 +515,7 @@ export function OrderCommissions({
                   </div>
                 </div>
 
-                {!readOnly && (
+                {!readOnly && editingId === sp.id && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-2">
                       <Label className="text-xs">Tipo</Label>
@@ -555,8 +568,8 @@ export function OrderCommissions({
                   </div>
                 )}
 
-                {/* Expected payment date for unpaid commissions */}
-                {!sp.is_paid && !readOnly && (
+                {/* Data prevista: visibile solo col form aperto */}
+                {!sp.is_paid && !readOnly && editingId === sp.id && (
                   <div className="space-y-2">
                     <Label className="text-xs">Data pagamento prevista</Label>
                     <Popover>
