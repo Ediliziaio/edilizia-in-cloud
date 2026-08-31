@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
   AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
-  LifeBuoy, AlertTriangle, Sparkles, ArrowUpCircle,
+  LifeBuoy, AlertTriangle, Sparkles,
 } from "lucide-react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
@@ -53,7 +53,6 @@ export default function TicketDetail() {
   const [notesOpen, setNotesOpen] = useState(false);
   // Escalation a intervento (disponibile per tipo=supporto)
   const [aiTriaging, setAiTriaging] = useState(false);
-  const [aiEscalating, setAiEscalating] = useState(false);
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationIndirizzo, setEscalationIndirizzo] = useState("");
   const [escalationData, setEscalationData] = useState("");
@@ -345,31 +344,6 @@ export default function TicketDetail() {
 
   // Escalation azienda→piattaforma: inoltra il ticket al supporto della piattaforma
   // riusando support-ai-chat (action escalate → inbox support_messages superadmin).
-  const handleEscalateToPlatform = async () => {
-    if (aiEscalating || !ticket) return;
-    setAiEscalating(true);
-    try {
-      const descrizione = [ticket.subject, ...messages.map((m) => m.message)]
-        .filter(Boolean)
-        .join("\n");
-      const { error } = await supabase.functions.invoke("support-ai-chat", {
-        body: {
-          action: "escalate",
-          conversation: messages.map((m) => ({ role: "user", content: m.message })),
-          titolo: `[Assistenza] ${ticket.subject ?? id} — inoltrato dall'azienda`,
-          descrizione,
-          priorita: ticket.priority,
-        },
-      });
-      if (error) throw error;
-      toast.success("Ticket inoltrato al supporto piattaforma.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Inoltro alla piattaforma non riuscito.");
-    } finally {
-      setAiEscalating(false);
-    }
-  };
-
   if (ticketLoading || messagesLoading) {
     return (
       <div className="space-y-6">
@@ -523,13 +497,32 @@ export default function TicketDetail() {
                   <SelectTrigger className="w-[160px] h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="aperto">Aperto</SelectItem>
-                    <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
-                    <SelectItem value="risolto">Risolto</SelectItem>
+                  <SelectContent className="max-h-[380px]">
+                    {TICKET_FASI.map((fase) => {
+                      const stati = TICKET_STATI.filter((st) => st.fase === fase.key);
+                      if (stati.length === 0) return null;
+                      return (
+                        <SelectGroup key={fase.key}>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {fase.label}
+                          </SelectLabel>
+                          {stati.map((st) => (
+                            <SelectItem key={st.value} value={st.value} className="text-xs">
+                              {st.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
+              {/* Cosa vuol dire lo stato scelto: 15 stati sono troppi da tenere a mente */}
+              {TICKET_STATI.find((st) => st.value === ticket.status)?.desc && (
+                <p className="-mt-1 text-right text-[11px] leading-tight text-muted-foreground">
+                  {TICKET_STATI.find((st) => st.value === ticket.status)?.desc}
+                </p>
+              )}
               {/* Priorità */}
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs text-muted-foreground shrink-0">Priorità</label>
@@ -587,23 +580,6 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full justify-center gap-2 text-amber-700 border-amber-200 hover:bg-amber-50 dark:text-amber-400"
-                onClick={handleEscalateToPlatform}
-                disabled={aiEscalating}
-                title="Inoltra il ticket al supporto della piattaforma (superadmin)"
-              >
-                {aiEscalating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowUpCircle className="h-4 w-4" />
-                )}
-                Inoltra al supporto piattaforma
-              </Button>
 
               <Separator />
 

@@ -1,13 +1,28 @@
 export type TicketStatus =
   | "aperto"
-  | "in_attesa"
+  | "sopralluogo"
   | "preventivo_da_approvare"
+  | "preventivo_rifiutato"
+  | "in_attesa_cliente"
+  | "in_attesa"
   | "in_attesa_merce"
+  | "reclamo_fornitore"
   | "programmato"
+  | "da_riprogrammare"
   | "in_lavorazione"
   | "risolto"
+  | "da_fatturare"
   | "chiuso"
   | "annullato";
+
+/** Le quattro fasi in cui si raggruppano gli stati nei menu. */
+export type TicketFase = "apertura" | "attesa" | "lavoro" | "chiusura";
+export const TICKET_FASI: { key: TicketFase; label: string }[] = [
+  { key: "apertura", label: "Da valutare" },
+  { key: "attesa", label: "In attesa" },
+  { key: "lavoro", label: "In corso" },
+  { key: "chiusura", label: "Chiusura" },
+];
 
 /**
  * Gli stati dell'assistenza nell'ordine in cui si susseguono davvero, con la
@@ -16,17 +31,23 @@ export type TicketStatus =
  * (prima "chiuso" e "in_attesa" erano nel tipo ma NON nel database).
  */
 export const TICKET_STATI = [
-  { value: "aperto", label: "Aperto", desc: "Segnalazione ricevuta, da valutare", tone: "blue", chiuso: false },
-  { value: "in_attesa", label: "In attesa", desc: "Fermo: aspettiamo il cliente o una verifica", tone: "amber", chiuso: false },
-  { value: "preventivo_da_approvare", label: "Preventivo da approvare", desc: "Intervento a pagamento: il cliente deve accettare", tone: "amber", chiuso: false },
-  { value: "in_attesa_merce", label: "In attesa merce", desc: "Ordinato il materiale, si parte quando arriva", tone: "purple", chiuso: false },
-  { value: "programmato", label: "Programmato", desc: "Data fissata con il cliente", tone: "indigo", chiuso: false },
-  { value: "in_lavorazione", label: "In lavorazione", desc: "Il tecnico ci sta lavorando", tone: "orange", chiuso: false },
-  { value: "risolto", label: "Risolto", desc: "Intervento eseguito, resta l'amministrazione", tone: "green", chiuso: true },
-  { value: "chiuso", label: "Chiuso", desc: "Chiuso e incassato: niente altro da fare", tone: "slate", chiuso: true },
-  { value: "annullato", label: "Annullato", desc: "Non si fa più (rinuncia, doppione, errore)", tone: "slate", chiuso: true },
+  { value: "aperto", label: "Aperto", desc: "Segnalazione ricevuta, da valutare", tone: "blue", fase: "apertura", chiuso: false },
+  { value: "sopralluogo", label: "Sopralluogo da fare", desc: "Bisogna andare a vedere prima di decidere", tone: "blue", fase: "apertura", chiuso: false },
+  { value: "preventivo_da_approvare", label: "Preventivo da approvare", desc: "Intervento a pagamento: il cliente deve accettare", tone: "amber", fase: "attesa", chiuso: false },
+  { value: "preventivo_rifiutato", label: "Preventivo rifiutato", desc: "Il cliente non ha accettato il preventivo", tone: "slate", fase: "chiusura", chiuso: true },
+  { value: "in_attesa_cliente", label: "In attesa del cliente", desc: "Aspettiamo una risposta o la disponibilità del cliente", tone: "amber", fase: "attesa", chiuso: false },
+  { value: "in_attesa", label: "In attesa", desc: "Fermo per un motivo diverso (verifica interna, terzi)", tone: "amber", fase: "attesa", chiuso: false },
+  { value: "in_attesa_merce", label: "In attesa merce", desc: "Ordinato il materiale, si parte quando arriva", tone: "purple", fase: "attesa", chiuso: false },
+  { value: "reclamo_fornitore", label: "Reclamo al fornitore", desc: "Pezzo difettoso: aperta la garanzia col fornitore", tone: "purple", fase: "attesa", chiuso: false },
+  { value: "programmato", label: "Programmato", desc: "Data fissata con il cliente", tone: "indigo", fase: "lavoro", chiuso: false },
+  { value: "da_riprogrammare", label: "Da riprogrammare", desc: "Saltato: cliente assente o rinviato, va rifissato", tone: "orange", fase: "lavoro", chiuso: false },
+  { value: "in_lavorazione", label: "In lavorazione", desc: "Il tecnico ci sta lavorando", tone: "orange", fase: "lavoro", chiuso: false },
+  { value: "risolto", label: "Risolto", desc: "Intervento eseguito, resta l'amministrazione", tone: "green", fase: "chiusura", chiuso: true },
+  { value: "da_fatturare", label: "Da fatturare", desc: "Eseguito e a pagamento: manca la fattura", tone: "amber", fase: "chiusura", chiuso: false },
+  { value: "chiuso", label: "Chiuso", desc: "Chiuso e incassato: niente altro da fare", tone: "slate", fase: "chiusura", chiuso: true },
+  { value: "annullato", label: "Annullato", desc: "Non si fa più (rinuncia, doppione, errore)", tone: "slate", fase: "chiusura", chiuso: true },
 ] as const satisfies ReadonlyArray<{
-  value: TicketStatus; label: string; desc: string; tone: string; chiuso: boolean;
+  value: TicketStatus; label: string; desc: string; tone: string; fase: TicketFase; chiuso: boolean;
 }>;
 
 /** Stati che tolgono il ticket dalla coda del lavoro da fare. */

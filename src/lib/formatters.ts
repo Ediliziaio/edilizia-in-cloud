@@ -1,3 +1,4 @@
+import { TICKET_STATI, ticketStatoLabel } from "@/types/tickets";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -68,50 +69,32 @@ export function formatRelativeTime(date: string | Date): string {
   return parsed ? formatDistanceToNow(parsed, { addSuffix: true, locale: it }) : "—";
 }
 
+/**
+ * Colore del badge di stato. La tinta la decide il catalogo in
+ * src/types/tickets.ts (campo `tone`): prima qui c'era uno switch con 3 casi e
+ * tutti gli altri stati finivano grigi con il nome tecnico a vista.
+ */
+const TONI: Record<string, { bg: string; text: string; border: string }> = {
+  blue:   { bg: "hsl(var(--primary) / 0.1)", text: "hsl(var(--primary))", border: "hsl(var(--primary) / 0.3)" },
+  amber:  { bg: "hsl(45 93% 47% / 0.1)",  text: "hsl(45 93% 40%)",  border: "hsl(45 93% 47% / 0.3)" },
+  orange: { bg: "hsl(25 95% 53% / 0.1)",  text: "hsl(25 95% 45%)",  border: "hsl(25 95% 53% / 0.3)" },
+  purple: { bg: "hsl(271 81% 56% / 0.1)", text: "hsl(271 81% 48%)", border: "hsl(271 81% 56% / 0.3)" },
+  indigo: { bg: "hsl(239 84% 67% / 0.1)", text: "hsl(239 84% 58%)", border: "hsl(239 84% 67% / 0.3)" },
+  green:  { bg: "hsl(142 76% 36% / 0.1)", text: "hsl(142 76% 36%)", border: "hsl(142 76% 36% / 0.3)" },
+  slate:  { bg: "hsl(var(--muted))", text: "hsl(var(--muted-foreground))", border: "hsl(var(--border))" },
+};
+
 export function getTicketStatusColor(status: string): {
   bg: string;
   text: string;
   border: string;
 } {
-  switch (status) {
-    case "aperto":
-      return {
-        bg: "hsl(var(--primary) / 0.1)",
-        text: "hsl(var(--primary))",
-        border: "hsl(var(--primary) / 0.3)",
-      };
-    case "in_lavorazione":
-      return {
-        bg: "hsl(45 93% 47% / 0.1)",
-        text: "hsl(45 93% 47%)",
-        border: "hsl(45 93% 47% / 0.3)",
-      };
-    case "risolto":
-      return {
-        bg: "hsl(142 76% 36% / 0.1)",
-        text: "hsl(142 76% 36%)",
-        border: "hsl(142 76% 36% / 0.3)",
-      };
-    default:
-      return {
-        bg: "hsl(var(--muted))",
-        text: "hsl(var(--muted-foreground))",
-        border: "hsl(var(--border))",
-      };
-  }
+  const tone = TICKET_STATI.find((s) => s.value === status)?.tone ?? "slate";
+  return TONI[tone] ?? TONI.slate;
 }
 
 export function getTicketStatusLabel(status: string): string {
-  switch (status) {
-    case "aperto":
-      return "Aperto";
-    case "in_lavorazione":
-      return "In Lavorazione";
-    case "risolto":
-      return "Risolto";
-    default:
-      return status;
-  }
+  return ticketStatoLabel(status);
 }
 
 export function getTicketPriorityColor(priority: string): {

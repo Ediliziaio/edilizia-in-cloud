@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { TICKET_STATI, TICKET_STATI_CHIUSI } from "@/types/tickets";
+import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,8 +60,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -101,6 +100,30 @@ const UNASSIGNED_VALUE = "__unassigned__";
 // Unica fonte degli stati: src/types/tickets.ts (prima questa lista viveva qui
 // e ne ometteva metà rispetto al database).
 const TICKET_STATUS_OPTIONS = TICKET_STATI.map(({ value, label }) => ({ value, label }));
+
+/** Le voci di stato raggruppate per fase: con 15 stati una lista piatta
+ *  diventa illeggibile. */
+function StatoOptionsRaggruppate() {
+  return (
+    <>
+      {TICKET_FASI.map((fase) => {
+        const stati = TICKET_STATI.filter((s) => s.fase === fase.key);
+        if (stati.length === 0) return null;
+        return (
+          <SelectGroup key={fase.key}>
+            <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {fase.label}
+            </SelectLabel>
+            {stati.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectGroup>
+        );
+      })}
+    </>
+  );
+}
+
 
 type TicketSortKey = "tipo" | "cliente" | "priority" | "scadenza" | "status" | "assigned" | "order" | "updated";
 type SortDirection = "asc" | "desc";
@@ -1028,10 +1051,8 @@ function TicketStatusSelect({ value, disabled, onChange }: { value: string; disa
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
-        {TICKET_STATUS_OPTIONS.map((status) => (
-          <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
-        ))}
+      <SelectContent className="max-h-[380px]">
+        <StatoOptionsRaggruppate />
       </SelectContent>
     </Select>
   );
@@ -1126,11 +1147,9 @@ function TicketBulkActionsSheet({
             <label className="text-sm font-medium">Nuovo stato</label>
             <Select value={bulkStatus} onValueChange={onBulkStatusChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[380px]">
                 <SelectItem value={KEEP_VALUE}>Non cambiare stato</SelectItem>
-                {TICKET_STATUS_OPTIONS.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
-                ))}
+                <StatoOptionsRaggruppate />
               </SelectContent>
             </Select>
           </div>
