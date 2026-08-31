@@ -39,6 +39,9 @@ import {
   Loader2 
 } from "lucide-react";
 import { MAX_FILES_PER_ORDER, isValidMimeType } from "./orderAttachmentRules";
+import { FileThumb, FilePreviewDialog } from "./filePreview";
+import { useSignedUrls, toStoragePath, fmtBytes, fileKind, KIND_LABEL,
+         openAttachmentInTab, type PreviewableFile } from "./filePreviewUtils";
 
 interface OrderAttachment {
   id: string;
@@ -342,6 +345,14 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     if (droppedFiles.length > 0) uploadMultipleFiles(droppedFiles);
   };
 
+  /** File aperto in anteprima (null = nessuno). */
+  const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
+  /** Un'unica firma per TUTTI gli allegati: serve alle miniature e all'anteprima. */
+  const { data: signedByPath = {}, isLoading: signingUrls } = useSignedUrls(
+    attachments as unknown as PreviewableFile[],
+    attachments.length > 0,
+  );
+
   const visibleAttachments = attachments.filter(a => a.visible_to_customer);
   const internalAttachments = attachments.filter(a => !a.visible_to_customer);
 
@@ -460,6 +471,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                       key={attachment.id}
                       attachment={attachment}
                       editable={editable}
+                      signedUrl={signedByPath[toStoragePath(attachment.file_url)]}
+                      signing={signingUrls}
+                      onPreview={() => setPreviewFile(attachment as unknown as PreviewableFile)}
                       onToggleVisibility={(visible) =>
                         toggleVisibilityMutation.mutate({ id: attachment.id, visible })
                       }
@@ -482,6 +496,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                       key={attachment.id}
                       attachment={attachment}
                       editable={editable}
+                      signedUrl={signedByPath[toStoragePath(attachment.file_url)]}
+                      signing={signingUrls}
+                      onPreview={() => setPreviewFile(attachment as unknown as PreviewableFile)}
                       onToggleVisibility={(visible) =>
                         toggleVisibilityMutation.mutate({ id: attachment.id, visible })
                       }
@@ -494,6 +511,14 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           </>
         )}
       </CardContent>
+
+      {/* Visualizzatore: si guarda il file qui, senza scaricarlo. */}
+      <FilePreviewDialog
+        file={previewFile}
+        url={previewFile ? signedByPath[toStoragePath(previewFile.file_url)] : undefined}
+        open={!!previewFile}
+        onOpenChange={(v) => { if (!v) setPreviewFile(null); }}
+      />
     </Card>
   );
 }
@@ -501,6 +526,12 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 interface AttachmentItemProps {
   attachment: OrderAttachment;
   editable: boolean;
+  /** Signed URL gia' pronto (firmato in blocco dal genitore): serve alla miniatura. */
+  signedUrl?: string;
+  /** True mentre le firme sono in arrivo: la miniatura mostra lo spinner. */
+  signing?: boolean;
+  /** Apre il file nel visualizzatore invece di scaricarlo. */
+  onPreview: () => void;
   onToggleVisibility: (visible: boolean) => void;
   onDelete: () => void;
 }
@@ -508,40 +539,39 @@ interface AttachmentItemProps {
 function AttachmentItem({
   attachment,
   editable,
+  signedUrl,
+  signing,
+  onPreview,
   onToggleVisibility,
   onDelete,
 }: AttachmentItemProps) {
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [loadingUrl, setLoadingUrl] = useState(false);
-
-  const handleDownload = async () => {
-    if (signedUrl) {
-      window.open(signedUrl, "_blank");
-      return;
-    }
-    setLoadingUrl(true);
-    const url = await getSignedUrl(attachment.file_url);
-    setLoadingUrl(false);
-    if (url) {
-      setSignedUrl(url);
-      window.open(url, "_blank");
-    }
-  };
+  const file = attachment as unknown as PreviewableFile;
+  const kind = fileKind(file);
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-      <span className="text-lg">{getFileIcon(attachment.file_type)}</span>
-      
+      {/* Miniatura vera per le immagini, icona tipizzata per il resto: prima
+          c'era una emoji uguale per tutti i file dello stesso tipo. */}
+      <button
+        type="button"
+        onClick={onPreview}
+        aria-label={`Anteprima di ${attachment.file_name}`}
+        className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <FileThumb file={file} url={signedUrl} loading={signing} size="sm" />
+      </button>
+
       <div className="flex-1 min-w-0">
+        {/* Il clic apre l'anteprima invece di scaricare al buio. */}
         <button
-          onClick={handleDownload}
+          onClick={onPreview}
           className="text-sm font-medium hover:underline truncate block text-left"
-          disabled={loadingUrl}
         >
           {attachment.file_name}
         </button>
         <span className="text-xs text-muted-foreground">
-          {formatFileSize(attachment.file_size)}
+          {KIND_LABEL[kind]}
+          {fmtBytes(attachment.file_size) ? ` · ${fmtBytes(attachment.file_size)}` : ""}
         </span>
       </div>
 
@@ -601,18 +631,16 @@ function AttachmentItem({
           </>
         )}
 
+        {/* Scarica: apre il file in una scheda nuova via signed URL. L'anteprima
+            si ottiene invece cliccando miniatura o nome, senza scaricare. */}
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={handleDownload}
-          disabled={loadingUrl}
+          aria-label={`Scarica ${attachment.file_name}`}
+          onClick={() => openAttachmentInTab(attachment.file_url)}
         >
-          {loadingUrl ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
+          <Download className="h-4 w-4" />
         </Button>
       </div>
     </div>

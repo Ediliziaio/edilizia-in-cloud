@@ -17,15 +17,14 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2, FolderOpen } from "lucide-react";
+import { FileThumb, FilePreviewDialog } from "./filePreview";
 import {
-  FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2,
-  FolderOpen, ArrowLeft, ImageIcon, FileSpreadsheet, File as FileIcon,
-} from "lucide-react";
+  useSignedUrls, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
+  type PreviewableFile,
+} from "./filePreviewUtils";
 
 interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null }
 interface FiscalDoc { id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
@@ -46,57 +45,6 @@ interface Props {
   /** Genera/scarica il PDF riepilogo della commessa. */
   onDownloadOrderPdf: () => void;
   pdfBusy?: boolean;
-}
-
-const BUCKET = "order-attachments";
-const MARKER = `/${BUCKET}/`;
-
-/** Dal valore salvato ricava il percorso dentro al bucket (regge anche gli URL interi legacy). */
-function toStoragePath(fileUrl: string): string {
-  if (fileUrl.includes(MARKER)) return fileUrl.split(MARKER)[1].split("?")[0];
-  return fileUrl;
-}
-
-/** Apre un file del bucket in una scheda nuova via signed URL. */
-async function openOrderAttachment(fileUrl: string) {
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(toStoragePath(fileUrl), 3600);
-  if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file"); return; }
-  window.open(data.signedUrl, "_blank", "noopener");
-}
-
-type FileKind = "image" | "pdf" | "sheet" | "other";
-
-/** Il tipo si decide dal MIME quando c'e', altrimenti dall'estensione del nome. */
-function fileKind(d: FileDoc): FileKind {
-  const mime = (d.file_type || "").toLowerCase();
-  const ext = (d.file_name.split(".").pop() || "").toLowerCase();
-  if (mime.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp"].includes(ext)) return "image";
-  if (mime === "application/pdf" || ext === "pdf") return "pdf";
-  if (mime.includes("sheet") || mime.includes("excel") || ["xlsx", "xls", "csv"].includes(ext)) return "sheet";
-  return "other";
-}
-
-function KindIcon({ kind, className }: { kind: FileKind; className?: string }) {
-  if (kind === "image") return <ImageIcon className={className} />;
-  if (kind === "pdf") return <FileText className={className} />;
-  if (kind === "sheet") return <FileSpreadsheet className={className} />;
-  return <FileIcon className={className} />;
-}
-
-const KIND_LABEL: Record<FileKind, string> = { image: "Immagine", pdf: "PDF", sheet: "Foglio", other: "File" };
-/** Tinta per tipo: aiuta a riconoscere il file a colpo d'occhio nella griglia. */
-const KIND_TINT: Record<FileKind, string> = {
-  image: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-  pdf: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
-  sheet: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300",
-  other: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-};
-
-function fmtBytes(n?: number | null): string {
-  if (typeof n !== "number" || n <= 0) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 }
 
 function fiscalTypeLabel(t?: string | null) {
@@ -144,32 +92,16 @@ export function OrderFilesDialog({
     [documenti, itemsWithFiles],
   );
 
-  /**
-   * URL firmati di TUTTI gli allegati in una sola chiamata (createSignedUrls),
-   * invece di una richiesta per miniatura. Servono sia per le anteprime delle
-   * immagini nella griglia sia per il visualizzatore qui dentro.
-   */
-  const { data: signedByPath = {}, isLoading: signing } = useQuery({
-    queryKey: ["order-files-signed", allAttachments.map((a) => a.file_url).sort().join("|")],
-    enabled: open && allAttachments.length > 0,
-    staleTime: 45 * 60 * 1000, // gli URL durano un'ora: non rifirmare a ogni apertura
-    queryFn: async (): Promise<Record<string, string>> => {
-      const paths = Array.from(new Set(allAttachments.map((a) => toStoragePath(a.file_url))));
-      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 3600);
-      if (error) return {};
-      const map: Record<string, string> = {};
-      (data ?? []).forEach((r) => { if (r.signedUrl && r.path) map[r.path] = r.signedUrl; });
-      return map;
-    },
-  });
-
+  /** Una firma sola per tutti gli allegati: serve alle miniature e all'anteprima. */
+  const { data: signedByPath = {}, isLoading: signing } = useSignedUrls(
+    allAttachments as unknown as PreviewableFile[], open,
+  );
   const urlOf = (d: FileDoc): string | undefined => signedByPath[toStoragePath(d.file_url)];
 
   /** Riquadro file: miniatura vera per le immagini, icona tipizzata per il resto. */
   const FileTile = ({ d }: { d: FileDoc }) => {
     const kind = fileKind(d);
-    const url = urlOf(d);
-    const size = fmtBytes(d.file_size);
+    const peso = fmtBytes(d.file_size);
     return (
       <button
         type="button"
@@ -177,19 +109,8 @@ export function OrderFilesDialog({
         title={d.file_name}
         className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted/40">
-          {kind === "image" && url ? (
-            <img
-              src={url}
-              alt={d.file_name}
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
-            />
-          ) : signing && kind === "image" ? (
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : (
-            <KindIcon kind={kind} className="h-8 w-8 text-muted-foreground/70" />
-          )}
+        <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted/40 [&>div]:h-full [&>div]:w-full [&>div]:rounded-none [&>div]:border-0">
+          <FileThumb file={d as unknown as PreviewableFile} url={urlOf(d)} loading={signing} />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
             {KIND_LABEL[kind]}
           </span>
@@ -197,63 +118,24 @@ export function OrderFilesDialog({
         <div className="min-w-0 px-2.5 py-2">
           <div className="truncate text-xs font-medium">{d.file_name}</div>
           <div className="truncate text-[11px] text-muted-foreground">
-            {formatDocType ? formatDocType(d) : KIND_LABEL[kind]}{size ? ` · ${size}` : ""}
+            {formatDocType ? formatDocType(d) : KIND_LABEL[kind]}{peso ? ` · ${peso}` : ""}
           </div>
         </div>
       </button>
     );
   };
 
-  /* ── Anteprima a tutta larghezza dentro al popup ─────────────────────────── */
+  /* ── Anteprima dentro al popup: stesso visualizzatore della card in pagina ── */
   if (preview) {
-    const kind = fileKind(preview);
-    const url = urlOf(preview);
     return (
-      <Dialog open={open} onOpenChange={(v) => { if (!v) setPreview(null); onOpenChange(v); }}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="flex items-center gap-2 pr-8">
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setPreview(null)} aria-label="Torna ai documenti">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <KindIcon kind={kind} className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate text-base">{preview.file_name}</span>
-            </DialogTitle>
-            <DialogDescription>
-              {KIND_LABEL[kind]}{fmtBytes(preview.file_size) ? ` · ${fmtBytes(preview.file_size)}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/30">
-            {!url ? (
-              <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparo l'anteprima…
-              </div>
-            ) : kind === "image" ? (
-              <img src={url} alt={preview.file_name} className="mx-auto max-h-[62vh] object-contain" />
-            ) : kind === "pdf" ? (
-              /* Il visualizzatore PDF del browser: nessuna libreria da caricare. */
-              <iframe src={url} title={preview.file_name} className="h-[62vh] w-full border-0 bg-white" />
-            ) : (
-              <div className="flex h-72 flex-col items-center justify-center gap-2 px-6 text-center">
-                <KindIcon kind={kind} className="h-10 w-10 text-muted-foreground/60" />
-                <p className="text-sm text-muted-foreground">
-                  Questo tipo di file non si può sfogliare qui: scaricalo o aprilo in una scheda nuova.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openOrderAttachment(preview.file_url)}>
-              <ExternalLink className="h-4 w-4" /> Apri in una scheda
-            </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => onOpenDocumento(preview)}>
-              <Download className="h-4 w-4" /> Scarica
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <FilePreviewDialog
+        file={preview as unknown as PreviewableFile}
+        url={urlOf(preview)}
+        open={open}
+        onOpenChange={(v) => { if (!v) setPreview(null); onOpenChange(v); }}
+        onBack={() => setPreview(null)}
+        onDownload={() => onOpenDocumento(preview)}
+      />
     );
   }
 
