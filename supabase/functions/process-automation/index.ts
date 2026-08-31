@@ -1,3 +1,10 @@
+/**
+ * process-automation — esegue i nodi delle automazioni (trigger, delay, azioni).
+ *
+ * NB sulle notifiche interne (azione `notifica_interna`): l'invio ha una catena
+ * di ripiego sul mittente, non un tentativo solo. Il perche' e il costo di non
+ * averla sono documentati sul punto, cercare "Catena di ripiego sul MITTENTE".
+ */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";

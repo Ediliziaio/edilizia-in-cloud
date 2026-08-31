@@ -61,7 +61,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2   # need HEAD~1 to diff
+          # Serve l'INTERO range del push, non solo l'ultimo commit: con
+          # fetch-depth 2 un push di piu' commit deployava soltanto le funzioni
+          # toccate dall'ultimo. Vedi la nota nel passo "Detect changed functions".
+          fetch-depth: 0
 
       # Versione PINNATA: `version: latest` faceva una API call anonima a GitHub
       # per risolvere l'ultima release → rate-limit (60 req/h per IP) sui runner
@@ -76,12 +79,27 @@ jobs:
 
       # Detect which function slugs changed.
       # Excludes _shared / _customer_os_shared (library dirs, not deployable).
-      # Falls back to empty list if HEAD~1 doesn't exist (first commit on main).
+      #
+      # Si diffa l'INTERO range del push (github.event.before → HEAD), non
+      # HEAD~1: con un push di piu' commit, HEAD~1 vede solo l'ultimo e le
+      # funzioni cambiate nei commit precedenti non venivano mai deployate — in
+      # silenzio, con la CI verde. Successo verificato il 31/08/2026: un push di
+      # 3 commit con una modifica a process-automation nel secondo ha prodotto
+      # "No functions to deploy", e il fix delle notifiche lead non e' andato in
+      # produzione pur risultando pubblicato.
+      #
+      # Fallback su HEAD~1 quando `before` non e' utilizzabile: primo commit del
+      # branch (SHA di zeri) o force-push che ha reso `before` irraggiungibile.
       - name: Detect changed functions
         id: changed
         run: |
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only HEAD~1 HEAD -- supabase/functions/ \
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git rev-parse --verify "$BASE^{commit}" >/dev/null 2>&1; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+          echo "Diff range: ${BASE:-<nessuno>} → HEAD"
+          if [ -n "$BASE" ]; then
+            CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ \
               | grep '^supabase/functions/' \
               | grep -v '^supabase/functions/_' \
               | awk -F/ '{print $3}' \
