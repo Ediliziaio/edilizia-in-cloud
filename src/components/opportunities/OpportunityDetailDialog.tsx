@@ -8,6 +8,9 @@ import {
   useContactFieldValues, useOpportunityFieldValues,
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
+import { useIsPlatformCrm } from "@/hooks/useIsPlatformCrm";
+import { ServizioAedixFields } from "./ServizioAedixFields";
+import { ConvertiClienteServizioDialog } from "./ConvertiClienteServizioDialog";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from "@/components/ui/dialog";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,6 +87,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
   const queryClient = useQueryClient();
@@ -122,6 +126,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [contactProvince, setContactProvince] = useState("");
   const [contactRegion, setContactRegion] = useState("");
   const [contactCustomValues, setContactCustomValues] = useState<Record<string, string>>({});
+
+  // Servizio AEDIX venduto (solo CRM di piattaforma) + conversione a cliente-servizio
+  const [productLineId, setProductLineId] = useState<string | null>(null);
+  const [packageId, setPackageId] = useState<string | null>(null);
+  const [convertiOpen, setConvertiOpen] = useState(false);
 
   // Opportunity fields
   const [name, setName] = useState("");
@@ -190,6 +199,23 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     },
   });
 
+  // CRM di piattaforma: questa trattativa e' gia' diventata un cliente-servizio?
+  // Serve a non proporre due volte la stessa conversione.
+  const { data: clienteServizio, refetch: refetchClienteServizio } = useQuery({
+    queryKey: ["opportunita-cliente-servizio", opportunity?.id],
+    enabled: !!opportunity?.id && open && isPlatformCrm,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("aedix_service_clients")
+        .select("id, cliente_nome, stato")
+        .eq("opportunity_id", opportunity.id)
+        .limit(1)
+        .maybeSingle();
+      return (data ?? null) as { id: string; cliente_nome: string; stato: string } | null;
+    },
+  });
+
   const { data: searchContacts = [] } = useQuery({
     queryKey: ["marketing_contacts_search_detail", companyId, contactSearch],
     queryFn: async () => {
@@ -229,6 +255,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
+      setProductLineId(opportunity.product_line_id || null);
+      setPackageId(opportunity.package_id || null);
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
@@ -392,6 +420,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       notes: oppNotes || null,
       tags: normalizeTagList(oppTags),
       contact_id: finalContactId,
+      // Solo il CRM di piattaforma ha queste colonne valorizzate; per le aziende
+      // clienti restano quelle che erano (null).
+      ...(isPlatformCrm ? { product_line_id: productLineId, package_id: packageId } : {}),
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
@@ -1052,6 +1083,44 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       )}
 
+                      {/* CRM di piattaforma: il servizio venduto e il passaggio da
+                          trattativa vinta a relazione ricorrente. */}
+                      {isPlatformCrm && (
+                        <>
+                          <ServizioAedixFields
+                            productLineId={productLineId}
+                            packageId={packageId}
+                            disabled={!canEditOpportunity}
+                            onChange={({ productLineId: pl, packageId: pk }) => { setProductLineId(pl); setPackageId(pk); }}
+                          />
+
+                          {clienteServizio ? (
+                            <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40 px-2.5 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+                              <span>
+                                Da questo deal è nato il cliente-servizio{" "}
+                                <span className="font-semibold">{clienteServizio.cliente_nome}</span>
+                                {clienteServizio.stato !== "attivo" && ` (${clienteServizio.stato})`}
+                              </span>
+                              <a href="/admin/marketing/clienti-servizio" className="underline shrink-0">Apri</a>
+                            </div>
+                          ) : opportunity.status === "won" ? (
+                            <div className="flex items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40 px-2.5 py-2 text-xs text-sky-800 dark:text-sky-300">
+                              <span>Trattativa vinta: manca la relazione ricorrente con i suoi incassi.</span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs shrink-0"
+                                disabled={!canEditOpportunity}
+                                onClick={() => setConvertiOpen(true)}
+                              >
+                                Crea cliente-servizio
+                              </Button>
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+
                       {/* Riga 2: Prossima azione + Data */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1223,6 +1292,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </div>
       </DialogContent>
     </Dialog>
+
+    {isPlatformCrm && (
+      <ConvertiClienteServizioDialog
+        opportunity={{ ...opportunity, product_line_id: productLineId, package_id: packageId }}
+        open={convertiOpen}
+        onOpenChange={setConvertiOpen}
+        clienteNome={companyName || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || contact?.company_name || opportunity?.name || ""}
+        onConverted={() => { void refetchClienteServizio(); }}
+      />
+    )}
 
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <AlertDialogContent>

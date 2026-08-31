@@ -29,8 +29,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wallet, Search, AlertTriangle } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wallet, Search, AlertTriangle, CalendarCheck } from "lucide-react";
 import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillingsDialog";
+import { ChiusuraMeseDialog } from "@/components/admin/settings/ChiusuraMeseDialog";
+import { ValoreClientiTable } from "@/components/admin/settings/ValoreClientiTable";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
 interface PackageLite { id: string; nome: string; prezzo: number; product_line_id: string; }
@@ -87,6 +90,10 @@ export default function AdminServiceClients() {
   const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceClient | null>(null);
   const [commLines, setCommLines] = useState<CommLine[]>([]);
+  const [chiusuraOpen, setChiusuraOpen] = useState(false);
+  // "contratti" = una riga per relazione (default storico); "clienti" = una riga
+  // per persona, con gli acquisti ripetuti sommati.
+  const [vista, setVista] = useState<"contratti" | "clienti">("contratti");
   // Filtri lista
   const [search, setSearch] = useState("");
   const [filtServizio, setFiltServizio] = useState("tutti");
@@ -162,8 +169,42 @@ export default function AdminServiceClients() {
     },
   });
 
+  // L'identita' del cliente-servizio e' SEMPRE un contatto CRM (contact_id e'
+  // NOT NULL dal 31/08/2026): e' cio' che permette di sommare gli acquisti
+  // ripetuti della stessa persona. Se scegli un'azienda di Edilizia in Cloud,
+  // il contatto corrispondente viene trovato o creato al volo, e l'azienda
+  // resta agganciata come attributo.
+  const selezionaCliente = async (c: { kind: "company" | "contact"; id: string; label: string }) => {
+    setClientQuery("");
+    if (c.kind === "contact") {
+      setDraft((d) => ({ ...d, cliente_nome: c.label, contact_id: c.id, company_id: null }));
+      return;
+    }
+    const { data: esistente } = await sb()
+      .from("marketing_contacts")
+      .select("id")
+      .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+      .ilike("company_name", c.label)
+      .limit(1)
+      .maybeSingle();
+    let contactId = (esistente as { id: string } | null)?.id ?? null;
+    if (!contactId) {
+      const { data: creato, error } = await sb()
+        .from("marketing_contacts")
+        .insert({ company_id: PLATFORM_ADMIN_COMPANY_ID, company_name: c.label, source_channel: "cliente_servizio" })
+        .select("id")
+        .single();
+      if (error) { toast.error("Non riesco a creare il contatto per questa azienda", { description: error.message }); return; }
+      contactId = (creato as { id: string }).id;
+    }
+    setDraft((d) => ({ ...d, cliente_nome: c.label, contact_id: contactId, company_id: c.id }));
+  };
+
   const save = useMutation({
     mutationFn: async (d: Draft) => {
+      // contact_id e' l'identita' del cliente ed e' NOT NULL a database: meglio
+      // fermarsi qui con un messaggio chiaro che far fallire l'insert.
+      if (!d.contact_id) throw new Error("Collega il cliente a un contatto (o a un'azienda) prima di salvare");
       const isProv = d.billing_model === "provvigione";
       // Una riga conta solo se ha una % > 0 (le righe vuote/incomplete si scartano).
       const activeLines = commLines.filter((l) => Number(l.percentuale) > 0);
@@ -261,7 +302,18 @@ export default function AdminServiceClients() {
         eyebrow="CRM · Servizi"
         title="Clienti-Servizio"
         subtitle="Le relazioni ricorrenti cliente ↔ servizio (retainer, provvigioni, performance). Collega ogni cliente a un contatto CRM o a un'azienda."
-        actions={<Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> Nuovo cliente-servizio</Button>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Icon-only su mobile: la CTA primaria deve restare leggibile. */}
+            <Button variant="outline" onClick={() => setChiusuraOpen(true)} className="gap-2">
+              <CalendarCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Chiudi il mese</span>
+            </Button>
+            <Button onClick={openNew} className="gap-2 flex-1 sm:flex-none">
+              <Plus className="h-4 w-4" /> Nuovo cliente-servizio
+            </Button>
+          </div>
+        }
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
@@ -278,6 +330,21 @@ export default function AdminServiceClients() {
           ))}
         </div>
       </BrandPageHeader>
+
+      <div className="inline-flex rounded-lg border p-0.5">
+        {([["contratti", "Contratti"], ["clienti", "Per cliente"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setVista(v)}
+            className={`rounded-md px-3 py-1.5 text-sm transition-colors ${vista === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {vista === "clienti" ? <ValoreClientiTable /> : <>
 
       {/* Toolbar: ricerca + filtri */}
       {rows.length > 0 && (
@@ -421,7 +488,7 @@ export default function AdminServiceClients() {
               <Input value={draft.cliente_nome ?? ""} onChange={(e) => { setDraft((d) => ({ ...d, cliente_nome: e.target.value })); setClientQuery(e.target.value); }} placeholder="Cerca azienda/contatto o scrivi un nome" />
               {(draft.company_id || draft.contact_id) && (
                 <span className="inline-flex w-fit items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                  <Link2 className="h-3 w-3" /> collegato a {draft.company_id ? "azienda" : "contatto"}
+                  <Link2 className="h-3 w-3" /> collegato {draft.company_id ? "ad azienda + contatto" : "a contatto"}
                   <button className="ml-1 underline" onClick={() => setDraft((d) => ({ ...d, company_id: null, contact_id: null }))}>scollega</button>
                 </span>
               )}
@@ -429,7 +496,7 @@ export default function AdminServiceClients() {
                 <div className="max-h-40 overflow-y-auto rounded-lg border">
                   {clientResults.map((c) => (
                     <button key={`${c.kind}-${c.id}`} type="button"
-                      onClick={() => { setDraft((d) => ({ ...d, cliente_nome: c.label, company_id: c.kind === "company" ? c.id : null, contact_id: c.kind === "contact" ? c.id : null })); setClientQuery(""); }}
+                      onClick={() => { void selezionaCliente(c); }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted">
                       {c.kind === "company" ? <Building2 className="h-3.5 w-3.5 text-muted-foreground" /> : <UserRound className="h-3.5 w-3.5 text-muted-foreground" />}
                       {c.label} <span className="ml-auto text-[10px] uppercase text-muted-foreground">{c.kind === "company" ? "azienda" : "contatto"}</span>
@@ -553,7 +620,15 @@ export default function AdminServiceClients() {
         </AlertDialogContent>
       </AlertDialog>
 
+      </>}
+
       <ServiceBillingsDialog client={billClient} open={!!billClient} onOpenChange={(v) => { if (!v) setBillClient(null); }} />
+
+      <ChiusuraMeseDialog
+        open={chiusuraOpen}
+        onOpenChange={setChiusuraOpen}
+        nomiServizi={new Map(lines.map((l) => [l.id, l.nome]))}
+      />
     </div>
   );
 }

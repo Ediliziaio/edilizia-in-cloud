@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
+import { useIsPlatformCrm } from "@/hooks/useIsPlatformCrm";
+import { ServizioAedixFields } from "./ServizioAedixFields";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -61,6 +63,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
   const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
@@ -85,6 +88,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [followerId, setFollowerId] = useState("");
   const [callCenterId, setCallCenterId] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  // Servizio AEDIX venduto — solo nel CRM di piattaforma.
+  const [productLineId, setProductLineId] = useState<string | null>(null);
+  const [packageId, setPackageId] = useState<string | null>(null);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
   // Quick-add dalla colonna: all'apertura pre-seleziona la fase richiesta.
@@ -359,6 +365,19 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         onSuccess: async (data: { id?: string } | null | undefined) => {
           const oppId = data?.id;
           if (oppId) {
+            // Servizio AEDIX: come per i tag, si scrive dopo la creazione perche'
+            // la mutation condivisa non porta questi campi (esistono solo per il
+            // CRM di piattaforma).
+            if (isPlatformCrm && productLineId) {
+              const { error: svcErr } = await supabase
+                .from("marketing_opportunities")
+                .update({ product_line_id: productLineId, package_id: packageId })
+                .eq("id", oppId)
+                .eq("company_id", companyId!);
+              if (svcErr) {
+                toast.error("Opportunità creata, ma il servizio non è stato salvato", { description: svcErr.message });
+              }
+            }
             // Save tags and sync to contact
             const normalizedTags = normalizeTagList(tags);
             if (normalizedTags.length > 0) {
@@ -589,6 +608,17 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </div>
                   </div>
                 </div>
+
+                {/* CRM di piattaforma: quale servizio AEDIX si sta vendendo.
+                    Taggarlo qui evita di doverlo indovinare alla conversione in
+                    cliente-servizio quando la trattativa si chiude. */}
+                {isPlatformCrm && (
+                  <ServizioAedixFields
+                    productLineId={productLineId}
+                    packageId={packageId}
+                    onChange={({ productLineId: pl, packageId: pk }) => { setProductLineId(pl); setPackageId(pk); }}
+                  />
+                )}
 
                 {/* Owner + Follower + Call Center — su mobile impilati (grid-cols-3
                     schiacciava i select troncando "Non assegnato" in "Non…"). */}
