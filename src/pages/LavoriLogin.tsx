@@ -146,7 +146,10 @@ export default function LavoriLogin() {
     setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        // La rotta e' /reset-password: /auth/reset-password non e' mai
+        // esistita, e in produzione rispondeva 404 — chi usava il portale
+        // Lavori riceveva un link che non portava da nessuna parte.
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) {
         setFormError("Impossibile inviare l'email. Controlla l'indirizzo inserito.");

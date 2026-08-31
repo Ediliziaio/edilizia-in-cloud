@@ -115,7 +115,11 @@ Deno.serve(async (req) => {
         return errorResponse("Nessun account collegato a questa email: usa il reinvito dalla sua scheda.", 404, corsH);
       }
       const origin = resolveRedirectOrigin(body?.origin);
-      const redirectTo = `${origin}/cambia-password`;
+      // /cambia-password chiede la password ATTUALE per verifica: e'
+      // la pagina per cambiarla da loggati, non per recuperarla. Chi ha
+      // perso la password non puo' compilarla. Il reset va su
+      // /reset-password, che apre la sessione dal token del link.
+      const redirectTo = `${origin}/reset-password`;
       // Client anon dedicato: l'endpoint /recover è pubblico e invia l'email
       // tramite il mailer configurato. (Niente password gestita lato admin.)
       const anon = createClient(

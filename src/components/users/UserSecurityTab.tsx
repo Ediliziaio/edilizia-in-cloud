@@ -117,7 +117,13 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
         .single();
       if (!profile?.email) throw new Error("Email non trovata");
 
-      const { error } = await supabase.auth.resetPasswordForEmail(profile.email);
+      // Senza redirectTo si finisce sul Site URL del progetto: il link
+      // apre una sessione e porta dritti nell'app, senza mai mostrare il
+      // form della nuova password. L'utente entra una volta e alla
+      // successiva e' di nuovo chiuso fuori.
+      const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
