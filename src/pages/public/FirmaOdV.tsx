@@ -62,16 +62,19 @@ export default function FirmaOdV() {
     loadOdv();
   }, [token]);
 
+  // Si passa dalla RPC e non dalla tabella: la policy anon che permetteva la
+  // lettura diretta ("firma_token IS NOT NULL") esponeva TUTTE le varianti in
+  // attesa, non solo la propria — la RLS non vede il .eq() del client. Stesso
+  // schema dei SAL (sal_view_by_token).
   const loadOdv = async () => {
-    const { data, error } = await supabase
-      .from("ordini_variazione")
-      .select("id, numero_odv, titolo, descrizione, motivazione, impatto_economico, impatto_giorni, richiesto_da, richiesto_il, status")
-      .eq("firma_token", token!)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("odv_view_by_token" as never, {
+      p_token: token!,
+    } as never);
 
-    if (error || !data) { setPageStatus("error"); return; }
-    if (data.status !== "in_attesa") { setPageStatus("already_done"); return; }
-    setOdv(data as OdVData);
+    const res = data as { valid?: boolean; gia_firmato?: boolean } | null;
+    if (error || !res?.valid) { setPageStatus("error"); return; }
+    if (res.gia_firmato) { setPageStatus("already_done"); return; }
+    setOdv(res as unknown as OdVData);
     setPageStatus("ready");
   };
 
@@ -153,19 +156,14 @@ export default function FirmaOdV() {
     });
 
     if (webhookError) {
-      // Fallback: aggiorna direttamente
-      const { error } = await supabase
-        .from("ordini_variazione")
-        .update({
-          status: "approvato",
-          firma_cliente: firmaData,
-          firmato_da: firmatoDa.trim() || null,
-          firmato_il: new Date().toISOString(),
-        })
-        .eq("firma_token", token)
-        .eq("status", "in_attesa");
+      // Fallback: la RPC scrive solo la riga di questo token.
+      const { data, error } = await supabase.rpc("odv_sign_with_token" as never, {
+        p_token: token,
+        p_firma_base64: firmaData,
+        p_firmato_da: firmatoDa.trim() || null,
+      } as never);
 
-      if (error) {
+      if (error || !(data as { success?: boolean } | null)?.success) {
         toast.error("Errore durante il salvataggio. Riprova.");
         setPageStatus("ready");
         return;
@@ -179,17 +177,12 @@ export default function FirmaOdV() {
   const handleReject = async () => {
     if (!token || !odv) return;
     setPageStatus("submitting");
-    const { error } = await supabase
-      .from("ordini_variazione")
-      .update({
-        status: "rifiutato",
-        firmato_il: new Date().toISOString(),
-        firmato_da: firmatoDa.trim() || null,
-      })
-      .eq("firma_token", token)
-      .eq("status", "in_attesa");
+    const { data, error } = await supabase.rpc("odv_reject_with_token" as never, {
+      p_token: token,
+      p_firmato_da: firmatoDa.trim() || null,
+    } as never);
 
-    if (error) {
+    if (error || !(data as { success?: boolean } | null)?.success) {
       toast.error("Errore durante il rifiuto. Riprova.");
       setPageStatus("ready");
       return;
