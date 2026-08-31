@@ -78,6 +78,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { EmptyRow } from "./EmptyRow";
 
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
@@ -365,17 +366,19 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
             </Button>
           </div>
         ) : phases.length === 0 && unassigned.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed py-10 text-center">
-            <HardHat className="h-10 w-10 text-muted-foreground/60" />
-            <p className="max-w-md text-sm text-muted-foreground">
-              Nessuna lavorazione ancora. Aggiungi le fasi del cantiere per assegnare operai e
-              subappalti e tenere sotto controllo i costi.
-            </p>
-            <Button onClick={() => setNewPhaseOpen(true)}>
-              <ListPlus className="mr-1 h-4 w-4" />
-              Aggiungi lavorazioni
-            </Button>
-          </div>
+          // Riga compatta: a commessa senza lavorazioni questo blocco occupava
+          // 663px. L'azione resta, sulla stessa riga.
+          <EmptyRow
+            icon={HardHat}
+            action={
+              <Button size="sm" onClick={() => setNewPhaseOpen(true)}>
+                <ListPlus className="mr-1 h-4 w-4" />
+                Aggiungi lavorazioni
+              </Button>
+            }
+          >
+            Nessuna lavorazione: aggiungi le fasi per assegnare operai e seguire i costi
+          </EmptyRow>
         ) : (
           <>
             {phases.map((phase) => (

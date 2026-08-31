@@ -9,10 +9,10 @@ import { LifeBuoy, Plus, Euro, Package, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, ticketStatoLabel } from "@/types/tickets";
+import { EmptyRow } from "./EmptyRow";
 
 const TONO: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700", amber: "bg-amber-100 text-amber-700",
@@ -80,12 +80,8 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
       )}
 
       {tickets.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <LifeBuoy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nessuna assistenza aperta su questa commessa.</p>
-          </CardContent>
-        </Card>
+        // Riga compatta: la card con icona centrata occupava 126px per una frase.
+        <EmptyRow icon={LifeBuoy}>Nessuna assistenza aperta su questa commessa</EmptyRow>
       ) : (
         <div className="space-y-2">
           {tickets.map(t => {

@@ -10,6 +10,7 @@ import { Truck, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { differenceInDays, parseISO, startOfDay } from "date-fns";
 import { format } from "date-fns";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
+import { EmptyRow } from "./EmptyRow";
 
 interface SupplierPaymentItem {
   id: string;
@@ -184,10 +185,9 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-4 text-muted-foreground">
-            <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nessun fornitore associato</p>
-          </div>
+          {/* Riga compatta invece del riquadro alto: senza fornitori questa card
+              occupava 715px per non dire nulla, piu' di ogni altra della pagina. */}
+          <EmptyRow icon={Truck}>Nessun fornitore associato a questa commessa</EmptyRow>
         </CardContent>
       </Card>
     );

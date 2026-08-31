@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   RefreshCw, Hammer, Camera, Euro, GitBranch, Cloud, ChevronDown, ChevronUp, Wrench,
 } from 'lucide-react';
+import { EmptyRow } from "./EmptyRow";
 
 interface TimelineCantiereProp {
   orderId: string;
@@ -335,9 +336,8 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
 
   if (events.length === 0) {
     return (
-      <div className="text-center py-10 text-muted-foreground text-sm">
-        Nessun aggiornamento disponibile per questa commessa.
-      </div>
+      /* Riga compatta: py-10 centrato faceva 186px di vuoto accanto ai rapportini. */
+      <EmptyRow icon={RefreshCw}>Nessun aggiornamento su questa commessa</EmptyRow>
     );
   }
 

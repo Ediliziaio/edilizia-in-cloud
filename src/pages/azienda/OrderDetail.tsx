@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip, LifeBuoy } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -1853,13 +1853,13 @@ function OrderDetailInner() {
                 <Package className="w-4 h-4 mr-1.5" />
                 Articoli e lavori
               </TabsTrigger>
+              <TabsTrigger value="cantiere" className="text-sm">
+                <HardHat className="w-4 h-4 mr-1.5" />
+                Cantiere
+              </TabsTrigger>
               <TabsTrigger value="finanza" className="text-sm">
                 <Wallet className="w-4 h-4 mr-1.5" />
                 Finanza
-              </TabsTrigger>
-              <TabsTrigger value="assistenza" className="text-sm">
-                <LifeBuoy className="w-4 h-4 mr-1.5" />
-                Assistenza
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1922,50 +1922,13 @@ function OrderDetailInner() {
               customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
             />
 
-            {/* Avanzamento cantiere: SAL, timeline, rapportini campo (era il tab Cantiere) */}
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-2">
-                <HardHat className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Avanzamento cantiere</h2>
-              </div>
-              <div id="section-sal">
-                {companyId && (
-                  <OrdineSAL
-                    orderId={id!}
-                    companyId={companyId}
-                    orderTotalAmount={order.total_amount ?? undefined}
-                    installments={displayInstallments}
-                    vatRate={order.vat_rate || 22}
-                    financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
-                  />
-                )}
-              </div>
-              {/* Desktop largo (≥xl): timeline e rapportini affiancati per
-                  dimezzare lo scroll; sotto xl restano impilati. items-start:
-                  altezze indipendenti (nessuno stiramento). */}
-              {effectiveCompany?.id && (
-                <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-                  {/* La timeline rende testo nudo (nessuna Card), mentre i
-                      rapportini accanto sono una Card: affiancati sembravano
-                      due cose scollegate, con la scritta "Nessun aggiornamento"
-                      che fluttuava nel vuoto. La incorniciamo QUI e non dentro
-                      TimelineCantiere, che il portale cliente monta gia' dentro
-                      una sua Card: cambiarlo la' avrebbe prodotto un doppio bordo. */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <HardHat className="h-4 w-4 text-muted-foreground" />
-                        Timeline cantiere
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
-                    </CardContent>
-                  </Card>
-                  <OrdineRapportiniCampo orderId={id!} />
-                </div>
-              )}
-            </div>
+            {/* Assistenza: prima occupava un tab intero per una sola card da
+                178px — un quarto della navigazione per due righe di testo.
+                Sta qui, sotto le comunicazioni: le richieste di assistenza sono
+                il seguito del rapporto col cliente, non un'area a se'.
+                Nessun titolo di sezione aggiunto: il componente ha gia' il suo
+                ("Assistenze su questa commessa"). */}
+            <OrderAssistenzaTab orderId={id!} />
 
             {/* Allegati operativi del cantiere: foto, disegni, permessi. Le
                 fatture stanno in Finanza, con gli altri soldi. */}
@@ -2271,8 +2234,54 @@ function OrderDetailInner() {
               </QuoteCard>
           </TabsContent>
 
-          <TabsContent value="assistenza" className="space-y-4 mt-4">
-            <OrderAssistenzaTab orderId={id!} />
+          {/* Tab: Cantiere — SAL, timeline e rapportini erano impilati dentro la
+              Panoramica, che con loro arrivava a ~1.750px. Qui stanno insieme e
+              la Panoramica torna a una schermata. Su mobile erano gia' tre tab
+              separati (sal / cantiere / campo): ora le due viste concordano. */}
+          <TabsContent value="cantiere" className="space-y-4 mt-4">
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2">
+                <HardHat className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-base font-semibold">Avanzamento cantiere</h2>
+              </div>
+              <div id="section-sal">
+                {companyId && (
+                  <OrdineSAL
+                    orderId={id!}
+                    companyId={companyId}
+                    orderTotalAmount={order.total_amount ?? undefined}
+                    installments={displayInstallments}
+                    vatRate={order.vat_rate || 22}
+                    financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
+                  />
+                )}
+              </div>
+              {/* Desktop largo (≥xl): timeline e rapportini affiancati per
+                  dimezzare lo scroll; sotto xl restano impilati. items-start:
+                  altezze indipendenti (nessuno stiramento). */}
+              {effectiveCompany?.id && (
+                <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                  {/* La timeline rende testo nudo (nessuna Card), mentre i
+                      rapportini accanto sono una Card: affiancati sembravano
+                      due cose scollegate, con la scritta "Nessun aggiornamento"
+                      che fluttuava nel vuoto. La incorniciamo QUI e non dentro
+                      TimelineCantiere, che il portale cliente monta gia' dentro
+                      una sua Card: cambiarlo la' avrebbe prodotto un doppio bordo. */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <HardHat className="h-4 w-4 text-muted-foreground" />
+                        Timeline cantiere
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                    </CardContent>
+                  </Card>
+                  <OrdineRapportiniCampo orderId={id!} />
+                </div>
+              )}
+            </div>
           </TabsContent>
 
         </Tabs>
