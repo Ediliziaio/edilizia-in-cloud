@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
+import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,7 +48,9 @@ import {
   CheckSquare,
   Euro,
   BriefcaseBusiness,
-  Hourglass
+  Hourglass,
+  LayoutList,
+  Columns3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
@@ -261,6 +265,17 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   // pagina esplode senza che TypeScript possa accorgersene.
   const [soloFerme, setSoloFerme] = useState(false);
 
+  // Vista tabella o pipeline, come in Commesse. Su mobile il trascinamento non
+  // è usabile: lì resta sempre la tabella.
+  const [vista, setVista] = useState<"tabella" | "pipeline">(() => {
+    try { return (localStorage.getItem("assistenza-vista") as "tabella" | "pipeline") || "tabella"; }
+    catch { return "tabella"; }
+  });
+  const cambiaVista = (v: "tabella" | "pipeline") => {
+    setVista(v);
+    try { localStorage.setItem("assistenza-vista", v); } catch { /* private mode */ }
+  };
+
   // Filtri client-side: fonte, scadenza, assegnato, ricerca testuale
   const filteredTickets = useMemo(() => tickets.filter((ticket) => {
     if (soloFerme) {
@@ -461,12 +476,15 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     return { totale: tickets.length, aperti, urgenti, inScadenza, nonAssegnati, risolti, ferme, daIncassare };
   }, [tickets]);
 
-  const statusCounts = useMemo(() => ({
-    all: tickets.length,
-    aperto: tickets.filter(t => t.status === "aperto").length,
-    in_lavorazione: tickets.filter(t => t.status === "in_lavorazione").length,
-    risolto: tickets.filter(t => t.status === "risolto").length,
-  }), [tickets]);
+  // Conteggio per OGNI stato: il filtro ne elencava tre su quindici, quindi gli
+  // altri erano di fatto irraggiungibili dalla tendina.
+  const statusCounts = useMemo(() => {
+    const c: Record<string, number> = { all: tickets.length };
+    TICKET_STATI.forEach((st) => {
+      c[st.value] = tickets.filter((t) => t.status === st.value).length;
+    });
+    return c;
+  }, [tickets]);
 
   if (isLoading) {
     return (
@@ -695,11 +713,26 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[380px]">
               <SelectItem value="all">Tutti gli stati ({statusCounts.all})</SelectItem>
-              <SelectItem value="aperto">Aperti ({statusCounts.aperto})</SelectItem>
-              <SelectItem value="in_lavorazione">In Lavorazione ({statusCounts.in_lavorazione})</SelectItem>
-              <SelectItem value="risolto">Risolti ({statusCounts.risolto})</SelectItem>
+              {TICKET_FASI.map((fase) => {
+                // Si mostrano solo gli stati che hanno almeno un'assistenza:
+                // una tendina con quindici voci quasi tutte a zero è rumore.
+                const stati = TICKET_STATI.filter((st) => st.fase === fase.key && (statusCounts[st.value] ?? 0) > 0);
+                if (stati.length === 0) return null;
+                return (
+                  <SelectGroup key={fase.key}>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {fase.label}
+                    </SelectLabel>
+                    {stati.map((st) => (
+                      <SelectItem key={st.value} value={st.value}>
+                        {st.label} ({statusCounts[st.value]})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -712,6 +745,20 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <SelectItem value="bassa">⚪️ Bassa</SelectItem>
             </SelectContent>
           </Select>
+          {/* Tabella o pipeline — solo desktop, come in Commesse */}
+          <ToggleGroup
+            type="single"
+            value={vista}
+            onValueChange={(v) => v && cambiaVista(v as "tabella" | "pipeline")}
+            className="ml-auto hidden rounded-md border sm:flex"
+          >
+            <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3">
+              <LayoutList className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="px-3">
+              <Columns3 className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
           <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
             <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Scadenza" /></SelectTrigger>
             <SelectContent>
@@ -767,7 +814,20 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </Alert>
       )}
 
-      {/* Tickets Table */}
+      {/* Pipeline: stessa lista filtrata, disposta per fase */}
+      {vista === "pipeline" ? (
+        <div className="hidden sm:block">
+          <AssistenzaPipeline tickets={sortedTickets as never} onStatusChange={updateTicketStatus} />
+          {sortedTickets.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nessuna assistenza con questi filtri.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {/* Tabella (sempre su mobile) */}
+      <div className={vista === "pipeline" ? "sm:hidden" : undefined}>
       {sortedTickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -833,6 +893,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           </div>
         </Card>
       )}
+      </div>
 
       <TicketBulkActionsSheet
         open={bulkOpen}

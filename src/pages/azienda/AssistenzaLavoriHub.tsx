@@ -303,10 +303,15 @@ export default function AssistenzaLavoriHub() {
             <Plus className="h-3 w-3" /> Nuova
           </Button>
         </div>
-        <AssistenzaPipeline
-          tickets={tickets as never}
-          isLoading={loadingTickets}
-        />
+        {loadingTickets ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+          </div>
+        ) : (
+          /* Qui è una panoramica: si guarda e si clicca, si sposta dalla
+             pagina Assistenza dove il cambio di stato viene salvato. */
+          <AssistenzaPipeline tickets={tickets as never} />
+        )}
         {ticketsError && (
           <p className="text-xs text-red-600">
             Non sono riuscito a caricare le lavorazioni. Ricarica la pagina.
