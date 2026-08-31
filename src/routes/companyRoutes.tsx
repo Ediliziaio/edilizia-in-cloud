@@ -365,7 +365,6 @@ const ChiusuraIntervento = lazy(() => import("@/pages/azienda/ChiusuraIntervento
 const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
 const StoricoImpianto = lazy(() => import("@/pages/azienda/StoricoImpianto"));
-const AssistenzaLavoriHub = lazy(() => import("@/pages/azienda/AssistenzaLavoriHub"));
 
 // Marketing
 const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/MarketingDashboard"));
@@ -578,7 +577,12 @@ export default function CompanyRoutesContainer() {
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
         <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel dettaglio cliente"><CompanyCustomerDetail /></ErrorBoundary>)} />
         
-        <Route path="assistenza-lavori" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza lavori"><AssistenzaLavoriHub /></ErrorBoundary>)} />
+        {/* "Assistenza & Lavori" era una seconda pagina di assistenza che
+            nessuna voce di menu raggiungeva: mostrava le stesse lavorazioni di
+            /azienda/assistenza, che ora ha elenco e pipeline insieme. Resta il
+            reindirizzamento per i vecchi segnalibri. Le manutenzioni hanno la
+            loro pagina, gli interventi il filtro "Interventi". */}
+        <Route path="assistenza-lavori" element={<Navigate to="/azienda/assistenza" replace />} />
         <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>)} />
         <Route path="assistenza/nuovo" element={withCompanyPermission("canEditTickets", <ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>)} />
         <Route path="assistenza/:id" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>)} />
