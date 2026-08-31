@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { TICKET_MOTIVI_GRATUITO } from "@/types/tickets";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Paperclip, X, Wrench } from "lucide-react";
 import {
@@ -37,11 +39,18 @@ export default function CreateCompanyTicket() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
-  const [orderId, setOrderId] = useState<string>("");
+  // ?order=<id> arriva dal tab Assistenza della commessa: la commessa
+  // è già decisa, non deve essere ricercata di nuovo a mano.
+  const [orderId, setOrderId] = useState<string>(searchParams.get("order") ?? "");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("normale");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Chi paga l'intervento: è la prima domanda che si fa l'ufficio quando arriva
+  // una chiamata, e finora non c'era posto dove annotarla.
+  const [aPagamento, setAPagamento] = useState(false);
+  const [motivoGratuito, setMotivoGratuito] = useState<string>("garanzia");
+  const [importoPreventivato, setImportoPreventivato] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Intervento fields
@@ -123,6 +132,9 @@ export default function CreateCompanyTicket() {
           tipo,
           status: "aperto" as const,
           assigned_to: tecnicoId || null,
+          a_pagamento: aPagamento,
+          motivo_gratuito: aPagamento ? null : motivoGratuito,
+          importo_preventivato: aPagamento && importoPreventivato ? Number(importoPreventivato) : null,
           ...(isIntervento && {
             indirizzo_intervento: indirizzoIntervento.trim() || null,
             data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
@@ -283,6 +295,48 @@ export default function CreateCompanyTicket() {
                 <SelectItem value="urgente">Urgente</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Chi paga */}
+          <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Label className="text-sm font-semibold">Intervento a pagamento</Label>
+                <p className="text-xs text-muted-foreground">
+                  Se è in garanzia lascialo spento: resta scritto perché non si fattura.
+                </p>
+              </div>
+              <Switch checked={aPagamento} onCheckedChange={setAPagamento} />
+            </div>
+
+            {aPagamento ? (
+              <div className="space-y-2">
+                <Label className="text-xs">Importo preventivato (€)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={importoPreventivato}
+                  onChange={(e) => setImportoPreventivato(e.target.value)}
+                  placeholder="Es. 150,00 — lascia vuoto se ancora da quantificare"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs">Perché non si paga</Label>
+                <Select value={motivoGratuito} onValueChange={setMotivoGratuito}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TICKET_MOTIVI_GRATUITO.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Campi specifici intervento */}

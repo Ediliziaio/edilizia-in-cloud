@@ -6,6 +6,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
+import { TicketMerceCard } from "@/components/tickets/TicketMerceCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +89,8 @@ export default function TicketDetail() {
         .select(`
           id, subject, status, priority, tipo, fonte, created_at, customer_id, order_id,
           assigned_to, category, internal_notes,
+          a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
+          pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
           data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento, durata_ore, note_tecnico,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
           order:orders(id, description)
@@ -647,6 +651,17 @@ export default function TicketDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Pagamento e merce: le due domande che l'ufficio si fa su ogni
+              assistenza — chi paga, e quando arriva il pezzo. */}
+          <TicketPagamentoCard ticketId={ticket.id} ticket={ticket as never} />
+          {effectiveCompany?.id && (
+            <TicketMerceCard
+              ticketId={ticket.id}
+              orderId={ticket.order_id ?? null}
+              companyId={effectiveCompany.id}
+            />
+          )}
 
           {/* Dettagli Intervento — sempre visibile se tipo è intervento/emergenza,
               altrimenti rimane collassato finché non si schedula */}

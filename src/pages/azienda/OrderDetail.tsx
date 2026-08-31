@@ -1447,6 +1447,7 @@ function OrderDetailInner() {
                   Campo
                 </div>
               </TabsTrigger>
+              <TabsTrigger value="assistenza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Assistenza</TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Altro</TabsTrigger>
               <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Ritenute</TabsTrigger>
             </TabsList>
@@ -1776,6 +1777,10 @@ function OrderDetailInner() {
             </TabsContent>
 
             {/* Tab 6: Altro */}
+            <TabsContent value="assistenza" className="space-y-4 mt-4">
+              <OrderAssistenzaTab orderId={id!} />
+            </TabsContent>
+
             <TabsContent value="altro" className="space-y-4 mt-4">
               <OrdineNote
                 notes={order.internal_notes}

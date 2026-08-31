@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { TICKET_STATI, TICKET_STATI_CHIUSI } from "@/types/tickets";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,13 +98,9 @@ const TICKETS_QUERY_TIMEOUT_MS = 12_000;
 const KEEP_VALUE = "__keep__";
 const UNASSIGNED_VALUE = "__unassigned__";
 
-const TICKET_STATUS_OPTIONS = [
-  { value: "aperto", label: "Aperto" },
-  { value: "in_lavorazione", label: "In lavorazione" },
-  { value: "in_attesa", label: "In attesa" },
-  { value: "risolto", label: "Risolto" },
-  { value: "chiuso", label: "Chiuso" },
-] as const;
+// Unica fonte degli stati: src/types/tickets.ts (prima questa lista viveva qui
+// e ne ometteva metà rispetto al database).
+const TICKET_STATUS_OPTIONS = TICKET_STATI.map(({ value, label }) => ({ value, label }));
 
 type TicketSortKey = "tipo" | "cliente" | "priority" | "scadenza" | "status" | "assigned" | "order" | "updated";
 type SortDirection = "asc" | "desc";
@@ -262,7 +259,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   const sortedTickets = useMemo(() => {
     const priorityRank: Record<string, number> = { urgente: 4, alta: 3, normale: 2, media: 2, bassa: 1 };
-    const statusRank: Record<string, number> = { aperto: 1, in_lavorazione: 2, in_attesa: 3, risolto: 4, chiuso: 5 };
+    const statusRank: Record<string, number> = Object.fromEntries(TICKET_STATI.map((s, i) => [s.value, i + 1]));
     const getSortValue = (ticket: TicketListItem, key: TicketSortKey): string | number => {
       switch (key) {
         case "tipo":
@@ -303,7 +300,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   );
   const selectedAllVisible = sortedTickets.length > 0 && sortedTickets.every((ticket) => selectedTicketIds.has(ticket.id));
   const selectedHasOrder = selectedTickets.filter((ticket) => ticket.order_id).length;
-  const selectedOpen = selectedTickets.filter((ticket) => ticket.status !== "risolto" && ticket.status !== "chiuso").length;
+  const selectedOpen = selectedTickets.filter((ticket) => !TICKET_STATI_CHIUSI.includes(ticket.status as never)).length;
 
   const invalidateTickets = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
@@ -354,7 +351,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   const updateTicketStatus = (ticketId: string, status: string) => {
     const updates: Record<string, unknown> = { status };
-    if (status === "risolto" || status === "chiuso") {
+    if (TICKET_STATI_CHIUSI.includes(status as never)) {
       updates.data_intervento_effettiva = new Date().toISOString();
     }
     updateTicketsMutation.mutate({ ids: [ticketId], updates });
@@ -372,7 +369,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     const updates: Record<string, unknown> = {};
     if (bulkStatus !== KEEP_VALUE) {
       updates.status = bulkStatus;
-      if (bulkStatus === "risolto" || bulkStatus === "chiuso") {
+      if (TICKET_STATI_CHIUSI.includes(bulkStatus as never)) {
         updates.data_intervento_effettiva = new Date().toISOString();
       }
     }
@@ -404,13 +401,13 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   // Metriche aggregate (basate su TUTTI i ticket azienda, non filtrati)
   const metrics = useMemo(() => {
     const aperti = tickets.filter(t => t.status === "aperto" || t.status === "in_lavorazione").length;
-    const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && t.status !== "risolto" && t.status !== "chiuso").length;
+    const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
     const inScadenza = tickets.filter(t => {
-      if (t.status === "risolto" || t.status === "chiuso") return false;
+      if (TICKET_STATI_CHIUSI.includes(t.status as never)) return false;
       const b = bucketScadenza(t.data_intervento_prevista);
       return b === "scaduto" || b === "oggi" || b === "settimana";
     }).length;
-    const nonAssegnati = tickets.filter(t => !t.assigned_to && t.status !== "risolto" && t.status !== "chiuso").length;
+    const nonAssegnati = tickets.filter(t => !t.assigned_to && !TICKET_STATI_CHIUSI.includes(t.status as never)).length;
     const risolti = tickets.filter(t => t.status === "risolto").length;
     return { totale: tickets.length, aperti, urgenti, inScadenza, nonAssegnati, risolti };
   }, [tickets]);
@@ -953,7 +950,7 @@ function DesktopTicketRow({
   const scadenza = ticket.data_intervento_prevista;
   const isUrgent = ticket.priority === "urgente";
   const bucketS = bucketScadenza(scadenza);
-  const isOverdue = (bucketS === "scaduto" || bucketS === "oggi") && ticket.status !== "risolto" && ticket.status !== "chiuso";
+  const isOverdue = (bucketS === "scaduto" || bucketS === "oggi") && !TICKET_STATI_CHIUSI.includes(ticket.status as never);
   return (
     <TableRow className={cn(isUrgent && "bg-red-50/50 dark:bg-red-950/10", isOverdue && !isUrgent && "bg-orange-50/50 dark:bg-orange-950/10")}>
       <TableCell>
@@ -1093,7 +1090,7 @@ function TicketBulkActionsSheet({
   onClear: () => void;
   isPending: boolean;
 }) {
-  const selectedOpen = selectedTickets.filter((ticket) => ticket.status !== "risolto" && ticket.status !== "chiuso").length;
+  const selectedOpen = selectedTickets.filter((ticket) => !TICKET_STATI_CHIUSI.includes(ticket.status as never)).length;
   const selectedResolved = selectedTickets.length - selectedOpen;
   const linkedOrders = selectedTickets.filter((ticket) => ticket.order_id).length;
   const priorityCount = selectedTickets.filter((ticket) => ticket.priority === "urgente" || ticket.priority === "alta").length;
