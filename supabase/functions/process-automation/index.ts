@@ -1463,7 +1463,22 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             );
           }
 
-          const r = await sendViaProviderWithFailover("marketing", provider, {
+          // Catena di ripiego sul MITTENTE. Una notifica interna persa non si
+          // recupera: il team non sa nemmeno che c'era un lead. Prima di
+          // arrendersi si riprova con mittenti via via meno "belli" ma piu'
+          // probabili.
+          //
+          // Serve perche' un dominio custom puo' risultare verificato da noi
+          // (SPF/DKIM a posto in company_email_domains) ed essere comunque
+          // rifiutato dal provider — visto in prod: Elastic Email rispondeva
+          // 'From email address: "no-reply@mkt.ediliziaincloud.com" not
+          // allowed.' e 18 notifiche lead di fila sono sparite senza che
+          // nessuno se ne accorgesse per un mese.
+          //
+          //   1. mittente dell'azienda (dominio custom)   → il caso normale
+          //   2. mittente marketing condiviso              → stesso provider e stessi crediti
+          //   3. provider transazionale                    → ultima spiaggia, altro provider
+          let r = await sendViaProviderWithFailover("marketing", provider, {
             from: notifSender?.from ?? provider.fromDefault,
             replyTo: notifSender?.replyTo,
             to: recipients,
@@ -1478,6 +1493,49 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             // pur restando sul provider/crediti marketing dell'azienda.
             elasticTransactionalClass: true,
           });
+          let streamUsato: "marketing" | "transactional" = "marketing";
+          let ripiego: string | null = null;
+
+          // 2. Il mittente dell'azienda e' stato rifiutato: riprova col condiviso.
+          if (!r.ok && notifSender?.from && notifSender.from !== provider.fromDefault) {
+            console.warn(
+              `[internal_notification] mittente azienda rifiutato (${notifSender.from}), riprovo col condiviso:`,
+              JSON.stringify((r as any).body ?? (r as any).error ?? ""),
+            );
+            r = await sendViaProviderWithFailover("marketing", provider, {
+              from: provider.fromDefault,
+              to: recipients,
+              subject: oggetto,
+              html,
+            }, {
+              domain: provider.domain ?? undefined,
+              stream: "marketing",
+              disableNativeTracking: true,
+              elasticTransactionalClass: true,
+            });
+            if (r.ok) ripiego = "mittente_condiviso";
+          }
+
+          // 3. Anche il provider marketing e' giu' (piano scaduto, account
+          //    sospeso): la notifica esce dal transazionale. Costa a noi, ma e'
+          //    l'unico modo perche' il lead non resti muto.
+          if (!r.ok) {
+            try {
+              const providerTx = await loadProviderSettings("transactional");
+              if (providerTx.apiKey) {
+                console.warn("[internal_notification] provider marketing non consegna, ripiego sul transazionale");
+                r = await sendViaProviderWithFailover("transactional", providerTx, {
+                  from: providerTx.fromDefault,
+                  to: recipients,
+                  subject: oggetto,
+                  html,
+                }, { stream: "transactional", disableNativeTracking: true });
+                if (r.ok) { ripiego = "stream_transazionale"; streamUsato = "transactional"; }
+              }
+            } catch (txErr) {
+              console.error("[internal_notification] ripiego transazionale fallito:", txErr);
+            }
+          }
 
           await logEmailDelivery(supabase, {
             company_id: companyId,
@@ -1486,12 +1544,12 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
             template_name: "automation_internal_notification",
             status: r.ok ? "sent" : "failed",
             provider: r.providerUsed ?? provider.provider,
-            stream: "marketing",
+            stream: streamUsato,
             provider_id: r.providerMessageId ?? null,
             error_message: r.ok ? undefined : JSON.stringify(r.body),
             cost_eur: 0,
             charged_eur: deductedNotifCost,
-            metadata: { entity_id: entityId, automation: true, internal_notification: true },
+            metadata: { entity_id: entityId, automation: true, internal_notification: true, ...(ripiego ? { ripiego } : {}) },
           });
 
           if (!r.ok) {
