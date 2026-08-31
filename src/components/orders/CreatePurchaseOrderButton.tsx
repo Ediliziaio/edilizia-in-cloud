@@ -39,8 +39,11 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
   // Articoli che finiranno effettivamente nell'OdA: quelli senza fornitore o
   // che matchano il fornitore selezionato (stesso filtro usato in handleCreate).
   // Se nessun fornitore è ancora selezionato mostriamo il totale articoli.
+  // SOLO gli articoli del fornitore scelto: prima il filtro era "del
+  // fornitore O senza fornitore", quindi con due fornitori i senza-fornitore
+  // finivano in ENTRAMBI gli OdA — righe duplicate.
   const relevantItems = supplierId
-    ? items.filter(i => !i.supplier_id || i.supplier_id === supplierId)
+    ? items.filter(i => i.supplier_id === supplierId)
     : items;
   const relevantCount = relevantItems.length;
 
@@ -62,8 +65,20 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
         .single();
       if (poErr) throw poErr;
 
-      // Add items that match selected supplier (or all if no supplier filter)
-      const relevantItems = items.filter(i => !i.supplier_id || i.supplier_id === supplierId);
+      // Solo il fornitore scelto, ed esclusi gli articoli GIA' dentro un OdA
+      // non annullato: ricrearli produceva doppioni a ogni secondo click.
+      const candidate = items.filter(i => i.supplier_id === supplierId);
+      const candidateIds = candidate.filter(i => i.id).map(i => i.id!);
+      let linked = new Set<string>();
+      if (candidateIds.length > 0) {
+        const { data: cov } = await supabase
+          .from("purchase_order_items")
+          .select("order_item_id, purchase_orders!inner(status)")
+          .in("order_item_id", candidateIds)
+          .neq("purchase_orders.status", "annullato");
+        linked = new Set((cov ?? []).map(r => r.order_item_id).filter(Boolean) as string[]);
+      }
+      const relevantItems = candidate.filter(i => !i.id || !linked.has(i.id));
       if (relevantItems.length > 0) {
         const poItems = relevantItems.map((item, idx) => ({
           company_id: effectiveCompany.id,
@@ -79,6 +94,13 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
         }));
         const { error: itemsErr } = await supabase.from("purchase_order_items").insert(poItems);
         if (itemsErr) throw itemsErr;
+      }
+
+      // Lo stato segue l'azione (solo le righe ancora "da ordinare")
+      const createdIds = relevantItems.filter(i => i.id).map(i => i.id!);
+      if (createdIds.length > 0) {
+        await supabase.from("order_items").update({ status: "ordinato" })
+          .in("id", createdIds).eq("status", "da_ordinare");
       }
 
       toast.success("Ordine d'acquisto creato");

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OrderItemsList, type OrderItem } from "./OrderItemsList";
+import { OrdinaPerFornitorePanel, PosaInLavorazioniBanner } from "./OrdinaPerFornitorePanel";
 import { OrderAttachments } from "./OrderAttachments";
 import { SupplierPaymentsCard } from "./SupplierPaymentsCard";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -65,6 +66,11 @@ export function OrdineArticoli({
 
   return (
     <div className="space-y-4">
+      {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
+          raggruppati per fornitore, un click per OdA. E se fra gli articoli
+          c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}
+      <OrdinaPerFornitorePanel orderId={orderId} items={displayItems} />
+      <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">

@@ -1323,69 +1323,13 @@ function AddAssignmentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Tipo toggle */}
-          <div className="space-y-1.5">
-            <Label>Tipo esecutore</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={tipo === "interno" ? "default" : "outline"}
-                onClick={() => {
-                  setTipo("interno");
-                  setExecutorId("");
-                }}
-                className="justify-start"
-              >
-                <User className="mr-1.5 h-4 w-4" />
-                Operaio interno
-              </Button>
-              <Button
-                type="button"
-                variant={tipo === "esterno" ? "default" : "outline"}
-                onClick={() => {
-                  setTipo("esterno");
-                  setExecutorId("");
-                }}
-                className="justify-start"
-              >
-                <Users className="mr-1.5 h-4 w-4" />
-                Subappalto / squadra
-              </Button>
-            </div>
-          </div>
-
-          {/* Executor picker */}
-          <div className="space-y-1.5">
-            <Label>{tipo === "interno" ? "Operaio" : "Squadra / subappalto"}</Label>
-            <Select value={executorId} onValueChange={setExecutorId}>
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    options.length === 0
-                      ? tipo === "interno"
-                        ? "Nessun operaio disponibile"
-                        : "Nessuna squadra disponibile"
-                      : "Seleziona…"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
               L'azienda può importare il prezziario regionale o caricare il
               proprio listino in Impostazioni → Tariffe. */}
           {tariffeAttive.length > 0 && (
             <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
               <Label className="text-xs text-muted-foreground">
-                Da listino manodopera (facoltativo)
+                Parti dal listino manodopera — costo compilato da solo
               </Label>
               <div className="flex gap-2">
                 <Select
@@ -1447,6 +1391,63 @@ function AddAssignmentDialog({
                       </span>
                     </>
                   )}
+
+          {/* Tipo toggle */}
+          <div className="space-y-1.5">
+            <Label>Tipo esecutore</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={tipo === "interno" ? "default" : "outline"}
+                onClick={() => {
+                  setTipo("interno");
+                  setExecutorId("");
+                }}
+                className="justify-start"
+              >
+                <User className="mr-1.5 h-4 w-4" />
+                Operaio interno
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === "esterno" ? "default" : "outline"}
+                onClick={() => {
+                  setTipo("esterno");
+                  setExecutorId("");
+                }}
+                className="justify-start"
+              >
+                <Users className="mr-1.5 h-4 w-4" />
+                Subappalto / squadra
+              </Button>
+            </div>
+          </div>
+
+          {/* Executor picker */}
+          <div className="space-y-1.5">
+            <Label>{tipo === "interno" ? "Operaio" : "Squadra / subappalto"}</Label>
+            <Select value={executorId} onValueChange={setExecutorId}>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    options.length === 0
+                      ? tipo === "interno"
+                        ? "Nessun operaio disponibile"
+                        : "Nessuna squadra disponibile"
+                      : "Seleziona…"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
                 </p>
               )}
             </div>
