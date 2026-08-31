@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Package, Loader2, AlertTriangle, HardHat, ArrowRight } from "lucide-react";
+import { Package, Loader2, AlertTriangle, HardHat, ArrowRight, FileQuestion } from "lucide-react";
 
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
@@ -75,6 +75,9 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
   const { data: linked = new Set<string>() } = useOdaCoverage(items);
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const [creatingAll, setCreatingAll] = useState(false);
+  /** Fornitore per cui e' aperto il dialog di scelta Preventivo/Ordine. */
+  const [sceltaPer, setSceltaPer] = useState<string | null>(null);
+  const [rdoBusy, setRdoBusy] = useState(false);
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Fornitore";
 
@@ -153,9 +156,11 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       // Dentro "Crea tutti" il riepilogo lo fa il chiamante: un toast per
       // fornitore sarebbe una raffica.
       if (!creatingAll) {
-        toast.success(`OdA creato per ${supplierName(supplierId)} (${n} articoli)`, {
-          action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${poId}`) },
-        });
+        // Si atterra DENTRO l'ordine appena creato: il vecchio flusso faceva
+        // cosi', e senza questa navigazione il click sembrava non fare nulla
+        // (la riga sparisce dal pannello, ma e' un feedback troppo sottile).
+        toast.success(`OdA creato per ${supplierName(supplierId)} (${n} articoli)`);
+        navigate(`/azienda/ordini-acquisto/${poId}`);
       }
     },
     onError: (e) => toast.error("Errore nella creazione dell'OdA", {
@@ -163,6 +168,50 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     }),
     onSettled: () => setCreatingFor(null),
   });
+
+  /** Richiesta d'offerta al fornitore: testata + righe dagli articoli +
+      fornitore invitato, poi si atterra nella RDO per completarla/inviarla.
+      "Chiedere un preventivo e' un conto, fare l'ordine un altro". */
+  const chiediPreventivo = async (supplierId: string) => {
+    if (!effectiveCompany?.id) return;
+    setRdoBusy(true);
+    try {
+      const gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
+      if (gruppo.length === 0) throw new Error("Nessun articolo per questo fornitore");
+      const user = (await supabase.auth.getUser()).data.user;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { data: rfq, error: rfqErr } = await db.from("supplier_rfqs").insert({
+        company_id: effectiveCompany.id,
+        titolo: `Preventivo ${supplierName(supplierId)} — ${orderCode || "commessa"}`,
+        order_id: orderId,
+        created_by: user?.id,
+      }).select().single();
+      if (rfqErr) throw rfqErr;
+      const { error: itErr } = await db.from("supplier_rfq_items").insert(
+        gruppo.map((i, idx) => ({
+          rfq_id: rfq.id,
+          company_id: effectiveCompany.id,
+          descrizione: i.name,
+          quantita: i.quantity,
+          unita_misura: "pz",
+          posizione: idx,
+        })),
+      );
+      if (itErr) throw itErr;
+      const { error: supErr } = await db.from("supplier_rfq_suppliers").insert({
+        rfq_id: rfq.id, company_id: effectiveCompany.id, supplier_id: supplierId,
+      });
+      if (supErr) throw supErr;
+      toast.success(`Richiesta d'offerta creata per ${supplierName(supplierId)}`);
+      setSceltaPer(null);
+      navigate(`/azienda/richieste-offerta/${rfq.id}`);
+    } catch (e) {
+      toast.error("Errore nella richiesta d'offerta", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setRdoBusy(false);
+    }
+  };
 
   const creaTutti = async () => {
     setCreatingAll(true);
@@ -226,10 +275,10 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 variant="outline"
                 className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
                 disabled={creaOda.isPending || creatingAll}
-                onClick={() => { setCreatingFor(sid); creaOda.mutate(sid); }}
+                onClick={() => setSceltaPer(sid)}
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" />}
-                Crea OdA
+                Ordina…
               </Button>
             </div>
           );
@@ -241,6 +290,57 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
           </div>
         )}
       </div>
+
+      {/* La scelta che prima non c'era: chiedere un preventivo e' un conto,
+          fare l'ordine un altro. Il dialog mostra cosa entra e offre le due
+          strade — la RDO usa l'area Richieste d'offerta gia' esistente. */}
+      <Dialog open={!!sceltaPer} onOpenChange={(v) => { if (!v) setSceltaPer(null); }}>
+        <DialogContent className="sm:max-w-md">
+          {sceltaPer && (() => {
+            const gruppo = gruppi.find(([sid]) => sid === sceltaPer)?.[1] ?? [];
+            const tot = gruppo.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{supplierName(sceltaPer)}</DialogTitle>
+                  <DialogDescription>
+                    {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)}
+                  </DialogDescription>
+                </DialogHeader>
+                <ul className="max-h-44 space-y-1 overflow-y-auto text-sm">
+                  {gruppo.map((i) => (
+                    <li key={i.id} className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5">
+                      <span className="min-w-0 truncate">{i.name}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {eur.format((Number(i.purchase_price) || 0) * (Number(i.quantity) || 0))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <DialogFooter className="flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={rdoBusy || creaOda.isPending}
+                    onClick={() => chiediPreventivo(sceltaPer)}
+                  >
+                    {rdoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileQuestion className="h-4 w-4" />}
+                    Chiedi preventivo (RDO)
+                  </Button>
+                  <Button
+                    className="gap-1.5"
+                    disabled={rdoBusy || creaOda.isPending}
+                    onClick={() => { setCreatingFor(sceltaPer); setSceltaPer(null); creaOda.mutate(sceltaPer); }}
+                  >
+                    {creaOda.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+                    Crea ordine (OdA)
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

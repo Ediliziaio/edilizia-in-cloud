@@ -12,6 +12,8 @@ import type { OrderItemData } from "@/lib/orderUtils";
 
 interface OrdineArticoliProps {
   orderId: string;
+  /** Codice commessa: finisce nei titoli di OdA e RDO generati dal pannello. */
+  orderCode?: string | null;
   displayItems: OrderItem[];
   orderItems: OrderItemData[];
   companyId: string;
@@ -28,6 +30,7 @@ interface OrdineArticoliProps {
 
 export function OrdineArticoli({
   orderId,
+  orderCode,
   displayItems,
   orderItems,
   companyId,
@@ -69,7 +72,7 @@ export function OrdineArticoli({
       {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
           raggruppati per fornitore, un click per OdA. E se fra gli articoli
           c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}
-      <OrdinaPerFornitorePanel orderId={orderId} items={displayItems} />
+      <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={displayItems} />
       <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />
       <Card>
         <CardHeader className="pb-2">

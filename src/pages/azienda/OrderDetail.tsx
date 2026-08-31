@@ -1511,6 +1511,7 @@ function OrderDetailInner() {
             <TabsContent value="articoli" className="space-y-4 mt-4">
               <OrdineArticoli
                 orderId={id!}
+                orderCode={order.order_code}
                 displayItems={displayItems}
                 orderItems={orderItems}
                 companyId={effectiveCompany?.id || ""}
@@ -1988,6 +1989,7 @@ function OrderDetailInner() {
             {/* Articoli */}
             <OrdineArticoli
               orderId={id!}
+              orderCode={order.order_code}
               displayItems={displayItems}
               orderItems={orderItems}
               companyId={effectiveCompany?.id || ""}
