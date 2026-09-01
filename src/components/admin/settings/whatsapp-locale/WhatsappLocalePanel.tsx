@@ -152,20 +152,6 @@ export default function WhatsappLocalePanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Stato del gateway verificato all'apertura: prima bisognava premere "Testa
-  // connessione" e leggere un avviso che spariva, quindi riaprendo la pagina non
-  // si sapeva più se il server rispondeva. Ora si vede a colpo d'occhio.
-  const statoGateway = useQuery({
-    queryKey: ["owa-stato-gateway"],
-    enabled: gatewayConfigured,
-    staleTime: 60_000,
-    retry: false,
-    queryFn: async () => {
-      const inizio = Date.now();
-      const data = await invokeGateway("ping");
-      return { sessioni: (data.sessions as number | null) ?? 0, ms: Date.now() - inizio };
-    },
-  });
 
   // ── Numeri collegati ───────────────────────────────────────────────────────
   const numbersQuery = useQuery({
@@ -184,6 +170,23 @@ export default function WhatsappLocalePanel() {
 
   const numbers = numbersQuery.data ?? [];
   const gatewayConfigured = Boolean((baseUrl || "").trim()) && Boolean(apiKeyMasked || apiKey.trim());
+
+  // NB: sta QUI, sotto gatewayConfigured, perché lo legge: dichiararlo più
+  // in alto lo rende inaccessibile durante il render e la pagina esplode.
+  // Stato del gateway verificato all'apertura: prima bisognava premere "Testa
+  // connessione" e leggere un avviso che spariva, quindi riaprendo la pagina non
+  // si sapeva più se il server rispondeva. Ora si vede a colpo d'occhio.
+  const statoGateway = useQuery({
+    queryKey: ["owa-stato-gateway"],
+    enabled: gatewayConfigured,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const inizio = Date.now();
+      const data = await invokeGateway("ping");
+      return { sessioni: (data.sessions as number | null) ?? 0, ms: Date.now() - inizio };
+    },
+  });
 
   // ── Dialog "Collega numero" (QR) ───────────────────────────────────────────
   const [connectOpen, setConnectOpen] = useState(false);
