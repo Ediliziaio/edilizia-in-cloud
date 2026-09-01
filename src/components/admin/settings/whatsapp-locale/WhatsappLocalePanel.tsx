@@ -152,6 +152,21 @@ export default function WhatsappLocalePanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Stato del gateway verificato all'apertura: prima bisognava premere "Testa
+  // connessione" e leggere un avviso che spariva, quindi riaprendo la pagina non
+  // si sapeva più se il server rispondeva. Ora si vede a colpo d'occhio.
+  const statoGateway = useQuery({
+    queryKey: ["owa-stato-gateway"],
+    enabled: gatewayConfigured,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const inizio = Date.now();
+      const data = await invokeGateway("ping");
+      return { sessioni: (data.sessions as number | null) ?? 0, ms: Date.now() - inizio };
+    },
+  });
+
   // ── Numeri collegati ───────────────────────────────────────────────────────
   const numbersQuery = useQuery({
     queryKey: ["openwa", "numbers"],
@@ -320,18 +335,58 @@ export default function WhatsappLocalePanel() {
               Anti-ban: fuori da questa fascia oraria gli invii automatici (automazioni) vengono rifiutati. Gli invii manuali non sono bloccati.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Stato in chiaro, senza dover premere niente */}
+          {gatewayConfigured && (
+            <div className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+              statoGateway.isLoading ? "border-border bg-muted/40 text-muted-foreground"
+                : statoGateway.isError ? "border-red-200 bg-red-50 text-red-800"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}>
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                statoGateway.isLoading ? "animate-pulse bg-muted-foreground"
+                  : statoGateway.isError ? "bg-red-500" : "bg-emerald-500"
+              }`} />
+              {statoGateway.isLoading ? (
+                <span>Controllo il gateway…</span>
+              ) : statoGateway.isError ? (
+                <>
+                  <span className="font-semibold">Gateway non raggiungibile.</span>
+                  <span className="text-xs">
+                    {(statoGateway.error as Error)?.message?.slice(0, 120) ||
+                      "Controlla che il server sia acceso e che URL e API key siano quelli giusti."}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">Gateway connesso</span>
+                  <span className="text-xs">
+                    {statoGateway.data?.sessioni ?? 0} session{(statoGateway.data?.sessioni ?? 0) === 1 ? "e" : "i"} sul server
+                    {statoGateway.data?.ms != null ? ` · risposta in ${statoGateway.data.ms} ms` : ""}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => saveConfig.mutate()} disabled={saveConfig.isPending}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               {saveConfig.isPending ? "Salvataggio…" : "Salva configurazione"}
             </Button>
-            <Button variant="outline" onClick={() => testPing.mutate()} disabled={testPing.isPending || !gatewayConfigured}>
-              {testPing.isPending ? "Test…" : "Testa connessione"}
+            <Button
+              variant="outline"
+              onClick={() => { testPing.mutate(); void statoGateway.refetch(); }}
+              disabled={testPing.isPending || !gatewayConfigured}
+            >
+              {testPing.isPending ? "Controllo…" : "Ricontrolla"}
             </Button>
-            <span className="text-xs text-muted-foreground">
-              URL webhook da impostare nel gateway: <code>{WEBHOOK_URL}</code>
-            </span>
           </div>
+          {/* Il webhook lo registra EiC da sola quando colleghi un numero: qui
+              l'indirizzo serve solo se lo devi configurare a mano sul gateway. */}
+          <p className="text-xs text-muted-foreground">
+            Il webhook viene registrato in automatico su ogni numero che colleghi.
+            Se ti serve impostarlo a mano sul gateway, l'indirizzo è <code>{WEBHOOK_URL}</code>
+          </p>
         </CardContent>
       </Card>
 
@@ -598,7 +653,16 @@ function OpenWaDashboard({ numbers }: { numbers: OpenWaNumberRow[] }) {
           <Activity className="h-5 w-5" /> Panoramica
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {/* Con zero numeri collegati i sei contatori a zero non dicono niente:
+            meglio dire qual è il prossimo passo. */}
+        {numbers.length === 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Nessun numero collegato: i contatori restano a zero finché non ne abbini uno.
+            Configura il gateway qui sotto, poi premi <strong>Collega numero</strong> e inquadra il QR
+            con il telefono di quel numero.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
           <StatTile label="Numeri connessi" value={`${connessi}/${numbers.length}`} tone={connessi === 0 ? "text-amber-600" : "text-emerald-600"} />
           <StatTile label="Capacità oggi" value={capResidua} sub="messaggi residui" />
@@ -628,13 +692,32 @@ function SetupGuide({ configured }: { configured: boolean }) {
             </p>
             <p>Ti serve un <strong>server sempre acceso</strong> (un VPS, da circa 5 €/mese) su cui installare quel programma.</p>
             <ol className="ml-4 list-decimal space-y-2">
-              <li>Attiva un <strong>VPS</strong> (es. Hetzner, Contabo, Aruba) con Ubuntu.</li>
-              <li>Installa <strong>OpenWA</strong> con Docker seguendo il README del progetto. Durante l'installazione scegli una <strong>API key</strong> e un <strong>webhook secret</strong> (due password a tua scelta).</li>
-              <li>Rendi il server raggiungibile via <strong>HTTPS</strong> (un dominio, oppure IP con la porta 2785).</li>
-              <li>Torna qui, incolla <strong>URL gateway</strong>, <strong>API key</strong> e <strong>webhook secret</strong>, poi premi <strong>Salva configurazione</strong>.</li>
-              <li>Premi <strong>Testa connessione</strong>: se è verde, è tutto collegato.</li>
+              <li>
+                Attiva un <strong>VPS</strong> con Ubuntu (Hetzner, Contabo, DigitalOcean…).
+                Ogni numero collegato occupa 30-80 MB: con <strong>4 GB</strong> stai comodo
+                fino a venticinque numeri, e il volume di messaggi non incide.
+              </li>
+              <li>
+                Fai puntare un <strong>sottodominio</strong> all'IP del server (record A).
+                Se usi Cloudflare tieni la nuvoletta <strong>grigia</strong> (“DNS only”):
+                con il proxy acceso il certificato HTTPS non si genera.
+              </li>
+              <li>
+                Installa <strong>Docker</strong> e avvia <strong>OpenWA</strong> con un reverse
+                proxy che faccia da solo l'HTTPS (Caddy). Nel repository di EiC trovi la
+                configurazione pronta in <code>deploy/whatsapp-gateway/</code>.
+              </li>
+              <li>
+                Recupera la <strong>API key</strong>: OpenWA la genera al primo avvio e la salva
+                in <code>data/.api-key</code> —
+                <code>docker exec openwa cat /app/data/.api-key</code>. Se preferisci sceglierla
+                tu, va passata nella variabile <strong>API_MASTER_KEY</strong> (con altri nomi
+                viene ignorata e ogni chiamata risponde 401).
+              </li>
+              <li>Torna qui, incolla <strong>URL gateway</strong> e <strong>API key</strong>, poi <strong>Salva configurazione</strong>.</li>
+              <li>Controlla che la riga di stato qui sopra sia <strong>verde</strong>.</li>
               <li>Premi <strong>Collega numero</strong>, apri WhatsApp sul telefono → Impostazioni → Dispositivi collegati → Collega un dispositivo, e inquadra il <strong>QR</strong>.</li>
-              <li>Ripeti per aggiungere fino a <strong>10 numeri</strong>. Ogni numero ha i suoi tag, cap e orari.</li>
+              <li>Ripeti per gli altri numeri. Ognuno ha i suoi tag, tetti e orari.</li>
             </ol>
             <p>
               Progetto del gateway:{" "}
