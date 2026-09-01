@@ -31,8 +31,18 @@ export interface HrCandidato {
   cv_nome: string | null;
   note: string | null;
   talent_candidate_id: string | null;
+  /** Fase corrente della pipeline di selezione (null = da smistare). */
+  fase_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface FaseSelezione {
+  id: string;
+  company_id: string;
+  nome: string;
+  posizione: number;
+  colore: string | null;
 }
 
 export interface HrColloquio {
@@ -194,5 +204,134 @@ export function useDeleteColloquio(candidatoId: string) {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: chiavi.colloqui(candidatoId) }),
     onError: (e) => toast.error("Eliminazione non riuscita", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+// ── Pipeline di selezione (fasi per azienda) ────────────────────────────────
+
+/** Pipeline di partenza per l'edilizia: poi ognuno la piega alla sua. */
+const FASI_DEFAULT: Array<{ nome: string; colore: string }> = [
+  { nome: "Candidatura ricevuta", colore: "#3B82F6" },
+  { nome: "Screening CV", colore: "#6366F1" },
+  { nome: "Primo colloquio", colore: "#F59E0B" },
+  { nome: "Secondo colloquio", colore: "#F97316" },
+  { nome: "Prova in cantiere", colore: "#0D9488" },
+  { nome: "Offerta", colore: "#8B5CF6" },
+];
+
+/**
+ * Fasi dell'azienda. Al primo uso (zero fasi) semina la pipeline default e
+ * SMISTA i candidati esistenti in base al vecchio stato — così chi aveva già
+ * caricato candidati se li ritrova al posto giusto, non in "da smistare".
+ */
+export function useFasiSelezione() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["hr-selezione-fasi", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<FaseSelezione[]> => {
+      const carica = async () => {
+        const { data, error } = await db
+          .from("hr_selezione_fasi")
+          .select("*")
+          .eq("company_id", companyId)
+          .order("posizione");
+        if (error) throw error;
+        return (data ?? []) as FaseSelezione[];
+      };
+      let fasi = await carica();
+      if (fasi.length === 0) {
+        const { error: seedErr } = await db
+          .from("hr_selezione_fasi")
+          .upsert(
+            FASI_DEFAULT.map((f, i) => ({ company_id: companyId, nome: f.nome, colore: f.colore, posizione: i })),
+            { onConflict: "company_id,nome", ignoreDuplicates: true },
+          );
+        if (seedErr) throw seedErr;
+        fasi = await carica();
+        // Backfill una tantum: gli stati legacy diventano fasi.
+        const perNome = new Map(fasi.map((f) => [f.nome, f.id]));
+        const mappa: Array<[string, string]> = [
+          ["nuovo", "Candidatura ricevuta"],
+          ["in_valutazione", "Screening CV"],
+          ["colloquio", "Primo colloquio"],
+          ["offerta", "Offerta"],
+        ];
+        for (const [stato, nomeFase] of mappa) {
+          const faseId = perNome.get(nomeFase);
+          if (!faseId) continue;
+          await db.from("hr_candidati").update({ fase_id: faseId }).eq("company_id", companyId).eq("stato", stato).is("fase_id", null);
+        }
+        // I candidati sono spesso GIÀ in cache quando il seed gira: senza
+        // invalidazione lo smistamento si vedrebbe solo al prossimo reload.
+        qc.invalidateQueries({ queryKey: ["hr-candidati"] });
+      }
+      return fasi;
+    },
+  });
+}
+
+export function useUpsertFase() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (fase: Partial<FaseSelezione> & { nome: string }) => {
+      const { id, company_id: _c, ...rest } = fase as Record<string, unknown> & { id?: string };
+      if (id) {
+        const { error } = await db.from("hr_selezione_fasi").update(rest).eq("id", id);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await db.from("hr_selezione_fasi").insert({ ...rest, company_id: companyId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-selezione-fasi"] }),
+    onError: (e) => toast.error("Fase non salvata", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+/** Elimina la fase: i candidati dentro tornano "da smistare" (FK set null). */
+export function useDeleteFase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("hr_selezione_fasi").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr-selezione-fasi"] });
+      qc.invalidateQueries({ queryKey: ["hr-candidati"] });
+    },
+    onError: (e) => toast.error("Fase non eliminata", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+/** Scambia la posizione di due fasi (riordino con le frecce). */
+export function useScambiaFasi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ a, b }: { a: FaseSelezione; b: FaseSelezione }) => {
+      const r1 = await db.from("hr_selezione_fasi").update({ posizione: b.posizione }).eq("id", a.id);
+      if (r1.error) throw r1.error;
+      const r2 = await db.from("hr_selezione_fasi").update({ posizione: a.posizione }).eq("id", b.id);
+      if (r2.error) throw r2.error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-selezione-fasi"] }),
+    onError: (e) => toast.error("Riordino non riuscito", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+/** Sposta un candidato di fase (drag nel kanban o select nella scheda). */
+export function useSpostaFase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ candidatoId, faseId }: { candidatoId: string; faseId: string | null }) => {
+      const { error } = await db.from("hr_candidati").update({ fase_id: faseId }).eq("id", candidatoId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-candidati"] }),
+    onError: (e) => toast.error("Spostamento non riuscito", { description: e instanceof Error ? e.message : undefined }),
   });
 }
