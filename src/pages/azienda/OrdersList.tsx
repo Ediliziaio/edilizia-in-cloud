@@ -439,7 +439,10 @@ function OrdersListInner() {
         .order("created_at", { ascending: false })
         .limit(5000);
       if (error) throw error;
-      const years = new Set<number>([currentYear - 1, currentYear, currentYear + 1]);
+      // Solo anni con commesse VERE (+ il corrente come paracadute a DB vuoto).
+      // Prima il set veniva seminato con anno-1 e anno+1 a prescindere: nel
+      // menu compariva un "2027" che aprendo mostrava una lista vuota.
+      const years = new Set<number>([currentYear]);
       (data || []).forEach((row) => {
         if (!row.created_at) return;
         const year = new Date(row.created_at).getFullYear();
