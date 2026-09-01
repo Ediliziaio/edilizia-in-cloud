@@ -465,7 +465,13 @@ Rules:
       company_id: companyId,
       session_id: sessionId ?? null,
     },
-    maxOutputTokens: 1200,
+    // 1200 token non bastavano: lo schema v2 dell'analisi bagno chiede decine di
+    // campi (wallTiles, floor, shower, vanity, sanitaryWare, lighting,
+    // preserveRigidly, demolitionSensitiveAreas...) e la risposta veniva
+    // TRONCATA a meta' — JSON non chiuso, parse fallito, modello scartato.
+    // Visto in prod: claude-haiku, primo della chain, tagliato su
+    // "camera_perspective": "fro". Ogni analisi pagava un modello sprecato.
+    maxOutputTokens: 3000,
     timeoutMs: 90_000,
   });
   const analysis = normalizeBathroomSceneAnalysis(
@@ -876,7 +882,13 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        // Il retry parte solo se ha budget per riuscire davvero. Con la soglia
+        // precedente (95s) gli restavano ~30s — il minimo consentito — e il
+        // modello diretto andava in timeout nel 50% dei casi (misurato: 5 abort
+        // su 10 render), finendo sul fallback che non rispetta il formato.
+        // A 75s restano ~45s: o si fa, o si tiene la prima immagine.
+        const budgetPerRetry = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && budgetPerRetry >= 45_000) {
           console.log(JSON.stringify({
             fn: "generate-bathroom-render",
             msg: "qa_failed_retry_corrective",

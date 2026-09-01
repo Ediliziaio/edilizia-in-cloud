@@ -157,14 +157,19 @@ function validateBathroomCoverage(prose: string, compact: Record<string, unknown
 
   // Ogni elemento chiave deve comparire: se cambiano le piastrelle a parete o
   // il pavimento, la prosa deve nominarli esplicitamente.
+  // Regex volutamente LARGHE: servono a intercettare una prosa che ha ignorato
+  // del tutto un elemento, non a imporre una formulazione. La prima versione
+  // pretendeva "wall tile" alla lettera e scartava prose corrette che dicevano
+  // "wall covering" o "tiles on the walls": il rewriter rigenerava con un
+  // modello piu' lento (15s invece di 5s) senza alcun guadagno.
   const mappa: Record<string, RegExp> = {
-    wallTiles: /wall tile|wall-tile|tiled wall|rivestiment/i,
-    floor: /floor|pavimento/i,
-    shower: /shower|doccia/i,
-    sanitaryWare: /wc|toilet|sanitary|bidet/i,
+    wallTiles: /wall|tile|tiled|cladding|covering|rivestiment|piastrell/i,
+    floor: /floor|flooring|pavimento|ground/i,
+    shower: /shower|doccia|walk-in/i,
+    sanitaryWare: /wc|toilet|sanitary|bidet|ceramic|flush/i,
     bathtub: /bathtub|tub|vasca/i,
-    vanity: /vanity|washbasin|mobile/i,
-    faucets: /faucet|tap|mixer|rubinett/i,
+    vanity: /vanity|washbasin|basin|sink|mobile/i,
+    faucets: /faucet|tap|mixer|fitting|rubinett/i,
   };
   for (const el of cambiati) {
     const re = mappa[el];
