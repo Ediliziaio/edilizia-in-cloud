@@ -418,14 +418,30 @@ function CreateOrderInner() {
     if (insts.length > 0) setInstallments(prefillExpectedDates(insts));
     if ((ex.modalita_pagamento ?? "").toLowerCase().includes("finanz")) setValue("payment_type", "financing");
     if (ex.cliente.nome_completo.trim()) {
-      setAiCustomerInitial({
-        fullName: ex.cliente.nome_completo,
-        email: ex.cliente.email ?? undefined,
-        phone: ex.cliente.telefono ?? undefined,
-        address: ex.cliente.indirizzo ?? undefined,
-        fiscalCode: ex.cliente.codice_fiscale ?? ex.cliente.partita_iva ?? undefined,
+      // Match sull'anagrafica PRIMA di proporre "nuovo cliente" (audit
+      // 2026-09, punto 4): se il cliente esiste già — nome uguale, anche
+      // invertito ("Mandelli Riccardo") — lo si aggancia e basta. Il dialog
+      // di creazione apre solo quando davvero non c'è.
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      const cercato = norm(ex.cliente.nome_completo);
+      const cercatoInvertito = cercato.split(" ").reverse().join(" ");
+      const trovati = customers.filter((c) => {
+        const nome = norm(`${c.first_name ?? ""} ${c.last_name ?? ""}`);
+        return nome && (nome === cercato || nome === cercatoInvertito);
       });
-      setShowCreateCustomer(true);
+      if (trovati.length === 1) {
+        setValue("customer_id", trovati[0].id);
+        toast.success(`Cliente agganciato all'anagrafica esistente: ${trovati[0].first_name ?? ""} ${trovati[0].last_name ?? ""}`.trim());
+      } else {
+        setAiCustomerInitial({
+          fullName: ex.cliente.nome_completo,
+          email: ex.cliente.email ?? undefined,
+          phone: ex.cliente.telefono ?? undefined,
+          address: ex.cliente.indirizzo ?? undefined,
+          fiscalCode: ex.cliente.codice_fiscale ?? ex.cliente.partita_iva ?? undefined,
+        });
+        setShowCreateCustomer(true);
+      }
     }
   };
 
@@ -1371,6 +1387,7 @@ function CreateOrderInner() {
           onOpenChange={setShowContractImport}
           companyId={effectiveCompany?.id ?? null}
           onApply={applyContractExtract}
+          initialAnalysisId={searchParams.get("analysis_id")}
         />
       )}
     </div>

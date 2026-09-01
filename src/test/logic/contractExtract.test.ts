@@ -242,3 +242,23 @@ describe("imponibile parziale con IVA 0 (variabilità tra run del modello)", () 
     expect(contractImponibile(ex)).toBe(8462.7);
   });
 });
+
+describe("valuta non-euro (audit punto 8)", () => {
+  const base4 = {
+    cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
+    descrizione_lavori: "S", indirizzo_cantiere: null, modalita_pagamento: null, fasi_pagamento: [],
+    data_inizio_lavori: null, data_fine_lavori: null, summary: "", confidence: 0.9, warnings: [],
+    importo_totale_eur: 1000, iva_pct: 0, importo_totale_ivato_eur: 1000,
+    sconto_globale_pct: null, altri_costi: [], natura_documento: null,
+    voci: [{ descrizione: "V", quantita: 1, prezzo_unitario_eur: 1000 }],
+  };
+  it("CHF → allarme conversione", () => {
+    const ex = parseContractExtract({ ...base4, valuta: "chf" });
+    expect(ex.valuta).toBe("CHF");
+    expect(contractCoherenceWarnings(ex).some((w) => w.includes("CHF"))).toBe(true);
+  });
+  it("EUR o assente → nessun allarme valuta", () => {
+    expect(contractCoherenceWarnings(parseContractExtract({ ...base4, valuta: "EUR" })).some((w) => w.includes("euro"))).toBe(false);
+    expect(parseContractExtract({ ...base4, valuta: "franchi" }).valuta).toBeNull();
+  });
+});

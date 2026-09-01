@@ -125,6 +125,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "sconto_globale_pct": "numero o null — sconto percentuale applicato sul totale (es. 'Sconto: 15,00 %')",
   "altri_costi": [{ "descrizione": "string (es. Imballaggio / Trasporto / Oneri)", "importo_eur": numero }],
   "natura_documento": "'contratto_cliente' | 'offerta_fornitore' | 'copia_commissione' — offerta_fornitore quando il documento e' l'offerta di un PRODUTTORE/fornitore verso un'impresa rivenditrice (listino tecnico di produzione, sconto rivenditore, trasporto): in quel caso il 'cliente' e' l'impresa destinataria",
+  "valuta": "codice ISO della valuta degli importi (EUR, CHF, RON, USD...): leggila dal documento, NON dedurla — se non e' indicata metti null",
   "_regole_extra": "NON attribuire prestazioni assenti: se il documento dice 'Senza Montaggio' NON scrivere 'e posa' nella descrizione lavori. Sconto globale, imballaggio e trasporto vanno nei campi dedicati (sconto_globale_pct, altri_costi), NON tra le voci e NON ignorati",
   "modalita_pagamento": "string (es. Bonifico bancario / Assegno / Finanziamento) o null",
   "fasi_pagamento": [{ "descrizione": "string es. Acconto alla firma / SAL / Saldo", "percentuale": numero o null, "importo_eur": numero o null }],

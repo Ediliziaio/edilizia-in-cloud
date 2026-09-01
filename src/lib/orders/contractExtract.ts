@@ -40,6 +40,8 @@ export interface ContractExtract {
   altri_costi: ContractExtractAltroCosto[];
   /** Offerta di un produttore verso il rivenditore ≠ contratto col cliente finale. */
   natura_documento: "contratto_cliente" | "offerta_fornitore" | "copia_commissione" | null;
+  /** Codice ISO della valuta del documento (EUR, CHF, RON…); null se non indicata. */
+  valuta: string | null;
   modalita_pagamento: string | null;
   fasi_pagamento: ContractExtractPhase[];
   data_inizio_lavori: string | null;
@@ -99,6 +101,10 @@ export function parseContractExtract(raw: unknown): ContractExtract {
     natura_documento: (() => {
       const n = toStr(r.natura_documento);
       return n === "contratto_cliente" || n === "offerta_fornitore" || n === "copia_commissione" ? n : null;
+    })(),
+    valuta: (() => {
+      const v = toStr(r.valuta)?.toUpperCase() ?? null;
+      return v && /^[A-Z]{3}$/.test(v) ? v : null;
     })(),
     modalita_pagamento: toStr(r.modalita_pagamento),
     fasi_pagamento: fasi
@@ -257,6 +263,11 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   if (extract.natura_documento === "offerta_fornitore") {
     out.push(
       "Sembra l'offerta di un PRODUTTORE/fornitore, non un contratto col cliente finale: valuta se caricarla come Ordine d'Acquisto o RDO invece che come commessa.",
+    );
+  }
+  if (extract.valuta && extract.valuta !== "EUR") {
+    out.push(
+      `Il documento è in ${extract.valuta}, non in euro: gli importi NON vanno caricati così come sono — converti prima di salvare.`,
     );
   }
   const totaleRiferimento = extract.importo_totale_ivato_eur ?? imp;

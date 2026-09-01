@@ -7,6 +7,7 @@
  */
 // (montaggio condizionale lato CreateOrder: nasce solo all'apertura)
 import { useState, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -29,6 +30,17 @@ interface Props {
   /** Il file originale viaggia insieme all'estratto: il contratto firmato
    *  deve finire nei Documenti della commessa, non sparire dopo la lettura. */
   onApply: (extract: ContractExtract, sourceFile?: File | null) => void;
+  /** Arrivando dal flusso "Importa documento intelligente" di Silvio, il PDF
+   *  è GIÀ su storage: con l'id dell'analisi lo si riusa senza secondo drag
+   *  né secondo upload (audit 2026-09, punto 1). */
+  initialAnalysisId?: string | null;
+}
+
+interface RemoteFileRef {
+  bucket: string;
+  path: string;
+  name: string;
+  mime: string;
 }
 
 function safeName(name: string): string {
@@ -41,8 +53,28 @@ function fmtBytes(b: number): string {
   return b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function ContractImportDialog({ open, onOpenChange, companyId, onApply }: Props) {
+export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId }: Props) {
   const [file, setFile] = useState<File | null>(null);
+  // Il file dell'analisi Silvio (se si arriva da lì): riusato da storage.
+  const { data: remoteFile = null } = useQuery<RemoteFileRef | null>({
+    queryKey: ["contract-import-analysis-file", initialAnalysisId],
+    enabled: !!initialAnalysisId && !!companyId && open,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("document_analysis_results")
+        .select("storage_bucket, storage_path, file_name, mime_type, company_id")
+        .eq("id", initialAnalysisId!)
+        .maybeSingle();
+      if (!data || data.company_id !== companyId) return null;
+      return {
+        bucket: data.storage_bucket,
+        path: data.storage_path,
+        name: data.file_name ?? "documento.pdf",
+        mime: data.mime_type ?? "application/pdf",
+      };
+    },
+  });
   // Indicazioni scritte dall'utente per l'AI ("l'IVA è al 10%", "è un'offerta
   // fornitore, il cliente finale è Rossi"): chi carica conosce il documento
   // meglio del modello — le note entrano nel prompt con priorità.
@@ -65,19 +97,38 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
   };
 
   const analyze = async () => {
-    if (!file || !companyId) return;
+    if ((!file && !remoteFile) || !companyId) return;
     setBusy(true); setError(null);
     try {
-      const path = `${companyId}/ai-contratti/${Date.now()}-${safeName(file.name)}`;
-      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file);
-      if (upErr) throw new Error(`Upload: ${upErr.message}`);
+      let bucket: string, path: string, fileName: string, mime: string;
+      if (file) {
+        // Path = hash del contenuto (audit 2026-09, punto 2): lo stesso file
+        // ricaricato finisce sullo STESSO path → stessa chiave di idempotenza
+        // → l'aiRouter risponde dalla cache e il retry non costa nulla.
+        // (Prima era Date.now(): ogni tentativo una chiamata a pagamento.)
+        const buf = await file.arrayBuffer();
+        const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+        const sha = Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+        bucket = BUCKET;
+        path = `${companyId}/ai-contratti/${sha.slice(0, 32)}-${safeName(file.name)}`;
+        fileName = file.name;
+        mime = file.type || "application/pdf";
+        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+        if (upErr) throw new Error(`Upload: ${upErr.message}`);
+      } else {
+        // File già su storage dal flusso Silvio: zero upload, zero drag.
+        bucket = remoteFile!.bucket;
+        path = remoteFile!.path;
+        fileName = remoteFile!.name;
+        mime = remoteFile!.mime;
+      }
 
       const { data, error: fnErr } = await supabase.functions.invoke("generic-doc-ai-extract", {
         body: {
-          storage_bucket: BUCKET,
+          storage_bucket: bucket,
           storage_path: path,
-          file_name: file.name,
-          mime_type: file.type || "application/pdf",
+          file_name: fileName,
+          mime_type: mime,
           company_id: companyId,
           doc_type: "contratto_commessa",
           user_hint: noteAi.trim() || undefined,
@@ -94,9 +145,18 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
     }
   };
 
-  const apply = () => {
+  const apply = async () => {
     if (!extract) return;
-    onApply(extract, file);
+    // Anche il file riusato da Silvio deve finire nei Documenti: se non c'è
+    // un File locale, lo si scarica da storage e lo si passa come tale.
+    let sorgente: File | null = file;
+    if (!sorgente && remoteFile) {
+      try {
+        const { data: blob } = await supabase.storage.from(remoteFile.bucket).download(remoteFile.path);
+        if (blob) sorgente = new File([blob], remoteFile.name, { type: remoteFile.mime });
+      } catch { /* senza file l'apply resta valido: solo niente allegato */ }
+    }
+    onApply(extract, sorgente);
     onOpenChange(false);
     toast.success("Dati del contratto applicati alla commessa. Rivedi e salva.");
   };
@@ -141,7 +201,15 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
               ) : (
                 <>
                   <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+                  {remoteFile ? (
+                    <p className="text-sm font-medium">
+                      <FileText className="mb-0.5 mr-1 inline h-4 w-4 text-emerald-600" />
+                      Uso il file già caricato: <span className="font-semibold">{remoteFile.name}</span>
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">oppure trascina qui un altro documento</span>
+                    </p>
+                  ) : (
                   <p className="text-sm font-medium">Trascina qui il contratto</p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">PDF o immagine — max {fmtBytes(MAX_SIZE)}</p>
                 </>
               )}
@@ -171,7 +239,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
             )}
 
             <div className="flex justify-end">
-              <Button onClick={analyze} disabled={!file || busy || !companyId}>
+              <Button onClick={analyze} disabled={(!file && !remoteFile) || busy || !companyId}>
                 {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> L'AI sta leggendo…</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
               </Button>
             </div>
@@ -200,6 +268,38 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
               <dt className="text-slate-500">Voci</dt>
               <dd>{extract.voci.length ? `${extract.voci.length} articoli` : "—"}</dd>
             </dl>
+
+            {/* Le voci si GUARDANO prima di applicare (audit 2026-09, punto 5):
+                "13 voci" senza elenco chiedeva fiducia al buio. */}
+            {extract.voci.length > 0 && (
+              <details className="rounded-lg border">
+                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium hover:bg-accent/40">
+                  Vedi le {extract.voci.length} voci estratte
+                </summary>
+                <div className="max-h-56 overflow-y-auto border-t">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="px-3 py-1.5 font-medium">Descrizione</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Q.tà</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Unitario</th>
+                        <th className="px-3 py-1.5 text-right font-medium">Totale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {extract.voci.map((v, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="max-w-[260px] truncate px-3 py-1.5" title={v.descrizione}>{v.descrizione}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{v.quantita}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(v.prezzo_unitario_eur)}</td>
+                          <td className="px-3 py-1.5 text-right font-medium tabular-nums">{formatCurrency((v.quantita || 1) * (v.prezzo_unitario_eur || 0))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
 
             {/* Coerenza dei conti PRIMA di applicare: su un contratto lungo
                 l'AI puo' perdere voci o sbagliare somme — qui non passa muto. */}
