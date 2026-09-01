@@ -381,7 +381,19 @@ export function SmartDocumentImportModal({
       );
 
       if (fnErr || !data?.doc_type) {
-        throw new Error(fnErr?.message || "Analisi documento fallita");
+        // supabase-js maschera il body dell'errore con "Edge Function returned
+        // a non-2xx status code": qui si ripesca il messaggio vero (es. crediti
+        // AI esauriti, saldo OpenRouter, documento illeggibile…).
+        let realMsg = fnErr?.message || "Analisi documento fallita";
+        const ctx = (fnErr as unknown as { context?: Response } | null)?.context;
+        if (ctx && typeof ctx.text === "function") {
+          try {
+            const body = await ctx.clone().text();
+            const parsed = JSON.parse(body) as { error?: string; message?: string };
+            realMsg = parsed.error ?? parsed.message ?? realMsg;
+          } catch { /* body non-JSON */ }
+        }
+        throw new Error(realMsg);
       }
 
       const normalized: ClassifyResponse = {

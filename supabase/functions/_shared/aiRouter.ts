@@ -1326,8 +1326,12 @@ export async function aiRouterComplete(
     });
   }
 
+  // Nel messaggio va anche l'ULTIMO errore reale: "tutti i modelli falliti"
+  // da solo suona come "l'AI è rotta", mentre la causa vera (es. OpenRouter
+  // 402 saldo esaurito, chiave revocata) resta actionable solo se la si vede.
+  const lastErr = attempts[attempts.length - 1]?.error?.slice(0, 220);
   throw new AiRouterError(
-    `Tutti i modelli falliti per task '${opts.taskKey}' (${modelsToTry.length} tentativi)`,
+    `Tutti i modelli falliti per task '${opts.taskKey}' (${modelsToTry.length} tentativi)${lastErr ? ` — ultimo errore: ${lastErr}` : ""}`,
     opts.taskKey,
     attempts,
   );

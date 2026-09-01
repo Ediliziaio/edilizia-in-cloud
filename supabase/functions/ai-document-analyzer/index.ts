@@ -552,6 +552,10 @@ serve(async (req) => {
 
     // ── 1) Hash file (idempotency) ──────────────────────────────────────
     const sha256 = await hashStorageFile(supabaseAdmin, storage_bucket, storage_path);
+    // Riga esistente NON riusabile come cache (failed/processing): va
+    // RICICLATA, non re-inserita — l'unique (company_id, sha256_hash)
+    // trasformava ogni retry dello stesso PDF in un 500 "duplicate key".
+    let staleRowId: string | null = null;
     if (sha256) {
       const { data: existing } = await supabaseAdmin
         .from("document_analysis_results")
@@ -574,26 +578,35 @@ serve(async (req) => {
           status: existing.status,
         }, 200, cors);
       }
+      if (existing) staleRowId = existing.id;
     }
 
-    // ── 2) Insert pending record ────────────────────────────────────────
-    const { data: pendingRow, error: insErr } = await supabaseAdmin
-      .from("document_analysis_results")
-      .insert({
-        company_id: companyId,
-        storage_bucket,
-        storage_path,
-        file_name: resolvedFileName,
-        mime_type: resolvedMimeType,
-        file_size_bytes: file_size,
-        sha256_hash: sha256,
-        doc_type: "documento_generico",
-        parser_used: "pending",
-        status: "processing",
-        uploaded_by: userId,
-      })
-      .select("id")
-      .single();
+    // ── 2) Insert (o riciclo) pending record ────────────────────────────
+    const pendingFields = {
+      company_id: companyId,
+      storage_bucket,
+      storage_path,
+      file_name: resolvedFileName,
+      mime_type: resolvedMimeType,
+      file_size_bytes: file_size,
+      sha256_hash: sha256,
+      doc_type: "documento_generico",
+      parser_used: "pending",
+      status: "processing",
+      uploaded_by: userId,
+    };
+    const { data: pendingRow, error: insErr } = staleRowId
+      ? await supabaseAdmin
+          .from("document_analysis_results")
+          .update({ ...pendingFields, error_message: null })
+          .eq("id", staleRowId)
+          .select("id")
+          .single()
+      : await supabaseAdmin
+          .from("document_analysis_results")
+          .insert(pendingFields)
+          .select("id")
+          .single();
     if (insErr || !pendingRow) {
       console.error("[ai-document-analyzer] insert pending fallito:", insErr?.message);
       return errorResponse(`insert: ${insErr?.message}`, 500, cors);
@@ -647,7 +660,21 @@ serve(async (req) => {
           headers: { Authorization: req.headers.get("Authorization") ?? "" },
         },
       );
-      if (routerErr) throw new Error(routerErr.message);
+      if (routerErr) {
+        // supabase-js maschera il body con "Edge Function returned a non-2xx
+        // status code": qui si ripesca il messaggio VERO (es. "OpenRouter 402:
+        // saldo insufficiente") così arriva fino all'utente.
+        let realMsg = routerErr.message;
+        const ctx = (routerErr as { context?: Response }).context;
+        if (ctx && typeof ctx.text === "function") {
+          try {
+            const body = await ctx.text();
+            const parsed = JSON.parse(body) as { error?: string; message?: string };
+            realMsg = parsed.error ?? parsed.message ?? (body.slice(0, 300) || realMsg);
+          } catch { /* body non-JSON: teniamo il messaggio generico */ }
+        }
+        throw new Error(realMsg);
+      }
       routerOut = (routerRes ?? {}) as typeof routerOut;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
