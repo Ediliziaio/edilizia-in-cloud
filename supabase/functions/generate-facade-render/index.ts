@@ -683,23 +683,37 @@ Deno.serve(async (req) => {
           session_id: requestSessionId,
           issues: qaIssues.map((i) => i.category),
         }));
-        const retry = await renderWithProvider({
-          prompt: `${prompt}
+        // Il retry e' gia' vincolato al provider diretto. Se fallisce, l'errore
+        // finirebbe nel catch esterno del QA, che lo registra come "QA vision
+        // error (ignored)" — messaggio fuorviante: il QA aveva funzionato, era
+        // la rigenerazione a non essere riuscita. Qui viene distinto, e in ogni
+        // caso si consegna il primo tentativo.
+        try {
+          const retry = await renderWithProvider({
+            prompt: `${prompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as the source, same windows/doors/balconies in the same positions, same camera and crop. Only the finishes/colors specified in the brief change.`,
-          preparedUrl: prepared.url,
-          width: dimensions?.width ?? undefined,
-          height: dimensions?.height ?? undefined,
-          companyId: typedSession.company_id,
-          sessionId: requestSessionId,
-          timeoutMs: 60_000,
-          directProviderOnly: true,
-        });
-        finalImageData = retry.imageData;
-        generationAttempts += 1;
+            preparedUrl: prepared.url,
+            width: dimensions?.width ?? undefined,
+            height: dimensions?.height ?? undefined,
+            companyId: typedSession.company_id,
+            sessionId: requestSessionId,
+            timeoutMs: 60_000,
+            directProviderOnly: true,
+          });
+          finalImageData = retry.imageData;
+          generationAttempts += 1;
+        } catch (retryErr) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-facade-render",
+            session_id: requestSessionId,
+            msg: "qa_retry_fallito_si_tiene_il_primo",
+            error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
+          }));
+        }
       } else if (qaResult.checked && !qaResult.pass) {
         console.warn(JSON.stringify({
           fn: "generate-facade-render",
