@@ -294,9 +294,13 @@ ${bullets([
   // conteggi va detto PRIMA di tutto, breve e assoluto.
   const wcCount = scene.sanitaryWare.wcPresent || spec.sanitaryWare.replace ? 1 : 0;
   const bidetRemoved = spec.sanitaryWare.replace && spec.sanitaryWare.bidetAction === "rimuovi";
+  // Con "aggiungi" il bidet non c'e' nella foto ma va installato: senza
+  // contarlo, il contratto sui conteggi direbbe "zero bidet" e il modello lo
+  // ometterebbe nonostante la richiesta esplicita.
+  const bidetAdded = spec.sanitaryWare.replace && spec.sanitaryWare.bidetAction === "aggiungi";
   const bidetCount = bidetRemoved
     ? 0
-    : (scene.sanitaryWare.bidetPresent ||
+    : (scene.sanitaryWare.bidetPresent || bidetAdded ||
         (spec.sanitaryWare.replace && spec.sanitaryWare.bidetAction === "sostituisci"))
     ? 1
     : 0;

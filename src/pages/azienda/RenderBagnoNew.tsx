@@ -117,6 +117,11 @@ export default function RenderBagnoNew() {
 
   // ── Result ─────────────────────────────────────────────────────────
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  // Render della sessione aperta come template: tenuto a parte da resultUrl,
+  // che deve restare null finche' non si genera davvero una nuova variante.
+  // Serve a poter riscaricare immagine e PDF del render precedente senza
+  // essere costretti a rigenerarlo.
+  const [templateResultUrl, setTemplateResultUrl] = useState<string | null>(null);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [savingGallery, setSavingGallery] = useState(false);
 
@@ -143,7 +148,7 @@ export default function RenderBagnoNew() {
       try {
         const { data, error } = await supabase
           .from("render_bagno_sessions")
-          .select("id, foto_originale_path, foto_originale_url, configurazione, analisi_bagno, contact_id, opportunity_id")
+          .select("id, foto_originale_path, foto_originale_url, render_result_url, configurazione, analisi_bagno, contact_id, opportunity_id")
           .eq("id", templateId)
           .eq("company_id", companyId)
           .single();
@@ -176,6 +181,7 @@ export default function RenderBagnoNew() {
         setSourceOriginalPath(row.foto_originale_path);
         setSessionId(null);
         setResultUrl(null);
+        setTemplateResultUrl((row as { render_result_url?: string | null }).render_result_url ?? null);
         setSavedToGallery(false);
 
         let previewUrl = row.foto_originale_url ?? null;
@@ -874,6 +880,47 @@ export default function RenderBagnoNew() {
       ═════════════════════════════════════════════════════════════ */}
       {step === 3 && (
         <div className="space-y-4">
+          {/* Render precedente (pagina aperta come template): scaricabile
+              subito, senza dover rigenerare per riavere immagine o PDF. */}
+          {templateResultUrl && (
+            <Card>
+              <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+                <img
+                  loading="lazy"
+                  src={templateResultUrl}
+                  alt="Render precedente"
+                  className="h-20 w-full rounded-lg object-cover sm:w-32"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Render già generato</p>
+                  <p className="text-xs text-muted-foreground">
+                    Puoi scaricarlo subito, oppure modificare le scelte qui sotto e rigenerarlo.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 flex-1 sm:flex-none"
+                    onClick={() => void downloadRenderImage(templateResultUrl, `render_bagno_${Date.now()}.png`)}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Scarica</span>
+                  </Button>
+                  <RenderPdfDownloadButton
+                    beforeUrl={photoPreview}
+                    afterUrl={templateResultUrl}
+                    title="Render Bagno"
+                    subtitle="Confronto prima / dopo"
+                    filename={`render_bagno_${Date.now()}.pdf`}
+                    variant="outline"
+                    className="gap-2 flex-1 sm:flex-none"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Foto preview compatta */}
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">

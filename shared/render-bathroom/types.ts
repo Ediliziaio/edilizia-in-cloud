@@ -136,7 +136,11 @@ export interface ConfigVanity {
 }
 
 export type BathroomSanitaryAction = "mantieni" | "sostituisci";
-export type BathroomBidetAction = "mantieni" | "sostituisci" | "rimuovi";
+// "aggiungi": il bagno NON ha un bidet e lo si vuole installare. Prima
+// mancava, quindi l'unico modo per ottenerlo era "sostituisci" — che pero'
+// significa cambiare un bidet esistente: su un bagno senza bidet il modello
+// se lo inventava, spesso in posizioni impossibili (dentro la doccia).
+export type BathroomBidetAction = "mantieni" | "sostituisci" | "rimuovi" | "aggiungi";
 export type BathroomToiletType = "sospeso" | "a_terra" | "rimless_sospeso";
 export type BathroomBidetType = "sospeso" | "a_terra";
 export type BathroomSanitaryColor = "bianco" | "grigio_chiaro" | "nero_opaco";

@@ -215,14 +215,19 @@ function inferSanitaryInstallationRule(config: ConfigurazioneBagno["sanitari"]):
         ? "WC must be a true wall-hung rimless-style installation: ceramic bowl visibly floating off the floor, clear shadow gap below, compact projection, believable in-wall carrier support and no floor contact pedestal"
         : "WC must be a real floor-standing model with coherent floor contact and compact modern proportions";
 
+  const bidetTipoRule = (config.tipo_bidet ?? "sospeso") === "sospeso"
+    ? "wall-hung with realistic fixing height and spacing"
+    : "floor-standing with credible floor contact";
   const bidetRule =
     config.azione_bidet === "mantieni"
-      ? "keep existing bidet installation logic"
+      ? "keep existing bidet installation logic; if the source has no bidet, do NOT invent one"
       : config.azione_bidet === "rimuovi"
         ? "remove bidet completely and rebalance the spacing cleanly"
-        : (config.tipo_bidet ?? "sospeso") === "sospeso"
-          ? "bidet must be wall-hung with realistic fixing height and spacing"
-          : "bidet must be floor-standing with credible floor contact";
+        : config.azione_bidet === "aggiungi"
+          // Aggiunta esplicita: si installa solo se c'e' spazio credibile.
+          // Un bidet incastrato dove non ci sta e' peggio di un bidet assente.
+          ? `ADD a new bidet that does not exist in the source photo: ${bidetTipoRule}, installed beside the WC on the same wall, with at least 55-60cm centerline spacing and free access in front. If the room genuinely has no plausible clearance for it, OMIT the bidet rather than squeezing it into the shower, a corner or the walking space`
+          : `bidet must be ${bidetTipoRule}`;
 
   return `${wcRule}; ${bidetRule}; keep realistic spacing, alignment and wall/floor fixing logic.`;
 }
@@ -422,7 +427,10 @@ export function buildBathroomRenderConfig(
       ? SANITARY_TYPE_DESCRIPTIONS[legacyConfig.sanitari.tipo_wc]
       : "keep existing toilet",
     bidetAction: legacyConfig.sanitari.azione_bidet,
-    bidetType: legacyConfig.sanitari.azione_bidet === "sostituisci"
+    // "aggiungi" installa un bidet che nella foto non c'e': come "sostituisci"
+    // serve la descrizione del tipo, altrimenti il modello non sa cosa mettere.
+    bidetType: (legacyConfig.sanitari.azione_bidet === "sostituisci" ||
+                legacyConfig.sanitari.azione_bidet === "aggiungi")
       ? SANITARY_TYPE_DESCRIPTIONS[legacyConfig.sanitari.tipo_bidet || "sospeso"]
       : legacyConfig.sanitari.azione_bidet === "rimuovi"
         ? null

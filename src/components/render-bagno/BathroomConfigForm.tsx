@@ -1004,11 +1004,12 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 <SelectContent>
                   <SelectItem value="mantieni">Mantieni attuale</SelectItem>
                   <SelectItem value="sostituisci">Sostituisci</SelectItem>
+                  <SelectItem value="aggiungi">Aggiungi (non c'è)</SelectItem>
                   <SelectItem value="rimuovi">Rimuovi</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {value.sanitari.azione_bidet === "sostituisci" ? (
+            {value.sanitari.azione_bidet === "sostituisci" || value.sanitari.azione_bidet === "aggiungi" ? (
               <div>
                 <Label className="text-xs">Tipo bidet</Label>
                 <Select
