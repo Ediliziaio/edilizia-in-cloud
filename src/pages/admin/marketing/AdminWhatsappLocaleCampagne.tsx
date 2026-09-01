@@ -33,6 +33,7 @@ import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, Wifi
 import { Link } from "react-router-dom";
 import RisposteRapide from "@/components/admin/whatsapp-locale/RisposteRapide";
 import PipelineCampagna from "@/components/admin/whatsapp-locale/PipelineCampagna";
+import RisposteCampagna from "@/components/admin/whatsapp-locale/RisposteCampagna";
 
 interface Riepilogo {
   id: string;
@@ -83,6 +84,9 @@ export default function AdminWhatsappLocaleCampagne() {
   const [followup2Giorni, setFollowup2Giorni] = useState(3);
   const [followup3, setFollowup3] = useState("");
   const [followup3Giorni, setFollowup3Giorni] = useState(3);
+  const [messaggioB, setMessaggioB] = useState("");
+  const [aiAttiva, setAiAttiva] = useState(false);
+  const [aiIstruzioni, setAiIstruzioni] = useState("");
   const [parteIl, setParteIl] = useState("");
   // Modifica: stesso dialog della creazione, con l'id di chi si sta correggendo.
   const [modificaId, setModificaId] = useState<string | null>(null);
@@ -90,6 +94,7 @@ export default function AdminWhatsappLocaleCampagne() {
   const [provaPer, setProvaPer] = useState<Riepilogo | null>(null);
   const [provaNumero, setProvaNumero] = useState("");
   const [pipelinePer, setPipelinePer] = useState<Riepilogo | null>(null);
+  const [rispostePer, setRispostePer] = useState<Riepilogo | null>(null);
 
   // Caricamento lista
   const [fTags, setFTags] = useState("");
@@ -154,9 +159,9 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_campagne")
-        .select("id, messaggio, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome");
+        .select("id, messaggio, messaggio_b, ai_personalizza, ai_istruzioni, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome");
       if (error) throw error;
-      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; parte_il: string | null; nome: string }> = {};
+      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; messaggio_b: string | null; ai_personalizza: boolean; ai_istruzioni: string | null; parte_il: string | null; nome: string }> = {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const c of (data ?? []) as any[]) m[c.id] = c;
       return m;
@@ -197,6 +202,7 @@ export default function AdminWhatsappLocaleCampagne() {
     setCreaAperto(false); setModificaId(null);
     setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3);
     setFollowup2(""); setFollowup2Giorni(3); setFollowup3(""); setFollowup3Giorni(3); setParteIl("");
+    setMessaggioB(""); setAiAttiva(false); setAiIstruzioni("");
   };
 
   const crea = useMutation({
@@ -210,6 +216,9 @@ export default function AdminWhatsappLocaleCampagne() {
         followup2_dopo_giorni: followup2Giorni,
         followup3_messaggio: followup3.trim() || null,
         followup3_dopo_giorni: followup3Giorni,
+        messaggio_b: messaggioB.trim() || null,
+        ai_personalizza: aiAttiva,
+        ai_istruzioni: aiIstruzioni.trim() || null,
         parte_il: parteIl ? new Date(parteIl).toISOString() : null,
       };
       // Modifica: consentita solo finche' la campagna non e' partita — cambiare
@@ -246,6 +255,9 @@ export default function AdminWhatsappLocaleCampagne() {
         followup2_dopo_giorni: src.followup2_dopo_giorni,
         followup3_messaggio: src.followup3_messaggio,
         followup3_dopo_giorni: src.followup3_dopo_giorni,
+        messaggio_b: src.messaggio_b,
+        ai_personalizza: src.ai_personalizza,
+        ai_istruzioni: src.ai_istruzioni,
       });
       if (error) throw error;
     },
@@ -292,6 +304,9 @@ export default function AdminWhatsappLocaleCampagne() {
     setFollowup2Giorni(src.followup2_dopo_giorni ?? 3);
     setFollowup3(src.followup3_messaggio ?? "");
     setFollowup3Giorni(src.followup3_dopo_giorni ?? 3);
+    setMessaggioB(src.messaggio_b ?? "");
+    setAiAttiva(!!src.ai_personalizza);
+    setAiIstruzioni(src.ai_istruzioni ?? "");
     setParteIl(src.parte_il ? new Date(src.parte_il).toISOString().slice(0, 16) : "");
     setCreaAperto(true);
   };
@@ -517,6 +532,12 @@ export default function AdminWhatsappLocaleCampagne() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{c.nome}</span>
                       <Badge className={badge.className} variant="secondary">{badge.label}</Badge>
+                      {testiById[c.id]?.ai_personalizza && (
+                        <Badge variant="outline" className="text-xs text-violet-700 dark:text-violet-400">AI</Badge>
+                      )}
+                      {testiById[c.id]?.messaggio_b && (
+                        <Badge variant="outline" className="text-xs">A/B</Badge>
+                      )}
                       {c.ha_followup && (
                         <Badge variant="outline" className="text-xs">
                           follow-up a {c.followup_dopo_giorni} giorni
@@ -579,6 +600,12 @@ export default function AdminWhatsappLocaleCampagne() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {c.risposti > 0 && (
+                      <Button variant="ghost" size="sm" className="text-emerald-700 dark:text-emerald-400"
+                        onClick={() => setRispostePer(c)}>
+                        <MessageCircle className="h-4 w-4 mr-1.5" /> Risposte
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => setPipelinePer(c)}
                       title="Destinatari, risposte ed esiti su una bacheca">
                       <KanbanSquare className="h-4 w-4 mr-1.5" /> Pipeline
@@ -679,6 +706,33 @@ export default function AdminWhatsappLocaleCampagne() {
               </div>
               <Textarea id="msg" rows={4} value={messaggio} onChange={(e) => setMessaggio(e.target.value)}
                 placeholder="{Ciao|Salve} {{nome}}, ..." />
+              <div className="mt-2">
+                <Label htmlFor="msgB" className="text-xs text-muted-foreground">
+                  Variante B — A/B test (facoltativa)
+                </Label>
+                <Textarea id="msgB" rows={2} value={messaggioB}
+                  onChange={(e) => setMessaggioB(e.target.value)}
+                  placeholder="Un testo alternativo: metà lista riceve questo, e confronti i tassi" />
+              </div>
+            </div>
+
+            {/* AI: adatta, non inventa. Il testo base resta la sostanza. */}
+            <div className="rounded-lg border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={aiAttiva} onChange={(e) => setAiAttiva(e.target.checked)} />
+                Personalizza ogni messaggio con l'AI
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Il messaggio viene adattato al contatto (settore, città, dimensione) mantenendo
+                significato e proposta. Se l'AI non risponde, parte il testo base. Ogni messaggio
+                diverso dagli altri è anche la miglior difesa del numero.
+              </p>
+              {aiAttiva && (
+                <Textarea rows={2} value={aiIstruzioni}
+                  onChange={(e) => setAiIstruzioni(e.target.value)}
+                  className="mt-2"
+                  placeholder="Indicazioni per l'AI (es. tono diretto da imprenditore, cita la città se c'è)" />
+              )}
             </div>
             {/* La sequenza: ogni passo parte SOLO verso chi non ha risposto al
                 precedente. Il passo N+1 si puo' scrivere solo se esiste il
@@ -737,6 +791,17 @@ export default function AdminWhatsappLocaleCampagne() {
           nome={pipelinePer.nome}
           aperta={!!pipelinePer}
           onChiudi={() => setPipelinePer(null)}
+        />
+      )}
+
+      {/* ── Report risposte ── */}
+      {rispostePer && (
+        <RisposteCampagna
+          campagnaId={rispostePer.id}
+          nome={rispostePer.nome}
+          haVarianteB={!!testiById[rispostePer.id]?.messaggio_b}
+          aperta={!!rispostePer}
+          onChiudi={() => setRispostePer(null)}
         />
       )}
 
