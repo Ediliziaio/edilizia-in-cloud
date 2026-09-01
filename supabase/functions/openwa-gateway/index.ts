@@ -52,7 +52,17 @@ Deno.serve(async (req) => {
     // ── create_session: crea → start → registra webhook → salva numero ────────
     if (action === "create_session") {
       const displayName: string = (body.display_name ?? "").trim();
-      const name = displayName || `eic-${crypto.randomUUID().slice(0, 8)}`;
+      // Il gateway accetta come nome sessione SOLO lettere, numeri e trattini
+      // (openapi: "alphanumeric and hyphens only"): un nome come "Account Giusy"
+      // veniva rifiutato con 400 Bad Request. Il nome scritto dall'utente resta
+      // intatto in display_name, qui se ne ricava la versione tecnica.
+      const slug = displayName
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // via gli accenti
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40);
+      const name = slug ? `eic-${slug}` : `eic-${crypto.randomUUID().slice(0, 8)}`;
 
       const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
         method: "POST",
