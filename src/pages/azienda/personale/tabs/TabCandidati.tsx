@@ -8,6 +8,7 @@
  * processo; l'esito (assunto / non idoneo / archivio) come è finita.
  */
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
 // Il test attitudinale è PARTE della selezione: vive qui come terza vista
@@ -37,7 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowDown, ArrowUp, BrainCircuit, CalendarCheck, Download, FileText, HardHat, KanbanSquare,
-  List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2, Upload,
+  Link2, List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2, Upload,
   UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
 } from "lucide-react";
 
@@ -270,6 +271,34 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 
   const aggiorna = (patch: Partial<HrCandidato>) => upsert.mutate({ ...patch, id: candidato.id, nome: patch.nome ?? candidato.nome });
 
+  // Aggancio al test attitudinale: se collegato mostra lo stato; se esiste un
+  // test con la STESSA email non ancora collegato, lo propone — cercarlo a
+  // mano nella vista test era il modo migliore per non collegarlo mai.
+  const { data: testInfo } = useQuery({
+    queryKey: ["talent-match", candidato.id, candidato.talent_candidate_id, candidato.email],
+    enabled: !!companyId && (!!candidato.talent_candidate_id || !!candidato.email),
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const talentDb = supabase as any;
+      if (candidato.talent_candidate_id) {
+        const { data } = await talentDb.from("hr_talent_candidates").select("id, status").eq("id", candidato.talent_candidate_id).maybeSingle();
+        return data ? { collegato: true as const, id: data.id as string, status: data.status as string } : null;
+      }
+      const { data } = await talentDb
+        .from("hr_talent_candidates")
+        .select("id, status, nome, cognome")
+        .eq("company_id", companyId)
+        .ilike("email", candidato.email!)
+        .limit(1)
+        .maybeSingle();
+      return data ? { collegato: false as const, id: data.id as string, status: data.status as string } : null;
+    },
+  });
+  const STATO_TEST: Record<string, string> = {
+    draft: "bozza", invited: "invitato, in attesa", in_progress: "in corso", completed: "completato ✓", archived: "archiviato",
+  };
+
   const caricaCv = async (file: File) => {
     if (!companyId) return;
     setCaricandoCv(true);
@@ -437,12 +466,25 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-2">
             <div className="flex items-center gap-2 text-xs text-slate-600">
-              <BrainCircuit className="h-4 w-4 text-orange-500" />
-              <span>{candidato.talent_candidate_id ? "Ha un test attitudinale collegato." : "Vuoi anche il profilo attitudinale? È nella scheda Selezioni."}</span>
+              <BrainCircuit className="h-4 w-4 shrink-0 text-orange-500" />
+              <span>
+                {testInfo?.collegato
+                  ? `Test attitudinale: ${STATO_TEST[testInfo.status] ?? testInfo.status}.`
+                  : testInfo
+                    ? "C'è un test attitudinale con questa email, non ancora collegato."
+                    : "Vuoi anche il profilo attitudinale? È nella vista Test."}
+              </span>
             </div>
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-orange-600 hover:text-orange-700" onClick={() => { onClose(); vaiAlTest(); }}>
-              Apri Selezioni →
-            </Button>
+            <div className="flex items-center gap-1">
+              {testInfo && !testInfo.collegato && (
+                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => aggiorna({ talent_candidate_id: testInfo.id })}>
+                  <Link2 className="h-3 w-3" /> Collega
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="h-7 text-xs text-orange-600 hover:text-orange-700" onClick={() => { onClose(); vaiAlTest(); }}>
+                Apri i test →
+              </Button>
+            </div>
           </div>
 
           {esito === "assunto" && (
@@ -549,6 +591,25 @@ export function TabCandidati() {
   const [oggi] = useState(() => Date.now());
   const sensori = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  const companyIdKpi = useEffectiveCompanyId();
+  // Conteggio test attitudinali per la card unificata: la vista test ha i
+  // suoi dettagli, qui basta sapere quanti sono e a che punto.
+  const { data: testStats } = useQuery({
+    queryKey: ["hr-talent-count", companyIdKpi],
+    enabled: !!companyIdKpi,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("hr_talent_candidates")
+        .select("status")
+        .eq("company_id", companyIdKpi);
+      if (error) throw error;
+      const righe = (data ?? []) as { status: string }[];
+      return { totale: righe.length, completati: righe.filter((r) => r.status === "completed").length };
+    },
+  });
+
   const ruoliPresenti = useMemo(() => [...new Set(candidati.map((c) => c.ruolo))].sort(), [candidati]);
 
   const filtrati = useMemo(() => {
@@ -606,9 +667,8 @@ export function TabCandidati() {
 
   return (
     <div className="space-y-4">
-      {/* KPI */}
-      {vista !== "test" && (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* KPI: la testata NON cambia cambiando vista — è la stessa area. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           { label: "Candidati totali", val: kpi.totale, icona: UserRoundSearch },
           { label: "In selezione", val: kpi.inSelezione, icona: Users },
@@ -625,8 +685,20 @@ export function TabCandidati() {
             </CardContent>
           </Card>
         ))}
+        <button
+          type="button"
+          onClick={() => cambiaVista("test")}
+          className={`rounded-xl border bg-card text-left shadow-sm transition-colors hover:bg-orange-50/50 ${vista === "test" ? "border-orange-300 ring-1 ring-orange-200" : ""}`}
+        >
+          <div className="flex items-center gap-3 p-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><BrainCircuit className="h-5 w-5" /></div>
+            <div>
+              <p className="text-xl font-bold leading-none">{testStats ? `${testStats.completati}/${testStats.totale}` : "—"}</p>
+              <p className="text-xs text-muted-foreground">Test completati</p>
+            </div>
+          </div>
+        </button>
       </div>
-      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -681,7 +753,7 @@ export function TabCandidati() {
       {/* Corpo */}
       {vista === "test" ? (
         <Suspense fallback={<div className="space-y-3 py-2"><Skeleton className="h-9 w-2/3 max-w-xs" /><Skeleton className="h-56 w-full rounded-xl" /></div>}>
-          <TabSelezioni />
+          <TabSelezioni embedded />
         </Suspense>
       ) : isLoading || fasiLoading ? (
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>

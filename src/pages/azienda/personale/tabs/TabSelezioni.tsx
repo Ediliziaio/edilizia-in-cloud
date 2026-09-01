@@ -110,7 +110,9 @@ const STATUS_CLASSES: Record<TalentCandidateStatus, string> = {
   archived: "bg-slate-100 text-slate-500 border-slate-200",
 };
 
-export function TabSelezioni() {
+/** embedded: montata dentro la tab Candidati — niente testata gigante né
+ *  KPI doppi: la parte alta la fa la tab ospite, qui resta l'operativo. */
+export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -304,8 +306,15 @@ export function TabSelezioni() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-slate-50 p-5 shadow-sm">
+      <div className={embedded ? "" : "rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-slate-50 p-5 shadow-sm"}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          {embedded ? (
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <BrainCircuit className="h-4 w-4 shrink-0 text-orange-500" />
+              <span className="font-semibold text-slate-900">Test attitudinale</span>
+              <span className="hidden sm:inline">— {DOMANDE.length} domande, matching su {roleNames.length} ruoli</span>
+            </div>
+          ) : (
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm shadow-orange-200">
               <BrainCircuit className="h-5 w-5" />
@@ -320,6 +329,7 @@ export function TabSelezioni() {
               </p>
             </div>
           </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button
@@ -337,7 +347,7 @@ export function TabSelezioni() {
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuovo candidato
+                  {embedded ? "Invita al test" : "Nuovo candidato"}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -395,6 +405,7 @@ export function TabSelezioni() {
         </div>
       </div>
 
+      {!embedded && (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon={UserRoundSearch} label="Candidati" value={stats.total} detail="nel perimetro azienda" />
         <MetricCard icon={Clock3} label="Da completare" value={stats.inProgress} detail="invitati o in corso" tone="amber" />
@@ -402,6 +413,7 @@ export function TabSelezioni() {
         <MetricCard icon={ShieldCheck} label="Attendibili" value={stats.reliable} detail="report con indice YES" tone="blue" />
         <MetricCard icon={Target} label="Best fit" value={`${stats.bestFit}%`} detail="compatibilità più alta" tone="orange" />
       </div>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Card>
