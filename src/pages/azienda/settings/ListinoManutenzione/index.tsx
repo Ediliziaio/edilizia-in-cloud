@@ -103,7 +103,7 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
 
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {embedded ? (
         /* Embedded nella pagina Tariffe: header snello, niente titolo grande
            (il contesto è già dato dal tab "Manutenzione"). Manteniamo il

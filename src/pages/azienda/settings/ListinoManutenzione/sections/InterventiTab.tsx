@@ -1,13 +1,16 @@
 /**
  * ListinoManutenzione — Tab "Tipi Intervento"
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
- * Upgrade UX: ricerca + filtro categoria + filtro stato + chip rimovibili +
- * conteggio, come la pagina "Manodopera e Servizi".
+ * Redesign allineato a "Manodopera e Servizi": tabella table-fixed compatta,
+ * tutta la riga apre Modifica, azioni nel menu ⋮, CTA arancione.
  */
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -51,6 +54,13 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
   if (categoria !== "all") chips.push({ key: "categoria", label: `Categoria: ${categoriaBadge(categoria).label}`, onRemove: () => setCategoria("all") });
   if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
 
+  /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
+  const rowClick = (t: TipoIntervento) => (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
+    onEdit(t);
+  };
+
   return (
     <div className="space-y-3">
       <ListinoFilterBar
@@ -60,7 +70,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
         filters={
           <>
             <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaFilter)}>
-              <SelectTrigger className="w-full md:w-[210px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full md:w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutte le categorie</SelectItem>
                 {CATEGORIE_INTERVENTO.map((c) => (
@@ -69,7 +79,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
               </SelectContent>
             </Select>
             <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-              <SelectTrigger className="w-full md:w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full md:w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti gli stati</SelectItem>
                 <SelectItem value="attivi">Solo attivi</SelectItem>
@@ -79,7 +89,11 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
           </>
         }
         actions={
-          <Button size="sm" onClick={onAdd}>
+          <Button
+            size="sm"
+            onClick={onAdd}
+            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+          >
             <Plus className="h-4 w-4 mr-1" />Nuovo intervento
           </Button>
         }
@@ -91,14 +105,14 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
         onReset={resetFilters}
       />
       <div className="rounded-md border overflow-x-auto">
-        <Table>
+        <Table className="table-fixed min-w-[640px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead className="w-36">Categoria</TableHead>
-              <TableHead className="w-36">Durata stimata</TableHead>
-              <TableHead className="w-20">Attivo</TableHead>
-              <TableHead className="text-right w-24">Azioni</TableHead>
+              <TableHead className="w-[136px]">Categoria</TableHead>
+              <TableHead className="w-[110px] text-right">Durata stimata</TableHead>
+              <TableHead className="w-[96px]">Attivo</TableHead>
+              <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -123,39 +137,43 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
             ) : filtered.map((t) => {
               const cat = categoriaBadge(t.categoria);
               return (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.nome}</TableCell>
+                <TableRow key={t.id} onClick={rowClick(t)} className="cursor-pointer">
+                  <TableCell className="font-medium">
+                    <span className="block truncate" title={t.nome}>{t.nome}</span>
+                  </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${cat.color}`}>
+                    <span className={`inline-flex h-4 items-center rounded px-1.5 text-[10px] font-medium ${cat.color}`}>
                       {cat.label}
                     </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-right text-muted-foreground tabular-nums">
                     {t.durata_stimata_h != null ? `${t.durata_stimata_h}h` : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={t.attivo ? "default" : "secondary"}>
+                    <Badge variant={t.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
                       {t.attivo ? "Attivo" : "Disattivo"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost" size="icon"
-                        onClick={() => onEdit(t)}
-                        aria-label={`Modifica ${t.nome}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="text-destructive"
-                        onClick={() => onDelete(t.id)}
-                        aria-label={`Elimina ${t.nome}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(t)}>
+                          <Pencil className="h-4 w-4 mr-2" />Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete(t.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               );

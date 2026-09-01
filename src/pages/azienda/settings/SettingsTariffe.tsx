@@ -2157,7 +2157,7 @@ export default function SettingsTariffe() {
 
         </TabsContent>
 
-        <TabsContent value="manutenzione" className="mt-6">
+        <TabsContent value="manutenzione" className="mt-4">
           <ListinoManutenzione embedded />
         </TabsContent>
       </Tabs>

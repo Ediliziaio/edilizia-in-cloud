@@ -1,13 +1,17 @@
 /**
  * ListinoManutenzione — Tab "Tipi Impianto"
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
- * Upgrade UX: ricerca + filtro stato + chip rimovibili + conteggio, come la
- * pagina "Manodopera e Servizi".
+ * Redesign allineato a "Manodopera e Servizi": tabella table-fixed compatta
+ * (l'icona sta accanto al nome, non in una colonna da 68px), tutta la riga
+ * apre Modifica, azioni nel menu ⋮, CTA arancione come il resto della pagina.
  */
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -46,6 +50,13 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
   if (search.trim()) chips.push({ key: "search", label: `Cerca: "${search.trim()}"`, onRemove: () => setSearch("") });
   if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
 
+  /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
+  const rowClick = (t: TipoImpianto) => (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
+    onEdit(t);
+  };
+
   return (
     <div className="space-y-3">
       <ListinoFilterBar
@@ -54,7 +65,7 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
         searchPlaceholder="Cerca tipo impianto…"
         filters={
           <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-            <SelectTrigger className="w-full md:w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full md:w-[150px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
               <SelectItem value="attivi">Solo attivi</SelectItem>
@@ -63,7 +74,11 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
           </Select>
         }
         actions={
-          <Button size="sm" onClick={onAdd}>
+          <Button
+            size="sm"
+            onClick={onAdd}
+            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+          >
             <Plus className="h-4 w-4 mr-1" />Nuovo impianto
           </Button>
         }
@@ -75,63 +90,68 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
         onReset={resetFilters}
       />
       <div className="rounded-md border overflow-x-auto">
-        <Table>
+        <Table className="table-fixed min-w-[520px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">Icona</TableHead>
               <TableHead>Nome</TableHead>
-              <TableHead className="w-20">Ordine</TableHead>
-              <TableHead className="w-20">Attivo</TableHead>
-              <TableHead className="text-right w-24">Azioni</TableHead>
+              <TableHead className="w-[72px]">Ordine</TableHead>
+              <TableHead className="w-[96px]">Attivo</TableHead>
+              <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingImpianti ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Caricamento...
                 </TableCell>
               </TableRow>
             ) : tipiImpianto.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Nessun tipo impianto. Aggiungine uno o clicca &quot;Importa da template&quot;.
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Nessun tipo impianto corrisponde ai filtri.
                 </TableCell>
               </TableRow>
             ) : filtered.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="text-xl">{t.icona ?? "🔧"}</TableCell>
-                <TableCell className="font-medium">{t.nome}</TableCell>
-                <TableCell className="text-muted-foreground">{t.ordine ?? "—"}</TableCell>
+              <TableRow key={t.id} onClick={rowClick(t)} className="cursor-pointer">
                 <TableCell>
-                  <Badge variant={t.attivo ? "default" : "secondary"}>
+                  <div className="flex min-w-0 items-center gap-2 font-medium">
+                    <span className="shrink-0 text-base leading-none" aria-hidden>{t.icona ?? "🔧"}</span>
+                    <span className="truncate" title={t.nome}>{t.nome}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground tabular-nums">{t.ordine ?? "—"}</TableCell>
+                <TableCell>
+                  <Badge variant={t.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
                     {t.attivo ? "Attivo" : "Disattivo"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost" size="icon"
-                      onClick={() => onEdit(t)}
-                      aria-label={`Modifica ${t.nome}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon"
-                      className="text-destructive"
-                      onClick={() => onDelete(t.id)}
-                      aria-label={`Elimina ${t.nome}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(t)}>
+                        <Pencil className="h-4 w-4 mr-2" />Modifica
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => onDelete(t.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}

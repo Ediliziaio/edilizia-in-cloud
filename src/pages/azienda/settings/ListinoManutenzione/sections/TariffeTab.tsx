@@ -1,14 +1,17 @@
 /**
  * ListinoManutenzione — Tab "Tariffe"
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
- * Upgrade UX: ricerca (impianto/intervento/unità/note) + filtri impianto,
- * intervento e stato + chip rimovibili + conteggio + colonna Attivo, come la
- * pagina "Manodopera e Servizi".
+ * Redesign allineato a "Manodopera e Servizi": tabella table-fixed compatta,
+ * prezzi a destra in tabular-nums (prima erano allineati a sinistra), tutta
+ * la riga apre Modifica, azioni nel menu ⋮, CTA arancione.
  */
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -70,6 +73,13 @@ export function TariffeTab({
   }
   if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attive" : "Stato: disattive", onRemove: () => setStato("all") });
 
+  /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
+  const rowClick = (l: ListinoPrezzo) => (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
+    onEdit(l);
+  };
+
   return (
     <div className="space-y-3">
       {noTipi ? (
@@ -92,7 +102,7 @@ export function TariffeTab({
             filters={
               <>
                 <Select value={impiantoId} onValueChange={setImpiantoId}>
-                  <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Impianto" /></SelectTrigger>
+                  <SelectTrigger className="h-9 w-full md:w-[170px]"><SelectValue placeholder="Impianto" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli impianti</SelectItem>
                     {tipiImpianto.map((t) => (
@@ -101,7 +111,7 @@ export function TariffeTab({
                   </SelectContent>
                 </Select>
                 <Select value={interventoId} onValueChange={setInterventoId}>
-                  <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Intervento" /></SelectTrigger>
+                  <SelectTrigger className="h-9 w-full md:w-[170px]"><SelectValue placeholder="Intervento" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli interventi</SelectItem>
                     {tipiIntervento.map((t) => (
@@ -110,7 +120,7 @@ export function TariffeTab({
                   </SelectContent>
                 </Select>
                 <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-                  <SelectTrigger className="w-full md:w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 w-full md:w-[140px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli stati</SelectItem>
                     <SelectItem value="attivi">Solo attive</SelectItem>
@@ -120,7 +130,11 @@ export function TariffeTab({
               </>
             }
             actions={
-              <Button size="sm" onClick={onAdd}>
+              <Button
+                size="sm"
+                onClick={onAdd}
+                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+              >
                 <Plus className="h-4 w-4 mr-1" />Nuova tariffa
               </Button>
             }
@@ -132,16 +146,16 @@ export function TariffeTab({
             onReset={resetFilters}
           />
           <div className="rounded-md border overflow-x-auto">
-            <Table>
+            <Table className="table-fixed min-w-[720px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Impianto</TableHead>
+                  <TableHead className="w-[168px]">Impianto</TableHead>
                   <TableHead>Intervento</TableHead>
-                  <TableHead className="w-28">Prezzo</TableHead>
-                  <TableHead className="w-16">IVA</TableHead>
-                  <TableHead className="w-28">Unità</TableHead>
-                  <TableHead className="w-20">Attivo</TableHead>
-                  <TableHead className="text-right w-24">Azioni</TableHead>
+                  <TableHead className="w-[104px] text-right">Prezzo</TableHead>
+                  <TableHead className="w-[56px] text-right">IVA</TableHead>
+                  <TableHead className="w-[96px]">Unità</TableHead>
+                  <TableHead className="w-[96px]">Attivo</TableHead>
+                  <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -164,47 +178,55 @@ export function TariffeTab({
                     </TableCell>
                   </TableRow>
                 ) : filtered.map((l) => (
-                  <TableRow key={l.id}>
+                  <TableRow key={l.id} onClick={rowClick(l)} className="cursor-pointer">
                     <TableCell className="font-medium">
-                      {l.tipo_impianto
-                        ? `${l.tipo_impianto.icona ?? ""} ${l.tipo_impianto.nome}`.trim()
-                        : <span className="text-muted-foreground italic">—</span>
-                      }
+                      <span className="block truncate" title={l.tipo_impianto?.nome ?? undefined}>
+                        {l.tipo_impianto
+                          ? `${l.tipo_impianto.icona ?? ""} ${l.tipo_impianto.nome}`.trim()
+                          : <span className="text-muted-foreground italic">—</span>
+                        }
+                      </span>
                     </TableCell>
                     <TableCell>
-                      {l.tipo_intervento?.nome ?? <span className="text-muted-foreground italic">—</span>}
+                      <span className="block truncate" title={l.tipo_intervento?.nome ?? undefined}>
+                        {l.tipo_intervento?.nome ?? <span className="text-muted-foreground italic">—</span>}
+                      </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                       {l.prezzo_base != null && l.prezzo_base > 0
                         ? formatCurrency(l.prezzo_base)
                         : <Badge className="bg-amber-100 text-amber-700 border-amber-200">€0</Badge>
                       }
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{l.iva_percentuale ?? 22}%</TableCell>
-                    <TableCell className="text-muted-foreground">{l.unita}</TableCell>
+                    <TableCell className="text-right text-muted-foreground tabular-nums">{l.iva_percentuale ?? 22}%</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <span className="block truncate">{l.unita}</span>
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={l.attivo ? "default" : "secondary"}>
+                      <Badge variant={l.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
                         {l.attivo ? "Attiva" : "Disattiva"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost" size="icon"
-                          onClick={() => onEdit(l)}
-                          aria-label="Modifica tariffa"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="text-destructive"
-                          onClick={() => onDelete(l.id)}
-                          aria-label="Elimina tariffa"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Azioni tariffa">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(l)}>
+                            <Pencil className="h-4 w-4 mr-2" />Modifica
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => onDelete(l.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />Elimina
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
