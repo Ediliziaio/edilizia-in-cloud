@@ -731,6 +731,10 @@ export default function AdminWhatsappLocaleInbox() {
                   const prev = messaggiAttivi[i - 1];
                   const nuovoGiorno = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
                   const stessoBlocco = !nuovoGiorno && prev?.direction === m.direction;
+                  // Il numero si mostra solo quando cambia: ripeterlo su ogni
+                  // bolla e' rumore, ma tacerlo del tutto nasconde il passaggio
+                  // da un numero all'altro (rotazione, o numero sostituito).
+                  const mostraNumero = !!m.number_id && (!prev || prev.number_id !== m.number_id);
                   return (
                   <div key={m.id}>
                     {nuovoGiorno && (
@@ -757,11 +761,11 @@ export default function AdminWhatsappLocaleInbox() {
                         "mt-1 text-[10px]",
                         m.direction === "outbound" ? "text-emerald-100" : "text-muted-foreground",
                       )}>
-                        {m.number_id && numeriById.get(m.number_id) && (
+                        {mostraNumero && numeriById.get(m.number_id!) && (
                           <span className="mr-1" title="Numero da cui è partito questo messaggio">
-                            {numeriById.get(m.number_id)!.display_name || numeriById.get(m.number_id)!.numero}
-                            {numeriById.get(m.number_id)!.display_name && numeriById.get(m.number_id)!.numero
-                              ? ` · ${numeriById.get(m.number_id)!.numero}` : ""}
+                            {numeriById.get(m.number_id!)!.display_name || numeriById.get(m.number_id!)!.numero}
+                            {numeriById.get(m.number_id!)!.display_name && numeriById.get(m.number_id!)!.numero
+                              ? ` · ${numeriById.get(m.number_id!)!.numero}` : ""}
                             {" ·"}
                           </span>
                         )}
