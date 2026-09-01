@@ -19,7 +19,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, RotateCcw, StickyNote, UserCheck } from "lucide-react";
+import { CheckCircle2, Loader2, RotateCcw, StickyNote, UserCheck, Building2, ExternalLink, Mail, Megaphone, Target, Ban } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Nota {
   id: string;
@@ -28,6 +29,20 @@ interface Nota {
   created_at: string;
   profiles?: { first_name: string | null; last_name: string | null } | null;
 }
+
+interface Contesto {
+  contatto: {
+    id: string; first_name: string | null; last_name: string | null;
+    email: string | null; phone: string | null; company_name: string | null;
+    city: string | null; tags: string[] | null; optout_whatsapp: boolean | null;
+    source: string | null; lead_score: number | null;
+  } | null;
+  campagne: Array<{ nome: string; stato: string; primo_inviato_at: string | null; risposto_at: string | null }>;
+  opportunita: Array<{ id: string; name: string; value: number | null; status: string; stage: string | null; expected_close_date: string | null }>;
+  telefono: string | null;
+}
+
+const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 interface Props {
   chatId: string;
@@ -61,6 +76,19 @@ export default function PannelloChat({ chatId, stato, assegnatoA, onCambiato }: 
         id: r.user_id as string,
         nome: [r.profiles?.first_name, r.profiles?.last_name].filter(Boolean).join(" ") || r.profiles?.email || "Utente",
       }));
+    },
+  });
+
+  // Chi e' la persona, da dove arriva, cosa c'e' in ballo: tutto in una
+  // chiamata sola, perche' sono dati che si guardano sempre insieme.
+  const { data: ctx } = useQuery({
+    queryKey: ["openwa", "contesto", chatId],
+    staleTime: 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("openwa_contesto_chat", { p_chat_id: chatId });
+      if (error) return null;
+      return data as Contesto | null;
     },
   });
 
@@ -117,6 +145,83 @@ export default function PannelloChat({ chatId, stato, assegnatoA, onCambiato }: 
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-3">
+      {/* Chi e' — prima di rispondere serve sapere con chi si parla */}
+      {ctx?.contatto && (
+        <div className="space-y-1.5 rounded-md border p-2.5">
+          <p className="text-sm font-semibold leading-tight">
+            {[ctx.contatto.first_name, ctx.contatto.last_name].filter(Boolean).join(" ") || "Senza nome"}
+          </p>
+          {ctx.contatto.company_name && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Building2 className="h-3 w-3 shrink-0" /> {ctx.contatto.company_name}
+            </p>
+          )}
+          {ctx.contatto.email && (
+            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" /> {ctx.contatto.email}
+            </p>
+          )}
+          {ctx.contatto.optout_whatsapp && (
+            <Badge variant="destructive" className="gap-1 text-[10px]">
+              <Ban className="h-3 w-3" /> Ha chiesto di non essere ricontattato
+            </Badge>
+          )}
+          {(ctx.contatto.tags ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {(ctx.contatto.tags ?? []).slice(0, 4).map((t) => (
+                <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+              ))}
+            </div>
+          )}
+          <Button asChild size="sm" variant="ghost" className="h-6 w-full justify-start px-1 text-xs">
+            <Link to={`/admin/marketing/contatti/${ctx.contatto.id}`}>
+              Scheda completa <ExternalLink className="ml-1 h-3 w-3" />
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Da dove arriva: rispondere a chi ha ricevuto un messaggio a freddo
+          non e' come rispondere a chi ha scritto per primo. */}
+      {(ctx?.campagne?.length ?? 0) > 0 && (
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <Megaphone className="h-3 w-3" /> Contattato da campagna
+          </p>
+          {ctx!.campagne.slice(0, 3).map((c, i) => (
+            <div key={i} className="rounded-md border bg-muted/40 px-2 py-1.5 text-xs">
+              <p className="truncate font-medium">{c.nome}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {c.risposto_at ? "ha risposto" : c.primo_inviato_at ? "contattato, senza risposta" : "in coda"}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Opportunita': il motivo per cui questa conversazione esiste */}
+      <div className="space-y-1.5">
+        <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <Target className="h-3 w-3" /> Opportunità
+        </p>
+        {(ctx?.opportunita?.length ?? 0) === 0 ? (
+          <p className="text-xs text-muted-foreground">Nessuna opportunità collegata.</p>
+        ) : (
+          ctx!.opportunita.map((o) => (
+            <div key={o.id} className="rounded-md border px-2 py-1.5 text-xs">
+              <span className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium">{o.name}</span>
+                {o.value ? <span className="shrink-0 tabular-nums">{EURO.format(o.value)}</span> : null}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {o.stage || o.status}
+                {o.expected_close_date && ` · chiusura ${new Date(o.expected_close_date).toLocaleDateString("it-IT")}`}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
       {/* Stato */}
       <div className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Stato</p>

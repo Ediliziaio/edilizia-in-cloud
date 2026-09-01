@@ -377,6 +377,18 @@ Deno.serve(async (req) => {
         .eq("id", number.id);
     }
 
+    // Una conversazione chiusa che riceve un messaggio TORNA APERTA. Senza
+    // questo i filtri mentono: la chat resta fra le "chiuse" mentre la persona
+    // sta scrivendo, e chi guarda solo le aperte non la vede piu'.
+    try {
+      await admin.from("openwa_conversazioni")
+        .update({ stato: "aperta", chiusa_at: null, chiusa_da: null, updated_at: new Date().toISOString() })
+        .eq("wa_chat_id", chatId)
+        .eq("stato", "chiusa");
+    } catch (e) {
+      console.error("[openwa-webhook] riapertura conversazione:", (e as Error)?.message);
+    }
+
     // Opt-out automatico: se il contatto risponde STOP/CANCELLA/… lo rispettiamo
     // (compliance + anti-ban: non ricontattare chi ha chiesto di smettere).
     let didOptOut = false;

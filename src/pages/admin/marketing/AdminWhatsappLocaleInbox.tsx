@@ -185,6 +185,7 @@ export default function AdminWhatsappLocaleInbox() {
   const [soloNonLetti, setSoloNonLetti] = useState(false);
   const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
   const [pannelloAperto, setPannelloAperto] = useState(true);
+  const [cercaInChat, setCercaInChat] = useState("");
   const [reply, setReply] = useState("");
   // Avviso sul telefono quando arriva una risposta. Web push: funziona nel
   // browser del telefono o nella PWA in home, NON dentro l'app nativa
@@ -355,7 +356,14 @@ export default function AdminWhatsappLocaleInbox() {
   }, [threads, filtro, chatTrovate, ricercaQuery.data]);
 
   const totNonLetti = useMemo(() => threads.reduce((n, t) => n + t.unread, 0), [threads]);
-  const messaggiAttivi = messaggiQuery.data ?? [];
+  const messaggiTutti = messaggiQuery.data ?? [];
+  // Ricerca dentro la conversazione aperta: in una chat lunga ritrovare "quel
+  // messaggio sul preventivo" a forza di scorrere non e' praticabile.
+  const messaggiAttivi = useMemo(() => {
+    const q = cercaInChat.trim().toLowerCase();
+    if (!q) return messaggiTutti;
+    return messaggiTutti.filter((m) => (m.body ?? "").toLowerCase().includes(q));
+  }, [messaggiTutti, cercaInChat]);
 
   const active = threadsVisibili.find((t) => t.chatId === selectedChat)
     ?? threads.find((t) => t.chatId === selectedChat) ?? null;
@@ -400,6 +408,15 @@ export default function AdminWhatsappLocaleInbox() {
   // Allega e invia un file (immagine → send-image, altro → send-document).
   async function handleAttachFile(file: File) {
     if (!active || uploadingMedia) return;
+    // Il gateway rifiuta oltre gli 8 MB: dirlo qui evita di caricare per
+    // scoprire il problema dopo, quando il tempo e' gia' stato speso.
+    const MAX_MB = 8;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      toast.error(`File troppo grande (${(file.size / 1024 / 1024).toFixed(1)} MB)`, {
+        description: `WhatsApp accetta al massimo ${MAX_MB} MB. Comprimilo o mandalo via email.`,
+      });
+      return;
+    }
     setUploadingMedia(true);
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
@@ -718,6 +735,21 @@ export default function AdminWhatsappLocaleInbox() {
                     {pannelloAperto ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
                   </Button>
                 </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={cercaInChat}
+                    onChange={(e) => setCercaInChat(e.target.value)}
+                    placeholder="Cerca in questa conversazione…"
+                    className="h-7 pl-7 text-xs"
+                    aria-label="Cerca nei messaggi di questa conversazione"
+                  />
+                  {cercaInChat.trim() && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                      {messaggiAttivi.length} di {messaggiTutti.length}
+                    </span>
+                  )}
+                </div>
                 <IdentitaThread
                   chatId={active.chatId}
                   phone={active.phone}
@@ -727,6 +759,11 @@ export default function AdminWhatsappLocaleInbox() {
                 />
               </div>
               <div ref={scrollRef} className="flex-1 min-h-0 space-y-1.5 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/40">
+                {cercaInChat.trim() && messaggiAttivi.length === 0 && (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Nessun messaggio contiene “{cercaInChat.trim()}”.
+                  </p>
+                )}
                 {messaggiAttivi.map((m, i) => {
                   const prev = messaggiAttivi[i - 1];
                   const nuovoGiorno = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
@@ -815,7 +852,7 @@ export default function AdminWhatsappLocaleInbox() {
                   className="h-10 w-10 shrink-0 rounded-full text-muted-foreground"
                   onClick={() => attachRef.current?.click()}
                   disabled={uploadingMedia}
-                  title="Allega file"
+                  title="Allega file (max 8 MB)"
                 >
                   {uploadingMedia ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Paperclip className="h-5 w-5" />}
                 </Button>

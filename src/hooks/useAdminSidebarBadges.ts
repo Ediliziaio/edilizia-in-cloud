@@ -25,6 +25,8 @@ export interface SidebarBadges {
   chatUnread: number;
   /** Unread internal/system email messages for the superadmin workspace */
   emailUnread: number;
+  /** Messaggi WhatsApp Locale in arrivo non letti */
+  whatsappLocaleUnread: number;
 }
 
 /** Fetches badge counts for the admin sidebar nav items */
@@ -88,6 +90,15 @@ export function useAdminSidebarBadges() {
           .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
           .eq("is_read", false)
           .eq("is_trashed", false),
+        // WhatsApp Locale: la RLS della tabella e' super-admin-only, quindi per
+        // chiunque altro la query fallisce e il badge resta a zero (nessun
+        // errore visibile: allSettled assorbe, ed e' il comportamento voluto).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("openwa_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("direction", "inbound")
+          .is("read_at", null),
       ]);
 
       type SettledResult<T> = { data: T | null; error: unknown; count: number | null };
@@ -105,6 +116,7 @@ export function useAdminSidebarBadges() {
       const tasksRes = pick<Array<{ status: string; due_date: string | null }>>(5);
       const chatRes = pick<Array<{ unread_count: number | null }>>(6);
       const emailUnreadRes = pick<unknown>(7);
+      const waLocaleRes = pick<unknown>(8);
 
       const openTasksRows = tasksRes.data ?? [];
       const overdueTasks = openTasksRows.filter(
@@ -125,6 +137,7 @@ export function useAdminSidebarBadges() {
         dueTodayTasks,
         chatUnread: (chatRes.data ?? []).reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
         emailUnread: emailUnreadRes.count || 0,
+        whatsappLocaleUnread: waLocaleRes.count || 0,
       };
     },
     enabled: !!user?.id,
@@ -160,6 +173,12 @@ export function getBadgeForNavItem(
 
   if (url === "/admin/chat" && badges.chatUnread > 0) {
     return { count: badges.chatUnread, variant: "default" };
+  }
+
+  // Un messaggio WhatsApp in arrivo va notato anche stando su un'altra pagina:
+  // le risposte a freddo valgono finche' sono calde.
+  if (url === "/admin/marketing/whatsapp-locale" && badges.whatsappLocaleUnread > 0) {
+    return { count: badges.whatsappLocaleUnread, variant: "default" };
   }
 
   if (url === "/admin/email" && badges.emailUnread > 0) {
