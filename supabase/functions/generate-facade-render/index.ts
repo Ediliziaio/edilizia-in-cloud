@@ -8,7 +8,8 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
-import { buildFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
+import { ensureFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
+
 import { normalizeFacciataSceneAnalysis } from "../../../shared/render-facciata/facciataSceneAnalysis.ts";
 import type { FacciataPhotoMeta } from "../../../shared/render-facciata/types.ts";
 
@@ -523,11 +524,43 @@ Deno.serve(async (req) => {
       hintHeight: target_height,
     });
 
-    const dimensions = target_width && target_height
+    // Le dimensioni della foto servono a due cose: scegliere il formato del
+    // render e comporre `photoMeta`, che finisce nel prompt. Quando il client
+    // non le manda e prepareInputImage non le ricava restavano entrambe nulle:
+    // il selettore ripiegava sul quadrato 1024x1024 e su una facciata il
+    // quadrato costringe il modello a ricomporre l'edificio — cambiano piani,
+    // aperture e prospettiva.
+    // Misurato sulla sessione 8d6dc18f: sorgente 800x600 (1.333), render
+    // 1024x1024. Qui si leggono dai primi byte del file, come gia' fatto negli
+    // altri verticali. Il ramo dell'analisi lo faceva gia'; quello del render no.
+    let dimensions = target_width && target_height
       ? { width: target_width, height: target_height }
       : prepared.effective_width && prepared.effective_height
       ? { width: prepared.effective_width, height: prepared.effective_height }
       : null;
+    if (!dimensions) {
+      try {
+        const testa = await fetch(prepared.url, {
+          headers: { Range: "bytes=0-65535" },
+        });
+        if (testa.ok) {
+          const rilevate = detectImageDimensions(
+            new Uint8Array(await testa.arrayBuffer()),
+          );
+          if (rilevate) {
+            dimensions = rilevate;
+            console.log(JSON.stringify({
+              lvl: "info",
+              fn: "generate-facade-render",
+              session_id: requestSessionId,
+              msg: "source_dimensions_detected_from_bytes",
+              width: rilevate.width,
+              height: rilevate.height,
+            }));
+          }
+        }
+      } catch (_e) { /* formato non riconosciuto: si prosegue col default */ }
+    }
 
     const photoMeta: FacciataPhotoMeta | null = dimensions
       ? {
@@ -540,18 +573,19 @@ Deno.serve(async (req) => {
       }
       : null;
 
-    const normalizedConfig = buildFacciataRenderConfig(
-      (config ?? typedSession.config ?? {}) as never,
-      {
-        sceneAnalysis: config?.scene_analysis ?? typedSession.foto_analisi ??
-          null,
-        photoMeta,
-        notes: typeof config?.notes === "string"
-          ? config.notes
-          : typeof config?.note_libere === "string"
-          ? config.note_libere
-          : "",
-      },
+    // `buildFacciataRenderConfig` legge SOLO la forma legacy della
+    // configurazione (`intonaco.attivo`, `rivestimento.attivo`, ...). Ma il
+    // primo render riscrive la configurazione della sessione nella forma v2,
+    // dove quei campi stanno sotto `legacy_config` e i corrispondenti
+    // top-level sono null. Rigenerare la stessa sessione — o rifinirla —
+    // significava quindi rileggere una config v2 col lettore vecchio:
+    // "Cannot read properties of undefined (reading 'attivo')", render fallito.
+    // Verificato sulla sessione 4b506c6f. `ensureFacciataRenderConfig` accetta
+    // entrambe le forme e va usata proprio in questo punto.
+    const normalizedConfig = ensureFacciataRenderConfig(
+      (config ?? typedSession.config ?? {}) as Record<string, unknown>,
+      config?.scene_analysis ?? typedSession.foto_analisi ?? null,
+      photoMeta,
     );
 
     const { systemPrompt, userPrompt, promptVersion, blocks } =
@@ -573,8 +607,8 @@ Deno.serve(async (req) => {
         return await renderWithProvider({
           prompt,
           preparedUrl: prepared.url,
-          width: prepared.effective_width ?? undefined,
-          height: prepared.effective_height ?? undefined,
+          width: dimensions?.width ?? undefined,
+          height: dimensions?.height ?? undefined,
           companyId: typedSession.company_id,
           sessionId: idSessione,
           timeoutMs: 70_000,
@@ -592,8 +626,8 @@ Deno.serve(async (req) => {
         return await renderWithProvider({
           prompt,
           preparedUrl: prepared.url,
-          width: prepared.effective_width ?? undefined,
-          height: prepared.effective_height ?? undefined,
+          width: dimensions?.width ?? undefined,
+          height: dimensions?.height ?? undefined,
           companyId: typedSession.company_id,
           sessionId: idSessione,
           timeoutMs: 70_000,
@@ -657,8 +691,8 @@ The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as the source, same windows/doors/balconies in the same positions, same camera and crop. Only the finishes/colors specified in the brief change.`,
           preparedUrl: prepared.url,
-          width: prepared.effective_width ?? undefined,
-          height: prepared.effective_height ?? undefined,
+          width: dimensions?.width ?? undefined,
+          height: dimensions?.height ?? undefined,
           companyId: typedSession.company_id,
           sessionId: requestSessionId,
           timeoutMs: 60_000,
