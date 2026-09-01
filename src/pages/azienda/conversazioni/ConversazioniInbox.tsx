@@ -192,7 +192,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     <div className="h-full flex overflow-hidden rounded-xl border bg-card">
       {/* ═══ Sidebar lista ═══ */}
       <aside className={cn(
-        "w-full md:w-[340px] md:min-w-[300px] border-r flex flex-col bg-background",
+        "w-full md:w-[340px] md:min-w-[300px] min-h-0 border-r flex flex-col bg-background",
         selectedItem ? "hidden md:flex" : "flex",
       )}>
         <div className="p-3 border-b">
@@ -268,7 +268,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {isLoading ? (
             <div className="p-2 space-y-2">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -347,7 +347,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       <section
         key={selectedKey ?? "vuota"}
         className={cn(
-          "flex-1 min-w-0 flex flex-col bg-muted/20",
+          "flex-1 min-w-0 min-h-0 flex flex-col bg-muted/20",
           selectedItem ? "flex max-md:animate-in max-md:slide-in-from-right-4 max-md:fade-in-0 max-md:duration-200" : "hidden md:flex",
         )}
       >
@@ -411,7 +411,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               </div>
             </header>
 
-            <ScrollArea className="flex-1 px-3 sm:px-4 py-4">
+            <ScrollArea className="flex-1 min-h-0 px-3 sm:px-4 py-4">
               {timelineLoading ? (
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {Array.from({ length: 5 }).map((_, i) => (

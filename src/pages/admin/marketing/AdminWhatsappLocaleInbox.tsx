@@ -587,7 +587,7 @@ export default function AdminWhatsappLocaleInbox() {
               </button>
             ))}
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
           {threadsQuery.isLoading ? (
             <div className="space-y-2 p-3">
               <Skeleton className="h-14 w-full" />
@@ -726,7 +726,7 @@ export default function AdminWhatsappLocaleInbox() {
                   onCambiato={() => queryClient.invalidateQueries({ queryKey: ["openwa"] })}
                 />
               </div>
-              <div ref={scrollRef} className="flex-1 space-y-1.5 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/40">
+              <div ref={scrollRef} className="flex-1 min-h-0 space-y-1.5 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/40">
                 {messaggiAttivi.map((m, i) => {
                   const prev = messaggiAttivi[i - 1];
                   const nuovoGiorno = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();

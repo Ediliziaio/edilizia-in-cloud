@@ -123,7 +123,7 @@ export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
             </Badge>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 text-sm">
             {data.email && (
               <a href={`mailto:${data.email}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground break-all">
                 <Mail className="h-4 w-4 shrink-0" />{data.email}
