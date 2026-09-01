@@ -173,6 +173,7 @@ function describeSpecification(
       ? `🔨 ${FRAME_CORNER_CONSTRUCTION[spec.material]}`
       : "",
     `Profile visible thickness: ${spec.profileVisibleThickness}`,
+    `Profile proportions (THIS is what must be visible, the millimetres above are only a label): ${spec.proportionRule}`,
     spec.thermalBreakVisible
       ? "Thermal break MUST be visible as a thin (1-2mm) dark horizontal line at mid-depth of the frame and central mullion."
       : "",

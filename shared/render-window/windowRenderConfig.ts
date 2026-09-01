@@ -77,6 +77,14 @@ interface ProfileMapping {
   profilo_forma: string;
   slimness: string;
   profileVisibleThickness: string;
+  /** Le proporzioni del telaio dette in modo VISIVO, non in millimetri.
+   *  Un modello di immagini non ha nessuna scala per convertire "45mm" in
+   *  pixel: la sezione del profilo arrivava quindi identica per il PVC da 80mm
+   *  e per il minimal da 45mm, e i due uscivano indistinguibili — la scelta del
+   *  profilo, che e' una voce di preventivo, non si vedeva nel render.
+   *  Le frazioni rispetto alla larghezza dell'anta e la percentuale di vetro
+   *  sono invece grandezze che il modello sa rendere. */
+  proportionRule: string;
   thermalBreakVisible: boolean;
 }
 
@@ -90,6 +98,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): ProfileMapping {
         profilo_forma: "europeo",
         slimness: "balanced residential sightline",
         profileVisibleThickness: "80-90mm outer, 110mm central mullion",
+        proportionRule:
+          "The visible frame is CHUNKY: each sash stile is roughly one tenth (1/10) of that sash's width, and the central mullion is nearly twice as wide as a single stile. Glass covers about 75-80% of the opening area. The frame reads as a substantial white/coloured band framing the glass, not as a thin line.",
         thermalBreakVisible: false,
       };
     case "alluminio":
@@ -100,6 +110,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): ProfileMapping {
         profilo_forma: "squadrato",
         slimness: "slim architectural sightline",
         profileVisibleThickness: "50-60mm outer, 60-70mm central mullion",
+        proportionRule:
+          "The visible frame is SLIM: each sash stile is roughly one fifteenth (1/15) of that sash's width. Glass covers about 85% of the opening area. Noticeably thinner than a standard PVC window in the same hole.",
         thermalBreakVisible: true,
       };
     case "minimal":
@@ -110,6 +122,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): ProfileMapping {
         profilo_forma: "squadrato",
         slimness: "very slim minimal sightline",
         profileVisibleThickness: "45-55mm outer, 45mm central mullion",
+        proportionRule:
+          "The visible frame is EXTREMELY THIN — this is the single most important visual trait of this profile. Each sash stile is roughly one twentyfifth (1/25) of that sash's width, about as wide as a finger, and the central meeting stile stays equally thin. Glass covers about 90% of the opening area. The window must read as a sheet of glass outlined by a fine dark line, NOT as a framed panel. If the frame looks as thick as a normal PVC window, the render is WRONG.",
         thermalBreakVisible: true,
       };
     case "legno":
@@ -120,6 +134,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): ProfileMapping {
         profilo_forma: "arrotondato",
         slimness: "warmer traditional sightline",
         profileVisibleThickness: "82-90mm outer, 100mm central mullion",
+        proportionRule:
+          "The visible frame is SUBSTANTIAL and slightly rounded, as traditional joinery: each sash stile is roughly one tenth (1/10) of that sash's width, with a soft moulded edge rather than a sharp square one. Glass covers about 75% of the opening area.",
         thermalBreakVisible: false,
       };
     case "legno_alluminio":
@@ -130,6 +146,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): ProfileMapping {
         profilo_forma: "europeo",
         slimness: "premium hybrid sightline",
         profileVisibleThickness: "82mm interior wood, 50mm exterior aluminum cladding",
+        proportionRule:
+          "The visible frame is SUBSTANTIAL on the inside face and slimmer on the outside face: interior stiles roughly one tenth (1/10) of the sash width, exterior aluminium cladding visibly thinner. Glass covers about 78% of the opening area.",
         thermalBreakVisible: true,
       };
   }
@@ -814,6 +832,7 @@ function buildTechnicalSpecifications(
       slimnessLabel: profilo.slimness,
 
       profileVisibleThickness: profilo.profileVisibleThickness,
+      proportionRule: profilo.proportionRule,
       thermalBreakVisible: profilo.thermalBreakVisible,
       compositionChange,
       transomRule,

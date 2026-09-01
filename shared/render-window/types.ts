@@ -222,6 +222,10 @@ export interface WindowTechnicalSpecification {
   // ── v8 ─────────────────────────────────────────────────────────────────
   /** Spessore visibile del profilo (es. "45-55mm outer, 50mm central mullion"). */
   profileVisibleThickness: string;
+  /** Le proporzioni del telaio espresse in modo visivo (frazione della
+   *  larghezza dell'anta, percentuale di vetro) invece che in millimetri, che
+   *  il modello di immagini non sa convertire. */
+  proportionRule: string;
   /** Thermal break visibile come stripe scura (true per alluminio premium). */
   thermalBreakVisible: boolean;
   /** Cambio architettura (composizione ante) richiesto dall'utente. */
