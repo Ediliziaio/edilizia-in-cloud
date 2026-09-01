@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -186,6 +187,19 @@ export default function AdminWhatsappLocaleInbox() {
   const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
   const [pannelloAperto, setPannelloAperto] = useState(true);
   const [cercaInChat, setCercaInChat] = useState("");
+
+  // Arrivo da un link esterno (es. "apri chat" dalla pipeline campagne):
+  // ?chat=<wa_chat_id> apre direttamente quella conversazione. Filtro su
+  // "tutte" perche' la chat potrebbe essere gia' stata chiusa.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const chat = searchParams.get("chat");
+    if (chat) {
+      setSelectedChat(chat);
+      setFiltroStato("tutte");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [reply, setReply] = useState("");
   // Avviso sul telefono quando arriva una risposta. Web push: funziona nel
   // browser del telefono o nella PWA in home, NON dentro l'app nativa
@@ -364,6 +378,17 @@ export default function AdminWhatsappLocaleInbox() {
     if (!q) return messaggiTutti;
     return messaggiTutti.filter((m) => (m.body ?? "").toLowerCase().includes(q));
   }, [messaggiTutti, cercaInChat]);
+
+  // La chat linkata puo' stare oltre la prima pagina: si carica finche' non
+  // compare, con un tetto per non scaricare tutto l'archivio.
+  useEffect(() => {
+    const chat = searchParams.get("chat");
+    if (!chat || !threadsQuery.data) return;
+    const trovata = threadsQuery.data.some((r) => r.wa_chat_id === chat);
+    const altrePagine = threadsQuery.data.length >= PER_PAGINA * pagine;
+    if (!trovata && altrePagine && pagine < 10) setPagine((n) => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadsQuery.data, searchParams]);
 
   const active = threadsVisibili.find((t) => t.chatId === selectedChat)
     ?? threads.find((t) => t.chatId === selectedChat) ?? null;

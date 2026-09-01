@@ -196,6 +196,11 @@ const adminMarketingNavItems: AdminNavItem[] = [
   { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
 ];
 
+// Tutti gli URL del menu: serve a capire quali voci hanno una figlia
+// (match esatto invece che per prefisso).
+const TUTTE_LE_VOCI_NAV: string[] = [...allNavItems, ...adminMarketingNavItems].map((i) => i.url);
+
+
 const accountItems = [
   { title: "Impostazioni", url: "/admin/impostazioni", icon: Settings },
 ];
@@ -335,6 +340,12 @@ function AdminMainSidebar() {
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const { data: sidebarBadges } = useAdminSidebarBadges();
+
+  // Una voce il cui URL e' prefisso di un'altra (es. /whatsapp-locale e
+  // /whatsapp-locale/campagne) deve fare match ESATTO, altrimenti sulla pagina
+  // figlia risultano evidenziate entrambe.
+  const urlHaFigli = (url: string) =>
+    TUTTE_LE_VOCI_NAV.some((u) => u !== url && u.startsWith(url + "/"));
   const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -633,7 +644,7 @@ function AdminMainSidebar() {
                         <SidebarMenuButton asChild>
                           <NavLink
                             to={item.url}
-                            end={item.url === "/admin"}
+                            end={item.url === "/admin" || urlHaFigli(item.url)}
                             className={navLinkClass}
                             activeClassName={activeClass}
                           >
@@ -680,7 +691,7 @@ function AdminMainSidebar() {
                               <SidebarMenuButton asChild>
                                 <NavLink
                                   to={item.url}
-                                  end={item.url === "/admin"}
+                                  end={item.url === "/admin" || urlHaFigli(item.url)}
                                   className={navLinkClass}
                                   activeClassName={activeClass}
                                 >

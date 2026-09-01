@@ -29,9 +29,10 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink, Copy, Pencil, Eye, FlaskConical, Clock, Loader2 } from "lucide-react";
+import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink, Copy, Pencil, FlaskConical, Clock, Loader2, KanbanSquare, XCircle, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import RisposteRapide from "@/components/admin/whatsapp-locale/RisposteRapide";
+import PipelineCampagna from "@/components/admin/whatsapp-locale/PipelineCampagna";
 
 interface Riepilogo {
   id: string;
@@ -84,6 +85,7 @@ export default function AdminWhatsappLocaleCampagne() {
   // Prova: mandarsi la campagna prima di lanciarla su centinaia di persone.
   const [provaPer, setProvaPer] = useState<Riepilogo | null>(null);
   const [provaNumero, setProvaNumero] = useState("");
+  const [pipelinePer, setPipelinePer] = useState<Riepilogo | null>(null);
 
   // Caricamento lista
   const [fTags, setFTags] = useState("");
@@ -157,6 +159,14 @@ export default function AdminWhatsappLocaleCampagne() {
     },
     staleTime: 30_000,
   });
+
+  // Le campagne su cui si lavora vengono prima; completate e annullate in
+  // fondo — sono archivio, non lavoro.
+  const campagneOrdinate = useMemo(() => {
+    const peso: Record<string, number> = { in_corso: 0, in_pausa: 1, bozza: 2, completata: 3, annullata: 4 };
+    return [...campagne].sort((a, b) =>
+      (peso[a.stato] ?? 9) - (peso[b.stato] ?? 9) || (a.created_at < b.created_at ? 1 : -1));
+  }, [campagne]);
 
   const filtriRpc = useMemo(() => {
     const tags = fTags.split(",").map((t) => t.trim()).filter(Boolean);
@@ -331,6 +341,37 @@ export default function AdminWhatsappLocaleCampagne() {
     },
   });
 
+  // Annullare non e' mettere in pausa: la pausa dice "riprendo", l'annullo dice
+  // "questa campagna e' morta" e la toglie dal lavoro del dispatcher per sempre.
+  const annulla = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("openwa_campagne")
+        .update({ stato: "annullata", updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Campagna annullata");
+      qc.invalidateQueries({ queryKey: ["openwa-campagne"] });
+    },
+    onError: (e: Error) => toast.error("Operazione non riuscita", { description: e.message }),
+  });
+
+  // Eliminabile SOLO la bozza: una campagna che ha inviato e' storia di
+  // contatti reali, e la storia non si cancella (i destinatari cadrebbero in
+  // cascata e con loro gli esiti).
+  const elimina = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("openwa_campagne")
+        .delete().eq("id", id).eq("stato", "bozza");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Bozza eliminata");
+      qc.invalidateQueries({ queryKey: ["openwa-campagne"] });
+    },
+    onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
+  });
+
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const patch: Record<string, unknown> = { stato, updated_at: new Date().toISOString() };
@@ -448,7 +489,7 @@ export default function AdminWhatsappLocaleCampagne() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {campagne.map((c) => {
+          {campagneOrdinate.map((c) => {
             const badge = STATO_BADGE[c.stato] ?? { label: c.stato, className: "bg-slate-100" };
             const contattati = c.inviati + c.followup_inviati + c.risposti;
             const tassoRisposta = contattati > 0 ? Math.round((c.risposti / contattati) * 100) : null;
@@ -472,6 +513,16 @@ export default function AdminWhatsappLocaleCampagne() {
                         {testiById[c.id].messaggio}
                       </p>
                     )}
+                    {c.stato === "in_corso" && c.da_inviare > 0 && capacitaGiorno > 0 && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Al ritmo attuale finisce in ≈ {Math.ceil(c.da_inviare / capacitaGiorno)}{" "}
+                        {Math.ceil(c.da_inviare / capacitaGiorno) === 1 ? "giorno" : "giorni"}.
+                      </p>
+                    )}
+                    <p className="mt-1 text-[10px] text-muted-foreground/70">
+                      Creata il {new Date(c.created_at).toLocaleDateString("it-IT")}
+                      {c.avviata_at && ` · avviata il ${new Date(c.avviata_at).toLocaleDateString("it-IT")}`}
+                    </p>
                     {testiById[c.id]?.parte_il && new Date(testiById[c.id].parte_il!) > new Date() && (
                       <p className="mt-1 flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-400">
                         <Clock className="h-3 w-3" /> Programmata: parte il{" "}
@@ -511,6 +562,10 @@ export default function AdminWhatsappLocaleCampagne() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => setPipelinePer(c)}
+                      title="Destinatari, risposte ed esiti su una bacheca">
+                      <KanbanSquare className="h-4 w-4 mr-1.5" /> Pipeline
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => setProvaPer(c)} title="Mandalo prima a te">
                       <FlaskConical className="h-4 w-4 mr-1.5" /> Prova
                     </Button>
@@ -539,6 +594,24 @@ export default function AdminWhatsappLocaleCampagne() {
                     <Button variant="outline" size="sm" onClick={() => setListaPer(c)}>
                       <Users className="h-4 w-4 mr-1.5" /> Destinatari
                     </Button>
+                    {(c.stato === "in_corso" || c.stato === "in_pausa") && (
+                      <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400"
+                        disabled={annulla.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Annullare "${c.nome}"? Gli invii si fermano per sempre; i dati restano.`)) annulla.mutate(c.id);
+                        }}>
+                        <XCircle className="h-4 w-4 mr-1.5" /> Annulla
+                      </Button>
+                    )}
+                    {c.stato === "bozza" && (
+                      <Button variant="ghost" size="sm" className="text-red-600 dark:text-red-400"
+                        disabled={elimina.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Eliminare la bozza "${c.nome}"? Sparisce anche la lista destinatari.`)) elimina.mutate(c.id);
+                        }}>
+                        <Trash2 className="h-4 w-4 mr-1.5" /> Elimina
+                      </Button>
+                    )}
                     {c.stato === "in_corso" ? (
                       <Button variant="outline" size="sm"
                         onClick={() => cambiaStato.mutate({ id: c.id, stato: "in_pausa" })}>
@@ -623,6 +696,16 @@ export default function AdminWhatsappLocaleCampagne() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Pipeline destinatari/esiti ── */}
+      {pipelinePer && (
+        <PipelineCampagna
+          campagnaId={pipelinePer.id}
+          nome={pipelinePer.nome}
+          aperta={!!pipelinePer}
+          onChiudi={() => setPipelinePer(null)}
+        />
+      )}
 
       {/* ── Invio di prova ── */}
       <Dialog open={!!provaPer} onOpenChange={(o) => { if (!o) { setProvaPer(null); setProvaNumero(""); } }}>
