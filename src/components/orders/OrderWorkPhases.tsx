@@ -1197,6 +1197,8 @@ interface TariffaManodopera {
   prezzo_vendita: number | null;
   attiva: boolean | null;
   attivo: boolean | null;
+  /** Listino della singola squadra (null = listino aziendale generico). */
+  external_team_id: string | null;
 }
 
 function AddAssignmentDialog({
@@ -1231,14 +1233,26 @@ function AddAssignmentDialog({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tariffe_aziendali")
-        .select("id, nome, unita, prezzo_costo, prezzo_vendita, attiva, attivo")
+        .select("id, nome, unita, prezzo_costo, prezzo_vendita, attiva, attivo, external_team_id")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
       return (data ?? []) as TariffaManodopera[];
     },
   });
-  const tariffeAttive = tariffe.filter((t) => t.attiva ?? t.attivo ?? true);
+  // Ogni squadra puo' avere il SUO listino ("piu' squadre con listini
+  // diversi"): con l'esecutore esterno scelto si vedono le sue voci (prima)
+  // e quelle aziendali generiche — mai i prezzi delle altre squadre, che
+  // suggerirebbero il costo sbagliato.
+  const squadraSelezionata = tipo === "esterno" ? executorId : "";
+  const tariffeAttive = tariffe
+    .filter((t) => t.attiva ?? t.attivo ?? true)
+    .filter((t) => !t.external_team_id || t.external_team_id === squadraSelezionata)
+    .sort((a, b) => {
+      const pa = a.external_team_id ? 0 : 1;
+      const pb = b.external_team_id ? 0 : 1;
+      return pa !== pb ? pa - pb : a.nome.localeCompare(b.nome);
+    });
   const tariffaSel = tariffeAttive.find((t) => t.id === tariffaId) ?? null;
 
   // Applica costo (e nota, se vuota) da tariffa × quantità. Il campo resta
@@ -1333,7 +1347,7 @@ function AddAssignmentDialog({
               </Label>
               <div className="flex gap-2">
                 <Select
-                  value={tariffaId}
+                  value={tariffaSel ? tariffaId : ""}
                   onValueChange={(v) => {
                     setTariffaId(v);
                     const t = tariffeAttive.find((x) => x.id === v) ?? null;
@@ -1391,6 +1405,10 @@ function AddAssignmentDialog({
                       </span>
                     </>
                   )}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tipo toggle */}
           <div className="space-y-1.5">
@@ -1447,11 +1465,6 @@ function AddAssignmentDialog({
               </SelectContent>
             </Select>
           </div>
-
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Costs */}
           <div className="grid grid-cols-2 gap-3">
