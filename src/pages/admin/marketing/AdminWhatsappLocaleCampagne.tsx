@@ -29,13 +29,16 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink } from "lucide-react";
+import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink, Copy, Pencil, Eye, FlaskConical, Clock, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface Riepilogo {
   id: string;
   nome: string;
   stato: string;
+  messaggio?: string | null;
+  followup_messaggio?: string | null;
+  parte_il?: string | null;
   followup_dopo_giorni: number;
   ha_followup: boolean;
   totali: number;
@@ -74,6 +77,12 @@ export default function AdminWhatsappLocaleCampagne() {
   const [messaggio, setMessaggio] = useState("");
   const [followup, setFollowup] = useState("");
   const [followupGiorni, setFollowupGiorni] = useState(3);
+  const [parteIl, setParteIl] = useState("");
+  // Modifica: stesso dialog della creazione, con l'id di chi si sta correggendo.
+  const [modificaId, setModificaId] = useState<string | null>(null);
+  // Prova: mandarsi la campagna prima di lanciarla su centinaia di persone.
+  const [provaPer, setProvaPer] = useState<Riepilogo | null>(null);
+  const [provaNumero, setProvaNumero] = useState("");
 
   // Caricamento lista
   const [fTags, setFTags] = useState("");
@@ -131,6 +140,23 @@ export default function AdminWhatsappLocaleCampagne() {
   const nomeNumero = (n: { display_name: string | null; numero: string | null }) =>
     n.display_name || n.numero || "numero";
 
+  // La RPC di riepilogo non restituisce il testo del messaggio: senza, una
+  // campagna creata non si poteva piu' rileggere ne' correggere.
+  const { data: testiById = {} } = useQuery({
+    queryKey: ["openwa-campagne-testi"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("openwa_campagne")
+        .select("id, messaggio, followup_messaggio, followup_dopo_giorni, parte_il, nome");
+      if (error) throw error;
+      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; parte_il: string | null; nome: string }> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const c of (data ?? []) as any[]) m[c.id] = c;
+      return m;
+    },
+    staleTime: 30_000,
+  });
+
   const filtriRpc = useMemo(() => {
     const tags = fTags.split(",").map((t) => t.trim()).filter(Boolean);
     return {
@@ -152,24 +178,95 @@ export default function AdminWhatsappLocaleCampagne() {
     enabled: !!listaPer,
   });
 
+  const chiudiEditor = () => {
+    setCreaAperto(false); setModificaId(null);
+    setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3); setParteIl("");
+  };
+
   const crea = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("openwa_campagne").insert({
+      const payload = {
         nome: nome.trim(),
         messaggio: messaggio.trim(),
         followup_messaggio: followup.trim() || null,
         followup_dopo_giorni: followupGiorni,
+        parte_il: parteIl ? new Date(parteIl).toISOString() : null,
+      };
+      // Modifica: consentita solo finche' la campagna non e' partita — cambiare
+      // il testo a meta' invio significa due messaggi diversi nella stessa
+      // campagna, e nessun modo di sapere chi ha ricevuto cosa.
+      const { error } = modificaId
+        ? await supabase.from("openwa_campagne").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", modificaId)
+        : await supabase.from("openwa_campagne").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(modificaId ? "Campagna aggiornata" : "Campagna creata", {
+        description: modificaId ? undefined : "Ora carica i destinatari, poi avviala.",
+      });
+      chiudiEditor();
+      qc.invalidateQueries({ queryKey: ["openwa-campagne"] });
+      qc.invalidateQueries({ queryKey: ["openwa-campagne-testi"] });
+    },
+    onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+  });
+
+  // Duplica: il gesto piu' frequente (stessa campagna, mese dopo). Copia solo
+  // il contenuto, MAI i destinatari o lo stato: la copia nasce vuota e in bozza.
+  const duplica = useMutation({
+    mutationFn: async (c: Riepilogo) => {
+      const src = testiById[c.id];
+      if (!src) throw new Error("Testo della campagna non disponibile");
+      const { error } = await supabase.from("openwa_campagne").insert({
+        nome: `${src.nome} (copia)`,
+        messaggio: src.messaggio,
+        followup_messaggio: src.followup_messaggio,
+        followup_dopo_giorni: src.followup_dopo_giorni,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campagna creata", { description: "Ora carica i destinatari, poi avviala." });
-      setCreaAperto(false);
-      setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3);
+      toast.success("Campagna duplicata", { description: "La copia è in bozza e senza destinatari." });
       qc.invalidateQueries({ queryKey: ["openwa-campagne"] });
+      qc.invalidateQueries({ queryKey: ["openwa-campagne-testi"] });
     },
-    onError: (e: Error) => toast.error("Creazione non riuscita", { description: e.message }),
+    onError: (e: Error) => toast.error("Duplicazione non riuscita", { description: e.message }),
   });
+
+  // Prova: manda il messaggio a UN numero scelto. Con 500 destinatari in coda,
+  // scoprire un errore nel testo dopo il lancio non e' recuperabile.
+  const inviaProva = useMutation({
+    mutationFn: async () => {
+      const numero = provaNumero.trim();
+      const testo = provaPer ? testiById[provaPer.id]?.messaggio : "";
+      if (!numero) throw new Error("Indica un numero");
+      if (!testo) throw new Error("Testo della campagna non disponibile");
+      const { data, error } = await supabase.functions.invoke("openwa-gateway", {
+        body: { action: "send_text", to: numero, text: testo },
+      });
+      if (error) throw new Error(error.message ?? "Invio fallito");
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (r?.ok === false || r?.error) throw new Error(r?.error ?? "Invio fallito");
+    },
+    onSuccess: () => {
+      toast.success("Prova inviata", { description: "Controlla come è arrivato prima di lanciare." });
+      setProvaPer(null); setProvaNumero("");
+    },
+    onError: (e: Error) => toast.error("Prova non riuscita", { description: e.message }),
+  });
+
+  /** Apre l'editor su una campagna esistente. */
+  const apriModifica = (c: Riepilogo) => {
+    const src = testiById[c.id];
+    if (!src) { toast.error("Testo non disponibile, riprova"); return; }
+    setModificaId(c.id);
+    setNome(src.nome);
+    setMessaggio(src.messaggio ?? "");
+    setFollowup(src.followup_messaggio ?? "");
+    setFollowupGiorni(src.followup_dopo_giorni ?? 3);
+    setParteIl(src.parte_il ? new Date(src.parte_il).toISOString().slice(0, 16) : "");
+    setCreaAperto(true);
+  };
 
   const caricaLista = useMutation({
     mutationFn: async (campagnaId: string) => {
@@ -367,6 +464,19 @@ export default function AdminWhatsappLocaleCampagne() {
                         </Badge>
                       )}
                     </div>
+                    {/* Il testo che partira': prima non era piu' rileggibile
+                        da nessuna parte una volta creata la campagna. */}
+                    {testiById[c.id]?.messaggio && (
+                      <p className="mt-1.5 line-clamp-2 max-w-2xl rounded-md bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
+                        {testiById[c.id].messaggio}
+                      </p>
+                    )}
+                    {testiById[c.id]?.parte_il && new Date(testiById[c.id].parte_il!) > new Date() && (
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-400">
+                        <Clock className="h-3 w-3" /> Programmata: parte il{" "}
+                        {new Date(testiById[c.id].parte_il!).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
                     {/* La riga "479 · 12 · 30 · …" era illeggibile: numeri
                         etichettati, e una barra che mostra COSA è successo,
                         non solo quanto. */}
@@ -400,6 +510,18 @@ export default function AdminWhatsappLocaleCampagne() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => setProvaPer(c)} title="Mandalo prima a te">
+                      <FlaskConical className="h-4 w-4 mr-1.5" /> Prova
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={duplica.isPending}
+                      onClick={() => duplica.mutate(c)} title="Copia il testo in una nuova campagna">
+                      <Copy className="h-4 w-4 mr-1.5" /> Duplica
+                    </Button>
+                    {(c.stato === "bozza" || c.stato === "in_pausa") && (
+                      <Button variant="ghost" size="sm" onClick={() => apriModifica(c)}>
+                        <Pencil className="h-4 w-4 mr-1.5" /> Modifica
+                      </Button>
+                    )}
                     {(c.falliti > 0 || c.saltati > 0) && (
                       <Button variant="ghost" size="sm" className="text-amber-700 dark:text-amber-400"
                         onClick={() => setErroriPer(c)}>
@@ -438,10 +560,10 @@ export default function AdminWhatsappLocaleCampagne() {
       )}
 
       {/* ── Nuova campagna ── */}
-      <Dialog open={creaAperto} onOpenChange={setCreaAperto}>
+      <Dialog open={creaAperto} onOpenChange={(o) => { if (!o) chiudiEditor(); else setCreaAperto(true); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuova campagna</DialogTitle>
+            <DialogTitle>{modificaId ? "Modifica campagna" : "Nuova campagna"}</DialogTitle>
             <DialogDescription>
               Varianti <code>{"{ciao|salve}"}</code>: a ogni invio ne esce una a caso, così i
               messaggi non sono tutti identici. Variabili disponibili:{" "}
@@ -469,17 +591,63 @@ export default function AdminWhatsappLocaleCampagne() {
                 Parte solo verso chi <strong>non ha risposto</strong>.
               </p>
             </div>
-            <div>
-              <Label htmlFor="fug">Dopo quanti giorni</Label>
-              <Input id="fug" type="number" min={1} max={30} value={followupGiorni}
-                onChange={(e) => setFollowupGiorni(Number(e.target.value))} className="w-28" />
+            <div className="flex flex-wrap gap-4">
+              <div>
+                <Label htmlFor="fug">Dopo quanti giorni</Label>
+                <Input id="fug" type="number" min={1} max={30} value={followupGiorni}
+                  onChange={(e) => setFollowupGiorni(Number(e.target.value))} className="w-28" />
+              </div>
+              <div>
+                <Label htmlFor="parteil">Parte il (facoltativo)</Label>
+                <Input id="parteil" type="datetime-local" value={parteIl}
+                  onChange={(e) => setParteIl(e.target.value)} className="w-56" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Lascia vuoto per partire appena la avvii.
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreaAperto(false)}>Annulla</Button>
+            <Button variant="outline" onClick={chiudiEditor}>Annulla</Button>
             <Button disabled={!nome.trim() || !messaggio.trim() || crea.isPending}
               onClick={() => crea.mutate()}>
-              {crea.isPending ? "Creo…" : "Crea"}
+              {crea.isPending ? "Salvo…" : modificaId ? "Salva modifiche" : "Crea"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Invio di prova ── */}
+      <Dialog open={!!provaPer} onOpenChange={(o) => { if (!o) { setProvaPer(null); setProvaNumero(""); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Prova — {provaPer?.nome}</DialogTitle>
+            <DialogDescription>
+              Manda il primo messaggio a un numero che conosci, per vedere come arriva davvero
+              prima di lanciarlo su tutta la lista. Consuma un invio del tetto giornaliero.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="prova-num">Numero destinatario</Label>
+              <Input id="prova-num" placeholder="+39 333 1234567" value={provaNumero}
+                onChange={(e) => setProvaNumero(e.target.value)} />
+            </div>
+            {provaPer && testiById[provaPer.id]?.messaggio && (
+              <div className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white whitespace-pre-wrap">
+                {testiById[provaPer.id].messaggio}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Le varianti <code>{"{a|b}"}</code> e le variabili <code>{"{{nome}}"}</code> vengono
+              risolte al momento dell'invio: qui vedi il testo grezzo.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setProvaPer(null); setProvaNumero(""); }}>Annulla</Button>
+            <Button disabled={!provaNumero.trim() || inviaProva.isPending} onClick={() => inviaProva.mutate()}>
+              {inviaProva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+              Invia la prova
             </Button>
           </DialogFooter>
         </DialogContent>

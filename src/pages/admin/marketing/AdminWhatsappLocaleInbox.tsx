@@ -20,12 +20,14 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Send, Plus, MessageCircle, Smartphone, RefreshCw, Paperclip, Bell, BellOff, Search, Check, CheckCheck, AlertCircle, Ban, WifiOff } from "lucide-react";
+import { Send, Plus, MessageCircle, Smartphone, RefreshCw, Paperclip, Bell, BellOff, Search, Check, CheckCheck, AlertCircle, Ban, WifiOff, CheckCircle2, StickyNote, PanelRightClose, PanelRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import IdentitaThread from "@/components/admin/whatsapp-locale/IdentitaThread";
+import PannelloChat from "@/components/admin/whatsapp-locale/PannelloChat";
+import RisposteRapide from "@/components/admin/whatsapp-locale/RisposteRapide";
 
 interface OpenWaMessage {
   id: string;
@@ -62,7 +64,29 @@ interface Thread {
   numberId: string | null;
   contactId: string | null;
   unread: number;
-  messages: OpenWaMessage[];
+  totale: number;
+  stato: string;
+  assegnatoA: string | null;
+  assegnatoNome: string | null;
+  noteCount: number;
+}
+
+/** Riga cruda della RPC openwa_threads_lista. */
+interface ThreadRow {
+  wa_chat_id: string;
+  contact_phone: string | null;
+  contact_name: string | null;
+  contact_id: string | null;
+  number_id: string | null;
+  ultimo_testo: string | null;
+  ultimo_at: string;
+  ultima_direzione: string;
+  non_letti: number;
+  totale: number;
+  stato: string;
+  assegnato_a: string | null;
+  assegnato_nome: string | null;
+  note_count: number;
 }
 
 async function readInvokeError(error: unknown): Promise<string> {
@@ -159,6 +183,8 @@ export default function AdminWhatsappLocaleInbox() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
   const [soloNonLetti, setSoloNonLetti] = useState(false);
+  const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
+  const [pannelloAperto, setPannelloAperto] = useState(true);
   const [reply, setReply] = useState("");
   // Avviso sul telefono quando arriva una risposta. Web push: funziona nel
   // browser del telefono o nella PWA in home, NON dentro l'app nativa
@@ -178,19 +204,60 @@ export default function AdminWhatsappLocaleInbox() {
   const attachRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  const messagesQuery = useQuery({
-    queryKey: ["openwa", "messages"],
+  // Conversazioni: aggregate dal DATABASE, non piu' raggruppando in memoria gli
+  // ultimi 1000 messaggi (oltre quella soglia le chat vecchie sparivano del
+  // tutto). Paginate: si carica altro solo quando serve.
+  const [pagine, setPagine] = useState(1);
+  const PER_PAGINA = 50;
+
+  const threadsQuery = useQuery({
+    queryKey: ["openwa", "threads", filtroStato, soloNonLetti, pagine],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("openwa_threads_lista", {
+        p_limit: PER_PAGINA * pagine,
+        p_offset: 0,
+        p_stato: filtroStato,
+        p_assegnato: null,
+        p_solo_non_letti: soloNonLetti,
+      });
+      if (error) throw error;
+      return (data ?? []) as ThreadRow[];
+    },
+    staleTime: 10_000,
+  });
+
+  // Ricerca DENTRO i testi (lato server): senza, un messaggio di tre mesi fa
+  // era irraggiungibile perche' la ricerca vedeva solo i thread gia' caricati.
+  const ricercaQuery = useQuery({
+    queryKey: ["openwa", "cerca", filtro],
+    enabled: filtro.trim().length >= 2,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("openwa_cerca_messaggi", {
+        p_query: filtro.trim(), p_limit: 60,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{ wa_chat_id: string; contact_phone: string | null; contact_name: string | null; testo: string; direction: string; created_at: string }>;
+    },
+  });
+
+  // Messaggi della conversazione aperta: caricati per chat, non tutti insieme.
+  const messaggiQuery = useQuery({
+    queryKey: ["openwa", "messaggi", selectedChat],
+    enabled: !!selectedChat,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("openwa_messages")
         .select("id, number_id, contact_id, wa_chat_id, contact_phone, contact_name, direction, body, media_url, status, error, created_at, read_at")
-        .order("created_at", { ascending: false })
-        .limit(1000);
+        .eq("wa_chat_id", selectedChat)
+        .order("created_at", { ascending: true })
+        .limit(500);
       if (error) throw error;
       return (data ?? []) as OpenWaMessage[];
     },
-    staleTime: 15_000,
+    staleTime: 5_000,
   });
 
   // I nostri numeri: servono a dire da QUALE numero si sta parlando (con piu'
@@ -228,58 +295,70 @@ export default function AdminWhatsappLocaleInbox() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "openwa_messages" },
-        () => queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] }),
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
+          queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
-  // Raggruppa i messaggi per chat (thread), ordinati per ultimo messaggio.
+  // I thread arrivano gia' pronti dalla RPC: qui solo la forma per la UI.
   const threads = useMemo<Thread[]>(() => {
-    const rows = messagesQuery.data ?? [];
-    const map = new Map<string, Thread>();
-    // rows è desc: il primo visto per chat è il più recente.
-    for (const m of rows) {
-      let t = map.get(m.wa_chat_id);
-      if (!t) {
-        t = {
-          chatId: m.wa_chat_id,
-          name: m.contact_name || m.contact_phone || m.wa_chat_id.replace("@c.us", ""),
-          phone: m.contact_phone,
-          lastAt: m.created_at,
-          lastBody: m.body || (m.media_url ? "📎 media" : ""),
-          numberId: m.number_id,
-          contactId: m.contact_id,
-          unread: 0,
-          messages: [],
-        };
-        map.set(m.wa_chat_id, t);
-      }
-      t.messages.push(m);
-      if (!t.contactId && m.contact_id) t.contactId = m.contact_id;
-      if (m.direction === "inbound" && !m.read_at) t.unread++;
-    }
-    // messaggi in ordine cronologico crescente per il thread
-    for (const t of map.values()) t.messages.reverse();
-    return [...map.values()].sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
-  }, [messagesQuery.data]);
+    return (threadsQuery.data ?? []).map((r) => ({
+      chatId: r.wa_chat_id,
+      name: r.contact_name || r.contact_phone || r.wa_chat_id.replace(/@.*$/, ""),
+      phone: r.contact_phone,
+      lastAt: r.ultimo_at,
+      lastBody: r.ultimo_testo || "",
+      numberId: r.number_id,
+      contactId: r.contact_id,
+      unread: Number(r.non_letti ?? 0),
+      totale: Number(r.totale ?? 0),
+      stato: r.stato,
+      assegnatoA: r.assegnato_a,
+      assegnatoNome: r.assegnato_nome,
+      noteCount: Number(r.note_count ?? 0),
+    }));
+  }, [threadsQuery.data]);
 
   // Ricerca su nome, numero e testo dell'ultimo messaggio: con qualche decina di
   // conversazioni scorrere la lista a mano diventa il collo di bottiglia.
+  // Con una ricerca attiva la lista mostra le chat trovate dal DATABASE
+  // (anche vecchie e non caricate); senza ricerca, le conversazioni paginate.
+  const chatTrovate = useMemo(() => {
+    const r = ricercaQuery.data;
+    if (!r?.length) return null;
+    return Array.from(new Set(r.map((x) => x.wa_chat_id)));
+  }, [ricercaQuery.data]);
+
   const threadsVisibili = useMemo(() => {
-    const q = filtro.trim().toLowerCase();
-    const cifre = q.replace(/\D/g, "");
-    return threads.filter((t) => {
-      if (soloNonLetti && t.unread === 0) return false;
-      if (!q) return true;
-      if (cifre.length >= 3 && (t.phone ?? t.chatId).replace(/\D/g, "").includes(cifre)) return true;
-      return t.name.toLowerCase().includes(q) || t.lastBody.toLowerCase().includes(q);
+    const q = filtro.trim();
+    if (q.length < 2) return threads;
+    const noti = new Map(threads.map((t) => [t.chatId, t]));
+    // Ordine dei risultati di ricerca, con i dati del thread quando li abbiamo.
+    return (chatTrovate ?? []).map((chatId) => {
+      const gia = noti.get(chatId);
+      if (gia) return gia;
+      const primo = ricercaQuery.data!.find((x) => x.wa_chat_id === chatId)!;
+      return {
+        chatId,
+        name: primo.contact_name || primo.contact_phone || chatId.replace(/@.*$/, ""),
+        phone: primo.contact_phone,
+        lastAt: primo.created_at,
+        lastBody: primo.testo,
+        numberId: null, contactId: null, unread: 0, totale: 0,
+        stato: "aperta", assegnatoA: null, assegnatoNome: null, noteCount: 0,
+      } as Thread;
     });
-  }, [threads, filtro, soloNonLetti]);
+  }, [threads, filtro, chatTrovate, ricercaQuery.data]);
 
   const totNonLetti = useMemo(() => threads.reduce((n, t) => n + t.unread, 0), [threads]);
+  const messaggiAttivi = messaggiQuery.data ?? [];
 
-  const active = threads.find((t) => t.chatId === selectedChat) ?? null;
+  const active = threadsVisibili.find((t) => t.chatId === selectedChat)
+    ?? threads.find((t) => t.chatId === selectedChat) ?? null;
   const numeroAttivo = active?.numberId ? numeriById.get(active.numberId) ?? null : null;
   const piuNumeri = (numbersQuery.data?.length ?? 0) > 1;
 
@@ -309,13 +388,14 @@ export default function AdminWhatsappLocaleInbox() {
         .eq("wa_chat_id", chatId)
         .eq("direction", "inbound")
         .is("read_at", null);
-      queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
     })();
   };
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [active?.messages.length, selectedChat]);
+  }, [messaggiAttivi.length, selectedChat]);
 
   // Allega e invia un file (immagine → send-image, altro → send-document).
   async function handleAttachFile(file: File) {
@@ -341,7 +421,8 @@ export default function AdminWhatsappLocaleInbox() {
       if (error) throw new Error(await readInvokeError(error));
       setReply("");
       toast.success("Allegato inviato");
-      queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore invio allegato");
     } finally {
@@ -368,7 +449,8 @@ export default function AdminWhatsappLocaleInbox() {
     },
     onSuccess: () => {
       setReply("");
-      queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -386,7 +468,8 @@ export default function AdminWhatsappLocaleInbox() {
       setNewOpen(false);
       setNewPhone("");
       setNewText("");
-      queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
+      queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -455,7 +538,10 @@ export default function AdminWhatsappLocaleInbox() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
+      <div className={cn(
+        "grid grid-cols-1 gap-4",
+        active && pannelloAperto ? "md:grid-cols-[300px_1fr_260px]" : "md:grid-cols-[320px_1fr]",
+      )}>
         {/* Lista thread */}
         <Card className="flex h-[70vh] flex-col overflow-hidden">
           <div className="flex items-center gap-2 border-b p-2">
@@ -480,8 +566,29 @@ export default function AdminWhatsappLocaleInbox() {
               Da leggere{totNonLetti > 0 && ` (${totNonLetti})`}
             </Button>
           </div>
+          {/* Aperte / chiuse: senza questa distinzione la lista cresce
+              all'infinito e non c'e' modo di dire "questa e' finita". */}
+          <div className="flex gap-1 border-b px-2 pb-2">
+            {([
+              { k: "aperta" as const, l: "Aperte" },
+              { k: "chiusa" as const, l: "Chiuse" },
+              { k: "tutte" as const, l: "Tutte" },
+            ]).map((f) => (
+              <button
+                key={f.k}
+                type="button"
+                onClick={() => setFiltroStato(f.k)}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  filtroStato === f.k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {f.l}
+              </button>
+            ))}
+          </div>
           <div className="flex-1 overflow-y-auto">
-          {messagesQuery.isLoading ? (
+          {threadsQuery.isLoading ? (
             <div className="space-y-2 p-3">
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />
@@ -534,16 +641,37 @@ export default function AdminWhatsappLocaleInbox() {
                           <Badge className="shrink-0 bg-emerald-600 hover:bg-emerald-600">{t.unread}</Badge>
                         )}
                       </span>
-                      {piuNumeri && t.numberId && numeriById.get(t.numberId) && (
-                        <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                          via {numeriById.get(t.numberId)!.display_name || numeriById.get(t.numberId)!.numero}
-                        </span>
-                      )}
+                      <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                        {t.stato === "chiusa" && (
+                          <span className="inline-flex items-center gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" /> chiusa</span>
+                        )}
+                        {t.assegnatoNome && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-px">{t.assegnatoNome}</span>
+                        )}
+                        {t.noteCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5"><StickyNote className="h-2.5 w-2.5" /> {t.noteCount}</span>
+                        )}
+                        {piuNumeri && t.numberId && numeriById.get(t.numberId) && (
+                          <span className="truncate">via {numeriById.get(t.numberId)!.display_name || numeriById.get(t.numberId)!.numero}</span>
+                        )}
+                      </span>
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
+          )}
+          {/* Paginazione vera: prima oltre il millesimo messaggio le chat
+              sparivano, adesso si continua a scorrere. */}
+          {filtro.trim().length < 2 && threads.length >= PER_PAGINA * pagine && (
+            <div className="p-2">
+              <Button variant="ghost" size="sm" className="w-full text-xs"
+                disabled={threadsQuery.isFetching}
+                onClick={() => setPagine((n) => n + 1)}>
+                {threadsQuery.isFetching ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                Carica altre conversazioni
+              </Button>
+            </div>
           )}
           </div>
         </Card>
@@ -576,18 +704,31 @@ export default function AdminWhatsappLocaleInbox() {
                       dal nostro {numeroAttivo.display_name || numeroAttivo.numero}
                     </Badge>
                   )}
+                  {active.stato === "chiusa" && (
+                    <Badge variant="secondary" className="gap-1 text-[10px]">
+                      <CheckCircle2 className="h-3 w-3" /> chiusa
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost" size="icon"
+                    className={cn("h-7 w-7 shrink-0", !numeroAttivo && active.stato !== "chiusa" && "ml-auto")}
+                    onClick={() => setPannelloAperto((v) => !v)}
+                    title={pannelloAperto ? "Nascondi il pannello" : "Mostra stato, assegnazione e note"}
+                  >
+                    {pannelloAperto ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+                  </Button>
                 </div>
                 <IdentitaThread
                   chatId={active.chatId}
                   phone={active.phone}
                   contactId={active.contactId}
                   nomeVisualizzato={active.name}
-                  onCambiato={() => queryClient.invalidateQueries({ queryKey: ["openwa", "messages"] })}
+                  onCambiato={() => queryClient.invalidateQueries({ queryKey: ["openwa"] })}
                 />
               </div>
               <div ref={scrollRef} className="flex-1 space-y-1.5 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/40">
-                {active.messages.map((m, i) => {
-                  const prev = active.messages[i - 1];
+                {messaggiAttivi.map((m, i) => {
+                  const prev = messaggiAttivi[i - 1];
                   const nuovoGiorno = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
                   const stessoBlocco = !nuovoGiorno && prev?.direction === m.direction;
                   return (
@@ -655,6 +796,7 @@ export default function AdminWhatsappLocaleInbox() {
                     e.target.value = "";
                   }}
                 />
+                <RisposteRapide onScegli={(t) => setReply((r) => (r ? `${r}\n${t}` : t))} />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -691,6 +833,17 @@ export default function AdminWhatsappLocaleInbox() {
             </>
           )}
         </Card>
+        {/* Pannello: stato, assegnazione, note interne */}
+        {active && pannelloAperto && (
+          <Card className="hidden h-[70vh] md:block">
+            <PannelloChat
+              chatId={active.chatId}
+              stato={active.stato}
+              assegnatoA={active.assegnatoA}
+              onCambiato={() => queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] })}
+            />
+          </Card>
+        )}
       </div>
 
       {/* Nuovo messaggio */}
