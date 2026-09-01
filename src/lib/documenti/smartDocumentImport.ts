@@ -147,6 +147,11 @@ export type SmartDocumentReviewModel = {
 const MODULE_REDIRECTS: Record<string, string> = {
   computo_metrico: "/azienda/marketing/preventivi?action=import-computo",
   preventivo: "/azienda/marketing/preventivi?action=import-computo",
+  // Un contratto FIRMATO è una commessa, non un preventivo: la destinazione è
+  // Nuova Commessa col dialog "Importa da contratto" già aperto (estrattore
+  // dedicato contratto_commessa: voci, rate, cliente). Prima "contratto" non
+  // aveva modulo e il piano finiva in "manual" — vicolo cieco.
+  contratto: "/azienda/ordini/nuovo?action=import-contratto",
   fattura: "/azienda/amministrazione/fatture?action=import",
   ricevuta: "/azienda/amministrazione/ricevute?action=import",
   listino_prezzi: "/azienda/operativo/listino?action=import",
@@ -426,10 +431,11 @@ export function buildSmartImportActionPlan(params: {
   }
 
   const redirectUrl = nextAction?.redirect_url ?? MODULE_REDIRECTS[docType];
+  const redirectLabel = docType === "contratto" ? "Crea commessa dal contratto" : "Apri modulo dedicato";
   if (nextAction?.kind === "redirect" && redirectUrl) {
     return {
       kind: "redirect",
-      label: "Vai al modulo",
+      label: docType === "contratto" ? redirectLabel : "Vai al modulo",
       url: redirectUrl,
     };
   }
@@ -437,7 +443,7 @@ export function buildSmartImportActionPlan(params: {
   if (nextAction?.kind === "autoflow" && redirectUrl) {
     return {
       kind: "redirect",
-      label: "Apri modulo dedicato",
+      label: redirectLabel,
       url: redirectUrl,
     };
   }
@@ -445,7 +451,7 @@ export function buildSmartImportActionPlan(params: {
   if (redirectUrl) {
     return {
       kind: "redirect",
-      label: "Apri modulo dedicato",
+      label: redirectLabel,
       url: redirectUrl,
     };
   }

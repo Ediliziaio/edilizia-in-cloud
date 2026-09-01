@@ -140,7 +140,12 @@ function CreateOrderInner() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
-  const [showContractImport, setShowContractImport] = useState(false);
+  // ?action=import-contratto (dal flusso "Importa documento intelligente" di
+  // Silvio): la pagina apre già col dialog contratto spalancato — un contratto
+  // firmato diventa commessa, non preventivo.
+  const [showContractImport, setShowContractImport] = useState(
+    () => searchParams.get("action") === "import-contratto",
+  );
   const [aiCustomerInitial, setAiCustomerInitial] = useState<
     { fullName?: string; email?: string; phone?: string; address?: string; fiscalCode?: string } | undefined
   >(undefined);
