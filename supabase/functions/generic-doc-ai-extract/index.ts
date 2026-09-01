@@ -115,7 +115,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
     "codice_fiscale": "string o null",
     "partita_iva": "string o null"
   },
-  "descrizione_lavori": "sintesi dei lavori/oggetto del contratto o della copia commissione",
+  "descrizione_lavori": "sintesi di cio' che viene EFFETTIVAMENTE fornito secondo le voci/il modulo d'ordine (es. 'Fornitura e posa di 7 serramenti PVC con cassonetti'). NON copiare la clausola-oggetto generica delle condizioni di contratto: frasi tipo 'vendita di serramenti, infissi, porte, tapparelle, zanzariere' elencano cio' che il fornitore POTREBBE vendere, non cio' che questo ordine contiene. Nomina solo le tipologie presenti tra le voci",
   "indirizzo_cantiere": "string o null",
   "importo_totale_eur": numero imponibile (IVA esclusa) o null,
   "iva_pct": numero (es. 22, 10, 4) o null,

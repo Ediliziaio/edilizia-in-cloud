@@ -284,7 +284,25 @@ function CreateOrderInner() {
 
   // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
   const applyContractExtract = (ex: ContractExtract) => {
-    if (ex.descrizione_lavori) setValue("description", ex.descrizione_lavori);
+    if (ex.descrizione_lavori) {
+      // Il contratto descrive i lavori con un paragrafo intero ("chiavi in
+      // mano" incluso): come TITOLO della commessa diventava un h1 di sette
+      // righe. Titolo asciutto (taglio all'ultima virgola entro ~100 char),
+      // testo integrale conservato nelle note interne.
+      const full = ex.descrizione_lavori.trim();
+      let titolo = full;
+      if (full.length > 110) {
+        const cutComma = full.lastIndexOf(",", 100);
+        const cutSpace = full.lastIndexOf(" ", 100);
+        const cut = cutComma >= 40 ? cutComma : (cutSpace >= 40 ? cutSpace : 100);
+        titolo = full.slice(0, cut).replace(/[\s,;:]+$/, "");
+      }
+      setValue("description", titolo);
+      if (titolo !== full) {
+        const nota = `Descrizione completa dal contratto:\n${full}`;
+        setValue("internal_notes", internalNotes?.trim() ? `${internalNotes}\n\n${nota}` : nota);
+      }
+    }
     const imp = contractImponibile(ex);
     // Formato IT: l'imponibile arriva dall'estrazione AI del contratto e
     // `String(1.234)` produrrebbe una stringa riletta poi come 1234.
