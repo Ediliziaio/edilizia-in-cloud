@@ -1,0 +1,17 @@
+# Sostituisci il dominio con il tuo (deve puntare all'IP del VPS).
+wa.ediliziaincloud.com {
+	encode gzip
+	reverse_proxy openwa:2785
+
+	# La dashboard di OpenWA resta accessibile solo da noi: il gateway va
+	# comandato dal pannello super-admin, non a mano da internet.
+	@dashboard {
+		not path /api/*
+	}
+	# Metti qui gli IP da cui vuoi poter aprire la dashboard, poi togli il commento.
+	# handle @dashboard {
+	# 	@consentiti remote_ip 1.2.3.4
+	# 	respond @consentiti "" 200
+	# 	respond 403
+	# }
+}

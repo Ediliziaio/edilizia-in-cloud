@@ -1,0 +1,46 @@
+# Gateway WhatsApp (OpenWA) per Edilizia in Cloud — da mettere su un VPS.
+#
+# Perché un server dedicato: le sessioni WhatsApp sono connessioni sempre
+# aperte. Se la macchina si spegne o cambia rete, i numeri si scollegano e
+# vanno riabbinati col QR. Su un VPS restano su 24 ore su 24.
+#
+# Caddy davanti fa HTTPS da solo (Let's Encrypt): serve perché sia il pannello
+# super-admin sia i webhook di Supabase parlano col gateway via internet.
+
+services:
+  openwa:
+    image: ghcr.io/rmyndharis/openwa:latest
+    container_name: openwa
+    restart: unless-stopped
+    environment:
+      # La chiave che il pannello di EiC userà nell'header X-API-Key.
+      # Generala con: openssl rand -hex 32
+      API_KEY: ${OPENWA_API_KEY:?serve OPENWA_API_KEY nel file .env}
+      # baileys consuma 30-80 MB per numero (whatsapp-web.js ne vuole 300-500):
+      # con baileys un VPS da 4 GB regge tranquillamente una decina di numeri.
+      ENGINE: baileys
+      TZ: Europe/Rome
+    volumes:
+      - openwa-data:/app/data          # sessioni: NON cancellare, sono gli abbinamenti
+    expose:
+      - "2785"
+    # Nessuna porta pubblicata direttamente: si passa sempre da Caddy.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - openwa
+
+volumes:
+  openwa-data:
+  caddy-data:
+  caddy-config:
