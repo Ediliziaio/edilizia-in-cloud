@@ -34,7 +34,7 @@ interface Maturo {
   destinatario_id: string;
   campagna_id: string;
   contact_id: string;
-  tipo: "primo" | "followup";
+  tipo: "primo" | "followup" | "followup2" | "followup3";
   messaggio: string | null;
   tags_numeri: string[] | null;
 }
@@ -77,11 +77,18 @@ Deno.serve(async (req) => {
 
       if (res.ok) {
         const ora = new Date().toISOString();
-        await admin.from("openwa_campagna_destinatari").update(
-          m.tipo === "primo"
-            ? { stato: "inviato", primo_inviato_at: ora, ultimo_errore: null }
-            : { stato: "followup_inviato", followup_inviato_at: ora, ultimo_errore: null },
-        ).eq("id", m.destinatario_id);
+        // Ogni passo della sequenza porta il destinatario allo stato successivo
+        // e timbra il proprio orario: e' da quel timbro che il passo dopo conta
+        // i giorni di attesa.
+        const patchPerTipo: Record<Maturo["tipo"], Record<string, unknown>> = {
+          primo: { stato: "inviato", primo_inviato_at: ora },
+          followup: { stato: "followup_inviato", followup_inviato_at: ora },
+          followup2: { stato: "followup2_inviato", followup2_inviato_at: ora },
+          followup3: { stato: "followup3_inviato", followup3_inviato_at: ora },
+        };
+        await admin.from("openwa_campagna_destinatari")
+          .update({ ...patchPerTipo[m.tipo], ultimo_errore: null })
+          .eq("id", m.destinatario_id);
         if (m.tipo === "primo") esito.inviati++; else esito.followup++;
         continue;
       }

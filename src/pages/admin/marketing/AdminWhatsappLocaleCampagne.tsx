@@ -79,6 +79,10 @@ export default function AdminWhatsappLocaleCampagne() {
   const [messaggio, setMessaggio] = useState("");
   const [followup, setFollowup] = useState("");
   const [followupGiorni, setFollowupGiorni] = useState(3);
+  const [followup2, setFollowup2] = useState("");
+  const [followup2Giorni, setFollowup2Giorni] = useState(3);
+  const [followup3, setFollowup3] = useState("");
+  const [followup3Giorni, setFollowup3Giorni] = useState(3);
   const [parteIl, setParteIl] = useState("");
   // Modifica: stesso dialog della creazione, con l'id di chi si sta correggendo.
   const [modificaId, setModificaId] = useState<string | null>(null);
@@ -150,9 +154,9 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_campagne")
-        .select("id, messaggio, followup_messaggio, followup_dopo_giorni, parte_il, nome");
+        .select("id, messaggio, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome");
       if (error) throw error;
-      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; parte_il: string | null; nome: string }> = {};
+      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; parte_il: string | null; nome: string }> = {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const c of (data ?? []) as any[]) m[c.id] = c;
       return m;
@@ -191,7 +195,8 @@ export default function AdminWhatsappLocaleCampagne() {
 
   const chiudiEditor = () => {
     setCreaAperto(false); setModificaId(null);
-    setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3); setParteIl("");
+    setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3);
+    setFollowup2(""); setFollowup2Giorni(3); setFollowup3(""); setFollowup3Giorni(3); setParteIl("");
   };
 
   const crea = useMutation({
@@ -201,6 +206,10 @@ export default function AdminWhatsappLocaleCampagne() {
         messaggio: messaggio.trim(),
         followup_messaggio: followup.trim() || null,
         followup_dopo_giorni: followupGiorni,
+        followup2_messaggio: followup2.trim() || null,
+        followup2_dopo_giorni: followup2Giorni,
+        followup3_messaggio: followup3.trim() || null,
+        followup3_dopo_giorni: followup3Giorni,
         parte_il: parteIl ? new Date(parteIl).toISOString() : null,
       };
       // Modifica: consentita solo finche' la campagna non e' partita — cambiare
@@ -233,6 +242,10 @@ export default function AdminWhatsappLocaleCampagne() {
         messaggio: src.messaggio,
         followup_messaggio: src.followup_messaggio,
         followup_dopo_giorni: src.followup_dopo_giorni,
+        followup2_messaggio: src.followup2_messaggio,
+        followup2_dopo_giorni: src.followup2_dopo_giorni,
+        followup3_messaggio: src.followup3_messaggio,
+        followup3_dopo_giorni: src.followup3_dopo_giorni,
       });
       if (error) throw error;
     },
@@ -275,6 +288,10 @@ export default function AdminWhatsappLocaleCampagne() {
     setMessaggio(src.messaggio ?? "");
     setFollowup(src.followup_messaggio ?? "");
     setFollowupGiorni(src.followup_dopo_giorni ?? 3);
+    setFollowup2(src.followup2_messaggio ?? "");
+    setFollowup2Giorni(src.followup2_dopo_giorni ?? 3);
+    setFollowup3(src.followup3_messaggio ?? "");
+    setFollowup3Giorni(src.followup3_dopo_giorni ?? 3);
     setParteIl(src.parte_il ? new Date(src.parte_il).toISOString().slice(0, 16) : "");
     setCreaAperto(true);
   };
@@ -663,20 +680,36 @@ export default function AdminWhatsappLocaleCampagne() {
               <Textarea id="msg" rows={4} value={messaggio} onChange={(e) => setMessaggio(e.target.value)}
                 placeholder="{Ciao|Salve} {{nome}}, ..." />
             </div>
-            <div>
-              <Label htmlFor="fu">Follow-up (facoltativo)</Label>
-              <Textarea id="fu" rows={3} value={followup} onChange={(e) => setFollowup(e.target.value)}
-                placeholder="Lascia vuoto per non risollecitare" />
-              <p className="text-xs text-muted-foreground mt-1">
-                Parte solo verso chi <strong>non ha risposto</strong>.
-              </p>
-            </div>
+            {/* La sequenza: ogni passo parte SOLO verso chi non ha risposto al
+                precedente. Il passo N+1 si puo' scrivere solo se esiste il
+                passo N: una sequenza col buco in mezzo non e' una sequenza. */}
+            {([
+              { n: 2, testo: followup, setTesto: setFollowup, giorni: followupGiorni, setGiorni: setFollowupGiorni, attivo: true },
+              { n: 3, testo: followup2, setTesto: setFollowup2, giorni: followup2Giorni, setGiorni: setFollowup2Giorni, attivo: !!followup.trim() },
+              { n: 4, testo: followup3, setTesto: setFollowup3, giorni: followup3Giorni, setGiorni: setFollowup3Giorni, attivo: !!followup2.trim() },
+            ]).map((p2) => (
+              (p2.attivo || p2.testo.trim()) && (
+                <div key={p2.n} className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor={`msg${p2.n}`}>Messaggio {p2.n} (facoltativo)</Label>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      dopo
+                      <Input type="number" min={1} max={30} value={p2.giorni}
+                        onChange={(e) => p2.setGiorni(Number(e.target.value))}
+                        className="h-7 w-16 text-xs" aria-label={`Giorni di attesa del messaggio ${p2.n}`} />
+                      giorni
+                    </div>
+                  </div>
+                  <Textarea id={`msg${p2.n}`} rows={2} value={p2.testo}
+                    onChange={(e) => p2.setTesto(e.target.value)}
+                    placeholder="Lascia vuoto per fermare la sequenza qui" className="mt-1.5" />
+                </div>
+              )
+            ))}
+            <p className="text-xs text-muted-foreground -mt-2">
+              Ogni messaggio parte solo verso chi <strong>non ha risposto</strong> al precedente.
+            </p>
             <div className="flex flex-wrap gap-4">
-              <div>
-                <Label htmlFor="fug">Dopo quanti giorni</Label>
-                <Input id="fug" type="number" min={1} max={30} value={followupGiorni}
-                  onChange={(e) => setFollowupGiorni(Number(e.target.value))} className="w-28" />
-              </div>
               <div>
                 <Label htmlFor="parteil">Parte il (facoltativo)</Label>
                 <Input id="parteil" type="datetime-local" value={parteIl}

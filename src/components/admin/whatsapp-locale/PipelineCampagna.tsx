@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowRight, GripVertical, MessageCircle, Trash2, X } from "lucide-react";
+import { ArrowRight, GripVertical, MessageCircle, Target, Trash2, X } from "lucide-react";
 
 interface Destinatario {
   id: string;
@@ -50,7 +50,9 @@ interface Destinatario {
 const COLONNE = [
   { key: "in_coda", label: "In coda", tipo: "auto" as const },
   { key: "messaggio_1", label: "Messaggio 1", tipo: "auto" as const },
-  { key: "follow_up", label: "Follow-up", tipo: "auto" as const },
+  { key: "messaggio_2", label: "Messaggio 2", tipo: "auto" as const },
+  { key: "messaggio_3", label: "Messaggio 3", tipo: "auto" as const },
+  { key: "messaggio_4", label: "Messaggio 4", tipo: "auto" as const },
   { key: "risposto", label: "Ha risposto", tipo: "auto" as const },
   { key: "da_ricontattare", label: "Da ricontattare", tipo: "esito" as const },
   { key: "appuntamento", label: "Appuntamento", tipo: "esito" as const },
@@ -62,7 +64,9 @@ const COLONNE = [
 function colonnaDi(d: Destinatario): string {
   if (d.esito) return d.esito;
   if (d.stato === "risposto") return "risposto";
-  if (d.stato === "followup_inviato") return "follow_up";
+  if (d.stato === "followup3_inviato") return "messaggio_4";
+  if (d.stato === "followup2_inviato") return "messaggio_3";
+  if (d.stato === "followup_inviato") return "messaggio_2";
   if (d.stato === "inviato") return "messaggio_1";
   if (d.stato === "da_inviare") return "in_coda";
   return "in_coda"; // saltati/falliti non compaiono: hanno gia' il dialog Problemi
@@ -74,11 +78,12 @@ function nomeDi(d: Destinatario): string {
     || c?.company_name || c?.phone || "Senza nome";
 }
 
-function CardDestinatario({ d, trascinabile, onRimuovi, onApriChat }: {
+function CardDestinatario({ d, trascinabile, onRimuovi, onApriChat, onOpportunita }: {
   d: Destinatario;
   trascinabile: boolean;
   onRimuovi?: () => void;
   onApriChat?: () => void;
+  onOpportunita?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: d.id,
@@ -110,6 +115,13 @@ function CardDestinatario({ d, trascinabile, onRimuovi, onApriChat }: {
             <button type="button" onClick={onApriChat}
               className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400">
               <MessageCircle className="h-2.5 w-2.5" /> apri chat
+            </button>
+          )}
+          {onOpportunita && (
+            <button type="button" onClick={onOpportunita}
+              className="inline-flex items-center gap-0.5 text-[10px] text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
+              title="Crea un'opportunità nel CRM per questo contatto">
+              <Target className="h-2.5 w-2.5" /> opportunità
             </button>
           )}
           {onRimuovi && (
@@ -233,6 +245,56 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Dalla pipeline al CRM: chi fissa un appuntamento smette di essere "un
+  // destinatario di campagna" e diventa una trattativa. L'opportunita' nasce
+  // nella prima pipeline della piattaforma, primo stage; se per il contatto
+  // ne esiste gia' una aperta NON se ne crea un doppione.
+  const creaOpportunita = useMutation({
+    mutationFn: async (d: Destinatario) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data: gia } = await sb
+        .from("marketing_opportunities")
+        .select("id, name")
+        .eq("contact_id", d.contact_id)
+        .eq("status", "open")
+        .is("deleted_at", null)
+        .limit(1);
+      if (gia?.[0]) return { creata: false as const, nome: gia[0].name as string };
+
+      const { data: pipe } = await sb
+        .from("marketing_pipelines")
+        .select("id, name, marketing_pipeline_stages(id, position)")
+        .eq("company_id", "00000000-0000-0000-0000-000000000001")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const pipeline = pipe?.[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stage = (pipeline?.marketing_pipeline_stages ?? []).sort((a: any, b: any) => a.position - b.position)[0];
+      if (!pipeline || !stage) throw new Error("Nessuna pipeline opportunità configurata sulla piattaforma");
+
+      const { error } = await sb.from("marketing_opportunities").insert({
+        company_id: "00000000-0000-0000-0000-000000000001",
+        contact_id: d.contact_id,
+        pipeline_id: pipeline.id,
+        stage_id: stage.id,
+        name: `${nomeDi(d)} — ${nome}`,
+        value: 0,
+        status: "open",
+        source: "whatsapp_locale",
+        tags: [],
+      });
+      if (error) throw new Error(error.message);
+      return { creata: true as const, nome: pipeline.name as string };
+    },
+    onSuccess: (r) => {
+      if (r.creata) toast.success("Opportunità creata", { description: `Nella pipeline "${r.nome}", primo stage. Valore da definire nel CRM.` });
+      else toast.info("Esiste già un'opportunità aperta", { description: r.nome });
+      qc.invalidateQueries({ queryKey: ["openwa"] });
+    },
+    onError: (e: Error) => toast.error("Creazione non riuscita", { description: e.message }),
+  });
+
   /** Salta alla conversazione nell'inbox (il lavoro continua li'). */
   const apriChat = async (contactId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -308,6 +370,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
                           trascinabile={d.stato !== "da_inviare"}
                           onRimuovi={d.stato === "da_inviare" ? () => rimuovi.mutate(d.id) : undefined}
                           onApriChat={d.stato === "risposto" || d.esito ? () => void apriChat(d.contact_id) : undefined}
+                          onOpportunita={d.stato === "risposto" || d.esito ? () => creaOpportunita.mutate(d) : undefined}
                         />
                         {d.esito && (
                           <button
