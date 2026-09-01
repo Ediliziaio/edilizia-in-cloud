@@ -192,6 +192,35 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   const pageContext = useSilvioPageContext();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  // Audit UX 2026-09: il FAB (105×56 col testo) copriva la colonna Azioni
+  // delle tabelle e l'ultima card di ogni pagina. Ora: sola icona 56×56 e
+  // auto-hide quando si scrolla in giù (torna scrollando in su) — così in
+  // fondo pagina, dove ci si arriva scrollando giù, non copre mai niente.
+  const [scrollHidden, setScrollHidden] = useState(false);
+  useEffect(() => {
+    const lastY = new WeakMap<EventTarget, number>();
+    const onScroll = (e: Event) => {
+      const t = e.target;
+      if (!t) return;
+      // Lo scroll di pagina arriva con target=document: lì scrollTop vive su
+      // scrollingElement. I container interni arrivano come elementi normali.
+      const el = t === document
+        ? (document.scrollingElement as HTMLElement | null)
+        : (t as HTMLElement);
+      if (!el || typeof el.scrollTop !== "number") return;
+      // La sidebar ha il suo scroll: non deve nascondere il FAB.
+      if (t !== document && (el.closest?.('[data-sidebar]') || el.getBoundingClientRect().left < 190)) return;
+      const prev = lastY.get(t) ?? el.scrollTop;
+      const delta = el.scrollTop - prev;
+      lastY.set(t, el.scrollTop);
+      if (delta > 6) setScrollHidden(true);
+      else if (delta < -6) setScrollHidden(false);
+    };
+    // capture: true — lo scroll non fa bubbling, ma in capture si intercetta
+    // qualunque container interno (il layout scrolla in un div, non su window).
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+  }, []);
   const [quickPrompt, setQuickPrompt] = useState("");
   const [chatPrefill, setChatPrefill] = useState("");
   // Contenuti popover specifici al mode (azienda vs admin/superadmin)
@@ -363,10 +392,17 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 	            type="button"
 	            aria-label="Apri assistente Silvio"
               aria-expanded={open}
-	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex md:w-auto md:gap-2 md:px-4"
-              style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex"
+              style={{
+                bottom: "calc(1rem + env(safe-area-inset-bottom))",
+                pointerEvents: scrollHidden && !open ? "none" : undefined,
+              }}
+              animate={{
+                y: scrollHidden && !open ? 110 : 0,
+                opacity: scrollHidden && !open ? 0 : 1,
+              }}
 	            whileHover={{ rotate: [0, -5, 5, 0] }}
-	            transition={{ duration: 0.5 }}
+	            transition={{ duration: 0.35 }}
 	          >
             {/* Glow pulsante quando chiuso */}
             {!open && (
@@ -393,10 +429,9 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.5, opacity: 0 }}
-                  className="relative z-10 flex items-center gap-2"
+                  className="relative z-10 flex items-center justify-center"
                 >
-                  <SilvioAvatar size={28} bg="orange" />
-                  <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
+                  <SilvioAvatar size={30} bg="orange" />
                 </motion.span>
 	              )}
             </AnimatePresence>

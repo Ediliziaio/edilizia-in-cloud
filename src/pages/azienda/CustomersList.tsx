@@ -883,7 +883,7 @@ function CustomersListInner() {
           </DropdownMenu>
 
           {/* New customer */}
-          <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+          <Button asChild size="sm" variant="brand">
             <Link to="/azienda/clienti/nuovo">
               <Plus className="mr-1.5 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>

@@ -402,7 +402,7 @@ export function FamilyConfigurator({
         <Button variant="outline" onClick={onBack}>
           Annulla
         </Button>
-        <Button disabled={!canConfirm} onClick={handleConfirm}>
+        <Button variant="brand" disabled={!canConfirm} onClick={handleConfirm}>
           <Check className="mr-1 h-4 w-4" />
           Aggiungi al preventivo
         </Button>

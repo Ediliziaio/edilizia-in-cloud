@@ -146,6 +146,17 @@ function OrdersListInner() {
   const [importOpen, setImportOpen] = useState(false);
   const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Blocco analitico a richiesta, con memoria (audit UX 2026-09).
+  const [analisiAperta, setAnalisiAperta] = useState(() => {
+    try { return localStorage.getItem("orders-analisi-aperta") === "1"; } catch { return false; }
+  });
+  const toggleAnalisi = useCallback(() => {
+    setAnalisiAperta((v) => {
+      const next = !v;
+      try { localStorage.setItem("orders-analisi-aperta", next ? "1" : "0"); } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
   const [sidebarFilters, setSidebarFilters] = useState<OrdersFilterState>(INITIAL_FILTER_STATE);
 
   const [page, setPage] = useState(1);
@@ -1843,6 +1854,58 @@ function OrdersListInner() {
         />
       )}
 
+      {/* Audit UX 2026-09: la prima commessa stava a ~1.655px dall'alto perché
+          il blocco analitico (KPI scuri + grafico 12 mesi) veniva PRIMA della
+          lista, ogni volta. Ora: striscia con i numeri chiave sempre visibile,
+          blocco ricco a richiesta con stato ricordato. Chi apre la pagina per
+          TROVARE una commessa non paga più il pedaggio; chi vuole l'analisi la
+          apre una volta e la ritrova aperta. */}
+      <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-lg font-bold leading-none tabular-nums">{isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
+          <span className="text-muted-foreground">commesse</span>
+        </div>
+        {orderPerms.canViewOrderAmounts && !analisiAperta && !isEconomicStatsLoading && (
+          <>
+            <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
+            <div className="hidden items-baseline gap-1.5 sm:flex">
+              <span className="text-muted-foreground">Venduto</span>
+              <span className="font-bold tabular-nums">{stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
+            </div>
+            <div className="hidden items-baseline gap-1.5 sm:flex">
+              <span className="text-muted-foreground">Incassato</span>
+              <span className="font-bold tabular-nums text-emerald-700">{stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-muted-foreground">Da incassare</span>
+              <span className="font-bold tabular-nums text-amber-700">{stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={toggleAnalisi}
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <PieChart className="h-3.5 w-3.5" />
+          {analisiAperta ? "Nascondi analisi" : "Analisi"}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${analisiAperta ? "rotate-180" : ""}`} />
+        </button>
+      </section>
+
+      {/* A striscia chiusa, l'allerta "cantieri che finanzi tu" resta visibile:
+          è l'unico pezzo azionabile del blocco. empty:hidden — se il componente
+          non ha nulla da dire (rende null), sparisce anche la cornice scura. */}
+      {!analisiAperta && orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
+        <div className="order-1 rounded-2xl bg-[#173b67] px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden">
+          <EsposizioneFlotta
+            companyId={effectiveCompany?.id}
+            excludeStatusIds={[lastStatusId]}
+          />
+        </div>
+      )}
+
+      {analisiAperta && (
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className="grid gap-0 xl:grid-cols-[minmax(320px,0.58fr)_minmax(520px,1fr)]">
           <div className="bg-[#173b67] p-3 sm:p-5 md:p-6 text-white">
@@ -2093,75 +2156,32 @@ function OrdersListInner() {
           )}
         </div>
       </section>
+      )}
 
-      <section className="order-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4 sm:order-none">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
-              <Hammer className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Da completare</span>
-              {isWorkflowStatsLoading ? (
-                <Skeleton className="mt-1 h-8 w-12" />
-              ) : (
-                <span className="block text-2xl font-bold text-slate-950">{stats.countDaCompletare ?? 0}</span>
-              )}
-              <span className="text-sm text-slate-500">commesse operative</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-slate-950/10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
-              <CheckCircle2 className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Completati</span>
-              {isWorkflowStatsLoading ? (
-                <Skeleton className="mt-1 h-8 w-12" />
-              ) : (
-                <span className="block text-2xl font-bold text-slate-950">{stats.countCompletati ?? 0}</span>
-              )}
-              <span className="text-sm text-slate-500">chiusi operativamente</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
-              <LifeBuoy className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">In assistenza</span>
-              {isWorkflowStatsLoading ? (
-                <Skeleton className="mt-1 h-8 w-12" />
-              ) : (
-                <span className="block text-2xl font-bold text-slate-950">{stats.countAssistenza ?? 0}</span>
-              )}
-              <span className="text-sm text-slate-500">clienti da seguire</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
-              <AlertTriangle className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margine basso</span>
-              {isOrdersLoading ? (
-                <Skeleton className="mt-1 h-8 w-12" />
-              ) : (
-                <span className="block text-2xl font-bold text-orange-700">{controlRoom.lowMarginCount}</span>
-              )}
-              <span className="text-sm text-slate-500">da controllare</span>
-            </span>
-          </div>
-        </div>
+      {/* Audit UX 2026-09: erano 4 card da 225px con hover da bottone ma SENZA
+          click (affordance ingannevole). Stessi numeri in una riga da ~44px,
+          senza fingere di essere cliccabili. */}
+      <section className="order-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:order-none">
+        <span className="inline-flex items-center gap-1.5">
+          <Hammer className="h-3.5 w-3.5 text-orange-600" />
+          <span className="text-muted-foreground">Da completare</span>
+          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countDaCompletare ?? 0}</span>}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+          <span className="text-muted-foreground">Completati</span>
+          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countCompletati ?? 0}</span>}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <LifeBuoy className="h-3.5 w-3.5 text-orange-600" />
+          <span className="text-muted-foreground">In assistenza</span>
+          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countAssistenza ?? 0}</span>}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
+          <span className="text-muted-foreground">Margine basso</span>
+          {isOrdersLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums text-orange-700">{controlRoom.lowMarginCount}</span>}
+        </span>
       </section>
 
       <OrdersFilterSidebar

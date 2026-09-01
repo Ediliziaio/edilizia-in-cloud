@@ -11,6 +11,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        /** Azione primaria di pagina (audit UX 2026-09): l'arancio EiC, uguale
+         *  ovunque — "Nuova Commessa", "Nuova voce", "Nuovo cliente"… Prima
+         *  ogni area sceglieva un colore suo (blu, verde, arancio). */
+        brand: "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm hover:from-orange-600 hover:to-amber-500",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "!border !border-solid !border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

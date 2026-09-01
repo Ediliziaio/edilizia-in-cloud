@@ -2136,7 +2136,7 @@ export default function QuoteBuilder() {
                     // menu "Altro" sottostante per non rompere il flusso
                     // avanzato degli utenti abituati.
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => setAddItemOpen(true)}>
+                      <Button size="sm" variant="brand" onClick={() => setAddItemOpen(true)}>
                         <Plus className="h-4 w-4 mr-1" /> Aggiungi voce
                       </Button>
                       <DropdownMenu>
