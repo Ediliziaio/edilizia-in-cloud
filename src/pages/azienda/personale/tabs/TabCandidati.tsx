@@ -7,8 +7,12 @@
  * da banca dati quando una ricerca si riapre. La fase dice dove sei nel
  * processo; l'esito (assunto / non idoneo / archivio) come è finita.
  */
-import { useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+
+// Il test attitudinale è PARTE della selezione: vive qui come terza vista
+// (resta un chunk separato: 500KB di report/grafici caricati solo se serve).
+const TabSelezioni = lazy(() => import("./TabSelezioni").then((m) => ({ default: m.TabSelezioni })));
 import { toast } from "sonner";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +21,7 @@ import { uploadHrFile, getHrFileUrl } from "@/hooks/useHrDocumenti";
 import {
   useHrCandidati, useUpsertCandidato, useDeleteCandidato,
   useColloquiCandidato, useAddColloquio, useDeleteColloquio,
-  useFasiSelezione, useUpsertFase, useDeleteFase, useScambiaFasi, useSpostaFase,
+  useFasiSelezione, useUpsertFase, useDeleteFase, useScambiaFasi, useSpostaFase, useAssumiCandidato,
   STATI_CANDIDATO, FONTI_CANDIDATO, TIPI_COLLOQUIO, ESITI_COLLOQUIO,
   type HrCandidato, type CandidatoStato, type CandidatoFonte, type ColloquioTipo, type ColloquioEsito, type FaseSelezione,
 } from "@/hooks/useHrCandidati";
@@ -32,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowDown, ArrowUp, BrainCircuit, Download, FileText, HardHat, KanbanSquare,
+  ArrowDown, ArrowUp, BrainCircuit, CalendarCheck, Download, FileText, HardHat, KanbanSquare,
   List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2, Upload,
   UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
 } from "lucide-react";
@@ -250,17 +254,19 @@ function TargetEsito({ esito, label, icona: Icona, classe }: { esito: Esito; lab
 
 // ── Scheda candidato ────────────────────────────────────────────────────────
 
-function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: HrCandidato; fasi: FaseSelezione[]; onClose: () => void; vaiAlTest: () => void }) {
+function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma }: { candidato: HrCandidato; fasi: FaseSelezione[]; onClose: () => void; vaiAlTest: () => void; vaiOrganigramma: () => void }) {
   const companyId = useEffectiveCompanyId();
   const upsert = useUpsertCandidato();
   const del = useDeleteCandidato();
   const { data: colloqui = [], isLoading: colloquiLoading } = useColloquiCandidato(candidato.id);
-  const addColloquio = useAddColloquio(candidato.id);
+  const addColloquio = useAddColloquio(candidato);
   const delColloquio = useDeleteColloquio(candidato.id);
   const fileRef = useRef<HTMLInputElement>(null);
   const [caricandoCv, setCaricandoCv] = useState(false);
+  const [anteprimaCv, setAnteprimaCv] = useState<string | null>(null);
   const [confermaElimina, setConfermaElimina] = useState(false);
-  const [nuovoColloquio, setNuovoColloquio] = useState({ data_colloquio: new Date().toLocaleDateString("en-CA"), tipo: "conoscitivo" as ColloquioTipo, esito: "" as "" | ColloquioEsito, note: "" });
+  const [nuovoColloquio, setNuovoColloquio] = useState({ data_colloquio: new Date().toLocaleDateString("en-CA"), ora_colloquio: "", tipo: "conoscitivo" as ColloquioTipo, esito: "" as "" | ColloquioEsito, note: "" });
+  const assumi = useAssumiCandidato();
 
   const aggiorna = (patch: Partial<HrCandidato>) => upsert.mutate({ ...patch, id: candidato.id, nome: patch.nome ?? candidato.nome });
 
@@ -282,7 +288,13 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
     if (!candidato.cv_path) return;
     const url = await getHrFileUrl(candidato.cv_path);
     if (!url) { toast.error("Non riesco ad aprire il CV"); return; }
-    window.open(url, "_blank");
+    // PDF e immagini si vedono in anteprima qui dentro; i .doc il browser
+    // non li rende, quindi si scaricano e basta.
+    if (/\.(docx?|xlsx?)$/i.test(candidato.cv_nome ?? candidato.cv_path)) {
+      window.open(url, "_blank");
+      return;
+    }
+    setAnteprimaCv(url);
   };
 
   const rimuoviCv = async () => {
@@ -294,7 +306,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
   const registraColloquio = () => {
     if (!nuovoColloquio.data_colloquio) { toast.error("Serve la data del colloquio"); return; }
     addColloquio.mutate(
-      { data_colloquio: nuovoColloquio.data_colloquio, tipo: nuovoColloquio.tipo, esito: nuovoColloquio.esito || null, note: nuovoColloquio.note.trim() || null },
+      { data_colloquio: nuovoColloquio.data_colloquio, ora_colloquio: nuovoColloquio.ora_colloquio || null, tipo: nuovoColloquio.tipo, esito: nuovoColloquio.esito || null, note: nuovoColloquio.note.trim() || null },
       { onSuccess: () => setNuovoColloquio((p) => ({ ...p, note: "", esito: "" })) },
     );
   };
@@ -377,11 +389,15 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
               <div className="space-y-1.5">
                 {colloqui.map((c) => (
                   <div key={c.id} className="flex items-start gap-2 rounded border bg-slate-50 px-2 py-1.5 text-xs">
-                    <span className="font-medium whitespace-nowrap">{new Date(`${c.data_colloquio}T00:00:00`).toLocaleDateString("it-IT")}</span>
+                    <span className="font-medium whitespace-nowrap">
+                      {new Date(`${c.data_colloquio}T00:00:00`).toLocaleDateString("it-IT")}
+                      {c.ora_colloquio && <span className="text-slate-500"> {c.ora_colloquio.slice(0, 5)}</span>}
+                    </span>
                     <span className="text-slate-600 whitespace-nowrap">{TIPI_COLLOQUIO[c.tipo]}</span>
+                    {c.appointment_id && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" aria-label="In calendario" />}
                     {c.esito && <span className={`font-semibold ${ESITI_COLLOQUIO[c.esito].classe}`}>{ESITI_COLLOQUIO[c.esito].label}</span>}
                     {c.note && <span className="text-slate-500 flex-1">{c.note}</span>}
-                    <button type="button" className="ml-auto text-slate-400 hover:text-destructive" onClick={() => delColloquio.mutate(c.id)} aria-label="Elimina colloquio">
+                    <button type="button" className="ml-auto text-slate-400 hover:text-destructive" onClick={() => delColloquio.mutate({ id: c.id, appointmentId: c.appointment_id })} aria-label="Elimina colloquio">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -390,6 +406,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
             )}
             <div className="flex flex-wrap items-end gap-2 border-t pt-2">
               <div><Label className="text-[11px]">Data</Label><Input type="date" className="h-8 w-[140px]" value={nuovoColloquio.data_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, data_colloquio: e.target.value })} /></div>
+              <div><Label className="text-[11px]">Ora</Label><Input type="time" className="h-8 w-[100px]" value={nuovoColloquio.ora_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, ora_colloquio: e.target.value })} /></div>
               <div>
                 <Label className="text-[11px]">Tipo</Label>
                 <Select value={nuovoColloquio.tipo} onValueChange={(v) => setNuovoColloquio({ ...nuovoColloquio, tipo: v as ColloquioTipo })}>
@@ -410,6 +427,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
               <Input className="h-8 flex-1 min-w-[160px]" placeholder="Note del colloquio…" value={nuovoColloquio.note} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, note: e.target.value })} />
               <Button size="sm" className="h-8 gap-1" onClick={registraColloquio} disabled={addColloquio.isPending}><Plus className="h-3.5 w-3.5" /> Registra</Button>
             </div>
+            <p className="text-[11px] text-muted-foreground">I colloqui con data di oggi o futura finiscono anche sul calendario aziendale.</p>
           </div>
 
           <div>
@@ -427,6 +445,32 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
             </Button>
           </div>
 
+          {esito === "assunto" && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              {candidato.hr_profilo_id ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>Profilo dipendente creato.</span>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-700 hover:text-emerald-800" onClick={() => { onClose(); vaiOrganigramma(); }}>
+                    Apri Organigramma →
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-emerald-800">
+                    <HardHat className="h-4 w-4 text-emerald-600" />
+                    <span>È assunto: crea il profilo dipendente con i suoi dati già compilati.</span>
+                  </div>
+                  <Button size="sm" className="h-7 gap-1 bg-emerald-600 text-white hover:bg-emerald-700" disabled={assumi.isPending} onClick={() => assumi.mutate(candidato)}>
+                    <Plus className="h-3.5 w-3.5" /> Crea profilo dipendente
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-between pt-1">
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive gap-1" onClick={() => setConfermaElimina(true)}>
               <Trash2 className="h-3.5 w-3.5" /> Elimina candidato
@@ -434,6 +478,20 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest }: { candidato: H
             <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
           </div>
         </div>
+
+        {anteprimaCv && (
+          <Dialog open onOpenChange={(v) => { if (!v) setAnteprimaCv(null); }}>
+            <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-3">
+              <DialogHeader className="flex-row items-center justify-between space-y-0 pr-8">
+                <DialogTitle className="text-sm truncate">{candidato.cv_nome ?? "Curriculum"}</DialogTitle>
+                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => window.open(anteprimaCv, "_blank")}>
+                  <Download className="h-3.5 w-3.5" /> Apri in un'altra scheda
+                </Button>
+              </DialogHeader>
+              <iframe src={anteprimaCv} title={`Anteprima ${candidato.cv_nome ?? "CV"}`} className="w-full flex-1 rounded-lg border bg-slate-50" />
+            </DialogContent>
+          </Dialog>
+        )}
 
         <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
           <AlertDialogContent>
@@ -467,11 +525,16 @@ export function TabCandidati() {
   const { data: fasi = [], isLoading: fasiLoading } = useFasiSelezione();
   const upsert = useUpsertCandidato();
   const spostaFase = useSpostaFase();
-  const [, setSearchParams] = useSearchParams();
-  const [vista, setVista] = useState<"pipeline" | "elenco">(() => {
-    try { return localStorage.getItem("hr-candidati-vista") === "elenco" ? "elenco" : "pipeline"; } catch { return "pipeline"; }
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [vista, setVista] = useState<"pipeline" | "elenco" | "test">(() => {
+    // I vecchi link ?tab=selezioni atterrano dritti sulla vista test.
+    if (searchParams.get("tab") === "selezioni") return "test";
+    try {
+      const v = localStorage.getItem("hr-candidati-vista");
+      return v === "elenco" || v === "test" ? v : "pipeline";
+    } catch { return "pipeline"; }
   });
-  const cambiaVista = (v: "pipeline" | "elenco") => {
+  const cambiaVista = (v: "pipeline" | "elenco" | "test") => {
     setVista(v);
     try { localStorage.setItem("hr-candidati-vista", v); } catch { /* niente */ }
   };
@@ -519,7 +582,8 @@ export function TabCandidati() {
   }), [candidati]);
 
   const aperto = apertoId ? candidati.find((c) => c.id === apertoId) ?? null : null;
-  const vaiAlTest = () => setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "selezioni"); return n; });
+  const vaiAlTest = () => cambiaVista("test");
+  const vaiOrganigramma = () => setSearchParams((p) => { const n = new URLSearchParams(p); n.set("tab", "organigramma"); return n; });
 
   const onDragEnd = (event: DragEndEvent) => {
     const candidatoId = String(event.active.id);
@@ -543,6 +607,7 @@ export function TabCandidati() {
   return (
     <div className="space-y-4">
       {/* KPI */}
+      {vista !== "test" && (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Candidati totali", val: kpi.totale, icona: UserRoundSearch },
@@ -561,6 +626,7 @@ export function TabCandidati() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -571,11 +637,17 @@ export function TabCandidati() {
           <button type="button" onClick={() => cambiaVista("elenco")} className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${vista === "elenco" ? "bg-orange-50 text-orange-700" : "text-muted-foreground hover:bg-muted"}`}>
             <List className="h-3.5 w-3.5" /> Elenco
           </button>
+          <button type="button" onClick={() => cambiaVista("test")} className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${vista === "test" ? "bg-orange-50 text-orange-700" : "text-muted-foreground hover:bg-muted"}`}>
+            <BrainCircuit className="h-3.5 w-3.5" /> Test attitudinali
+          </button>
         </div>
+        {vista !== "test" && (
         <div className="relative flex-1 min-w-[180px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="h-9 pl-8" placeholder="Cerca per nome, telefono, email…" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
         </div>
+        )}
+        {vista !== "test" && (
         <Select value={filtroRuolo} onValueChange={setFiltroRuolo}>
           <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -583,6 +655,7 @@ export function TabCandidati() {
             {ruoliPresenti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
+        )}
         {vista === "elenco" && (
           <Select value={filtroEsito} onValueChange={(v) => setFiltroEsito(v as typeof filtroEsito)}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
@@ -600,11 +673,17 @@ export function TabCandidati() {
             <Settings2 className="h-3.5 w-3.5" /> Fasi
           </Button>
         )}
-        <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Nuovo candidato</Button>
+        {vista !== "test" && (
+          <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Nuovo candidato</Button>
+        )}
       </div>
 
       {/* Corpo */}
-      {isLoading || fasiLoading ? (
+      {vista === "test" ? (
+        <Suspense fallback={<div className="space-y-3 py-2"><Skeleton className="h-9 w-2/3 max-w-xs" /><Skeleton className="h-56 w-full rounded-xl" /></div>}>
+          <TabSelezioni />
+        </Suspense>
+      ) : isLoading || fasiLoading ? (
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
       ) : candidati.length === 0 ? (
         <Card>
@@ -685,7 +764,7 @@ export function TabCandidati() {
 
       <NuovoCandidatoDialog open={nuovoAperto} onOpenChange={setNuovoAperto} fasi={fasi} onCreato={(c) => setApertoId(c.id)} />
       <GestisciFasiDialog open={fasiAperte} onOpenChange={setFasiAperte} fasi={fasi} candidati={candidati} />
-      {aperto && <SchedaCandidato key={aperto.id} candidato={aperto} fasi={fasi} onClose={() => setApertoId(null)} vaiAlTest={vaiAlTest} />}
+      {aperto && <SchedaCandidato key={aperto.id} candidato={aperto} fasi={fasi} onClose={() => setApertoId(null)} vaiAlTest={vaiAlTest} vaiOrganigramma={vaiOrganigramma} />}
     </div>
   );
 }

@@ -12,7 +12,7 @@ export function useCreateHrProfilo() {
     mutationFn: async (data: Partial<HrProfilo>) => {
       if (!companyId) throw new Error("companyId required");
 
-      const { error } = await supabase
+      const { data: creato, error } = await supabase
         .from("hr_profili")
         .insert({
           company_id: companyId,
@@ -50,9 +50,13 @@ export function useCreateHrProfilo() {
           contatto_emergenza_telefono: data.contatto_emergenza_telefono,
           luogo_nascita: data.luogo_nascita,
           nazionalita: data.nazionalita || "Italiana",
-        } as any);
+        } as any)
+        .select("id")
+        .single();
 
       if (error) throw error;
+      // L'id serve a chi collega il profilo appena nato (es. candidato assunto).
+      return (creato as { id: string }).id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });

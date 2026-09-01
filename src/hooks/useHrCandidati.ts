@@ -33,6 +33,8 @@ export interface HrCandidato {
   talent_candidate_id: string | null;
   /** Fase corrente della pipeline di selezione (null = da smistare). */
   fase_id: string | null;
+  /** Profilo HR creato all'assunzione (evita di crearlo due volte). */
+  hr_profilo_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,9 +51,12 @@ export interface HrColloquio {
   id: string;
   candidato_id: string;
   data_colloquio: string;
+  ora_colloquio: string | null;
   tipo: ColloquioTipo;
   esito: ColloquioEsito | null;
   note: string | null;
+  /** Appuntamento sul calendario aziendale (per i colloqui futuri). */
+  appointment_id: string | null;
   created_at: string;
 }
 
@@ -173,23 +178,55 @@ export function useColloquiCandidato(candidatoId: string | null) {
   });
 }
 
-export function useAddColloquio(candidatoId: string) {
+export function useAddColloquio(candidato: Pick<HrCandidato, "id" | "nome" | "cognome" | "ruolo">) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (colloquio: { data_colloquio: string; tipo: ColloquioTipo; esito: ColloquioEsito | null; note: string | null }) => {
+    mutationFn: async (colloquio: { data_colloquio: string; ora_colloquio: string | null; tipo: ColloquioTipo; esito: ColloquioEsito | null; note: string | null }) => {
       const user = (await supabase.auth.getUser()).data.user;
+      // Un colloquio FUTURO finisce sul calendario aziendale: fissarlo qui e
+      // doverlo riscrivere di là era il modo migliore per dimenticarlo.
+      let appointmentId: string | null = null;
+      const oggi = new Date().toLocaleDateString("en-CA");
+      if (colloquio.data_colloquio >= oggi && user) {
+        const { data: apt, error: aptErr } = await db
+          .from("appointments")
+          .insert({
+            company_id: companyId,
+            title: `Colloquio: ${candidato.nome} ${candidato.cognome} (${candidato.ruolo})`,
+            description: [TIPI_COLLOQUIO[colloquio.tipo], colloquio.note].filter(Boolean).join(" — ") || null,
+            appointment_date: colloquio.data_colloquio,
+            appointment_time: colloquio.ora_colloquio,
+            appointment_type: "riunione",
+            status: "confermato",
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (aptErr) {
+          // Il colloquio si registra comunque: il calendario è un di più.
+          toast.warning("Colloquio salvato ma non messo in calendario", { description: aptErr.message });
+        } else {
+          appointmentId = (apt as { id: string }).id;
+        }
+      }
       const { error } = await db.from("hr_candidati_colloqui").insert({
         ...colloquio,
-        candidato_id: candidatoId,
+        candidato_id: candidato.id,
         company_id: companyId,
         created_by: user?.id,
+        appointment_id: appointmentId,
       });
-      if (error) throw error;
+      if (error) {
+        if (appointmentId) await db.from("appointments").delete().eq("id", appointmentId);
+        throw error;
+      }
+      return { inCalendario: !!appointmentId };
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: chiavi.colloqui(candidatoId) });
-      toast.success("Colloquio registrato");
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: chiavi.colloqui(candidato.id) });
+      if (r.inCalendario) qc.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success(r.inCalendario ? "Colloquio registrato e messo in calendario" : "Colloquio registrato");
     },
     onError: (e) => toast.error("Colloquio non salvato", { description: e instanceof Error ? e.message : undefined }),
   });
@@ -198,12 +235,78 @@ export function useAddColloquio(candidatoId: string) {
 export function useDeleteColloquio(candidatoId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, appointmentId }: { id: string; appointmentId: string | null }) => {
       const { error } = await db.from("hr_candidati_colloqui").delete().eq("id", id);
       if (error) throw error;
+      // L'appuntamento era il riflesso del colloquio: senza colloquio è un fantasma.
+      if (appointmentId) await db.from("appointments").delete().eq("id", appointmentId);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: chiavi.colloqui(candidatoId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiavi.colloqui(candidatoId) });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+    },
     onError: (e) => toast.error("Eliminazione non riuscita", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+/**
+ * Candidato assunto → profilo HR precompilato (nome, contatti, mansione =
+ * ruolo cercato, assunzione oggi). Il link su hr_profilo_id impedisce di
+ * crearlo due volte; il resto della scheda dipendente si completa
+ * nell'Organigramma con calma.
+ */
+export function useAssumiCandidato() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (candidato: HrCandidato) => {
+      if (candidato.hr_profilo_id) return candidato.hr_profilo_id;
+      const { data: profilo, error } = await db
+        .from("hr_profili")
+        .insert({
+          company_id: companyId,
+          nome: candidato.nome,
+          cognome: candidato.cognome,
+          email: candidato.email,
+          telefono: candidato.telefono,
+          mansione: candidato.ruolo,
+          data_assunzione: new Date().toLocaleDateString("en-CA"),
+          // Stessi default del flusso ufficiale (useCreateHrProfilo):
+          tipo_contratto: "indeterminato",
+          orario_tipo: "standard",
+          ore_settimanali: 40,
+          ore_giornaliere: 8,
+          attivo: true,
+          ccnl: "Edilizia",
+          nazionalita: "Italiana",
+          colore_avatar: "#0EA5E9",
+          pausa_pranzo_minuti: 60,
+          ferie_anno_giorni: 26,
+          ferie_residue: 26,
+          permessi_anno_ore: 32,
+          permessi_residui_ore: 32,
+          rol_anno_ore: 0,
+          rol_residuo_ore: 0,
+          note_interne: [candidato.note, "Creato dalla selezione candidati."].filter(Boolean).join("\n"),
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const profiloId = (profilo as { id: string }).id;
+      const { error: linkErr } = await db
+        .from("hr_candidati")
+        .update({ stato: "assunto", hr_profilo_id: profiloId })
+        .eq("id", candidato.id);
+      if (linkErr) throw linkErr;
+      return profiloId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr-candidati"] });
+      qc.invalidateQueries({ queryKey: ["hr-organigramma"] });
+      qc.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      toast.success("Profilo dipendente creato", { description: "Completa contratto e dettagli dall'Organigramma." });
+    },
+    onError: (e) => toast.error("Profilo non creato", { description: e instanceof Error ? e.message : undefined }),
   });
 }
 
