@@ -373,7 +373,7 @@ function CreateOrderInner() {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
-      setOrderItems(vociVere.map((v, idx) => {
+      const itemsMerce = vociVere.map((v, idx) => {
         const match = mappaVoceSuListino(v.descrizione ?? "");
         return {
           name: v.descrizione,
@@ -384,6 +384,8 @@ function CreateOrderInner() {
           // riconosciute; altrimenti quello letto dal contratto.
           unit_price: match?.vendita ?? v.prezzo_unitario_eur,
           purchase_price: match?.acquisto ?? undefined,
+          // Sconto globale del documento (es. sconto rivenditore 15%) → per riga.
+          discount_percent: ex.sconto_globale_pct ?? undefined,
           vat_rate: match?.fam.vat_rate != null ? Number(match.fam.vat_rate) : (ex.iva_pct ?? undefined),
           family_id: match?.fam.id ?? null,
           axis_selections: null,
@@ -392,7 +394,22 @@ function CreateOrderInner() {
             : null,
           measure_status: null,
         };
+      });
+      // Imballaggio/trasporto/oneri: voci a sé, senza sconto (nel documento
+      // sono calcolati DOPO lo sconto merce).
+      const itemsAltriCosti = ex.altri_costi.map((a, i) => ({
+        name: a.descrizione,
+        quantity: 1,
+        status: "da_ordinare",
+        position: itemsMerce.length + i,
+        unit_price: a.importo_eur,
+        vat_rate: ex.iva_pct ?? undefined,
+        family_id: null,
+        axis_selections: null,
+        misure_preventivo: null,
+        measure_status: null,
       }));
+      setOrderItems([...itemsMerce, ...itemsAltriCosti]);
     }
     const insts = contractToInstallments(ex, imp ?? 0);
     if (insts.length > 0) setInstallments(prefillExpectedDates(insts));

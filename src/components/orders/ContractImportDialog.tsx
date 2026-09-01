@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image as ImageIcon, XCircle, Sparkles, Loader2, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
-import { parseContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
+import { parseContractExtract, reconcileContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
 
 const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -80,7 +80,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
       });
       if (fnErr) throw new Error(fnErr.message || "Analisi AI fallita");
       if (data?.error) throw new Error(String(data.error));
-      const parsed = parseContractExtract(data?.extracted ?? data);
+      const parsed = reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
       setExtract(parsed);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

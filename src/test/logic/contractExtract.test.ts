@@ -69,7 +69,7 @@ describe("contract AI extract", () => {
 });
 
 // ── Irrobustimento 2026-09: aritmetica deterministica e controlli di coerenza ──
-import { deriveIvaPct, contractSommaVoci, contractCoherenceWarnings } from "@/lib/orders/contractExtract";
+import { deriveIvaPct, contractSommaVoci, contractCoherenceWarnings, contractTotaleAtteso, reconcileContractExtract } from "@/lib/orders/contractExtract";
 
 describe("contract extract — potenziamento anti-fragilità", () => {
   const base = {
@@ -125,5 +125,120 @@ describe("contract extract — potenziamento anti-fragilità", () => {
         { descrizione: "Finanziamento", percentuale: null, importo_eur: 11800 },
       ] });
     expect(contractCoherenceWarnings(ex)).toEqual([]);
+  });
+});
+
+describe("contratto complesso (offerta fornitore, sconti, altri costi)", () => {
+  const base2 = {
+    cliente: { nome_completo: "SC Cinnirella", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
+    descrizione_lavori: "Serramenti Rehau", indirizzo_cantiere: null,
+    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
+    summary: "", confidence: 0.9, warnings: [],
+  };
+
+  it("caso Cinnirella: voci − sconto 15% + imballo + trasporto = totale → zero allarmi conti", () => {
+    const ex = parseContractExtract({ ...base2,
+      importo_totale_eur: 8462.7, iva_pct: 0, importo_totale_ivato_eur: 8462.7,
+      sconto_globale_pct: 15,
+      altri_costi: [
+        { descrizione: "Costo imballaggio", importo_eur: 364.81 },
+        { descrizione: "Costo trasporto Italia Nord", importo_eur: 583.72 },
+      ],
+      natura_documento: "offerta_fornitore",
+      voci: [
+        { descrizione: "Porta 1", quantita: 1, prezzo_unitario_eur: 1143.05 },
+        { descrizione: "Finestra 2", quantita: 1, prezzo_unitario_eur: 2237.34 },
+        { descrizione: "Finestra 3", quantita: 1, prezzo_unitario_eur: 298.24 },
+        { descrizione: "Finestra 4", quantita: 1, prezzo_unitario_eur: 277.8 },
+        { descrizione: "Finestra 5", quantita: 1, prezzo_unitario_eur: 405.1 },
+        { descrizione: "Finestra 6", quantita: 1, prezzo_unitario_eur: 560.58 },
+        { descrizione: "Finestra 7", quantita: 1, prezzo_unitario_eur: 359.56 },
+        { descrizione: "Finestra 8", quantita: 3, prezzo_unitario_eur: 356.12 },
+        { descrizione: "Pannello 9", quantita: 1, prezzo_unitario_eur: 1936.31 },
+        { descrizione: "Set balamale Maco", quantita: 1, prezzo_unitario_eur: 12.69 },
+        { descrizione: "Estensione 100/80 Bianca 13 ml", quantita: 1, prezzo_unitario_eur: 294.19 },
+        { descrizione: "Coprifilo piatto 80x2", quantita: 15, prezzo_unitario_eur: 16.465333 },
+      ],
+    });
+    // somma voci = 8286,34 + 553,86 = 8840,20 → −15% = 7514,17 + 364,81 + 583,72 = 8462,70
+    expect(contractSommaVoci(ex)).toBeCloseTo(8840.2, 1);
+    const atteso = contractTotaleAtteso(ex);
+    expect(atteso).toBeCloseTo(8462.7, 1);
+    const w = contractCoherenceWarnings(ex);
+    expect(w.some((x) => x.includes("somma delle voci"))).toBe(false);
+    // ma l'avviso sulla natura fornitore C'E'
+    expect(w.some((x) => x.includes("PRODUTTORE"))).toBe(true);
+  });
+
+  it("IVA 0% dichiarata resta 0 (niente invenzioni)", () => {
+    const ex = parseContractExtract({ ...base2, importo_totale_eur: 8462.7, iva_pct: 0, importo_totale_ivato_eur: 8462.7, voci: [], altri_costi: [], sconto_globale_pct: null, natura_documento: null });
+    expect(deriveIvaPct(ex)).toBe(0);
+  });
+});
+
+describe("riconciliazione prezzi voce (totale-riga scambiato per unitario)", () => {
+  const base3 = {
+    cliente: { nome_completo: "SC Cinnirella", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
+    descrizione_lavori: "Serramenti", indirizzo_cantiere: null,
+    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
+    summary: "", confidence: 0.9, warnings: [],
+    importo_totale_eur: 8462.7, iva_pct: 0, importo_totale_ivato_eur: 8462.7,
+    sconto_globale_pct: 15, natura_documento: "offerta_fornitore",
+    altri_costi: [
+      { descrizione: "Imballaggio", importo_eur: 364.81 },
+      { descrizione: "Trasporto", importo_eur: 583.72 },
+    ],
+  };
+
+  it("caso Termoplast VERO: accessori gonfi riconciliati, Finestra 8 (giusta) intatta", () => {
+    const ex = reconcileContractExtract(parseContractExtract({ ...base3,
+      voci: [
+        { descrizione: "Porta 1", quantita: 1, prezzo_unitario_eur: 1143.05 },
+        { descrizione: "Finestra 2", quantita: 1, prezzo_unitario_eur: 2237.34 },
+        { descrizione: "Finestra 3", quantita: 1, prezzo_unitario_eur: 298.24 },
+        { descrizione: "Finestra 4", quantita: 1, prezzo_unitario_eur: 277.8 },
+        { descrizione: "Finestra 5", quantita: 1, prezzo_unitario_eur: 405.1 },
+        { descrizione: "Finestra 6", quantita: 1, prezzo_unitario_eur: 560.58 },
+        { descrizione: "Finestra 7", quantita: 1, prezzo_unitario_eur: 359.56 },
+        { descrizione: "Finestra 8", quantita: 3, prezzo_unitario_eur: 356.12 }, // GIUSTA: non toccarla
+        { descrizione: "Pannello 9", quantita: 1, prezzo_unitario_eur: 1936.31 },
+        { descrizione: "Set balamale", quantita: 5, prezzo_unitario_eur: 12.69 },     // gonfia ×5
+        { descrizione: "Estensione 13 ml", quantita: 13, prezzo_unitario_eur: 294.19 }, // gonfia ×13
+        { descrizione: "Coprifilo", quantita: 15, prezzo_unitario_eur: 246.98 },       // gonfia ×15
+      ],
+    }));
+    // Finestra 8 intatta
+    const f8 = ex.voci.find((v) => v.descrizione === "Finestra 8")!;
+    expect(f8.prezzo_unitario_eur).toBe(356.12);
+    // Accessori riconciliati (unit = totale/q)
+    expect(ex.voci.find((v) => v.descrizione.startsWith("Estensione"))!.prezzo_unitario_eur).toBeCloseTo(294.19 / 13, 2);
+    expect(ex.voci.find((v) => v.descrizione === "Coprifilo")!.prezzo_unitario_eur).toBeCloseTo(246.98 / 15, 2);
+    // I conti ora tornano: niente allarme somma
+    const w = contractCoherenceWarnings(ex);
+    expect(w.some((x) => x.includes("somma delle voci"))).toBe(false);
+    // E il warning di riconciliazione c'è
+    expect(ex.warnings.some((x) => x.includes("Riconciliati"))).toBe(true);
+  });
+
+  it("estratto già coerente: nessuna correzione applicata", () => {
+    const ex = reconcileContractExtract(parseContractExtract({ ...base3,
+      sconto_globale_pct: null, altri_costi: [], importo_totale_eur: 1068.36, importo_totale_ivato_eur: 1068.36,
+      voci: [{ descrizione: "Finestra 8", quantita: 3, prezzo_unitario_eur: 356.12 }],
+    }));
+    expect(ex.voci[0].prezzo_unitario_eur).toBe(356.12);
+    expect(ex.warnings.some((x) => x.includes("Riconciliati"))).toBe(false);
+  });
+});
+
+describe("imponibile parziale con IVA 0 (variabilità tra run del modello)", () => {
+  it("l'ivato comanda: imp dichiarato 7514,17 (parziale) + ivato 8462,70 + IVA 0 → 8462,70", () => {
+    const ex = parseContractExtract({
+      cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
+      descrizione_lavori: "S", indirizzo_cantiere: null, modalita_pagamento: null, fasi_pagamento: [],
+      data_inizio_lavori: null, data_fine_lavori: null, summary: "", confidence: 0.9, warnings: [],
+      importo_totale_eur: 7514.17, iva_pct: 0, importo_totale_ivato_eur: 8462.7,
+      sconto_globale_pct: null, altri_costi: [], natura_documento: null, voci: [],
+    });
+    expect(contractImponibile(ex)).toBe(8462.7);
   });
 });

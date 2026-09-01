@@ -22,6 +22,10 @@ export interface ContractExtractItem {
   quantita: number;
   prezzo_unitario_eur: number;
 }
+export interface ContractExtractAltroCosto {
+  descrizione: string;
+  importo_eur: number;
+}
 export interface ContractExtract {
   cliente: ContractExtractClient;
   descrizione_lavori: string;
@@ -30,6 +34,12 @@ export interface ContractExtract {
   iva_pct: number | null;
   importo_totale_ivato_eur: number | null;
   voci: ContractExtractItem[];
+  /** Sconto % applicato al totale merce (es. sconto rivenditore 15%). */
+  sconto_globale_pct: number | null;
+  /** Costi non-merce: imballaggio, trasporto, oneri. */
+  altri_costi: ContractExtractAltroCosto[];
+  /** Offerta di un produttore verso il rivenditore ≠ contratto col cliente finale. */
+  natura_documento: "contratto_cliente" | "offerta_fornitore" | "copia_commissione" | null;
   modalita_pagamento: string | null;
   fasi_pagamento: ContractExtractPhase[];
   data_inizio_lavori: string | null;
@@ -81,6 +91,15 @@ export function parseContractExtract(raw: unknown): ContractExtract {
         prezzo_unitario_eur: toNum(v.prezzo_unitario_eur) ?? 0,
       }))
       .filter((v) => v.descrizione),
+    sconto_globale_pct: toNum(r.sconto_globale_pct),
+    altri_costi: (Array.isArray(r.altri_costi) ? r.altri_costi : [])
+      .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")
+      .map((a) => ({ descrizione: toStr(a.descrizione) ?? "Altro costo", importo_eur: toNum(a.importo_eur) ?? 0 }))
+      .filter((a) => a.importo_eur > 0),
+    natura_documento: (() => {
+      const n = toStr(r.natura_documento);
+      return n === "contratto_cliente" || n === "offerta_fornitore" || n === "copia_commissione" ? n : null;
+    })(),
     modalita_pagamento: toStr(r.modalita_pagamento),
     fasi_pagamento: fasi
       .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")
@@ -134,8 +153,11 @@ export function deriveIvaPct(extract: ContractExtract): number | null {
  */
 export function contractImponibile(extract: ContractExtract): number | null {
   const iva = deriveIvaPct(extract);
+  // Anche con IVA 0 lo scorporo vale (imponibile = ivato): il "Totale
+  // Pagamento" e' il numero piu' affidabile del documento, mentre il campo
+  // imponibile del modello a volte e' un subtotale (visto sul campo).
   const scorporo =
-    extract.importo_totale_ivato_eur != null && iva != null && iva > 0
+    extract.importo_totale_ivato_eur != null && iva != null && iva >= 0
       ? round2(extract.importo_totale_ivato_eur / (1 + iva / 100))
       : null;
   if (scorporo != null) return scorporo;
@@ -150,17 +172,92 @@ export function contractImponibile(extract: ContractExtract): number | null {
  * l'AI puo' perdere voci o sbagliare i conti, e l'errore non deve passare in
  * silenzio. Ritorna avvisi in italiano (vuoto = tutto torna).
  */
+/** Totale merce atteso: somma voci − sconto globale + altri costi (imballo/trasporto). */
+export function contractTotaleAtteso(extract: ContractExtract): number | null {
+  const sommaVoci = contractSommaVoci(extract);
+  if (sommaVoci <= 0) return null;
+  const sconto = extract.sconto_globale_pct != null ? sommaVoci * (extract.sconto_globale_pct / 100) : 0;
+  const altri = extract.altri_costi.reduce((s, a) => s + a.importo_eur, 0);
+  return round2(sommaVoci - sconto + altri);
+}
+
+/**
+ * Riconciliazione deterministica dei prezzi voce (caso reale Termoplast):
+ * su righe con quantita in ml/pezzi il modello tende a mettere il TOTALE
+ * riga come prezzo unitario → una voce "13 ml × 294,19" vale 13 volte tanto.
+ *
+ * Strategia greedy a prova di conti: per ogni voce con quantita > 1, se
+ * interpretare il prezzo come totale riga (unit = prezzo/quantita) AVVICINA
+ * il totale atteso all'imponibile del documento, si corregge — altrimenti
+ * si lascia stare (le voci giuste peggiorerebbero e non vengono toccate).
+ * Ogni correzione produce un warning esplicito.
+ */
+export function reconcileContractExtract(extract: ContractExtract): ContractExtract {
+  // Bersaglio = l'imponibile più affidabile (scorporo dall'ivato prima di
+  // tutto): inseguire un subtotale parziale fa sovracorreggere il greedy.
+  const imp = contractImponibile(extract) ?? extract.importo_totale_eur;
+  if (imp == null || imp <= 0 || extract.voci.length === 0) return extract;
+
+  const attesoCon = (voci: ContractExtractItem[]) => {
+    const somma = round2(voci.reduce((s, v) => s + (v.quantita || 1) * (v.prezzo_unitario_eur || 0), 0));
+    const sconto = extract.sconto_globale_pct != null ? somma * (extract.sconto_globale_pct / 100) : 0;
+    const altri = extract.altri_costi.reduce((s, a) => s + a.importo_eur, 0);
+    return round2(somma - sconto + altri);
+  };
+
+  const voci = extract.voci.map((v) => ({ ...v }));
+  const corrette: string[] = [];
+  let delta = Math.abs(attesoCon(voci) - imp);
+  if (delta <= Math.max(1, imp * 0.02)) return extract; // già coerente
+
+  // Voci candidate: quantita > 1, ordinate per impatto decrescente.
+  const candidate = voci
+    .map((v, i) => ({ i, impatto: (v.quantita - 1) * v.prezzo_unitario_eur }))
+    .filter((c) => voci[c.i].quantita > 1 && voci[c.i].prezzo_unitario_eur > 0)
+    .sort((a, b) => b.impatto - a.impatto);
+
+  for (const c of candidate) {
+    const v = voci[c.i];
+    const unitario = round2(v.prezzo_unitario_eur / v.quantita);
+    const prova = voci.map((x, idx) => (idx === c.i ? { ...x, prezzo_unitario_eur: unitario } : x));
+    const nuovoDelta = Math.abs(attesoCon(prova) - imp);
+    if (nuovoDelta < delta) {
+      v.prezzo_unitario_eur = unitario;
+      delta = nuovoDelta;
+      corrette.push(v.descrizione.slice(0, 40));
+    }
+  }
+
+  if (corrette.length === 0) return extract;
+  return {
+    ...extract,
+    voci,
+    warnings: [
+      ...extract.warnings,
+      `Riconciliati i prezzi di ${corrette.length} voci (il prezzo letto era il TOTALE riga, non l'unitario): ${corrette.join("; ")}. Controlla che i conti tornino.`,
+    ],
+  };
+}
+
 export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const out: string[] = [];
   const imp = contractImponibile(extract);
-  const sommaVoci = contractSommaVoci(extract);
-  if (imp != null && sommaVoci > 0) {
-    const delta = Math.abs(sommaVoci - imp);
+  const atteso = contractTotaleAtteso(extract);
+  if (imp != null && atteso != null) {
+    const delta = Math.abs(atteso - imp);
     if (delta > Math.max(1, imp * 0.02)) {
+      const dettaglio = extract.sconto_globale_pct != null || extract.altri_costi.length > 0
+        ? ` (voci − sconto${extract.sconto_globale_pct != null ? ` ${extract.sconto_globale_pct}%` : ""} + altri costi)`
+        : "";
       out.push(
-        `La somma delle voci (${sommaVoci.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €) non coincide con l'imponibile (${imp.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €): possibile voce mancante o prezzo errato.`,
+        `La somma delle voci${dettaglio} fa ${atteso.toLocaleString("it-IT", { minimumFractionDigits: 2 })} € ma l'imponibile è ${imp.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €: possibile voce mancante o prezzo errato.`,
       );
     }
+  }
+  if (extract.natura_documento === "offerta_fornitore") {
+    out.push(
+      "Sembra l'offerta di un PRODUTTORE/fornitore, non un contratto col cliente finale: valuta se caricarla come Ordine d'Acquisto o RDO invece che come commessa.",
+    );
   }
   const totaleRiferimento = extract.importo_totale_ivato_eur ?? imp;
   const sommaFasi = round2(extract.fasi_pagamento.reduce((s, f) => s + (f.importo_eur ?? 0), 0));
