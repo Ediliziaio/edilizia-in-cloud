@@ -411,6 +411,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       toast.success("Messaggio WhatsApp Locale inviato");
       queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      // Il messaggio vive in openwa_messages: senza questa invalidazione la
+      // bolla appena inviata non comparirebbe in timeline fino al refetch.
+      queryClient.invalidateQueries({ queryKey: ["unified_wa_locale", id] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp Locale");
     } finally {

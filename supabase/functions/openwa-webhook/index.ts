@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
     // Risolvi il numero locale dalla sessione.
     const { data: number } = await admin
       .from("openwa_numbers")
-      .select("id, session_id")
+      .select("id, session_id, stato, display_name, numero")
       .eq("session_id", sessionId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -232,6 +232,39 @@ Deno.serve(async (req) => {
           await admin.from("openwa_numbers")
             .update({ connected_since: romeToday() })
             .eq("id", number.id).is("connected_since", null);
+        }
+
+        // ── Avviso su ban/caduta ──────────────────────────────────────────────
+        // Un numero bannato o caduto fermava tutto IN SILENZIO: le campagne
+        // restavano "in corso", il dispatcher trovava il pool vuoto e nessuno
+        // sapeva perche' non partiva piu' niente. Chi presidia deve saperlo
+        // nel momento in cui succede, non scoprirlo giorni dopo dai contatori.
+        const cadeva = (stato === "banned" || stato === "disconnected") && number.stato === "connected";
+        if (cadeva) {
+          const nome = number.display_name || number.numero || sessionId;
+          // Restano altri numeri a coprire? Cambia il tono dell'avviso.
+          const { count: altriAttivi } = await admin
+            .from("openwa_numbers")
+            .select("id", { count: "exact", head: true })
+            .eq("stato", "connected").is("deleted_at", null).neq("id", number.id);
+          const bannato = stato === "banned";
+          try {
+            await avvisaSuperAdmin(admin, {
+              tipo: bannato ? "whatsapp_numero_bannato" : "whatsapp_numero_disconnesso",
+              titolo: bannato
+                ? `Numero WhatsApp BANNATO: ${nome}`
+                : `Numero WhatsApp disconnesso: ${nome}`,
+              testo: (altriAttivi ?? 0) > 0
+                ? `Gli invii proseguono sugli altri ${altriAttivi} numeri connessi.`
+                : "Era l'ultimo numero attivo: campagne e risposte sono FERME finche' non ricolleghi un numero.",
+              url: "/admin/impostazioni/whatsapp-locale",
+              tag: `openwa-stato-${number.id}`,
+              entityType: null,
+              entityId: null,
+            });
+          } catch (e) {
+            console.error("[openwa-webhook] avviso ban/caduta:", (e as Error)?.message);
+          }
         }
       }
       return new Response(JSON.stringify({ ok: true }), { headers: jsonH });

@@ -168,6 +168,26 @@ export function UnifiedContactTimeline({
     refetchIntervalInBackground: false,
   });
 
+  // WhatsApp LOCALE (canale non ufficiale della piattaforma): in e out.
+  // La RLS su openwa_messages e' super-admin-only: per una scheda contatto
+  // aziendale la query fallisce o torna vuota → si degrada a [] in silenzio,
+  // il canale semplicemente non esiste li'.
+  const { data: waLocale = [] } = useQuery({
+    queryKey: ["unified_wa_locale", contactId],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("openwa_messages")
+        .select("id, body, direction, status, media_url, created_at")
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) return [];
+      return (data ?? []) as Array<{ id: string; body: string | null; direction: string; status: string; media_url: string | null; created_at: string }>;
+    },
+    ...queryOpts,
+  });
+
   // Email IN ARRIVO (risposte del contatto) → email_inbox, agganciata per
   // indirizzo mittente OPPURE via matched_contact_id (reply GHL-style: l'edge
   // email-inbound-reply valorizza matched_contact_id dalla route, così la
@@ -350,6 +370,23 @@ export function UnifiedContactTimeline({
       });
     }
 
+    // WhatsApp Locale: bolle in entrambe le direzioni
+    for (const wl of waLocale) {
+      events.push({
+        id: `wl-${wl.id}`,
+        type: "message_whatsapp_locale",
+        category: "message",
+        direction: wl.direction === "inbound" ? "inbound" : "outbound",
+        channelLabel: "WA Locale",
+        status: wl.direction === "outbound" ? wl.status : undefined,
+        icon: <MessageSquare className="h-3 w-3" />,
+        color: "",
+        title: "WA Locale",
+        description: wl.body || (wl.media_url ? "📎 Allegato" : "(messaggio)"),
+        timestamp: wl.created_at,
+      });
+    }
+
     // Email IN ARRIVO (risposte del contatto) → bolla a sinistra
     for (const em of emailInbox) {
       events.push({
@@ -447,7 +484,7 @@ export function UnifiedContactTimeline({
     // ASCENDENTE: i più vecchi sopra, i più recenti in fondo (stile chat).
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
-  }, [activities, messages, waInbound, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes]);
+  }, [activities, messages, waInbound, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes, waLocale]);
 
   const filtered = filter === "all" ? allEvents : allEvents.filter((e) => e.category === filter);
 

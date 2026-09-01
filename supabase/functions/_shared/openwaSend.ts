@@ -230,19 +230,26 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   const chatId = toChatId(phone);
   if (!chatId) return { ok: false, error: "Numero destinatario non valido.", status: 400 };
 
-  // Opt-out anche per invio a NUMERO LIBERO (senza contact_id): se quel numero
-  // corrisponde a un contatto piattaforma che ha rinunciato, non inviare.
-  if (!params.contactId && phone) {
+  // Invio a NUMERO LIBERO (senza contact_id): se il numero corrisponde a un
+  // contatto piattaforma, due cose. (1) Opt-out: chi ha rinunciato non riceve.
+  // (2) Aggancio: il messaggio si intesta al contatto — senza, l'invio non
+  // comparirebbe nella sua scheda ne' nel centro Conversazioni. Solo su match
+  // UNIVOCO: con due contatti stesse-ultime-9-cifre meglio nessun aggancio che
+  // quello sbagliato.
+  let contactIdEffettivo = params.contactId ?? null;
+  if (!contactIdEffettivo && phone) {
     const last9 = digitsOnly(phone).slice(-9);
     if (last9.length >= 9) {
       const { data: known } = await admin
         .from("marketing_contacts")
-        .select("optout_whatsapp")
+        .select("id, optout_whatsapp")
         .eq("company_id", OPENWA_PLATFORM_COMPANY_ID)
         .ilike("phone", `%${last9}%`)
-        .limit(1)
-        .maybeSingle();
-      if (known?.optout_whatsapp) return { ok: false, error: "Numero in opt-out WhatsApp.", status: 400 };
+        .limit(2);
+      if (known?.some((k: { optout_whatsapp: boolean | null }) => k.optout_whatsapp)) {
+        return { ok: false, error: "Numero in opt-out WhatsApp.", status: 400 };
+      }
+      if (known?.length === 1) contactIdEffettivo = known[0].id;
     }
   }
 
@@ -334,7 +341,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   await admin.from("openwa_messages").insert({
     number_id: chosen.id,
-    contact_id: params.contactId ?? null,
+    contact_id: contactIdEffettivo,
     wa_chat_id: chatId,
     contact_phone: phone,
     contact_name: contactName,

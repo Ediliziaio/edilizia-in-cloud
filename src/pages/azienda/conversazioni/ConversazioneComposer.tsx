@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import type { EntitaTipo } from "@/hooks/useConversazioni";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 
-type Canale = "email" | "whatsapp" | "sms";
+type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms";
 
 interface EmailAccount {
   id: string;
@@ -53,6 +53,48 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [waSending, setWaSending] = useState(false);
+  const [testoLocale, setTestoLocale] = useState("");
+
+  // Numeri del canale WhatsApp LOCALE (non ufficiale, solo piattaforma).
+  // La RLS su openwa_numbers e' super-admin-only: per chiunque altro la query
+  // torna vuota o negata → il canale semplicemente non compare. Nessun flag.
+  const { data: numeriLocali = [] } = useQuery({
+    queryKey: ["conv-compose-openwa"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("openwa_numbers")
+        .select("id, display_name, numero, stato")
+        .eq("stato", "connected")
+        .is("deleted_at", null);
+      if (error) return [];
+      return (data ?? []) as Array<{ id: string; display_name: string | null; numero: string | null; stato: string }>;
+    },
+  });
+
+  const inviaLocale = useMutation({
+    mutationFn: async () => {
+      if (!cleanPhone) throw new Error("Il contatto non ha un numero di telefono");
+      const testo = testoLocale.trim();
+      if (!testo) throw new Error("Scrivi un messaggio");
+      const { data, error } = await supabase.functions.invoke("openwa-gateway", {
+        body: { action: "send_text", to: telefono, text: testo },
+      });
+      if (error) throw new Error(error.message ?? "Invio fallito");
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (r?.ok === false || r?.error) throw new Error(r?.error ?? "Invio fallito");
+    },
+    onSuccess: () => {
+      setTestoLocale("");
+      toast.success("Messaggio WhatsApp Locale inviato");
+      qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
+      qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
+      qc.invalidateQueries({ queryKey: ["openwa"] });
+      onSent?.();
+    },
+    onError: (e) => toast.error("Invio WhatsApp Locale fallito", { description: (e as Error).message }),
+  });
 
   const cleanPhone = (telefono ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
@@ -149,6 +191,11 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   const CANALI: { key: Canale; label: string; Icon: typeof Mail; disabled: boolean }[] = [
     { key: "email", label: "Email", Icon: Mail, disabled: !email },
     { key: "whatsapp", label: "WhatsApp", Icon: MessageCircle, disabled: !waHref },
+    // Canale non ufficiale della piattaforma: compare solo se c'e' almeno un
+    // numero collegato E il contatto ha un telefono.
+    ...(numeriLocali.length > 0
+      ? [{ key: "whatsapp_locale" as Canale, label: "WA Locale", Icon: MessageCircle, disabled: !cleanPhone }]
+      : []),
     { key: "sms", label: "SMS", Icon: MessageSquare, disabled: false },
   ];
 
@@ -262,6 +309,41 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
           ) : (
             <p className="text-xs text-muted-foreground italic">Contatto senza numero di telefono.</p>
           )}
+        </div>
+      )}
+
+      {/* WHATSAPP LOCALE — canale non ufficiale (OpenWA): invio diretto dal
+          numero della piattaforma, il messaggio rientra nel thread. */}
+      {canale === "whatsapp_locale" && (
+        <div className="p-3 max-w-3xl mx-auto space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            Parte dal numero {numeriLocali[0]?.display_name || numeriLocali[0]?.numero}
+            {numeriLocali.length > 1 && " (o dal numero già usato con questo contatto)"} · canale non ufficiale
+          </p>
+          <div className="flex items-end gap-2">
+            <Textarea
+              placeholder={`Messaggio WhatsApp a ${telefono ?? ""}…`}
+              value={testoLocale}
+              onChange={(e) => setTestoLocale(e.target.value.slice(0, 4000))}
+              rows={2}
+              className="text-sm resize-y min-h-[56px]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (testoLocale.trim() && !inviaLocale.isPending) inviaLocale.mutate();
+                }
+              }}
+            />
+            <Button
+              size="icon"
+              className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
+              aria-label="Invia WhatsApp Locale"
+              onClick={() => inviaLocale.mutate()}
+              disabled={!cleanPhone || !testoLocale.trim() || inviaLocale.isPending}
+            >
+              {inviaLocale.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       )}
 

@@ -28,7 +28,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Riepilogo {
   id: string;
@@ -48,11 +50,18 @@ interface Riepilogo {
 }
 
 const STATO_BADGE: Record<string, { label: string; className: string }> = {
-  bozza: { label: "Bozza", className: "bg-slate-100 text-slate-700" },
-  in_corso: { label: "In corso", className: "bg-emerald-100 text-emerald-700" },
-  in_pausa: { label: "In pausa", className: "bg-amber-100 text-amber-700" },
-  completata: { label: "Completata", className: "bg-blue-100 text-blue-700" },
-  annullata: { label: "Annullata", className: "bg-slate-100 text-slate-500" },
+  bozza: { label: "Bozza", className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
+  in_corso: { label: "In corso", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  in_pausa: { label: "In pausa", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
+  completata: { label: "Completata", className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+  annullata: { label: "Annullata", className: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+};
+
+const STATO_NUMERO: Record<string, { label: string; className: string }> = {
+  connected: { label: "connesso", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  connecting: { label: "in connessione", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
+  disconnected: { label: "disconnesso", className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+  banned: { label: "BANNATO", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
 };
 
 export default function AdminWhatsappLocaleCampagne() {
@@ -89,10 +98,15 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_numbers")
-        .select("id, numero, stato, daily_cap, daily_sent, daily_sent_date");
+        .select("id, numero, display_name, stato, daily_cap, daily_sent, daily_sent_date")
+        .is("deleted_at", null);
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; numero: string; stato: string; daily_cap: number }>;
+      return (data ?? []) as Array<{
+        id: string; numero: string | null; display_name: string | null; stato: string;
+        daily_cap: number | null; daily_sent: number | null; daily_sent_date: string | null;
+      }>;
     },
+    refetchInterval: 60_000,
   });
 
   const connessi = useMemo(() => numeri.filter((n) => n.stato === "connected"), [numeri]);
@@ -100,6 +114,22 @@ export default function AdminWhatsappLocaleCampagne() {
     () => connessi.reduce((s, n) => s + (n.daily_cap ?? 0), 0),
     [connessi],
   );
+  // Quanto si puo' ancora inviare OGGI: il cap teorico dice poco se i numeri
+  // hanno gia' lavorato — e' il residuo che spiega perche' la campagna rallenta.
+  const residuoOggi = useMemo(() => {
+    const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+    return connessi.reduce((tot, n) => {
+      const usati = n.daily_sent_date === oggi ? (n.daily_sent ?? 0) : 0;
+      return tot + Math.max(0, (n.daily_cap ?? 0) - usati);
+    }, 0);
+  }, [connessi]);
+  const inProblema = useMemo(
+    () => numeri.filter((n) => n.stato === "banned" || n.stato === "disconnected"),
+    [numeri],
+  );
+  const campagneAttive = useMemo(() => campagne.filter((c) => c.stato === "in_corso"), [campagne]);
+  const nomeNumero = (n: { display_name: string | null; numero: string | null }) =>
+    n.display_name || n.numero || "numero";
 
   const filtriRpc = useMemo(() => {
     const tags = fTags.split(",").map((t) => t.trim()).filter(Boolean);
@@ -159,6 +189,50 @@ export default function AdminWhatsappLocaleCampagne() {
     onError: (e: Error) => toast.error("Caricamento non riuscito", { description: e.message }),
   });
 
+  // Un fallito e' un destinatario su cui l'invio e' andato male 5 volte
+  // (gateway giu', sessione caduta...). Risolto il guasto, va rimesso in coda:
+  // senza questo pulsante restava fallito per sempre.
+  const riprovaFalliti = useMutation({
+    mutationFn: async (campagnaId: string) => {
+      const { data, error } = await supabase
+        .from("openwa_campagna_destinatari")
+        .update({ stato: "da_inviare", tentativi: 0, ultimo_errore: null })
+        .eq("campagna_id", campagnaId)
+        .eq("stato", "fallito")
+        .select("id");
+      if (error) throw error;
+      return data?.length ?? 0;
+    },
+    onSuccess: (n) => {
+      toast.success(`${n} destinatari rimessi in coda`, {
+        description: "Ripartiranno al prossimo giro del motore (entro 10 minuti).",
+      });
+      qc.invalidateQueries({ queryKey: ["openwa-campagne"] });
+    },
+    onError: (e: Error) => toast.error("Operazione non riuscita", { description: e.message }),
+  });
+
+  // Gli ultimi errori della campagna selezionata: senza vederli, "12 falliti"
+  // e' un numero muto — non si capisce se e' colpa del gateway o dei numeri.
+  const [erroriPer, setErroriPer] = useState<Riepilogo | null>(null);
+  const { data: erroriDettaglio = [], isLoading: erroriInCorso } = useQuery({
+    queryKey: ["openwa-campagna-errori", erroriPer?.id],
+    enabled: !!erroriPer,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("openwa_campagna_destinatari")
+        .select("id, stato, ultimo_errore, tentativi, contact_id, marketing_contacts(first_name, last_name, phone)")
+        .eq("campagna_id", erroriPer!.id)
+        .in("stato", ["fallito", "saltato"])
+        .not("ultimo_errore", "is", null)
+        .order("tentativi", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any[];
+    },
+  });
+
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const patch: Record<string, unknown> = { stato, updated_at: new Date().toISOString() };
@@ -185,6 +259,42 @@ export default function AdminWhatsappLocaleCampagne() {
         </Button>
       </div>
 
+      {/* Un numero bannato o caduto ferma gli invii in silenzio: qui deve
+          urlare. Rosso se non resta nessun numero a coprire, ambra altrimenti. */}
+      {inProblema.length > 0 && (
+        <Card className={connessi.length === 0
+          ? "border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40"
+          : "border-amber-300 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40"}>
+          <div className="flex items-start gap-3">
+            {inProblema.some((n) => n.stato === "banned")
+              ? <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+              : <WifiOff className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />}
+            <div className="min-w-0 space-y-1 text-sm">
+              {inProblema.map((n) => (
+                <p key={n.id}>
+                  <strong>{nomeNumero(n)}</strong>{" "}
+                  {n.stato === "banned"
+                    ? "è stato BANNATO da WhatsApp: non può più inviare né ricevere."
+                    : "risulta disconnesso: riapri la sessione scansionando di nuovo il QR."}
+                </p>
+              ))}
+              {connessi.length === 0 && campagneAttive.length > 0 && (
+                <p className="font-semibold">
+                  Nessun numero attivo: {campagneAttive.length === 1
+                    ? `la campagna "${campagneAttive[0].nome}" è ferma`
+                    : `${campagneAttive.length} campagne sono ferme`} finché non ricolleghi un numero.
+                </p>
+              )}
+              <Button asChild size="sm" variant="outline" className="mt-1">
+                <Link to="/admin/impostazioni/whatsapp-locale">
+                  Vai ai numeri <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Capacità: la prima cosa da sapere prima di lanciare qualcosa */}
       <Card className="p-4">
         <div className="flex items-center gap-3 flex-wrap">
@@ -198,13 +308,32 @@ export default function AdminWhatsappLocaleCampagne() {
               </span>
             </div>
           ) : (
-            <span className="text-sm">
-              <strong>{connessi.length}</strong> {connessi.length === 1 ? "numero collegato" : "numeri collegati"} ·
-              capacità massima <strong>{capacitaGiorno} messaggi/giorno</strong>
-              <span className="text-muted-foreground">
-                {" "}— un numero appena collegato invia meno finché il warm-up non lo porta a regime.
+            <div className="min-w-0 space-y-2 text-sm">
+              <span>
+                <strong>{connessi.length}</strong> {connessi.length === 1 ? "numero attivo" : "numeri attivi"} ·
+                oggi restano <strong>{residuoOggi}</strong> {residuoOggi === 1 ? "invio" : "invii"} su {capacitaGiorno}
+                <span className="text-muted-foreground">
+                  {" "}— un numero appena collegato invia meno finché il warm-up non lo porta a regime.
+                </span>
               </span>
-            </span>
+              {capacitaGiorno > 0 && (
+                <div className="flex h-2 w-full max-w-sm overflow-hidden rounded-full bg-muted"
+                  title={`${capacitaGiorno - residuoOggi} usati · ${residuoOggi} disponibili`}>
+                  <div className="h-full bg-emerald-600 transition-all"
+                    style={{ width: `${((capacitaGiorno - residuoOggi) / capacitaGiorno) * 100}%` }} />
+                </div>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {numeri.map((n) => {
+                  const b = STATO_NUMERO[n.stato] ?? { label: n.stato, className: "bg-slate-100 text-slate-600" };
+                  return (
+                    <Badge key={n.id} variant="secondary" className={b.className}>
+                      {nomeNumero(n)} · {b.label}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </Card>
@@ -224,7 +353,6 @@ export default function AdminWhatsappLocaleCampagne() {
           {campagne.map((c) => {
             const badge = STATO_BADGE[c.stato] ?? { label: c.stato, className: "bg-slate-100" };
             const contattati = c.inviati + c.followup_inviati + c.risposti;
-            const pct = c.totali > 0 ? Math.round((contattati / c.totali) * 100) : 0;
             const tassoRisposta = contattati > 0 ? Math.round((c.risposti / contattati) * 100) : null;
             return (
               <Card key={c.id} className="p-4">
@@ -239,21 +367,52 @@ export default function AdminWhatsappLocaleCampagne() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {c.totali} destinatari · {c.da_inviare} da contattare · {c.inviati} contattati ·{" "}
-                      {c.followup_inviati} risollecitati · <strong>{c.risposti} risposte</strong>
-                      {tassoRisposta !== null && ` (${tassoRisposta}%)`}
-                      {c.saltati > 0 && ` · ${c.saltati} saltati`}
-                      {c.falliti > 0 && ` · ${c.falliti} falliti`}
-                    </p>
+                    {/* La riga "479 · 12 · 30 · …" era illeggibile: numeri
+                        etichettati, e una barra che mostra COSA è successo,
+                        non solo quanto. */}
+                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+                      {[
+                        { n: c.totali, label: "destinatari" },
+                        { n: c.da_inviare, label: "in coda" },
+                        { n: c.inviati + c.followup_inviati, label: "contattati" },
+                        { n: c.risposti, label: tassoRisposta !== null ? `risposte (${tassoRisposta}%)` : "risposte", forte: true },
+                        ...(c.saltati > 0 ? [{ n: c.saltati, label: "saltati" }] : []),
+                        ...(c.falliti > 0 ? [{ n: c.falliti, label: "falliti", rosso: true }] : []),
+                      ].map((st, i) => (
+                        <div key={i} className="min-w-0">
+                          <div className={cn(
+                            "text-base font-semibold leading-tight tabular-nums",
+                            st.rosso && "text-red-600 dark:text-red-400",
+                            st.forte && "text-emerald-700 dark:text-emerald-400",
+                          )}>{st.n}</div>
+                          <div className="text-[11px] text-muted-foreground">{st.label}</div>
+                        </div>
+                      ))}
+                    </div>
                     {c.totali > 0 && (
-                      <div className="mt-2 h-1.5 w-64 max-w-full rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                      <div className="mt-2.5 flex h-2 w-full max-w-md overflow-hidden rounded-full bg-muted"
+                        title={`${c.risposti} risposte · ${contattati - c.risposti} contattati senza risposta · ${c.falliti} falliti`}>
+                        <div className="h-full bg-emerald-600" style={{ width: `${(c.risposti / c.totali) * 100}%` }} />
+                        <div className="h-full bg-emerald-300 dark:bg-emerald-800" style={{ width: `${(Math.max(0, contattati - c.risposti) / c.totali) * 100}%` }} />
+                        <div className="h-full bg-red-300 dark:bg-red-900" style={{ width: `${(c.falliti / c.totali) * 100}%` }} />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {(c.falliti > 0 || c.saltati > 0) && (
+                      <Button variant="ghost" size="sm" className="text-amber-700 dark:text-amber-400"
+                        onClick={() => setErroriPer(c)}>
+                        <AlertTriangle className="h-4 w-4 mr-1.5" /> Problemi
+                      </Button>
+                    )}
+                    {c.falliti > 0 && (
+                      <Button variant="outline" size="sm"
+                        disabled={riprovaFalliti.isPending}
+                        onClick={() => riprovaFalliti.mutate(c.id)}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" /> Riprova {c.falliti} falliti
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setListaPer(c)}>
                       <Users className="h-4 w-4 mr-1.5" /> Destinatari
                     </Button>
@@ -320,6 +479,52 @@ export default function AdminWhatsappLocaleCampagne() {
               {crea.isPending ? "Creo…" : "Crea"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Problemi (falliti e saltati con errore) ── */}
+      <Dialog open={!!erroriPer} onOpenChange={(o) => !o && setErroriPer(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Problemi — {erroriPer?.nome}</DialogTitle>
+            <DialogDescription>
+              I <strong>saltati</strong> non verranno ricontattati (opt-out o numero non su WhatsApp).
+              I <strong>falliti</strong> sono errori tecnici: risolvi la causa e usa "Riprova".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 space-y-1.5 overflow-y-auto">
+            {erroriInCorso ? (
+              <Skeleton className="h-24 w-full" />
+            ) : erroriDettaglio.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Nessun dettaglio disponibile.</p>
+            ) : (
+              erroriDettaglio.map((d) => {
+                const contatto = d.marketing_contacts;
+                const chi = contatto
+                  ? [contatto.first_name, contatto.last_name].filter(Boolean).join(" ") || contatto.phone
+                  : "contatto rimosso";
+                return (
+                  <div key={d.id} className="rounded-md border px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{chi}</span>
+                      <Badge variant={d.stato === "fallito" ? "destructive" : "secondary"} className="shrink-0 text-[10px]">
+                        {d.stato === "fallito" ? `fallito · ${d.tentativi} tentativi` : "saltato"}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{d.ultimo_errore}</p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {erroriPer && erroriPer.falliti > 0 && (
+            <DialogFooter>
+              <Button variant="outline" disabled={riprovaFalliti.isPending}
+                onClick={() => { riprovaFalliti.mutate(erroriPer.id); setErroriPer(null); }}>
+                <RotateCcw className="mr-1.5 h-4 w-4" /> Riprova i {erroriPer.falliti} falliti
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
