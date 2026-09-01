@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image as ImageIcon, XCircle, Sparkles, Loader2, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
-import { parseContractExtract, contractImponibile, type ContractExtract } from "@/lib/orders/contractExtract";
+import { parseContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
 
 const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -180,6 +180,32 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
               <dd>{extract.voci.length ? `${extract.voci.length} articoli` : "—"}</dd>
             </dl>
 
+            {/* Coerenza dei conti PRIMA di applicare: su un contratto lungo
+                l'AI puo' perdere voci o sbagliare somme — qui non passa muto. */}
+            {(() => {
+              const coerenza = contractCoherenceWarnings(extract);
+              const somma = contractSommaVoci(extract);
+              return (
+                <>
+                  {somma > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Verifica conti: {extract.voci.length} voci · somma{" "}
+                      {somma.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €
+                      {contractImponibile(extract) != null &&
+                        ` · imponibile ${contractImponibile(extract)!.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`}
+                    </p>
+                  )}
+                  {coerenza.length > 0 && (
+                    <div className="rounded-lg border border-orange-300 bg-orange-50 p-2.5 text-xs text-orange-900">
+                      <p className="font-semibold mb-1">🔎 I conti non tornano</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {coerenza.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {extract.warnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
                 <p className="font-semibold mb-1">⚠️ Da verificare</p>

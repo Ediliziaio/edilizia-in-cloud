@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
-import { contractImponibile, contractToInstallments, type ContractExtract } from "@/lib/orders/contractExtract";
+import { contractImponibile, contractToInstallments, deriveIvaPct, type ContractExtract } from "@/lib/orders/contractExtract";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -305,10 +305,18 @@ function CreateOrderInner() {
    *  PF* = portafinestra, F* = finestra (i codici modello del fornitore), le
    *  dimensioni in mm danno i mq, il listino al mq da' vendita e costo. */
   const mappaVoceSuListino = (descrizione: string) => {
-    const dims = descrizione.match(/(\d{2,4})\s*[xX×]\s*(\d{2,4})/);
+    // Dimensioni in mm, cm o metri: "1270x2520", "127x252", "1,27x2,52".
+    const dims = descrizione.match(/(\d{1,4}(?:[.,]\d{1,2})?)\s*[xX×]\s*(\d{1,4}(?:[.,]\d{1,2})?)/);
     if (!dims) return null;
-    const larghezza_mm = Number(dims[1]);
-    const altezza_mm = Number(dims[2]);
+    const inMm = (raw: string) => {
+      const n = Number(raw.replace(",", "."));
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      if (n < 10) return Math.round(n * 1000); // metri
+      if (n < 400) return Math.round(n * 10);  // centimetri
+      return Math.round(n);                    // millimetri
+    };
+    const larghezza_mm = inMm(dims[1]);
+    const altezza_mm = inMm(dims[2]);
     if (!larghezza_mm || !altezza_mm) return null;
     const isPortafinestra = /\bPF\w*\b|porta\s*finestra/i.test(descrizione);
     const isFinestra = isPortafinestra || /\bF\d?\w?\b|finestr/i.test(descrizione);
@@ -357,7 +365,10 @@ function CreateOrderInner() {
     // Formato IT: l'imponibile arriva dall'estrazione AI del contratto e
     // `String(1.234)` produrrebbe una stringa riletta poi come 1234.
     if (imp != null) setValue("total_amount", formatDecimalIT(imp));
-    if (ex.iva_pct != null) setValue("vat_rate", String(ex.iva_pct));
+    // Aliquota: dichiarata dal documento, o DEDOTTA dai totali (ivato/imponibile
+    // → agganciata a 4/5/10/22). L'aritmetica del modello qui aveva già mentito.
+    const ivaEffettiva = deriveIvaPct(ex);
+    if (ivaEffettiva != null) setValue("vat_rate", String(ivaEffettiva));
     if (ex.voci.length > 0) {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.

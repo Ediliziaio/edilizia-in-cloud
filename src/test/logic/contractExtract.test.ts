@@ -67,3 +67,63 @@ describe("contract AI extract", () => {
     expect(insts.map((i) => i.amount)).toEqual([500, 1500]);
   });
 });
+
+// ── Irrobustimento 2026-09: aritmetica deterministica e controlli di coerenza ──
+import { deriveIvaPct, contractSommaVoci, contractCoherenceWarnings } from "@/lib/orders/contractExtract";
+
+describe("contract extract — potenziamento anti-fragilità", () => {
+  const base = {
+    cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
+    descrizione_lavori: "Serramenti", indirizzo_cantiere: null,
+    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
+    summary: "", confidence: 0.9, warnings: [],
+  };
+
+  it("deriveIvaPct: deduce il 10% dai totali quando l'aliquota manca (caso Cosmet)", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: 11130, iva_pct: null, importo_totale_ivato_eur: 12243, voci: [] });
+    expect(deriveIvaPct(ex)).toBe(10);
+  });
+
+  it("deriveIvaPct: non inventa aliquote se i totali non ci sono", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: null, iva_pct: null, importo_totale_ivato_eur: 12243, voci: [] });
+    expect(deriveIvaPct(ex)).toBeNull();
+  });
+
+  it("contractImponibile: lo scorporo deterministico batte l'imponibile sbagliato del modello", () => {
+    // Il modello aveva detto 10.413; ivato 12.243 con IVA 10 → 11.130,00
+    const ex = parseContractExtract({ ...base, importo_totale_eur: 10413, iva_pct: 10, importo_totale_ivato_eur: 12243, voci: [] });
+    expect(contractImponibile(ex)).toBe(11130);
+  });
+
+  it("contractImponibile: senza ivato usa la somma voci quando il modello tace", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: null, iva_pct: null, importo_totale_ivato_eur: null,
+      voci: [{ descrizione: "A", quantita: 2, prezzo_unitario_eur: 100 }, { descrizione: "B", quantita: 1, prezzo_unitario_eur: 50 }] });
+    expect(contractSommaVoci(ex)).toBe(250);
+    expect(contractImponibile(ex)).toBe(250);
+  });
+
+  it("coerenza: segnala voci che non sommano all'imponibile", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: 11130, iva_pct: 10, importo_totale_ivato_eur: 12243,
+      voci: [{ descrizione: "Unica voce", quantita: 1, prezzo_unitario_eur: 5000 }] });
+    const w = contractCoherenceWarnings(ex);
+    expect(w.some((x) => x.includes("somma delle voci"))).toBe(true);
+  });
+
+  it("coerenza: fasi di pagamento che non coprono il totale", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: 11130, iva_pct: 10, importo_totale_ivato_eur: 12243,
+      voci: [{ descrizione: "V", quantita: 1, prezzo_unitario_eur: 11130 }],
+      fasi_pagamento: [{ descrizione: "Acconto", percentuale: null, importo_eur: 443 }] });
+    const w = contractCoherenceWarnings(ex);
+    expect(w.some((x) => x.includes("fasi di pagamento"))).toBe(true);
+  });
+
+  it("coerenza: tutto torna → zero avvisi (443 + 11.800 = 12.243)", () => {
+    const ex = parseContractExtract({ ...base, importo_totale_eur: 11130, iva_pct: 10, importo_totale_ivato_eur: 12243,
+      voci: [{ descrizione: "V", quantita: 1, prezzo_unitario_eur: 11130 }],
+      fasi_pagamento: [
+        { descrizione: "Acconto", percentuale: null, importo_eur: 443 },
+        { descrizione: "Finanziamento", percentuale: null, importo_eur: 11800 },
+      ] });
+    expect(contractCoherenceWarnings(ex)).toEqual([]);
+  });
+});

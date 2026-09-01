@@ -121,6 +121,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "iva_pct": numero (es. 22, 10, 4) o null,
   "importo_totale_ivato_eur": numero totale con IVA o null,
   "voci": [{ "descrizione": "string", "quantita": numero, "prezzo_unitario_eur": numero }],
+  "_regole_voci": "ESAUSTIVITA' OBBLIGATORIA: estrai OGNI riga del modulo d'ordine/abaco, anche su documenti lunghi — mai riassumere, mai accorpare righe diverse in una. Mantieni nella descrizione modello e dimensioni LxH cosi' come scritte (es. 'PF2A 1270x2520'). Usa il campo quantita invece di duplicare righe identiche. NON creare righe di totale/subtotale ('Totale infissi', 'Totale accessori': sono somme, non merce). Se il prezzo di una riga non e' leggibile metti 0 e aggiungi un warning. Alla fine CONTA le righe del documento e confronta con quelle estratte: se sospetti omissioni aggiungi warning 'voci possibilmente incomplete (N attese)'",
   "modalita_pagamento": "string (es. Bonifico bancario / Assegno / Finanziamento) o null",
   "fasi_pagamento": [{ "descrizione": "string es. Acconto alla firma / SAL / Saldo", "percentuale": numero o null, "importo_eur": numero o null }],
   "data_inizio_lavori": "YYYY-MM-DD o null",
@@ -226,7 +227,9 @@ Deno.serve(async (req) => {
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
-      params: { temperature: 0.0, max_tokens: 6000 },
+      // Contratti/computi lunghi: le voci sono l'output più costoso in token e
+      // un tetto basso le TRONCA in silenzio (JSON monco o liste dimezzate).
+      params: { temperature: 0.0, max_tokens: doc_type === "contratto_commessa" ? 12000 : 6000 },
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
@@ -239,7 +242,20 @@ Deno.serve(async (req) => {
       const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
       extracted = JSON.parse(raw);
     } catch {
-      return errorResponse(`AI returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`, 502, cors);
+      // Recupero: su risposte lunghe alcuni modelli aggiungono testo attorno al
+      // JSON — si tenta il blocco { … } più esterno prima di arrendersi.
+      const raw = aiResult.content ?? "";
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        try {
+          extracted = JSON.parse(raw.slice(start, end + 1));
+        } catch {
+          return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
+        }
+      } else {
+        return errorResponse(`AI returned invalid JSON: ${raw.slice(0, 200)}`, 502, cors);
+      }
     }
 
     const summary = (extracted.summary as string | undefined) ?? "";
