@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle, ChevronUp, ChevronDown,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -225,6 +226,13 @@ export function OrderItemsList({
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  /** Sezione "Altri dettagli" del form articolo. Chiusa di default: su 328
+      articoli reali la Descrizione e' stata compilata 2 volte e la Modalita'
+      di pagamento UNA; data arrivo, OdA e PDF appartengono alla fase d'ordine
+      (oggi coperta dal pannello "Da ordinare ai fornitori"), non
+      all'inserimento. In modifica si apre da sola: i valori esistenti devono
+      restare visibili. */
+  const [showAltriDettagli, setShowAltriDettagli] = useState(false);
   const [dialogTab, setDialogTab] = useState<"new" | "stock">("new");
   const [itemName, setItemName] = useState("");
   const [itemDescription, setItemDescription] = useState("");
@@ -506,6 +514,7 @@ export function OrderItemsList({
   };
 
   const resetForm = () => {
+    setShowAltriDettagli(false);
     setItemName("");
     setItemDescription("");
     setItemQuantity("1");
@@ -550,6 +559,9 @@ export function OrderItemsList({
   };
 
   const openEditDialog = (index: number) => {
+    // In modifica i dettagli si aprono: descrizione, pagamento, arrivo o OdA
+    // potrebbero avere valori, e non devono sparire dietro il ripiegabile.
+    setShowAltriDettagli(true);
     const item = items[index];
     setItemName(item.name);
     setItemDescription(item.description || "");
@@ -1006,21 +1018,6 @@ export function OrderItemsList({
             </div>
           )}
         </div>
-        <div className="space-y-2">
-          <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
-          <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Es. dimensioni, finitura, codice fornitore…" />
-        </div>
-        <div className="space-y-2">
-          <Label>Stato Articolo</Label>
-          <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                <SelectItem key={status} value={status}>{config.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       <Separator />
@@ -1089,11 +1086,43 @@ export function OrderItemsList({
       {/* ── Section 3: Fornitore & Pagamento ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-          <Truck className="h-4 w-4" /> Fornitore & Pagamento
+          <Truck className="h-4 w-4" /> Fornitore
         </h4>
         <div className="space-y-2">
           <Label>Fornitore <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
           <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
+        </div>
+      </div>
+
+      {/* ── Altri dettagli, ripiegati. All'inserimento non entra quasi mai
+          nessuno qui (numeri di produzione): il caso comune resta a quattro
+          campi — nome, quantita', costo, fornitore. */}
+      <button
+        type="button"
+        onClick={() => setShowAltriDettagli((v) => !v)}
+        className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30"
+        aria-expanded={showAltriDettagli}
+      >
+        {showAltriDettagli ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        Altri dettagli (descrizione, stato, pagamento, arrivo, OdA)
+      </button>
+
+      {showAltriDettagli && (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+          <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Es. dimensioni, finitura, codice fornitore…" />
+        </div>
+        <div className="space-y-2">
+          <Label>Stato Articolo</Label>
+          <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                <SelectItem key={status} value={status}>{config.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
@@ -1231,9 +1260,6 @@ export function OrderItemsList({
             </div>
           );
         })()}
-      </div>
-
-      <Separator />
 
       {/* ── Section 4: Tracking & ODA (v8.6.35) ─────────────────────────── */}
       <div className="space-y-3">
@@ -1370,6 +1396,8 @@ export function OrderItemsList({
           </p>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 
