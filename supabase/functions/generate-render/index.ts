@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import { detectImageDimensions } from "../_shared/imageDimensions.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -957,6 +958,27 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     }
     const sourceBlob = await imgResp.blob();
 
+    // RETE DI SICUREZZA SUL FORMATO. Le dimensioni arrivano solo da
+    // target_width/target_height nel body: il frontend le calcola da
+    // img.naturalWidth, ma se l'immagine non si carica non le manda e
+    // pickOpenAISize ripiega su 1024x1024 quadrato. Su una foto di infisso —
+    // quasi sempre VERTICALE — il modello deve ricomporre la scena per
+    // riempire il quadrato, e finisce per tagliare cassonetto o davanzale.
+    // Stessa protezione gia' applicata a bagno e stanza.
+    let srcW = prepared.effective_width ?? target_width ?? undefined;
+    let srcH = prepared.effective_height ?? target_height ?? undefined;
+    if (!srcW || !srcH) {
+      try {
+        const probe = new Uint8Array(await sourceBlob.slice(0, 65536).arrayBuffer());
+        const dim = detectImageDimensions(probe);
+        if (dim) {
+          srcW = dim.width;
+          srcH = dim.height;
+          logInfo({ msg: "source_dimensions_detected_from_bytes", width: srcW, height: srcH });
+        }
+      } catch (_e) { /* si resta sul default */ }
+    }
+
     // ── v8.3.3 — Fetch reference photos (mazzetta, maniglia, profilo) ────
     // Le passiamo INSIEME alla sorgente al modello multi-image così l'AI
     // ha ancore visive forti sul colore/modello target. Fetch in parallelo
@@ -1103,8 +1125,8 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           referenceImages: referenceImagesFetched.length > 0
             ? referenceImagesFetched
             : undefined,
-          effectiveWidth: prepared.effective_width ?? undefined,
-          effectiveHeight: prepared.effective_height ?? undefined,
+          effectiveWidth: srcW,
+          effectiveHeight: srcH,
           negativePrompt,
           timeoutMs: perAttemptTimeout,
           maxRetries: 0,
