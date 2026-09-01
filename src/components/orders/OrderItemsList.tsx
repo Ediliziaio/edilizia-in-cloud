@@ -56,6 +56,13 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+/** Una riga della distinta/abaco dentro l'articolo (es. "2 ante · 1000x1000 · x1"). */
+export interface Posizione {
+  descrizione: string;
+  misure?: string | null;
+  quantita: number;
+}
+
 export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_lavorazione' | 'in_arrivo' | 'in_magazzino' | 'installato';
 
 export const PAYMENT_METHODS = [
@@ -118,6 +125,8 @@ export interface OrderItem {
   measure_variance?: Record<string, { prev: number; def: number; delta: number }> | null;
   survey_id?: string | null;
   survey_element_id?: string | null;
+  /** Distinta/abaco: ogni posizione diventa una riga OdA/RDO. */
+  posizioni?: Posizione[] | null;
 }
 
 interface OrderItemsListProps {
@@ -254,6 +263,8 @@ export function OrderItemsList({
   const [addPosa, setAddPosa] = useState(false);
   const [posaTeamId, setPosaTeamId] = useState<string | undefined>();
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
+  /** Distinta in bozza nel dialog (vuota = articolo semplice). */
+  const [itemPosizioni, setItemPosizioni] = useState<Posizione[]>([]);
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
   const [itemPaymentMethod, setItemPaymentMethod] = useState<string>("");
@@ -515,6 +526,7 @@ export function OrderItemsList({
 
   const resetForm = () => {
     setShowAltriDettagli(false);
+    setItemPosizioni([]);
     setItemName("");
     setItemDescription("");
     setItemQuantity("1");
@@ -566,6 +578,7 @@ export function OrderItemsList({
     setItemName(item.name);
     setItemDescription(item.description || "");
     setItemQuantity(item.quantity.toString());
+    setItemPosizioni(item.posizioni ?? []);
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
     setItemVatRate(item.vat_rate ?? 22);
@@ -618,7 +631,14 @@ export function OrderItemsList({
       return false;
     }
 
-    const quantity = Math.round(Number(itemQuantity));
+    // Con la distinta, la quantita' dell'articolo E' la somma delle posizioni:
+    // scriverla a mano diventerebbe subito incoerente.
+    const posizioniPulite = itemPosizioni
+      .map((po) => ({ ...po, descrizione: po.descrizione.trim() }))
+      .filter((po) => po.descrizione && po.quantita > 0);
+    const quantity = posizioniPulite.length > 0
+      ? posizioniPulite.reduce((sum, po) => sum + po.quantita, 0)
+      : Math.round(Number(itemQuantity));
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setDialogError("La quantità deve essere maggiore di zero.");
@@ -656,6 +676,7 @@ export function OrderItemsList({
       purchase_price: purchasePrice,
       vat_rate: itemVatRate,
       status: itemStatus,
+      posizioni: posizioniPulite.length > 0 ? posizioniPulite : null,
       is_paid: isPaidGlobal,
       paid_date: !isInstallment && itemIsPaid && itemPaidDate ? itemPaidDate.toLocaleDateString("en-CA") : undefined,
       payment_method: itemPaymentMethod || undefined,
@@ -1022,6 +1043,65 @@ export function OrderItemsList({
 
       <Separator />
 
+      {/* ── Distinta / posizioni (opzionale) ───────────────────
+          L'abaco del serramentista: "2 ante 1000x1000 x1, 2 ante 1500x1500 x2".
+          Ogni posizione diventera' una riga dell'OdA/RDO; la quantita'
+          dell'articolo e' la somma. Vuota = articolo semplice, come prima. */}
+      <div className="space-y-2 rounded-lg border bg-muted/20 p-2.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Distinta / posizioni (opzionale)
+          </Label>
+          <Button
+            type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs"
+            onClick={() => setItemPosizioni((prev) => [...prev, { descrizione: "", misure: "", quantita: 1 }])}
+          >
+            <Plus className="h-3.5 w-3.5" /> Posizione
+          </Button>
+        </div>
+        {itemPosizioni.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Per ordini con piu' misure (es. serramenti): una riga per posizione, il fornitore le vedra' cosi' nell'ordine.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {itemPosizioni.map((po, pi) => (
+              <div key={pi} className="flex items-center gap-1.5">
+                <Input
+                  value={po.descrizione}
+                  onChange={(e) => setItemPosizioni((prev) => prev.map((x, j) => j === pi ? { ...x, descrizione: e.target.value } : x))}
+                  placeholder="Es. Finestra 2 ante"
+                  className="h-8 flex-1 text-sm"
+                />
+                <Input
+                  value={po.misure ?? ""}
+                  onChange={(e) => setItemPosizioni((prev) => prev.map((x, j) => j === pi ? { ...x, misure: e.target.value } : x))}
+                  placeholder="1000x1000"
+                  className="h-8 w-28 text-sm"
+                />
+                <Input
+                  type="number" min={1}
+                  value={po.quantita}
+                  onChange={(e) => setItemPosizioni((prev) => prev.map((x, j) => j === pi ? { ...x, quantita: Math.max(1, Math.round(Number(e.target.value) || 1)) } : x))}
+                  className="h-8 w-16 text-sm"
+                  aria-label="Quantita' posizione"
+                />
+                <Button
+                  type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive"
+                  aria-label="Rimuovi posizione"
+                  onClick={() => setItemPosizioni((prev) => prev.filter((_, j) => j !== pi))}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <p className="text-[11px] text-muted-foreground">
+              Quantita' articolo = somma posizioni ({itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)} pz)
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* ── Section 2: Costi & IVA ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
@@ -1030,7 +1110,7 @@ export function OrderItemsList({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Quantità</Label>
-            <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+            <Input type="number" min="1" value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>
@@ -1648,6 +1728,16 @@ export function OrderItemsList({
                       <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
                       <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
                     </div>
+                  )}
+                  {/* La distinta si legge dalla riga: e' il motivo per cui esiste. */}
+                  {item.posizioni && item.posizioni.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {item.posizioni.map((po, pi) => (
+                        <li key={pi} className="text-xs text-muted-foreground">
+                          • {po.descrizione}{po.misure ? ` · ${po.misure}` : ""} ×{po.quantita}
+                        </li>
+                      ))}
+                    </ul>
                   )}
                   {item.description && (
                     <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>

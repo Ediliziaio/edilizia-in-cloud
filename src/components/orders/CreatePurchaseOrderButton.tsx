@@ -17,6 +17,8 @@ interface OrderItem {
   purchase_price?: number;
   supplier_id?: string;
   vat_rate?: number;
+  /** Distinta: se presente, ogni posizione diventa una riga OdA. */
+  posizioni?: Array<{ descrizione: string; misure?: string | null; quantita: number }> | null;
 }
 
 interface CreatePurchaseOrderButtonProps {
@@ -80,14 +82,28 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
       }
       const relevantItems = candidate.filter(i => !i.id || !linked.has(i.id));
       if (relevantItems.length > 0) {
-        const poItems = relevantItems.map((item, idx) => ({
+        // Con la distinta: una riga OdA per posizione (stessa logica del
+        // pannello "Da ordinare ai fornitori").
+        const poItems = relevantItems.flatMap((item) =>
+          item.posizioni && item.posizioni.length > 0
+            ? item.posizioni.map((po2) => ({
+                order_item_id: item.id || null,
+                description: `${item.name} — ${po2.descrizione}${po2.misure ? ` ${po2.misure}` : ""}`,
+                quantity: po2.quantita,
+                unit_price: item.purchase_price || 0,
+                vat_rate: item.vat_rate || 22,
+              }))
+            : [{
+                order_item_id: item.id || null,
+                description: item.name,
+                quantity: item.quantity,
+                unit_price: item.purchase_price || 0,
+                vat_rate: item.vat_rate || 22,
+              }],
+        ).map((r, idx) => ({
           company_id: effectiveCompany.id,
           purchase_order_id: po.id,
-          order_item_id: item.id || null,
-          description: item.name,
-          quantity: item.quantity,
-          unit_price: item.purchase_price || 0,
-          vat_rate: item.vat_rate || 22,
+          ...r,
           discount_percent: 0,
           unit_of_measure: "pz",
           sort_order: idx,

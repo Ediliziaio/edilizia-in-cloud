@@ -777,6 +777,7 @@ function OrderDetailInner() {
         // Aggancio listino: link + categoria + baseline standard (€ listino) per
         // il confronto con il costo reale nel controllo di gestione.
         article_template_id: item.article_template_id || null,
+        posizioni: item.posizioni ?? null,
         product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
@@ -826,6 +827,8 @@ function OrderDetailInner() {
         product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
+        // Distinta/abaco (posizioni multiple dentro l'articolo)
+        posizioni: item.posizioni ?? null,
       });
       if (error) throw error;
     },
@@ -897,6 +900,7 @@ function OrderDetailInner() {
     deposit_expected_date: item.deposit_expected_date || undefined,
     // v8.6.35 — Tracking
     delivery_date: item.delivery_date || undefined,
+    posizioni: (item as { posizioni?: import("@/components/orders/OrderItemsList").Posizione[] | null }).posizioni ?? undefined,
     attachments: attachments.filter(att => att.order_item_id === item.id).map(att => ({
       id: att.id, file_name: att.file_name, file_url: att.file_url, file_type: att.file_type, file_size: att.file_size,
     })),
@@ -1549,6 +1553,7 @@ function OrderDetailInner() {
                   purchase_price: i.purchase_price,
                   supplier_id: i.supplier_id,
                   vat_rate: i.vat_rate,
+                  posizioni: i.posizioni,
                 }))}
               />
               )}
@@ -2033,6 +2038,7 @@ function OrderDetailInner() {
                 purchase_price: i.purchase_price,
                 supplier_id: i.supplier_id,
                 vat_rate: i.vat_rate,
+                posizioni: i.posizioni,
               }))}
             />
             )}

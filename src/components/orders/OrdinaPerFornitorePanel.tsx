@@ -34,6 +34,8 @@ interface PanelItem {
   id?: string;
   name: string;
   quantity: number;
+  /** Distinta: se presente, ogni posizione diventa una riga OdA/RDO. */
+  posizioni?: Array<{ descrizione: string; misure?: string | null; quantita: number }> | null;
   purchase_price?: number;
   supplier_id?: string;
   vat_rate?: number;
@@ -127,15 +129,31 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         .single();
       if (poErr) throw poErr;
 
+      // Con la distinta, il fornitore riceve UNA riga per posizione
+      // ("Serramenti — Finestra 2 ante 1000x1000" x1, ...): e' il motivo per
+      // cui la distinta esiste. Senza, una riga per articolo come sempre.
+      const righeOda = gruppo.flatMap((item) =>
+        item.posizioni && item.posizioni.length > 0
+          ? item.posizioni.map((po) => ({
+              order_item_id: item.id!,
+              description: `${item.name} — ${po.descrizione}${po.misure ? ` ${po.misure}` : ""}`,
+              quantity: po.quantita,
+              unit_price: item.purchase_price || 0,
+              vat_rate: item.vat_rate ?? 22,
+            }))
+          : [{
+              order_item_id: item.id!,
+              description: item.name,
+              quantity: item.quantity,
+              unit_price: item.purchase_price || 0,
+              vat_rate: item.vat_rate ?? 22,
+            }],
+      );
       const { error: itemsErr } = await supabase.from("purchase_order_items").insert(
-        gruppo.map((item, idx) => ({
+        righeOda.map((r, idx) => ({
           company_id: effectiveCompany.id,
           purchase_order_id: po.id,
-          order_item_id: item.id!,
-          description: item.name,
-          quantity: item.quantity,
-          unit_price: item.purchase_price || 0,
-          vat_rate: item.vat_rate ?? 22,
+          ...r,
           discount_percent: 0,
           unit_of_measure: "pz",
           sort_order: idx,
@@ -201,12 +219,19 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         created_by: user?.id,
       }).select().single();
       if (rfqErr) throw rfqErr;
+      const righeRdo = gruppo.flatMap((i) =>
+        i.posizioni && i.posizioni.length > 0
+          ? i.posizioni.map((po) => ({
+              descrizione: `${i.name} — ${po.descrizione}${po.misure ? ` ${po.misure}` : ""}`,
+              quantita: po.quantita,
+            }))
+          : [{ descrizione: i.name, quantita: i.quantity }],
+      );
       const { error: itErr } = await db.from("supplier_rfq_items").insert(
-        gruppo.map((i, idx) => ({
+        righeRdo.map((r, idx) => ({
           rfq_id: rfq.id,
           company_id: effectiveCompany.id,
-          descrizione: i.name,
-          quantita: i.quantity,
+          ...r,
           unita_misura: "pz",
           posizione: idx,
         })),
