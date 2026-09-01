@@ -443,8 +443,11 @@ export default function AdminWhatsappLocaleCampagne() {
           <DialogHeader>
             <DialogTitle>Nuova campagna</DialogTitle>
             <DialogDescription>
-              Il messaggio supporta le varianti <code>{"{ciao|salve}"}</code> — a ogni invio ne
-              esce una a caso, così i messaggi non sono tutti identici.
+              Varianti <code>{"{ciao|salve}"}</code>: a ogni invio ne esce una a caso, così i
+              messaggi non sono tutti identici. Variabili disponibili:{" "}
+              <code>{"{{nome}}"}</code> <code>{"{{cognome}}"}</code>{" "}
+              <code>{"{{azienda}}"}</code> <code>{"{{citta}}"}</code> — se il contatto non ha
+              quel dato, il segnaposto sparisce senza lasciare buchi nella frase.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

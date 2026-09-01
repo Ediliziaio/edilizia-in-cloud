@@ -47,6 +47,33 @@ export function applySpintax(text: string): string {
   });
 }
 
+/**
+ * Sostituisce le variabili {{nome}} coi dati del contatto.
+ *
+ * Il campo messaggio delle campagne suggerisce {{nome}}, ma NESSUNO lo
+ * sostituiva: applySpintax gestisce solo {a|b}, e su {{nome}} si limitava a
+ * mangiare una graffa. Ai destinatari arrivava "Ciao {nome}," — cioe' il
+ * biglietto da visita dello spam mal fatto, e la via piu' rapida per farsi
+ * segnalare (che e' esattamente cio' che tutto l'anti-ban cerca di evitare).
+ *
+ * Se una variabile non ha valore la frase deve restare pulita: si toglie il
+ * segnaposto e si normalizzano spazi e punteggiatura rimasti orfani
+ * ("Ciao ," → "Ciao").
+ */
+export function applyVariabili(text: string, dati: Record<string, string | null | undefined>): string {
+  let out = (text ?? "").replace(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g, (_m, chiave) => {
+    const v = dati[String(chiave).toLowerCase()];
+    return v ? String(v).trim() : "";
+  });
+  // Ripulisce cio' che resta dopo un segnaposto vuoto.
+  out = out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])\s*([,.;:!?])/g, "$2")
+    .replace(/^[ \t]*[,;:][ \t]*/gm, "");
+  return out;
+}
+
 /** Ora corrente (0-23) nel fuso Europe/Rome. */
 function romeHour(): number {
   const h = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", hour12: false }).format(new Date());
@@ -213,10 +240,14 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   let contactTags = Array.isArray(params.contactTags) ? params.contactTags : [];
   let contactName: string | null = null;
 
+  // Dati per le variabili del messaggio. Vuoti se l'invio e' a numero libero:
+  // in quel caso i segnaposto spariscono invece di restare a vista.
+  const datiContatto: { first_name?: string | null; last_name?: string | null; company_name?: string | null; citta?: string | null } = {};
+
   if (params.contactId) {
     const { data: c } = await admin
       .from("marketing_contacts")
-      .select("phone, tags, first_name, last_name, optout_whatsapp")
+      .select("phone, tags, first_name, last_name, company_name, city, optout_whatsapp")
       .eq("id", params.contactId)
       .maybeSingle();
     if (c) {
@@ -224,6 +255,10 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
       phone = phone || c.phone || "";
       contactTags = contactTags.length ? contactTags : (c.tags ?? []);
       contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
+      datiContatto.first_name = c.first_name;
+      datiContatto.last_name = c.last_name;
+      datiContatto.company_name = (c as { company_name?: string | null }).company_name ?? null;
+      datiContatto.citta = (c as { city?: string | null }).city ?? null;
     }
   }
 
@@ -253,8 +288,14 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
     }
   }
 
-  // Anti-ban #2: varia il testo (spintax) — evita l'impronta "stesso messaggio".
-  let text = applySpintax(rawText);
+  // Variabili del contatto ({{nome}}, {{cognome}}, {{azienda}}, {{citta}}) e
+  // POI spintax: prima si riempie, poi si varia.
+  let text = applySpintax(applyVariabili(rawText, {
+    nome: datiContatto.first_name,
+    cognome: datiContatto.last_name,
+    azienda: datiContatto.company_name,
+    citta: datiContatto.citta,
+  }));
   if (params.coldOutreach) {
     const nota = (await getPlatformSetting("openwa_nota_optout"))
       || "Se preferisci non ricevere altri messaggi, rispondi STOP.";
