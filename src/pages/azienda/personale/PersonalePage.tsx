@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit, UserRoundSearch } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 // 2026-05-27 (perf fix P0): tab lazy-loaded.
 // PRIMA: 12 tab import statici → chunk PersonalePage 559KB (talent-profile,
@@ -20,6 +20,7 @@ const TabCedolini = lazy(() => import("./tabs/TabCedolini").then(m => ({ default
 const TabGpsPercorsi = lazy(() => import("./tabs/TabGpsPercorsi").then(m => ({ default: m.TabGpsPercorsi })));
 const TabDocumenti = lazy(() => import("./tabs/TabDocumenti").then(m => ({ default: m.TabDocumenti })));
 const TabSelezioni = lazy(() => import("./tabs/TabSelezioni").then(m => ({ default: m.TabSelezioni })));
+const TabCandidati = lazy(() => import("./tabs/TabCandidati").then(m => ({ default: m.TabCandidati })));
 import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -57,6 +58,7 @@ export default function PersonalePage() {
       "festivita",
       "cedolini",
       "documenti",
+      "candidati",
       "selezioni",
     ];
     if (hasFleetTrack) tabs.push("gps-percorsi");
@@ -124,6 +126,9 @@ export default function PersonalePage() {
           <TabsTrigger value="documenti" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FolderOpen className="h-4 w-4" /> Documenti
           </TabsTrigger>
+          <TabsTrigger value="candidati" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <UserRoundSearch className="h-4 w-4" /> Candidati
+          </TabsTrigger>
           <TabsTrigger value="selezioni" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <BrainCircuit className="h-4 w-4" /> Selezioni
           </TabsTrigger>
@@ -144,6 +149,7 @@ export default function PersonalePage() {
         <TabsContent value="festivita"><Suspense fallback={<TabFallback />}><TabFestivita /></Suspense></TabsContent>
         <TabsContent value="cedolini"><Suspense fallback={<TabFallback />}><TabCedolini /></Suspense></TabsContent>
         <TabsContent value="documenti"><Suspense fallback={<TabFallback />}><TabDocumenti /></Suspense></TabsContent>
+        <TabsContent value="candidati"><Suspense fallback={<TabFallback />}><TabCandidati /></Suspense></TabsContent>
         <TabsContent value="selezioni"><Suspense fallback={<TabFallback />}><TabSelezioni /></Suspense></TabsContent>
         {hasFleetTrack && (
           <TabsContent value="gps-percorsi"><Suspense fallback={<TabFallback />}><TabGpsPercorsi /></Suspense></TabsContent>
