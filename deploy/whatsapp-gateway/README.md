@@ -47,11 +47,18 @@ docker compose up -d
 docker compose logs -f openwa # controlla che parta senza errori
 ```
 
-Verifica che risponda (dal tuo computer):
+Verifica che risponda — il comando legge la chiave dal file, così non serve
+copiarla da nessuna parte:
 
 ```bash
-curl -H "X-API-Key: LA_TUA_CHIAVE" https://wa.ediliziaincloud.com/api/sessions
+source /opt/wa-gateway/.env && curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "X-API-Key: $OPENWA_API_KEY" https://wa.ediliziaincloud.com/api/sessions
 ```
+
+Deve rispondere **200**. Un **401** vuol dire che OpenWA non ha preso la chiave
+dal `.env`: controlla che nel compose la variabile si chiami esattamente
+`API_MASTER_KEY` (con altri nomi viene ignorata e il gateway se ne genera una
+sua, che finisce in `data/.api-key` dentro il volume).
 
 Deve tornare una lista (all'inizio vuota). Se risponde `401` la chiave è
 sbagliata; se non risponde affatto, controlla DNS e firewall (porte 80 e 443).

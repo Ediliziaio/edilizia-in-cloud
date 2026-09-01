@@ -14,8 +14,11 @@ services:
     restart: unless-stopped
     environment:
       # La chiave che il pannello di EiC userà nell'header X-API-Key.
-      # Generala con: openssl rand -hex 32
-      API_KEY: ${OPENWA_API_KEY:?serve OPENWA_API_KEY nel file .env}
+      # Generala con: openssl rand -hex 32 (in produzione OpenWA ne pretende
+      # almeno 32 caratteri). Il nome della variabile è API_MASTER_KEY: con
+      # un nome diverso OpenWA la ignora, si genera una chiave sua in
+      # data/.api-key e ogni chiamata torna 401.
+      API_MASTER_KEY: ${OPENWA_API_KEY:?serve OPENWA_API_KEY nel file .env}
       # baileys consuma 30-80 MB per numero (whatsapp-web.js ne vuole 300-500):
       # con baileys un VPS da 4 GB regge tranquillamente una decina di numeri.
       ENGINE: baileys
