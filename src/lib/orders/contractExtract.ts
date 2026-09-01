@@ -44,6 +44,12 @@ export interface ContractExtract {
   valuta: string | null;
   /** Chi EMETTE il documento (per un'offerta fornitore: il produttore). */
   fornitore_emittente: string | null;
+  /** Data di emissione stampata sul documento (YYYY-MM-DD). */
+  data_documento: string | null;
+  /** Tempi di consegna dichiarati, in giorni. */
+  consegna_giorni: number | null;
+  /** Per quanti giorni l'offerta resta valida (dalla data documento). */
+  validita_offerta_giorni: number | null;
   modalita_pagamento: string | null;
   fasi_pagamento: ContractExtractPhase[];
   data_inizio_lavori: string | null;
@@ -109,6 +115,18 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       return v && /^[A-Z]{3}$/.test(v) ? v : null;
     })(),
     fornitore_emittente: toStr(r.fornitore_emittente),
+    data_documento: (() => {
+      const d = toStr(r.data_documento);
+      return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    })(),
+    consegna_giorni: (() => {
+      const n = toNum(r.consegna_giorni);
+      return n != null && n > 0 && n <= 365 ? Math.round(n) : null;
+    })(),
+    validita_offerta_giorni: (() => {
+      const n = toNum(r.validita_offerta_giorni);
+      return n != null && n > 0 && n <= 365 ? Math.round(n) : null;
+    })(),
     modalita_pagamento: toStr(r.modalita_pagamento),
     fasi_pagamento: fasi
       .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")

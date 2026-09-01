@@ -361,7 +361,9 @@ export function useSupplierRfqDetail(rfqId: string | null) {
             unit_of_measure: it.unita_misura ?? "pz",
             unit_price: Number(q.prezzo_unitario),
             discount_percent: Number(q.sconto_percentuale || 0),
-            vat_rate: Number(q.aliquota_iva || 22),
+            // ?? e non ||: l'IVA 0 e' legittima (es. fornitore intra-UE) e
+            // il || la trasformava in un 22% inventato sull'ordine.
+            vat_rate: Number(q.aliquota_iva ?? 22),
             sku: it.sku,
           };
         })

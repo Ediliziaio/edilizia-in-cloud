@@ -367,7 +367,7 @@ export default function SupplierRfqDetail() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/30 border-t">
-                      <td colSpan={2} className="p-2 pl-4 text-right font-bold">Totale offerto</td>
+                      <td colSpan={2} className="p-2 pl-4 text-right font-bold">Somma righe confrontate</td>
                       {fornitori.map((f) => {
                         const t = totaliPerFornitore[f.id]?.totale;
                         const vince = miglioreTotale === f.id;
@@ -381,6 +381,29 @@ export default function SupplierRfqDetail() {
                         );
                       })}
                     </tr>
+                    {/* Il totale scritto sul documento può includere costi non a
+                        righe (imballo, trasporto): mostrarlo evita il "perché
+                        non torna col PDF?" — il delta è proprio quella parte. */}
+                    {fornitori.some((f) => f.totale_offerto != null) && (
+                      <tr className="border-t text-xs text-slate-500">
+                        <td colSpan={2} className="p-2 pl-4 text-right">Totale documento (con imballo/trasporto)</td>
+                        {fornitori.map((f) => {
+                          const doc = f.totale_offerto == null ? null : Number(f.totale_offerto);
+                          const righe = totaliPerFornitore[f.id]?.totale;
+                          const delta = doc != null && righe != null && Math.abs(doc - righe) > 0.5 ? doc - righe : null;
+                          return (
+                            <td key={f.id} className="p-2 text-right tabular-nums">
+                              {doc != null ? formatCurrency(doc) : "—"}
+                              {delta != null && (
+                                <span className="block text-[10px] text-slate-400">
+                                  {delta > 0 ? "+" : "−"}{formatCurrency(Math.abs(delta))} extra righe
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    )}
                   </tfoot>
                 </table>
               </div>

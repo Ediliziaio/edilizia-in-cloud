@@ -265,26 +265,60 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         itemsRdo = (esistenti ?? []) as typeof itemsRdo;
       }
 
-      // Fornitore sulla RDO con la risposta gia' dentro.
-      const { data: rfqSup, error: supRdoErr } = await supabase
+      // Validità offerta: "valida 15 giorni" ancorata alla data del documento
+      // (o a oggi se il documento non la stampa).
+      let validitaOfferta: string | null = null;
+      if (extract.validita_offerta_giorni != null) {
+        const ancora = extract.data_documento ? new Date(`${extract.data_documento}T00:00:00`) : new Date();
+        ancora.setDate(ancora.getDate() + extract.validita_offerta_giorni);
+        validitaOfferta = ancora.toLocaleDateString("en-CA");
+      }
+      const rispostaBase: Record<string, unknown> = {
+        status: "risposta",
+        risposta_at: new Date().toISOString(),
+        totale_offerto: contractImponibile(extract),
+        aggancio_da: "ai_pdf",
+        aggancio_confidenza: extract.confidence || null,
+        aggancio_da_confermare: false,
+        allegato_url: pathAnalizzato,
+        note: `Offerta letta dall'AI dal file "${file?.name ?? remoteFile?.name ?? "documento"}"${extract.sconto_globale_pct != null ? ` — sconto ${extract.sconto_globale_pct}%` : ""}.`,
+      };
+      // Solo se il documento li dice: null qui cancellerebbe dati inseriti a mano.
+      if (extract.consegna_giorni != null) rispostaBase.giorni_consegna = extract.consegna_giorni;
+      if (validitaOfferta) rispostaBase.validita_offerta = validitaOfferta;
+      if (extract.modalita_pagamento) rispostaBase.condizioni_pagamento = extract.modalita_pagamento;
+
+      // Fornitore già sulla RDO (es. offerta ricaricata dopo una correzione):
+      // si AGGIORNA la sua risposta — l'UNIQUE (rfq_id, supplier_id) altrimenti
+      // farebbe esplodere l'insert con un errore grezzo.
+      const { data: giaPresente } = await supabase
         .from("supplier_rfq_suppliers")
-        .insert({
-          rfq_id: rfqId,
-          company_id: companyId,
-          supplier_id: supplierId,
-          status: "risposta",
-          risposta_at: new Date().toISOString(),
-          totale_offerto: contractImponibile(extract),
-          aggancio_da: "ai_pdf",
-          aggancio_confidenza: extract.confidence || null,
-          aggancio_da_confermare: false,
-          allegato_url: pathAnalizzato,
-          note: `Offerta letta dall'AI dal file "${file?.name ?? remoteFile?.name ?? "documento"}"${extract.sconto_globale_pct != null ? ` — sconto ${extract.sconto_globale_pct}%` : ""}.`,
-        } as never)
         .select("id")
-        .single();
-      if (supRdoErr) throw new Error(`Fornitore su RDO: ${supRdoErr.message}`);
-      const rfqSupplierId = (rfqSup as { id: string }).id;
+        .eq("rfq_id", rfqId)
+        .eq("supplier_id", supplierId)
+        .maybeSingle();
+      let rfqSupplierId: string;
+      const aggiornata = !!giaPresente;
+      if (giaPresente) {
+        rfqSupplierId = (giaPresente as { id: string }).id;
+        const { error: updErr } = await supabase
+          .from("supplier_rfq_suppliers")
+          .update(rispostaBase as never)
+          .eq("id", rfqSupplierId);
+        if (updErr) throw new Error(`Fornitore su RDO: ${updErr.message}`);
+        // I prezzi vecchi si buttano: la nuova lettura è la risposta intera,
+        // tenerne metà di prima e metà di adesso mischierebbe due offerte.
+        const { error: delErr } = await supabase.from("supplier_rfq_quotes").delete().eq("rfq_supplier_id", rfqSupplierId);
+        if (delErr) throw new Error(`Pulizia prezzi precedenti: ${delErr.message}`);
+      } else {
+        const { data: rfqSup, error: supRdoErr } = await supabase
+          .from("supplier_rfq_suppliers")
+          .insert({ rfq_id: rfqId, company_id: companyId, supplier_id: supplierId, ...rispostaBase } as never)
+          .select("id")
+          .single();
+        if (supRdoErr) throw new Error(`Fornitore su RDO: ${supRdoErr.message}`);
+        rfqSupplierId = (rfqSup as { id: string }).id;
+      }
 
       // Lo sconto globale va nelle quotes SOLO se i prezzi riga sono lordi:
       // alcuni documenti mostrano prezzi già scontati, altri prezzi pieni con
@@ -359,7 +393,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       toast.success(
         rdoTarget === "nuova"
           ? `RDO creata con la risposta di ${nomeFornitore} (${quotes.length} prezzi)`
-          : `Risposta di ${nomeFornitore} registrata sulla RDO (${quotes.length} prezzi${nonAbbinate ? `, ${nonAbbinate} voci non abbinate` : ""})`,
+          : `Risposta di ${nomeFornitore} ${aggiornata ? "aggiornata" : "registrata"} sulla RDO (${quotes.length} prezzi${nonAbbinate ? `, ${nonAbbinate} voci non abbinate` : ""})`,
       );
       if (nonAbbinate > 0) toast.warning(`${nonAbbinate} voci dell'offerta non hanno trovato la riga RDO corrispondente: controllale nel confronto.`);
       onOpenChange(false);
