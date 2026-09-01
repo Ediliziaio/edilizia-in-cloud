@@ -10,7 +10,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { invalidateAllTariffe } from "@/lib/tariffeQueryKeys";
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
-  TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
+  Percent, Package, Activity, Archive, RotateCcw, Info,
   Building2, Layers3, Wallet, CheckCircle2, Wrench, Paintbrush, AlertTriangle,
   FileSpreadsheet, ChevronDown, Download, FilterX, X, ClipboardList, Link2,
   Library,
@@ -289,104 +289,46 @@ function KpiHeader({
       }
     }
     const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
-    // Top tipo
-    const byTipo = new Map<string, number>();
-    for (const t of tariffe) byTipo.set(t.tipo, (byTipo.get(t.tipo) ?? 0) + 1);
-    const topTipo = [...byTipo.entries()].sort((a, b) => b[1] - a[1])[0];
-    return { totali, attive, archiviate, margineMedio, countMarg, sottoSoglia, topTipo };
+    return { totali, attive, archiviate, margineMedio, countMarg, sottoSoglia };
   }, [tariffe, soglia]);
 
+  // Striscia unica al posto di 4 card da 130px: stessi numeri, un decimo dello
+  // spazio. Il "tipo più usato" (vanity) è uscito; il conteggio per tipo vive
+  // già nei tab gruppo. Il bottone sotto-soglia resta: è l'unico KPI azionabile.
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Voci totali
-              </div>
-              <div className="mt-1 text-2xl font-bold">{kpi.totali}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {kpi.attive} attive · {kpi.archiviate} archiviate
-              </div>
-            </div>
-            <div className="rounded-lg bg-primary/10 p-2 text-primary">
-              <Layers3 className="h-5 w-5" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Attive
-              </div>
-              <div className="mt-1 text-2xl font-bold">{kpi.attive}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {kpi.totali > 0 ? `${((kpi.attive / kpi.totali) * 100).toFixed(0)}% del totale` : "—"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-emerald-100 p-2 text-emerald-700">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-card px-4 py-2.5 text-sm">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-lg font-bold leading-none tabular-nums">{kpi.totali}</span>
+        <span className="text-muted-foreground">voci</span>
+        <span className="text-xs text-muted-foreground">
+          · {kpi.attive} attive{kpi.archiviate > 0 ? ` · ${kpi.archiviate} archiviate` : ""}
+        </span>
+      </div>
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Margine medio
-                </div>
-                <div className={`mt-1 text-2xl font-bold ${kpi.countMarg > 0 ? margineColor(kpi.margineMedio) : "text-muted-foreground"}`}>
-                  {kpi.countMarg > 0 ? `${kpi.margineMedio.toFixed(1)}%` : "—"}
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  su {kpi.countMarg} voci con costi
-                </div>
-                {kpi.sottoSoglia > 0 && (
-                  <button
-                    type="button"
-                    onClick={onShowSottoSoglia}
-                    title={`Filtra le voci con margine sotto la soglia minima del ${soglia}%`}
-                    className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
-                  >
-                    <AlertTriangle className="h-3 w-3" />
-                    {kpi.sottoSoglia} sotto soglia ({soglia}%)
-                  </button>
-                )}
-              </div>
-              <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
-                <Percent className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      <Card>
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Tipo più usato
-              </div>
-              <div className="mt-1 text-2xl font-bold">
-                {kpi.topTipo ? tipoLabel(kpi.topTipo[0]) : "—"}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {kpi.topTipo ? `${kpi.topTipo[1]} voci` : "Nessuna voce ancora"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
-              <TrendingUp className="h-5 w-5" />
-            </div>
+        <>
+          <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-muted-foreground">Margine medio</span>
+            <span className={`text-lg font-bold leading-none tabular-nums ${kpi.countMarg > 0 ? margineColor(kpi.margineMedio) : "text-muted-foreground"}`}>
+              {kpi.countMarg > 0 ? `${kpi.margineMedio.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
+            </span>
+            {kpi.countMarg > 0 && (
+              <span className="text-xs text-muted-foreground">su {kpi.countMarg} con costi</span>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </>
+      )}
+      {isAdmin && kpi.sottoSoglia > 0 && (
+        <button
+          type="button"
+          onClick={onShowSottoSoglia}
+          title={`Filtra le voci con margine sotto la soglia minima del ${soglia}%`}
+          className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
+        >
+          <AlertTriangle className="h-3 w-3" />
+          {kpi.sottoSoglia} sotto soglia ({soglia}%)
+        </button>
+      )}
     </div>
   );
 }
@@ -772,7 +714,7 @@ function TariffaDialog({
                       {formatCurrency(guadagnoUnit)}
                       {pvNum > 0 && (
                         <span className="ml-1 text-xs font-normal">
-                          ({marginePerc.toFixed(1)}%)
+                          ({marginePerc.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
                         </span>
                       )}
                     </div>
@@ -1216,9 +1158,8 @@ function TariffeTable({
   onShowUsage: (t: Tariffa) => void;
   onAnalisi: (t: Tariffa) => void;
 }) {
-  // Accessori per il sort
+  // Accessori per il sort ("tipo" è ordinabile dai tab gruppo, non serve qui)
   const accessors = useMemo(() => ({
-    tipo: (t: Tariffa) => tipoLabel(t.tipo),
     nome: (t: Tariffa) => t.nome.toLowerCase(),
     unita: (t: Tariffa) => t.unita_fatturazione ?? t.unita ?? "",
     prezzo_vendita: (t: Tariffa) => t.prezzo_vendita ?? 0,
@@ -1234,32 +1175,41 @@ function TariffeTable({
   const { sortConfig, toggleSort, sortedItems } = useTableSort(items, accessors);
 
   // Selezione: +1 colonna per il checkbox.
-  const colCount = (isAdmin ? 8 : 6) + 1;
+  const colCount = (isAdmin ? 7 : 5) + 1;
   const visibleIds = sortedItems.map((t) => t.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someSelected = visibleIds.some((id) => selectedIds.has(id));
   const headerChecked: boolean | "indeterminate" = allSelected ? true : someSelected ? "indeterminate" : false;
 
+  /** Tutta la riga apre Modifica — tranne i controlli veri (switch, menu, checkbox). */
+  const rowClick = (t: Tariffa) => (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
+    onEdit(t);
+  };
+
   return (
     <div className="rounded-md border overflow-x-auto">
-      <Table>
+      {/* table-fixed: i numeri hanno larghezze fisse e TUTTO il resto va al Nome.
+          Prima era il contrario (7 colonne fisse, il nome strozzato a ~190px e
+          righe alte fino a 133px perché i nomi andavano a capo su 3-4 righe). */}
+      <Table className="table-fixed min-w-[820px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[44px]">
+            <TableHead className="w-[40px]">
               <Checkbox
                 checked={headerChecked}
                 onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
                 aria-label="Seleziona tutte le voci visibili"
               />
             </TableHead>
-            <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[90px]" />
-            <SortableTableHead column="tipo" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} className="w-[130px]" />
+            <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[64px]" />
             <SortableTableHead column="nome" label="Nome" sortConfig={sortConfig} onSort={toggleSort} />
-            <SortableTableHead column="unita" label="UM" sortConfig={sortConfig} onSort={toggleSort} className="w-[80px]" />
-            <SortableTableHead column="prezzo_vendita" label="Vendita" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[130px]" />
-            {isAdmin && <SortableTableHead column="costo" label="Costo" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[130px]" />}
-            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[110px]" />}
-            <TableHead className="text-right w-[60px]">Azioni</TableHead>
+            <SortableTableHead column="unita" label="UM" sortConfig={sortConfig} onSort={toggleSort} className="w-[56px]" />
+            <SortableTableHead column="prezzo_vendita" label="Vendita" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />
+            {isAdmin && <SortableTableHead column="costo" label="Costo" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />}
+            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[92px]" />}
+            <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1285,7 +1235,8 @@ function TariffeTable({
               <TableRow
                 key={t.id}
                 data-state={isSelected ? "selected" : undefined}
-                className={!isAttivo ? "opacity-60" : undefined}
+                onClick={rowClick(t)}
+                className={`cursor-pointer ${!isAttivo ? "opacity-60" : ""}`}
               >
                 <TableCell>
                   <Checkbox
@@ -1311,62 +1262,65 @@ function TariffeTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableCell>
+                {/* Nome: riga 1 = codice + nome (una riga, troncato); riga 2 =
+                    tipo, squadra, vertical e descrizione. Il tipo era una
+                    colonna da 130px: qui dice lo stesso senza rubare spazio. */}
                 <TableCell>
-                  <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${tipoBadgeClass(t.tipo)}`}>
-                    {tipoLabel(t.tipo)}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">
+                  <div className="flex min-w-0 items-center gap-1.5 font-medium">
                     {t.codice && (
-                      <Badge variant="outline" className="mr-1.5 h-4 px-1.5 font-mono text-[10px] font-normal align-middle">
+                      <Badge variant="outline" className="h-4 shrink-0 px-1.5 font-mono text-[10px] font-normal">
                         {t.codice}
                       </Badge>
                     )}
-                    {t.nome}
+                    <span className="truncate" title={t.nome}>{t.nome}</span>
+                  </div>
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                    <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
+                      {tipoLabel(t.tipo)}
+                    </span>
                     {t.external_team_id && (
-                      <Badge variant="secondary" className="ml-1.5 h-4 px-1.5 text-[10px] font-normal align-middle">
+                      <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
                         {squadraName?.[t.external_team_id] ?? "Squadra"}
                       </Badge>
                     )}
+                    {t.vertical_associato && (
+                      <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
+                        {t.vertical_associato}
+                      </Badge>
+                    )}
                     {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
-                      <span className="ml-2 text-xs text-muted-foreground">
+                      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
                         +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
                       </span>
                     )}
+                    {t.descrizione && (
+                      <span className="min-w-0 truncate text-xs text-muted-foreground" title={t.descrizione}>
+                        {t.descrizione}
+                      </span>
+                    )}
                   </div>
-                  {t.descrizione && (
-                    <div className="text-xs text-muted-foreground line-clamp-1">{t.descrizione}</div>
-                  )}
-                  {t.vertical_associato && (
-                    <div className="mt-0.5">
-                      <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
-                        {t.vertical_associato}
-                      </Badge>
-                    </div>
-                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {t.unita_fatturazione ?? t.unita ?? "—"}
                 </TableCell>
-                <TableCell className="text-right font-medium">
+                <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                   {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 {isAdmin && (
-                  <TableCell className="text-right">
+                  <TableCell className="whitespace-nowrap text-right tabular-nums">
                     {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                 )}
                 {isAdmin && (
-                  <TableCell className="text-right">
+                  <TableCell className="whitespace-nowrap text-right">
                     {hasBoth ? (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="inline-flex items-center justify-end gap-1.5">
                               <span className={`h-2 w-2 rounded-full shrink-0 ${sem.dot}`} aria-hidden />
-                              <span className={`text-sm font-semibold ${sem.text}`}>
-                                {margine.toFixed(1)}%
+                              <span className={`text-sm font-semibold tabular-nums ${sem.text}`}>
+                                {margine.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                               </span>
                             </span>
                           </TooltipTrigger>
@@ -1834,18 +1788,19 @@ export default function SettingsTariffe() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manodopera" className="mt-6 space-y-6">
-      {/* Header — palette arancione coerente con Listino Prodotti & Template */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+        <TabsContent value="manodopera" className="mt-4 space-y-4">
+      {/* Header — palette arancione coerente con Listino Prodotti & Template.
+          Compatto: prima di questo blocco + KPI + filtri la prima voce vera
+          stava sotto la piega (~870px di testate). */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Manodopera e Servizi</h1>
-            <p className="text-sm text-muted-foreground">
-              Listino operativo per posa, manodopera, trasporto, pratiche e servizi. Ogni voce ha un prezzo di vendita
-              {isAdmin ? " e un costo interno (solo admin)" : ""}. Usate automaticamente nel preventivatore.
+            <h1 className="text-lg sm:text-xl font-bold leading-tight">Manodopera e Servizi</h1>
+            <p className="hidden text-sm text-muted-foreground sm:block">
+              Posa, trasporto, pratiche e servizi: ogni voce ha vendita{isAdmin ? " e costo" : ""}, il preventivatore le usa da solo.
             </p>
           </div>
         </div>
@@ -1933,112 +1888,111 @@ export default function SettingsTariffe() {
         }}
       />
 
-      {/* Filter bar */}
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca per nome, tipo, unità o vertical…"
-                className="pl-9"
-              />
-            </div>
-            <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
-              <SelectTrigger className="w-full md:w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="attive">Solo attive</SelectItem>
-                <SelectItem value="archiviate">Solo archiviate</SelectItem>
-                <SelectItem value="all">Tutte</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Filtra vertical" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i vertical</SelectItem>
-                <SelectItem value="current">Solo {currentVertical || "corrente"}</SelectItem>
-                <SelectItem value="global">Solo globali</SelectItem>
-              </SelectContent>
-            </Select>
-            {squadre.length > 0 && (
-              <Select value={squadraFilter} onValueChange={setSquadraFilter}>
-                <SelectTrigger className="w-full md:w-[220px]">
-                  <SelectValue placeholder="Listino" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tutte">Tutti i listini</SelectItem>
-                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
-                  {squadre.map((sq) => (
-                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {isAdmin && (
-              <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="Redditività" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i margini</SelectItem>
-                  <SelectItem value="sotto-soglia">Sotto soglia (&lt;{soglia}%)</SelectItem>
-                  <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+      {/* Filter bar — senza Card: bordo e padding non aggiungevano niente,
+          solo ~40px in più prima della tabella. Una riga sola su desktop. */}
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca per nome, tipo, unità o vertical…"
+              className="h-9 pl-9"
+            />
           </div>
-          {activeFilterChips.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              {activeFilterChips.map((c) => (
-                <Badge
-                  key={c.key}
-                  variant="secondary"
-                  className="gap-1 py-0.5 pl-2 pr-1 font-normal"
+          <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
+            <SelectTrigger className="h-9 w-full md:w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="attive">Solo attive</SelectItem>
+              <SelectItem value="archiviate">Solo archiviate</SelectItem>
+              <SelectItem value="all">Tutte</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
+            <SelectTrigger className="h-9 w-full md:w-[160px]">
+              <SelectValue placeholder="Filtra vertical" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i vertical</SelectItem>
+              <SelectItem value="current">Solo {currentVertical || "corrente"}</SelectItem>
+              <SelectItem value="global">Solo globali</SelectItem>
+            </SelectContent>
+          </Select>
+          {squadre.length > 0 && (
+            <Select value={squadraFilter} onValueChange={setSquadraFilter}>
+              <SelectTrigger className="h-9 w-full md:w-[180px]">
+                <SelectValue placeholder="Listino" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutte">Tutti i listini</SelectItem>
+                <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                {squadre.map((sq) => (
+                  <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {isAdmin && (
+            <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
+              <SelectTrigger className="h-9 w-full md:w-[160px]">
+                <SelectValue placeholder="Redditività" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i margini</SelectItem>
+                <SelectItem value="sotto-soglia">Sotto soglia (&lt;{soglia}%)</SelectItem>
+                <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        {(activeFilterChips.length > 0 || (tariffe.length > 0 && hasActiveFilters)) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            {activeFilterChips.map((c) => (
+              <Badge
+                key={c.key}
+                variant="secondary"
+                className="gap-1 py-0.5 pl-2 pr-1 font-normal"
+              >
+                <span className="max-w-[200px] truncate">{c.label}</span>
+                <button
+                  type="button"
+                  onClick={c.onRemove}
+                  aria-label={`Rimuovi filtro: ${c.label}`}
+                  className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20"
                 >
-                  <span className="max-w-[200px] truncate">{c.label}</span>
-                  <button
-                    type="button"
-                    onClick={c.onRemove}
-                    aria-label={`Rimuovi filtro: ${c.label}`}
-                    className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-          {tariffe.length > 0 && (
-            <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span>
-                <span className="font-medium text-foreground">{tariffeForActiveGroup.length}</span>{" "}
-                {tariffeForActiveGroup.length === 1 ? "voce" : "voci"}
-                {tariffeForActiveGroup.length !== tariffe.length && ` su ${tariffe.length} totali`}
-              </span>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={resetFilters}>
-                  <FilterX className="h-3.5 w-3.5 mr-1" />Azzera filtri
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            <span className="ml-1">
+              <span className="font-medium text-foreground">{tariffeForActiveGroup.length}</span>{" "}
+              {tariffeForActiveGroup.length === 1 ? "voce" : "voci"}
+              {tariffeForActiveGroup.length !== tariffe.length && ` su ${tariffe.length} totali`}
+            </span>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetFilters}>
+              <FilterX className="h-3.5 w-3.5 mr-1" />Azzera filtri
+            </Button>
+          </div>
+        )}
+      </div>
 
-      {/* Tabs per gruppo + conteggio */}
+      {/* Tabs per gruppo + conteggio. I gruppi a zero voci spariscono (prima
+          "Nolo" e "Altro" vuoti facevano andare la barra a capo su due righe
+          centrate); "Tutte" resta sempre, e resta anche il gruppo attivo se un
+          filtro lo svuota — così il tab selezionato non sparisce sotto i piedi. */}
       <Tabs value={activeGroup} onValueChange={(v) => setActiveGroup(v as typeof activeGroup)}>
-        <TabsList className="flex-wrap h-auto gap-1">
-          {GROUP_DEFS.map((g) => {
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto">
+          {GROUP_DEFS.filter((g) => {
+            if (g.value === "all" || g.value === activeGroup) return true;
+            return (byGroup[g.value]?.length ?? 0) > 0;
+          }).map((g) => {
             const count = g.value === "all" ? filtered.length : (byGroup[g.value]?.length ?? 0);
             const Icon = g.icon;
             return (
-              <TabsTrigger key={g.value} value={g.value} className="gap-1.5">
+              <TabsTrigger key={g.value} value={g.value} className="shrink-0 gap-1.5">
                 <Icon className="h-3.5 w-3.5" />
                 {g.label}
                 {count > 0 && (
