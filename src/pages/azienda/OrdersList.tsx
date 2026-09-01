@@ -85,7 +85,11 @@ function OrdersListInner() {
     paymentFilter: { key: "payment", defaultValue: "all" },
     viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
-    yearFilter: { key: "anno", defaultValue: "all" },
+    // "corrente" = anno in corso + commesse NON chiuse degli anni precedenti
+    // (standard 2026-09, richiesta utente): aprendo la pagina si vede il
+    // lavoro di quest'anno senza mai perdere una commessa vecchia ancora
+    // aperta. Il pregresso resta a un click (anni singoli o "Tutti").
+    yearFilter: { key: "anno", defaultValue: "corrente" },
     monthFilter: { key: "mese", defaultValue: "all" },
     salespersonFilter: { key: "venditore", defaultValue: "all" },
     laborFilter: { key: "manodopera", defaultValue: "all" },
@@ -200,7 +204,9 @@ function OrdersListInner() {
   useEffect(() => {
     try { localStorage.setItem("orders-sort-dir", sortDir); } catch { /* noop */ }
   }, [sortDir]);
-  const selectedYear = yearFilter !== "all" ? Number(yearFilter) : null;
+  const isYearCorrente = yearFilter === "corrente";
+  const currentYear = new Date().getFullYear();
+  const selectedYear = !isYearCorrente && yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
 
   // Gli stati servono per i filtri workflow, ma non devono bloccare i KPI economici.
@@ -330,7 +336,16 @@ function OrdersListInner() {
       }
       if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
       if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
-      if (hasSelectedYear && selectedYear && monthFilter === "all") {
+      if (isYearCorrente && monthFilter === "all") {
+        // Anno corrente + non chiuse dei precedenti: una commessa 2025 ancora
+        // aperta è lavoro vivo, non deve sparire col cambio d'anno.
+        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
+        if (lastStatusId) {
+          query = query.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
+        } else {
+          query = query.gte("created_at", inizioAnno);
+        }
+      } else if (hasSelectedYear && selectedYear && monthFilter === "all") {
         query = query
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
@@ -379,7 +394,15 @@ function OrdersListInner() {
         .from("orders")
         .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
         .eq("company_id", effectiveCompany.id);
-      if (hasSelectedYear && selectedYear) {
+      if (isYearCorrente) {
+        // Stesso perimetro della lista: anno corrente + non chiuse precedenti.
+        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
+        if (lastStatusId) {
+          query = query.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
+        } else {
+          query = query.gte("created_at", inizioAnno);
+        }
+      } else if (hasSelectedYear && selectedYear) {
         query = query
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
@@ -504,7 +527,14 @@ function OrdersListInner() {
       } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
       if (hideCompleted && statusFilter === "all" && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
-      if (hasSelectedYear && selectedYear) {
+      if (isYearCorrente) {
+        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
+        if (lastStatusId) {
+          q = q.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
+        } else {
+          q = q.gte("created_at", inizioAnno);
+        }
+      } else if (hasSelectedYear && selectedYear) {
         q = q
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
@@ -987,7 +1017,7 @@ function OrdersListInner() {
     expectedDateRange.from || expectedDateRange.to;
 
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "all" || amountMin || amountMax ||
+    paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
     controlFocus !== "all" || !hideCompleted);
 
@@ -1049,7 +1079,7 @@ function OrdersListInner() {
     setStatusFilter("all");
     setPaymentFilter("all");
     setCustomerFilter("all");
-    setYearFilter("all");
+    setYearFilter("corrente");
     setAmountMin("");
     setAmountMax("");
     setMonthFilter("all");
@@ -1682,6 +1712,7 @@ function OrdersListInner() {
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="corrente">{currentYear} + aperte precedenti</SelectItem>
               <SelectItem value="all">Tutti gli anni</SelectItem>
               {availableYears.map((y) => (
                 <SelectItem key={y} value={String(y)}>{y}</SelectItem>
@@ -1907,7 +1938,8 @@ function OrdersListInner() {
 
       {analisiAperta && (
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
-        <div className="grid gap-0 xl:grid-cols-[minmax(320px,0.58fr)_minmax(520px,1fr)]">
+        {/* 50/50: a 0.58fr il pannello blu strozzava i numeri ("1.794.1…"). */}
+        <div className="grid gap-0 xl:grid-cols-2">
           <div className="bg-[#173b67] p-3 sm:p-5 md:p-6 text-white">
             <div className="flex items-start gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
@@ -2046,7 +2078,7 @@ function OrdersListInner() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">
-                  Andamento 12 mesi{yearFilter !== "all" ? ` · ${yearFilter}` : ""}
+                  Andamento 12 mesi{hasSelectedYear ? ` · ${selectedYear}` : ""}
                 </p>
                 <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e commesse</h3>
               </div>
