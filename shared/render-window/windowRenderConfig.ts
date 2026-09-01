@@ -299,14 +299,51 @@ function describeManualControlPlacement(opening: WindowSceneOpening): string {
   }
 }
 
+/**
+ * Con la tapparella motorizzata, il comando manuale della vecchia deve sparire.
+ *
+ * La regola scattava solo su cinghia o cassetta avvolgitore. Ma il comando
+ * manuale in Italia ha tre forme, e le altre due venivano ignorate:
+ * l'ASTA DI MANOVRA (la bacchetta verticale a fianco dell'infisso, tipica dei
+ * cassonetti esterni) e la CATENELLA. Risultato visto in produzione: render con
+ * tapparella motorizzata e l'asta di manovra ancora appesa al muro accanto —
+ * una contraddizione che un cliente nota subito.
+ */
 function buildManualControlCleanupRule(opening: WindowSceneOpening, isMotorized: boolean): string | null {
-  if (!isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return null;
+  if (!isMotorized) return null;
+
+  const tipoComando = opening.rollerControlType;
+  const comandoNoto = opening.hasBelt || opening.hasBeltBox ||
+    tipoComando === "manual_belt" || tipoComando === "crank" ||
+    tipoComando === "chain";
+
+  // Il tipo di comando spesso non si riesce a leggere dalla foto: l'analisi
+  // risponde "unknown" (o "none" sbagliando). Se pero' una tapparella c'e' e la
+  // nuova e' motorizzata, un comando manuale nella foto e' possibile, e
+  // lasciarlo nel render e' una contraddizione che il cliente nota. La
+  // rimozione generica non fa danni: se non c'e' niente da togliere, non toglie
+  // niente.
+  const comandoIgnoto = !comandoNoto && opening.hasRollerShutter &&
+    (tipoComando === "unknown" || tipoComando === "none");
+  if (!comandoNoto && !comandoIgnoto) return null;
+
   const placement = describeManualControlPlacement(opening);
   const note = ensureSentence(opening.beltPlacementNotes || `manual control is visible ${placement}`);
+
+  // Ogni comando ha pezzi diversi da rimuovere: dire "cinghia" davanti a
+  // un'asta non fa rimuovere l'asta.
+  const daRimuovere = comandoIgnoto
+    ? "any manual shutter control of any kind still visible — fabric belt/strap, vertical operating rod/pole, chain — together with its wall box, cover plate, bracket, exit slot or guide clip"
+    : tipoComando === "crank"
+    ? "the vertical operating rod/pole and its wall bracket, the gear box on the roller box and any guide clip holding the rod"
+    : tipoComando === "chain"
+      ? "the chain loop, its tensioner and the wall bracket holding it"
+      : "belt/strap/cord, wall winder box or cover plate, belt exit slot and any remaining vertical guide/trim linked to the manual control";
+
   return (
     `Because the new shutter is motorized, remove the entire legacy manual shutter-control assembly ${placement}: ` +
-    `belt/strap/cord, wall winder box or cover plate, belt exit slot and any remaining vertical guide/trim linked to ` +
-    `the manual control. ${note} Then install a new electric switch plate at the SAME location, flush with the wall.`
+    `${daRimuovere}. ${note} Nothing of the manual control may remain visible on the wall or on the roller box. ` +
+    `Then install a new electric switch plate at the SAME location, flush with the wall.`
   );
 }
 
@@ -377,6 +414,7 @@ function computeHandleSpec(args: {
   numAnte: number;
   isCentralHandle: boolean;
   openingLabel: string;
+  operativeSash?: WindowSceneOpening["operativeSash"];
 }): HandleSpec {
   const { apertura, numAnte, isCentralHandle, openingLabel } = args;
 
@@ -421,12 +459,17 @@ function computeHandleSpec(args: {
           `Do NOT render a second handle anywhere. The secondary sash has only internal locking.`,
       };
     }
+    // Quale anta apre lo dice la foto, quando l'analisi riesce a leggerlo:
+    // "di solito la destra" era un tiro a indovinare che spostava la maniglia
+    // dalla parte sbagliata rispetto all'originale.
+    const antaOperativa = args.operativeSash === "left" || args.operativeSash === "right"
+      ? `the ${args.operativeSash.toUpperCase()} sash (as observed in the source photo)`
+      : `the PRIMARY OPERATIVE SASH (typically the right sash for right-handed European windows; match the photographed swing direction of the source window)`;
     return {
       handleCountVisible: 1,
       handlePlacementRule:
         `Two-sash composition on opening ${openingLabel}: render EXACTLY ONE single handle on ` +
-        `the PRIMARY OPERATIVE SASH (typically the right sash for right-handed European windows; ` +
-        `match the photographed swing direction of the source window). ` +
+        `${antaOperativa}. The handle sits on the MEETING STILE of that sash, at mid height. ` +
         `The SECONDARY SASH has NO visible handle — only an internal locking mechanism. ` +
         `THIS IS NON-NEGOTIABLE: do NOT render two handles on a two-sash window. ` +
         `Italian residential standard.`,
@@ -749,6 +792,7 @@ function buildTechnicalSpecifications(
       numAnte: base.num_ante,
       isCentralHandle: resolvedNodo === "maniglia_centrale",
       openingLabel: opening.label,
+      operativeSash: opening.operativeSash,
     });
 
     const compositionChange = buildCompositionChange(opening, base.num_ante);

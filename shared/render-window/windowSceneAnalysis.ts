@@ -202,6 +202,7 @@ function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpenin
       ? "manual belt visible near the opening, exact side not determined in legacy analysis"
       : "no visible manual belt",
     rollerControlType: hasBelt ? "manual_belt" : hasRoller ? "unknown" : "none",
+    operativeSash: "unknown",
     rollerCurtainState: hasRoller ? "fully_raised_hidden" : "not_visible",
     rollerCurtainPositionNotes: hasRoller
       ? "roller curtain not visibly lowered; if present, it is likely hidden inside the box in the source photo"
@@ -235,7 +236,18 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
   const sashCount = Math.max(1, Math.min(6, numberOr(rawOpening.sash_count ?? rawOpening.sashCount ?? rawOpening.num_ante_attuale, typeCurrent === "battente_2_ante" ? 2 : 1)));
   const hasBelt = booleanOr(rawOpening.has_belt ?? rawOpening.hasBelt ?? rawOpening.presenza_cinghia, false);
   const hasBeltBox = booleanOr(rawOpening.has_belt_box ?? rawOpening.hasBeltBox ?? rawOpening.presenza_avvolgitore, hasBelt);
-  const hasRollerShutter = booleanOr(rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella, hasBelt || booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false));
+  // Un cassonetto esiste per contenere una tapparella: se c'e' il cassonetto,
+  // la tapparella c'e' anche quando e' completamente alzata e non se ne vede
+  // una stecca. Il modello di analisi rispondeva `has_roller_shutter: false`
+  // proprio su questi casi — dichiarando nella stessa risposta un cassonetto
+  // esterno — e quel false spegneva a valle ogni regola sulla tapparella e sul
+  // suo comando: si ottenevano render con tapparella motorizzata e l'asta di
+  // manovra manuale ancora appesa al muro accanto.
+  // Provato due volte a correggerlo nel prompt di analisi, senza risultato: la
+  // deduzione sta qui, dove e' deterministica.
+  const haCassonetto = booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false);
+  const hasRollerShutter = haCassonetto || hasBelt ||
+    booleanOr(rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella, false);
   const position = normalizePosition(rawOpening.position);
   const beltPlacement = normalizeBeltPlacement(rawOpening.belt_placement ?? rawOpening.beltPlacement);
   const rollerCurtainState = normalizeRollerCurtainState(
@@ -306,6 +318,9 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
                 : "manual belt / wall winder is visible near the opening and must be localized carefully"
         : "no visible manual belt",
     ),
+    operativeSash: ["left", "right", "both", "none"].includes(String(rawOpening.operative_sash ?? rawOpening.operativeSash))
+      ? (String(rawOpening.operative_sash ?? rawOpening.operativeSash) as WindowSceneOpening["operativeSash"])
+      : "unknown",
     rollerControlType: ["manual_belt", "motorized", "chain", "crank", "none", "unknown"].includes(String(rawOpening.roller_control_type ?? rawOpening.rollerControlType))
       ? (String(rawOpening.roller_control_type ?? rawOpening.rollerControlType) as WindowRollerControlType)
       : hasBelt

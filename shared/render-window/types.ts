@@ -125,6 +125,11 @@ export interface WindowSceneOpening {
   beltPlacement: WindowBeltPlacement;
   beltPlacementNotes: string;
   rollerControlType: WindowRollerControlType;
+  /** Quale anta apre davvero, cioe' quella che porta la maniglia. Su una due
+   *  ante la maniglia sta sul montante d'incontro dell'anta operativa: senza
+   *  questo dato la regola ripiega su "di solito la destra" e il modello tira
+   *  a indovinare. */
+  operativeSash: "left" | "right" | "both" | "none" | "unknown";
   rollerCurtainState: WindowRollerCurtainState;
   rollerCurtainPositionNotes: string;
   hasPersiane: boolean;

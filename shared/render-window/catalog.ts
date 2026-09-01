@@ -579,7 +579,12 @@ export const WIZARD_CASS_MATERIALI = [
     label: "PVC Bianco",
     desc: "Cassonetto PVC bianco standard.",
     icon: "⬜",
-    referenceImage: "Cucina-Portafinestra-Finestra-PVC-Bianco-Cassonetti-Bianchi.webp",
+    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
+    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
+    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
+    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
+    // una senza il file.
   },
   {
     id: "alluminio",
@@ -678,14 +683,24 @@ export const WIZARD_TRAVERSO_OPTIONS = [
     label: "Mantieni traverso",
     desc: "Mantengo il montante orizzontale a metà altezza.",
     icon: "═",
-    referenceImage: "Cucina-Portafinestra-Finestra-PVC-Bianco-Cassonetti-Bianchi.webp",
+    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
+    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
+    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
+    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
+    // una senza il file.
   },
   {
     id: "rimuovi",
     label: "Rimuovi traverso",
     desc: "Anta intera completamente vetrata. Look contemporaneo.",
     icon: "▭",
-    referenceImage: "Prima-Dopo-Portafinestra-Traverso-Rimosso.jpg",
+    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
+    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
+    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
+    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
+    // una senza il file.
   },
   {
     id: "aggiungi",
@@ -706,7 +721,12 @@ export const WIZARD_CERNIERE_OPTIONS = [
     label: "Cerniere a vista",
     desc: "Cerniere classiche visibili sul lato dell'anta. Soluzione standard.",
     icon: "◖",
-    referenceImage: "Portafinestra-2ante-Legno-Chiaro-Installata-Cantiere.jpg",
+    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
+    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
+    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
+    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
+    // una senza il file.
   },
   {
     id: "scomparsa",
@@ -714,7 +734,12 @@ export const WIZARD_CERNIERE_OPTIONS = [
     desc: "Cerniere completamente nascoste nel telaio. L'anta sembra fluttuare. Look premium architettonico.",
     icon: "▢",
     upsell: true,
-    referenceImage: "Finestra-2ante-Cerniere-Scomparsa-Anta-Aperta-Praga.jpg",
+    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
+    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
+    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
+    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
+    // una senza il file.
   },
 ] as const;
 

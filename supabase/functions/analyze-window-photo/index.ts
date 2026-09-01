@@ -49,11 +49,30 @@ If only one opening is visible, still use opening id "A".
       "cassonetto_type": string or null,
       "cassonetto_style": one of: "external_box"|"internal_monoblocco"|"absent"|"unknown",
       "has_roller_shutter": boolean,
+      // A cassonetto (roller box) above the window exists to HOUSE a roller
+      // shutter. If has_cassonetto is true, has_roller_shutter is true as well
+      // — even when the shutter is fully raised and you cannot see a single
+      // slat. Answering false here contradicts the box you just reported and
+      // suppresses every downstream rule about the shutter and its control.
       "has_belt": boolean,
       "has_belt_box": boolean,
       "belt_placement": one of: "left_wall"|"right_wall"|"left_reveal"|"right_reveal"|"center"|"unknown",
       "belt_placement_notes": string,
       "roller_control_type": one of: "manual_belt"|"motorized"|"chain"|"crank"|"none"|"unknown",
+      // "crank" = ASTA DI MANOVRA: a thin vertical rod/pole (usually white or
+      // aluminium, 1-2 cm wide) running down the wall beside the window, from
+      // the roller box to about waist height, often with a small bracket or
+      // handle at the bottom. Very common in Italy with EXTERNAL roller boxes.
+      // Look for it explicitly: it is easy to mistake for a pipe or a trim
+      // strip, and missing it leaves a manual control next to a motorized
+      // shutter in the render.
+      // "manual_belt" = fabric strap going into a wall box. "chain" = metal
+      // chain loop. Report "none" only if you can see NO control at all.
+      "operative_sash": one of: "left"|"right"|"both"|"none"|"unknown",
+      // Which sash actually opens, i.e. the one carrying the handle. On a
+      // two-sash casement the handle sits on the meeting stile of the
+      // operative sash, so read the handle position to decide. Without this
+      // the render has to guess and may put the handle on the wrong sash.
       "roller_curtain_state": one of: "fully_raised_hidden"|"top_recessed_band"|"partially_lowered"|"fully_lowered"|"not_visible"|"unknown",
       "roller_curtain_position_notes": string,
       "has_horizontal_transom": boolean,

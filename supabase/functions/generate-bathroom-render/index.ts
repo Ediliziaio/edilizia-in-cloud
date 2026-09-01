@@ -596,11 +596,11 @@ Deno.serve(async (req) => {
       const BAGNO_BUDGET_MS = 140_000;
       const jobStartMs = Date.now();
       const jobElapsed = () => Date.now() - jobStartMs;
-      const generateCandidate = (prompt: string) => {
+      const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
           30_000,
-          Math.min(75_000, Math.floor(remaining / 2)),
+          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
         );
         return editImage({
           prompt,
@@ -609,6 +609,7 @@ Deno.serve(async (req) => {
           effectiveHeight: sourceDimensions?.height ?? undefined,
           openaiQuality: "medium",
           timeoutMs: perAttemptTimeout,
+          directProviderOnly: soloProviderDiretto,
           maxRetries: 0,
           metadata: {
             task_kind: "render_image_edit",
@@ -671,7 +672,30 @@ Deno.serve(async (req) => {
         }));
       }
 
-      let renderResult = await generateCandidate(composedPrompt);
+            // Il primo tentativo va SOLO sul provider diretto, con tutto il budget.
+      //
+      // Dividere il tempo a meta' per finanziare il secondo tier sembra
+      // prudente, ma il secondo tier e' OpenRouter — che riceve la size come
+      // semplice testo nel prompt e la ignora, restituendo un 1024x1024. Da una
+      // foto verticale il quadrato costringe il modello a inventare scena ai
+      // lati: allarga il soggetto e ridisegna quello che ha intorno. Si stava
+      // quindi togliendo tempo al provider buono per pagare un ripiego che
+      // rovina il render.
+      // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando
+      // ne servivano ~60, quadrato consegnato con QA a zero segnalazioni.
+      // Col diretto a budget pieno: 146s -> 58s e formato corretto.
+      let renderResult: Awaited<ReturnType<typeof generateCandidate>>;
+      try {
+        renderResult = await generateCandidate(composedPrompt, true);
+      } catch (primoErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-bathroom-render", session_id,
+          msg: "provider_diretto_fallito_si_passa_alla_catena",
+          error: String((primoErr as Error)?.message ?? primoErr).substring(0, 200),
+          nota: "il formato potrebbe non essere rispettato dal fallback",
+        }));
+        renderResult = await generateCandidate(composedPrompt, false);
+      }
       let generationAttempts = 1;
 
       // Il render esce sempre in una delle tre size OpenAI, mai nelle
