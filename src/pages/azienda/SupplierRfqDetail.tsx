@@ -27,6 +27,7 @@ import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
   FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   QuotePageHeader, QuoteCard, QuoteChip, QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
@@ -502,6 +503,31 @@ export default function SupplierRfqDetail() {
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                     </Button>
+                    {/* Offerta originale (PDF letto dall'AI o allegato email):
+                        il confronto si controlla sul documento, non a memoria. */}
+                    {f.allegato_url && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700"
+                        title="Apri l'offerta originale"
+                        onClick={async () => {
+                          const raw = f.allegato_url!;
+                          if (/^https?:\/\//.test(raw)) { window.open(raw, "_blank"); return; }
+                          const slash = raw.indexOf("/");
+                          const { data, error } = await supabase.storage
+                            .from(raw.slice(0, slash))
+                            .createSignedUrl(raw.slice(slash + 1), 600);
+                          if (error || !data?.signedUrl) {
+                            toast.error("Non riesco ad aprire l'allegato dell'offerta");
+                            return;
+                          }
+                          window.open(data.signedUrl, "_blank");
+                        }}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {modificabile && (
                       <Button
                         size="sm"

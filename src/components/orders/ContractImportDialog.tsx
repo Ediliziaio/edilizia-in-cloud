@@ -114,8 +114,11 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         path = `${companyId}/ai-contratti/${sha.slice(0, 32)}-${safeName(file.name)}`;
         fileName = file.name;
         mime = file.type || "application/pdf";
-        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
-        if (upErr) throw new Error(`Upload: ${upErr.message}`);
+        // Niente upsert: la policy storage concede INSERT ma non UPDATE, e il
+        // path contiene lo sha256 del contenuto → se l'oggetto esiste già è
+        // identico per costruzione, quindi il "duplicate" è un successo.
+        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
+        if (upErr && !/already exists|duplicate/i.test(upErr.message)) throw new Error(`Upload: ${upErr.message}`);
       } else {
         // File già su storage dal flusso Silvio: zero upload, zero drag.
         bucket = remoteFile!.bucket;
@@ -138,6 +141,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       if (fnErr) throw new Error(fnErr.message || "Analisi AI fallita");
       if (data?.error) throw new Error(String(data.error));
       const parsed = reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
+      setPathAnalizzato(`${bucket}/${path}`);
       setExtract(parsed);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -148,6 +152,227 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
 
   const navigate = useNavigate();
   const [creandoOda, setCreandoOda] = useState(false);
+  const [registrandoRdo, setRegistrandoRdo] = useState(false);
+  // "nuova" = crea una RDO da questa offerta; altrimenti l'id della RDO
+  // aperta a cui agganciare l'offerta come risposta del fornitore.
+  const [rdoTarget, setRdoTarget] = useState<string>("nuova");
+  // "bucket/path" del documento analizzato: diventa l'allegato della risposta
+  // RDO, così dal confronto si riapre l'offerta originale.
+  const [pathAnalizzato, setPathAnalizzato] = useState<string | null>(null);
+
+  // RDO aperte dell'azienda: servono solo quando il documento è un'offerta
+  // fornitore (per agganciarla come risposta a una richiesta esistente).
+  const { data: rdoAperte = [] } = useQuery({
+    queryKey: ["rdo-aperte-import", companyId],
+    enabled: !!companyId && !!extract && extract.natura_documento === "offerta_fornitore",
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("supplier_rfqs")
+        .select("id, rfq_number, titolo, status")
+        .eq("company_id", companyId!)
+        .in("status", ["bozza", "inviata", "in_valutazione"])
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return (data ?? []) as { id: string; rfq_number: string; titolo: string; status: string }[];
+    },
+  });
+
+  /** Fornitore per nome: find-or-create (condiviso da OdA e RDO). */
+  const trovaOCreaFornitore = async (nomeFornitore: string): Promise<string> => {
+    const { data: esistenti } = await supabase
+      .from("suppliers")
+      .select("id, name")
+      .eq("company_id", companyId!)
+      .ilike("name", nomeFornitore);
+    const match = esistenti?.find((s) => s.name?.trim().toLowerCase() === nomeFornitore.toLowerCase())?.id ?? esistenti?.[0]?.id ?? null;
+    if (match) return match;
+    const { data: nuovo, error: supErr } = await supabase
+      .from("suppliers")
+      .insert({ company_id: companyId!, name: nomeFornitore } as never)
+      .select("id")
+      .single();
+    if (supErr) throw new Error(`Fornitore: ${supErr.message}`);
+    toast.success(`Fornitore "${nomeFornitore}" creato in anagrafica`);
+    return (nuovo as { id: string }).id;
+  };
+
+  /**
+   * Offerta AI → risposta RDO (richiesta utente 2026-09): due offerte di due
+   * fornitori per lo stesso lavoro sono un CONFRONTO, non due ordini. La
+   * prima offerta puo' CREARE la RDO (le sue voci diventano le righe
+   * richieste); le successive si AGGANCIANO a una RDO aperta: fornitore in
+   * tabella con stato 'risposta', prezzi per riga in supplier_rfq_quotes
+   * (match per descrizione, fallback per posizione) — e il confronto
+   * righe×fornitori dell'area RDO fa il resto.
+   */
+  const registraRispostaRdo = async () => {
+    if (!extract || !companyId || registrandoRdo) return;
+    if (extract.valuta && extract.valuta !== "EUR") {
+      toast.error(`L'offerta è in ${extract.valuta}: converti gli importi prima di registrarla.`);
+      return;
+    }
+    const nomeFornitore = extract.fornitore_emittente?.trim();
+    if (!nomeFornitore) {
+      toast.error("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI e rianalizza.");
+      return;
+    }
+    setRegistrandoRdo(true);
+    // Se la RDO nasce in questa chiamata e un passo successivo fallisce, va
+    // eliminata (la cascade porta via anche le righe): niente RDO orfane.
+    let rfqCreataQui: string | null = null;
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      const supplierId = await trovaOCreaFornitore(nomeFornitore);
+
+      let rfqId = rdoTarget;
+      let itemsRdo: { id: string; descrizione: string; posizione: number | null }[] = [];
+      if (rdoTarget === "nuova") {
+        const titolo = (extract.descrizione_lavori || "Fornitura da offerta").slice(0, 90);
+        const { data: rfq, error: rfqErr } = await supabase
+          .from("supplier_rfqs")
+          .insert({
+            company_id: companyId,
+            titolo,
+            descrizione: `Creata dall'offerta "${file?.name ?? remoteFile?.name ?? "documento"}" letta dall'AI.`,
+            created_by: user?.id,
+          } as never)
+          .select("id")
+          .single();
+        if (rfqErr) throw rfqErr;
+        rfqId = (rfq as { id: string }).id;
+        rfqCreataQui = rfqId;
+        const { data: nuoviItems, error: itErr } = await supabase
+          .from("supplier_rfq_items")
+          .insert(extract.voci.map((v, idx) => ({
+            rfq_id: rfqId,
+            company_id: companyId,
+            descrizione: v.descrizione,
+            quantita: v.quantita || 1,
+            unita_misura: "pz",
+            posizione: idx,
+          })) as never)
+          .select("id, descrizione, posizione");
+        if (itErr) throw itErr;
+        itemsRdo = (nuoviItems ?? []) as typeof itemsRdo;
+      } else {
+        const { data: esistenti, error: itErr } = await supabase
+          .from("supplier_rfq_items")
+          .select("id, descrizione, posizione")
+          .eq("rfq_id", rfqId)
+          .order("posizione");
+        if (itErr) throw itErr;
+        itemsRdo = (esistenti ?? []) as typeof itemsRdo;
+      }
+
+      // Fornitore sulla RDO con la risposta gia' dentro.
+      const { data: rfqSup, error: supRdoErr } = await supabase
+        .from("supplier_rfq_suppliers")
+        .insert({
+          rfq_id: rfqId,
+          company_id: companyId,
+          supplier_id: supplierId,
+          status: "risposta",
+          risposta_at: new Date().toISOString(),
+          totale_offerto: contractImponibile(extract),
+          aggancio_da: "ai_pdf",
+          aggancio_confidenza: extract.confidence || null,
+          aggancio_da_confermare: false,
+          allegato_url: pathAnalizzato,
+          note: `Offerta letta dall'AI dal file "${file?.name ?? remoteFile?.name ?? "documento"}"${extract.sconto_globale_pct != null ? ` — sconto ${extract.sconto_globale_pct}%` : ""}.`,
+        } as never)
+        .select("id")
+        .single();
+      if (supRdoErr) throw new Error(`Fornitore su RDO: ${supRdoErr.message}`);
+      const rfqSupplierId = (rfqSup as { id: string }).id;
+
+      // Lo sconto globale va nelle quotes SOLO se i prezzi riga sono lordi:
+      // alcuni documenti mostrano prezzi già scontati, altri prezzi pieni con
+      // lo sconto a parte. Decide l'ipotesi che avvicina di più la somma voci
+      // al totale merce del documento — cioè l'imponibile SENZA gli altri
+      // costi (imballo/trasporto arrivano dopo lo sconto: Termoplast fa
+      // 8.840×0,85 + imballo + trasporto = 8.462,70).
+      const sommaVoci = contractSommaVoci(extract);
+      const impDoc = contractImponibile(extract);
+      const altriCosti = extract.altri_costi.reduce((s, a) => s + (a.importo_eur || 0), 0);
+      let scontoQuote = extract.sconto_globale_pct ?? 0;
+      if (scontoQuote > 0 && sommaVoci > 0 && impDoc != null) {
+        const targetMerce = impDoc - altriCosti;
+        const deltaConSconto = Math.abs(sommaVoci * (1 - scontoQuote / 100) - targetMerce);
+        const deltaSenza = Math.abs(sommaVoci - targetMerce);
+        if (deltaSenza < deltaConSconto) scontoQuote = 0;
+      }
+
+      // Match voce offerta → riga RDO. Due fornitori descrivono la stessa
+      // posizione con parole diverse ("Finestra 2 TRP Rehau…" vs "Finestra 2
+      // a due ante…"): la chiave robusta è tipo+numero di posizione. Il
+      // fallback per indice scatta SOLO se nessuna descrizione ha matchato
+      // (offerte con numerazioni assenti): mischiato al match testuale
+      // produce slittamenti che gonfiano il confronto.
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      const chiavePos = (s: string): string | null => {
+        const m = norm(s).match(/^([a-z]+(?: finestra)?)\s+(?:[a-z]{1,4}\s+)?(\d{1,3})\b/);
+        return m ? `${m[1]}|${m[2]}` : null;
+      };
+      const usati = new Set<string>();
+      type Abbinata = { voce: (typeof extract.voci)[number]; itemId: string };
+      const abbinate: Abbinata[] = [];
+      const orfane: (typeof extract.voci)[number][] = [];
+      extract.voci.forEach((v) => {
+        const nv = norm(v.descrizione);
+        const kv = chiavePos(v.descrizione);
+        const target = itemsRdo.find((it) => {
+          if (usati.has(it.id)) return false;
+          const ni = norm(it.descrizione);
+          if (ni === nv) return true;
+          if (nv.length >= 6 && ni.length >= 6 && (ni.startsWith(nv) || nv.startsWith(ni))) return true;
+          const ki = chiavePos(it.descrizione);
+          return !!kv && !!ki && kv === ki;
+        });
+        if (target) { usati.add(target.id); abbinate.push({ voce: v, itemId: target.id }); }
+        else orfane.push(v);
+      });
+      if (abbinate.length === 0 && itemsRdo.length === extract.voci.length) {
+        // Nessun aggancio testuale ma stesso numero di righe: allineamento 1:1.
+        extract.voci.forEach((v, idx) => abbinate.push({ voce: v, itemId: itemsRdo[idx].id }));
+        orfane.length = 0;
+      }
+      const nonAbbinate = orfane.length;
+      const quotes = abbinate
+        .filter(({ voce }) => voce.prezzo_unitario_eur > 0) // voce non quotata ≠ quotata a 0 €
+        .map(({ voce, itemId }) => ({
+          rfq_supplier_id: rfqSupplierId,
+          rfq_item_id: itemId,
+          company_id: companyId,
+          prezzo_unitario: voce.prezzo_unitario_eur,
+          sconto_percentuale: scontoQuote,
+          aliquota_iva: extract.iva_pct ?? 22,
+          disponibile: true,
+        }));
+      if (quotes.length > 0) {
+        const { error: qErr } = await supabase
+          .from("supplier_rfq_quotes")
+          .upsert(quotes as never, { onConflict: "rfq_supplier_id,rfq_item_id" });
+        if (qErr) throw new Error(`Prezzi: ${qErr.message}`);
+      }
+
+      toast.success(
+        rdoTarget === "nuova"
+          ? `RDO creata con la risposta di ${nomeFornitore} (${quotes.length} prezzi)`
+          : `Risposta di ${nomeFornitore} registrata sulla RDO (${quotes.length} prezzi${nonAbbinate ? `, ${nonAbbinate} voci non abbinate` : ""})`,
+      );
+      if (nonAbbinate > 0) toast.warning(`${nonAbbinate} voci dell'offerta non hanno trovato la riga RDO corrispondente: controllale nel confronto.`);
+      onOpenChange(false);
+      navigate(`/azienda/richieste-offerta/${rfqId}`);
+    } catch (e) {
+      if (rfqCreataQui) {
+        await supabase.from("supplier_rfqs").delete().eq("id", rfqCreataQui);
+      }
+      toast.error(e instanceof Error ? e.message : "Errore registrazione risposta RDO");
+    } finally {
+      setRegistrandoRdo(false);
+    }
+  };
 
   /**
    * Ponte offerta fornitore → Ordine d'Acquisto (audit 2026-09, punto 3):
@@ -169,24 +394,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     }
     setCreandoOda(true);
     try {
-      // Find-or-create del fornitore per nome (esatto, case-insensitive).
-      const { data: esistenti } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("company_id", companyId)
-        .ilike("name", nomeFornitore);
-      let supplierId = esistenti?.find((s) => s.name?.trim().toLowerCase() === nomeFornitore.toLowerCase())?.id ?? esistenti?.[0]?.id ?? null;
-      if (!supplierId) {
-        const { data: nuovo, error: supErr } = await supabase
-          .from("suppliers")
-          .insert({ company_id: companyId, name: nomeFornitore } as never)
-          .select("id")
-          .single();
-        if (supErr) throw new Error(`Fornitore: ${supErr.message}`);
-        supplierId = (nuovo as { id: string }).id;
-        toast.success(`Fornitore "${nomeFornitore}" creato in anagrafica`);
-      }
-
+      const supplierId = await trovaOCreaFornitore(nomeFornitore);
       const user = (await supabase.auth.getUser()).data.user;
       const sconto = extract.sconto_globale_pct;
       const { data: po, error: poErr } = await supabase
@@ -432,6 +640,30 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
                 <p className="font-semibold mb-1">⚠️ Da verificare</p>
                 <ul className="list-disc list-inside space-y-0.5">{extract.warnings.slice(0, 4).map((w, i) => <li key={i}>{w}</li>)}</ul>
+              </div>
+            )}
+
+            {extract.natura_documento === "offerta_fornitore" && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 space-y-1.5">
+                <p className="text-xs font-semibold text-sky-900">Confronto fornitori (RDO)</p>
+                <p className="text-[11px] text-sky-800">Se hai più offerte per lo stesso lavoro, registrale come risposte a una richiesta d'offerta: le confronti riga per riga prima di ordinare.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={rdoTarget}
+                    onChange={(e) => setRdoTarget(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[280px]"
+                    aria-label="Richiesta d'offerta di destinazione"
+                  >
+                    <option value="nuova">— Crea nuova RDO da questa offerta —</option>
+                    {rdoAperte.map((r) => (
+                      <option key={r.id} value={r.id}>{r.rfq_number} · {r.titolo}</option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="outline" onClick={registraRispostaRdo} disabled={registrandoRdo} className="gap-1 h-8">
+                    {registrandoRdo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Registra come risposta RDO
+                  </Button>
+                </div>
               </div>
             )}
 
