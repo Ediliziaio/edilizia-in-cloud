@@ -433,14 +433,26 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     </div>
                   )}
                   {timeline.slice(-shownCount).map((m, i) => {
+                    // Il canale non basta: "whatsapp" copre sia quello
+                    // ufficiale (Meta) sia quello locale. Li distingue la
+                    // tabella d'origine — e per il locale `oggetto` porta il
+                    // numero da cui e' partito, che con piu' numeri collegati
+                    // e' l'informazione che serve davvero.
+                    const locale = m.ref_tabella === "openwa_messages";
                     const meta = CANALE_META[m.canale] ?? CANALE_META.email;
+                    const etichetta = locale ? "WA Locale" : meta.label;
                     const out = m.direzione === "out";
                     return (
                       <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
                           <div className={cn("flex items-center gap-1.5 mb-1 text-[10px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                            <meta.Icon className="h-3 w-3" />{meta.label}
-                            {m.oggetto && <span className="normal-case font-normal truncate max-w-[200px]">· {m.oggetto}</span>}
+                            <meta.Icon className="h-3 w-3" />{etichetta}
+                            {m.oggetto && (
+                              <span className="normal-case font-normal truncate max-w-[200px]"
+                                title={locale ? `Inviato dal numero ${m.oggetto}` : undefined}>
+                                · {locale ? `da ${m.oggetto}` : m.oggetto}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
                           <div className={cn("text-[10px] mt-1 text-right", out ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatOra(m.ts)}</div>
@@ -466,7 +478,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
 
       {/* ═══ Pannello laterale scheda (GHL-style) — fisso da xl in su ═══ */}
       {selectedItem && (
-        <div className="hidden w-72 shrink-0 border-l xl:flex xl:w-80">
+        <div className="hidden min-h-0 w-72 shrink-0 border-l xl:flex xl:w-80">
           <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
         </div>
       )}

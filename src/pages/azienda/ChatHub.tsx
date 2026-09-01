@@ -27,7 +27,7 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // p-3 di <main> su mobile (chat edge-to-edge, niente doppio spazio laterale).
   // -mb-24 mangia parte del pb-28 di <main> per stare vicino alla bottom-nav.
   return (
-    <div className="h-full min-h-0 flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
+    <div className="h-full min-h-0 overflow-hidden flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as "conversazioni" | "team")}
@@ -42,10 +42,10 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="conversazioni" className="flex-1 min-h-0 m-0">
+        <TabsContent value="conversazioni" className="flex-1 min-h-0 overflow-hidden m-0">
           <ConversazioniInbox companyIdOverride={companyIdOverride} />
         </TabsContent>
-        <TabsContent value="team" className="flex-1 min-h-0 m-0">
+        <TabsContent value="team" className="flex-1 min-h-0 overflow-hidden m-0">
           <InternalChat companyIdOverride={companyIdOverride} embedded />
         </TabsContent>
       </Tabs>
