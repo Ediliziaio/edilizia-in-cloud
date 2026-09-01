@@ -863,10 +863,16 @@ export function AdminLayout() {
   // Desktop: full sidebar + header
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      {/* Altezza del viewport BLOCCATA e scroll dentro <main>, come gia' fa il
+          ramo mobile qui sopra e il layout azienda. Prima era min-h-screen:
+          un'altezza MINIMA lascia crescere il contenitore col contenuto, quindi
+          a scorrere era il documento intero — e una pagina che deve riempire lo
+          schermo (la chat) non poteva ancorare nulla in basso, perche' `h-full`
+          non si risolve contro un contenitore senza altezza dichiarata. */}
+      <div className="h-screen overflow-hidden flex w-full">
         {isSettingsRoute ? <AdminSettingsSidebar /> : <AdminMainSidebar />}
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="flex h-14 border-b items-center px-4 gap-4 bg-background">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <header className="flex h-14 shrink-0 border-b items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <AdminBreadcrumb />
@@ -878,7 +884,7 @@ export function AdminLayout() {
               <QuickLoginPopover />
             </div>
           </header>
-          <main className="flex-1 p-6 bg-muted/30 overflow-x-hidden">
+          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-muted/30">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               <Outlet />
             </ErrorBoundary>

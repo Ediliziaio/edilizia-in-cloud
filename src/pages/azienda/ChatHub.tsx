@@ -22,10 +22,11 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // 20270704000000 non è applicata; diventerà default quando l'inbox sarà attivo.
   const [tab, setTab] = useState<"conversazioni" | "team">("team");
 
-  // h-full: riempie il content-box di <main> (già overflow-y-auto) → un solo
-  // scroll interno alla chat invece del doppio (main + lista). -mx-3 annulla il
-  // p-3 di <main> su mobile (chat edge-to-edge, niente doppio spazio laterale).
-  // -mb-24 mangia parte del pb-28 di <main> per stare vicino alla bottom-nav.
+  // h-full riempie il content-box di <main> (che ha altezza bloccata e scroll
+  // proprio) → dentro la chat NON si scrolla la pagina: ogni colonna ha la sua
+  // barra e il compositore resta ancorato in basso, come su WhatsApp Web.
+  // I margini negativi annullano il padding di <main> per non sprecare altezza:
+  // -mx-3 il p-3 mobile, -mb-24 parte del pb-28 sopra la bottom-nav.
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
       <Tabs
