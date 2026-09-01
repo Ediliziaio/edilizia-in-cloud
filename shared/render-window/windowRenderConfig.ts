@@ -41,6 +41,7 @@ import type {
   WindowTechnicalSpecification,
 } from "./types.ts";
 import { normalizeWindowSceneAnalysis, createWindowTargetSelection } from "./windowSceneAnalysis.ts";
+import { haComandoManualeDaRimuovere } from "./windowSceneAnalysis.ts";
 import { buildWindowReplacementManifest } from "./windowReplacementRules.ts";
 
 export interface WindowRenderBuildOptions {
@@ -330,20 +331,10 @@ function describeManualControlPlacement(opening: WindowSceneOpening): string {
 function buildManualControlCleanupRule(opening: WindowSceneOpening, isMotorized: boolean): string | null {
   if (!isMotorized) return null;
 
-  const tipoComando = opening.rollerControlType;
-  const comandoNoto = opening.hasBelt || opening.hasBeltBox ||
-    tipoComando === "manual_belt" || tipoComando === "crank" ||
-    tipoComando === "chain";
+  if (!haComandoManualeDaRimuovere(opening, isMotorized)) return null;
 
-  // Il tipo di comando spesso non si riesce a leggere dalla foto: l'analisi
-  // risponde "unknown" (o "none" sbagliando). Se pero' una tapparella c'e' e la
-  // nuova e' motorizzata, un comando manuale nella foto e' possibile, e
-  // lasciarlo nel render e' una contraddizione che il cliente nota. La
-  // rimozione generica non fa danni: se non c'e' niente da togliere, non toglie
-  // niente.
-  const comandoIgnoto = !comandoNoto && opening.hasRollerShutter &&
-    (tipoComando === "unknown" || tipoComando === "none");
-  if (!comandoNoto && !comandoIgnoto) return null;
+  const tipoComando = opening.rollerControlType;
+  const comandoIgnoto = tipoComando === "unknown" || tipoComando === "none";
 
   const placement = describeManualControlPlacement(opening);
   const note = ensureSentence(opening.beltPlacementNotes || `manual control is visible ${placement}`);
@@ -735,10 +726,9 @@ function buildElectricButton(
   isMotorized: boolean,
 ): WindowTechnicalSpecification["shutter"]["electricButton"] | undefined {
   if (!isMotorized || !opening) return undefined;
-  if (!opening.hasBelt && !opening.hasBeltBox) {
-    // Tapparella già motorizzata, niente cinghia da rimuovere → niente bottone nuovo
-    return undefined;
-  }
+  // Niente comando manuale da sostituire (tapparella gia' motorizzata) →
+  // niente comando elettrico nuovo da installare.
+  if (!haComandoManualeDaRimuovere(opening, isMotorized)) return undefined;
   const side: "left" | "right" =
     opening.beltPlacement.includes("right") ? "right"
     : opening.beltPlacement.includes("left") ? "left"

@@ -513,3 +513,31 @@ export function createWindowTargetSelection(
       .map((opening) => opening.label),
   };
 }
+
+/**
+ * C'e' un comando manuale della tapparella da rimuovere, dato che la nuova e'
+ * motorizzata?
+ *
+ * La stessa condizione era scritta a mano in TRE punti diversi — la regola di
+ * rimozione nel manifest, la nota di compatibilita' e la decisione di
+ * installare il comando elettrico — e in tutti e tre era `hasBelt ||
+ * hasBeltBox`, cioe' riconosceva solo la cinghia. In Italia il comando manuale
+ * ha altre due forme, l'ASTA DI MANOVRA (tipica dei cassonetti esterni) e la
+ * catenella: per quelle nessuno dei tre rami si attivava, e il render usciva
+ * con la tapparella motorizzata e l'asta ancora appesa al muro.
+ * Averla in un posto solo evita che i tre punti tornino a divergere.
+ */
+export function haComandoManualeDaRimuovere(
+  opening: WindowSceneOpening | undefined,
+  isMotorized: boolean,
+): boolean {
+  if (!isMotorized || !opening) return false;
+  const tipo = opening.rollerControlType;
+  const noto = opening.hasBelt || opening.hasBeltBox ||
+    tipo === "manual_belt" || tipo === "crank" || tipo === "chain";
+  if (noto) return true;
+  // Il tipo di comando spesso non si legge dalla foto. Se la tapparella c'e',
+  // si procede comunque alla rimozione generica: se non c'e' niente da
+  // togliere, non toglie niente.
+  return opening.hasRollerShutter && (tipo === "unknown" || tipo === "none");
+}

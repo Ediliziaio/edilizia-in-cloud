@@ -15,6 +15,7 @@ import type {
   WindowSceneOpening,
   WindowTechnicalSpecification,
 } from "./types.ts";
+import { haComandoManualeDaRimuovere } from "./windowSceneAnalysis.ts";
 
 function describeSpec(spec: WindowTechnicalSpecification): string {
   const typeLabel = spec.desiredOpeningType.replace(/_/g, " ");
@@ -51,7 +52,31 @@ function buildMotorizationConversionRules(
   opening: WindowSceneOpening,
   spec: WindowTechnicalSpecification,
 ): WindowRemovalRule[] {
-  if (!spec.shutter.isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return [];
+  if (!spec.shutter.isMotorized) return [];
+
+  // La condizione era `!opening.hasBelt && !opening.hasBeltBox`: si attivava
+  // solo davanti a una cinghia. In Italia il comando manuale ha altre due
+  // forme — l'ASTA DI MANOVRA (tipica dei cassonetti esterni) e la catenella —
+  // e per quelle questa regola non nasceva proprio. Restava solo la nota nella
+  // riga "Compatibility rules", che il modello applica in modo discontinuo:
+  // due render della stessa configurazione, uno toglieva l'asta e l'altro la
+  // lasciava. Qui nasce invece una regola di rimozione di prima classe, che
+  // nel prompt ha una sezione propria.
+  if (!haComandoManualeDaRimuovere(opening, spec.shutter.isMotorized)) return [];
+
+  const tipoComando = opening.rollerControlType;
+  const comandoIgnoto = tipoComando === "unknown" || tipoComando === "none";
+
+  const componentiDaRimuovere = tipoComando === "crank"
+    ? "the vertical operating rod/pole running down the wall, its wall bracket and guide clips, " +
+      "and the gear box on the roller box"
+    : tipoComando === "chain"
+      ? "the chain loop, its tensioner and the wall bracket holding it"
+      : comandoIgnoto
+        ? "ANY manual control still visible — fabric belt/strap, vertical operating rod/pole, chain — " +
+          "together with its wall box, cover plate, bracket, exit slot or guide clip"
+        : "belt/strap, wall winder plate/box (which is typically a tall vertical box ~80x140mm or " +
+          "larger), belt exit slot and any residual vertical trim belonging to the old manual system";
 
   const placement = describeBeltPlacement(opening);
   const rules: WindowRemovalRule[] = [];
@@ -62,9 +87,9 @@ function buildMotorizationConversionRules(
     openingIds: [opening.id],
     summary:
       `Remove every visible manual roller-shutter control component ${placement} around ` +
-      `opening ${opening.label}: belt/strap/cord, wall winder plate/box (which is typically ` +
-      `a tall vertical box ~80x140mm or larger), belt exit slot and any residual vertical ` +
-      `trim belonging to the old manual system. Note the ORIGINAL FOOTPRINT of the old plate ` +
+      `opening ${opening.label}: ${componentiDaRimuovere}. The new shutter is MOTORIZED: ` +
+      `nothing belonging to the old manual control may remain visible on the wall, on the ` +
+      `reveal or on the roller box. Note the ORIGINAL FOOTPRINT of the old control ` +
       `on the wall — you will need to repair the area that the new smaller electric switch ` +
       `will NOT cover.`,
     repairInstruction:
