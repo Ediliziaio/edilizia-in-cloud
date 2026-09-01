@@ -11,6 +11,7 @@
 
 import { getPlatformSetting } from "./getPlatformSetting.ts";
 import { pickOpenWaNumber, weekKeyOf, type OpenWaNumberState } from "./openwaPickNumber.ts";
+import { lidDaMessageId, registraLid } from "./openwaLid.ts";
 
 // I contatti marketing della piattaforma vivono su questa company.
 export const OPENWA_PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
@@ -344,6 +345,13 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
     provider_msg_id: r.json?.id ?? r.json?.messageId ?? null,
     error: r.ok ? null : `Gateway ${r.status}: ${r.text}`.slice(0, 500),
   });
+
+  // L'id del messaggio appena inviato contiene il LID del destinatario
+  // (`true_194360188621035@lid_...`). E' l'unico punto in cui la corrispondenza
+  // LID → numero e' nota con certezza: registrandola qui, la risposta che
+  // arrivera' dal webhook finisce nello stesso thread invece che in uno nuovo.
+  const lidDest = lidDaMessageId(r.json?.id ?? r.json?.messageId ?? null);
+  if (lidDest) await registraLid(admin, lidDest, phone, chatId, "outbound");
 
   if (!r.ok) return { ok: false, error: `Invio fallito: ${r.status} ${r.text}`, status: 502, numberId: chosen.id, chatId };
 

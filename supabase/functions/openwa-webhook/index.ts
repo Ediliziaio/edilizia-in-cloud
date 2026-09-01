@@ -11,6 +11,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/openwaSend.ts";
+import { isLid, lidDaMessageId, risolviLid, registraLid, numeroDalPayload } from "../_shared/openwaLid.ts";
 
 const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -245,16 +246,49 @@ Deno.serve(async (req) => {
     }
 
     const fromRaw: string = msg.from ?? msg.chatId ?? msg.sender ?? "";
-    const chatId = fromRaw.includes("@") ? fromRaw : (digitsOnly(fromRaw) ? `${digitsOnly(fromRaw)}@c.us` : "");
+    let chatId = fromRaw.includes("@") ? fromRaw : (digitsOnly(fromRaw) ? `${digitsOnly(fromRaw)}@c.us` : "");
     const text: string = msg.body ?? msg.text ?? msg.caption ?? "";
     const notifyName: string | null = msg.notifyName ?? msg.notify_name ?? msg.pushName ?? null;
     const providerMsgId: string | null = msg.id ?? msg.messageId ?? msg.message_id ?? null;
+
+    // ── LID → numero ──────────────────────────────────────────────────────────
+    // WhatsApp consegna i messaggi in arrivo identificando il mittente con un
+    // LID (194360188621035@lid) invece che col numero. Se lo salvassimo cosi',
+    // la risposta di una persona finirebbe in un thread diverso da quello in cui
+    // le abbiamo scritto noi: nell'inbox si vedrebbero due conversazioni
+    // scollegate. Qui il LID viene tradotto nel numero vero quando possibile.
+    const lidOriginale = isLid(chatId) ? chatId.toLowerCase() : lidDaMessageId(providerMsgId);
+    if (isLid(chatId)) {
+      const dalPayload = numeroDalPayload(msg);
+      if (dalPayload) {
+        chatId = `${dalPayload}@c.us`;
+        await registraLid(admin, lidOriginale!, `+${dalPayload}`, chatId, "payload");
+      } else {
+        const noto = await risolviLid(admin, chatId);
+        if (noto) {
+          chatId = noto.chatId;
+        } else {
+          // Non risolvibile: teniamo il LID (serve comunque per rispondere) ma
+          // lo segnaliamo, cosi' si capisce perche' il thread e' senza numero.
+          console.warn("[openwa-webhook] LID non risolto:", chatId, "campi:", Object.keys(msg ?? {}).join(","));
+        }
+      }
+    }
+
     const phoneDigits = digitsOnly(chatId);
     // Media in arrivo: base64 → bucket privato → path (o URL diretto se fornito).
     const mediaUrl: string | null = await uploadInboundMedia(admin, number?.id ?? null, providerMsgId, msg);
 
     if (!chatId) {
       return new Response(JSON.stringify({ ok: true, skipped: "no-chat-id" }), { headers: jsonH });
+    }
+
+    // Alla connessione della sessione OpenWA emette un evento per ogni chat gia'
+    // presente sul telefono: nessun testo, nessun media. Non sono messaggi —
+    // se entrassero, l'inbox si riempirebbe di conversazioni fantasma con i
+    // contatti privati del titolare del numero.
+    if (!text && !mediaUrl) {
+      return new Response(JSON.stringify({ ok: true, skipped: "evento-vuoto" }), { headers: jsonH });
     }
 
     // Dedup: i webhook OpenWA vengono ritentati (stesso provider_msg_id /
@@ -294,6 +328,7 @@ Deno.serve(async (req) => {
       number_id: number?.id ?? null,
       contact_id: contactId,
       wa_chat_id: chatId,
+      wa_lid: lidOriginale,
       contact_phone: phoneDigits ? `+${phoneDigits}` : null,
       contact_name: contactName,
       direction: "inbound",
