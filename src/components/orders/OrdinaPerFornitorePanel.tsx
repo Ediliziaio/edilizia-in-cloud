@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Package, Loader2, AlertTriangle, HardHat, ArrowRight, FileQuestion } from "lucide-react";
@@ -77,6 +78,10 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
   const [creatingAll, setCreatingAll] = useState(false);
   /** Fornitore per cui e' aperto il dialog di scelta Preventivo/Ordine. */
   const [sceltaPer, setSceltaPer] = useState<string | null>(null);
+  /** Spunte per articolo nel dialog: si puo' ordinare (o chiedere il
+      preventivo per) SOLO una parte del gruppo — le finestre subito, le
+      zanzariere piu' avanti. Default: tutto selezionato. */
+  const [selezione, setSelezione] = useState<Record<string, boolean>>({});
   const [rdoBusy, setRdoBusy] = useState(false);
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Fornitore";
@@ -97,10 +102,16 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
   const senzaFornitore = daOrdinare.filter((i) => !i.supplier_id);
 
   const creaOda = useMutation({
-    mutationFn: async (supplierId: string) => {
+    // soloSelezionati: true quando si arriva dal dialog (rispetta le spunte);
+    // "Crea tutti" passa false e ordina i gruppi INTERI — cosi' una spunta
+    // tolta in un dialog precedente non puo' filtrare di nascosto il bulk.
+    mutationFn: async ({ supplierId, soloSelezionati }: { supplierId: string; soloSelezionati?: boolean }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
-      const gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
-      if (gruppo.length === 0) throw new Error("Nessun articolo da ordinare per questo fornitore");
+      let gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
+      if (soloSelezionati) {
+        gruppo = gruppo.filter((i) => selezione[i.id!] !== false);
+      }
+      if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
 
       const { data: po, error: poErr } = await supabase
         .from("purchase_orders")
@@ -149,7 +160,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
 
       return { poId: po.id as string, n: gruppo.length };
     },
-    onSuccess: ({ poId, n }, supplierId) => {
+    onSuccess: ({ poId, n }, { supplierId }) => {
       queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["po-item-coverage-panel"] });
@@ -176,8 +187,10 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     if (!effectiveCompany?.id) return;
     setRdoBusy(true);
     try {
-      const gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
-      if (gruppo.length === 0) throw new Error("Nessun articolo per questo fornitore");
+      // Si arriva qui solo dal dialog: le spunte valgono sempre.
+      const gruppo = (gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [])
+        .filter((i) => selezione[i.id!] !== false);
+      if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
       const user = (await supabase.auth.getUser()).data.user;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
@@ -218,7 +231,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     let ok = 0, ko = 0;
     // In sequenza, non in parallelo: la numerazione OdA e' un contatore seriale.
     for (const [sid] of gruppi) {
-      try { await creaOda.mutateAsync(sid); ok++; } catch { ko++; }
+      try { await creaOda.mutateAsync({ supplierId: sid }); ok++; } catch { ko++; }
     }
     setCreatingAll(false);
     if (ok > 0) toast.success(`${ok} OdA creati, uno per fornitore`, {
@@ -275,7 +288,11 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 variant="outline"
                 className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
                 disabled={creaOda.isPending || creatingAll}
-                onClick={() => setSceltaPer(sid)}
+                onClick={() => {
+                  const g = gruppi.find(([x]) => x === sid)?.[1] ?? [];
+                  setSelezione(Object.fromEntries(g.map((i) => [i.id!, true])));
+                  setSceltaPer(sid);
+                }}
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" />}
                 Ordina…
@@ -298,30 +315,45 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         <DialogContent className="sm:max-w-md">
           {sceltaPer && (() => {
             const gruppo = gruppi.find(([sid]) => sid === sceltaPer)?.[1] ?? [];
-            const tot = gruppo.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+            const scelti = gruppo.filter((i) => selezione[i.id!] !== false);
+            const tot = scelti.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
             return (
               <>
                 <DialogHeader>
                   <DialogTitle>{supplierName(sceltaPer)}</DialogTitle>
                   <DialogDescription>
-                    {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)}
+                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)}
                   </DialogDescription>
                 </DialogHeader>
+                {/* Spunte per articolo: si puo' ordinare solo una parte del
+                    gruppo (le finestre subito, le zanzariere dopo). Il resto
+                    resta nel pannello, pronto per il giro successivo. */}
                 <ul className="max-h-44 space-y-1 overflow-y-auto text-sm">
-                  {gruppo.map((i) => (
-                    <li key={i.id} className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5">
-                      <span className="min-w-0 truncate">{i.name}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {eur.format((Number(i.purchase_price) || 0) * (Number(i.quantity) || 0))}
-                      </span>
-                    </li>
-                  ))}
+                  {gruppo.map((i) => {
+                    const on = selezione[i.id!] !== false;
+                    return (
+                      <li key={i.id}>
+                        <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 ${on ? "" : "opacity-50"}`}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Checkbox
+                              checked={on}
+                              onCheckedChange={(v) => setSelezione((prev) => ({ ...prev, [i.id!]: v === true }))}
+                            />
+                            <span className="min-w-0 truncate">{i.name}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
+                          </span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">
+                            {eur.format((Number(i.purchase_price) || 0) * (Number(i.quantity) || 0))}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <DialogFooter className="flex-col gap-2 sm:flex-row">
                   <Button
                     variant="outline"
                     className="gap-1.5"
-                    disabled={rdoBusy || creaOda.isPending}
+                    disabled={rdoBusy || creaOda.isPending || scelti.length === 0}
                     onClick={() => chiediPreventivo(sceltaPer)}
                   >
                     {rdoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileQuestion className="h-4 w-4" />}
@@ -329,8 +361,8 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                   </Button>
                   <Button
                     className="gap-1.5"
-                    disabled={rdoBusy || creaOda.isPending}
-                    onClick={() => { setCreatingFor(sceltaPer); setSceltaPer(null); creaOda.mutate(sceltaPer); }}
+                    disabled={rdoBusy || creaOda.isPending || scelti.length === 0}
+                    onClick={() => { setCreatingFor(sceltaPer); setSceltaPer(null); creaOda.mutate({ supplierId: sceltaPer, soloSelezionati: true }); }}
                   >
                     {creaOda.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
                     Crea ordine (OdA)
