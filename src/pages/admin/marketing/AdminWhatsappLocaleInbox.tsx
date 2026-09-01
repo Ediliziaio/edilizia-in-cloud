@@ -757,6 +757,14 @@ export default function AdminWhatsappLocaleInbox() {
                         "mt-1 text-[10px]",
                         m.direction === "outbound" ? "text-emerald-100" : "text-muted-foreground",
                       )}>
+                        {m.number_id && numeriById.get(m.number_id) && (
+                          <span className="mr-1" title="Numero da cui è partito questo messaggio">
+                            {numeriById.get(m.number_id)!.display_name || numeriById.get(m.number_id)!.numero}
+                            {numeriById.get(m.number_id)!.display_name && numeriById.get(m.number_id)!.numero
+                              ? ` · ${numeriById.get(m.number_id)!.numero}` : ""}
+                            {" ·"}
+                          </span>
+                        )}
                         {fmtOra(m.created_at)}
                         {m.direction === "outbound" && (
                           m.status === "failed" ? (

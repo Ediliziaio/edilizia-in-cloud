@@ -445,13 +445,18 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     return (
                       <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
-                          <div className={cn("flex items-center gap-1.5 mb-1 text-[10px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                            <meta.Icon className="h-3 w-3" />{etichetta}
+                          <div className={cn("flex flex-wrap items-center gap-x-1.5 mb-1 text-[10px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                            <meta.Icon className="h-3 w-3 shrink-0" />{etichetta}
                             {m.oggetto && (
-                              <span className="normal-case font-normal truncate max-w-[200px]"
-                                title={locale ? `Inviato dal numero ${m.oggetto}` : undefined}>
-                                · {locale ? `da ${m.oggetto}` : m.oggetto}
-                              </span>
+                              locale ? (
+                                // Nome e numero del mittente: con piu' schede
+                                // collegate e' cio' che distingue chi ha scritto.
+                                <span className="normal-case font-normal" title={`Inviato dal numero ${m.oggetto}`}>
+                                  · da {m.oggetto}
+                                </span>
+                              ) : (
+                                <span className="normal-case font-normal truncate max-w-[200px]">· {m.oggetto}</span>
+                              )
                             )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
