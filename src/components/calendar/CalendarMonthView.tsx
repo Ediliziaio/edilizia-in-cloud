@@ -549,8 +549,16 @@ export function CalendarMonthView({
                                 setEditingOrder(event.order!);
                               }
                             }}
-                            className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
-                            style={{ backgroundColor: event.color }}
+                            className={`w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-opacity hover:opacity-80 truncate ${event.type === "posa" || event.type === "merce" ? "font-medium" : "text-white"}`}
+                            style={
+                              // La tinta dice la COMMESSA (o squadra/tipo), lo stile dice il TIPO:
+                              // lavori = barra piena, data posa = chiara bordata, merce = tratteggiata.
+                              event.type === "posa"
+                                ? { backgroundColor: `${event.color}1F`, boxShadow: `inset 0 0 0 1.5px ${event.color}`, color: event.color }
+                                : event.type === "merce"
+                                  ? { backgroundColor: `${event.color}14`, border: `1.5px dashed ${event.color}`, color: event.color }
+                                  : { backgroundColor: event.color }
+                            }
                           >
                             {event.order.status && (
                               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
@@ -559,17 +567,17 @@ export function CalendarMonthView({
                             <span className="truncate font-medium">
                               {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
                             </span>
-                            {logisticRisk && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-yellow-200" />}
+                            {logisticRisk && <AlertTriangle className={`h-3 w-3 flex-shrink-0 ${event.type === "posa" ? "text-amber-500" : "text-yellow-200"}`} />}
                             {rischioPag && (
-                              <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                              <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
                             )}
                             {(event.type === "posa" || event.type === "lavoro") && (() => {
                               const empCount = event.order!.order_employees?.length ?? 0;
                               if (empCount === 0) return (
-                                <span className="ml-auto shrink-0 text-[9px] bg-red-500/80 rounded px-0.5">!</span>
+                                <span className="ml-auto shrink-0 text-[9px] bg-red-500/80 text-white rounded px-0.5">!</span>
                               );
                               return (
-                                <span className="ml-auto shrink-0 text-[9px] bg-white/20 rounded px-0.5">{empCount}op</span>
+                                <span className={`ml-auto shrink-0 text-[9px] rounded px-0.5 ${event.type === "posa" || event.type === "merce" ? "bg-black/10" : "bg-white/20"}`}>{empCount}op</span>
                               );
                             })()}
                           </button>

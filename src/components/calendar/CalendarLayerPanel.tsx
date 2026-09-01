@@ -417,26 +417,41 @@ export function CalendarLayerPanel({
       {/* Legenda colori */}
       <div className="pt-2 border-t border-border/50 space-y-1">
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">Legenda</p>
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.posa }}>
-            <Hammer className="h-2 w-2 text-white" />
-          </div>
-          <span className="text-[10px] text-muted-foreground">Data Posa Prevista</span>
-        </div>
-        {!isWorkScope && (
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.merce }}>
-              <Package className="h-2 w-2 text-white" />
-            </div>
-            <span className="text-[10px] text-muted-foreground">Arrivo Merce</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.lavoro }}>
-            <Wrench className="h-2 w-2 text-white" />
-          </div>
-          <span className="text-[10px] text-muted-foreground">Lavori in corso</span>
-        </div>
+        {(() => {
+          // Quando le barre sono colorate per commessa/squadra la tinta non
+          // identifica più il tipo: qui campioni NEUTRI che mostrano lo STILE
+          // (piena / bordata / tratteggiata). In modalità "tipo" i campioni
+          // riprendono i colori configurati sopra.
+          const perTipo = (colorMode ?? "tipo") === "tipo";
+          const cLavoro = perTipo ? eventColors.lavoro : "#475569";
+          const cPosa = perTipo ? eventColors.posa : "#475569";
+          const cMerce = perTipo ? eventColors.merce : "#475569";
+          return (
+            <>
+              <div className="flex items-center gap-1.5 px-1">
+                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: cLavoro }}>
+                  <Wrench className="h-2 w-2 text-white" />
+                </div>
+                <span className="text-[10px] text-muted-foreground">Lavori in corso — barra piena</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-1">
+                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${cPosa}1F`, boxShadow: `inset 0 0 0 1.5px ${cPosa}` }}>
+                  <Hammer className="h-2 w-2" style={{ color: cPosa }} />
+                </div>
+                <span className="text-[10px] text-muted-foreground">Data posa — chiara bordata</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-1">
+                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${cMerce}14`, border: `1.5px dashed ${cMerce}` }}>
+                  <Package className="h-2 w-2" style={{ color: cMerce }} />
+                </div>
+                <span className="text-[10px] text-muted-foreground">Arrivo merce — tratteggiata</span>
+              </div>
+              {!perTipo && (
+                <p className="px-1 text-[10px] text-muted-foreground/70">La tinta è {colorMode === "squadra" ? "della squadra" : "della commessa"}.</p>
+              )}
+            </>
+          );
+        })()}
         <div className="flex items-center gap-1.5 px-1">
           <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.appuntamento }}>
             <CalendarClock className="h-2 w-2 text-white" />
@@ -462,6 +477,22 @@ export function CalendarLayerPanel({
         <div className="flex items-center gap-1.5 px-1">
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
           <span className="text-[10px] text-muted-foreground">Rischio logistico</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <span className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold text-white">€</span>
+          <span className="text-[10px] text-muted-foreground">Acconto non incassato</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <span className="shrink-0 rounded bg-amber-500 px-1 text-[9px] font-bold text-white">€</span>
+          <span className="text-[10px] text-muted-foreground">Saldo da incassare (lavori chiusi)</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <span className="shrink-0 rounded bg-red-500/80 px-1 text-[9px] font-bold text-white">!</span>
+          <span className="text-[10px] text-muted-foreground">Nessun operaio assegnato</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-1">
+          <span className="shrink-0 rounded bg-slate-400 px-1 text-[9px] font-semibold text-white">2op</span>
+          <span className="text-[10px] text-muted-foreground">Operai assegnati</span>
         </div>
         {!isWorkScope && (
           <div className="flex items-center gap-1.5 px-1">
