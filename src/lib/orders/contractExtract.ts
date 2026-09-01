@@ -42,6 +42,8 @@ export interface ContractExtract {
   natura_documento: "contratto_cliente" | "offerta_fornitore" | "copia_commissione" | null;
   /** Codice ISO della valuta del documento (EUR, CHF, RON…); null se non indicata. */
   valuta: string | null;
+  /** Chi EMETTE il documento (per un'offerta fornitore: il produttore). */
+  fornitore_emittente: string | null;
   modalita_pagamento: string | null;
   fasi_pagamento: ContractExtractPhase[];
   data_inizio_lavori: string | null;
@@ -106,6 +108,7 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       const v = toStr(r.valuta)?.toUpperCase() ?? null;
       return v && /^[A-Z]{3}$/.test(v) ? v : null;
     })(),
+    fornitore_emittente: toStr(r.fornitore_emittente),
     modalita_pagamento: toStr(r.modalita_pagamento),
     fasi_pagamento: fasi
       .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")

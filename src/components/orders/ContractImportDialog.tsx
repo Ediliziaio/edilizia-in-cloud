@@ -8,6 +8,7 @@
 // (montaggio condizionale lato CreateOrder: nasce solo all'apertura)
 import { useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -142,6 +143,106 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const navigate = useNavigate();
+  const [creandoOda, setCreandoOda] = useState(false);
+
+  /**
+   * Ponte offerta fornitore → Ordine d'Acquisto (audit 2026-09, punto 3):
+   * quando l'AI riconosce l'offerta di un PRODUTTORE, le voci estratte
+   * diventano un OdA in bozza col fornitore agganciato (o creato) — invece
+   * di morire in un avviso. I prezzi entrano già scontati dello sconto
+   * rivenditore; imballaggio/trasporto come righe proprie.
+   */
+  const creaOdaDaOfferta = async () => {
+    if (!extract || !companyId || creandoOda) return;
+    if (extract.valuta && extract.valuta !== "EUR") {
+      toast.error(`L'offerta è in ${extract.valuta}: converti gli importi prima di creare l'OdA.`);
+      return;
+    }
+    const nomeFornitore = extract.fornitore_emittente?.trim();
+    if (!nomeFornitore) {
+      toast.error("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI (es. \"il fornitore è Termoplast\") e rianalizza.");
+      return;
+    }
+    setCreandoOda(true);
+    try {
+      // Find-or-create del fornitore per nome (esatto, case-insensitive).
+      const { data: esistenti } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .ilike("name", nomeFornitore);
+      let supplierId = esistenti?.find((s) => s.name?.trim().toLowerCase() === nomeFornitore.toLowerCase())?.id ?? esistenti?.[0]?.id ?? null;
+      if (!supplierId) {
+        const { data: nuovo, error: supErr } = await supabase
+          .from("suppliers")
+          .insert({ company_id: companyId, name: nomeFornitore } as never)
+          .select("id")
+          .single();
+        if (supErr) throw new Error(`Fornitore: ${supErr.message}`);
+        supplierId = (nuovo as { id: string }).id;
+        toast.success(`Fornitore "${nomeFornitore}" creato in anagrafica`);
+      }
+
+      const user = (await supabase.auth.getUser()).data.user;
+      const sconto = extract.sconto_globale_pct;
+      const { data: po, error: poErr } = await supabase
+        .from("purchase_orders")
+        .insert({
+          company_id: companyId,
+          supplier_id: supplierId,
+          created_by: user?.id,
+          notes:
+            `Generato dall'offerta "${file?.name ?? remoteFile?.name ?? "documento"}" (lettura AI)` +
+            (sconto != null ? ` — prezzi già scontati del ${sconto}%` : ""),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
+        .select()
+        .single();
+      if (poErr) throw poErr;
+      const poId = (po as { id: string }).id;
+
+      const fattoreSconto = sconto != null ? 1 - sconto / 100 : 1;
+      const ivaRiga = extract.iva_pct ?? 22;
+      const righe = [
+        ...extract.voci.map((v, idx) => ({
+          company_id: companyId,
+          purchase_order_id: poId,
+          description: v.descrizione,
+          quantity: v.quantita || 1,
+          unit_price: Math.round(v.prezzo_unitario_eur * fattoreSconto * 100) / 100,
+          vat_rate: ivaRiga,
+          discount_percent: 0,
+          unit_of_measure: "pz",
+          sort_order: idx,
+        })),
+        ...extract.altri_costi.map((a, idx) => ({
+          company_id: companyId,
+          purchase_order_id: poId,
+          description: a.descrizione,
+          quantity: 1,
+          unit_price: a.importo_eur,
+          vat_rate: ivaRiga,
+          discount_percent: 0,
+          unit_of_measure: "pz",
+          sort_order: extract.voci.length + idx,
+        })),
+      ];
+      if (righe.length > 0) {
+        const { error: riErr } = await supabase.from("purchase_order_items").insert(righe as never);
+        if (riErr) throw riErr;
+      }
+
+      toast.success("Ordine d'Acquisto creato in bozza dalle voci dell'offerta");
+      onOpenChange(false);
+      navigate(`/azienda/ordini-acquisto/${poId}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore creazione OdA");
+    } finally {
+      setCreandoOda(false);
     }
   };
 
@@ -334,9 +435,17 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               </div>
             )}
 
-            <div className="flex justify-between gap-2 pt-1">
+            <div className="flex flex-wrap justify-between gap-2 pt-1">
               <Button variant="outline" onClick={reset}>Ricarica un altro</Button>
-              <Button onClick={apply} className="gap-1"><CheckCircle2 className="h-4 w-4" /> Applica alla commessa</Button>
+              <div className="flex flex-wrap gap-2">
+                {extract.natura_documento === "offerta_fornitore" && (
+                  <Button variant="brand" onClick={creaOdaDaOfferta} disabled={creandoOda} className="gap-1">
+                    {creandoOda ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    Crea Ordine d'Acquisto
+                  </Button>
+                )}
+                <Button onClick={apply} className="gap-1"><CheckCircle2 className="h-4 w-4" /> Applica alla commessa</Button>
+              </div>
             </div>
           </div>
         )}
