@@ -115,7 +115,7 @@ export function ArticleCombobox({
       const sb = supabase as any;
       const [famRes, catRes, axesRes] = await Promise.all([
         sb.from("article_families")
-          .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
+          .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto, supplier_id")
           .eq("company_id", companyId!)
           .eq("attivo", true)
           .eq("mostra_preventivo", true)
@@ -175,7 +175,11 @@ export function ArticleCombobox({
             standard_cost: Number(f.prezzo_base_acquisto ?? 0),
             unit_of_measure: "pz",
             vat_rate: 22,
-            supplier_id: null,
+            // Il fornitore della famiglia viaggia con la scelta: cosi'
+            // l'articolo atterra nel pannello gia' raggruppato, senza il
+            // passaggio a mano "assegna il fornitore". Prima era cablato
+            // a null anche quando il listino lo conosceva.
+            supplier_id: f.supplier_id ?? null,
             description: f.descrizione,
             // Immagine propria della variante, fallback a quella della famiglia.
             immagine_url: v.immagine_url ?? f.immagine_url,
@@ -194,7 +198,7 @@ export function ArticleCombobox({
           standard_cost: Number(f.prezzo_base_acquisto ?? 0),
           unit_of_measure: "pz",
           vat_rate: 22,
-          supplier_id: null,
+          supplier_id: f.supplier_id ?? null,
           description: f.descrizione,
           immagine_url: f.immagine_url,
           pdf_scheda_url: null,

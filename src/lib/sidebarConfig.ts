@@ -6,7 +6,6 @@ import {
   TrendingUp,
   Receipt,
   Warehouse,
-  ShoppingCart,
   CalendarDays,
   CheckSquare,
   MessageSquare,
@@ -126,7 +125,9 @@ export const macroAreas: MacroArea[] = [
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       // Voce dedicata: gli ODA vivono in un tab dentro Commesse e prima non
       // erano raggiungibili da NESSUN menu — si scoprivano solo per caso.
-      { title: "Ordini d'Acquisto", url: "/azienda/ordini?tab=acquisto", icon: ShoppingCart, permissionKey: "canViewOrders", moduleKey: "orders" },
+      // "Ordini d'Acquisto" non e' piu' una voce di menu: vive come tab
+      // "acquisto" dentro Commesse (stessa destinazione a cui puntava questa
+      // voce). Doppia porta per lo stesso posto = menu piu' lungo e basta.
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori", featureKey: "subappaltatori" },
