@@ -12,6 +12,28 @@ import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + GPT-4o-mini.
+/**
+ * Toglie il recinto markdown attorno al JSON.
+ *
+ * Diversi modelli vision — Claude Haiku in testa, che e' il PRIMO della chain —
+ * rispondono incapsulando il JSON in un blocco ```json ... ```, anche quando il
+ * prompt chiede JSON puro. JSON.parse su quel testo lancia sempre, la QA di quel
+ * modello viene scartata e si passa al successivo: una chiamata sprecata e una
+ * decina di secondi persi su OGNI render, in tutti i moduli. Visto in prod il
+ * 01/09/2026 (json_parse_failed con raw che iniziava per "```json").
+ * Qui il recinto viene rimosso prima del parse; se non c'e', il testo passa
+ * invariato.
+ */
+function stripJsonFence(text: string): string {
+  const fence = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
+  if (fence) return fence[1].trim();
+  // Fallback: alcuni modelli aggiungono una frase prima/dopo il JSON.
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first >= 0 && last > first) return text.slice(first, last + 1).trim();
+  return text;
+}
+
 const VISION_MODELS_CHAIN = [
   "anthropic/claude-haiku-4.5",
   "openai/gpt-4o-mini",
@@ -76,7 +98,7 @@ export async function callVisionQa(
         },
       );
 
-      const text = (result.content ?? "").trim();
+      const text = stripJsonFence((result.content ?? "").trim());
       if (!text) {
         lastError = new Error(`Empty response from ${model}`);
         continue;

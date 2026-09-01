@@ -14,6 +14,8 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { BATHROOM_REWRITER_PROFILE } from "../_shared/ai-provider/bathroomRewriterProfile.ts";
 import { normalizeBathroomSceneAnalysis } from "../../../shared/render-bathroom/bathroomSceneAnalysis.ts";
 import type { BathroomPhotoMeta } from "../../../shared/render-bathroom/types.ts";
 
@@ -737,6 +739,58 @@ Deno.serve(async (req) => {
       };
 
       let composedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+      // META-PROMPT REWRITER (stesso path di qualita' degli infissi): un LLM
+      // testuale riscrive il config in prosa breve, che i modelli immagine
+      // rendono meglio dei blocchi di regole. Se fallisce, si resta sul prompt
+      // a blocchi qui sopra (fallback silenzioso). Il prompt effettivo viene
+      // salvato in render_bagno_sessions.prompt_usato per poter debuggare cosa
+      // e' stato davvero mandato al modello.
+      try {
+        const meta = await rewriteDomainPrompt(
+          {
+            config: {
+              configurazione: session.configurazione ?? {},
+              analisi_bagno: session.analisi_bagno ?? {},
+            },
+            metadata: {
+              task_kind: "render_prompt_rewrite",
+              company_id: session.company_id,
+              session_id,
+            },
+          },
+          BATHROOM_REWRITER_PROFILE,
+        );
+        if (meta) {
+          composedPrompt = [
+            "You are an expert photorealistic Italian bathroom-renovation render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+            meta.userPrompt,
+            "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, swatch rectangles, invented objects, extra or moved sanitary fixtures.",
+          ].join("\n\n");
+          try {
+            await supabase
+              .from("render_bagno_sessions")
+              .update({ prompt_usato: composedPrompt })
+              .eq("id", session_id);
+          } catch (_saveErr) { /* non bloccare il render */ }
+          console.log(JSON.stringify({
+            lvl: "info", fn: "generate-bathroom-render", session_id,
+            msg: "meta_prompt_active", rewriter_model: meta.modelUsed,
+            rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length,
+          }));
+        } else {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-bathroom-render", session_id,
+            msg: "meta_prompt_fallback_to_blocks",
+          }));
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-bathroom-render", session_id,
+          msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e),
+        }));
+      }
+
       let renderResult = await generateCandidate(composedPrompt);
       let generationAttempts = 1;
 
@@ -836,9 +890,37 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exactly ONE toilet, no duplicated fixtures, no leftover bathtub or shower after a conversion, no invented objects. Fix every violation listed above.`;
-          renderResult = await generateCandidate(composedPrompt);
+          // Il retry puo' PEGGIORARE: se il modello diretto va in timeout, la
+          // catena ripiega su OpenRouter che non rispetta il formato e
+          // restituisce un quadrato. Visto in prod: prima immagine 1536x1024
+          // corretta, retry correttivo -> 1024x1024, e il quadrato sostituiva
+          // quella buona. Si tiene il ritentativo solo se non rompe il formato.
+          const primoTentativo = renderResult;
+          const primoPayload = uploadPayload;
+          const primoDim = detectImageDimensions(primoPayload.bytes);
+          const primoOk = !describeFormatMismatch(sourceDimensions ?? null, primoDim);
+
+          const retryResult = await generateCandidate(composedPrompt);
           generationAttempts += 1;
-          uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
+          const retryPayload = dataUrlToBytes(retryResult.imageDataUrl);
+          const retryDim = detectImageDimensions(retryPayload.bytes);
+          const retryMismatch = describeFormatMismatch(sourceDimensions ?? null, retryDim);
+
+          if (retryMismatch && primoOk) {
+            console.warn(JSON.stringify({
+              fn: "generate-bathroom-render",
+              msg: "qa_retry_scartato_formato_peggiore",
+              session_id,
+              motivo: retryMismatch,
+              primo: primoDim ? `${primoDim.width}x${primoDim.height}` : null,
+              retry: retryDim ? `${retryDim.width}x${retryDim.height}` : null,
+            }));
+            renderResult = primoTentativo;
+            uploadPayload = primoPayload;
+          } else {
+            renderResult = retryResult;
+            uploadPayload = retryPayload;
+          }
         } else if (qaResult.checked && !qaResult.pass) {
           console.warn(JSON.stringify({
             fn: "generate-bathroom-render",

@@ -85,18 +85,23 @@ export function BeforeAfterSlider({
   // L'immagine generata (after) viene scalata via object-cover per matchare
   // l'altezza del container — eventuali zone in eccesso vengono croppate
   // (non c'e' più letterbox bianco/nero che generava lo "scroll effect").
+  // Il container prende il rapporto della foto originale (before). Il render
+  // (after) ora ESCE nello stesso formato della sorgente, quindi combacia.
+  // Per i render vecchi generati quadrati, si usa comunque object-contain:
+  // meglio una banda ai lati che vedere mezzo bagno tagliato via da
+  // object-cover — il render e' il contenuto che il cliente deve valutare, non
+  // deve mai essere croppato.
   const aspectRatio = beforeRatio;
-  // Detection: se il render ha aspect MOLTO diverso (>15%) usiamo cover per
-  // l'after invece di contain. Sotto questa soglia contain rende meglio.
   const ratioMismatch =
     beforeRatio !== undefined && afterRatio !== undefined
       ? Math.abs(beforeRatio - afterRatio) / beforeRatio
       : 0;
-  const afterObjectFit = ratioMismatch > 0.15 ? "object-cover" : "object-contain";
-  // Container aspect ratio = beforeRatio. Before image always fits with contain.
-  // After image may need cover if its native ratio differs significantly.
+  // Se i formati sono quasi uguali, contain e cover coincidono. Se differiscono
+  // (render vecchio quadrato), contain mostra tutto senza tagliare.
+  const afterObjectFit = "object-contain";
   const baseObjectFit = beforeOnLeft ? afterObjectFit : "object-contain";
   const overlayObjectFit = beforeOnLeft ? "object-contain" : afterObjectFit;
+  void ratioMismatch;
 
   // Precarica il render e ritenta sui 404 transitori da propagazione CDN.
   useEffect(() => {

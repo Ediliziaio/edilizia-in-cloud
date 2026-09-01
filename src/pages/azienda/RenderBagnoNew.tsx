@@ -29,6 +29,7 @@ import { RenderResultRefinementPanel } from "@/components/render/RenderResultRef
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { preloadImage } from "@/lib/render/preloadImage";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
@@ -1005,14 +1006,25 @@ export default function RenderBagnoNew() {
           )}
 
           {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Button variant="outline" className="gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
-              Scarica
+              <span className="hidden sm:inline">Scarica</span>
             </Button>
+            {/* PDF prima/dopo brandizzato — lo stesso componente dei dettagli
+                galleria degli altri verticali; nel wizard bagno mancava. */}
+            <RenderPdfDownloadButton
+              beforeUrl={photoPreview}
+              afterUrl={resultUrl}
+              title="Render Bagno"
+              subtitle="Confronto prima / dopo"
+              filename={`render_bagno_${Date.now()}.pdf`}
+              variant="outline"
+              className="gap-2"
+            />
             <Button variant="outline" className="gap-2" onClick={shareWhatsApp}>
               <Share2 className="h-4 w-4" />
-              WhatsApp
+              <span className="hidden sm:inline">WhatsApp</span>
             </Button>
           </div>
 

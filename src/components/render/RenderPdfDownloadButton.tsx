@@ -75,7 +75,8 @@ export function RenderPdfDownloadButton({
       ) : (
         <FileDown className="h-4 w-4 mr-2" />
       )}
-      Scarica PDF
+      <span className="hidden sm:inline">Scarica PDF</span>
+      <span className="sm:hidden">PDF</span>
     </Button>
   );
 }

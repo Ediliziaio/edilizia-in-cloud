@@ -53,14 +53,15 @@ export function RenderCreditGate({
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["render-credits", companyId],
     queryFn: async () => {
-      if (!companyId) return 0;
+      if (!companyId) return { balance: 0, unlimited: false };
       const { data, error } = await supabase
         .from("render_credits")
-        .select("balance")
+        .select("balance, unlimited")
         .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
-      return (data as { balance?: number } | null)?.balance ?? 0;
+      const row = data as { balance?: number; unlimited?: boolean } | null;
+      return { balance: row?.balance ?? 0, unlimited: row?.unlimited === true };
     },
     enabled: !!companyId,
     staleTime: 30_000,
@@ -92,9 +93,13 @@ export function RenderCreditGate({
     );
   }
 
-  const balance = data ?? 0;
-  const isBlocked = balance <= blockBelow;
-  const isWarn    = !isBlocked && balance <= warnBelow;
+  const balance = data?.balance ?? 0;
+  // Aziende a render illimitati: il saldo non viene consumato, quindi non deve
+  // mai bloccare ne' allarmare. Senza questo, un'azienda con unlimited=true e
+  // saldo 0 vedeva "Crediti render esauriti" pur potendo generare.
+  const unlimited = data?.unlimited === true;
+  const isBlocked = !unlimited && balance <= blockBelow;
+  const isWarn    = !unlimited && !isBlocked && balance <= warnBelow;
 
   return (
     <>

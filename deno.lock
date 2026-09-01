@@ -10170,6 +10170,7 @@
         "npm:@tanstack/react-query@^5.100.14",
         "npm:@tanstack/react-virtual@^3.13.25",
         "npm:@telnyx/webrtc@^2.27.1",
+        "npm:@testing-library/dom@^10.4.1",
         "npm:@testing-library/jest-dom@^6.9.1",
         "npm:@testing-library/react@^16.3.2",
         "npm:@tiptap/extension-link@^3.23.6",

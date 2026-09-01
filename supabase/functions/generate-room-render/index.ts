@@ -8,9 +8,12 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import { detectImageDimensions } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -246,7 +249,48 @@ Deno.serve(async (req: Request) => {
         normalizedConfig,
         validation,
       } = buildRoomPrompt(cfg, session.config_snapshot, photoMeta);
-      const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      let fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+      // META-PROMPT REWRITER (stesso path di qualita' degli infissi): un LLM
+      // testuale riscrive il config in prosa breve, che i modelli immagine
+      // rendono meglio dei blocchi di regole. Fallback silenzioso al prompt a
+      // blocchi qui sopra se fallisce. Applicato PRIMA dello store, cosi'
+      // prompt_used riflette cio' che e' stato davvero mandato al modello.
+      try {
+        const meta = await rewriteDomainPrompt(
+          {
+            config: { config: cfg, analisi: session.config_snapshot ?? {} },
+            metadata: {
+              task_kind: "render_prompt_rewrite",
+              company_id: companyId as string,
+              session_id,
+            },
+          },
+          ROOM_REWRITER_PROFILE,
+        );
+        if (meta) {
+          fullPrompt = [
+            "You are an expert photorealistic Italian interior-restyling render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+            meta.userPrompt,
+            "Avoid: cartoon, painterly, fake CGI, dollhouse view, warped geometry, invented windows/doors, floating catalog objects.",
+          ].join("\n\n");
+          console.log(JSON.stringify({
+            lvl: "info", fn: "generate-room-render", session_id,
+            msg: "meta_prompt_active", rewriter_model: meta.modelUsed,
+            rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length,
+          }));
+        } else {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-room-render", session_id,
+            msg: "meta_prompt_fallback_to_blocks",
+          }));
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-room-render", session_id,
+          msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e),
+        }));
+      }
 
       // Store prompt
       await supabase
@@ -273,6 +317,30 @@ Deno.serve(async (req: Request) => {
       }
       const imgBlob = await imgResp.blob();
 
+      // RETE DI SICUREZZA SUL FORMATO. Le dimensioni della sorgente arrivano
+      // solo da target_width/target_height nel body: il frontend le calcola da
+      // img.naturalWidth, ma le invia solo se l'immagine si e' caricata. Se
+      // mancano, pickOpenAISize non ha nulla su cui decidere e produce un
+      // 1024x1024 quadrato da una foto landscape — il modello ricompone la
+      // scena per riempire il quadrato e perde soffitto, aperture e
+      // inquadratura. Qui le ricaviamo dai byte, come fa gia' il render bagno.
+      let srcW = prepared.effective_width ?? target_width ?? undefined;
+      let srcH = prepared.effective_height ?? target_height ?? undefined;
+      if (!srcW || !srcH) {
+        try {
+          const probe = new Uint8Array(await imgBlob.slice(0, 65536).arrayBuffer());
+          const dim = detectImageDimensions(probe);
+          if (dim) {
+            srcW = dim.width;
+            srcH = dim.height;
+            console.log(JSON.stringify({
+              lvl: "info", fn: "generate-room-render", session_id,
+              msg: "source_dimensions_detected_from_bytes", width: srcW, height: srcH,
+            }));
+          }
+        } catch (_e) { /* niente: si resta sul default */ }
+      }
+
       // F1-parity (audit 16/07) — Budget deadline-aware: il timeout fisso
       // 180s (con retry interni) superava il cap 150s dell'isolate →
       // sessione zombie + credito perso. 1 tentativo per tier, timeout
@@ -289,9 +357,8 @@ Deno.serve(async (req: Request) => {
         return editImage({
           prompt,
           sourceImageBlob: imgBlob,
-          effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
-          effectiveHeight: prepared.effective_height ?? target_height ??
-            undefined,
+          effectiveWidth: srcW,
+          effectiveHeight: srcH,
           openaiQuality: "medium",
           timeoutMs: perAttemptTimeout,
           maxRetries: 0,

@@ -514,9 +514,34 @@ async function callOpenRouterImage(
   // Converti sourceImageBlob → data URL se necessario
   const sourceDataUrl = await ensureSourceDataUrl(args.params);
 
-  const fullPrompt = args.params.negativePrompt
-    ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
-    : args.params.prompt;
+  // FORMATO DELL'OUTPUT — il ramo OpenRouter passa da chat/completions e non
+  // ha un parametro `size` come il ramo OpenAI diretto. Senza dirlo, il modello
+  // produce un 1024x1024 quadrato anche da una foto landscape: per riempire il
+  // quadrato ricompone la scena, e il risultato perde il soffitto, sposta la
+  // finestra e reinventa le pareti — cioe' esattamente cio' che un render di
+  // ristrutturazione non deve fare. Visto in prod il 01/09/2026: sorgente
+  // 1024x683 (3:2), render restituito 1024x1024.
+  // Qui il vincolo viene messo nel prompt, che e' l'unico canale disponibile
+  // su questo ramo, usando lo stesso mapping del ramo diretto.
+  const targetSize = pickOpenAISize(
+    args.params.effectiveWidth,
+    args.params.effectiveHeight,
+  );
+  const [tw, th] = targetSize.split("x").map((n) => parseInt(n, 10));
+  const orient = tw > th ? "landscape" : tw < th ? "portrait" : "square";
+  const formatDirective = [
+    `[OUTPUT FORMAT — MANDATORY]`,
+    `Return the image at ${targetSize} pixels (${orient}, aspect ratio ${(tw / th).toFixed(2)}:1).`,
+    `Keep the SAME framing, camera angle and crop as the source photo: same walls, same ceiling and floor visible, same amount of scene.`,
+    `Do NOT recompose, do NOT zoom in or out, do NOT crop away the ceiling or any part visible in the source, do NOT add padding or bars.`,
+  ].join("\n");
+
+  const fullPrompt = [
+    args.params.negativePrompt
+      ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
+      : args.params.prompt,
+    formatDirective,
+  ].join("\n\n");
 
   // v8.3.3 — Multi-image input via OpenRouter content array
   const contentParts: Array<Record<string, unknown>> = [
