@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,11 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+ } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Trash2, Link2, ShieldCheck, RefreshCw, Server, CheckCircle2, XCircle, AlertTriangle, Activity,
-  BookOpen, ExternalLink,
-} from "lucide-react";
+  BookOpen, ExternalLink, Send, Settings2 } from "lucide-react";
 import RulesManager from "./RulesManager";
 
 const MAX_NUMBERS = 10;
@@ -507,6 +507,38 @@ function NumberRow({
   const [weeklyCap, setWeeklyCap] = useState(String(number.weekly_cap ?? 40));
   const [minGap, setMinGap] = useState(String(number.min_gap_seconds ?? 45));
   const [saving, setSaving] = useState(false);
+  // Impostazioni chiuse per default: con dieci numeri, tre campi aperti per
+  // ciascuno rendono la pagina un chilometro di moduli.
+  const [impostazioniAperte, setImpostazioniAperte] = useState(false);
+  // Prova di invio: dopo aver collegato un numero l'unico modo di sapere se
+  // funziona davvero era aspettare la prima campagna.
+  const [provaAperta, setProvaAperta] = useState(false);
+  const [provaA, setProvaA] = useState("");
+  const [provaTesto, setProvaTesto] = useState("Messaggio di prova da Edilizia in Cloud.");
+  const [inviando, setInviando] = useState(false);
+
+  async function inviaProva() {
+    const destinatario = provaA.replace(/[^\d+]/g, "");
+    if (destinatario.replace(/\D/g, "").length < 8) {
+      toast.error("Scrivi il numero del destinatario con il prefisso, es. +39 333 1234567");
+      return;
+    }
+    setInviando(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("openwa-gateway", {
+        body: { action: "send_text", to: destinatario, text: provaTesto, number_id: number.id },
+      });
+      if (error) throw new Error(await edgeErrorMessage(error, "Invio non riuscito"));
+      if ((data as { error?: string })?.error) throw new Error(String((data as { error?: string }).error));
+      toast.success("Messaggio inviato: controlla il telefono del destinatario");
+      setProvaAperta(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Invio non riuscito");
+    } finally {
+      setInviando(false);
+    }
+  }
 
   const dirty = useMemo(() => {
     const parsed = tagsText.split(",").map((t) => t.trim()).filter(Boolean);
@@ -553,18 +585,44 @@ function NumberRow({
           {number.numero && <span className="text-sm text-muted-foreground">{number.numero}</span>}
           {statoBadge(number.stato)}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            Oggi {sentToday}/{effCap}
+            Oggi {sentToday} messagg{sentToday === 1 ? "io" : "i"} su {effCap}
           </span>
           {warming && (
-            <Badge variant="outline" className="text-[10px]">warm-up · target {number.daily_cap}</Badge>
+            <Badge
+              variant="outline"
+              className="text-[10px]"
+              title={`Numero nuovo: oggi può mandarne ${effCap}. Il limite sale da solo ogni giorno fino a ${number.daily_cap}, così WhatsApp non lo blocca.`}
+            >
+              in riscaldamento · si arriva a {number.daily_cap}
+            </Badge>
           )}
-          <Button variant="ghost" size="sm" onClick={onDisconnect} disabled={disconnecting}>
+          {number.stato === "connected" && (
+            <Button variant="outline" size="sm" onClick={() => setProvaAperta(true)}>
+              <Send className="mr-1 h-3.5 w-3.5" /> Prova
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setImpostazioniAperte((v) => !v)}
+            title="Tag, limiti e pausa"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDisconnect} disabled={disconnecting} title="Scollega numero">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
+      {warming && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Numero nuovo: oggi può mandarne {effCap}. Il tetto cresce da solo ogni giorno
+          fino a {number.daily_cap} — è così che si evita il blocco.
+        </p>
+      )}
+      {impostazioniAperte && (
       <div className="mt-3 space-y-2">
         <div className="space-y-1">
           <Label className="text-xs">Tag (separati da virgola)</Label>
@@ -592,6 +650,42 @@ function NumberRow({
           </Button>
         </div>
       </div>
+      )}
+
+      <Dialog open={provaAperta} onOpenChange={setProvaAperta}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invio di prova da {number.display_name || number.numero}</DialogTitle>
+            <DialogDescription>
+              Manda un messaggio a un numero che conosci — il tuo, per esempio — per
+              vedere se questo numero funziona davvero.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Numero destinatario</Label>
+              <Input
+                placeholder="+39 333 1234567"
+                value={provaA}
+                onChange={(e) => setProvaA(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Testo</Label>
+              <Input value={provaTesto} onChange={(e) => setProvaTesto(e.target.value)} />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              La prova conta nel tetto giornaliero di questo numero e ignora la fascia oraria.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProvaAperta(false)}>Annulla</Button>
+            <Button onClick={inviaProva} disabled={inviando}>
+              {inviando ? "Invio…" : "Invia"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
