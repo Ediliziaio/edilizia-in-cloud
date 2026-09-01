@@ -1245,6 +1245,24 @@ function AddAssignmentDialog({
   // e quelle aziendali generiche — mai i prezzi delle altre squadre, che
   // suggerirebbero il costo sbagliato.
   const squadraSelezionata = tipo === "esterno" ? executorId : "";
+  /** Varianti di costo per squadra: "questa lavorazione, fatta da questa
+      squadra, costa X". Una sola query per company: la tabella e' piccola. */
+  const { data: varianti = [] } = useQuery({
+    queryKey: ["tariffa-costi-varianti", companyId],
+    enabled: open && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null }>> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("tariffa_costi_varianti")
+        .select("id, tariffa_id, external_team_id, nome, costo, is_default, attivo, sort_order")
+        .eq("company_id", companyId);
+      return data ?? [];
+    },
+  });
+  /** Variante scelta a mano quando la squadra ne ha piu' d'una. */
+  const [varianteId, setVarianteId] = useState("");
+
   const tariffeAttive = tariffe
     .filter((t) => t.attiva ?? t.attivo ?? true)
     .filter((t) => !t.external_team_id || t.external_team_id === squadraSelezionata)
@@ -1255,12 +1273,23 @@ function AddAssignmentDialog({
     });
   const tariffaSel = tariffeAttive.find((t) => t.id === tariffaId) ?? null;
 
+  /** Varianti valide per la tariffa scelta e la squadra scelta. */
+  const variantiSquadra = tariffaSel && squadraSelezionata
+    ? varianti
+        .filter((v) => v.tariffa_id === tariffaSel.id && v.external_team_id === squadraSelezionata && v.attivo !== false)
+        .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    : [];
+  const varianteSel = variantiSquadra.find((v) => v.id === varianteId) ?? variantiSquadra[0] ?? null;
+  /** Il costo che vale davvero: variante della squadra se c'e', altrimenti base. */
+  const costoUnitarioEffettivo = varianteSel?.costo ?? tariffaSel?.prezzo_costo ?? null;
+
   // Applica costo (e nota, se vuota) da tariffa × quantità. Il campo resta
   // modificabile: il listino è un prefill, non un vincolo.
-  const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string) => {
+  const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string, costoUnit?: number | null) => {
     if (!t) return;
     const qty = Math.max(0, parseFloat(qtyRaw) || 0);
-    const costo = (Number(t.prezzo_costo) || 0) * qty;
+    const unit = costoUnit ?? costoUnitarioEffettivo ?? (Number(t.prezzo_costo) || 0);
+    const costo = (Number(unit) || 0) * qty;
     setPrev(costo.toFixed(2));
     setNotes((n) =>
       n.trim() === "" || /^Listino: /.test(n)
@@ -1350,8 +1379,14 @@ function AddAssignmentDialog({
                   value={tariffaSel ? tariffaId : ""}
                   onValueChange={(v) => {
                     setTariffaId(v);
+                    setVarianteId("");
                     const t = tariffeAttive.find((x) => x.id === v) ?? null;
-                    applyTariffa(t, tariffaQty);
+                    // risolvo al volo: lo stato non e' ancora aggiornato
+                    const vs = t && squadraSelezionata
+                      ? varianti.filter((x) => x.tariffa_id === t.id && x.external_team_id === squadraSelezionata && x.attivo !== false)
+                          .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                      : [];
+                    applyTariffa(t, tariffaQty, vs[0]?.costo ?? t?.prezzo_costo ?? null);
                   }}
                 >
                   <SelectTrigger className="h-9 flex-1">
@@ -1373,15 +1408,42 @@ function AddAssignmentDialog({
                   value={tariffaQty}
                   onChange={(e) => {
                     setTariffaQty(e.target.value);
-                    applyTariffa(tariffaSel, e.target.value);
+                    applyTariffa(tariffaSel, e.target.value, costoUnitarioEffettivo);
                   }}
                   className="h-9 w-20"
                   aria-label="Quantità"
                 />
               </div>
+              {/* La squadra ha piu' varianti di questa lavorazione (es. su
+                  nuovo / con smontaggio): la scelta e' esplicita. Con una sola
+                  variante si applica da sola. */}
+              {variantiSquadra.length > 1 && (
+                <Select
+                  value={varianteSel?.id ?? ""}
+                  onValueChange={(v) => {
+                    setVarianteId(v);
+                    const vr = variantiSquadra.find((x) => x.id === v);
+                    applyTariffa(tariffaSel, tariffaQty, vr?.costo ?? null);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Variante della squadra…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {variantiSquadra.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.nome} · {eur.format(Number(v.costo) || 0)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {tariffaSel && (
                 <p className="text-[11px] text-muted-foreground">
-                  Costo {eur.format(Number(tariffaSel.prezzo_costo) || 0)}
+                  {varianteSel ? (
+                    <>Variante <strong className="text-foreground">{varianteSel.nome}</strong>: </>
+                  ) : null}
+                  Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
                   {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} → preventivo{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
                   {Number(tariffaSel.prezzo_vendita) > 0 && (
@@ -1444,7 +1506,18 @@ function AddAssignmentDialog({
           {/* Executor picker */}
           <div className="space-y-1.5">
             <Label>{tipo === "interno" ? "Operaio" : "Squadra / subappalto"}</Label>
-            <Select value={executorId} onValueChange={setExecutorId}>
+            <Select value={executorId} onValueChange={(v) => {
+              setExecutorId(v);
+              setVarianteId("");
+              if (tariffaSel) {
+                const squadra = tipo === "esterno" ? v : "";
+                const vs = squadra
+                  ? varianti.filter((x) => x.tariffa_id === tariffaSel.id && x.external_team_id === squadra && x.attivo !== false)
+                      .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                  : [];
+                applyTariffa(tariffaSel, tariffaQty, vs[0]?.costo ?? tariffaSel.prezzo_costo ?? null);
+              }
+            }}>
               <SelectTrigger>
                 <SelectValue
                   placeholder={

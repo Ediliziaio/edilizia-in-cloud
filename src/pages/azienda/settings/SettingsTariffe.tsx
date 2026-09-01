@@ -582,7 +582,7 @@ function TariffaDialog({
           </div>
 
           {/* Tipo + Unità */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 items-start">
             <div>
               <Label>Tipo</Label>
               <Select value={tipo} onValueChange={(v) => {
@@ -604,25 +604,6 @@ function TariffaDialog({
               </p>
             </div>
 
-          {/* Di chi e' questo listino: aziendale (generico) o di una squadra.
-              La voce di una squadra compare nel dialog manodopera SOLO quando
-              si sceglie quella squadra. */}
-          {squadre.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Listino di</Label>
-              <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Listino aziendale (generico)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
-                  {squadre.map((sq) => (
-                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
             <div>
               <Label>
                 Unità di fatturazione
@@ -647,6 +628,25 @@ function TariffaDialog({
                 </SelectContent>
               </Select>
             </div>
+          {/* Di chi e' questo listino: aziendale (generico) o di una squadra.
+              La voce di una squadra compare nel dialog manodopera SOLO quando
+              si sceglie quella squadra. */}
+          {squadre.length > 0 && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Listino di</Label>
+              <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Listino aziendale (generico)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                  {squadre.map((sq) => (
+                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           </div>
 
           {/* Vertical + Attivo */}
