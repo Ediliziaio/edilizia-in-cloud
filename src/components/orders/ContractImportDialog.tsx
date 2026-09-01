@@ -43,6 +43,10 @@ function fmtBytes(b: number): string {
 
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply }: Props) {
   const [file, setFile] = useState<File | null>(null);
+  // Indicazioni scritte dall'utente per l'AI ("l'IVA è al 10%", "è un'offerta
+  // fornitore, il cliente finale è Rossi"): chi carica conosce il documento
+  // meglio del modello — le note entrano nel prompt con priorità.
+  const [noteAi, setNoteAi] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +80,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
           mime_type: file.type || "application/pdf",
           company_id: companyId,
           doc_type: "contratto_commessa",
+          user_hint: noteAi.trim() || undefined,
         },
       });
       if (fnErr) throw new Error(fnErr.message || "Analisi AI fallita");
@@ -140,6 +145,22 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
                   <p className="text-xs text-muted-foreground mt-1">PDF o immagine — max {fmtBytes(MAX_SIZE)}</p>
                 </>
               )}
+            </div>
+
+            {/* Note per l'AI: chi carica sa cose che il documento non dice
+                chiaramente. Entrano nel prompt con priorità sulle deduzioni. */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="note-ai-contratto">
+                Indicazioni per l'AI (facoltative)
+              </label>
+              <textarea
+                id="note-ai-contratto"
+                value={noteAi}
+                onChange={(e) => setNoteAi(e.target.value.slice(0, 600))}
+                rows={2}
+                placeholder={"Es. L'IVA è al 10% · È un'offerta del fornitore, il cliente finale è Rossi · I prezzi sono per pezzo, non totali"}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
             </div>
 
             {error && (

@@ -175,14 +175,18 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = await req.json();
-    const { storage_bucket, storage_path, file_name, mime_type, company_id, doc_type } = body as {
+    const { storage_bucket, storage_path, file_name, mime_type, company_id, doc_type, user_hint } = body as {
       storage_bucket?: string;
       storage_path?: string;
       file_name?: string;
       mime_type?: string;
       company_id?: string;
       doc_type?: string;
+      /** Indicazioni scritte dall'utente per guidare l'estrazione (es. "l'IVA
+       *  è al 10%", "è un'offerta fornitore, il cliente finale è Rossi"). */
+      user_hint?: string;
     };
+    const hintPulito = typeof user_hint === "string" ? user_hint.trim().slice(0, 600) : "";
     if (!storage_bucket || !storage_path || !file_name || !company_id || !doc_type) {
       return errorResponse("storage_bucket, storage_path, file_name, company_id, doc_type required", 400, cors);
     }
@@ -205,7 +209,14 @@ Deno.serve(async (req) => {
     const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userContent: any[] = [
-      { type: "text", text: `Estrai i dati di questo documento (${doc_type}). Nome file: "${file_name}".` },
+      {
+        type: "text",
+        text:
+          `Estrai i dati di questo documento (${doc_type}). Nome file: "${file_name}".` +
+          (hintPulito
+            ? `\n\nINDICAZIONI DELL'UTENTE (chi carica conosce il documento: seguile, hanno priorita' sulle tue deduzioni):\n${hintPulito}`
+            : ""),
+      },
     ];
     if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
@@ -222,6 +233,8 @@ Deno.serve(async (req) => {
       file_name,
       mime_type ?? null,
       doc_type,
+      // Note diverse → estrazione diversa: l'hint entra nella chiave.
+      hintPulito || null,
     ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
