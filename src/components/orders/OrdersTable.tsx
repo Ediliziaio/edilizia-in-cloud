@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Link } from "react-router-dom";
-import { Eye, Pencil, Trash2, X, ChevronDown, HardHat } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, Pencil, Trash2, X, ChevronDown, HardHat, MoreVertical } from "lucide-react";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
@@ -32,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
@@ -98,7 +99,18 @@ export const OrdersTable = React.memo(function OrdersTable({
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
 
+  const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Conferma eliminazione a livello componente (prima ogni riga montava il suo
+  // AlertDialog dentro la cella azioni).
+  const [confirmDelete, setConfirmDelete] = useState<OrderWithDetails | null>(null);
+
+  /** Tutta la riga apre la commessa — tranne i controlli veri (checkbox, menu, link). */
+  const rowClick = (orderId: string) => (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, input, [role="checkbox"], [role="menu"], [role="menuitem"], [role="dialog"]')) return;
+    navigate(`/azienda/ordini/${orderId}`);
+  };
 
   const useVirtual = sortedItems.length > 50;
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
@@ -290,7 +302,10 @@ export const OrdersTable = React.memo(function OrdersTable({
       )}
 
       <div className="overflow-x-auto">
-        <Table>
+        {/* Celle compatte (audit UX 2026-09): il p-4 di default = 32px di sola
+            aria per riga; con gli a-capo le righe arrivavano a 93px. Ora ~52px,
+            in linea con l'estimateSize=56 del virtualizer (prima mentiva). */}
+        <Table className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">
@@ -347,6 +362,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                 <TableRow
                   key={vr.key}
                   data-state={isSelected ? "selected" : undefined}
+                  onClick={rowClick(order.id)}
+                  className="cursor-pointer"
                   style={useVirtual ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vr.start}px)` } : undefined}
                 >
                   <TableCell>
@@ -382,9 +399,11 @@ export const OrdersTable = React.memo(function OrdersTable({
                   </TableCell>
                   {visibleColumns.has("customer") && (
                     <TableCell className="hidden sm:table-cell">
-                      {order.customer
-                        ? `${order.customer.first_name} ${order.customer.last_name}`
-                        : "—"}
+                      <span className="block max-w-[160px] truncate" title={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}>
+                        {order.customer
+                          ? `${order.customer.first_name} ${order.customer.last_name}`
+                          : "—"}
+                      </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("totalIvato") && (
@@ -443,17 +462,23 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("salesperson") && (
                     <TableCell className="hidden xl:table-cell text-sm">
-                      {(salespeopleMap.get(order.id) || []).join(", ") || "—"}
+                      <span className="block max-w-[140px] truncate" title={(salespeopleMap.get(order.id) || []).join(", ") || undefined}>
+                        {(salespeopleMap.get(order.id) || []).join(", ") || "—"}
+                      </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("labor") && (
                     <TableCell className="hidden xl:table-cell text-sm">
-                      {(laborMap.get(order.id) || []).join(", ") || "—"}
+                      <span className="block max-w-[140px] truncate" title={(laborMap.get(order.id) || []).join(", ") || undefined}>
+                        {(laborMap.get(order.id) || []).join(", ") || "—"}
+                      </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("supplier") && (
                     <TableCell className="hidden xl:table-cell text-sm">
-                      {(supplierMap.get(order.id) || []).join(", ") || "—"}
+                      <span className="block max-w-[140px] truncate" title={(supplierMap.get(order.id) || []).join(", ") || undefined}>
+                        {(supplierMap.get(order.id) || []).join(", ") || "—"}
+                      </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("expected_date") && (
@@ -488,8 +513,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                           OK
                         </Badge>
                       ) : (
-                        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0">
-                          {pending.join(", ")}
+                        <Badge className="max-w-[150px] bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0" title={pending.join(", ")}>
+                          <span className="truncate">{pending.join(", ")}</span>
                         </Badge>
                       )}
                     </TableCell>
@@ -510,45 +535,29 @@ export const OrdersTable = React.memo(function OrdersTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to={`/azienda/ordini/${order.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to={`/azienda/ordini/${order.id}/modifica`}>
-                          <Pencil className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" disabled={isDeleting}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminazione sicura commessa</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Sei sicuro di voler eliminare la commessa{" "}
-                              <strong>{order.order_code || order.description}</strong>?
-                              <br />
-                              Se esistono fatture, costi o scadenze collegate, il sistema blocchera l'eliminazione per proteggere report e storico.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => onDelete(order.id)}
-                            >
-                              Elimina
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni commessa ${order.order_code || order.description || ""}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${order.id}`)}>
+                          <Eye className="h-4 w-4 mr-2" />Apri
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${order.id}/modifica`)}>
+                          <Pencil className="h-4 w-4 mr-2" />Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          disabled={isDeleting}
+                          onClick={() => setConfirmDelete(order)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               );
@@ -557,6 +566,33 @@ export const OrdersTable = React.memo(function OrdersTable({
         </Table>
       </div>
       </div>{/* end hidden sm:block */}
+
+      {/* Conferma eliminazione unica, pilotata dal menu ⋮ delle righe. */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminazione sicura commessa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare la commessa{" "}
+              <strong>{confirmDelete?.order_code || confirmDelete?.description}</strong>?
+              <br />
+              Se esistono fatture, costi o scadenze collegate, il sistema blocchera l'eliminazione per proteggere report e storico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmDelete) onDelete(confirmDelete.id);
+                setConfirmDelete(null);
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 });
