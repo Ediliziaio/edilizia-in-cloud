@@ -41,7 +41,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, orderColor, type CalendarEventColorKey, type CalendarColorMode } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, orderColor, type CalendarEventColorKey, type CalendarColorMode, type CalendarAvvisiPagamento } from "@/lib/calendarUtils";
 
 type CalendarEmployee = {
   id: string;
@@ -144,6 +144,12 @@ function CalendarInner() {
       return team.color || orderColor(team.id);
     };
   }, [colorMode]);
+  // Avvisi pagamento sulle barre: tutti, solo i rossi (acconto non incassato
+  // — l'ambra dei saldi a lavori chiusi può affollare il mese), o spenti.
+  const [avvisiPagamento, setAvvisiPagamento] = useState<CalendarAvvisiPagamento>(() => {
+    const a = savedPrefs.avvisiPagamento;
+    return a === "tutti" || a === "rossi" || a === "off" ? a : "tutti";
+  });
   // Il colore squadra è dell'AZIENDA (tutti lo vedono uguale), quindi vive
   // su external_teams e non nelle preferenze locali del browser.
   const onTeamColorChange = useCallback(async (teamId: string, color: string) => {
@@ -201,11 +207,12 @@ function CalendarInner() {
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
         eventColors,
         colorMode,
+        avvisiPagamento,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds, eventColors, colorMode]);
+  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds, eventColors, colorMode, avvisiPagamento]);
 
   // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
@@ -308,12 +315,18 @@ function CalendarInner() {
   });
 
   const orders = useMemo(() => {
-    if (!scopertiMap || scopertiMap.size === 0) return ordersRaw;
+    // Il filtro avvisi si applica QUI, a monte: le viste ricevono solo i
+    // pagamenti_scoperti da mostrare e non devono sapere del filtro.
+    if (avvisiPagamento === "off" || !scopertiMap || scopertiMap.size === 0) return ordersRaw;
     return ordersRaw.map((o) => {
-      const sc = scopertiMap.get(o.id);
-      return sc && (sc.acconto_eur > 0 || sc.saldo_eur > 0) ? { ...o, pagamenti_scoperti: sc } : o;
+      const raw = scopertiMap.get(o.id);
+      if (!raw) return o;
+      // "Solo rossi": l'ambra nasce dal saldo → azzerandolo resta solo
+      // l'avviso acconto (rosso), senza toccare la logica nelle viste.
+      const sc = avvisiPagamento === "rossi" ? { acconto_eur: raw.acconto_eur, saldo_eur: 0 } : raw;
+      return sc.acconto_eur > 0 || sc.saldo_eur > 0 ? { ...o, pagamenti_scoperti: sc } : o;
     });
-  }, [ordersRaw, scopertiMap]);
+  }, [ordersRaw, scopertiMap, avvisiPagamento]);
 
   // Fetch all profiles for the company (small, cached)
   const { data: companyProfiles = [] } = useQuery({
@@ -1370,6 +1383,8 @@ function CalendarInner() {
                 colorMode={colorMode}
                 onColorModeChange={setColorMode}
                 onTeamColorChange={onTeamColorChange}
+                avvisiPagamento={avvisiPagamento}
+                onAvvisiPagamentoChange={setAvvisiPagamento}
               />
             </div>
           </SheetContent>
@@ -1628,6 +1643,8 @@ function CalendarInner() {
             colorMode={colorMode}
             onColorModeChange={setColorMode}
             onTeamColorChange={onTeamColorChange}
+            avvisiPagamento={avvisiPagamento}
+            onAvvisiPagamentoChange={setAvvisiPagamento}
           />
         )}
       </div>

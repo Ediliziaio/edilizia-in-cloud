@@ -54,6 +54,9 @@ export function getCalendarEventStyle(color: string, opacity = "22") {
 /** Come colorare le barre lavoro: per tipo evento, per commessa o per squadra. */
 export type CalendarColorMode = "tipo" | "commessa" | "squadra";
 
+/** Quali avvisi pagamento mostrare sulle barre: tutti, solo i rossi, nessuno. */
+export type CalendarAvvisiPagamento = "tutti" | "rossi" | "off";
+
 export const ORDER_COLOR_PALETTE = [
   "#2563EB", // blu
   "#0D9488", // teal

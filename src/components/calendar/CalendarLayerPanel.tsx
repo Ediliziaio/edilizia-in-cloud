@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings, Target } from "lucide-react";
-import { DEFAULT_CALENDAR_EVENT_COLORS, orderColor, type CalendarEventColorKey, type CalendarEventColors, type CalendarColorMode } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, orderColor, type CalendarEventColorKey, type CalendarEventColors, type CalendarColorMode, type CalendarAvvisiPagamento } from "@/lib/calendarUtils";
 
 interface Employee {
   id: string;
@@ -67,6 +67,9 @@ interface CalendarLayerPanelProps {
   onColorModeChange?: (mode: CalendarColorMode) => void;
   /** Colore squadra: salvato sull'azienda, lo vedono tutti uguale. */
   onTeamColorChange?: (teamId: string, color: string) => void;
+  /** Avvisi pagamento (€) sulle barre: tutti, solo i rossi, o spenti. */
+  avvisiPagamento?: CalendarAvvisiPagamento;
+  onAvvisiPagamentoChange?: (v: CalendarAvvisiPagamento) => void;
 }
 
 export function CalendarLayerPanel({
@@ -105,6 +108,8 @@ export function CalendarLayerPanel({
   colorMode,
   onColorModeChange,
   onTeamColorChange,
+  avvisiPagamento,
+  onAvvisiPagamentoChange,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
   const isWorkScope = scope === "work";
@@ -387,6 +392,26 @@ export function CalendarLayerPanel({
                   </p>
                 </div>
               )}
+              {avvisiPagamento && onAvvisiPagamentoChange && (
+                <div className="space-y-1 pb-1">
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Avvisi pagamento (€)</p>
+                  <div className="grid grid-cols-3 gap-1 px-1">
+                    {([["tutti", "Tutti"], ["rossi", "Solo rossi"], ["off", "Off"]] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => onAvvisiPagamentoChange(value)}
+                        className={`rounded border px-1 py-1 text-[10px] font-medium transition-colors ${avvisiPagamento === value ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="px-1 text-[10px] text-muted-foreground">
+                    {avvisiPagamento === "tutti" ? "Acconti non incassati (rosso) e saldi a lavori chiusi (ambra)." : avvisiPagamento === "rossi" ? "Solo i lavori che partono senza acconto incassato." : "Nessun avviso € sulle barre."}
+                  </p>
+                </div>
+              )}
               <ColorRow label="Data posa" value={eventColors.posa} onChange={(color) => onEventColorChange?.("posa", color)} />
               <ColorRow label="Lavori" value={eventColors.lavoro} onChange={(color) => onEventColorChange?.("lavoro", color)} />
               <ColorRow label="Appuntamenti" value={eventColors.appuntamento} onChange={(color) => onEventColorChange?.("appuntamento", color)} />
@@ -478,14 +503,18 @@ export function CalendarLayerPanel({
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
           <span className="text-[10px] text-muted-foreground">Rischio logistico</span>
         </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <span className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold text-white">€</span>
-          <span className="text-[10px] text-muted-foreground">Acconto non incassato</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <span className="shrink-0 rounded bg-amber-500 px-1 text-[9px] font-bold text-white">€</span>
-          <span className="text-[10px] text-muted-foreground">Saldo da incassare (lavori chiusi)</span>
-        </div>
+        {avvisiPagamento !== "off" && (
+          <div className="flex items-center gap-1.5 px-1">
+            <span className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold text-white">€</span>
+            <span className="text-[10px] text-muted-foreground">Acconto non incassato</span>
+          </div>
+        )}
+        {(avvisiPagamento ?? "tutti") === "tutti" && (
+          <div className="flex items-center gap-1.5 px-1">
+            <span className="shrink-0 rounded bg-amber-500 px-1 text-[9px] font-bold text-white">€</span>
+            <span className="text-[10px] text-muted-foreground">Saldo da incassare (lavori chiusi)</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5 px-1">
           <span className="shrink-0 rounded bg-red-500/80 px-1 text-[9px] font-bold text-white">!</span>
           <span className="text-[10px] text-muted-foreground">Nessun operaio assegnato</span>
