@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,7 +97,10 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: Use
         body.new_password = newPassword.trim();
       }
       const { data, error } = await supabase.functions.invoke("reset-customer-password", { body });
-      if (error) throw error;
+      // Il messaggio vero della funzione sta nel body, non in error.message:
+      // senza questo passaggio l'utente legge solo "Edge Function returned a
+      // non-2xx status code" e non sa se è un permesso, un ruolo o altro.
+      if (error) throw new Error(await edgeErrorMessage(error, "Impossibile impostare la password."));
       const pwd = newPassword.trim() || data?.temporaryPassword;
       if (pwd) {
         setGeneratedPassword(pwd);
