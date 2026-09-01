@@ -282,8 +282,58 @@ function CreateOrderInner() {
     setSelectedQuoteId(qid);
   };
 
+  // Famiglie del listino prodotti con prezzo al mq: servono all'import
+  // contratto per prezzare le voci dalle DIMENSIONI (L×H → mq × €/mq del
+  // listino, vendita e acquisto) invece di lasciarle a zero.
+  const { data: famiglieMq = [] } = useQuery({
+    queryKey: ["families-mq-import", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("article_families")
+        .select("id, nome, codice, modalita_prezzo_base, prezzo_base_vendita, prezzo_base_acquisto, vat_rate")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("attivo", true)
+        .is("deleted_at", null)
+        .eq("modalita_prezzo_base", "mq");
+      return data ?? [];
+    },
+  });
+
+  /** Da "Confort PF2A 1270x2520 T05 Cassonetto" a famiglia+prezzi del listino:
+   *  PF* = portafinestra, F* = finestra (i codici modello del fornitore), le
+   *  dimensioni in mm danno i mq, il listino al mq da' vendita e costo. */
+  const mappaVoceSuListino = (descrizione: string) => {
+    const dims = descrizione.match(/(\d{2,4})\s*[xX×]\s*(\d{2,4})/);
+    if (!dims) return null;
+    const larghezza_mm = Number(dims[1]);
+    const altezza_mm = Number(dims[2]);
+    if (!larghezza_mm || !altezza_mm) return null;
+    const isPortafinestra = /\bPF\w*\b|porta\s*finestra/i.test(descrizione);
+    const isFinestra = isPortafinestra || /\bF\d?\w?\b|finestr/i.test(descrizione);
+    if (!isFinestra) return null;
+    const fam = famiglieMq.find((f) =>
+      isPortafinestra ? /portafinestra/i.test(f.nome) : (/finestra/i.test(f.nome) && !/portafinestra/i.test(f.nome)),
+    );
+    if (!fam) return null;
+    const mq = Math.round((larghezza_mm / 1000) * (altezza_mm / 1000) * 10000) / 10000;
+    const vendita = fam.prezzo_base_vendita ? Math.round(mq * Number(fam.prezzo_base_vendita) * 100) / 100 : null;
+    const acquisto = fam.prezzo_base_acquisto ? Math.round(mq * Number(fam.prezzo_base_acquisto) * 100) / 100 : null;
+    return { fam, larghezza_mm, altezza_mm, mq, vendita, acquisto };
+  };
+
   // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
-  const applyContractExtract = (ex: ContractExtract) => {
+  const applyContractExtract = (ex: ContractExtract, sourceFile?: File | null) => {
+    // Il contratto firmato va nei Documenti della commessa: entra nei file in
+    // coda (non visibile al cliente) e viene caricato alla creazione.
+    if (sourceFile) {
+      setPendingFiles((prev) =>
+        prev.some((p) => p.file.name === sourceFile.name && p.file.size === sourceFile.size)
+          ? prev
+          : [...prev, { file: sourceFile, visibleToCustomer: false }],
+      );
+    }
     if (ex.descrizione_lavori) {
       // Il contratto descrive i lavori con un paragrafo intero ("chiavi in
       // mano" incluso): come TITOLO della commessa diventava un h1 di sette
@@ -309,18 +359,29 @@ function CreateOrderInner() {
     if (imp != null) setValue("total_amount", formatDecimalIT(imp));
     if (ex.iva_pct != null) setValue("vat_rate", String(ex.iva_pct));
     if (ex.voci.length > 0) {
-      setOrderItems(ex.voci.map((v, idx) => ({
-        name: v.descrizione,
-        quantity: v.quantita || 1,
-        status: "da_ordinare",
-        position: idx,
-        unit_price: v.prezzo_unitario_eur,
-        vat_rate: ex.iva_pct ?? undefined,
-        family_id: null,
-        axis_selections: null,
-        misure_preventivo: null,
-        measure_status: null,
-      })));
+      // Le righe "Totale infissi / Totale accessori" sono subtotali del
+      // contratto, non merce: come articoli confondevano e doppiavano.
+      const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
+      setOrderItems(vociVere.map((v, idx) => {
+        const match = mappaVoceSuListino(v.descrizione ?? "");
+        return {
+          name: v.descrizione,
+          quantity: v.quantita || 1,
+          status: "da_ordinare",
+          position: idx,
+          // Prezzi dal LISTINO al mq quando la voce ha dimensioni e famiglia
+          // riconosciute; altrimenti quello letto dal contratto.
+          unit_price: match?.vendita ?? v.prezzo_unitario_eur,
+          purchase_price: match?.acquisto ?? undefined,
+          vat_rate: match?.fam.vat_rate != null ? Number(match.fam.vat_rate) : (ex.iva_pct ?? undefined),
+          family_id: match?.fam.id ?? null,
+          axis_selections: null,
+          misure_preventivo: match
+            ? { larghezza_mm: match.larghezza_mm, altezza_mm: match.altezza_mm, mq: match.mq }
+            : null,
+          measure_status: null,
+        };
+      }));
     }
     const insts = contractToInstallments(ex, imp ?? 0);
     if (insts.length > 0) setInstallments(prefillExpectedDates(insts));

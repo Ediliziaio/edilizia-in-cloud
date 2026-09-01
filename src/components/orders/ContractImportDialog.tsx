@@ -26,7 +26,9 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companyId: string | null;
-  onApply: (extract: ContractExtract) => void;
+  /** Il file originale viaggia insieme all'estratto: il contratto firmato
+   *  deve finire nei Documenti della commessa, non sparire dopo la lettura. */
+  onApply: (extract: ContractExtract, sourceFile?: File | null) => void;
 }
 
 function safeName(name: string): string {
@@ -89,7 +91,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply }:
 
   const apply = () => {
     if (!extract) return;
-    onApply(extract);
+    onApply(extract, file);
     onOpenChange(false);
     toast.success("Dati del contratto applicati alla commessa. Rivedi e salva.");
   };
