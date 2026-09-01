@@ -41,7 +41,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, type CalendarEventColorKey } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, orderColor, type CalendarEventColorKey, type CalendarColorMode } from "@/lib/calendarUtils";
 
 type CalendarEmployee = {
   id: string;
@@ -126,6 +126,35 @@ function CalendarInner() {
   const setEventColor = useCallback((key: CalendarEventColorKey, color: string) => {
     setEventColors(prev => ({ ...prev, [key]: color }));
   }, []);
+  // Colore delle barre lavoro: per COMMESSA (default: con 6 cantieri aperti
+  // il verde unico non dice quale striscia è quale), per SQUADRA (chi ci
+  // lavora), o per TIPO evento (il comportamento storico coi colori sotto).
+  const [colorMode, setColorMode] = useState<CalendarColorMode>(() => {
+    const m = savedPrefs.colorMode;
+    if (m === "tipo" || m === "commessa" || m === "squadra") return m;
+    return savedPrefs.colorByOrder === false ? "tipo" : "commessa";
+  });
+  const orderColorFn = useMemo(() => {
+    if (colorMode === "tipo") return undefined;
+    if (colorMode === "commessa") return (o: CalendarOrder) => orderColor(o.id);
+    return (o: CalendarOrder) => {
+      const team = o.order_external_teams?.[0]?.external_team;
+      // Senza squadra: grigio neutro — sul calendario si vede subito chi è scoperto.
+      if (!team) return "#94A3B8";
+      return team.color || orderColor(team.id);
+    };
+  }, [colorMode]);
+  // Il colore squadra è dell'AZIENDA (tutti lo vedono uguale), quindi vive
+  // su external_teams e non nelle preferenze locali del browser.
+  const onTeamColorChange = useCallback(async (teamId: string, color: string) => {
+    const { error } = await supabase.from("external_teams").update({ color } as never).eq("id", teamId);
+    if (error) {
+      toast.error("Colore squadra non salvato");
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["external-teams-filter"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.list(effectiveCompany?.id) });
+  }, [queryClient, effectiveCompany?.id]);
   const { showPosa, showLavoro, showAppuntamento, showAppuntamentoCommerciale, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
   // Robusto contro localStorage corrotto o di vecchie versioni: SOLO un array
   // diventa un Set; qualsiasi altro valore (stringa, numero, oggetto, ecc.)
@@ -171,11 +200,12 @@ function CalendarInner() {
         visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
         eventColors,
+        colorMode,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds, eventColors]);
+  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds, eventColors, colorMode]);
 
   // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
@@ -191,7 +221,7 @@ function CalendarInner() {
     return d.toISOString().slice(0, 10);
   }, [currentDate]);
 
-  const { data: orders = [], isLoading, isError } = useQuery({
+  const { data: ordersRaw = [], isLoading, isError } = useQuery({
     queryKey: [...queryKeys.calendarOrders.list(effectiveCompany?.id), calendarRangeStart, calendarRangeEnd],
     queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
@@ -215,7 +245,7 @@ function CalendarInner() {
             customer:profiles!orders_customer_id_fkey(first_name, last_name),
             status:order_statuses!orders_current_status_id_fkey(name, color),
             order_employees(employee:employees(id, first_name, last_name)),
-            order_external_teams(external_team:external_teams(id, name))
+            order_external_teams(external_team:external_teams(id, name, color))
           `)
           .eq("company_id", effectiveCompany.id)
           .or(`work_start_date.lte.${calendarRangeEnd},expected_date.lte.${calendarRangeEnd},warehouse_arrival_date.lte.${calendarRangeEnd}`)
@@ -244,6 +274,46 @@ function CalendarInner() {
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
+
+  // Rate cliente NON incassate delle commesse in vista: alimentano l'avviso
+  // "stai iniziando un lavoro ma il cliente non ha pagato" (acconto scoperto)
+  // e "lavori chiusi, saldo da incassare". Solo i tipi cliente-dovuti:
+  // il financing lo paga la finanziaria dopo la fine, non è un ritardo.
+  const orderIdsKey = useMemo(() => ordersRaw.map((o) => o.id).sort().join(","), [ordersRaw]);
+  const { data: scopertiMap } = useQuery({
+    queryKey: ["calendar-installments-scoperti", effectiveCompany?.id, orderIdsKey],
+    enabled: !!effectiveCompany?.id && ordersRaw.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const ids = ordersRaw.map((o) => o.id);
+      const out = new Map<string, { acconto_eur: number; saldo_eur: number }>();
+      // .in() con centinaia di id regge; il calendario carica max 1000 ordini.
+      for (let i = 0; i < ids.length; i += 400) {
+        const { data, error } = await supabase
+          .from("order_installments")
+          .select("order_id, type, amount, is_paid")
+          .in("order_id", ids.slice(i, i + 400))
+          .eq("is_paid", false)
+          .in("type", ["deposit", "balance"]);
+        if (error) throw error;
+        for (const r of (data ?? []) as { order_id: string; type: string; amount: number | null }[]) {
+          const cur = out.get(r.order_id) ?? { acconto_eur: 0, saldo_eur: 0 };
+          if (r.type === "deposit") cur.acconto_eur += Number(r.amount || 0);
+          else cur.saldo_eur += Number(r.amount || 0);
+          out.set(r.order_id, cur);
+        }
+      }
+      return out;
+    },
+  });
+
+  const orders = useMemo(() => {
+    if (!scopertiMap || scopertiMap.size === 0) return ordersRaw;
+    return ordersRaw.map((o) => {
+      const sc = scopertiMap.get(o.id);
+      return sc && (sc.acconto_eur > 0 || sc.saldo_eur > 0) ? { ...o, pagamenti_scoperti: sc } : o;
+    });
+  }, [ordersRaw, scopertiMap]);
 
   // Fetch all profiles for the company (small, cached)
   const { data: companyProfiles = [] } = useQuery({
@@ -653,7 +723,7 @@ function CalendarInner() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("external_teams")
-        .select("id, name")
+        .select("id, name, color")
         .eq("company_id", effectiveCompany.id)
         .eq("is_active", true)
         .order("name");
@@ -1297,6 +1367,9 @@ function CalendarInner() {
                 eventColors={eventColors}
                 onEventColorChange={setEventColor}
                 onResetEventColors={() => setEventColors(DEFAULT_CALENDAR_EVENT_COLORS)}
+                colorMode={colorMode}
+                onColorModeChange={setColorMode}
+                onTeamColorChange={onTeamColorChange}
               />
             </div>
           </SheetContent>
@@ -1439,6 +1512,7 @@ function CalendarInner() {
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
               eventColors={eventColors}
+              orderColorFn={orderColorFn}
               onOpenDay={(date) => {
                 setCurrentDate(date);
                 setView("day");
@@ -1461,6 +1535,7 @@ function CalendarInner() {
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
               eventColors={eventColors}
+              orderColorFn={orderColorFn}
             />
           ) : view === "day" ? (
             <CalendarDayView
@@ -1479,6 +1554,7 @@ function CalendarInner() {
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
               eventColors={eventColors}
+              orderColorFn={orderColorFn}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
@@ -1498,6 +1574,7 @@ function CalendarInner() {
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
               appointments={filteredAppointments}
+              orderColorFn={orderColorFn}
             />
           )}
         </div>
@@ -1548,6 +1625,9 @@ function CalendarInner() {
             eventColors={eventColors}
             onEventColorChange={setEventColor}
             onResetEventColors={() => setEventColors(DEFAULT_CALENDAR_EVENT_COLORS)}
+            colorMode={colorMode}
+            onColorModeChange={setColorMode}
+            onTeamColorChange={onTeamColorChange}
           />
         )}
       </div>

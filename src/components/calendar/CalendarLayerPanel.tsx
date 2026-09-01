@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings, Target } from "lucide-react";
-import { DEFAULT_CALENDAR_EVENT_COLORS, type CalendarEventColorKey, type CalendarEventColors } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, orderColor, type CalendarEventColorKey, type CalendarEventColors, type CalendarColorMode } from "@/lib/calendarUtils";
 
 interface Employee {
   id: string;
@@ -23,6 +23,7 @@ const AREA_LABELS: Record<string, { label: string; emoji: string }> = {
 interface ExternalTeam {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 interface CalendarLayerPanelProps {
@@ -61,6 +62,11 @@ interface CalendarLayerPanelProps {
   eventColors?: CalendarEventColors;
   onEventColorChange?: (key: CalendarEventColorKey, color: string) => void;
   onResetEventColors?: () => void;
+  /** Come colorare le barre lavoro: per commessa, per squadra o per tipo. */
+  colorMode?: CalendarColorMode;
+  onColorModeChange?: (mode: CalendarColorMode) => void;
+  /** Colore squadra: salvato sull'azienda, lo vedono tutti uguale. */
+  onTeamColorChange?: (teamId: string, color: string) => void;
 }
 
 export function CalendarLayerPanel({
@@ -96,6 +102,9 @@ export function CalendarLayerPanel({
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
   onEventColorChange,
   onResetEventColors,
+  colorMode,
+  onColorModeChange,
+  onTeamColorChange,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
   const isWorkScope = scope === "work";
@@ -248,7 +257,17 @@ export function CalendarLayerPanel({
                         onCheckedChange={() => onToggleTeam(team.id)}
                         className="h-3.5 w-3.5"
                       />
-                      <span className="text-[11px] truncate">{team.name}</span>
+                      <span className="text-[11px] truncate flex-1">{team.name}</span>
+                      {onTeamColorChange && (
+                        <input
+                          type="color"
+                          value={team.color || orderColor(team.id)}
+                          onChange={(e) => onTeamColorChange(team.id, e.target.value)}
+                          className="h-4 w-5 shrink-0 cursor-pointer rounded border bg-transparent p-0"
+                          title={`Colore squadra ${team.name}`}
+                          aria-label={`Colore squadra ${team.name}`}
+                        />
+                      )}
                     </div>
                   ))}
                   {search && filteredTeams.length === 0 && (
@@ -348,6 +367,26 @@ export function CalendarLayerPanel({
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-1 pt-1">
+              {colorMode && onColorModeChange && (
+                <div className="space-y-1 pb-1">
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Colora le barre per</p>
+                  <div className="grid grid-cols-3 gap-1 px-1">
+                    {([["commessa", "Commessa"], ["squadra", "Squadra"], ["tipo", "Tipo"]] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => onColorModeChange(value)}
+                        className={`rounded border px-1 py-1 text-[10px] font-medium transition-colors ${colorMode === value ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="px-1 text-[10px] text-muted-foreground">
+                    {colorMode === "commessa" ? "Ogni cantiere ha la sua tinta fissa." : colorMode === "squadra" ? "Il colore della squadra assegnata; grigio = senza squadra." : "I colori per tipo di evento qui sotto."}
+                  </p>
+                </div>
+              )}
               <ColorRow label="Data posa" value={eventColors.posa} onChange={(color) => onEventColorChange?.("posa", color)} />
               <ColorRow label="Lavori" value={eventColors.lavoro} onChange={(color) => onEventColorChange?.("lavoro", color)} />
               <ColorRow label="Appuntamenti" value={eventColors.appuntamento} onChange={(color) => onEventColorChange?.("appuntamento", color)} />

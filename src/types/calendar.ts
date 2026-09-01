@@ -29,8 +29,14 @@ export interface CalendarOrder {
     external_team: {
       id: string;
       name: string;
+      color?: string | null;
     };
   }>;
+  /** Rate cliente non incassate (arricchito dal Calendar, non dal DB). */
+  pagamenti_scoperti?: {
+    acconto_eur: number;
+    saldo_eur: number;
+  };
 }
 
 export type { OrderStatus } from "@/lib/orderUtils";

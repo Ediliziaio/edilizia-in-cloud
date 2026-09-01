@@ -65,6 +65,7 @@ interface CalendarWeekViewProps {
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
   eventColors?: CalendarEventColors;
+  orderColorFn?: (order: CalendarOrder) => string;
 }
 
 // ── Draggable wrapper ──
@@ -102,6 +103,7 @@ export function CalendarWeekView({
   interventi = [],
   manutenzioni = [],
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
+  orderColorFn,
 }: CalendarWeekViewProps) {
   const queryClient = useQueryClient();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -287,7 +289,7 @@ export function CalendarWeekView({
     const content = (
       <div
         className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground"
-        style={getCalendarEventStyle(colorMap[evt.type] || eventColors.appuntamento)}
+        style={getCalendarEventStyle((evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ?? colorMap[evt.type] ?? eventColors.appuntamento)}
         onClick={() => o && setEditingOrder(o)}
       >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}

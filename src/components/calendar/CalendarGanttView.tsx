@@ -57,6 +57,7 @@ interface CalendarGanttViewProps {
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
   appointments?: CalendarAppointment[];
+  orderColorFn?: (order: CalendarOrder) => string;
 }
 
 const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; minBarWidth: number; label: string }> = {
@@ -87,6 +88,7 @@ export function CalendarGanttView({
   interventi = [],
   manutenzioni = [],
   appointments = [],
+  orderColorFn,
 }: CalendarGanttViewProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -219,6 +221,11 @@ export function CalendarGanttView({
   };
 
   const getOrderColor = (order: CalendarOrder) => {
+    // Modalità colore scelta nel pannello (per commessa / per squadra):
+    // vince sulla vecchia logica per stato, così il Gantt parla la stessa
+    // lingua delle altre viste.
+    const fromMode = orderColorFn?.(order);
+    if (fromMode) return fromMode;
     if (order.status?.color) return order.status.color;
     const today = new Date();
     const orderStart = order.work_start_date

@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/tooltip";
 import { UsersRound } from "lucide-react";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import { hasLogisticRisk } from "@/lib/calendarUtils";
+import { hasLogisticRisk, rischioPagamenti } from "@/lib/calendarUtils";
+import { formatCurrency } from "@/lib/formatters";
 import { calculateLeadTime } from "./LeadTimeStats";
 import type { CalendarOrder } from "@/types/calendar";
 
@@ -56,6 +57,7 @@ export function DraggableOrderBar({
   const duration = differenceInDays(bar.orderEnd, bar.orderStart) + 1;
 
   const logisticRisk = hasLogisticRisk(order);
+  const rischioPag = rischioPagamenti(order);
   const externalTeamNames = order.order_external_teams
     ?.map((aet) => aet.external_team.name)
     .join(", ");
@@ -122,6 +124,9 @@ export function DraggableOrderBar({
                   {order.order_code || order.description.slice(0, 20)}
                 </span>
               ) : null}
+              {rischioPag && (
+                <span className={`ml-auto shrink-0 rounded px-1 text-[10px] font-bold ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+              )}
             </div>
           </button>
         </TooltipTrigger>
@@ -159,6 +164,11 @@ export function DraggableOrderBar({
             {leadTime !== null && (
               <p className="text-xs font-medium">
                 Lead Time: {leadTime} giorni
+              </p>
+            )}
+            {rischioPag && (
+              <p className={`text-xs font-medium ${rischioPag.livello === "rosso" ? "text-red-500" : "text-amber-500"}`}>
+                ⚠️ {rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}
               </p>
             )}
             <p className="text-xs text-primary mt-1">Clicca per modificare le date</p>

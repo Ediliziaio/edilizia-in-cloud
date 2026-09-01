@@ -62,6 +62,7 @@ interface CalendarDayViewProps {
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
   eventColors?: CalendarEventColors;
+  orderColorFn?: (order: CalendarOrder) => string;
 }
 
 export function CalendarDayView({
@@ -79,6 +80,7 @@ export function CalendarDayView({
   interventi = [],
   manutenzioni = [],
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
+  orderColorFn,
 }: CalendarDayViewProps) {
   const queryClient = useQueryClient();
   const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -335,7 +337,7 @@ export function CalendarDayView({
               <div
                 key={idx}
                 className="text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer border-l-2"
-                style={getCalendarEventStyle(colorMap[evt.type] || eventColors.appuntamento)}
+                style={getCalendarEventStyle((evt.type === "lavoro" && o ? orderColorFn?.(o) : undefined) ?? colorMap[evt.type] ?? eventColors.appuntamento)}
                 onClick={() => o && setEditingOrder(o)}
               >
                 {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}

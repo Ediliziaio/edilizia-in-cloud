@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
+import { formatCurrency } from "@/lib/formatters";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
@@ -64,6 +65,9 @@ interface CalendarMonthViewProps {
   manutenzioni?: CalendarManutenzione[];
   onOpenDay?: (date: Date) => void;
   eventColors?: CalendarEventColors;
+  /** Colore per COMMESSA (toggle "un colore per commessa"): se presente, le
+   *  strisce lavoro lo usano al posto del verde unico di tipo. */
+  orderColorFn?: (order: CalendarOrder) => string;
 }
 
 export function CalendarMonthView({
@@ -83,6 +87,7 @@ export function CalendarMonthView({
   manutenzioni = [],
   onOpenDay,
   eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
+  orderColorFn,
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -139,7 +144,7 @@ export function CalendarMonthView({
         while (cursor <= rangeEnd) {
           const dateStr = format(cursor, "yyyy-MM-dd");
           if (dateStr !== posaDate && dateStr !== merceDate) {
-            addEvent(dateStr, { type: "lavoro", order, color: eventColors.lavoro });
+            addEvent(dateStr, { type: "lavoro", order, color: orderColorFn?.(order) ?? eventColors.lavoro });
           }
           cursor.setDate(cursor.getDate() + 1);
         }
@@ -181,7 +186,7 @@ export function CalendarMonthView({
       });
     }
     return map;
-  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days, eventColors]);
+  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days, eventColors, orderColorFn]);
 
   const getEventsForDay = (day: Date): CalendarEvent[] => {
     return eventsByDate.get(format(day, "yyyy-MM-dd")) || [];
@@ -528,6 +533,7 @@ export function CalendarMonthView({
                     }
                     if (!event.order) return null;
                     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
+                    const rischioPag = (event.type === "lavoro" || event.type === "posa") ? rischioPagamenti(event.order) : null;
                     const initials = getEmployeeInitials(event.order);
                     const whInfo = event.type === "merce" && warehouseInfo ? warehouseInfo.get(event.order.id) : undefined;
 
@@ -554,6 +560,9 @@ export function CalendarMonthView({
                               {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
                             </span>
                             {logisticRisk && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-yellow-200" />}
+                            {rischioPag && (
+                              <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                            )}
                             {(event.type === "posa" || event.type === "lavoro") && (() => {
                               const empCount = event.order!.order_employees?.length ?? 0;
                               if (empCount === 0) return (
@@ -623,6 +632,12 @@ export function CalendarMonthView({
                                   <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
                                     <AlertTriangle className="h-3 w-3" />
                                     {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
+                                  </div>
+                                )}
+                                {rischioPag && (
+                                  <div className={`flex items-center gap-1 text-xs font-medium ${rischioPag.livello === "rosso" ? "text-red-500" : "text-amber-500"}`}>
+                                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                                    <span>{rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}</span>
                                   </div>
                                 )}
                                 {event.type === "merce" && whInfo && (

@@ -45,6 +45,73 @@ export function getCalendarEventStyle(color: string, opacity = "22") {
   };
 }
 
+/**
+ * Un colore stabile PER COMMESSA (stile Google Calendar): con tutte le barre
+ * dello stesso verde non si distingue quale striscia è quale cantiere. Hash
+ * dell'id → tinta fissa: la stessa commessa ha lo stesso colore ovunque e
+ * per sempre. Tinte scure a sufficienza per il testo bianco dei chip.
+ */
+/** Come colorare le barre lavoro: per tipo evento, per commessa o per squadra. */
+export type CalendarColorMode = "tipo" | "commessa" | "squadra";
+
+export const ORDER_COLOR_PALETTE = [
+  "#2563EB", // blu
+  "#0D9488", // teal
+  "#7C3AED", // viola
+  "#DB2777", // magenta
+  "#EA580C", // arancione
+  "#16A34A", // verde
+  "#0891B2", // ciano
+  "#9333EA", // porpora
+  "#B45309", // ambra scura
+  "#DC2626", // rosso
+  "#4F46E5", // indaco
+  "#65A30D", // lime scuro
+] as const;
+
+export function orderColor(orderId: string): string {
+  let h = 0;
+  for (let i = 0; i < orderId.length; i++) h = (h * 31 + orderId.charCodeAt(i)) >>> 0;
+  return ORDER_COLOR_PALETTE[h % ORDER_COLOR_PALETTE.length];
+}
+
+/** Rate cliente non incassate della commessa, aggregate per momento dovuto. */
+export interface PagamentiScoperti {
+  /** Acconti (type 'deposit') non pagati: dovevano entrare PRIMA dell'inizio. */
+  acconto_eur: number;
+  /** Saldi (type 'balance') non pagati. */
+  saldo_eur: number;
+}
+
+export interface RischioPagamento {
+  livello: "rosso" | "ambra";
+  messaggio: string;
+  importo_eur: number;
+}
+
+/**
+ * "Sto iniziando un lavoro ma il cliente non ha ancora pagato" — la regola:
+ * acconto scoperto = rosso sempre (l'acconto per definizione precede l'inizio);
+ * saldo scoperto = ambra solo a lavori finiti (prima è fisiologico).
+ */
+export function rischioPagamenti(order: CalendarOrder, oggi = new Date()): RischioPagamento | null {
+  const sc = order.pagamenti_scoperti;
+  if (!sc) return null;
+  if (sc.acconto_eur > 0) {
+    const iniziato = !!order.work_start_date && order.work_start_date <= oggi.toLocaleDateString("en-CA");
+    return {
+      livello: "rosso",
+      messaggio: iniziato ? "Lavoro avviato senza acconto incassato" : "Il lavoro parte ma l'acconto non è stato incassato",
+      importo_eur: sc.acconto_eur,
+    };
+  }
+  const finito = !!order.work_end_date && order.work_end_date < oggi.toLocaleDateString("en-CA");
+  if (sc.saldo_eur > 0 && finito) {
+    return { livello: "ambra", messaggio: "Lavori chiusi, saldo da incassare", importo_eur: sc.saldo_eur };
+  }
+  return null;
+}
+
 export function hasLogisticRisk(order: CalendarOrder): boolean {
   if (!order.expected_date) return false;
   if (!order.warehouse_arrival_date) return true;
