@@ -8,6 +8,7 @@
 // Tutti i render AI (infissi, bagno, facciata, pavimento, etc.) passano qui.
 
 import { type AIProviderError, makeAIError } from "./types.ts";
+import { expectedOutputSize } from "../imageDimensions.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_IMAGES_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
@@ -964,14 +965,10 @@ function pickOpenAISize(w?: number, h?: number): string {
   //   1536x1024 → landscape
   // Scegliamo quello con ratio piu' vicino alla source per minimizzare il
   // crop visivo finale.
-  if (!w || !h) return "1024x1024";
-  const ratio = w / h;
-  // ratio < 0.8 = portrait alto → 1024x1536 (ratio 0.666)
-  // 0.8 <= ratio < 1.25 = quadrato-ish → 1024x1024
-  // ratio >= 1.25 = landscape → 1536x1024 (ratio 1.5)
-  if (ratio < 0.8) return "1024x1536";
-  if (ratio > 1.25) return "1536x1024";
-  return "1024x1024";
+  // La scelta vive in _shared/imageDimensions.ts: la stessa mappa serve alle
+  // edge function per sapere quale formato ASPETTARSI dal render.
+  const size = expectedOutputSize(w, h);
+  return `${size.width}x${size.height}`;
 }
 
 function buildOpenAIPrompt(params: ImageEditParams): string {

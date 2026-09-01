@@ -72,3 +72,83 @@ export function detectImageDimensions(
 
   return null;
 }
+
+/**
+ * Orientamento di un'immagine dalle sue dimensioni.
+ */
+export function orientationFromDimensions(
+  width: number,
+  height: number,
+): "portrait" | "landscape" | "square" {
+  if (width === height) return "square";
+  return width > height ? "landscape" : "portrait";
+}
+
+/**
+ * Confronta il formato di un render con quello della foto sorgente e descrive
+ * lo scarto, o null se il formato e' accettabile.
+ *
+ * Serve come guardia sui retry: un retry corrective puo' PEGGIORARE il render.
+ * Visto in produzione su bagno e infissi: il primo tentativo esce dal provider
+ * diretto con `size` esplicito e rispetta il formato, il retry va in timeout,
+ * la catena ripiega su OpenRouter — che accetta la direttiva di formato solo
+ * come testo e la ignora — e restituisce un 1024x1024. Il quadrato sostituiva
+ * l'immagine buona: la foto di un infisso verticale tornava al cliente
+ * ricomposta, senza cassonetto o senza davanzale.
+ *
+ * Soglia dell'8% sul rapporto: sotto quella differenza il ritaglio non e'
+ * percepibile e non vale la pena buttare un retry che ha corretto altro.
+ */
+export function describeFormatMismatch(
+  expected: { width: number; height: number } | null,
+  actual: { width: number; height: number } | null,
+): string | null {
+  if (!expected || !actual) return null;
+
+  const expectedOrientation = orientationFromDimensions(
+    expected.width,
+    expected.height,
+  );
+  const actualOrientation = orientationFromDimensions(
+    actual.width,
+    actual.height,
+  );
+  if (
+    expectedOrientation !== actualOrientation &&
+    expectedOrientation !== "square"
+  ) {
+    return `orientamento diverso (atteso ${expectedOrientation}, ottenuto ${actualOrientation})`;
+  }
+
+  const expectedRatio = expected.width / expected.height;
+  const actualRatio = actual.width / actual.height;
+  const diff = Math.abs(expectedRatio - actualRatio) / expectedRatio;
+  if (diff > 0.08) {
+    return `proporzioni diverse (atteso ${expected.width}x${expected.height}, ottenuto ${actual.width}x${actual.height})`;
+  }
+
+  return null;
+}
+
+/**
+ * Le tre size che i modelli immagine OpenAI sanno produrre, scelte in base
+ * all'orientamento della sorgente.
+ *
+ * Il render NON esce mai con le proporzioni esatte della foto: esce con quelle
+ * del contenitore piu' vicino. Una foto 689x916 (0.752) diventa 1024x1536
+ * (0.667). Chi confronta il render con la SORGENTE trova sempre uno scarto e
+ * conclude che il formato e' sbagliato anche quando e' il migliore ottenibile:
+ * e' l'errore che rendeva inutile la guardia sui retry, perche' bocciava anche
+ * il primo tentativo corretto e finiva per accettare sempre il secondo.
+ * Il confronto giusto e' contro la size RICHIESTA, non contro la foto.
+ */
+export function expectedOutputSize(
+  width?: number,
+  height?: number,
+): { width: number; height: number } {
+  if (!width || !height) return { width: 1024, height: 1024 };
+  const ratio = width / height;
+  if (ratio < 0.8) return { width: 1024, height: 1536 };
+  if (ratio > 1.25) return { width: 1536, height: 1024 };
+  return { width: 1024, height: 1024 };
+}

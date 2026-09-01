@@ -14,7 +14,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
-import { detectImageDimensions } from "../_shared/imageDimensions.ts";
+import {
+  describeFormatMismatch,
+  detectImageDimensions,
+  expectedOutputSize,
+} from "../_shared/imageDimensions.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -26,6 +30,15 @@ import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { rewriteToMetaPrompt } from "../_shared/ai-provider/metaPromptRewriter.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
+
+/**
+ * data:image/...;base64,XXX -> byte grezzi. Usata sia per misurare il formato
+ * del render sia per l'upload finale su storage.
+ */
+function dataUrlBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -1146,6 +1159,23 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
             latencyMs: result.latencyMs,
           }];
         appendProviderAttempts(attempts, result.attempts);
+        // Traccia il formato di OGNI candidato: senza questo non si distingue
+        // "il provider diretto ha rispettato la size e il retry l'ha rotta" da
+        // "nessuno dei due l'ha mai rispettata", e le due cose si riparano in
+        // punti diversi.
+        const dimCandidato = detectImageDimensions(
+          dataUrlBytes(result.imageDataUrl),
+        );
+        logInfo({
+          session_id,
+          msg: "candidato_formato",
+          provider: result.providerUsed,
+          model: result.modelUsed,
+          size_richiesta: `${expectedOutputSize(srcW, srcH).width}x${expectedOutputSize(srcW, srcH).height}`,
+          size_ottenuta: dimCandidato
+            ? `${dimCandidato.width}x${dimCandidato.height}`
+            : null,
+        });
         return result;
       } catch (err) {
         const attempts = (err as { attemptHistory?: ImageProviderAttempt[] })
@@ -1291,8 +1321,45 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           normalizedConfig,
           parsedIssues,
         );
-        candidate = await generateCandidate(composedPrompt);
+
+        // Il retry puo' peggiorare invece di migliorare. Il primo tentativo
+        // esce da OpenAI diretto, che riceve `size` come parametro vero e
+        // rispetta il formato; se il retry va in timeout la catena ripiega su
+        // OpenRouter, dove il formato e' solo una riga di testo nel prompt —
+        // e gpt-5-image la ignora, restituendo un 1024x1024. Su una foto di
+        // infisso, quasi sempre verticale, il quadrato costringe il modello a
+        // ricomporre: sparisce il cassonetto o il davanzale.
+        // Visto in prod il 2026-09-01 sulla sessione 191ff913: sorgente
+        // 689x916, primo tentativo corretto, retry quadrato che lo sostituiva.
+        // Si accetta il retry solo se non rompe il formato che il primo
+        // tentativo aveva gia' azzeccato.
+        // Il confronto e' contro la size RICHIESTA al provider, non contro la
+        // foto: il render esce sempre in una delle tre size OpenAI, quindi una
+        // sorgente 689x916 non potra' mai coincidere con nessuna di esse.
+        const formatoAtteso = expectedOutputSize(srcW, srcH);
+        const primoTentativo = candidate;
+        const primoDim = detectImageDimensions(dataUrlBytes(candidate.imageDataUrl));
+        const primoFormatoOk = !describeFormatMismatch(formatoAtteso, primoDim);
+
+        const retryCandidate = await generateCandidate(composedPrompt);
         generationAttempts = 2;
+        const retryDim = detectImageDimensions(
+          dataUrlBytes(retryCandidate.imageDataUrl),
+        );
+        const retryMismatch = describeFormatMismatch(formatoAtteso, retryDim);
+
+        if (retryMismatch && primoFormatoOk) {
+          logWarn({
+            session_id,
+            msg: "qa_retry_scartato_formato_peggiore",
+            motivo: retryMismatch,
+            primo: primoDim ? `${primoDim.width}x${primoDim.height}` : null,
+            retry: retryDim ? `${retryDim.width}x${retryDim.height}` : null,
+          });
+          candidate = primoTentativo;
+        } else {
+          candidate = retryCandidate;
+        }
       } else if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0 && !canRetry) {
         // QA fail ma siamo a corto di tempo. Logging speciale: consegniamo
         // primo render con issue note per audit, ma non rilanciamo.
@@ -1326,11 +1393,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     // Il problema "render tagliato rispetto a source" e' meglio risolto lato
     // CLIENT (CSS object-fit nel BeforeAfterSlider) che lato server.
     setStage("salvataggio");
-    const base64Data = candidate.imageDataUrl.replace(
-      /^data:image\/\w+;base64,/,
-      "",
-    );
-    const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const uint8 = dataUrlBytes(candidate.imageDataUrl);
 
     const resultPath =
       `${session.company_id}/${session_id}/render_${Date.now()}.png`;

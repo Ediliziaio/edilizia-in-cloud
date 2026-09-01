@@ -6,6 +6,12 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
+import {
+  describeFormatMismatch,
+  detectImageDimensions,
+  expectedOutputSize,
+  orientationFromDimensions,
+} from "../_shared/imageDimensions.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
@@ -156,141 +162,9 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
   };
 }
 
-function readUint32BE(bytes: Uint8Array, offset: number): number {
-  return (
-    (bytes[offset] << 24) |
-    (bytes[offset + 1] << 16) |
-    (bytes[offset + 2] << 8) |
-    bytes[offset + 3]
-  ) >>> 0;
-}
 
-function detectImageDimensions(
-  bytes: Uint8Array,
-): { width: number; height: number } | null {
-  if (bytes.length < 16) return null;
 
-  // PNG
-  if (
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    if (bytes.length < 24) return null;
-    return {
-      width: readUint32BE(bytes, 16),
-      height: readUint32BE(bytes, 20),
-    };
-  }
 
-  // JPEG
-  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
-    let offset = 2;
-    while (offset + 8 < bytes.length) {
-      if (bytes[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-
-      while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
-      const marker = bytes[offset];
-      offset += 1;
-
-      if (marker === 0xd9 || marker === 0xda) break;
-      if (offset + 1 >= bytes.length) break;
-
-      const length = (bytes[offset] << 8) | bytes[offset + 1];
-      if (length < 2 || offset + length > bytes.length) break;
-
-      const isSofMarker = (marker >= 0xc0 && marker <= 0xc3) ||
-        (marker >= 0xc5 && marker <= 0xc7) ||
-        (marker >= 0xc9 && marker <= 0xcb) ||
-        (marker >= 0xcd && marker <= 0xcf);
-
-      if (isSofMarker && offset + 6 < bytes.length) {
-        return {
-          height: (bytes[offset + 3] << 8) | bytes[offset + 4],
-          width: (bytes[offset + 5] << 8) | bytes[offset + 6],
-        };
-      }
-
-      offset += length;
-    }
-  }
-
-  // WEBP
-  if (
-    bytes.length >= 30 &&
-    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
-  ) {
-    const chunkType = String.fromCharCode(...bytes.slice(12, 16));
-
-    if (chunkType === "VP8X" && bytes.length >= 30) {
-      const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
-      const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
-      return { width, height };
-    }
-
-    if (chunkType === "VP8 " && bytes.length >= 30) {
-      const width = (bytes[26] | (bytes[27] << 8)) & 0x3fff;
-      const height = (bytes[28] | (bytes[29] << 8)) & 0x3fff;
-      if (width > 0 && height > 0) return { width, height };
-    }
-
-    if (chunkType === "VP8L" && bytes.length >= 25) {
-      const b0 = bytes[21];
-      const b1 = bytes[22];
-      const b2 = bytes[23];
-      const b3 = bytes[24];
-      const width = 1 + (((b1 & 0x3f) << 8) | b0);
-      const height = 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6));
-      if (width > 0 && height > 0) return { width, height };
-    }
-  }
-
-  return null;
-}
-
-function orientationFromDimensions(
-  width: number,
-  height: number,
-): "portrait" | "landscape" | "square" {
-  if (width === height) return "square";
-  return width > height ? "landscape" : "portrait";
-}
-
-function describeFormatMismatch(
-  expected: { width: number; height: number } | null,
-  actual: { width: number; height: number } | null,
-): string | null {
-  if (!expected || !actual) return null;
-
-  const expectedOrientation = orientationFromDimensions(
-    expected.width,
-    expected.height,
-  );
-  const actualOrientation = orientationFromDimensions(
-    actual.width,
-    actual.height,
-  );
-  if (
-    expectedOrientation !== actualOrientation &&
-    expectedOrientation !== "square"
-  ) {
-    return `orientation mismatch (${expectedOrientation} expected, got ${actualOrientation})`;
-  }
-
-  const expectedRatio = expected.width / expected.height;
-  const actualRatio = actual.width / actual.height;
-  const diff = Math.abs(expectedRatio - actualRatio) / expectedRatio;
-  if (diff > 0.08) {
-    return `aspect ratio mismatch (${expected.width}:${expected.height} expected, got ${actual.width}:${actual.height})`;
-  }
-
-  return null;
-}
 
 async function loadBathroomSession(
   supabase: SupabaseClient,
@@ -800,10 +674,20 @@ Deno.serve(async (req) => {
       let renderResult = await generateCandidate(composedPrompt);
       let generationAttempts = 1;
 
+      // Il render esce sempre in una delle tre size OpenAI, mai nelle
+      // proporzioni esatte della foto: confrontarlo con la SORGENTE lo dichiara
+      // sbagliato quasi sempre. Una foto 4:3 (1.333) contro il suo contenitore
+      // 1536x1024 (1.5) sfora la soglia dell'8% e faceva scattare una seconda
+      // generazione completa su ogni bagno in 4:3, senza che ci fosse nulla da
+      // correggere. Il termine di paragone giusto e' la size richiesta.
+      const formatoAtteso = expectedOutputSize(
+        sourceDimensions?.width,
+        sourceDimensions?.height,
+      );
       let uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
       const firstAttemptDimensions = detectImageDimensions(uploadPayload.bytes);
       const firstMismatch = describeFormatMismatch(
-        sourceDimensions ?? null,
+        formatoAtteso,
         firstAttemptDimensions,
       );
 
@@ -910,13 +794,13 @@ Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exac
           const primoTentativo = renderResult;
           const primoPayload = uploadPayload;
           const primoDim = detectImageDimensions(primoPayload.bytes);
-          const primoOk = !describeFormatMismatch(sourceDimensions ?? null, primoDim);
+          const primoOk = !describeFormatMismatch(formatoAtteso, primoDim);
 
           const retryResult = await generateCandidate(composedPrompt);
           generationAttempts += 1;
           const retryPayload = dataUrlToBytes(retryResult.imageDataUrl);
           const retryDim = detectImageDimensions(retryPayload.bytes);
-          const retryMismatch = describeFormatMismatch(sourceDimensions ?? null, retryDim);
+          const retryMismatch = describeFormatMismatch(formatoAtteso, retryDim);
 
           if (retryMismatch && primoOk) {
             console.warn(JSON.stringify({
