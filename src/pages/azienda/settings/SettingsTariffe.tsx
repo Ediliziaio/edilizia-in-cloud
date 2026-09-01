@@ -387,12 +387,14 @@ function KpiHeader({
 
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
 function TariffaDialog({
-  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved,
+  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [],
 }: {
   open: boolean; onClose: () => void; editing: Tariffa | null;
   companyId: string; isAdmin: boolean;
   currentVertical: string | null;
   onSaved: () => void;
+  /** Squadre/subappaltatori per "di chi e' questo listino". */
+  squadre?: Array<{ id: string; name: string | null }>;
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [codice, setCodice] = useState(editing?.codice ?? "");
@@ -418,6 +420,8 @@ function TariffaDialog({
       : "",
   );
   const [attivo, setAttivo] = useState<boolean>(editing?.attivo !== false);
+  /** "" = listino aziendale generico; altrimenti id squadra. */
+  const [externalTeamId, setExternalTeamId] = useState<string>(editing?.external_team_id ?? "");
   const [saving, setSaving] = useState(false);
 
   // Semaforo margine live
@@ -496,6 +500,8 @@ function TariffaDialog({
         fonte: fonte.trim() || null,
         incidenza_manodopera_pct: incidenzaMdo,
         attivo,
+        // Listino per squadra: "" = generico (NULL)
+        external_team_id: externalTeamId || null,
         piano_base: tipo === "tiro_piano" ? pianoBaseValue : null,
         prezzo_piano_aggiuntivo: tipo === "tiro_piano" ? prezzoPianoAggValue : null,
       };
@@ -597,6 +603,26 @@ function TariffaDialog({
                 <Info className="inline h-3 w-3 mr-1" />{tipoHint(tipo)}
               </p>
             </div>
+
+          {/* Di chi e' questo listino: aziendale (generico) o di una squadra.
+              La voce di una squadra compare nel dialog manodopera SOLO quando
+              si sceglie quella squadra. */}
+          {squadre.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Listino di</Label>
+              <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Listino aziendale (generico)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                  {squadre.map((sq) => (
+                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
             <div>
               <Label>
                 Unità di fatturazione
@@ -1165,9 +1191,11 @@ function StandardTariffeDialog({
 // ─── TariffeTable ────────────────────────────────────────────────────────────
 function TariffeTable({
   items, isAdmin, soglia, selectedIds, onToggleSelect, onToggleSelectAll,
-  onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage, onAnalisi,
+  onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage, onAnalisi, squadraName,
 }: {
   items: Tariffa[];
+  /** id squadra → nome, per il badge "listino di chi". */
+  squadraName?: Record<string, string>;
   isAdmin: boolean;
   /** Soglia minima di margine (% governance) per il semaforo. */
   soglia: number;
@@ -1289,6 +1317,11 @@ function TariffeTable({
                       </Badge>
                     )}
                     {t.nome}
+                    {t.external_team_id && (
+                      <Badge variant="secondary" className="ml-1.5 h-4 px-1.5 text-[10px] font-normal align-middle">
+                        {squadraName?.[t.external_team_id] ?? "Squadra"}
+                      </Badge>
+                    )}
                     {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
                       <span className="ml-2 text-xs text-muted-foreground">
                         +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
@@ -1416,6 +1449,8 @@ export default function SettingsTariffe() {
   const [search, setSearch] = useState("");
   const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>("all");
   const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
+  /** Filtro listino: "tutte" | "generico" | id squadra. */
+  const [squadraFilter, setSquadraFilter] = useState<string>("tutte");
   const [margineFilter, setMargineFilter] = useState<MargineFilter>("all");
   const [usageTariffa, setUsageTariffa] = useState<Tariffa | null>(null);
   const [analisiTariffa, setAnalisiTariffa] = useState<Tariffa | null>(null);
@@ -1442,13 +1477,34 @@ export default function SettingsTariffe() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
       return (data ?? []) as unknown as Tariffa[];
     },
   });
+
+  // Squadre/subappaltatori: servono per il filtro, il badge in tabella e il
+  // select nel form ("ogni squadra col suo listino").
+  const { data: squadre = [] } = useQuery({
+    queryKey: ["external-teams-tariffe", companyId],
+    enabled: !!companyId,
+    staleTime: 300_000,
+    queryFn: async (): Promise<Array<{ id: string; name: string | null }>> => {
+      const { data } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      return data ?? [];
+    },
+  });
+  const squadraName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const sq of squadre) m[sq.id] = sq.name ?? "Squadra";
+    return m;
+  }, [squadre]);
 
   // #50 — Guardia anti-eliminazione: quando si apre la conferma di delete per
   // UNA voce, conta i riferimenti per avvisare l'admin (consigliando
@@ -1610,6 +1666,9 @@ export default function SettingsTariffe() {
       // stato
       if (statoFilter === "attive" && t.attivo === false) return false;
       if (statoFilter === "archiviate" && t.attivo !== false) return false;
+      // listino per squadra
+      if (squadraFilter === "generico" && t.external_team_id) return false;
+      if (squadraFilter !== "tutte" && squadraFilter !== "generico" && t.external_team_id !== squadraFilter) return false;
       // vertical
       if (verticalFilter === "current" && t.vertical_associato !== currentVertical) return false;
       if (verticalFilter === "global" && t.vertical_associato) return false;
@@ -1630,7 +1689,7 @@ export default function SettingsTariffe() {
       }
       return true;
     });
-  }, [tariffe, statoFilter, verticalFilter, currentVertical, search, margineFilter, soglia]);
+  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia]);
 
   // Raggruppamento per group (per i tab)
   const byGroup = useMemo(() => {
@@ -1900,6 +1959,20 @@ export default function SettingsTariffe() {
                 <SelectItem value="global">Solo globali</SelectItem>
               </SelectContent>
             </Select>
+            {squadre.length > 0 && (
+              <Select value={squadraFilter} onValueChange={setSquadraFilter}>
+                <SelectTrigger className="w-full md:w-[220px]">
+                  <SelectValue placeholder="Listino" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Tutti i listini</SelectItem>
+                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                  {squadre.map((sq) => (
+                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {isAdmin && (
               <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
                 <SelectTrigger className="w-full md:w-[200px]">
@@ -2082,6 +2155,7 @@ export default function SettingsTariffe() {
                 </div>
               )}
               <TariffeTable
+                squadraName={squadraName}
                 items={tariffeForActiveGroup}
                 isAdmin={isAdmin}
                 soglia={soglia}
@@ -2130,6 +2204,7 @@ export default function SettingsTariffe() {
       {/* Dialogs */}
       {dialogOpen && (
         <TariffaDialog
+            squadre={squadre}
           key={editing?.id ?? "new"}
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}

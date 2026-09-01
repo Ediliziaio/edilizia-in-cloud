@@ -38,6 +38,8 @@ export interface Tariffa {
   fonte?: string | null;
   /** Incidenza manodopera frazionaria 0..1 (obbligo base d'asta nei lavori pubblici). NULL = non specificata. */
   incidenza_manodopera_pct?: number | null;
+  /** Listino della singola squadra/subappaltatore. NULL = listino aziendale generico. */
+  external_team_id?: string | null;
 }
 
 export interface TipoDef {
