@@ -105,6 +105,10 @@ export default function LandingFooter() {
               <li><Link to="/glossario-edilizia/" className="hover:text-[#F97415] transition-colors">Glossario edilizia</Link></li>
               <li><Link to="/casi-studio/" className="hover:text-[#F97415] transition-colors">Casi studio</Link></li>
               <li><Link to="/formazione/" className="hover:text-[#F97415] transition-colors">Formazione</Link></li>
+              {/* Ecosistema: Numeri in Edilizia è il METODO di controllo di gestione che
+                  EdiliziaInCloud mette in pratica. Link reciproco (NiE linka già EiC):
+                  consolida l'associazione dei due brand anche per Google e per gli LLM. */}
+              <li><a href="https://www.numerinedilizia.com/" className="hover:text-[#F97415] transition-colors">Controllo di gestione per imprese edili</a></li>
               <li><Link to="/pianifica-migrazione/" className="hover:text-[#F97415] transition-colors">Pianifica migrazione</Link></li>
               <li><Link to="/integrazioni/" className="hover:text-[#F97415] transition-colors">Integrazioni</Link></li>
             </ul>
