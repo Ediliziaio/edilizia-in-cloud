@@ -179,10 +179,42 @@ function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
     : undefined;
   const cassStyle = targetedOpening?.cassonettoStyle ?? "unknown";
 
+  // Elenco esplicito di cio' che l'utente HA CHIESTO di cambiare.
+  // Senza questo elenco il criterio [scene_corruption] ("FAIL se qualcosa fuori
+  // dal vano finestra e' stato modificato") boccia proprio le modifiche
+  // richieste: il cassonetto sta SOPRA il vano, quindi sostituirlo — come da
+  // configurazione — veniva segnalato come corruzione della scena.
+  // Misurato sulla sessione 11a3ebc5: due segnalazioni su due erano di questo
+  // tipo, e sono costate un retry (~0.08 EUR e 40s) su un render corretto.
+  const modificheAutorizzate: string[] = [
+    `the window/frame inside opening ${spec?.openingId ?? "?"}`,
+  ];
+  if (spec?.cassonetto.replace) {
+    modificheAutorizzate.push(
+      `the cassonetto / roller box above opening ${spec.openingId}: the user asked to REPLACE it, so a NEW box in the new finish${
+        spec.cassonetto.colorLabel ? ` (${spec.cassonetto.colorLabel})` : ""
+      } is the CORRECT result — do NOT report it as scene corruption or as an unrequested architectural change, even if the source box looked different (wooden, external, recessed)`,
+    );
+  }
+  if (spec?.shutter.replace) {
+    modificheAutorizzate.push(
+      `the roller shutter of opening ${spec.openingId}: the user asked to replace it`,
+    );
+  }
+  if (spec?.compositionChange) {
+    modificheAutorizzate.push(
+      `the internal subdivision of opening ${spec.openingId}: going from ${spec.compositionChange.fromSashCount} to ${spec.compositionChange.toSashCount} sashes is requested, so a different mullion layout is CORRECT`,
+    );
+  }
+
   return `You are a holistic QC inspector for Italian window-replacement renders.
 You receive TWO IMAGES:
 - Image 1 = SOURCE PHOTO (existing window)
 - Image 2 = CANDIDATE RENDER (proposed new window in same room)
+
+AUTHORISED CHANGES — these are the work the customer ordered. A difference here
+is expected and must NEVER be reported as an issue:
+${modificheAutorizzate.map((r) => `- ${r}`).join("\n")}
 
 EXPECTED CHANGES (per user config):
 - Target opening: ${spec?.openingId ?? "?"} (other openings unchanged)
@@ -196,7 +228,7 @@ Check ONLY these 3 holistic categories:
 
 1. [composition_mismatch] — Does the rendered window match the spec? Verify: sash count, profile material/color, cassonetto style (no invented box if source had none / monoblocco preserved if source has recessed monoblocco), transom (removed if requested), hinge count reasonable for the profile, handle position. FAIL only on clear discrepancies, not minor finish variations.
 
-2. [scene_corruption] — Are room/walls/floor/ceiling/outdoor-view/furniture in Image 2 identical to Image 1? Did the AI invent objects (curtains, lamps, plants, sensors), recolor walls, alter the outdoor view, or paste swatch rectangles/product thumbnails into the scene? FAIL if anything outside the target window opening was modified.
+2. [scene_corruption] — Are room/walls/floor/ceiling/outdoor-view/furniture in Image 2 identical to Image 1? Did the AI invent objects (curtains, lamps, plants, sensors), recolor walls, alter the outdoor view, or paste swatch rectangles/product thumbnails into the scene? FAIL if anything outside the AUTHORISED CHANGES listed above was modified. A difference that is listed under AUTHORISED CHANGES is the requested work, NOT a defect: never report it.
 
 3. [residual_old_window] — Did the AI just RECOLOR the old window keeping the same geometry, old handle, old mullion thickness, old hinges, or leave residual artifacts like dark rectangles from old transoms / manual belt straps when motorization specified? FAIL if the new window is recognizably the old one with a color filter.
 
@@ -1114,7 +1146,10 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       });
     };
 
-    const generateCandidate = async (promptText: string) => {
+    const generateCandidate = async (
+      promptText: string,
+      soloProviderDiretto = false,
+    ) => {
       // F1 (audit 16/07) — Budget deadline-aware al posto del timeout fisso 90s.
       // La matematica vecchia (fino a 3 tentativi × 90s + backoff, × 2 tier)
       // arrivava a ~275s contro il cap runtime di 150s: l'isolate veniva
@@ -1127,9 +1162,13 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       //  - worst case: 2 tier × 65s = ~130s, dentro il budget 140s
       const RESERVE_MS = 25_000;
       const remaining = TOTAL_BUDGET_MS - elapsed() - RESERVE_MS;
+      // Con un solo provider in catena non c'e' un secondo tier da finanziare:
+      // il budget residuo va tutto al tentativo. Dividerlo comunque a meta' era
+      // proprio cio' che mandava in timeout il provider diretto sul retry e
+      // faceva scattare il fallback su OpenRouter.
       const perAttemptTimeout = Math.max(
         30_000,
-        Math.min(75_000, Math.floor(remaining / 2)),
+        Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
       );
       try {
         const result = await editImage({
@@ -1143,6 +1182,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           negativePrompt,
           timeoutMs: perAttemptTimeout,
           maxRetries: 0,
+          directProviderOnly: soloProviderDiretto,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id as string,
@@ -1190,7 +1230,30 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     // v8.5 — composedPrompt e' gia' inizializzato dall'argomento all'inizio
     // di processRenderBackground (let composedPrompt = args.composedPrompt).
     setStage("generazione");
-    let candidate = await generateCandidate(composedPrompt);
+    // Il primo tentativo va SOLO sul provider diretto, con tutto il budget.
+    //
+    // Dividere il tempo a meta' per finanziare un secondo tier sembrava
+    // prudente, ma il secondo tier e' OpenRouter — che ignora la size e
+    // restituisce un quadrato. Si stava quindi sacrificando il tempo del
+    // provider buono per pagare un fallback che produce un render con
+    // l'inquadratura ricomposta. Misurato sulla sessione d655a562: il diretto
+    // e' stato abortito a 53s (ne servivano ~60), il quadrato di OpenRouter e'
+    // passato al QA e il cassonetto e' finito tagliato dal bordo superiore.
+    //
+    // Ora il diretto ha fino a 75s. Il fallback resta, ma come rete
+    // sull'errore, non come coinquilino del budget.
+    let candidate: Awaited<ReturnType<typeof generateCandidate>>;
+    try {
+      candidate = await generateCandidate(composedPrompt, true);
+    } catch (primoErr) {
+      logWarn({
+        session_id,
+        msg: "provider_diretto_fallito_si_passa_alla_catena",
+        error: (primoErr as Error)?.message?.substring(0, 200),
+        nota: "il formato potrebbe non essere rispettato dal fallback",
+      });
+      candidate = await generateCandidate(composedPrompt, false);
+    }
     let generationAttempts = 1;
 
     // v8.6.22 — Cache lazy della base64 della source image.
@@ -1313,6 +1376,10 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           msg: "qa_failed_retry_corrective",
           qa_model: qaResult.modelUsed,
           issue_categories: parsedIssues.map((i) => i.category),
+          // Il dettaglio, non solo la categoria: senza il testo non si
+          // distingue un difetto vero da un falso positivo del QA, e ogni
+          // falso positivo costa una generazione in piu'.
+          issues: parsedIssues.map((i) => `${i.category}: ${i.detail}`),
           issues_count: parsedIssues.length,
           elapsed_ms: elapsedNow,
         });
@@ -1341,14 +1408,34 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         const primoDim = detectImageDimensions(dataUrlBytes(candidate.imageDataUrl));
         const primoFormatoOk = !describeFormatMismatch(formatoAtteso, primoDim);
 
-        const retryCandidate = await generateCandidate(composedPrompt);
-        generationAttempts = 2;
-        const retryDim = detectImageDimensions(
-          dataUrlBytes(retryCandidate.imageDataUrl),
-        );
-        const retryMismatch = describeFormatMismatch(formatoAtteso, retryDim);
+        // Se il primo tentativo aveva gia' il formato giusto, il retry ha senso
+        // solo se puo' mantenerlo: lo si vincola al provider diretto, l'unico
+        // che rispetta la size. Cosi' non si paga un'immagine destinata a
+        // essere scartata. Se il diretto non ce la fa, editImage solleva e si
+        // tiene il primo tentativo senza spendere altro.
+        let retryCandidate: Awaited<ReturnType<typeof generateCandidate>> | null =
+          null;
+        try {
+          retryCandidate = await generateCandidate(composedPrompt, primoFormatoOk);
+          generationAttempts = 2;
+        } catch (retryErr) {
+          logWarn({
+            session_id,
+            msg: "qa_retry_fallito_si_tiene_il_primo",
+            error: (retryErr as Error)?.message?.substring(0, 200),
+          });
+        }
 
-        if (retryMismatch && primoFormatoOk) {
+        const retryDim = retryCandidate
+          ? detectImageDimensions(dataUrlBytes(retryCandidate.imageDataUrl))
+          : null;
+        const retryMismatch = retryCandidate
+          ? describeFormatMismatch(formatoAtteso, retryDim)
+          : "retry non disponibile";
+
+        if (!retryCandidate) {
+          candidate = primoTentativo;
+        } else if (retryMismatch && primoFormatoOk) {
           logWarn({
             session_id,
             msg: "qa_retry_scartato_formato_peggiore",
@@ -1358,7 +1445,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           });
           candidate = primoTentativo;
         } else {
-          candidate = retryCandidate;
+          candidate = retryCandidate ?? primoTentativo;
         }
       } else if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0 && !canRetry) {
         // QA fail ma siamo a corto di tempo. Logging speciale: consegniamo
@@ -1503,6 +1590,10 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         // retried   = true se generationAttempts > 1 (QA ha forzato retry)
         qa_vision_model: qaModelUsed,
         qa_issue_categories: qaIssuesForLog.map((i) => i.category),
+        qa_issues: qaIssuesForLog.map((i) => ({
+          category: i.category,
+          detail: i.detail?.substring(0, 300) ?? null,
+        })),
         qa_issues_count: qaIssuesForLog.length,
         qa_retried: generationAttempts > 1,
         // F4 — contatore correzioni: la 1ª entro 10 min è gratis, poi credito.

@@ -96,12 +96,39 @@ export function BeforeAfterSlider({
     beforeRatio !== undefined && afterRatio !== undefined
       ? Math.abs(beforeRatio - afterRatio) / beforeRatio
       : 0;
-  // Se i formati sono quasi uguali, contain e cover coincidono. Se differiscono
-  // (render vecchio quadrato), contain mostra tutto senza tagliare.
-  const afterObjectFit = "object-contain";
+
+  // Il render non esce MAI nel formato esatto della foto: il modello produce
+  // solo 1024x1024, 1536x1024 o 1024x1536, e si sceglie il piu' vicino. Una
+  // foto 768x1024 (0.75) torna quindi 1024x1536 (0.667), piu' alta in
+  // proporzione. Con object-contain il render finiva incorniciato da bande e
+  // la finestra risultava piu' piccola e spostata rispetto al "prima": il
+  // confronto a tendina — che e' il punto di tutto lo strumento — non
+  // combaciava.
+  //
+  // Quando lo scarto e' quello fisiologico del contenitore piu' vicino
+  // (<=20%) e il render e' piu' ALTO della foto, si passa a object-cover: il
+  // taglio avviene in verticale e le due immagini si sovrappongono davvero.
+  // Il taglio e' spostato verso l'alto (30% invece di 50%) perche' sopra
+  // l'apertura c'e' quasi sempre il cassonetto o l'architrave, mentre sotto
+  // c'e' pavimento o parete: un taglio centrato mangiava il bordo superiore
+  // del cassonetto (verificato sul render della sessione fb75361f).
+  //
+  // Fuori da quel caso — render vecchi quadrati, o piu' larghi della foto —
+  // resta object-contain: meglio una banda che tagliare via meta' scena.
+  const renderPiuAlto =
+    beforeRatio !== undefined && afterRatio !== undefined &&
+    afterRatio < beforeRatio;
+  const scartoFisiologico = ratioMismatch > 0 && ratioMismatch <= 0.2;
+  const allineaAlFormatoFoto = renderPiuAlto && scartoFisiologico;
+
+  const afterObjectFit = allineaAlFormatoFoto
+    ? "object-cover"
+    : "object-contain";
+  const afterObjectPosition = allineaAlFormatoFoto ? "50% 30%" : undefined;
   const baseObjectFit = beforeOnLeft ? afterObjectFit : "object-contain";
   const overlayObjectFit = beforeOnLeft ? "object-contain" : afterObjectFit;
-  void ratioMismatch;
+  const baseObjectPosition = beforeOnLeft ? afterObjectPosition : undefined;
+  const overlayObjectPosition = beforeOnLeft ? undefined : afterObjectPosition;
 
   // Precarica il render e ritenta sui 404 transitori da propagazione CDN.
   useEffect(() => {
@@ -249,6 +276,7 @@ export function BeforeAfterSlider({
             src={baseImage}
             alt={baseAlt}
             className={`absolute inset-0 h-full w-full ${baseObjectFit} block`}
+            style={baseObjectPosition ? { objectPosition: baseObjectPosition } : undefined}
             draggable={false}
           />
         )}
@@ -262,6 +290,7 @@ export function BeforeAfterSlider({
               src={overlayImage}
               alt={overlayAlt}
               className={`absolute inset-0 h-full w-full ${overlayObjectFit} block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
+              style={overlayObjectPosition ? { objectPosition: overlayObjectPosition } : undefined}
               draggable={false}
             />
           </div>

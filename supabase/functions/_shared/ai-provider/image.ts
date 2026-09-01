@@ -78,6 +78,15 @@ export interface ImageEditParams {
   negativePrompt?: string;
   /** Timeout per chiamata singola (millisecondi). */
   timeoutMs?: number;
+  /** Vieta il fallback su OpenRouter e usa solo il provider diretto.
+   *
+   *  Serve quando il FORMATO dell'immagine e' parte del risultato e non un
+   *  dettaglio: solo il provider diretto riceve `size` come parametro vero,
+   *  OpenRouter lo legge come una riga di testo nel prompt e lo ignora
+   *  (misurato: da una sorgente verticale torna un 1024x1024). Un retry
+   *  correttivo che finisse li' produrrebbe un'immagine che il chiamante
+   *  scartera' comunque per formato sbagliato — pagandola. Meglio non farla. */
+  directProviderOnly?: boolean;
   /** F1 (audit 16/07) — Max retry per provider (default DEFAULT_RETRIES=2).
    *  I render image-edit durano 60-80s a tentativo: 3 tentativi × 90s
    *  sforavano il cap 150s dell'edge runtime (isolate killata a metà =
@@ -141,7 +150,9 @@ export async function editImage(
   const errors: Array<{ model: string; error: string }> = [];
   const attemptHistory: ImageProviderAttempt[] = [];
 
-  const steps = getProviderOrder();
+  const steps = args.directProviderOnly
+    ? getProviderOrder().filter((step) => step.provider === "openai_direct")
+    : getProviderOrder();
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const tier = i + 1;
