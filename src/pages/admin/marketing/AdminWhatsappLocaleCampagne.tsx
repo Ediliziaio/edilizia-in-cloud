@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Plus, Play, Pause, Users, Send, MessageCircle, AlertTriangle, Ban, WifiOff, RotateCcw, ExternalLink, Copy, Pencil, Eye, FlaskConical, Clock, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import RisposteRapide from "@/components/admin/whatsapp-locale/RisposteRapide";
 
 interface Riepilogo {
   id: string;
@@ -579,7 +580,13 @@ export default function AdminWhatsappLocaleCampagne() {
                 placeholder="Es. Imprese edili Veneto — settembre" />
             </div>
             <div>
-              <Label htmlFor="msg">Primo messaggio</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="msg">Primo messaggio</Label>
+                {/* Stesso archivio dell'inbox: una frase salvata una volta si
+                    riusa dove serve, invece di riscriverla in due posti. */}
+                <RisposteRapide categoria="campagna" etichetta="Template"
+                  onScegli={(t) => setMessaggio((m) => (m ? `${m}\n${t}` : t))} />
+              </div>
               <Textarea id="msg" rows={4} value={messaggio} onChange={(e) => setMessaggio(e.target.value)}
                 placeholder="{Ciao|Salve} {{nome}}, ..." />
             </div>

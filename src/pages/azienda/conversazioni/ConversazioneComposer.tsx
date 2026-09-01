@@ -96,6 +96,12 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     onError: (e) => toast.error("Invio WhatsApp Locale fallito", { description: (e as Error).message }),
   });
 
+  // In area piattaforma le impostazioni email stanno sotto /admin: il link
+  // fisso a /azienda/... portava fuori contesto.
+  const impostazioniEmailHref = window.location.pathname.startsWith("/admin")
+    ? "/admin/impostazioni/email"
+    : "/azienda/impostazioni/email";
+
   const cleanPhone = (telefono ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
     ? `https://wa.me/${cleanPhone.startsWith("39") || cleanPhone.length > 10 ? cleanPhone : `39${cleanPhone}`}`
@@ -128,11 +134,51 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   // Derivato (niente useEffect → niente set-state-in-effect / cascading render).
   const fromId = from || accounts[0]?.id || "";
 
+  /**
+   * Invio col mittente della piattaforma (nessun OAuth richiesto).
+   * La riga in email_outbox non e' una formalita': la timeline delle
+   * conversazioni legge da li', quindi senza non resterebbe traccia del
+   * messaggio nella chat.
+   */
+  const inviaDaPiattaforma = async () => {
+    const s2 = subject.trim(), b2 = body.trim();
+    if (!s2) throw new Error("Aggiungi un oggetto");
+    if (!b2) throw new Error("Scrivi un messaggio");
+    const html = b2.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("");
+    const { data, error } = await supabase.functions.invoke("send-transactional-v2", {
+      body: {
+        companyId: effectiveCompany?.id ?? null,
+        to: email,
+        precomputedSubject: s2,
+        precomputedHtml: html,
+        precomputedText: b2,
+        metadata: { source: "conversazioni" },
+      },
+    });
+    if (error) throw new Error(error.message ?? "Invio fallito");
+    const r = data as { ok?: boolean; error?: string } | null;
+    if (r?.ok === false || r?.error) throw new Error(r?.error ?? "Invio fallito");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("email_outbox").insert({
+      user_id: user!.id,
+      company_id: effectiveCompany!.id,
+      to_emails: [email],
+      cc_emails: [], bcc_emails: [],
+      subject: s2, body_text: b2, body_html: html,
+      attachments: [], status: "sent", sent_at: new Date().toISOString(),
+    });
+  };
+
   const sendEmail = useMutation({
     mutationFn: async () => {
       if (!user?.id || !effectiveCompany?.id) throw new Error("Non autenticato");
-      if (!fromId) throw new Error("Seleziona l'account mittente");
       if (!email) throw new Error("Il contatto non ha un indirizzo email");
+      // Senza casella personale collegata l'email non era proprio inviabile da
+      // qui: il canale restava bloccato. Ma la piattaforma ha gia' un mittente
+      // proprio (quello che manda le transazionali), quindi si puo' scrivere
+      // lo stesso — solo da quell'indirizzo invece che dal proprio.
+      if (!fromId) return await inviaDaPiattaforma();
       const s = subject.trim();
       const b = body.trim();
       if (!s) throw new Error("Aggiungi un oggetto");
@@ -224,9 +270,10 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       {canale === "email" && (
         <div className="p-3 space-y-2 max-w-3xl mx-auto">
           {accounts.length === 0 ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-800">
-              Nessuna casella email collegata.{" "}
-              <a href="/azienda/impostazioni/email" className="underline font-medium">Collega Gmail/Outlook</a> per inviare da qui.
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+              Nessuna casella personale collegata: l'email partirà dall'indirizzo della
+              piattaforma. Per scrivere dal tuo,{" "}
+              <a href={impostazioniEmailHref} className="underline font-medium">collega Gmail o Outlook</a>.
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -246,7 +293,6 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             value={subject}
             onChange={(e) => setSubject(e.target.value.slice(0, 200))}
             className="h-9 text-base sm:h-8 sm:text-sm"
-            disabled={accounts.length === 0}
           />
           <div className="flex items-end gap-2">
             <Textarea
@@ -255,14 +301,13 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
               onChange={(e) => setBody(e.target.value.slice(0, 50_000))}
               rows={2}
               className="text-sm resize-y min-h-[56px]"
-              disabled={accounts.length === 0}
             />
             <Button
               size="icon"
               className="shrink-0"
               aria-label="Invia email"
               onClick={() => sendEmail.mutate()}
-              disabled={!fromId || !email || !subject.trim() || !body.trim() || sendEmail.isPending}
+              disabled={!email || !subject.trim() || !body.trim() || sendEmail.isPending}
             >
               {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
