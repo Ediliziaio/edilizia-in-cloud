@@ -425,6 +425,23 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         .select()
         .single();
       if (error) throw error;
+
+      // Le due strade si parlano (fix 2026-09): un DDT "ricevuto completo"
+      // registrava il documento ma lasciava l'OdA in bozza — e il costo in
+      // commessa nasce dal trigger sul passaggio purchase_orders.status →
+      // 'ricevuto' (trg_po_costo_da_ricezione). Qui il passaggio avviene.
+      // Non bloccante: il DDT è già registrato, un errore qui non lo annulla.
+      if (params.stato === "ricevuto" || params.stato === "verificato") {
+        const { error: poErr } = await supabase
+          .from("purchase_orders")
+          .update({ status: "ricevuto" })
+          .eq("id", params.purchase_order_id)
+          .neq("status", "ricevuto")
+          .neq("status", "annullato");
+        if (poErr) {
+          toast.warning("DDT registrato, ma lo stato dell'OdA non si è aggiornato: mettilo su 'Ricevuto' a mano per generare il costo.");
+        }
+      }
       return data as DDTRicezione;
     },
     onSuccess: () => {

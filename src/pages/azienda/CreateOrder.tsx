@@ -292,7 +292,7 @@ function CreateOrderInner() {
     queryFn: async () => {
       const { data } = await supabase
         .from("article_families")
-        .select("id, nome, codice, modalita_prezzo_base, prezzo_base_vendita, prezzo_base_acquisto, vat_rate")
+        .select("id, nome, codice, modalita_prezzo_base, prezzo_base_vendita, prezzo_base_acquisto, vat_rate, supplier_id")
         .eq("company_id", effectiveCompany!.id)
         .eq("attivo", true)
         .is("deleted_at", null)
@@ -387,6 +387,9 @@ function CreateOrderInner() {
           // Sconto globale del documento (es. sconto rivenditore 15%) → per riga.
           discount_percent: ex.sconto_globale_pct ?? undefined,
           vat_rate: match?.fam.vat_rate != null ? Number(match.fam.vat_rate) : (ex.iva_pct ?? undefined),
+          // Fornitore dalla famiglia del listino: senza, il pannello "Ordina
+          // ai fornitori" non vede l'articolo e l'OdA non parte.
+          supplier_id: match?.fam.supplier_id ?? undefined,
           family_id: match?.fam.id ?? null,
           axis_selections: null,
           misure_preventivo: match
