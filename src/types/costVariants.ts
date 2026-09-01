@@ -44,6 +44,12 @@ export interface TariffaCostoVariante {
   fornitore_id: string | null;
   /** FK debole — nessun REFERENCES nel DB. */
   risorsa_id: string | null;
+  /**
+   * Squadra/subappaltatore a cui appartiene la variante (external_teams).
+   * NULL = variante generica. Nel dialog manodopera della commessa, scelta la
+   * squadra si applica da solo il costo della SUA variante.
+   */
+  external_team_id: string | null;
   costo: number;
   /** ISO date (YYYY-MM-DD). */
   valid_from: string;

@@ -81,9 +81,32 @@ export function useTariffaVariantiMutations() {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
 
+  /**
+   * L'indice unico `ux_varianti_one_default_per_tariffa` ammette UN solo
+   * default per tariffa. Salvare dal form una variante col flag acceso mentre
+   * un'altra lo ha già finiva in errore 23505 grezzo: qui il default corrente
+   * viene azzerato prima, come già fa setDefault.
+   */
+  const clearDefault = async (tariffaId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from as any)("tariffa_costi_varianti")
+      .update({ is_default: false })
+      .eq("company_id", companyId!)
+      .eq("tariffa_id", tariffaId)
+      .eq("is_default", true);
+    if (error) throw new Error(error.message);
+  };
+
+  /** Il dialog manodopera in commessa legge le varianti con un'altra chiave. */
+  const invalidateBoth = (tariffaId: string) => {
+    qc.invalidateQueries({ queryKey: ["tariffa-varianti", tariffaId] });
+    qc.invalidateQueries({ queryKey: ["tariffa-costi-varianti"] });
+  };
+
   const createVariante = useMutation({
     mutationFn: async (input: VarianteCreateInput) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (input.is_default) await clearDefault(input.tariffa_id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .insert({ ...input, company_id: companyId })
@@ -93,13 +116,15 @@ export function useTariffaVariantiMutations() {
       return data as TariffaCostoVariante;
     },
     onSuccess: (v) => {
-      qc.invalidateQueries({ queryKey: ["tariffa-varianti", v.tariffa_id] });
+      invalidateBoth(v.tariffa_id);
     },
   });
 
   const updateVariante = useMutation({
     mutationFn: async (params: { id: string; patch: VarianteUpdateInput }) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (params.patch.is_default && params.patch.tariffa_id)
+        await clearDefault(params.patch.tariffa_id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update(params.patch)
@@ -111,7 +136,7 @@ export function useTariffaVariantiMutations() {
       return data as TariffaCostoVariante;
     },
     onSuccess: (v) => {
-      qc.invalidateQueries({ queryKey: ["tariffa-varianti", v.tariffa_id] });
+      invalidateBoth(v.tariffa_id);
     },
   });
 
@@ -133,7 +158,7 @@ export function useTariffaVariantiMutations() {
       return data as TariffaCostoVariante;
     },
     onSuccess: (v) => {
-      qc.invalidateQueries({ queryKey: ["tariffa-varianti", v.tariffa_id] });
+      invalidateBoth(v.tariffa_id);
     },
   });
 
@@ -163,7 +188,7 @@ export function useTariffaVariantiMutations() {
       if (error) throw new Error(error.message);
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["tariffa-varianti", vars.tariffaId] });
+      invalidateBoth(vars.tariffaId);
     },
   });
 

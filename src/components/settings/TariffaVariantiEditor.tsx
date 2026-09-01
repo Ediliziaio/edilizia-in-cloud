@@ -9,9 +9,12 @@
  * Varianti disattivate (attivo=false) sono escluse dalla lista a meno che
  * l'utente clicchi "Mostra varianti scadute / disattivate".
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Pencil, PowerOff, Star, StarOff } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +44,16 @@ import {
 interface Props {
   tariffaId: string;
   costoDefault: number | null;
+  /** Squadra della voce stessa (tariffe_aziendali.external_team_id): se la
+   *  voce appartiene GIÀ al listino di una squadra, le varianti per squadra
+   *  di solito non servono — lo segnaliamo senza vietare nulla. */
+  tariffaSquadraId?: string | null;
+}
+
+/** Squadra minima per select e badge. */
+interface SquadraOption {
+  id: string;
+  name: string | null;
 }
 
 const MODALITA_OPTIONS: ModalitaContabile[] = [
@@ -51,7 +64,8 @@ const MODALITA_OPTIONS: ModalitaContabile[] = [
   "altro",
 ];
 
-export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
+export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraId }: Props) {
+  const companyId = useEffectiveCompanyId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TariffaCostoVariante | null>(null);
   const [showExpired, setShowExpired] = useState(false);
@@ -60,6 +74,27 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
     includeExpired: showExpired,
   });
   const { setDefault, disableVariante } = useTariffaVariantiMutations();
+
+  // Squadre/subappaltatori: stessa queryKey della pagina Tariffe → cache
+  // condivisa, nessun fetch in più quando l'editor è dentro quel dialog.
+  const { data: squadre = [] } = useQuery({
+    queryKey: ["external-teams-tariffe", companyId],
+    enabled: !!companyId,
+    staleTime: 300_000,
+    queryFn: async (): Promise<SquadraOption[]> => {
+      const { data } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      return data ?? [];
+    },
+  });
+  const squadraName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const sq of squadre) m[sq.id] = sq.name ?? "Squadra";
+    return m;
+  }, [squadre]);
 
   const openNew = () => {
     setEditing(null);
@@ -99,7 +134,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
         <div>
           <h4 className="text-sm font-semibold">Varianti di costo</h4>
           <p className="text-xs text-muted-foreground">
-            Configura varianti diverse (dipendente, subappaltatore, forfait) per tracciare il costo reale della manodopera.
+            La stessa lavorazione, il costo di chi la fa: legata a una squadra, la variante si applica da sola quando in commessa scegli quella squadra.
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={openNew}>
@@ -107,6 +142,14 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
           Aggiungi variante
         </Button>
       </div>
+
+      {tariffaSquadraId && (
+        <p className="text-xs text-muted-foreground rounded-md bg-background border p-2">
+          Questa voce appartiene già al listino di{" "}
+          <span className="font-medium text-foreground">{squadraName[tariffaSquadraId] ?? "una squadra"}</span>:
+          le varianti per squadra servono di solito sulle voci generiche.
+        </p>
+      )}
 
       {!hasVariants && !isLoading && (
         <div className="rounded-md bg-background border p-3 text-xs text-muted-foreground">
@@ -139,6 +182,11 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-base">{icon}</span>
                     <span className="font-medium">{v.nome}</span>
+                    {v.external_team_id && (
+                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">
+                        {squadraName[v.external_team_id] ?? "Squadra"}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-xs">{modLabel}</Badge>
                     {v.is_default && (
                       <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-200">
@@ -212,6 +260,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault }: Props) {
           onClose={() => setDialogOpen(false)}
           editing={editing}
           tariffaId={tariffaId}
+          squadre={squadre}
         />
       )}
     </div>
@@ -224,14 +273,17 @@ function VarianteDialog({
   onClose,
   editing,
   tariffaId,
+  squadre,
 }: {
   open: boolean;
   onClose: () => void;
   editing: TariffaCostoVariante | null;
   tariffaId: string;
+  squadre: SquadraOption[];
 }) {
   const { createVariante, updateVariante } = useTariffaVariantiMutations();
   const [nome, setNome] = useState(editing?.nome ?? "");
+  const [externalTeamId, setExternalTeamId] = useState(editing?.external_team_id ?? "");
   const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
   const [modalita, setModalita] = useState<ModalitaContabile>(
     editing?.modalita_contabile ?? "subappalto_fatturato",
@@ -263,6 +315,7 @@ function VarianteDialog({
         nome: nome.trim(),
         descrizione: descrizione.trim() || null,
         modalita_contabile: modalita,
+        external_team_id: externalTeamId || null,
         fornitore_id: fornitoreId.trim() || null,
         risorsa_id: risorsaId.trim() || null,
         costo: costoNum,
@@ -294,6 +347,37 @@ function VarianteDialog({
           <DialogTitle>{editing ? "Modifica variante costo" : "Nuova variante costo"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {/* Prima "di chi è", poi il nome: scegliendo la squadra il nome si
+              precompila da solo (solo se il campo è ancora vuoto). */}
+          {squadre.length > 0 && (
+            <div>
+              <Label>Squadra</Label>
+              <Select
+                value={externalTeamId || "generico"}
+                onValueChange={(v) => {
+                  const id = v === "generico" ? "" : v;
+                  setExternalTeamId(id);
+                  if (id && !nome.trim()) {
+                    const sq = squadre.find((s) => s.id === id);
+                    if (sq?.name) setNome(sq.name);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Variante generica" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="generico">Generica (nessuna squadra)</SelectItem>
+                  {squadre.map((sq) => (
+                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Legata a una squadra, si applica da sola quando in commessa scegli quella squadra.
+              </p>
+            </div>
+          )}
           <div>
             <Label>Nome *</Label>
             <Input

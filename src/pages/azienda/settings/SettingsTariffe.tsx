@@ -253,11 +253,17 @@ function calcMargine(pv: number, pa: number) {
  * anche solo un flash della UI in caso di ruolo non-admin.
  */
 function TariffaVariantiSection({
-  tariffaId, costoDefault,
-}: { tariffaId: string; costoDefault: number | null }) {
+  tariffaId, costoDefault, tariffaSquadraId,
+}: { tariffaId: string; costoDefault: number | null; tariffaSquadraId?: string | null }) {
   const { data: perms } = useUserPermissions();
   if (!perms?.can_view_costs) return null;
-  return <TariffaVariantiEditor tariffaId={tariffaId} costoDefault={costoDefault} />;
+  return (
+    <TariffaVariantiEditor
+      tariffaId={tariffaId}
+      costoDefault={costoDefault}
+      tariffaSquadraId={tariffaSquadraId}
+    />
+  );
 }
 
 // ─── KPI Header ───────────────────────────────────────────────────────────────
@@ -855,6 +861,7 @@ function TariffaDialog({
             <TariffaVariantiSection
               tariffaId={editing.id}
               costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null}
+              tariffaSquadraId={externalTeamId || null}
             />
           )}
 
