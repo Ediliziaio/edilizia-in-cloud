@@ -289,6 +289,10 @@ async function renderWithProvider(params: {
   companyId: string;
   sessionId: string;
   timeoutMs?: number;
+  /** Vieta il fallback su OpenRouter, che ignora la size e restituisce un
+   *  quadrato: su una facciata il quadrato costringe il modello a ricomporre
+   *  l'edificio, e cambiano piani, finestre e prospettiva. */
+  directProviderOnly?: boolean;
 }): Promise<
   {
     imageData: string;
@@ -315,6 +319,7 @@ async function renderWithProvider(params: {
     // F1-parity (audit 16/07) — timeout deadline-aware dal chiamante,
     // 1 tentativo per tier (il fallback è il Tier 2, non il retry).
     timeoutMs: params.timeoutMs ?? 75_000,
+    directProviderOnly: params.directProviderOnly ?? false,
     maxRetries: 0,
     metadata: {
       task_kind: "render_image_edit",
@@ -555,16 +560,48 @@ Deno.serve(async (req) => {
       );
 
     const prompt = `${systemPrompt}\n\n${userPrompt}`;
+    // Il primo tentativo va SOLO sul provider diretto, l'unico che riceve la
+    // size come parametro vero. Il fallback resta come rete sull'errore: su una
+    // facciata un quadrato non e' un dettaglio estetico, costringe il modello a
+    // ricomporre l'edificio e a cambiare piani, aperture e prospettiva.
+    // `requestSessionId` e' un `let` allargato a `string | null`: dentro una
+    // closure TypeScript non puo' piu' fidarsi del controllo di non-nullita'
+    // fatto sopra. Si fissa qui, dove il controllo e' ancora valido.
+    const idSessione = requestSessionId;
+    const primoTentativo = async () => {
+      try {
+        return await renderWithProvider({
+          prompt,
+          preparedUrl: prepared.url,
+          width: prepared.effective_width ?? undefined,
+          height: prepared.effective_height ?? undefined,
+          companyId: typedSession.company_id,
+          sessionId: idSessione,
+          timeoutMs: 70_000,
+          directProviderOnly: true,
+        });
+      } catch (primoErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn",
+          fn: "generate-facade-render",
+          session_id: idSessione,
+          msg: "provider_diretto_fallito_si_passa_alla_catena",
+          error: String((primoErr as Error)?.message ?? primoErr).substring(0, 200),
+          nota: "il formato potrebbe non essere rispettato dal fallback",
+        }));
+        return await renderWithProvider({
+          prompt,
+          preparedUrl: prepared.url,
+          width: prepared.effective_width ?? undefined,
+          height: prepared.effective_height ?? undefined,
+          companyId: typedSession.company_id,
+          sessionId: idSessione,
+          timeoutMs: 70_000,
+        });
+      }
+    };
     const { imageData, providerRawResponse, modelUsed, providerKey, attempts, sourceDataUrl } =
-      await renderWithProvider({
-        prompt,
-        preparedUrl: prepared.url,
-        width: prepared.effective_width ?? undefined,
-        height: prepared.effective_height ?? undefined,
-        companyId: typedSession.company_id,
-        sessionId: requestSessionId,
-        timeoutMs: 70_000,
-      });
+      await primoTentativo();
 
     // ── QA VISION facciata (audit 16/07) ─────────────────────────────────
     // Difetti tipici: PIANI aggiunti/tolti all'edificio, finestre/balconi
@@ -625,6 +662,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as th
           companyId: typedSession.company_id,
           sessionId: requestSessionId,
           timeoutMs: 60_000,
+          directProviderOnly: true,
         });
         finalImageData = retry.imageData;
         generationAttempts += 1;

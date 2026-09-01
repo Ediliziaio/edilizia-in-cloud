@@ -3,6 +3,7 @@
 // Prompt Engine v1.0 — surgical outdoor pergola installation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { detectImageDimensions } from "../_shared/imageDimensions.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -729,16 +730,36 @@ Deno.serve(async (req) => {
         );
       }
       const imgBlob = await imgResp.blob();
+      // Rete di sicurezza sul formato: se il client non manda larghezza e altezza
+      // e prepareInputImage non le ricava, il selettore della size non ha su cosa
+      // decidere e ripiega sul quadrato 1024x1024 — che costringe il modello a
+      // ricomporre la scena per riempirlo. Le dimensioni vere si leggono dai primi
+      // byte del file, senza decodificare l'immagine.
+      if (!effectiveWidth || !effectiveHeight) {
+        try {
+          const probe = new Uint8Array(await imgBlob.slice(0, 65536).arrayBuffer());
+          const dim = detectImageDimensions(probe);
+          if (dim) {
+            effectiveWidth = dim.width;
+            effectiveHeight = dim.height;
+            console.log(JSON.stringify({
+              lvl: "info", fn: "generate-pergola-render", session_id,
+              msg: "source_dimensions_detected_from_bytes",
+              width: dim.width, height: dim.height,
+            }));
+          }
+        } catch (_e) { /* formato non riconosciuto: si prosegue col default */ }
+      }
 
       // F1-parity (audit 16/07) — budget deadline-aware, 1 tentativo per tier.
       const PERGOLE_BUDGET_MS = 140_000;
       const jobStartMs = Date.now();
       const jobElapsed = () => Date.now() - jobStartMs;
-      const generateCandidate = (prompt: string) => {
+      const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = PERGOLE_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
           30_000,
-          Math.min(75_000, Math.floor(remaining / 2)),
+          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
         );
         return editImage({
           prompt,
@@ -747,6 +768,7 @@ Deno.serve(async (req) => {
           effectiveHeight,
           openaiQuality: "medium",
           timeoutMs: perAttemptTimeout,
+          directProviderOnly: soloProviderDiretto,
           maxRetries: 0,
           metadata: {
             task_kind: "render_image_edit",
@@ -756,7 +778,26 @@ Deno.serve(async (req) => {
         });
       };
 
-      let providerResult = await generateCandidate(finalProviderPrompt);
+      // Il primo tentativo va SOLO sul provider diretto, con tutto il budget.
+      // Il secondo tier e' OpenRouter, che riceve la size come semplice testo nel
+      // prompt e la ignora: da una foto verticale restituisce un 1024x1024, e per
+      // riempire il quadrato il modello inventa scena ai lati — allarga il soggetto
+      // e ridisegna quello che ha intorno. Dividere il budget a meta' per tenerlo
+      // pronto affamava il provider buono e faceva consegnare proprio quei quadrati.
+      // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando ne
+      // servivano ~60. Col diretto a budget pieno: 146s -> 58s e formato corretto.
+      let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
+      try {
+        providerResult = await generateCandidate(finalProviderPrompt, true);
+      } catch (primoErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-pergola-render", session_id,
+          msg: "provider_diretto_fallito_si_passa_alla_catena",
+          error: String((primoErr as Error)?.message ?? primoErr).substring(0, 200),
+          nota: "il formato potrebbe non essere rispettato dal fallback",
+        }));
+        providerResult = await generateCandidate(finalProviderPrompt, false);
+      }
 
       // ── QA VISION pergole (audit 16/07) ────────────────────────────────
       // Difetti tipici: DUE pergole invece di una, struttura "galleggiante"
@@ -804,12 +845,26 @@ Deno.serve(async (req) => {
             session_id,
             issues: qaIssues.map((i) => i.category),
           }));
-          providerResult = await generateCandidate(`${finalProviderPrompt}
+          const primoTentativo = providerResult;
+          // Il retry va anch'esso sul solo provider diretto. Se finisse su OpenRouter
+          // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
+          // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
+          // la fa, si tiene il primo tentativo senza spendere altro.
+          try {
+            providerResult = await generateCandidate(`${finalProviderPrompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
-Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pergola, posts firmly anchored to the ground and structure attached as specified, house and garden untouched outside the installation area, same camera and crop.`);
+Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pergola, posts firmly anchored to the ground and structure attached as specified, house and garden untouched outside the installation area, same camera and crop.`, true);
+          } catch (retryErr) {
+            console.warn(JSON.stringify({
+              lvl: "warn", fn: "generate-pergola-render", session_id,
+              msg: "qa_retry_fallito_si_tiene_il_primo",
+              error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
+            }));
+            providerResult = primoTentativo;
+          }
         } else if (qaResult.checked && !qaResult.pass) {
           console.warn(JSON.stringify({
             fn: "generate-pergola-render",

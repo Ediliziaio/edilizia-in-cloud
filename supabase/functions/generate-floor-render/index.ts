@@ -2,6 +2,7 @@
 // Render Pavimento AI — pipeline unificata via OpenRouter + fallback OpenAI.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { detectImageDimensions } from "../_shared/imageDimensions.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -402,8 +403,23 @@ Use short values. Do not describe a renovation.`;
     const activeConfig = (config || session.config) as Record<string, unknown>;
     const activeAnalysis = analysis ||
       (session.analisi_pavimento as Record<string, unknown> | null) || null;
-    const effectiveWidth = prepared.effective_width ?? undefined;
-    const effectiveHeight = prepared.effective_height ?? undefined;
+    let effectiveWidth = prepared.effective_width ?? undefined;
+    let effectiveHeight = prepared.effective_height ?? undefined;
+    // Qui le dimensioni non servono solo a scegliere la size del render: da
+    // esse si ricava anche `orientation` del photo_meta che finisce nel prompt.
+    // Sbagliarle significa dire al modello che una foto verticale e' quadrata.
+    if (!effectiveWidth || !effectiveHeight) {
+      const dim = detectImageDimensions(originalImage.bytes);
+      if (dim) {
+        effectiveWidth = dim.width;
+        effectiveHeight = dim.height;
+        console.log(JSON.stringify({
+          lvl: "info", fn: "generate-floor-render", session_id,
+          msg: "source_dimensions_detected_from_bytes",
+          width: dim.width, height: dim.height,
+        }));
+      }
+    }
     const activePhotoMeta: FloorPhotoMeta = photo_meta ?? {
       width: effectiveWidth,
       height: effectiveHeight,
@@ -435,11 +451,11 @@ Use short values. Do not describe a renovation.`;
     const PAVIMENTO_BUDGET_MS = 140_000;
     const jobStartMs = Date.now();
     const jobElapsed = () => Date.now() - jobStartMs;
-    const generateCandidate = (prompt: string) => {
+    const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
       const remaining = PAVIMENTO_BUDGET_MS - jobElapsed() - 15_000;
       const perAttemptTimeout = Math.max(
         30_000,
-        Math.min(75_000, Math.floor(remaining / 2)),
+        Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
       );
       return editImage({
         prompt,
@@ -448,6 +464,7 @@ Use short values. Do not describe a renovation.`;
         effectiveHeight: prepared.effective_height ?? undefined,
         openaiQuality: "medium",
         timeoutMs: perAttemptTimeout,
+          directProviderOnly: soloProviderDiretto,
         maxRetries: 0,
         metadata: {
           task_kind: "render_image_edit",
@@ -457,7 +474,26 @@ Use short values. Do not describe a renovation.`;
       });
     };
 
-    let renderResult = await generateCandidate(fullPrompt);
+    // Il primo tentativo va SOLO sul provider diretto, con tutto il budget.
+    // Il secondo tier e' OpenRouter, che riceve la size come semplice testo nel
+    // prompt e la ignora: da una foto verticale restituisce un 1024x1024, e per
+    // riempire il quadrato il modello inventa scena ai lati — allarga il soggetto
+    // e ridisegna quello che ha intorno. Dividere il budget a meta' per tenerlo
+    // pronto affamava il provider buono e faceva consegnare proprio quei quadrati.
+    // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando ne
+    // servivano ~60. Col diretto a budget pieno: 146s -> 58s e formato corretto.
+    let renderResult: Awaited<ReturnType<typeof generateCandidate>>;
+    try {
+      renderResult = await generateCandidate(fullPrompt, true);
+    } catch (primoErr) {
+      console.warn(JSON.stringify({
+        lvl: "warn", fn: "generate-floor-render", session_id,
+        msg: "provider_diretto_fallito_si_passa_alla_catena",
+        error: String((primoErr as Error)?.message ?? primoErr).substring(0, 200),
+        nota: "il formato potrebbe non essere rispettato dal fallback",
+      }));
+      renderResult = await generateCandidate(fullPrompt, false);
+    }
     let generationAttempts = 1;
 
     // ── QA VISION pavimento (audit 16/07) ────────────────────────────────
@@ -511,8 +547,22 @@ Use short values. Do not describe a renovation.`;
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: change ONLY the floor, keep walls/furniture/ceiling pixel-identical to the source, respect the selected module size (large slabs = few joints, never a dense small-tile grid), keep the exact source camera and crop.`;
-        renderResult = await generateCandidate(correctedPrompt);
-        generationAttempts += 1;
+        const primoTentativo = renderResult;
+        // Il retry va anch'esso sul solo provider diretto. Se finisse su OpenRouter
+        // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
+        // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
+        // la fa, si tiene il primo tentativo senza spendere altro.
+        try {
+          renderResult = await generateCandidate(correctedPrompt, true);
+          generationAttempts += 1;
+        } catch (retryErr) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-floor-render", session_id,
+            msg: "qa_retry_fallito_si_tiene_il_primo",
+            error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
+          }));
+          renderResult = primoTentativo;
+        }
       } else if (qaResult.checked && !qaResult.pass) {
         console.warn(JSON.stringify({
           fn: "generate-floor-render",

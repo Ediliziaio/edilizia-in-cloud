@@ -451,8 +451,22 @@ Deno.serve(async (req: Request) => {
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (one bed, one sofa, one table unless the source shows more), never add/remove/move windows or doors, keep the exact source camera and crop. Fix every violation listed above.`;
-          providerResult = await generateCandidate(correctedPrompt);
-          generationAttempts += 1;
+          const primoTentativo = providerResult;
+          // Il retry va anch'esso sul solo provider diretto. Se finisse su OpenRouter
+          // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
+          // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
+          // la fa, si tiene il primo tentativo senza spendere altro.
+          try {
+            providerResult = await generateCandidate(correctedPrompt, true);
+            generationAttempts += 1;
+          } catch (retryErr) {
+            console.warn(JSON.stringify({
+              lvl: "warn", fn: "generate-room-render", session_id,
+              msg: "qa_retry_fallito_si_tiene_il_primo",
+              error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
+            }));
+            providerResult = primoTentativo;
+          }
         } else if (qaResult.checked && !qaResult.pass) {
           console.warn(JSON.stringify({
             fn: "generate-room-render",

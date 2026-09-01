@@ -539,7 +539,7 @@ Deno.serve(async (req) => {
     // arrivava a ~225s contro il cap 150s. Il fallback è il Tier 2.
     const jobStartMs = Date.now();
     const jobElapsed = () => Date.now() - jobStartMs;
-    const generateCandidate = (prompt: string) =>
+    const generateCandidate = (prompt: string, soloProviderDiretto = false) =>
       editImage({
         prompt,
         sourceImageBlob: imageBlob,
@@ -547,6 +547,7 @@ Deno.serve(async (req) => {
         effectiveHeight: sourceDimensions?.height,
         openaiQuality: "medium",
         timeoutMs: 70_000,
+        directProviderOnly: soloProviderDiretto,
         maxRetries: 0,
         metadata: {
           task_kind: "render_image_edit",
@@ -555,7 +556,22 @@ Deno.serve(async (req) => {
         },
       });
 
-    let providerResult = await generateCandidate(combinedPrompt);
+    // Il primo tentativo va SOLO sul provider diretto: il secondo tier e'
+    // OpenRouter, che ignora la size e restituisce un quadrato, e per riempirlo
+    // il modello inventa scena ai lati ridisegnando la facciata intorno alle
+    // persiane. Il fallback resta come rete sull'errore.
+    let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
+    try {
+      providerResult = await generateCandidate(combinedPrompt, true);
+    } catch (primoErr) {
+      console.warn(JSON.stringify({
+        lvl: "warn", fn: "generate-shutter-render", session_id,
+        msg: "provider_diretto_fallito_si_passa_alla_catena",
+        error: String((primoErr as Error)?.message ?? primoErr).substring(0, 200),
+        nota: "il formato potrebbe non essere rispettato dal fallback",
+      }));
+      providerResult = await generateCandidate(combinedPrompt, false);
+    }
 
     // ── QA VISION persiane (audit 16/07) ─────────────────────────────────
     // Difetti tipici: persiane su finestre che non ne avevano (o mancanti
@@ -602,12 +618,26 @@ Deno.serve(async (req) => {
           session_id,
           issues: qaIssues.map((i) => i.category),
         }));
-        providerResult = await generateCandidate(`${combinedPrompt}
+        const primoTentativo = providerResult;
+        // Il retry va anch'esso sul solo provider diretto. Se finisse su OpenRouter
+        // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
+        // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
+        // la fa, si tiene il primo tentativo senza spendere altro.
+        try {
+          providerResult = await generateCandidate(`${combinedPrompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
-Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows that have them per source/brief, same windows and doors in the same positions, facade wall untouched, same camera and crop.`);
+Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows that have them per source/brief, same windows and doors in the same positions, facade wall untouched, same camera and crop.`, true);
+        } catch (retryErr) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-shutter-render", session_id,
+            msg: "qa_retry_fallito_si_tiene_il_primo",
+            error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
+          }));
+          providerResult = primoTentativo;
+        }
       } else if (qaResult.checked && !qaResult.pass) {
         console.warn(JSON.stringify({
           fn: "generate-shutter-render",
