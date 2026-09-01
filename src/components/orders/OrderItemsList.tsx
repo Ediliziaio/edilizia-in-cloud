@@ -488,13 +488,17 @@ export function OrderItemsList({
     staleTime: 30000,
   });
 
-  // Map: order_item_id → PO info
+  // Map: order_item_id → PO info. DEDUPLICATA per numero OdA: con la distinta
+  // un articolo genera N righe nello STESSO ordine (una per posizione) e il
+  // chip mostrava "ODA-2026-0040, ODA-2026-0040, …" cinque volte.
   const poItemMap = useMemo(() => {
     const map = new Map<string, { oda_number: string; status: string }[]>();
     for (const row of poItemCoverage) {
       if (!row.order_item_id) continue;
       const existing = map.get(row.order_item_id) || [];
-      existing.push(row.purchase_orders);
+      if (!existing.some((p) => p.oda_number === row.purchase_orders.oda_number)) {
+        existing.push(row.purchase_orders);
+      }
       map.set(row.order_item_id, existing);
     }
     return map;
