@@ -3,6 +3,8 @@
 // ristrutturazioni, pavimenti-esterni, giardini, porte-blindate, porte-interne.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { TECHNICAL_REWRITER_PROFILE } from "../_shared/ai-provider/technicalRewriterProfile.ts";
 import { detectImageDimensions } from "../_shared/imageDimensions.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -701,8 +703,37 @@ Deno.serve(async (req) => {
           string,
           unknown
         >;
-      const { finalPrompt, userPrompt, promptVersion, promptPayload } =
-        buildTechnicalPrompt({ moduleType, config: rawConfig });
+      const costruito = buildTechnicalPrompt({ moduleType, config: rawConfig });
+      const { userPrompt, promptVersion, promptPayload } = costruito;
+      let finalPrompt = costruito.finalPrompt;
+
+      // META-PROMPT REWRITER: l'ultimo verticale senza prosa. I prompt ricchi
+      // dei moduli tecnici sono i piu' lunghi (11-14 000 caratteri). Il
+      // compattatore riceve le parole del cliente (config generica) piu' il
+      // payload dell'adattatore. Fallback silenzioso e loggato sui blocchi.
+      try {
+        const meta = await rewriteDomainPrompt(
+          {
+            config: { module_type: moduleType, config: rawConfig, ...promptPayload },
+            metadata: { task_kind: "render_prompt_rewrite", company_id: session.company_id as string, session_id },
+          },
+          TECHNICAL_REWRITER_PROFILE,
+        );
+        if (meta) {
+          const preserva = String((rawConfig as { preserveNotes?: unknown }).preserveNotes ?? "").trim();
+          finalPrompt = [
+            "You are an expert photorealistic Italian renovation render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+            meta.userPrompt,
+            preserva ? `Preserve EXACTLY as photographed, as listed by the customer: ${preserva}.` : "",
+            "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, hybrid old/new state, changes outside the target, swatch rectangles, invented objects.",
+          ].filter(Boolean).join("\n\n");
+          console.log(JSON.stringify({ lvl: "info", fn: "generate-technical-render", session_id, msg: "meta_prompt_active", rewriter_model: meta.modelUsed, rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length }));
+        } else {
+          console.warn(JSON.stringify({ lvl: "warn", fn: "generate-technical-render", session_id, msg: "meta_prompt_fallback_to_blocks" }));
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-technical-render", session_id, msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e) }));
+      }
 
       if (!promptPayload.validation.is_valid) {
         const missing = promptPayload.validation.errors?.join(", ") ||
@@ -934,7 +965,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate elements, sa
         .update({
           status: "completed",
           result_urls: [resultUrl],
-          prompt_used: userPrompt,
+          prompt_used: finalPrompt,
           prompt_version: promptVersion,
           prompt_char_count: finalPrompt.length,
           provider_key: providerKey,
