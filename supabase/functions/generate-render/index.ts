@@ -151,6 +151,13 @@ const QA_CATEGORIES = [
   "composition_mismatch",
   "scene_corruption",
   "residual_old_window",
+  // Aggiunta dopo un controllo negativo sul QA: gli si e' dato in pasto un
+  // render che allargava la finestra e ridipingeva le piastrelle intorno, e
+  // l'ha PROMOSSO. Nessuna delle tre categorie precedenti chiede se
+  // l'inquadratura sia rimasta la stessa, e l'istruzione finale "sii
+  // indulgente" spingeva a passare. Era il difetto numero uno segnalato
+  // dall'utente ("il sistema ha allargato la finestra e cambia lo sfondo").
+  "framing_changed",
 ] as const;
 type QaCategory = (typeof QA_CATEGORIES)[number];
 
@@ -201,6 +208,13 @@ function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
       `the roller shutter of opening ${spec.openingId}: the user asked to replace it`,
     );
   }
+  if (spec?.shutter.electricButton?.install) {
+    modificheAutorizzate.push(
+      `a NEW electric roller-shutter switch plate on the wall beside opening ${spec.openingId}: ` +
+      `the shutter is motorized, so the old manual control is removed and this small switch takes ` +
+      `its place. It is part of the ordered work — never report it as an invented object`,
+    );
+  }
   if (spec?.compositionChange) {
     modificheAutorizzate.push(
       `the internal subdivision of opening ${spec.openingId}: going from ${spec.compositionChange.fromSashCount} to ${spec.compositionChange.toSashCount} sashes is requested, so a different mullion layout is CORRECT`,
@@ -230,7 +244,18 @@ Check ONLY these 3 holistic categories:
 
 2. [scene_corruption] — Are room/walls/floor/ceiling/outdoor-view/furniture in Image 2 identical to Image 1? Did the AI invent objects (curtains, lamps, plants, sensors), recolor walls, alter the outdoor view, or paste swatch rectangles/product thumbnails into the scene? FAIL if anything outside the AUTHORISED CHANGES listed above was modified. A difference that is listed under AUTHORISED CHANGES is the requested work, NOT a defect: never report it.
 
-3. [residual_old_window] — Did the AI just RECOLOR the old window keeping the same geometry, old handle, old mullion thickness, old hinges, or leave residual artifacts like dark rectangles from old transoms / manual belt straps when motorization specified? FAIL if the new window is recognizably the old one with a color filter.
+3. [framing_changed] — Has the SCENE been recomposed?
+
+   FIRST, what is NOT a defect. The render is always produced at one of three fixed picture shapes, chosen as the closest to the source photo. So the two images will NEVER have exactly the same proportions, and Image 2 will normally show a slightly taller or slightly wider view than Image 1. That difference alone is EXPECTED — never report it.
+
+   What IS a defect is the scene being REBUILT to fill the new shape. Judge by the physical objects, not by the picture proportions:
+   - The opening must keep the same width RELATIVE TO ITS OWN WALL. Count the tiles, bricks or wall panels beside it: if the opening now covers noticeably more or fewer of them, FAIL.
+   - Every object present in Image 1 must still be there, unchanged: shelves, decorative tile borders, radiators, sills, switches, furniture. If one disappeared, moved, or was re-drawn differently, FAIL.
+   - No surface may be INVENTED to fill space: new wall, new tiles, new floor or new ceiling that Image 1 did not show. Simply seeing a little more of a surface that was already there is fine; seeing a surface that did not exist is not.
+
+   A widened opening and re-drawn surroundings make the simulation show a room the customer does not own. Do NOT apply the leniency rule below to a scene that has been rebuilt — but do NOT fail a render merely because the picture shape differs.
+
+4. [residual_old_window] — Did the AI just RECOLOR the old window keeping the same geometry, old handle, old mullion thickness, old hinges, or leave residual artifacts like dark rectangles from old transoms / manual belt straps when motorization specified? FAIL if the new window is recognizably the old one with a color filter.
 
 Return ONLY this JSON, no prose:
 {
@@ -241,7 +266,8 @@ Return ONLY this JSON, no prose:
 }
 Categories MUST be one of: ${QA_CATEGORIES.join(", ")}.
 If all ${QA_CATEGORIES.length} categories pass, return {"pass": true, "issues": []}.
-Be LENIENT: this is a sanity check, not a pixel-perfect inspection. Pass if the render is broadly acceptable.`;
+Be LENIENT on finish, colour and material nuances: this is a sanity check, not a pixel-perfect inspection. Pass if the render is broadly acceptable.
+The leniency does NOT extend to a scene that has been REBUILT (see [framing_changed]): a widened opening or invented surroundings are always a failure, however pretty the result. A merely different picture shape is not.`;
 }
 
 // v8.6.29 — Corrective fragments semplificati: 3 categorie holistic.
@@ -254,6 +280,8 @@ function buildCorrectiveFragmentForCategory(
       return "Re-render strictly following the original specification (sash count, profile, color, cassonetto style, transom, hinges, handle position). Do NOT deviate from the user's choices.";
     case "scene_corruption":
       return "Preserve the room, furniture, walls, ceiling, floor, and outdoor view IDENTICAL to the source photo. Do NOT invent objects (curtains, lamps, plants, sensors), do NOT recolor walls, do NOT alter the outdoor view, do NOT paste swatch rectangles or product thumbnails into the scene. The only changes allowed are inside the target window opening.";
+    case "framing_changed":
+      return "Keep the EXACT SAME camera framing as the source photo. The window opening must occupy the same fraction of the image width, with the same amount of wall, tiles, furniture, ceiling and floor visible around it. Do NOT widen or narrow the opening, do NOT zoom, do NOT recompose the scene, do NOT invent surrounding surfaces to fill space. The customer must recognise their own room.";
     case "residual_old_window":
       return "ERASE the old window entirely. Draw a BRAND NEW physical window: different geometry, different mullion thickness, new handle (different shape from the old one), new hinges, frame color in ALL surfaces (front + lateral stiles + top + bottom + mullion). Remove any residual muntin segments, georgian bars, or manual belt/cord/winder. This is a physical replacement, not a color filter.";
     default:
