@@ -540,7 +540,7 @@ Deno.serve(async (req) => {
     // una legenda appesa DOPO la prosa. Mai bloccanti: se il sito non risponde
     // il render prosegue senza foto e lo si vede nei log.
     try {
-      const refsCondivise = collectShutterReferenceImages((() => { const c = (config || session.config || {}) as Record<string, unknown>; return { tipo: c.tipo as string | undefined, materiale: c.materiale as string | undefined, operazione: c.operazione as string | undefined }; })());
+      const refsCondivise = collectShutterReferenceImages((() => { const c = (config || session.config || {}) as Record<string, unknown>; const lc = (c.legacy_config && typeof c.legacy_config === "object" ? c.legacy_config : {}) as Record<string, unknown>; const pick = (k: string) => (typeof c[k] === "string" ? c[k] : lc[k]) as string | undefined; return { tipo: pick("tipo"), materiale: pick("materiale"), operazione: pick("operazione") }; })());
       if (refsCondivise.length > 0) {
         const fetched = await fetchSharedReferenceImages(
           refsCondivise,

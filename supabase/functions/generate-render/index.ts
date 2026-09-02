@@ -29,6 +29,7 @@ import {
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { rewriteToMetaPrompt } from "../_shared/ai-provider/metaPromptRewriter.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
+import { buildReferenceImageLegend, type RenderReferenceImage } from "../../../shared/render-window/windowReferenceImages.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
 
 /**
@@ -1151,6 +1152,19 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           (x): x is { label: string; dataUrl: string } => x !== null,
         )
         : [];
+
+    // La legenda delle immagini allegate stava nel prompt a blocchi; con la
+    // prosa del rewriter andava persa e il modello riceveva fino a 4 foto
+    // senza sapere cosa fossero. Ora si appende DOPO la prosa, con le sole
+    // reference davvero scaricate, e prompt_used resta il prompt inviato.
+    if (referenceImagesFetched.length > 0) {
+      const legenda = buildReferenceImageLegend(
+        referenceImagesFetched.map((r) => ({ label: r.label }) as RenderReferenceImage),
+      );
+      if (legenda && !composedPrompt.includes("IMAGE INPUTS LEGEND")) {
+        composedPrompt = `${composedPrompt}\n\n${legenda}`;
+      }
+    }
 
     logInfo({
       session_id,
