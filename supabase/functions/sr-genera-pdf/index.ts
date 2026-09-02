@@ -21,6 +21,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
+import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 
 interface Payload {
   progetto_id: string;
@@ -501,7 +502,21 @@ Deno.serve(async (req: Request) => {
       totale_serramenti: numSerr,
       totale_accessori: (accessori ?? []).reduce((acc: number, a: { quantita?: number }) => acc + (a.quantita ?? 1), 0),
       tipo_intervento: prog.tipo_intervento,
-      condizioni_legali_testo: tpl?.condizioni_legali_testo ?? null,
+      // Merge tag ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…) sostituiti coi dati del progetto
+      condizioni_legali_testo: tpl?.condizioni_legali_testo
+        ? substituteMergeTags(String(tpl.condizioni_legali_testo), buildMergeContext({
+            quote: {
+              quote_number: prog.code,
+              client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
+              client_email: prog.cliente_email ?? "",
+              client_phone: prog.cliente_telefono ?? "",
+              client_address: prog.cliente_indirizzo ?? "",
+              created_at: prog.created_at,
+            },
+            company: { name: tpl?.ragione_sociale ?? "", vat_number: tpl?.partita_iva ?? "", address: tpl?.indirizzo_completo ?? "", email: tpl?.email ?? "", phone: tpl?.telefono ?? "" },
+            cantiere: { indirizzo: prog.cliente_indirizzo ?? "", citta: prog.cantiere_citta ?? prog.cliente_citta ?? "" },
+          }))
+        : null,
       condizioni_legali_attivo: tpl?.condizioni_legali_attivo ?? true,
       intervento_titolo: prog.intervento_titolo || `Per ${prog.cliente_nome ?? ""}`,
       // Sintesi: usa quella esplicitamente inserita; se vuota, auto-genera dal BOM

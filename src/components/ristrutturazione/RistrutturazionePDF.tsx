@@ -27,6 +27,7 @@ import {
   LinearGradient, RadialGradient, Stop, Font,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
+import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import type { RstPdfEnriched, RstPdfCapitolo, RstPdfTotali } from "@/hooks/useRistrutturazionePDF";
 import type { RstProgetto, RstTemplatePdf } from "@/types/ristrutturazione";
 import { htmlToRichBlocks, type RstRichRun } from "@/lib/ristrutturazione/richTextPdf";
@@ -694,7 +695,15 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
   const righeCondizioniLegali: Array<{ tipo: "h1" | "h2" | "li" | "p"; testo: string }> =
     tCond.condizioni_legali_attivo === false
       ? []
-      : String(tCond.condizioni_legali_testo ?? "")
+      : applicaMergeTagModulo(String(tCond.condizioni_legali_testo ?? ""), {
+          companyName: (company as { name?: string | null; ragione_sociale?: string | null })?.ragione_sociale ?? (company as { name?: string | null })?.name ?? null,
+          companyVat: (company as { vat_number?: string | null; partita_iva?: string | null })?.partita_iva ?? (company as { vat_number?: string | null })?.vat_number ?? null,
+          clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
+          cantiereIndirizzo: [p.cantiere_indirizzo, p.cantiere_cap, p.cantiere_citta].filter(Boolean).join(", ") || null,
+          cantiereCitta: p.cantiere_citta ?? null,
+          numero: p.code, dataDocumento: (p as { created_at?: string | null }).created_at ?? null,
+          pianoPagamenti: t.payment_terms_text ?? null,
+        })
           .replace(/\r\n/g, "\n")
           .split("\n")
           .map((riga) => riga.trim())

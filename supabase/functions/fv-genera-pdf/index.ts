@@ -31,6 +31,7 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
@@ -661,7 +662,29 @@ Deno.serve(async (req: Request) => {
         usp: Array.isArray(template.usp) ? template.usp : [],
         cronoprogramma: Array.isArray(template.cronoprogramma) ? template.cronoprogramma : [],
         condizioni_legali_attivo: template.condizioni_legali_attivo ?? false,
-        condizioni_legali_testo: template.condizioni_legali_testo ?? null,
+        // Merge tag dei blocchi importati dalla libreria Template offerte → dati del progetto
+        condizioni_legali_testo: template.condizioni_legali_testo
+          ? substituteMergeTags(String(template.condizioni_legali_testo), buildMergeContext({
+              quote: {
+                quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
+                client_name: [prog.cliente_nome, prog.cliente_cognome].filter(Boolean).join(" ").trim() || undefined,
+                client_email: prog.cliente_email ?? "",
+                client_phone: prog.cliente_telefono ?? "",
+                client_address: prog.indirizzo ?? "",
+                total: prog.costo_totale_netto ?? null,
+                created_at: prog.created_at,
+              },
+              company: {
+                name: (template as { ragione_sociale?: string | null }).ragione_sociale ?? (company as { name?: string | null }).name ?? "",
+                vat_number: (template as { partita_iva?: string | null }).partita_iva ?? (company as { vat_number?: string | null }).vat_number ?? "",
+                address: (template as { indirizzo_completo?: string | null }).indirizzo_completo ?? "",
+                email: (template as { email?: string | null }).email ?? (company as { email?: string | null }).email ?? "",
+                phone: (template as { telefono?: string | null }).telefono ?? (company as { phone?: string | null }).phone ?? "",
+              },
+              cantiere: { indirizzo: prog.indirizzo ?? "" },
+              template: { payment_terms_text: (template as { condizioni_pagamento_testo?: string | null }).condizioni_pagamento_testo ?? "" },
+            }))
+          : null,
         urgenza_attiva: template.urgenza_attiva ?? false,
         urgenza_titolo: template.urgenza_titolo ?? null,
         urgenza_descrizione: template.urgenza_descrizione ?? null,

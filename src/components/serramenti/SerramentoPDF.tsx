@@ -31,6 +31,7 @@ import type {
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
 } from "@/types/serramenti";
 import { calcolaTotale } from "@/lib/serramenti/calcoli";
+import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -1902,7 +1903,18 @@ export function SerramentoPDF({
   const faqItemsRaw = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
   const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
-  const condizioniLegaliTesto = (tpl.condizioni_legali_testo as string | null) || null;
+  // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
+  const condizioniLegaliTesto = applicaMergeTagModulo((tpl.condizioni_legali_testo as string | null) || null, {
+    companyName,
+    companyVat: tpl.partita_iva ?? company?.vat_number ?? null,
+    companyAddress: tpl.indirizzo_completo ?? null,
+    companyEmail: tpl.email ?? company?.email ?? null,
+    companyPhone: tpl.telefono ?? company?.phone ?? null,
+    clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
+    clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
+    cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
+    numero: p.code, dataDocumento: p.created_at ?? null,
+  }) || null;
   // Fix integrazione · Toggle "attivo" devono essere rispettati anche dal PDF.
   // Prima il PDF ignorava i toggle e mostrava il footer/pagina se il testo
   // era valorizzato, anche se l'utente aveva disattivato il toggle nell'editor.
