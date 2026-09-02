@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { smtpTestConnection, imapTestConnection } from "../_shared/imapSmtpClient.ts";
+import { testNativeSender } from "../_shared/outreachMailboxSend.ts";
 
 /**
  * outreach-mailbox-test — il SUPER_ADMIN verifica la connessione SMTP+IMAP di
@@ -27,7 +28,7 @@ Deno.serve(async (req) => {
     const { data: mbx, error: mbxErr } = await admin
       .from("outreach_sender_accounts")
       .select(
-        "id,email,smtp_host,smtp_port,smtp_secure,smtp_username,imap_host,imap_port,imap_secure,secret_ref",
+        "id,email,provider,oauth_connection_id,smtp_host,smtp_port,smtp_secure,smtp_username,imap_host,imap_port,imap_secure,secret_ref",
       )
       .eq("id", senderId)
       .maybeSingle();
@@ -35,6 +36,16 @@ Deno.serve(async (req) => {
     if (!mbx) return errorResponse("Casella mittente non trovata", 404, corsH);
 
     const nowIso = new Date().toISOString();
+
+    // Caselle OAuth (Gmail/Outlook di /admin/email): il test e' "i token
+    // funzionano e il profilo risponde", niente SMTP/IMAP.
+    if (mbx.provider === "gmail" || mbx.provider === "outlook") {
+      const r = await testNativeSender(admin, mbx);
+      await admin.from("outreach_sender_accounts")
+        .update({ connection_status: r.ok ? "ok" : "error", connection_error: r.ok ? null : (r.error ?? "errore"), connection_checked_at: nowIso })
+        .eq("id", mbx.id);
+      return jsonResponse({ ok: r.ok, smtp: r.ok, imap: r.ok, error: r.ok ? null : (r.error ?? "errore"), oauth: true }, 200, corsH);
+    }
 
     // Recupera la password dal Vault.
     let password = "";

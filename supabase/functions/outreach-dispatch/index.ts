@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, dailyCapWithVariance, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -37,6 +37,9 @@ import { channelForNodeType, planChannelSend, hasTemplate, orderTemplateParams, 
 import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreachChannelSend.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
+import { buildFollowupHeaders, type SentStep } from "../_shared/outreach-threading.ts";
+import { pauseBetweenSendsMs } from "../_shared/outreach-spread.ts";
+import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -65,6 +68,11 @@ function isAccountLevelFailure(body: unknown): string | null {
     "insufficient credit", "not enough credit", "quota exceeded", "over quota",
     "account disabled", "account suspended", "unauthorized", "invalid api key",
     "authentication failed", "payment required", "billing",
+    // SMTP/OAuth delle caselle proprie: Gmail e Microsoft NON dicono "authentication failed"
+    "username and password not accepted", "authentication unsuccessful", "invalid credentials",
+    "invalid login", "smtp_unexpected: 535", "smtp_unexpected: 534", "smtp_unexpected: 530",
+    "token_refresh_failed", "invalid_grant", "refresh_token_missing", "oauth_not_configured",
+    "gmail_send_401", "gmail_send_403", "gmail_send_429", "outlook_send_401", "outlook_send_403", "outlook_send_429",
   ];
   const hit = segnali.find((s) => txt.includes(s));
   return hit ? (typeof body === "string" ? body : JSON.stringify(body)).slice(0, 300) : null;
@@ -156,11 +164,25 @@ async function computeActivity(supabase: any, enrId: string): Promise<FlowActivi
     lastEmailOpened = (lastSent?.open_count ?? 0) > 0;
   } catch { /* tracking assente → non aperto */ }
   try {
+    // Le autorisposte (fuori sede, mailer-daemon) non sono "ha risposto".
     const { data: rep } = await supabase
-      .from("outreach_replies").select("id").eq("enrollment_id", enrId).limit(1).maybeSingle();
+      .from("outreach_replies").select("id").eq("enrollment_id", enrId)
+      .or("intent.is.null,intent.neq.auto_reply").limit(1).maybeSingle();
     hasReply = !!rep?.id;
   } catch { /* tabella/colonna assente → nessuna risposta */ }
   return { lastEmailOpened, hasReply };
+}
+
+/** Passi email gia' spediti di un'iscrizione, in ordine: servono al threading dei follow-up. */
+async function inviatiPrecedenti(supabase: any, enrId: string): Promise<SentStep[]> {
+  try {
+    const { data } = await supabase
+      .from("outreach_send_queue")
+      .select("message_id,subject,provider_thread_id,sent_at")
+      .eq("enrollment_id", enrId).eq("status", "sent").eq("channel", "email")
+      .order("sent_at", { ascending: true });
+    return ((data ?? []) as any[]).map((r) => ({ messageId: r.message_id ?? null, subject: r.subject ?? null, threadId: r.provider_thread_id ?? null }));
+  } catch { return []; }
 }
 
 /**
@@ -769,10 +791,28 @@ Deno.serve(async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
-    const senders = (sendersRaw || []) as any[];
+    // Una casella in errore NON entra in rotazione: prima veniva scelta lo
+    // stesso, falliva, e ogni fallimento chiudeva un'iscrizione. Le OAuth si
+    // riprovano da sole (token), le SMTP tornano con "Testa" dal pannello.
+    const senders: any[] = [];
+    for (const s of (sendersRaw || []) as any[]) {
+      if (s.connection_status === "error") {
+        if ((s.provider === "gmail" || s.provider === "outlook") && s.oauth_connection_id) {
+          try {
+            await getOauthAccessToken(supabase, s.oauth_connection_id);
+            s.connection_status = "ok";
+            await supabase.from("outreach_sender_accounts")
+              .update({ connection_status: "ok", connection_error: null, connection_checked_at: now.toISOString() }).eq("id", s.id);
+          } catch { continue; }
+        } else if (s.provider === "smtp") {
+          continue;
+        }
+      }
+      senders.push(s);
+    }
     if (senders.length === 0) return json({ ...result, note: "nessuna casella attiva" }, 200, cors);
 
     const senderById = new Map(senders.map((s) => [s.id, s]));
@@ -818,11 +858,15 @@ Deno.serve(async (req) => {
     // 20270821000000 non applicata) il select fallisce → la mappa resta vuota →
     // nessun pixel ovunque (comportamento cold sicuro).
     const trackOpensBySequence = new Map<string, boolean>();
+    const plainTextBySequence = new Map<string, boolean>();
     const sequenceIds = [...new Set([...enrollmentById.values()].map((e) => e.sequence_id).filter(Boolean))];
     if (sequenceIds.length) {
       const { data: seqs } = await supabase
-        .from("outreach_sequences").select("id,track_opens").in("id", sequenceIds);
-      for (const s of seqs || []) trackOpensBySequence.set(s.id, s.track_opens === true);
+        .from("outreach_sequences").select("id,track_opens,plain_text_only").in("id", sequenceIds);
+      for (const s of seqs || []) {
+        trackOpensBySequence.set(s.id, s.track_opens === true);
+        plainTextBySequence.set(s.id, s.plain_text_only === true);
+      }
     }
 
     // 3. assegnazione round-robin PER BRAND: ogni item è spedito SOLO dalle
@@ -858,8 +902,8 @@ Deno.serve(async (req) => {
     // viene scritto DOPO OGNI invio (non a fine tick): se il tick viene ucciso
     // dal timeout, i daily_sent già spediti non si perdono e il warm-up cap
     // resta rispettato al tick successivo.
-    const dailyCount = new Map<string, number>();
-    for (const s of senders) dailyCount.set(s.id, s.daily_sent_date === today ? (s.daily_sent || 0) : 0);
+    // Il contatore giornaliero e' incrementato da outreach_prenota_invio PRIMA
+    // dell'invio (atomico): niente piu' snapshot letto a inizio tick e riscritto.
 
     for (const a of assignments) {
       // Time-budget: usciamo puliti prima del limite 150s della edge. Le righe
@@ -933,12 +977,33 @@ Deno.serve(async (req) => {
         const variantIndex = chosen ? chosen.index : null;
         // Unsubscribe firmato (HMAC; legacy-mode senza secret) + header List-Unsubscribe:
         // compliance/deliverability del cold. Serve il contatto (rid) per la soppressione.
-        let html = renderTemplate(item.body || "", vars, { seed });
-        // firma del brand (sign-off): passa da renderTemplate → supporta variabili/spintax
-        if (brand?.signature) {
-          html += `<br><br>${renderTemplate(brand.signature, vars, { seed })}`;
+        // ── CORPO scritto dall'utente (+ firma brand), SENZA footer ──────────
+        let corpo = renderTemplate(item.body || "", vars, { seed });
+        if (brand?.signature) corpo += `<br><br>${renderTemplate(brand.signature, vars, { seed })}`;
+        const testoCorpo = htmlToPlainText(corpo);
+
+        // ── THREADING: i follow-up restano nel thread del primo messaggio ──
+        const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id) : [];
+        const oggettoStep = renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed });
+        const thr = buildFollowupHeaders(precedenti, oggettoStep);
+        const subjectFinale = thr.subject;
+
+        // GATE DI CONTENUTO sul corpo, con il touch REALE. Prima si lintava il
+        // testo COMPLETO di footer: il link di disiscrizione aggiunto dal motore
+        // faceva scattare "zero link" e bloccava OGNI email (200/200 a luglio).
+        const rilievi = lintEmail(subjectFinale, testoCorpo, { touch: thr.touch });
+        if (!puoPartire(rilievi)) {
+          const motivi = rilievi.filter((r) => r.gravita === "blocco").map((r) => r.regola).join(", ");
+          await supabase.from("outreach_send_queue")
+            .update({ status: "skipped", sender_account_id: sender.id, last_error: `copy bloccata dal linter: ${motivi}` })
+            .eq("id", item.id);
+          console.error(`[outreach-dispatch] COPY BLOCCATA (${motivi}) — riga ${item.id}. Correggi il testo della sequenza.`);
+          result.skipped++;
+          continue;
         }
-        // footer compliance: indirizzo postale (CAN-SPAM) + disiscrizione
+
+        // ── FOOTER compliance: indirizzo postale + disiscrizione firmata ──
+        let html = corpo;
         let unsubscribeUrl: string | undefined;
         if (item.contact_id) {
           unsubscribeUrl = await appendTrackingSig(
@@ -951,20 +1016,12 @@ Deno.serve(async (req) => {
         if (addr || unsubHtml) {
           html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
         }
-        // Part text/plain (deliverability): deriva la versione testuale dall'HTML
-        // ASSEMBLATO (corpo + firma + footer + disiscrizione) PRIMA del pixel, così il
-        // testo contiene i link reali (es. disiscrizione come URL) ma non il pixel 1×1.
-        // Inviare l'email come multipart/alternative (text + html) riduce lo spam-score:
-        // una HTML-only senza alternativa testuale è un segnale negativo per i filtri.
+        // Part text/plain: dall'HTML assemblato (corpo + firma + footer), PRIMA del pixel.
         const text = htmlToPlainText(html);
-        // Open-tracking (opt-in, default OFF): inietta il pixel 1×1 firmato SOLO se la
-        // sequenza dell'invio ha track_opens=true. Senza enrollment/sequenza, o con
-        // track_opens=false → nessun pixel (cold protetto). outreachOpenPixelUrl ritorna
-        // null anche se EMAIL_TRACKING_SECRET manca (fail-safe): in quel caso log + invio
-        // prosegue senza pixel, mai blocchiamo lo spedito.
         const seqIdForItem = enr?.sequence_id ?? null;
         const trackOpens = seqIdForItem ? (trackOpensBySequence.get(seqIdForItem) ?? false) : false;
-        if (trackOpens) {
+        const plainOnly = seqIdForItem ? (plainTextBySequence.get(seqIdForItem) ?? false) : false;
+        if (trackOpens && !plainOnly) {
           const pixelUrl = await outreachOpenPixelUrl(`${SUPABASE_URL}/functions/v1`, item.id);
           if (pixelUrl) {
             html += `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;width:1px;height:1px;border:0;overflow:hidden" />`;
@@ -972,20 +1029,9 @@ Deno.serve(async (req) => {
             console.warn("[outreach-dispatch] track_opens attivo ma EMAIL_TRACKING_SECRET assente — pixel non iniettato per", item.id);
           }
         }
-        // Casella SMTP reale: instrada l'invio sul suo server (la password sta in
-        // Vault, recuperata via RPC). Caselle EE legacy: mailboxOverride resta
-        // undefined → comportamento invariato (invio via API Elastic Email).
-        let mailboxOverride: { host: string; port: number; secure: boolean; username: string; password: string } | undefined;
-        if (sender.provider === "smtp" && sender.secret_ref) {
-          const { data: pwd } = await supabase.rpc("outreach_mailbox_secret", { p_ref: sender.secret_ref });
-          if (pwd && sender.smtp_host && sender.smtp_port) {
-            mailboxOverride = { host: sender.smtp_host, port: sender.smtp_port, secure: sender.smtp_secure ?? true, username: sender.smtp_username ?? sender.email, password: pwd as string };
-          }
-        }
-        // THROTTLING PER SERVER DI DESTINAZIONE (non per dominio).
-        // Massimo 4 invii/ora dalla stessa casella verso lo stesso gruppo MX:
-        // e' cio' che evita di apparire come un attacco al server di Aruba,
-        // dove sta una fetta enorme delle caselle delle imprese edili.
+
+        // THROTTLING PER SERVER DI DESTINAZIONE (non per dominio): max 4/ora
+        // dalla stessa casella verso lo stesso gruppo MX (Aruba, Register…).
         const domDest = String(item.to_email).split("@")[1]?.toLowerCase() ?? "";
         if (domDest) {
           const gruppo = await mxGroupDi(supabase, domDest);
@@ -993,7 +1039,6 @@ Deno.serve(async (req) => {
             p_mx_group: gruppo, p_sender_key: sender.email, p_max_ora: 4,
           });
           if (viaLibera === false) {
-            // Non e' un errore: e' cadenza. La riga riparte al tick successivo.
             await supabase.from("outreach_send_queue")
               .update({ status: "queued", last_error: `rimandato: quota oraria ${gruppo} esaurita per ${sender.email}` })
               .eq("id", item.id);
@@ -1002,37 +1047,56 @@ Deno.serve(async (req) => {
           }
         }
 
-        // GATE DI CONTENUTO. Le stesse regole che l'editor mostra mentre scrivi,
-        // qui applicate sul testo renderizzato: e' l'ultima rete prima che una
-        // parola bruciata o una frase da testo generato arrivi al destinatario.
-        const rilievi = lintEmail(
-          renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
-          text || htmlToPlainText(html || ""),
-          { touch: 1 },
-        );
-        if (!puoPartire(rilievi)) {
-          const motivi = rilievi.filter((r) => r.gravita === "blocco").map((r) => r.regola).join(", ");
+        // ── PRENOTAZIONE ATOMICA DEL CAP (prima era read-modify-write) ──
+        const capOggi = dailyCapWithVariance(sender as SenderState, today);
+        const { data: prenotato, error: prenErr } = await supabase.rpc("outreach_prenota_invio", {
+          p_sender_id: sender.id, p_today: today, p_cap: capOggi,
+        });
+        if (prenErr) throw prenErr;
+        if (prenotato === false) {
           await supabase.from("outreach_send_queue")
-            .update({ status: "skipped", sender_account_id: sender.id, last_error: `copy bloccata dal linter: ${motivi}` })
+            .update({ status: "queued", last_error: `rimandato: cap giornaliero di ${sender.email} raggiunto` })
             .eq("id", item.id);
-          console.error(`[outreach-dispatch] COPY BLOCCATA (${motivi}) — riga ${item.id}. Correggi il testo della sequenza.`);
-          result.skipped++;
+          result.deferred++;
           continue;
         }
 
-        const res = await sendEmailUnified({
-          companyId: PLATFORM_COMPANY,
-          stream: "marketing",
-          to: item.to_email,
-          subject: renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
-          html,
-          text,
-          senderOverride: { from, replyTo, source: "outreach_pool" },
-          mailboxOverride,
-          metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },
-        });
-        if (res && res.ok === false) {
-          const guastoAccount = isAccountLevelFailure(res.body);
+        // ── INVIO: caselle native (gmail/outlook/smtp) dal loro provider, il
+        //    resto (Elastic Email ecc.) via sendEmailUnified come prima ──
+        const unsubHeaders = unsubscribeUrl
+          ? { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+          : undefined;
+        const meta = { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl, touch: thr.touch };
+        let esito: { ok: boolean; body?: unknown; messageId: string | null; threadId: string | null; accountFailure: boolean };
+        if (isNativeProvider(sender.provider)) {
+          const r = await sendViaNativeSender(supabase, sender, {
+            companyId: PLATFORM_COMPANY, to: item.to_email, subject: subjectFinale,
+            html: plainOnly ? null : html, text, fromName: fromName ?? null, replyTo,
+            inReplyTo: thr.inReplyTo, references: thr.references, threadIdHint: thr.threadId,
+            headers: unsubHeaders, metadata: meta,
+          });
+          esito = { ok: r.ok, body: r.error ?? r.body, messageId: r.messageId, threadId: r.threadId, accountFailure: r.accountFailure === true };
+        } else {
+          const res = await sendEmailUnified({
+            companyId: PLATFORM_COMPANY,
+            stream: "marketing",
+            to: item.to_email,
+            subject: subjectFinale,
+            html,
+            text,
+            headers: unsubHeaders,
+            senderOverride: { from, replyTo, source: "outreach_pool" },
+            metadata: meta,
+          });
+          esito = { ok: !(res && res.ok === false), body: res?.body, messageId: res?.providerMessageId ?? null, threadId: null, accountFailure: false };
+        }
+
+        if (!esito.ok) {
+          // Non e' partito nulla: la prenotazione del cap torna indietro.
+          await supabase.rpc("outreach_rilascia_invio", { p_sender_id: sender.id, p_today: today });
+          const guastoAccount = esito.accountFailure
+            ? String(typeof esito.body === "string" ? esito.body : JSON.stringify(esito.body ?? "guasto account")).slice(0, 300)
+            : isAccountLevelFailure(esito.body);
           if (guastoAccount) {
             // Non è il destinatario: è l'account che non può spedire. La riga
             // torna in coda intatta, l'iscrizione NON si tocca, e si ferma qui
@@ -1048,12 +1112,9 @@ Deno.serve(async (req) => {
             result.providerBlocked = `${sender.email}: ${guastoAccount}`;
             break;
           }
-          // Recapito rifiutato a livello provider (tipicamente: soppresso, hard
-          // fail): non ritentare E fermare l'iscrizione. Prima si faceva solo
-          // 'skipped' + continue: l'enrollment restava 'active' con next_action_at
-          // nel passato e nessuna riga futura → sequenza bloccata per sempre.
+          // Recapito rifiutato (soppresso, hard fail): non ritentare E fermare l'iscrizione.
           await supabase.from("outreach_send_queue")
-            .update({ status: "skipped", sender_account_id: sender.id, last_error: JSON.stringify(res.body ?? "skipped") })
+            .update({ status: "skipped", sender_account_id: sender.id, last_error: JSON.stringify(esito.body ?? "skipped") })
             .eq("id", item.id);
           if (enr) {
             await supabase.from("outreach_enrollments")
@@ -1069,15 +1130,15 @@ Deno.serve(async (req) => {
             .eq("id", sender.id);
         }
         await supabase.from("outreach_send_queue")
-          .update({ status: "sent", sent_at: now.toISOString(), sender_account_id: sender.id, variant_index: variantIndex })
+          .update({
+            status: "sent", sent_at: new Date().toISOString(), sender_account_id: sender.id, variant_index: variantIndex,
+            // oggetto DAVVERO spedito e Message-ID: e' da qui che il follow-up costruisce "Re:" e In-Reply-To
+            subject: subjectFinale, message_id: esito.messageId, provider_thread_id: esito.threadId,
+          })
           .eq("id", item.id);
-        // Contatore casella scritto SUBITO (non a fine tick): sopravvive al timeout.
-        const nextCount = (dailyCount.get(sender.id) ?? 0) + 1;
-        dailyCount.set(sender.id, nextCount);
-        await supabase.from("outreach_sender_accounts")
-          .update({ daily_sent: nextCount, daily_sent_date: today, last_sent_at: now.toISOString() })
-          .eq("id", sender.id);
         result.sent++;
+        // Cadenza umana: una pausa variabile tra un invio e l'altro (prima: nessuna).
+        await new Promise((r) => setTimeout(r, pauseBetweenSendsMs()));
         // avanza la cadenza: prossimo step email o completamento iscrizione
         if (enr) {
           try { await advanceEnrollment(supabase, enr, contactById.get(item.contact_id), now, item.brand_id ?? null); }

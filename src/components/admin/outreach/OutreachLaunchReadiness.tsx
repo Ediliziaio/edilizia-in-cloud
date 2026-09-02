@@ -115,9 +115,11 @@ function aggrega(righe: Riga[]): BrandStato[] {
       }
       if (r.connection_status === "error")
         b.blocchi.push({ gravita: "stop", testo: `${r.casella}: connessione in errore` });
-      else if (!r.ha_smtp)
+      else if (!r.ha_smtp && r.provider === "smtp")
         b.blocchi.push({ gravita: "stop", testo: `${r.casella}: SMTP non collegato` });
-      if (!r.ha_imap)
+      // Le caselle Gmail/Outlook (OAuth) leggono le risposte dalla posta gia'
+      // scaricata; quelle Elastic Email dal webhook: l'IMAP serve solo alle SMTP.
+      if (!r.ha_imap && r.provider === "smtp")
         b.blocchi.push({ gravita: "stop", testo: `${r.casella}: IMAP non collegato — le risposte non verrebbero lette` });
       if ((r.warmup_day ?? 0) === 0 && r.casella_status === "warming")
         b.blocchi.push({ gravita: "attenzione", testo: `${r.casella}: warm-up non ancora avviato` });

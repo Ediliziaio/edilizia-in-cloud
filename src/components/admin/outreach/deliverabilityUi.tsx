@@ -46,6 +46,7 @@ export function StatusDot({ tone, label, className }: { tone: SenderTone; label?
 const PROVIDER_META: Record<string, { label: string; cls: string }> = {
   smtp: { label: "SMTP", cls: "bg-violet-50 text-violet-700 ring-violet-600/20" },
   google: { label: "Google", cls: "bg-sky-50 text-sky-700 ring-sky-600/20" },
+  gmail: { label: "Gmail · OAuth", cls: "bg-sky-50 text-sky-700 ring-sky-600/20" },
   outlook: { label: "Outlook", cls: "bg-blue-50 text-blue-700 ring-blue-600/20" },
   elastic_email: { label: "Elastic Email", cls: "bg-orange-50 text-orange-700 ring-orange-600/20" },
   ses: { label: "Amazon SES", cls: "bg-amber-50 text-amber-700 ring-amber-600/20" },

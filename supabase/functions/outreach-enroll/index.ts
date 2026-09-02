@@ -1,6 +1,8 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { firstEmailStep, nonEmailStepCount, computeStepSchedule, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { effectiveDailyCap } from "../_shared/outreach-dispatch-logic.ts";
+import { spreadFirstTouch } from "../_shared/outreach-spread.ts";
 
 /**
  * outreach-enroll — il SUPER_ADMIN iscrive contatti a una sequenza cold.
@@ -185,7 +187,22 @@ Deno.serve(async (req) => {
 
     // 5. iscrivi + accoda il primo step (a blocchi)
     const now = new Date();
-    const schedule = computeStepSchedule(now, first.delay_days, first.delay_hours).toISOString();
+    const inizio = computeStepSchedule(now, first.delay_days, first.delay_hours);
+    // Primo contatto SPARPAGLIATO in base alla capacita' del pool del brand:
+    // prima tutti avevano lo stesso scheduled_for e partivano a raffica.
+    let capPool = 0;
+    try {
+      const { data: pool } = await admin
+        .from("outreach_sender_accounts")
+        .select("status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,brand_id,connection_status")
+        .in("status", ["active", "warming"]);
+      capPool = ((pool ?? []) as any[])
+        .filter((s) => (!seq.brand_id || s.brand_id === seq.brand_id) && s.connection_status !== "error")
+        .reduce((sum, s) => sum + effectiveDailyCap(s), 0);
+    } catch { /* senza pool: un contatto per finestra */ }
+    const orari = spreadFirstTouch({ start: inizio, count: eligible.length, capPerDay: capPool });
+    const scheduleByContact = new Map<string, string>(eligible.map((c: { id: string }, i: number) => [c.id, orari[i].toISOString()]));
+    const schedule = inizio.toISOString();
     const CHUNK = 200;
     for (let i = 0; i < eligible.length; i += CHUNK) {
       const slice = eligible.slice(i, i + CHUNK);
@@ -195,7 +212,7 @@ Deno.serve(async (req) => {
         contact_id: c.id,
         status: "active",
         current_step: first.step_order,
-        next_action_at: schedule,
+        next_action_at: scheduleByContact.get(c.id) ?? schedule,
       }));
       const { data: enr, error: enrErr } = await admin
         .from("outreach_enrollments").insert(enrRows).select("id,contact_id");
@@ -212,7 +229,7 @@ Deno.serve(async (req) => {
           subject: first.subject ?? "",
           body: first.body ?? "",
           status: "queued",
-          scheduled_for: schedule,
+          scheduled_for: scheduleByContact.get(row.contact_id) ?? schedule,
         };
       });
       if (queueRows.length) {

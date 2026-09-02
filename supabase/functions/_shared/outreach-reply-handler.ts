@@ -46,6 +46,13 @@ export interface InboundReply {
  */
 export async function handleInboundReply(admin: any, r: InboundReply): Promise<void> {
   const nowIso = new Date().toISOString();
+  // Dedup per Message-ID: il poll IMAP rileggeva le stesse risposte ogni 15
+  // minuti (righe doppie in Posta + una chiamata AI a giro).
+  if (r.messageId) {
+    const { data: dup } = await admin.from("outreach_replies").select("id")
+      .eq("company_id", PLATFORM_COMPANY).eq("message_id", r.messageId).limit(1).maybeSingle();
+    if (dup?.id) return;
+  }
   const fromEmail = (r.from || "").trim();
   const snippet = snippetFrom(r.text);
 
@@ -74,6 +81,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     intent: autoReply ? "auto_reply" : null,
     intent_confidence: autoReply ? 1 : null,
     received_at: nowIso,
+    message_id: r.messageId ?? null,
     raw: {
       from: fromEmail,
       subject: r.subject ?? null,
@@ -100,6 +108,39 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   // skip del dispatcher (TERMINAL_ENROLLMENT include 'replied'). Se manca il
   // contatto ricadiamo sull'enrollmentId passato, se presente.
   await stopActiveSequences(admin, r.contactId, r.enrollmentId);
+
+  // 4-bis. TRIGGER: una risposta interessata o una domanda diventa un task di
+  // chiamata entro domani (pending in outreach_call_tasks, visibile in "Oggi"):
+  // il valore di un cold sta tutto nei minuti dopo la risposta.
+  if ((intent === "interested" || intent === "question") && r.contactId) {
+    try {
+      const { data: c } = await admin.from("marketing_contacts")
+        .select("first_name,last_name,company_name,phone").eq("id", r.contactId).maybeSingle();
+      let sequenceId: string | null = null;
+      if (r.enrollmentId) {
+        const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
+        sequenceId = e?.sequence_id ?? null;
+      }
+      const { data: giaAperto } = await admin.from("outreach_call_tasks").select("id")
+        .eq("company_id", PLATFORM_COMPANY).eq("contact_id", r.contactId).eq("status", "pending").limit(1).maybeSingle();
+      if (!giaAperto?.id) {
+        await admin.from("outreach_call_tasks").insert({
+          company_id: PLATFORM_COMPANY,
+          enrollment_id: r.enrollmentId ?? null,
+          contact_id: r.contactId,
+          sequence_id: sequenceId,
+          phone: c?.phone ?? null,
+          contact_name: [c?.first_name, c?.last_name].filter(Boolean).join(" ") || null,
+          company_name: c?.company_name ?? null,
+          note: `${intent === "interested" ? "Ha risposto INTERESSATO" : "Ha fatto una DOMANDA"} via email (${fromEmail}): "${(snippet ?? "").slice(0, 240)}"`,
+          status: "pending",
+          due_at: new Date(Date.now() + 24 * 3_600_000).toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn("[outreach-reply-handler] task chiamata non creato:", e instanceof Error ? e.message : e);
+    }
+  }
 
   // 4. Se l'AI ha capito "unsubscribe", opt-out del contatto e blocklist.
   if (intent === "unsubscribe") {

@@ -38,7 +38,7 @@ const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: 
 const T_SEQ = "outreach_sequences";
 const T_STEP = "outreach_sequence_steps";
 
-interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; track_opens?: boolean | null; }
+interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; track_opens?: boolean | null; plain_text_only?: boolean | null; }
 interface Step { id: string; sequence_id: string; step_order: number; channel: string; delay_days: number; delay_hours: number; subject: string | null; body: string; }
 
 // Pallino di stato sequenza (Instantly-style health dot): bozza grigio / attiva verde.
@@ -129,6 +129,17 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
   const setTrackOpens = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
       const { error } = await db.from(T_SEQ).update({ track_opens: value }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_res, vars) => { toast.success(vars.value ? "Tracking aperture attivo" : "Tracking aperture disattivato"); invalidate(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Toggle "solo testo" per-sequenza (caselle native spediscono senza parte HTML) (default OFF). Salva outreach_sequences.track_opens:
+  // il dispatcher inietta il pixel SOLO quando true. Tooltip di avviso deliverability.
+  const setPlainText = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await db.from(T_SEQ).update({ plain_text_only: value }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_res, vars) => { toast.success(vars.value ? "Tracking aperture attivo" : "Tracking aperture disattivato"); invalidate(); },
@@ -368,6 +379,11 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
                   pending={setTrackOpens.isPending}
                   onChange={(value) => setTrackOpens.mutate({ id: seq.id, value })}
                 />
+                <PlainTextToggle
+                  checked={seq.plain_text_only === true}
+                  pending={setPlainText.isPending}
+                  onChange={(value) => setPlainText.mutate({ id: seq.id, value })}
+                />
                 <OutreachSequenceStats sequenceId={seq.id} />
                 <OutreachAbzPanel sequenceId={seq.id} steps={steps} onApplied={invalidate} />
                 <SequenceSteps companyId={companyId} sequenceId={seq.id} steps={steps} onChange={invalidate} db={db} />
@@ -515,6 +531,21 @@ function ChannelMix({ steps }: { steps: { channel: string }[] }) {
  * dispatcher inietta un pixel 1×1 firmato nelle email della sequenza. Avviso
  * esplicito sulla deliverability: nel cold il pixel può ridurre la consegna.
  */
+/** Toggle "solo testo": le caselle native (Gmail/Outlook/SMTP) spediscono SOLO text/plain, come una mail scritta a mano. */
+function PlainTextToggle({ checked, pending, onChange }: { checked: boolean; pending: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <div className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition-colors ${checked ? "border-primary/30 bg-primary/[0.04]" : "bg-card"}`}>
+      <div className="min-w-0 space-y-0.5">
+        <span className="text-xs font-medium">Solo testo (senza HTML)</span>
+        <p className="text-[11px] text-muted-foreground">
+          Dalle caselle vere parte solo la versione testuale: e' la forma di una mail 1:1 e riduce lo spam-score. Consigliato per il freddo.
+        </p>
+      </div>
+      <Switch checked={checked} disabled={pending} onCheckedChange={onChange} aria-label="Invia solo testo per questa sequenza" />
+    </div>
+  );
+}
+
 function TrackOpensToggle({ checked, pending, onChange }: {
   checked: boolean;
   pending: boolean;
@@ -901,7 +932,7 @@ function StepEditor({
             value={subject}
             onFocus={() => setActiveField("subject")}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="{{first_name}}, una domanda veloce"
+            placeholder="Oggetto — nei follow-up lascialo vuoto per restare nello stesso thread (Re: …)"
             className="h-8 text-sm"
           />
         </div>

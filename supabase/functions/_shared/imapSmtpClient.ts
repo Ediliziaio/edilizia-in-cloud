@@ -45,6 +45,8 @@ export interface SmtpMessage {
   references?: string[];
   attachments?: SmtpAttachment[];
   headers?: Record<string, string>;
+  /** Message-ID da usare (default: <uuid@host-smtp>). Serve al threading dei follow-up. */
+  messageId?: string | null;
 }
 
 export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ messageId: string }> {
@@ -111,7 +113,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     await send("DATA");
     await expect("354");
 
-    const messageId = `<${crypto.randomUUID()}@${host}>`;
+    const messageId = msg.messageId || `<${crypto.randomUUID()}@${host}>`;
     const rfc822 = buildRFC822({
       from: msg.from, fromName: msg.fromName,
       to: msg.to, cc: msg.cc, bcc: msg.bcc,
@@ -375,6 +377,12 @@ export async function imapFetchUnreadSince(
   cfg: ImapConfig,
   sinceDate: Date,
   maxMessages = 20,
+  /**
+   * Cursore UID: se presente si leggono i messaggi con UID > sinceUid (letti o
+   * no), invece di "UNSEEN SINCE data" che rileggeva ogni volta gli stessi
+   * messaggi non aperti in webmail.
+   */
+  sinceUid?: number | null,
 ): Promise<ImapMessage[]> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
@@ -412,9 +420,13 @@ export async function imapFetchUnreadSince(
 
     // SEARCH UNSEEN SINCE date
     const dateStr = sinceDate.toUTCString().slice(5, 16); // "DD MMM YYYY"
-    const searchResp = await send(`UID SEARCH UNSEEN SINCE ${dateStr}`);
+    const conCursore = typeof sinceUid === "number" && sinceUid > 0;
+    const searchResp = await send(conCursore ? `UID SEARCH UID ${sinceUid! + 1}:*` : `UID SEARCH UNSEEN SINCE ${dateStr}`);
     const searchLine = searchResp.split("\r\n").find((l) => l.startsWith("* SEARCH")) ?? "";
-    const uids = searchLine.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean).slice(0, maxMessages);
+    // "n:*" restituisce l'ultimo messaggio anche se il suo UID e' < n: filtro esplicito.
+    const uids = searchLine.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean)
+      .filter((u) => !conCursore || parseInt(u, 10) > (sinceUid as number))
+      .slice(0, maxMessages);
 
     const messages: ImapMessage[] = [];
     for (const uid of uids) {

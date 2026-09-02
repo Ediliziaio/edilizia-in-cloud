@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -63,11 +63,15 @@ interface Sender {
   sending_domain_id: string | null; daily_cap_target: number; warmup_day: number; daily_sent: number;
   connection_status?: string | null; connection_error?: string | null;
   smtp_host?: string | null; bounce_count?: number | null; complaint_count?: number | null;
+  oauth_connection_id?: string | null; warmup_base?: number | null; warmup_step?: number | null;
 }
 
 const BASE = 5;
 const STEP = 5;
-const effectiveCap = (s: Sender, base = BASE, step = STEP) => Math.min(s.daily_cap_target, base + s.warmup_day * step);
+// Cap del giorno = min(target, base + giorno × step) con i valori DELLA CASELLA
+// (prima 5/5 fissi: cap mostrato ≠ cap usato dal dispatcher).
+const effectiveCap = (s: Sender, base = BASE, step = STEP) =>
+  Math.min(s.daily_cap_target, (s.warmup_base ?? base) + s.warmup_day * (s.warmup_step ?? step));
 
 export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
@@ -291,7 +295,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-type CasellaKind = "ee" | "smtp" | "smtp_bulk";
+type CasellaKind = "ee" | "smtp" | "smtp_bulk" | "oauth";
 
 function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domain: Domain; caselle: Sender[]; brandName?: string; forceOpen?: boolean; onChange: () => void }) {
   const [showDns, setShowDns] = useState(false);
@@ -319,13 +323,22 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
   const [imapHost, setImapHost] = useState("");
   const [imapPort, setImapPort] = useState("993");
 
-  function applyPreset(preset: "google" | "outlook" | "custom") {
+  function applyPreset(preset: "google" | "outlook" | "aruba" | "register" | "libero" | "custom") {
     if (preset === "google") {
       setSmtpHost("smtp.gmail.com"); setSmtpPort("465"); setSmtpSecure(true);
       setImapHost("imap.gmail.com"); setImapPort("993");
     } else if (preset === "outlook") {
       setSmtpHost("smtp.office365.com"); setSmtpPort("587"); setSmtpSecure(false);
       setImapHost("outlook.office365.com"); setImapPort("993");
+    } else if (preset === "aruba") {
+      setSmtpHost("smtps.aruba.it"); setSmtpPort("465"); setSmtpSecure(true);
+      setImapHost("imaps.aruba.it"); setImapPort("993");
+    } else if (preset === "register") {
+      setSmtpHost("smtp.register.it"); setSmtpPort("465"); setSmtpSecure(true);
+      setImapHost("imap.register.it"); setImapPort("993");
+    } else if (preset === "libero") {
+      setSmtpHost("smtp.libero.it"); setSmtpPort("465"); setSmtpSecure(true);
+      setImapHost("imapmail.libero.it"); setImapPort("993");
     } else {
       setSmtpHost(""); setSmtpPort(""); setSmtpSecure(true);
       setImapHost(""); setImapPort("");
@@ -529,14 +542,17 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
             <Select value={kind} onValueChange={(v) => setKind(v as CasellaKind)}>
               <SelectTrigger className="h-9 w-[260px] bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ee">Elastic Email (condivisa)</SelectItem>
-                <SelectItem value="smtp">SMTP reale (casella propria)</SelectItem>
+                <SelectItem value="oauth">Gmail / Outlook già collegati (OAuth)</SelectItem>
+                <SelectItem value="smtp">SMTP reale (Register, Aruba, Libero, Gmail…)</SelectItem>
                 <SelectItem value="smtp_bulk">SMTP in blocco (più caselle)</SelectItem>
+                <SelectItem value="ee">Elastic Email (condivisa)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {kind === "ee" ? (
+          {kind === "oauth" ? (
+            <OauthCasellaPicker domain={domain} caselle={caselle} cap={cap} setCap={setCap} onDone={() => { setShowAdd(false); onChange(); }} />
+          ) : kind === "ee" ? (
             <>
               <Label className="text-xs">Crea caselle su <span className="font-mono font-medium text-foreground">@{domain.domain}</span> — un nome per riga (es. <code>marco</code>, <code>info</code>)</Label>
               <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={2} placeholder={"marco\ninfo\nlucia"} className="bg-card text-sm" />
@@ -551,6 +567,9 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
                 <FieldLabel className="mr-1">Preset</FieldLabel>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("register")}>Register</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("aruba")}>Aruba</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("libero")}>Libero</Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
               </div>
               <Label className="text-xs">Crea molte caselle SMTP su <span className="font-mono font-medium text-foreground">@{domain.domain}</span> — un nome (o email completa) per riga. Restano <strong className="font-medium text-foreground">in pausa</strong>: colleghi la password e testi ciascuna dopo.</Label>
@@ -576,6 +595,9 @@ function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domai
                 <FieldLabel className="mr-1">Preset</FieldLabel>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("register")}>Register</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("aruba")}>Aruba</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("libero")}>Libero</Button>
                 <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -625,6 +647,8 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
   const db = supabase as any;
   const paused = casella.status === "paused" || casella.status === "disabled";
   const isSmtp = casella.provider === "smtp";
+  const isOauth = casella.provider === "gmail" || casella.provider === "outlook";
+  const testabile = isSmtp || isOauth;
   const tone = senderTone(casella.status, casella.connection_status);
 
   const cap = effectiveCap(casella);
@@ -647,7 +671,7 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
     try {
       const { data, error } = await supabase.functions.invoke("outreach-mailbox-test", { body: { sender_account_id: casella.id } });
       if (error) throw error;
-      if (data?.ok) toast.success("Connessione OK (SMTP ✓ · IMAP ✓)");
+      if (data?.ok) toast.success(data?.oauth ? "Connessione OK (token validi, profilo raggiungibile)" : "Connessione OK (SMTP ✓ · IMAP ✓)");
       else toast.error(`Test fallito: ${data?.error || "verifica le credenziali"}`);
       onChange();
     } catch (e) {
@@ -685,7 +709,7 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
           <StatusDot tone={tone} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {isSmtp && (
+          {testabile && (
             <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground" disabled={testing} onClick={testConnection}>
               {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />} Testa
             </Button>
@@ -801,5 +825,109 @@ function DnsBadge({ ok, label, onClick }: { ok: boolean; label: string; onClick?
       className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset transition-colors ${ok ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 hover:bg-emerald-100" : "bg-muted text-muted-foreground ring-border hover:bg-muted/70"}`}>
       {ok ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />}{label}
     </button>
+  );
+}
+
+
+/* ───────────────────────── caselle Gmail/Outlook via OAuth ───────────────────────── */
+
+interface OauthConn { id: string; provider: string; email_address: string; status: string | null }
+
+/**
+ * Promuove una casella Gmail/Outlook gia' collegata in /admin/email (OAuth) a
+ * mittente del pool: niente password per le app, niente SMTP di base. Invio via
+ * Gmail API / Microsoft Graph, risposte lette dalla posta gia' scaricata.
+ * Parte in warm-up con cap basso (3 → +1 al giorno fino al target).
+ */
+function OauthCasellaPicker({ domain, caselle, cap, setCap, onDone }: {
+  domain: Domain; caselle: Sender[]; cap: string; setCap: (v: string) => void; onDone: () => void;
+}) {
+  const [conns, setConns] = useState<OauthConn[] | null>(null);
+  const [sel, setSel] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const giaNelPool = new Set(caselle.map((c) => c.email.toLowerCase()));
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const { data, error } = await db.from("email_oauth_connections")
+        .select("id, provider, email_address, status")
+        .in("provider", ["gmail", "outlook"])
+        .order("created_at", { ascending: false });
+      if (!vivo) return;
+      if (error) { toast.error(`Caselle collegate non leggibili: ${error.message}`); setConns([]); return; }
+      setConns(((data ?? []) as OauthConn[]).filter((c) => !giaNelPool.has(c.email_address.toLowerCase())));
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caselle.length]);
+
+  const scelta = conns?.find((c) => c.id === sel) ?? null;
+  const dominioEmail = scelta ? scelta.email_address.split("@")[1]?.toLowerCase() : null;
+  const fuoriDominio = !!dominioEmail && dominioEmail !== domain.domain.toLowerCase() && !dominioEmail.endsWith(`.${domain.domain.toLowerCase()}`);
+  const scaduta = scelta?.status === "expired";
+
+  async function aggiungi() {
+    if (!scelta) { toast.error("Scegli una casella"); return; }
+    if (scaduta) { toast.error("Connessione scaduta: ricollegala in Impostazioni → Email, poi riprova"); return; }
+    const capN = Math.max(1, Math.round(Number(cap) || 5));
+    setBusy(true);
+    try {
+      const { data: created, error } = await db.from(T_SENDERS).insert({
+        company_id: domain.company_id, email: scelta.email_address.toLowerCase(), provider: scelta.provider,
+        oauth_connection_id: scelta.id, sending_domain_id: domain.id, brand_id: domain.brand_id,
+        daily_cap_target: capN, warmup_base: Math.min(3, capN), warmup_step: 1,
+        status: "warming", connection_status: "untested",
+      }).select("id").single();
+      if (error) throw error;
+      const { data: t } = await supabase.functions.invoke("outreach-mailbox-test", { body: { sender_account_id: created.id } });
+      if (t?.ok) toast.success(`${scelta.email_address} aggiunta al pool: parte in warm-up a ${Math.min(3, capN)}/giorno fino a ${capN}.`);
+      else toast.warning(`Casella aggiunta ma il test non e' passato: ${t?.error ?? "riprova con Testa"}`);
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs">
+        Usa una casella Gmail o Outlook gia' collegata in <span className="font-medium text-foreground">Impostazioni → Email</span>: le email
+        partono dal provider stesso (Gmail API / Microsoft Graph), firmate da lui, e le risposte arrivano nella sua posta.
+      </Label>
+      {conns === null ? (
+        <p className="text-xs text-muted-foreground">Carico le caselle collegate…</p>
+      ) : conns.length === 0 ? (
+        <p className="rounded-lg bg-card px-2.5 py-2 text-xs text-muted-foreground ring-1 ring-inset ring-border">
+          Nessuna casella Gmail/Outlook collegata (o sono gia' tutte nel pool). Collegala prima da Impostazioni → Email → Mio profilo.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="col-span-2 space-y-1.5">
+            <FieldLabel>Casella</FieldLabel>
+            <Select value={sel} onValueChange={setSel}>
+              <SelectTrigger className="h-9 bg-card"><SelectValue placeholder="Scegli la casella collegata" /></SelectTrigger>
+              <SelectContent>
+                {conns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.email_address} · {c.provider === "gmail" ? "Gmail" : "Outlook"}{c.status === "expired" ? " · scaduta" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><FieldLabel>Cap/g target</FieldLabel><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-9 bg-card" /></div>
+        </div>
+      )}
+      {fuoriDominio && (
+        <p className="text-[11px] text-amber-700">
+          La casella e' su <span className="font-mono">{dominioEmail}</span>, non su {domain.domain}: va bene, ma i controlli DNS di questo dominio non valgono per lei.
+        </p>
+      )}
+      <p className="flex items-start gap-1.5 rounded-lg bg-card px-2.5 py-2 text-[10px] text-muted-foreground ring-1 ring-inset ring-border">
+        <ShieldHint /> Per il freddo da caselle vere: 5-10 al giorno per casella, sequenza "solo testo", niente link nei primi messaggi. Parte in warm-up (3/giorno, +1 al giorno).
+      </p>
+      <Button size="sm" className="h-9" disabled={busy || !scelta} onClick={aggiungi}>{busy ? "Aggiungo e testo…" : "Aggiungi al pool"}</Button>
+    </div>
   );
 }
