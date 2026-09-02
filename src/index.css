@@ -141,8 +141,12 @@ All colors MUST be HSL.
     --warning: 45 93% 52%;
     --warning-foreground: 0 0% 10%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
+    /* Bordo al 90% di luminosita' su fondo bianco era quasi invisibile: schede
+       e campi non si distinguevano dalla pagina ("sembra tutto bianco"). A 86%
+       il bordo si vede senza appesantire; l'input un filo piu' scuro perche'
+       deve leggersi come un campo compilabile. Tema scuro invariato. */
+    --border: 0 0% 86%;
+    --input: 0 0% 84%;
     --ring: 214 80% 50%;
 
     /* Chart palette (recharts): usata come hsl(var(--chart-N)).

@@ -76,8 +76,9 @@ export function AgentiTab() {
 
   return (
     <div className="px-6 py-6">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      {/* Toolbar — dentro una scheda con bordo, cosi' filtri e azioni si
+          leggono come una barra di controllo e non come testo sulla pagina. */}
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex items-center gap-1.5 flex-wrap">
           {TIPO_CHIPS.map((chip) => {
             const Icon = chip.icon;
@@ -85,10 +86,11 @@ export function AgentiTab() {
               <button
                 key={chip.value}
                 onClick={() => setFiltroTipo(chip.value)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                aria-pressed={filtroTipo === chip.value}
+                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                   filtroTipo === chip.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card border border-border text-muted-foreground hover:bg-accent"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "border border-slate-300 bg-white text-slate-600 shadow-sm hover:border-primary/60 hover:text-slate-900"
                 }`}
               >
                 <Icon className="h-3 w-3" /> {chip.label}
@@ -148,8 +150,8 @@ export function AgentiTab() {
           </Button>
         </div>
       ) : agenti.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 ring-1 ring-inset ring-blue-100">
             <Bot className="h-8 w-8 text-primary" />
           </div>
           <p className="text-lg font-semibold text-foreground">
@@ -165,20 +167,25 @@ export function AgentiTab() {
           </Button>
 
           {filtroTipo === "tutti" && (
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-3xl w-full">
+            <div className="mt-8 w-full max-w-3xl">
+              <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Oppure parti da un tipo
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {TIPO_CHIPS.filter((c) => c.value !== "tutti").map((chip) => {
                 const Icon = chip.icon;
                 return (
                   <button
                     key={chip.value}
                     onClick={() => handleCrea(chip.value as TipoAgente)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-border bg-card hover:border-primary/30 hover:shadow-sm transition-all"
+                    className="flex flex-col items-center gap-2 rounded-xl border border-slate-300 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md"
                   >
                     <Icon className="h-6 w-6 text-primary" />
-                    <span className="text-xs font-semibold text-foreground">{chip.label}</span>
+                    <span className="text-xs font-semibold text-slate-900">{chip.label}</span>
                   </button>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
@@ -199,7 +206,7 @@ export function AgentiTab() {
           ))}
           <button
             onClick={() => handleCrea()}
-            className="h-40 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all"
+            className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white text-slate-500 transition-all hover:border-primary/60 hover:bg-primary/5 hover:text-primary"
           >
             <Plus className="h-6 w-6" />
             <span className="text-sm font-medium">Nuovo agente</span>

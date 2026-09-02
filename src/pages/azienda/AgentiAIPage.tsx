@@ -119,15 +119,17 @@ export default function AgentiAIPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="px-6 pb-3">
-          <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        {/* Su mobile le otto tab non ci stanno: la riga scorre invece di uscire
+            dallo schermo (la pagina non deve mai scorrere in orizzontale). */}
+        <div className="overflow-x-auto px-6 pb-3">
+          <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="rounded-xl px-4 py-2.5 text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:shadow-sm"
+                  className="rounded-xl px-4 py-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-orange-200"
                 >
                   <Icon className="h-4 w-4 mr-1.5" />
                   {tab.label}
@@ -148,13 +150,13 @@ export default function AgentiAIPage() {
             ? <AgentiAIStatsBar stats={stats} />
             : statsLoading
               ? (
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 px-6 py-4 bg-card border-b border-border">
+                <div className="grid grid-cols-2 gap-2.5 px-6 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-muted animate-pulse flex-shrink-0" />
-                      <div className="space-y-1.5 flex-1">
-                        <div className="h-5 w-10 bg-muted animate-pulse rounded" />
-                        <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                    <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="h-9 w-9 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-5 w-10 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-16 animate-pulse rounded bg-slate-100" />
                       </div>
                     </div>
                   ))}
