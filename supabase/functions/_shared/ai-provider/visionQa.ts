@@ -50,6 +50,11 @@ export interface VisionQaArgs {
     session_id?: string | null;
   };
   timeoutMs?: number;
+  /** Catena di modelli da provare, in ordine. Default: QA_MODEL_CHAIN.
+   *  Serve a confrontare i modelli sullo stesso prompt e sulle stesse
+   *  immagini — un controllo negativo che passa con un modello e fallisce
+   *  con un altro dice che il limite e' il modello, non il criterio. */
+  models?: readonly string[];
 }
 
 /**
@@ -82,7 +87,7 @@ export async function callVisionQa(
   ];
 
   let lastError: Error | null = null;
-  for (const model of VISION_MODELS_CHAIN) {
+  for (const model of (args.models ?? VISION_MODELS_CHAIN)) {
     try {
       const result = await callOpenRouter(
         {
@@ -180,3 +185,39 @@ export async function callVisionQa(
     checked: false,
   };
 }
+
+/**
+ * Criterio QA sulla ricomposizione della scena, condiviso da tutti i verticali.
+ *
+ * Nasce da un controllo negativo su infissi: al QA e' stato dato un render che
+ * allargava la finestra e ridisegnava le piastrelle intorno — il difetto numero
+ * uno segnalato dall'utente — e l'ha PROMOSSO. Ogni prompt QA nominava "camera,
+ * crop, geometry", ma poi chiudeva con "When in doubt, PASS": un allargamento
+ * del 10% non e' un "geometry break", quindi passava.
+ *
+ * Il criterio che ha funzionato e' anchorato agli OGGETTI, non alle proporzioni
+ * dell'immagine: il render esce sempre in una delle tre size del provider,
+ * quindi le proporzioni differiscono SEMPRE dalla foto — e un criterio scritto
+ * sulle proporzioni boccia anche i render buoni (misurato: il primo tentativo
+ * di fix bocciava il render corretto). Si guarda invece se il soggetto e' stato
+ * ingrandito rispetto a cio' che gli sta accanto, se gli oggetti della foto ci
+ * sono ancora, e se sono state inventate superfici per riempire spazio.
+ *
+ * LIMITE MISURATO (2026-09-02), da non dimenticare: questo criterio coglie la
+ * RICOMPOSIZIONE (soggetto allargato rispetto a cio' che gli sta accanto,
+ * superfici inventate) — verificato su un render infissi quadrato reale —
+ * ma NON coglie un RITAGLIO PURO. Controllo negativo: foto sorgente contro se
+ * stessa ritagliata a quadrato (stesso contenuto, -17% per lato), con la
+ * clausola (d) sui bordi esplicita: promossa sia da claude-haiku-4.5 sia da
+ * openai/gpt-4o. Due modelli diversi, stessa cecita': il limite e' nel modo in
+ * cui questi modelli confrontano due immagini, non nel prompt ne' nel modello.
+ * Percio' il formato NON puo' essere affidato al QA: va imposto a monte
+ * (provider diretto con `size` reale + guardie sulle dimensioni), e questo
+ * blocco resta una seconda linea, non la prima.
+ */
+export const QA_BLOCCO_RICOMPOSIZIONE: readonly string[] = [
+  "[framing_changed] — Has the SCENE been REBUILT? Judge this by physical objects, NOT by picture proportions.",
+  "FIRST, what is NOT a defect: the render is always produced at one of three fixed picture shapes, chosen as the closest to the source. So Image 2 will normally show a slightly taller or wider view than Image 1. That alone is EXPECTED — never report it.",
+  "What IS a defect: the scene rebuilt to fill the new shape. (a) The target element must keep the same size RELATIVE TO WHAT IS BESIDE IT — count tiles, bricks, panels, boards or furniture next to it: if it now covers noticeably more or fewer, FAIL. (b) Every object in Image 1 must still be there unchanged — shelves, radiators, sills, switches, furniture, plants, fixtures: if one disappeared, moved or was re-drawn differently, FAIL. (c) No surface may be INVENTED to fill space — new wall, tiles, floor, ceiling or sky that Image 1 did not show. Seeing a little more of a surface that was already there is fine; seeing one that did not exist is not. (d) CHECK THE FOUR BORDERS explicitly: name what touches the left, right, top and bottom edge of Image 1, then look for the same things in Image 2. If Image 2's borders show things that were well INSIDE Image 1 — i.e. the view has been zoomed or cropped and content at the edges is gone on two or more sides — FAIL. A modest extra margin on ONE axis is the expected picture-shape difference; losing edge content is not.",
+  "The leniency rule below does NOT apply to [framing_changed]: a rebuilt scene is always a failure, however pretty the result. A merely different picture shape is not.",
+];

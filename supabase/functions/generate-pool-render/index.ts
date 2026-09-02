@@ -14,7 +14,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 
 const POOL_TYPE: Record<string, string> = {
   interrata_rettangolare:
@@ -994,6 +994,7 @@ Deno.serve(async (req) => {
           "- non_target_change: the house facade or garden clearly redesigned beyond the pool installation area.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- invented_objects: people, furniture or structures in neither the source nor the brief.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. The NEW pool itself is expected — only duplications, physics breaks and non-target changes fail.",
         ].join("\n");
 

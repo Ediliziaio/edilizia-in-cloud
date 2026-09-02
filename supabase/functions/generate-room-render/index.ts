@@ -13,7 +13,7 @@ import {
   detectImageDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
@@ -415,6 +415,7 @@ Deno.serve(async (req: Request) => {
           "- invented_openings: windows or doors added, removed or relocated compared to the source walls.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 

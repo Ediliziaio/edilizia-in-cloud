@@ -11,7 +11,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder.ts";
 import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder.ts";
 
@@ -751,6 +751,7 @@ Deno.serve(async (req) => {
           "- invented_openings: windows or doors added, removed or relocated compared to the source.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- invented_objects: structures, furniture or people in neither the source photo nor the brief.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. The renovation CHANGES themselves are expected — only duplications, structural inventions and geometry breaks fail.",
         ].join("\n");
 

@@ -14,7 +14,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -1010,6 +1010,7 @@ Deno.serve(async (req) => {
           "- roof_geometry_change: roof pitch, ridge line or overall roof shape clearly different from the source.",
           "- non_target_change: facade walls, windows or surroundings clearly repainted/replaced even though only the ROOF had to change.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. The roof covering material/color CHANGE is expected — only structural inventions and geometry breaks fail.",
         ].join("\n");
 

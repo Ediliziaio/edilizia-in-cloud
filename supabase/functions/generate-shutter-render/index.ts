@@ -17,7 +17,7 @@ import {
   orientationFromDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
 import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
@@ -528,6 +528,7 @@ Deno.serve(async (req) => {
         "- invented_openings: windows or doors added, removed or relocated compared to the source.",
         "- non_target_change: the facade wall clearly repainted/replastered even though only the SHUTTERS had to change.",
         "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+        ...QA_BLOCCO_RICOMPOSIZIONE,
         "When in doubt, PASS. Shutter color/style CHANGES are expected — only count errors, non-target changes and geometry breaks fail.",
       ].join("\n");
 

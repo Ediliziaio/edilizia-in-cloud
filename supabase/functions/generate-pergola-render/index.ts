@@ -14,7 +14,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 
 const PERGOLA_TYPE: Record<string, string> = {
   addossata:
@@ -817,6 +817,7 @@ Deno.serve(async (req) => {
           "- non_target_change: the house facade, windows or garden clearly redesigned beyond the pergola installation area.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- invented_objects: furniture, people or structures in neither the source nor the brief.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. The NEW pergola itself is expected — only duplications, physics breaks and non-target changes fail.",
         ].join("\n");
 

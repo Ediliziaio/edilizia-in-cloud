@@ -10,7 +10,7 @@ import {
   orientationFromDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
 import { ensureFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
@@ -594,6 +594,7 @@ Deno.serve(async (req) => {
         "- invented_openings: windows, doors or balconies added, removed or relocated compared to the source facade.",
         "- geometry_change: camera angle, perspective, crop or building footprint clearly different from the source.",
         "- invented_objects: structures (canopies, extensions, vehicles, people) in neither the source nor the brief.",
+        ...QA_BLOCCO_RICOMPOSIZIONE,
         "When in doubt, PASS. Color/material/finish CHANGES are expected — only structural violations fail.",
       ].join("\n");
 

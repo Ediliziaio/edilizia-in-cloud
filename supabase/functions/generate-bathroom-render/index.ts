@@ -17,7 +17,7 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
@@ -762,6 +762,7 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
             : "",
           "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          ...QA_BLOCCO_RICOMPOSIZIONE,
           "When in doubt, PASS. Minor styling differences are fine.",
         ].filter(Boolean).join("\n");
 

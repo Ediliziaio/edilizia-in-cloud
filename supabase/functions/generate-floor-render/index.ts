@@ -12,7 +12,7 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
 import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
@@ -516,6 +516,7 @@ Use short values. Do not describe a renovation.`;
         "- non_target_change: walls, furniture, doors or ceiling clearly repainted/replaced even though only the FLOOR had to change.",
         "- geometry_change: camera angle, perspective or crop clearly different from the source.",
         "- invented_objects: furniture or fixtures that are in neither the source photo nor the brief.",
+        ...QA_BLOCCO_RICOMPOSIZIONE,
         "When in doubt, PASS. The floor material/color CHANGE is expected — only scale errors, non-target changes and geometry breaks fail.",
       ].join("\n");
 
