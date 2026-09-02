@@ -8,7 +8,7 @@
  * processo; l'esito (assunto / non idoneo / archivio) come è finita.
  */
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
 // Il test attitudinale è PARTE della selezione: vive qui come terza vista
@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowDown, ArrowUp, BrainCircuit, CalendarCheck, Copy, Download, ExternalLink, FileText, Globe,
   HardHat, KanbanSquare, Link2, List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2,
-  Upload, UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
+  ShieldCheck, Upload, UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
 } from "lucide-react";
 
 const RUOLI_SUGGERITI = [
@@ -299,6 +299,113 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             </Button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Pulizia privacy: i CV sono dati personali — i candidati CHIUSI (non
+ *  idonei / in archivio) fermi da oltre la soglia si eliminano in blocco,
+ *  curriculum compreso. Assunti e selezioni in corso non si toccano MAI. */
+function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean; onOpenChange: (v: boolean) => void; candidati: HrCandidato[] }) {
+  const qc = useQueryClient();
+  const [mesi, setMesi] = useState(12);
+  const [confermaAperta, setConfermaAperta] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const soglia = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - mesi);
+    return d.toISOString();
+  }, [mesi]);
+  const daEliminare = useMemo(
+    () => candidati.filter((c) => {
+      const es = esitoDi(c);
+      return (es === "scartato" || es === "archiviato") && c.updated_at < soglia;
+    }),
+    [candidati, soglia],
+  );
+
+  const elimina = async () => {
+    if (eliminando || daEliminare.length === 0) return;
+    setEliminando(true);
+    try {
+      const percorsiCv = daEliminare.map((c) => c.cv_path).filter((p): p is string => !!p);
+      if (percorsiCv.length > 0) {
+        // Prima i file: un record senza CV è un dato orfano, un CV senza
+        // record è una violazione che nessuno vede più.
+        const { error: stErr } = await supabase.storage.from("hr-documenti").remove(percorsiCv);
+        if (stErr) throw new Error(`CV non eliminati dallo storage: ${stErr.message}`);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("hr_candidati").delete().in("id", daEliminare.map((c) => c.id));
+      if (error) throw error;
+      toast.success(`${daEliminare.length} candidati eliminati (con ${percorsiCv.length} CV)`);
+      qc.invalidateQueries({ queryKey: ["hr-candidati"] });
+      setConfermaAperta(false);
+      onOpenChange(false);
+    } catch (e) {
+      toast.error("Pulizia non completata", { description: e instanceof Error ? e.message : undefined });
+    } finally {
+      setEliminando(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Pulizia privacy — candidati chiusi</DialogTitle></DialogHeader>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          I CV sono dati personali: la prassi è non tenerli oltre i 12 mesi dalla chiusura
+          della selezione, salvo consenso. Qui si eliminano SOLO i candidati con esito
+          "Non idoneo" o "In archivio": assunti e selezioni in corso non si toccano.
+        </p>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs shrink-0">Chiusi da più di</Label>
+          <Select value={String(mesi)} onValueChange={(v) => setMesi(Number(v))}>
+            <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="12">12 mesi</SelectItem>
+              <SelectItem value="18">18 mesi</SelectItem>
+              <SelectItem value="24">24 mesi</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {daEliminare.length === 0 ? (
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            Nessun candidato chiuso da più di {mesi} mesi: sei in regola.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-slate-800">{daEliminare.length} candidati da eliminare:</p>
+            <div className="max-h-40 overflow-y-auto rounded-lg border p-2 text-xs text-slate-600 space-y-0.5">
+              {daEliminare.slice(0, 12).map((c) => (
+                <p key={c.id}>{c.nome} {c.cognome} — {c.ruolo}{c.cv_path ? " (con CV)" : ""}</p>
+              ))}
+              {daEliminare.length > 12 && <p className="text-muted-foreground">… e altri {daEliminare.length - 12}</p>}
+            </div>
+            <div className="flex justify-end">
+              <Button variant="destructive" size="sm" className="gap-1" onClick={() => setConfermaAperta(true)}>
+                <Trash2 className="h-3.5 w-3.5" /> Elimina {daEliminare.length} candidati
+              </Button>
+            </div>
+          </div>
+        )}
+        <AlertDialog open={confermaAperta} onOpenChange={setConfermaAperta}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare definitivamente {daEliminare.length} candidati?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Spariscono schede, colloqui e curriculum. Non si torna indietro: è il punto della pulizia privacy.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={elimina} disabled={eliminando}>
+                {eliminando ? "Eliminazione…" : "Elimina tutto"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
@@ -746,6 +853,7 @@ export function TabCandidati() {
   const [nuovoAperto, setNuovoAperto] = useState(false);
   const [fasiAperte, setFasiAperte] = useState(false);
   const [moduliAperti, setModuliAperti] = useState(false);
+  const [privacyAperta, setPrivacyAperta] = useState(false);
   const [apertoId, setApertoId] = useState<string | null>(null);
   // Istante di riferimento per "Ng fermo": preso al mount, la precisione al
   // minuto non serve e il render resta puro (react-compiler).
@@ -911,6 +1019,11 @@ export function TabCandidati() {
             <Globe className="h-3.5 w-3.5" /> Modulo sito
           </Button>
         )}
+        {vista === "elenco" && (
+          <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setPrivacyAperta(true)}>
+            <ShieldCheck className="h-3.5 w-3.5" /> Privacy
+          </Button>
+        )}
         {vista !== "test" && (
           <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Nuovo candidato</Button>
         )}
@@ -1003,6 +1116,7 @@ export function TabCandidati() {
       <NuovoCandidatoDialog open={nuovoAperto} onOpenChange={setNuovoAperto} fasi={fasi} onCreato={(c) => setApertoId(c.id)} />
       <GestisciFasiDialog open={fasiAperte} onOpenChange={setFasiAperte} fasi={fasi} candidati={candidati} />
       <ModuliSitoDialog open={moduliAperti} onOpenChange={setModuliAperti} />
+      <PuliziaPrivacyDialog open={privacyAperta} onOpenChange={setPrivacyAperta} candidati={candidati} />
       {aperto && <SchedaCandidato key={aperto.id} candidato={aperto} fasi={fasi} onClose={() => setApertoId(null)} vaiAlTest={vaiAlTest} vaiOrganigramma={vaiOrganigramma} />}
     </div>
   );
