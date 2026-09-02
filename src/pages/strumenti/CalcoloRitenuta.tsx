@@ -29,7 +29,7 @@ export default function CalcoloRitenuta() {
     <CalculatorShell
       slug="calcolo-ritenuta-garanzia"
       title="Calcolo ritenuta di garanzia"
-      seoTitle="Calcolo Ritenuta di Garanzia sui SAL — Calcolatore Gratuito"
+      seoTitle="Calcolo Ritenuta di Garanzia sui SAL — Gratis"
       seoDescription="Calcola la ritenuta di garanzia trattenuta su ogni SAL, il totale immobilizzato a fine lavori e quanto ti costa quel credito fermo in attesa dello svincolo."
       sottotitolo="Quanto ti viene trattenuto su ogni SAL, quanto resta fermo a fine lavori — e quanto ti costa davvero quel credito che non puoi usare per mesi."
       guida={{

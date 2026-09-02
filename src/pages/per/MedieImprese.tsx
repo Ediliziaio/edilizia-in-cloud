@@ -6,7 +6,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software Gestionale per Medie Imprese Edili (10-50 dipendenti) | Multi-Cantiere e Margini Real-Time",
+  seoTitle: "Gestionale per Medie Imprese Edili | Multi-Cantiere",
   seoDescription:
     "Gestionale per medie imprese edili 10-50 dipendenti: consolidamento multi-cantiere, margini real-time, dashboard CFO, ruoli e deleghe.",
   seoKeywords:

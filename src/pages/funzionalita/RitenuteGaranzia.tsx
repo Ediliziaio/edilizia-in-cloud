@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "ritenute-garanzia",
+  definizione:
+    "Ritenute di Garanzia di Edilizia in Cloud è il modulo per imprese edili in appalti pubblici e subappalti: ritenuta dello 0,5% sui SAL prevista dalla Legge 296/2006, ritenuta INPS del 4%, scadenze di svincolo tracciate e controllo del DURC sempre valido.",
   vertical: "Ritenute di Garanzia",
   productName: "Modulo Ritenute di Garanzia Edilizia in Cloud",
   audience:

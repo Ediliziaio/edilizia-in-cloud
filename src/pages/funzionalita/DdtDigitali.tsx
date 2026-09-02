@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "ddt-digitali",
+  definizione:
+    "DDT Digitali di Edilizia in Cloud emette i documenti di trasporto dal gestionale e li fa firmare all'autista e al cliente in cantiere dall'app, con archivio cloud conforme alla normativa e collegamento diretto alla fatturazione elettronica, senza più copie carbone.",
   vertical: "DDT Digitali",
   productName: "Modulo DDT Digitali Edilizia in Cloud",
   audience:

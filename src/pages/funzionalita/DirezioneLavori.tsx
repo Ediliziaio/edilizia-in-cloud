@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "direzione-lavori",
+  definizione:
+    "Direzione Lavori di Edilizia in Cloud tiene vivo il cronoprogramma dopo l'inizio dei lavori: le fasi si aggiornano con l'avanzamento registrato dal campo, il giornale lavori si compila dal cantiere e i ritardi emergono mentre si formano, non quando è troppo tardi per recuperare.",
   vertical: "Direzione Lavori",
   productName: "Direzione Lavori Edilizia in Cloud",
   audience:

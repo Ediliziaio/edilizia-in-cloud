@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "contabilita-fiscale",
+  definizione:
+    "Contabilità Fiscale di Edilizia in Cloud è la contabilità ordinaria o semplificata dell'impresa edile con piano dei conti di settore già configurato, ammortamenti automatici, scritture di assestamento, bilancio CEE ed esportazione XBRL per il commercialista, aggiornata in tempo reale e non a fine anno.",
   vertical: "Contabilità Fiscale",
   productName: "Modulo Contabilità Fiscale Edilizia in Cloud",
   audience:

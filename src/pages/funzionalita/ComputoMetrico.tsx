@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "computo-metrico",
+  definizione:
+    "Computo Metrico di Edilizia in Cloud costruisce il computo metrico estimativo online dalle voci del listino dell'impresa e dei prezzari regionali, e lo tiene collegato a preventivo e consuntivo: un prezzo cambia una volta sola e si aggiorna ovunque, senza ricopiare tre volte.",
   vertical: "Computo Metrico",
   productName: "Computo Metrico Edilizia in Cloud",
   audience:

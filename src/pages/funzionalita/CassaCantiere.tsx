@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "cassa-cantiere",
+  definizione:
+    "Cassa Cantiere di Edilizia in Cloud è il previsionale di cassa a 30, 60 e 90 giorni dell'impresa edile: incrocia incassi previsti dai SAL, pagamenti programmati ai fornitori, scadenze delle buste paga, IVA e finanziamenti, così il titolare sa oggi se a fine mese la cassa regge.",
   vertical: "Previsionale di Cassa",
   productName: "Modulo Cassa & Cash Flow Edilizia in Cloud",
   audience: "Imprese edili strutturate, general contractor, controller finanziari, CFO PMI edili, titolari che vogliono prevedere la liquidità",

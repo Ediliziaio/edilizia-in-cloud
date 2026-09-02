@@ -187,6 +187,8 @@ const STATIC_ROUTES = [
   "/software-gestionale-edilizia-treviso",
   "/software-gestionale-edilizia-latina",
   "/software-gestionale-edilizia-pisa",
+  "/software-gestionale-edilizia-reggio-emilia",
+  "/software-gestionale-edilizia-reggio-calabria",
   "/strumenti/calcolatore-margine-commessa",
   "/termini-e-condizioni",
 ];

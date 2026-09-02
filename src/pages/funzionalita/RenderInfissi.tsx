@@ -933,7 +933,7 @@ export default function RenderInfissi() {
 
   useSEO({
     title:
-      "Render Infissi AI per Serramentisti | Aumenta la chiusura preventivi",
+      "Render Infissi AI per Serramentisti | Chiudi più preventivi",
     description:
       "Da 3 preventivi chiusi su 10 a quasi 5 su 10: dal 30% al 48% di chiusura stimata con il prima/dopo generato in 60 secondi.",
     canonical: "/funzionalita/render-infissi/",

@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "sms-marketing",
+  definizione:
+    "SMS Marketing di Edilizia in Cloud invia SMS transazionali e promozionali per imprese edili: promemoria di sopralluogo, avvisi su SAL e fatture, notifiche automatiche dal cantiere e campagne per riattivare i clienti, con mittente personalizzato e consegna affidabile in Italia.",
   vertical: "SMS Marketing",
   productName: "SMS Marketing & Notifiche Edilizia in Cloud",
   audience:

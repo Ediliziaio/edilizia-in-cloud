@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "margini-cantiere",
+  definizione:
+    "Margini Cantiere di Edilizia in Cloud mostra il margine reale di ogni commessa giorno per giorno, non a fine lavori: manodopera dalle timbrature, materiali dai DDT e subappalti dai SAL vengono imputati in automatico alla commessa giusta, con lo scostamento tra preventivo e consuntivo sempre visibile.",
   vertical: "Margini Cantiere",
   productName: "Modulo Margini Cantiere Edilizia in Cloud",
   audience: "Imprese edili, general contractor, controller di cantiere, titolari, geometri d'impresa, CFO PMI edili",

@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "mezzi-attrezzature",
+  definizione:
+    "Mezzi e Attrezzature di Edilizia in Cloud è il registro unico del parco mezzi dell'impresa edile: ogni mezzo e attrezzatura è assegnato a una persona o a un cantiere, con revisioni, manutenzioni e scadenze tracciate, così si sa sempre dove sta il flessibile e quando scade l'assicurazione del furgone.",
   vertical: "Mezzi e Attrezzature",
   productName: "Gestione Mezzi e Attrezzature Edilizia in Cloud",
   audience:

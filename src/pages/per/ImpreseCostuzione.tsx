@@ -5,7 +5,7 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
+  seoTitle: "Gestionale per Imprese di Costruzione | Più Margini",
   seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori, forecast di cassa a 90 giorni e computi metrici.",
   seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
   // SEO fix 2026-05-26: canonical aggiornato a /per/imprese-edili/ (keyword più

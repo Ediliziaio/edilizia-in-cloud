@@ -5,7 +5,7 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software per Impiantisti | Più Margini, Più Controllo, Zero Caos",
+  seoTitle: "Software per Impiantisti | Più Margini, Zero Caos",
   seoDescription: "Il gestionale per impiantisti con AI: margine reale per intervento, fatturazione lo stesso giorno, magazzino furgone sempre giusto e tecnici in campo coordinati senza telefonate.",
   seoKeywords: "software gestionale impiantisti, gestionale idraulici, software elettricisti, gestionale termoidraulico, software interventi impianti, gestione tecnici campo, magazzino ricambi impiantisti, ordine di lavoro digitale, software manutenzione impianti",
   seoCanonical: "/per/impiantisti",

@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "app-cantiere-mobile",
+  definizione:
+    "L'App Cantiere di Edilizia in Cloud è l'app nativa iOS e Android per capocantieri, operai e tecnici: timbratura GPS, foto geolocalizzate, ordini di materiali, SAL giornaliero, giornale lavori, chat di squadra e firma del cliente, funzionante anche senza segnale grazie alla modalità offline.",
   vertical: "App Cantiere Mobile",
   productName: "App Cantiere Mobile Edilizia in Cloud",
   audience:

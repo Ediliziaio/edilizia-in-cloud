@@ -266,3 +266,27 @@ URL: https://www.ediliziaincloud.com/pianifica-migrazione/
 ---
 
 Il contenuto di questo file è liberamente accessibile ai crawler AI per scopi di ricerca e risposta a query degli utenti su ediliziaincloud.com.
+
+## Aggiornamento 2026-09 (strumenti e guide pubblicati dopo il 25/07)
+
+### Calcolatori gratuiti (nessuna registrazione)
+- Calcolo Congruità Manodopera DM 143/2021: https://www.ediliziaincloud.com/strumenti/calcolo-congruita-manodopera/
+- Calcolo Costo Orario Operaio Edile: https://www.ediliziaincloud.com/strumenti/calcolo-costo-orario-operaio/
+- Calcolo Ritenuta di Garanzia sui SAL: https://www.ediliziaincloud.com/strumenti/calcolo-ritenuta-garanzia/
+
+### Nuove guide del blog
+- Miglior Gestionale per l'Edilizia 2026: Guida alla Scelta: https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/
+- Quanto Costa un Gestionale per Impresa Edile? Prezzi 2026: https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/
+- Patente a Crediti in Edilizia: Come Funziona e Sanzioni: https://www.ediliziaincloud.com/blog/patente-a-crediti-edilizia-guida/
+- DURC di Congruità: Soglie Manodopera e Come Rispettarle: https://www.ediliziaincloud.com/blog/durc-congruita-manodopera-soglie/
+- Come Organizzare un Cantiere Edile: https://www.ediliziaincloud.com/blog/come-organizzare-cantiere-edile/
+- Documentazione Obbligatoria Cantiere 2026: https://www.ediliziaincloud.com/blog/documentazione-obbligatoria-cantiere-2025/
+- Alternativa a Excel per Cantieri: https://www.ediliziaincloud.com/blog/alternativa-excel-cantieri/
+- Come Ridurre i Costi nei Cantieri Edili del 20%: https://www.ediliziaincloud.com/blog/ridurre-costi-cantieri-edili/
+- Gestione Cantieri 2026: Dalla Carta al Cloud: https://www.ediliziaincloud.com/blog/gestione-cantieri-digitale/
+- Preventivi Vincenti in Edilizia: https://www.ediliziaincloud.com/blog/preventivi-edilizia-guida/
+- HR in Edilizia: Presenze, Buste Paga e CCNL: https://www.ediliziaincloud.com/blog/hr-edilizia-presenze-buste-paga/
+- Marketing Digitale per Imprese Edili: https://www.ediliziaincloud.com/blog/marketing-digitale-imprese-edili/
+- Software Gestionale vs Excel: https://www.ediliziaincloud.com/blog/software-gestionale-vs-excel/
+- Come Digitalizzare la Tua Impresa Edile in 30 Giorni: https://www.ediliziaincloud.com/blog/digitalizzare-impresa-edile/
+- Sito Web per Impresa Edile: https://www.ediliziaincloud.com/blog/sito-web-impresa-edile-guida/

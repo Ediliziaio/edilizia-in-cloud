@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "fotovoltaico",
+  definizione:
+    "Fotovoltaico di Edilizia in Cloud è la piattaforma per installatori di impianti fotovoltaici residenziali e industriali: gestione dei cantieri, pratiche GSE per Scambio sul Posto e Ritiro Dedicato, dossier per bonus e Conto Termico e pratica di connessione al distributore, dal sopralluogo all'allaccio.",
   vertical: "Gestione Cantieri Fotovoltaico",
   productName: "Modulo Cantieri Fotovoltaico Edilizia in Cloud",
   audience:

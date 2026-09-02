@@ -5,7 +5,7 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software per Ristrutturatori | Più Margini, Più Controllo, Zero Caos",
+  seoTitle: "Software per Ristrutturatori | Più Margini, Zero Caos",
   seoDescription: "Il gestionale per imprese di ristrutturazione che controlla i margini per cantiere in real-time, gestisce cassa e SAL a 90 giorni, tiene traccia di varianti e bonus edilizi.",
   seoKeywords: "software gestionale ristrutturazione, gestionale impresa ristrutturazioni, software preventivi ristrutturazione, gestionale bonus edilizi, software superbonus 110, gestionale ecobonus, software sismabonus, gestionale varianti cantiere, cessione credito software, documentazione SAL ristrutturazione",
   seoCanonical: "/per/ristrutturatori",

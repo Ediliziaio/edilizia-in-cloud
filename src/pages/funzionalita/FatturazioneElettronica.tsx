@@ -25,6 +25,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "fatturazione-elettronica",
+  definizione:
+    "La fatturazione elettronica di Edilizia in Cloud è nativa per le imprese edili: la fattura si emette direttamente dal SAL, viene trasmessa allo SDI in automatico e conservata dieci anni a norma, con gestione di CIG, CUP e split payment per i lavori verso la Pubblica Amministrazione.",
   vertical: "Fatturazione Elettronica",
   productName: "Modulo Fatturazione Elettronica Edilizia in Cloud",
   audience: "Imprese edili, costruttori, ristrutturatori, general contractor, studi tecnici",

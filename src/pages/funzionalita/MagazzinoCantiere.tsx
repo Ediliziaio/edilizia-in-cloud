@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "magazzino-cantiere",
+  definizione:
+    "Magazzino Cantiere di Edilizia in Cloud è il magazzino multi-cantiere dell'impresa edile: ogni cantiere ha le proprie giacenze, i prelievi si registrano con i codici a barre, le scorte minime fanno partire il riordino in automatico e il magazzino è valorizzato con il metodo FIFO, conforme ai principi contabili.",
   vertical: "Magazzino Cantiere",
   productName: "Magazzino Cantiere Edilizia in Cloud",
   audience:

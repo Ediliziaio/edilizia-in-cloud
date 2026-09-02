@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "conserva-digitale",
+  definizione:
+    "Conserva Digitale di Edilizia in Cloud è la conservazione a norma del Codice dell'Amministrazione Digitale (D.Lgs 82/2005) per fatture elettroniche, contratti, DDT, libri contabili, SAL e documenti tecnici, con marca temporale qualificata AgID e responsabile della conservazione inclusi.",
   vertical: "Conservazione Digitale",
   productName: "Conservazione Digitale a Norma Edilizia in Cloud",
   audience:

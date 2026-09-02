@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "automazioni",
+  definizione:
+    "Le Automazioni di Edilizia in Cloud sono flussi di lavoro senza codice per imprese edili: oltre trenta eventi scatenanti su cantieri, SAL, fatture e scadenze, azioni via email, WhatsApp, attività e notifiche, e una libreria di oltre cinquanta modelli pronti per il settore.",
   vertical: "Automazioni",
   productName: "Automazioni Edilizia in Cloud",
   audience:

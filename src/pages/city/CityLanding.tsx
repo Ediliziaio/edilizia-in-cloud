@@ -2962,7 +2962,9 @@ export default function CityLanding() {
   const pageUrl = config ? `${baseUrl}/software-gestionale-edilizia-${config.slug}` : baseUrl;
 
   useSEO({
-    title: config ? `${config.heroTitle} | Edilizia in Cloud` : "Edilizia in Cloud",
+    // "per Imprese di Monza e Brianza" sfora i 60 caratteri e Google tronca: la
+    // forma corta dice la stessa cosa e ci sta.
+    title: config ? `${config.heroTitle.replace("per Imprese di ", "a ")} | Edilizia in Cloud` : "Edilizia in Cloud",
     description: config?.heroSubtitle ?? "",
     canonical: config ? `/software-gestionale-edilizia-${config.slug}` : "/",
     keywords: config ? `gestionale edilizia ${config.name}, software impresa edile ${config.name}, software cantieri ${config.name}, gestione cantieri ${config.region}, ERP edilizia ${config.name}` : "",

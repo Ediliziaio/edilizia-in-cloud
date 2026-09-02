@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "email-marketing",
+  definizione:
+    "Email Marketing di Edilizia in Cloud è l'email marketing pensato per le imprese edili: segmentazione tra clienti attivi, dormienti e lead, template di settore già pronti, automazioni dopo la fine del cantiere e consegna in inbox curata per non finire nello spam, nel rispetto del GDPR.",
   vertical: "Email Marketing",
   productName: "Email Marketing Edilizia in Cloud",
   audience:

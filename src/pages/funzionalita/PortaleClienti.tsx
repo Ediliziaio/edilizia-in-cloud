@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "portale-clienti",
+  definizione:
+    "Il Portale Clienti di Edilizia in Cloud è l'area riservata, con il marchio dell'impresa, da cui ogni cliente vede da web e telefono l'avanzamento del cantiere, le foto del giorno, i documenti tecnici, i SAL da firmare online, le fatture e le scadenze, senza dover chiamare l'impresa.",
   vertical: "Portale Clienti",
   productName: "Portale Clienti Edilizia in Cloud",
   audience: "Imprese edili, ristrutturatori, general contractor, serramentisti che vogliono trasparenza con il cliente finale e ridurre del 60% telefonate di update",

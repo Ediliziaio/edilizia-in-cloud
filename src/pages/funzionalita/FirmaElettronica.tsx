@@ -25,6 +25,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "firma-elettronica",
+  definizione:
+    "La Firma Elettronica di Edilizia in Cloud è una firma elettronica avanzata conforme al regolamento eIDAS integrata in tutto il gestionale: il cliente firma preventivi, SAL, varianti, contratti e autorizzazioni dal browser del telefono in trenta secondi, con marca temporale e prova d'identità.",
   vertical: "Firma Elettronica",
   productName: "Firma Elettronica Edilizia in Cloud",
   audience:

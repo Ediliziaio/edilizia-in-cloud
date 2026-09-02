@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "ordini-acquisto",
+  definizione:
+    "Ordini d'Acquisto di Edilizia in Cloud gestisce gli ordini ai fornitori con ordini digitali firmati elettronicamente, riconciliazione automatica con DDT e fatture passive del cassetto SDI, listini fornitori centralizzati con prezzi storici e tracciamento delle consegne per cantiere.",
   vertical: "Ordini Acquisto",
   productName: "Ordini Acquisto Cantiere Edilizia in Cloud",
   audience:

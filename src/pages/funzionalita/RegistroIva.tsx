@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "registro-iva",
+  definizione:
+    "Registro IVA di Edilizia in Cloud tiene i registri IVA acquisti, vendite e corrispettivi alimentati in automatico dalle fatture elettroniche SDI in entrata e in uscita, genera la liquidazione periodica (LIPE) e li conserva a norma, senza registrazioni manuali.",
   vertical: "Registro IVA",
   productName: "Modulo Registro IVA Edilizia in Cloud",
   audience:

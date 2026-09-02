@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "cruscotto-aziendale",
+  definizione:
+    "Il Cruscotto Aziendale di Edilizia in Cloud è la dashboard del titolare d'impresa edile: indicatori in tempo reale su margine dei cantieri, cassa a 90 giorni, fatturato e pipeline preventivi, con dettaglio per cantiere e cliente, leggibile dal telefono anche in cantiere.",
   vertical: "Cruscotto Aziendale",
   productName: "Cruscotto Aziendale Edilizia in Cloud",
   audience:

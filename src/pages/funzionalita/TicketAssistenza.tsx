@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "ticket-assistenza",
+  definizione:
+    "Ticket Assistenza di Edilizia in Cloud è il sistema di assistenza post-cantiere dell'impresa edile: ogni richiesta del cliente ha numero, priorità, tempi di risposta, tecnico assegnato, foto e soluzione tracciata, così la garanzia decennale ex art. 1669 c.c. ha un dossier completo.",
   vertical: "Ticket Assistenza",
   productName: "Modulo Ticket Assistenza Edilizia in Cloud",
   audience:

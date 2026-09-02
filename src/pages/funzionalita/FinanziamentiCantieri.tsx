@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "finanziamenti-cantieri",
+  definizione:
+    "Finanziamenti Cantieri di Edilizia in Cloud raccoglie in un solo dossier pronto per la banca gli strumenti di liquidità dell'impresa edile: cessione del credito per Superbonus, Sismabonus ed Ecobonus, factoring delle fatture di cantiere e anticipo bancario sui SAL.",
   vertical: "Finanziamenti Cantieri",
   productName: "Modulo Finanziamenti Cantieri Edilizia in Cloud",
   audience:

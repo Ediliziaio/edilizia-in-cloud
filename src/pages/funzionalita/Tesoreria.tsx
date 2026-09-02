@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "tesoreria",
+  definizione:
+    "Tesoreria di Edilizia in Cloud consolida tutti i conti bancari dell'impresa edile in un'unica dashboard tramite PSD2: posizione di cassa in tempo reale, previsionale a 30, 60 e 90 giorni basato su scadenze di fatture e ordini, e avvisi quando la liquidità scende sotto la soglia.",
   vertical: "Tesoreria",
   productName: "Tesoreria Multi-Banca Edilizia in Cloud",
   audience:

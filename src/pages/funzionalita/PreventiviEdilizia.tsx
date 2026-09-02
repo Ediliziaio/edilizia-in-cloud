@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "preventivi-edilizia",
+  definizione:
+    "Preventivi Edilizia di Edilizia in Cloud è lo strumento per fare preventivi professionali in poche ore: computo metrico estimativo con prezzari regionali integrati, firma elettronica del cliente dal telefono, follow-up automatico e conversione in un clic del preventivo accettato in commessa aperta.",
   vertical: "Preventivi Edilizia",
   productName: "Modulo Preventivi Edilizia in Cloud",
   audience: "Imprese edili, ristrutturatori, geometri d'impresa, general contractor, capocantieri preventivisti",

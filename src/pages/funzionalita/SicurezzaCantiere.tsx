@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "sicurezza-cantiere",
+  definizione:
+    "Sicurezza Cantiere di Edilizia in Cloud gestisce la sicurezza ai sensi del D.Lgs 81/2008 in modo operativo, non solo archiviato: POS digitali, DUVRI, formazione tracciata, DPI assegnati a operai e mezzi, sopralluoghi e segnalazioni di quasi-incidente, collegati al cantiere.",
   vertical: "Sicurezza Cantiere",
   productName: "Sicurezza Cantiere Edilizia in Cloud",
   audience:

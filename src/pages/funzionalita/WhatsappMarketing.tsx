@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "whatsapp-marketing",
+  definizione:
+    "WhatsApp Marketing di Edilizia in Cloud integra WhatsApp Business API nel gestionale dell'impresa edile: invii segmentati ai clienti, notifiche automatiche dal cantiere, template approvati da Meta e raccolta dei consensi GDPR, sul canale che i clienti leggono davvero.",
   vertical: "WhatsApp Marketing",
   productName: "WhatsApp Marketing Edilizia in Cloud",
   audience:

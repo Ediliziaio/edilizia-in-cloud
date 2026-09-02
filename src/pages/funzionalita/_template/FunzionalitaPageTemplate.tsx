@@ -410,7 +410,14 @@ export default function FunzionalitaPageTemplate({
               </span>
               {config.heroH1Tail ? <span> {config.heroH1Tail}</span> : null}
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
+            {/* Prima la definizione (cio' che un motore AI cita), poi il
+                sottotitolo (cio' che convince chi legge). */}
+            {config.definizione ? (
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/85 sm:text-lg">
+                {config.definizione}
+              </p>
+            ) : null}
+            <p className={`mx-auto max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg ${config.definizione ? "mt-4" : "mt-6"}`}>
               {config.heroSubheadline}
             </p>
 

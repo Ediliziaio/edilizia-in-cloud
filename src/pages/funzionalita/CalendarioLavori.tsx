@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "calendario-lavori",
+  definizione:
+    "Calendario Lavori di Edilizia in Cloud è il calendario condiviso di tutti i cantieri dell'impresa edile: un diagramma di Gantt unico con l'allocazione delle squadre giorno per giorno e il rilevamento automatico dei conflitti, così nessun operaio risulta in due cantieri nella stessa fascia.",
   vertical: "Calendario Lavori",
   productName: "Modulo Calendario Lavori Edilizia in Cloud",
   audience:

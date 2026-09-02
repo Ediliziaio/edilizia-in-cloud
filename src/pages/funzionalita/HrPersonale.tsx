@@ -26,6 +26,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "hr-personale",
+  definizione:
+    "HR Personale di Edilizia in Cloud gestisce operai, presenze, ferie e busta paga in un'unica app collegata al cantiere: timbrature GPS conformi al CCNL Edilizia, ferie e malattie richieste dal telefono, costo orario reale per qualifica e tracciati esportabili per il consulente del lavoro.",
   vertical: "HR e Personale",
   productName: "Modulo HR e Personale Edilizia in Cloud",
   audience: "Imprese edili, costruttori, ristrutturatori, responsabili HR di PMI edili, consulenti del lavoro, capi cantiere",

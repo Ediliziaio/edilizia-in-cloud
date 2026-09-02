@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "gestione-subappalti",
+  definizione:
+    "Gestione Subappalti di Edilizia in Cloud tiene sotto controllo subappaltatori, SAL, DURC e ritenute senza fogli Excel paralleli: contratti di subappalto, SAL firmati online, ritenuta INPS del 4% calcolata in automatico, DURC con avviso prima della scadenza e fatture passive collegate alla commessa.",
   vertical: "Gestione Subappalti",
   productName: "Modulo Gestione Subappalti Edilizia in Cloud",
   audience: "General contractor, imprese edili, ristrutturatori, capi cantiere, controller di cantiere, geometri d'impresa",

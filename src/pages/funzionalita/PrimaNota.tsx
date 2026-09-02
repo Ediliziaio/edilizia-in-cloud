@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "prima-nota",
+  definizione:
+    "La Prima Nota di Edilizia in Cloud è collegata alla banca tramite PSD2: ogni movimento di cassa e conto corrente viene importato in tempo reale, classificato dall'AI, riconciliato con fatture e ordini ed esportato per il commercialista, senza registrazioni manuali.",
   vertical: "Prima Nota",
   productName: "Prima Nota Cassa & Banca Edilizia in Cloud",
   audience:

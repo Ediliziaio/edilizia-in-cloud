@@ -29,7 +29,7 @@ export default function CalcoloCongruita() {
     <CalculatorShell
       slug="calcolo-congruita-manodopera"
       title="Calcolo congruità della manodopera"
-      seoTitle="Calcolo Congruità Manodopera DM 143/2021 — Calcolatore Gratuito"
+      seoTitle="Calcolo Congruità Manodopera DM 143/2021 — Gratis"
       seoDescription="Calcolatore gratuito della congruità della manodopera secondo il DM 143/2021: inserisci valore dell'opera, categoria e manodopera denunciata e vedi subito se il cantiere raggiunge la soglia. Tabella ufficiale completa."
       sottotitolo="Verifica in dieci secondi se la manodopera denunciata in Cassa Edile raggiunge la soglia del DM 143/2021 per la categoria del tuo cantiere — e di quanto manca, se non la raggiunge."
       guida={{

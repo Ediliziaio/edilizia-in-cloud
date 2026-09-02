@@ -20,6 +20,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "manutenzione-impianti",
+  definizione:
+    "Manutenzione Impianti di Edilizia in Cloud è il gestionale per imprese di manutenzione di impianti idraulici, elettrici, di climatizzazione, fotovoltaici e antincendio: parco impianti georeferenziato, scadenzario automatico secondo il DPR 74/2013, libretti d'impianto e interventi programmati o a chiamata.",
   vertical: "Manutenzione Impianti",
   productName: "Modulo Manutenzione Impianti Edilizia in Cloud",
   audience:

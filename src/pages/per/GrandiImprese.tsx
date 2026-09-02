@@ -6,7 +6,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software per Grandi Imprese Edili e General Contractor (50+ Dipendenti) | Governance e Margini di Gruppo",
+  seoTitle: "Software per Grandi Imprese Edili | Governance e Margini",
   seoDescription:
     "Gestionale enterprise per grandi imprese edili e general contractor 50+ dipendenti, 10-50 cantieri attivi. Multi-società, dashboard direzionale CFO…",
   seoKeywords:

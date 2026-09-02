@@ -6,7 +6,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software per Piccole Imprese Edili e Artigiani | Margini Chiari, Zero Burocrazia",
+  seoTitle: "Software per Piccole Imprese Edili | Margini Chiari",
   seoDescription: "Il gestionale per piccole imprese edili, muratori, imbianchini e artigiani con 1-10 dipendenti. Fattura elettronica, preventivi in 10 minuti, SAL e F24 senza stress.",
   seoKeywords: "software piccole imprese edili, gestionale artigiani edili, software muratori, fattura elettronica edilizia, preventivo a forfait, SAL semplificato, F24 edilizia, INAIL INPS edile, software imbianchino",
   seoCanonical: "/per/piccole-imprese",

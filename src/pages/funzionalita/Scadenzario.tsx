@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "scadenzario",
+  definizione:
+    "Lo Scadenzario di Edilizia in Cloud gestisce le scadenze di clienti e fornitori dell'impresa edile con solleciti automatici a più passi via email, WhatsApp e SMS, avvisi al titolare prima della scadenza, report di anzianità dei crediti in tempo reale ed export per il commercialista.",
   vertical: "Scadenzario",
   productName: "Scadenzario Clienti & Fornitori Edilizia in Cloud",
   audience:

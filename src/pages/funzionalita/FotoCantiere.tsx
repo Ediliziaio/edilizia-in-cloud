@@ -21,6 +21,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "foto-cantiere",
+  definizione:
+    "Foto Cantiere di Edilizia in Cloud è l'app con cui il capocantiere scatta foto geolocalizzate con data e ora automatiche, organizzate da sole per cantiere e giornata, condivisibili con il cliente dal portale e conservate in un archivio cloud che non si può alterare.",
   vertical: "Foto Cantiere",
   productName: "Foto Cantiere Edilizia in Cloud",
   audience:

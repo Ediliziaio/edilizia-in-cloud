@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "ferie-permessi",
+  definizione:
+    "Ferie e Permessi di Edilizia in Cloud dà a ogni operaio un'app con il saldo aggiornato di ferie, ROL, banca ore e permessi secondo il CCNL Edilizia: la richiesta parte dal telefono, il capocantiere approva con un clic e il calendario condiviso evita buchi in squadra.",
   vertical: "Ferie e Permessi",
   productName: "Modulo Ferie e Permessi Edilizia in Cloud",
   audience:

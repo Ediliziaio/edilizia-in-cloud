@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "cedolini-paga",
+  definizione:
+    "Cedolini Paga di Edilizia in Cloud è il modulo paghe con CCNL Edilizia industria e artigianato già configurato: calcolo automatico della Cassa Edile, ferie, ROL e banca ore, malattia INPS, F24 telematico e denunce UNILAV e UNIEMENS, per produrre i cedolini senza consulente esterno ogni mese.",
   vertical: "Cedolini Paga",
   productName: "Modulo Cedolini Paga Edilizia in Cloud",
   audience:

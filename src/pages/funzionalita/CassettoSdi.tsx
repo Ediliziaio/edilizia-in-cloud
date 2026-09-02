@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "cassetto-sdi",
+  definizione:
+    "Il Cassetto SDI di Edilizia in Cloud sincronizza il cassetto fiscale dell'Agenzia delle Entrate con il gestionale: le fatture passive ricevute via SDI entrano da sole, vengono riconciliate con DDT e ordini e classificate per cantiere, senza scaricare file XML a mano.",
   vertical: "Cassetto Fiscale SDI",
   productName: "Cassetto Fiscale SDI Edilizia in Cloud",
   audience:

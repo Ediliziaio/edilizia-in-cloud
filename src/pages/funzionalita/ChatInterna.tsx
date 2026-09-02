@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "chat-interna",
+  definizione:
+    "Chat Interna di Edilizia in Cloud è la chat aziendale che sostituisce i gruppi WhatsApp privati: canali dedicati per cantiere, foto, file e messaggi vocali condivisi direttamente dal campo, notifiche urgenti smistate per ruolo e archivio tracciato nel rispetto del GDPR.",
   vertical: "Chat Interna",
   productName: "Modulo Chat Interna Edilizia in Cloud",
   audience:

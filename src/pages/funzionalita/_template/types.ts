@@ -108,6 +108,14 @@ export interface FunzionalitaPageConfig {
   heroH1Highlight: string; // highlighted (orange) text
   heroH1Tail?: string; // optional tail text after highlight
   heroSubheadline: string;
+  /**
+   * Blocco-risposta sotto l'H1: 40-60 parole che stanno in piedi da sole
+   * ("<Modulo> di Edilizia in Cloud e' ... serve a ... per chi ..."). Un
+   * motore AI che deve rispondere a "cos'e' un software per X" estrae QUESTO,
+   * non il sottotitolo emotivo: il sottotitolo parla a chi ha gia' capito,
+   * la definizione a chi sta ancora cercando.
+   */
+  definizione?: string;
   heroPrimaryCta: string;
   heroSecondaryCta?: string;
   heroSecondaryCtaTo?: string;

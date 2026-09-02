@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "contabilita-lavori",
+  definizione:
+    "Contabilità Lavori di Edilizia in Cloud porta la contabilità lavori fuori da Excel: libretto delle misure e stati di avanzamento si emettono in pochi clic dalle voci di computo, i SAL si trasformano in fatture con un passaggio e le ritenute restano tracciate su ogni stato.",
   vertical: "Contabilità Lavori",
   productName: "Contabilità Lavori Edilizia in Cloud",
   audience:

@@ -54,7 +54,7 @@ const DESCRIZIONE =
 
 export default function Strumenti() {
   useSEO({
-    title: "Strumenti e Calcolatori Gratuiti per Imprese Edili | Edilizia in Cloud",
+    title: "Calcolatori Gratuiti per Imprese Edili | Edilizia in Cloud",
     description: DESCRIZIONE,
     canonical: "/strumenti",
   });

@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "quote-builder-ai",
+  definizione:
+    "Quote Builder AI di Edilizia in Cloud genera il preventivo tecnico di un lavoro edile in pochi minuti: dalle foto del cantiere l'AI riconosce ambienti e finiture, propone le voci di computo metrico dai prezzari regionali e compone un preventivo che l'impresa rivede e invia.",
   vertical: "Quote Builder AI",
   productName: "Quote Builder AI Edilizia in Cloud",
   audience:

@@ -1877,7 +1877,7 @@ const ROUTES = {
   },
 
   "/chi-siamo": {
-    title: "Chi Siamo — Edilizia in Cloud | Software edile nato in cantiere",
+    title: "Chi Siamo | Edilizia in Cloud, software nato in cantiere",
     description:
       "Edilizia in Cloud è fondato da Florin Andriciuc, imprenditore edile e CEO AEDIX. Un team di costruttori e sviluppatori, nato dentro un'impresa edile reale.",
     h1: "Chi ha creato Edilizia in Cloud: nati dall'edilizia, per l'edilizia",
@@ -2661,6 +2661,8 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <title>${escHtml(title)}</title>
   <meta name="description" content="${escAttr(description)}"/>
   <link rel="canonical" href="${escAttr(canonical)}"/>
+  <link rel="alternate" hreflang="it-IT" href="${escAttr(canonical)}"/>
+  <link rel="alternate" hreflang="x-default" href="${escAttr(canonical)}"/>
   <meta property="og:title" content="${escAttr(title)}"/>
   <meta property="og:description" content="${escAttr(description)}"/>
   <meta property="og:url" content="${escAttr(canonical)}"/>

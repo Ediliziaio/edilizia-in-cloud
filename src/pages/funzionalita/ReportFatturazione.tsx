@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "report-fatturazione",
+  definizione:
+    "Report Fatturazione di Edilizia in Cloud mostra fatturato, incassato e scaduto dell'impresa edile in una dashboard aggiornata in tempo reale, con dettaglio per cliente, cantiere, agente e periodo e indicatori commerciali come importo medio, tempi di incasso e conversione dei preventivi.",
   vertical: "Report Fatturazione",
   productName: "Modulo Report Fatturazione Edilizia in Cloud",
   audience:

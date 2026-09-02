@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "gestione-commesse",
+  definizione:
+    "Gestione Commesse di Edilizia in Cloud trasforma ogni cantiere in una commessa completa con preventivo, consuntivo e margine in tempo reale: ogni fattura, ora lavorata e materiale viene attribuito alla commessa giusta, così quali cantieri fanno perdere soldi si scopre subito, non a fine anno.",
   vertical: "Gestione Commesse",
   productName: "Gestione Commesse Edilizia in Cloud",
   audience:

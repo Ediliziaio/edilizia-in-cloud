@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "crm-edilizia",
+  definizione:
+    "Il CRM Edilizia di Edilizia in Cloud è un CRM costruito per il settore edile, non riadattato: pipeline dei preventivi a colonne, raccolta lead da Google, Facebook, Instagram e passaparola, classificazione dei cantieri per tipo e follow-up automatici sulle trattative aperte.",
   vertical: "CRM Edilizia",
   productName: "CRM Edilizia in Cloud",
   audience:

@@ -20,6 +20,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "giornale-lavori",
+  definizione:
+    "Il Giornale Lavori di Edilizia in Cloud è il giornale dei lavori digitale conforme all'art. 15 del D.M. 49/2018 e al Codice Appalti: registrazione giornaliera di maestranze, mezzi, forniture, condizioni meteo e fatti rilevanti, firmato dal cantiere e archiviato a norma.",
   vertical: "Giornale Lavori",
   productName: "Giornale Lavori Digitale Edilizia in Cloud",
   audience:

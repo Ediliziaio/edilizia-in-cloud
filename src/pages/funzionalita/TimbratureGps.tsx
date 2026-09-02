@@ -23,6 +23,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "timbrature-gps",
+  definizione:
+    "Timbrature GPS di Edilizia in Cloud è l'app con cui gli operai timbrano solo dentro il perimetro del cantiere, grazie al geofence, con foto antifrode alla timbratura e calcolo automatico di ore straordinarie, notturne e festive secondo il CCNL Edilizia.",
   vertical: "Timbrature GPS",
   productName: "Timbrature GPS Cantiere Edilizia in Cloud",
   audience:

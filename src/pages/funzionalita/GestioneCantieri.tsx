@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "gestione-cantieri",
+  definizione:
+    "Gestione Cantieri di Edilizia in Cloud è il modulo con cui il titolare di un'impresa edile segue ogni cantiere dal telefono: avanzamento lavori, timbrature GPS, giornale lavori digitale, chat di squadra e costi per commessa, aggiornati dal capocantiere via app e visibili in dashboard in tempo reale.",
   vertical: "Gestione Cantieri",
   productName: "Modulo Gestione Cantieri Edilizia in Cloud",
   audience: "Imprese edili, costruttori, ristrutturatori, general contractor, capi cantiere",

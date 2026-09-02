@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "pipeline-vendite",
+  definizione:
+    "Pipeline Vendite di Edilizia in Cloud è la pipeline dei preventivi a colonne trascinabili per imprese edili: lead, sopralluogo, preventivo inviato, trattativa, firmato o perso, con previsione di cassa basata sulle trattative aperte e tasso di conversione per fase.",
   vertical: "Pipeline Vendite",
   productName: "Pipeline Vendite Edilizia in Cloud",
   audience:

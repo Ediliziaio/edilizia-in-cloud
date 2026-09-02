@@ -20,6 +20,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "lead-form-facebook",
+  definizione:
+    "Lead Form Facebook di Edilizia in Cloud collega Lead Ads di Facebook e Instagram al CRM dell'impresa edile: ogni contatto arriva in tempo reale, viene qualificato dall'AI in base all'intenzione (preventivo subito, informazioni, curiosità) e assegnato al commerciale giusto in pochi minuti.",
   vertical: "Lead Form Facebook",
   productName: "Modulo Lead Form Facebook Edilizia in Cloud",
   audience:

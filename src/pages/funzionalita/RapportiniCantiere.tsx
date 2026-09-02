@@ -22,6 +22,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "rapportini-cantiere",
+  definizione:
+    "Rapportini Cantiere di Edilizia in Cloud è il rapportino giornaliero compilato dallo smartphone a fine giornata: foto del lavoro fatto, nota vocale, ore delle persone e materiali usati, in circa due minuti, con firma del cliente e PDF generato in automatico per la commessa.",
   vertical: "Rapportini Cantiere",
   productName: "Rapportini di Cantiere Edilizia in Cloud",
   audience:

@@ -24,6 +24,8 @@ import type { FunzionalitaPageConfig } from "./_template/types";
 
 const config: FunzionalitaPageConfig = {
   slug: "agenti-ai",
+  definizione:
+    "Gli Agenti AI di Edilizia in Cloud sono assistenti addestrati sui dati dell'impresa edile: rispondono ai clienti su WhatsApp 24 ore su 24, qualificano i lead, fanno follow-up sui preventivi, riassumono lo stato dei cantieri e generano report tecnici, lavorando insieme al titolare e non al posto suo.",
   vertical: "Agenti AI per Edilizia",
   productName: "Agenti AI Edilizia in Cloud",
   audience: "Imprese edili strutturate, general contractor, ristrutturatori che vogliono delegare risposta clienti, segreteria, follow-up e analisi dati a un'intelligenza artificiale dedicata",
