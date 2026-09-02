@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     // 5. from / replyTo
     const fromName = brand?.from_name || sender.display_name;
     const from = fromName ? `${fromName} <${sender.email}>` : sender.email;
-    const replyTo = brand?.reply_to || sender.email;
+    const replyTo = isNativeProvider(sender.provider) ? sender.email : (brand?.reply_to || sender.email);
 
     // 6. oggetto "Re: …"
     const baseSubject = (lastSubject || "").trim();
@@ -179,6 +179,7 @@ Deno.serve(async (req) => {
     // 10. storico nel thread (stessa coda usata dall'inbox per le inviate).
     // contact_id può essere null (conversazione sciolta): si raggruppa per to_email.
     await admin.from("outreach_send_queue").insert({
+      message_id: res.providerMessageId && String(res.providerMessageId).trim().startsWith("<") ? res.providerMessageId : null,
       company_id: PLATFORM_COMPANY,
       contact_id: contactId || null,
       sender_account_id: sender.id,

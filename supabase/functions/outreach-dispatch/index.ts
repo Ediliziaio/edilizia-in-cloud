@@ -808,7 +808,14 @@ Deno.serve(async (req) => {
             s.connection_status = "ok";
             await supabase.from("outreach_sender_accounts")
               .update({ connection_status: "ok", connection_error: null, connection_checked_at: now.toISOString() }).eq("id", s.id);
-          } catch { continue; }
+          } catch (e) {
+            // Resta in errore, ma con il motivo scritto (token scaduto, revoca):
+            // e' cio' che la card mostra e che dice "ricollega la casella".
+            await supabase.from("outreach_sender_accounts")
+              .update({ connection_error: `OAuth: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300), connection_checked_at: now.toISOString() })
+              .eq("id", s.id);
+            continue;
+          }
         } else if (s.provider === "smtp") {
           continue;
         }
@@ -861,13 +868,15 @@ Deno.serve(async (req) => {
     // nessun pixel ovunque (comportamento cold sicuro).
     const trackOpensBySequence = new Map<string, boolean>();
     const plainTextBySequence = new Map<string, boolean>();
+    const statoSequenza = new Map<string, string>();
     const sequenceIds = [...new Set([...enrollmentById.values()].map((e) => e.sequence_id).filter(Boolean))];
     if (sequenceIds.length) {
       const { data: seqs } = await supabase
-        .from("outreach_sequences").select("id,track_opens,plain_text_only").in("id", sequenceIds);
+        .from("outreach_sequences").select("id,track_opens,plain_text_only,status").in("id", sequenceIds);
       for (const s of seqs || []) {
         trackOpensBySequence.set(s.id, s.track_opens === true);
         plainTextBySequence.set(s.id, s.plain_text_only === true);
+        statoSequenza.set(s.id, String(s.status ?? "active"));
       }
     }
 
@@ -974,6 +983,10 @@ Deno.serve(async (req) => {
       const enr = item.enrollment_id ? enrollmentById.get(item.enrollment_id) : null;
       if (enr) {
         if (enr.status === "paused") { result.deferred++; continue; }
+        // "In pausa" sulla SEQUENZA: prima il dispatcher non la leggeva e
+        // continuava a spedire; le righe restano in coda finche' si riprende.
+        const st = statoSequenza.get(enr.sequence_id);
+        if (st === "paused" || st === "archived") { result.deferred++; continue; }
         if (TERMINAL_ENROLLMENT.has(enr.status)) {
           await supabase.from("outreach_send_queue")
             .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);
@@ -1004,7 +1017,9 @@ Deno.serve(async (req) => {
         const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
         const fromName = brand?.from_name || sender.display_name;
         const from = fromName ? `${fromName} <${sender.email}>` : sender.email;
-        const replyTo = brand?.reply_to || sender.email;
+        // Caselle native: il Reply-To e' la casella stessa. Un reply_to di brand
+        // esterno manderebbe le risposte dove il poll non guarda mai.
+        const replyTo = isNativeProvider(sender.provider) ? sender.email : (brand?.reply_to || sender.email);
         // personalizzazione al send: variabili + spintax, seed stabile per destinatario
         const contact = item.contact_id ? contactById.get(item.contact_id) : null;
         const vars = contact ? contactToVars(contact) : {};
@@ -1054,7 +1069,10 @@ Deno.serve(async (req) => {
           );
         }
         const addr = brand?.footer_address ? `${brand.footer_address} · ` : "";
-        const unsubHtml = item.contact_id ? `Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.` : "";
+        // Base giuridica in una riga (B2B, indirizzi aziendali): trasparenza
+        // GDPR art. 13/14 senza informativa a parte. Solo nelle sequenze cold.
+        const gdpr = enr ? "Ti scrivo perché la tua impresa opera pubblicamente nel settore edile (legittimo interesse, art. 6.1.f GDPR). " : "";
+        const unsubHtml = item.contact_id ? `${gdpr}Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.` : "";
         if (addr || unsubHtml) {
           html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
         }
