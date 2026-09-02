@@ -122,6 +122,9 @@ export default function OutlookCalendarConnectionTab() {
       if (data.status === "ok") {
         toast.success("Outlook Calendar collegato");
         queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection", userId] });
+        // Prima sync subito: senza, dopo il collegamento il calendario restava
+        // vuoto finche' qualcuno non premeva "Sincronizza".
+        setAutoSyncDopoCollegamento(true);
       } else {
         toast.error(`Errore OAuth: ${data.message ?? "sconosciuto"}`);
       }
@@ -161,6 +164,8 @@ export default function OutlookCalendarConnectionTab() {
     }
   }, [userId, getAccessToken, cleanupPopup, refetchConnection]);
 
+  const [autoSyncDopoCollegamento, setAutoSyncDopoCollegamento] = useState(false);
+
   // ── Sync ──────────────────────────────────────────────────────────────────
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -181,6 +186,13 @@ export default function OutlookCalendarConnectionTab() {
       setSyncing(false);
     },
   });
+
+  useEffect(() => {
+    if (!autoSyncDopoCollegamento) return;
+    setAutoSyncDopoCollegamento(false);
+    syncMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSyncDopoCollegamento]);
 
   // ── Toggle calendar in synced list ────────────────────────────────────────
   const toggleSyncedMutation = useMutation({

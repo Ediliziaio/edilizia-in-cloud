@@ -88,6 +88,119 @@ interface GraphEvent {
   webLink?: string;
 }
 
+interface ConnRow {
+  id: string; company_id: string; user_id: string;
+  primary_calendar_id: string | null; synced_calendar_ids?: string[] | null;
+}
+
+/**
+ * Sincronizza UN calendario di UNA connessione (finestra default: oggi → +60
+ * giorni). Usata sia dalla chiamata dell'utente sia dal cron: prima esisteva
+ * solo dentro il handler utente, quindi Outlook si aggiornava SOLO quando
+ * qualcuno premeva "Sincronizza" — Google invece gira ogni 15 minuti.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function syncConnection(db: any, conn: ConnRow, calendarId: string, opts: { from?: string; to?: string }): Promise<number> {
+  // Default range: today → +60 days
+  const now = new Date();
+  const from = opts.from ?? now.toISOString();
+  const toDefault = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const to = opts.to ?? toDefault.toISOString();
+
+  const accessToken = await getFreshAccessToken(conn.id);
+
+  // Paginated fetch via @odata.nextLink
+  const eventsAll: GraphEvent[] = [];
+  let url: string | null = `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView`
+    + `?startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(to)}`
+    + "&$top=100&$select=id,iCalUId,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,showAs,seriesMasterId,isCancelled,webLink";
+  let pages = 0;
+
+  while (url && pages < 20) {
+    const res: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      await db.from("outlook_calendar_connections").update({
+        last_error: `Graph ${res.status}: ${errText.slice(0, 200)}`,
+      }).eq("id", conn.id);
+      throw new Error(`Graph fetch failed: ${res.status} ${errText.slice(0, 200)}`);
+    }
+    const json = await res.json() as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+    eventsAll.push(...(json.value ?? []));
+    url = json["@odata.nextLink"] ?? null;
+    pages++;
+  }
+
+  // Upsert
+  if (eventsAll.length > 0) {
+    const rows = eventsAll.map((e) => ({
+      connection_id: conn.id,
+      company_id: conn.company_id,
+      user_id: conn.user_id,
+      outlook_event_id: e.id,
+      outlook_calendar_id: calendarId,
+      outlook_ical_uid: e.iCalUId ?? null,
+      subject: e.subject ?? null,
+      body_preview: e.bodyPreview ?? null,
+      start_time: e.start?.dateTime ? new Date(e.start.dateTime + "Z").toISOString() : null,
+      end_time: e.end?.dateTime ? new Date(e.end.dateTime + "Z").toISOString() : null,
+      is_all_day: e.isAllDay ?? false,
+      location_display_name: e.location?.displayName ?? null,
+      organizer_email: e.organizer?.emailAddress?.address ?? null,
+      attendees: (e.attendees ?? []).map((a) => ({
+        email: a.emailAddress?.address ?? null,
+        name: a.emailAddress?.name ?? null,
+        response_status: a.status?.response ?? null,
+      })),
+      show_as: e.showAs ?? null,
+      series_master_id: e.seriesMasterId ?? null,
+      is_cancelled: e.isCancelled ?? false,
+      web_link: e.webLink ?? null,
+      raw: e,
+    }));
+
+    const { error: upsertErr } = await db.from("outlook_calendar_events").upsert(rows, {
+      onConflict: "connection_id,outlook_event_id",
+    });
+    if (upsertErr) {
+      console.error("[outlook-calendar-sync] upsert error:", upsertErr);
+      throw upsertErr;
+    }
+  }
+
+  await db.from("outlook_calendar_connections").update({
+    last_sync_at: new Date().toISOString(),
+    last_sync_event_count: eventsAll.length,
+    last_error: null,
+  }).eq("id", conn.id);
+  return eventsAll.length;
+}
+
+/** Cron: tutte le connessioni col calendario scelto, una alla volta, errori isolati. */
+async function cronFullSync(): Promise<Response> {
+  const db = admin();
+  const { data: conns } = await db
+    .from("outlook_calendar_connections")
+    .select("id, company_id, user_id, primary_calendar_id, synced_calendar_ids")
+    .not("primary_calendar_id", "is", null);
+  const esito = { connessioni: (conns ?? []).length, ok: 0, errori: 0, eventi: 0 };
+  for (const conn of (conns ?? []) as ConnRow[]) {
+    try {
+      esito.eventi += await syncConnection(db, conn, conn.primary_calendar_id!, {});
+      esito.ok++;
+    } catch (e) {
+      // L'errore e' gia' annotato su last_error dalla sync: qui si passa oltre,
+      // una connessione rotta non deve fermare le altre.
+      console.error("[outlook-calendar-sync] cron, connessione", conn.id, (e as Error)?.message);
+      esito.errori++;
+    }
+  }
+  return new Response(JSON.stringify({ ok: true, ...esito }), { headers: { "Content-Type": "application/json" } });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -101,6 +214,27 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const body = (await req.json().catch(() => ({}))) as {
+      action?: string;
+      calendar_id?: string;
+      from?: string;
+      to?: string;
+    };
+
+    // Cron: stesso schema di google-calendar-sync ({"action":"cron-full-sync"}
+    // con la chiave anon come Bearer). La chiave anon e' pubblica, quindi non
+    // "protegge": ma la sync e' idempotente (upsert) e non espone dati — il
+    // peggio che un estraneo puo' fare e' farci aggiornare i calendari.
+    if (body.action === "cron-full-sync") {
+      const token = authHeader.replace("Bearer ", "");
+      if (token !== Deno.env.get("SUPABASE_ANON_KEY") && token !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      return await cronFullSync();
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } },
@@ -111,12 +245,6 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
-
-    const body = (await req.json().catch(() => ({}))) as {
-      calendar_id?: string;
-      from?: string;
-      to?: string;
-    };
 
     const db = admin();
     const { data: conn } = await db
@@ -137,83 +265,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Default range: today → +60 days
-    const now = new Date();
-    const from = body.from ?? now.toISOString();
-    const toDefault = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const to = body.to ?? toDefault.toISOString();
+    const synced = await syncConnection(db, conn as ConnRow, calendarId, { from: body.from, to: body.to });
 
-    const accessToken = await getFreshAccessToken(conn.id);
-
-    // Paginated fetch via @odata.nextLink
-    const eventsAll: GraphEvent[] = [];
-    let url: string | null = `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView`
-      + `?startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(to)}`
-      + "&$top=100&$select=id,iCalUId,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,showAs,seriesMasterId,isCancelled,webLink";
-    let pages = 0;
-
-    while (url && pages < 20) {
-      const res: Response = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        await db.from("outlook_calendar_connections").update({
-          last_error: `Graph ${res.status}: ${errText.slice(0, 200)}`,
-        }).eq("id", conn.id);
-        throw new Error(`Graph fetch failed: ${res.status} ${errText.slice(0, 200)}`);
-      }
-      const json = await res.json() as { value?: GraphEvent[]; "@odata.nextLink"?: string };
-      eventsAll.push(...(json.value ?? []));
-      url = json["@odata.nextLink"] ?? null;
-      pages++;
-    }
-
-    // Upsert
-    if (eventsAll.length > 0) {
-      const rows = eventsAll.map((e) => ({
-        connection_id: conn.id,
-        company_id: conn.company_id,
-        user_id: conn.user_id,
-        outlook_event_id: e.id,
-        outlook_calendar_id: calendarId,
-        outlook_ical_uid: e.iCalUId ?? null,
-        subject: e.subject ?? null,
-        body_preview: e.bodyPreview ?? null,
-        start_time: e.start?.dateTime ? new Date(e.start.dateTime + "Z").toISOString() : null,
-        end_time: e.end?.dateTime ? new Date(e.end.dateTime + "Z").toISOString() : null,
-        is_all_day: e.isAllDay ?? false,
-        location_display_name: e.location?.displayName ?? null,
-        organizer_email: e.organizer?.emailAddress?.address ?? null,
-        attendees: (e.attendees ?? []).map((a) => ({
-          email: a.emailAddress?.address ?? null,
-          name: a.emailAddress?.name ?? null,
-          response_status: a.status?.response ?? null,
-        })),
-        show_as: e.showAs ?? null,
-        series_master_id: e.seriesMasterId ?? null,
-        is_cancelled: e.isCancelled ?? false,
-        web_link: e.webLink ?? null,
-        raw: e,
-      }));
-
-      const { error: upsertErr } = await db.from("outlook_calendar_events").upsert(rows, {
-        onConflict: "connection_id,outlook_event_id",
-      });
-      if (upsertErr) {
-        console.error("[outlook-calendar-sync] upsert error:", upsertErr);
-        throw upsertErr;
-      }
-    }
-
-    await db.from("outlook_calendar_connections").update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_event_count: eventsAll.length,
-      last_error: null,
-    }).eq("id", conn.id);
-
-    return new Response(JSON.stringify({ ok: true, synced: eventsAll.length, calendar_id: calendarId }), {
+    return new Response(JSON.stringify({ ok: true, synced, calendar_id: calendarId }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {
