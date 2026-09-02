@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 interface StartBody {
   provider: "gmail" | "outlook";
@@ -169,9 +170,9 @@ Deno.serve(async (req) => {
     });
     authUrl = `${GMAIL_AUTH_URL}?${params.toString()}`;
   } else {
-    const clientId = Deno.env.get("MS_OAUTH_CLIENT_ID");
+    const { clientId } = await getMsOAuthCredentials();
     if (!clientId) {
-      return new Response(JSON.stringify({ error: "MS_OAUTH_CLIENT_ID not configured" }), {
+      return new Response(JSON.stringify({ error: "Credenziali Microsoft non configurate (MS_OAUTH_CLIENT_ID)" }), {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }

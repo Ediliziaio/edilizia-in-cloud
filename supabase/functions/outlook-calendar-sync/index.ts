@@ -11,9 +11,9 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
@@ -40,8 +40,7 @@ async function getFreshAccessToken(connectionId: string): Promise<string> {
   }
   if (!conn.refresh_token_encrypted) throw new Error("No refresh token");
 
-  const clientId = await getPlatformSetting("outlook_client_id", "OUTLOOK_CLIENT_ID");
-  const clientSecret = await getPlatformSetting("outlook_client_secret", "OUTLOOK_CLIENT_SECRET");
+  const { clientId, clientSecret } = await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error("OAuth credentials missing");
 
   const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);

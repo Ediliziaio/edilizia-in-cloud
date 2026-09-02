@@ -15,9 +15,9 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 const SCOPES = ["openid", "profile", "offline_access", "User.Read", "Calendars.ReadWrite"].join(" ");
 const AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
@@ -35,10 +35,8 @@ async function getRedirectUri(): Promise<string> {
 }
 
 async function getCredentials() {
-  return {
-    clientId: await getPlatformSetting("outlook_client_id", "OUTLOOK_CLIENT_ID"),
-    clientSecret: await getPlatformSetting("outlook_client_secret", "OUTLOOK_CLIENT_SECRET"),
-  };
+  // Stessa app Azure della posta: una configurazione accende entrambe.
+  return await getMsOAuthCredentials();
 }
 
 // La piattaforma Supabase RISCRIVE le risposte HTML delle edge function sul

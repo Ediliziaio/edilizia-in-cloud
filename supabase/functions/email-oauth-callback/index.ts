@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 interface CallbackBody {
   code: string;
@@ -194,8 +195,7 @@ Deno.serve(async (req) => {
     clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET");
   } else {
     tokenUrl = OUTLOOK_TOKEN_URL;
-    clientId = Deno.env.get("MS_OAUTH_CLIENT_ID");
-    clientSecret = Deno.env.get("MS_OAUTH_CLIENT_SECRET");
+    ({ clientId, clientSecret } = await getMsOAuthCredentials());
   }
   if (!clientId || !clientSecret) {
     return new Response(JSON.stringify({ error: `${stateDecoded.provider}_oauth_not_configured` }), {

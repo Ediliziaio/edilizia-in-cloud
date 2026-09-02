@@ -19,6 +19,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 // (base64/quoted-printable) + charset → corpi email leggibili (accenti, HTML).
 // Questo import forza il redeploy della funzione per includere il parser aggiornato.
 import { imapFetchUnreadSince, type ImapMessage } from "../_shared/imapSmtpClient.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 interface ConnectionDue {
   id: string;
@@ -297,8 +298,9 @@ async function refreshTokenIfNeeded(
   }
 
   const tokenUrl = conn.provider === "gmail" ? TOKEN_URL_GMAIL : TOKEN_URL_OUTLOOK;
-  const clientId = Deno.env.get(conn.provider === "gmail" ? "GOOGLE_OAUTH_CLIENT_ID" : "MS_OAUTH_CLIENT_ID");
-  const clientSecret = Deno.env.get(conn.provider === "gmail" ? "GOOGLE_OAUTH_CLIENT_SECRET" : "MS_OAUTH_CLIENT_SECRET");
+  const { clientId, clientSecret } = conn.provider === "gmail"
+    ? { clientId: Deno.env.get("GOOGLE_OAUTH_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") }
+    : await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error(`${conn.provider}_oauth_not_configured`);
 
   const res = await fetch(tokenUrl, {

@@ -23,6 +23,7 @@
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { smtpSend, buildRFC822, imapAppend, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -59,8 +60,9 @@ async function refreshTokenIfNeeded(
   if (!conn.refresh_token) throw new Error("refresh_token_missing");
 
   const tokenUrl = conn.provider === "gmail" ? TOKEN_URL_GMAIL : TOKEN_URL_OUTLOOK;
-  const clientId = Deno.env.get(conn.provider === "gmail" ? "GOOGLE_OAUTH_CLIENT_ID" : "MS_OAUTH_CLIENT_ID");
-  const clientSecret = Deno.env.get(conn.provider === "gmail" ? "GOOGLE_OAUTH_CLIENT_SECRET" : "MS_OAUTH_CLIENT_SECRET");
+  const { clientId, clientSecret } = conn.provider === "gmail"
+    ? { clientId: Deno.env.get("GOOGLE_OAUTH_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") }
+    : await getMsOAuthCredentials();
   if (!clientId || !clientSecret) throw new Error(`${conn.provider}_oauth_not_configured`);
 
   const res = await fetch(tokenUrl, {

@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 interface DiagnosticResult {
   ready: boolean;
@@ -101,8 +102,11 @@ Deno.serve(async (req) => {
 
   const googleId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
   const googleSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET");
-  const msId = Deno.env.get("MS_OAUTH_CLIENT_ID");
-  const msSecret = Deno.env.get("MS_OAUTH_CLIENT_SECRET");
+  // Stessa risoluzione delle funzioni che le usano davvero: se la diagnostica
+  // guardasse solo la env, direbbe "manca" con le credenziali in platform_settings.
+  const ms = await getMsOAuthCredentials();
+  const msId = ms.clientId || undefined;
+  const msSecret = ms.clientSecret || undefined;
   const inbound = Deno.env.get("INBOUND_EMAIL_SECRET");
   const cron = Deno.env.get("PROACTIVE_CRON_SECRET");
 
@@ -143,8 +147,8 @@ Deno.serve(async (req) => {
   const missing: string[] = [];
   if (!googleId) missing.push("GOOGLE_OAUTH_CLIENT_ID");
   if (!googleSecret) missing.push("GOOGLE_OAUTH_CLIENT_SECRET");
-  if (!msId) missing.push("MS_OAUTH_CLIENT_ID");
-  if (!msSecret) missing.push("MS_OAUTH_CLIENT_SECRET");
+  if (!msId) missing.push("MS_OAUTH_CLIENT_ID (o OUTLOOK_CLIENT_ID / platform_settings outlook_client_id)");
+  if (!msSecret) missing.push("MS_OAUTH_CLIENT_SECRET (o OUTLOOK_CLIENT_SECRET / platform_settings outlook_client_secret)");
   if (!inbound) missing.push("INBOUND_EMAIL_SECRET (per webhook ingest, può aspettare)");
   if (!cron) missing.push("PROACTIVE_CRON_SECRET (necessario per poll cron)");
   if (!encConfigured) missing.push("app.email_oauth_encryption_key (DB setting)");
