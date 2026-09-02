@@ -77,7 +77,7 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
       <CardContent className="space-y-3">
         {lines.map((line) => {
           const lordo = lordoRiga(line, vatRate);
-          const ritenuta = ritenutaRiga(line);
+          const ritenuta = ritenutaRiga(line, vatRate);
           const causale = line.causale?.trim() || causaleBonificoParlante(line, datiCausale);
           return (
             <div key={line.position} className="rounded-md border p-2.5 space-y-1.5">

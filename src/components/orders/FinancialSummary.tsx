@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
 // 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
 // su iOS Safari il tasto virgola era bloccato da `type="number"` e
@@ -528,10 +529,12 @@ export function FinancialSummary({
             <span>{formatCurrency(totalWithVat)}</span>
           </div>
           {hasBuildingBonus && (() => {
-            // Imponibile bancario = totale ivato / (1 + aliquota): l'IVA edilizia
-            // è spesso 10% o 4%, non 22% → il /1.22 hardcoded sottostimava la base.
-            const bankTaxableBase = totalWithVat / (1 + vat / 100);
-            const bankWithholding = bankTaxableBase * 0.11;
+            // Il /1.22 di prima era GIUSTO: la banca non conosce l'aliquota
+            // della fattura e per prassi scorpora sempre al 22% (circolare AdE
+            // 40/E/2010). Sostituirlo con l'IVA vera gonfiava la trattenuta su
+            // ogni lavoro al 10% o al 4%.
+            const bankTaxableBase = totalWithVat / (1 + IVA_SCORPORO_BANCA);
+            const bankWithholding = ritenutaSuLordo(totalWithVat);
             return (
               <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
                 <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
@@ -911,9 +914,10 @@ export function FinancialSummaryReadOnly({
           );
         })()}
         {hasBuildingBonus && (() => {
-          // Imponibile bancario = totale ivato / (1 + aliquota reale del documento).
-          const bankTaxableBase = totalWithVat / (1 + vatRate / 100);
-          const bankWithholding = bankTaxableBase * 0.11;
+          // Base della banca: lordo scorporato al 22% convenzionale, non con
+          // l'aliquota del documento (circolare AdE 40/E/2010).
+          const bankTaxableBase = totalWithVat / (1 + IVA_SCORPORO_BANCA);
+          const bankWithholding = ritenutaSuLordo(totalWithVat);
           return (
             <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
               <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">

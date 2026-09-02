@@ -1,4 +1,5 @@
 import React from "react";
+import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -653,7 +654,9 @@ export function OrdinePDF({
               {bonusLines.map((b: any, idx: number) => {
                 const imp = Number(b.imponibile) || 0;
                 const lordo = imp * (1 + (Number(ivaRate) || 0) / 100);
-                const ritenuta = imp * 0.11;
+                // La banca scorpora il LORDO al 22% convenzionale, non applica
+                // l'11% all'imponibile di fattura (circolare AdE 40/E/2010).
+                const ritenuta = ritenutaSuLordo(lordo);
                 return (
                   <View key={idx} style={{ marginBottom: idx < bonusLines.length - 1 ? 6 : 0 }}>
                     <View style={styles.financialRow}>

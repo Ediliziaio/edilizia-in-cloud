@@ -168,7 +168,7 @@ export function BonusLinesCard({
         {lines.map((line) => {
           const preset = getPreset(line.presetId);
           const lordo = lordoRiga(line, vatRate);
-          const ritenuta = ritenutaRiga(line);
+          const ritenuta = ritenutaRiga(line, vatRate);
           const detrazione = detrazioneRiga(line, vatRate);
           const sfora = sforaTetto(line, vatRate);
           return (

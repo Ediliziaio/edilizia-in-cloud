@@ -7,9 +7,11 @@
 // se il cliente ne fa uno solo, una delle due detrazioni salta.
 //
 // Basi di calcolo (sono diverse, ed è la fonte di tutti gli errori):
-//  • RITENUTA 11% (art. 25 D.L. 78/2010) → sull'IMPONIBILE, IVA scorporata.
-//    La trattiene la banca su ogni bonifico parlante; l'impresa la recupera
-//    in dichiarazione, ma in cassa entra il netto.
+//  • RITENUTA 11% (art. 25 D.L. 78/2010) → sul lordo del bonifico scorporato
+//    con l'IVA CONVENZIONALE del 22%, non con quella della fattura: la banca
+//    l'aliquota vera non la conosce (circolare AdE 40/E/2010). La trattiene su
+//    ogni bonifico parlante; l'impresa la recupera in dichiarazione, ma in
+//    cassa entra il netto.
 //  • DETRAZIONE del cliente → sulla spesa effettivamente sostenuta, quindi
 //    IVA INCLUSA, entro il tetto per unità immobiliare.
 //
@@ -17,8 +19,31 @@
 // ============================================================================
 import { DETRAZIONI_EDILIZIE, type DetrazionePreset } from "@/lib/fatturazione/detrazioniEdilizie";
 
-/** Ritenuta d'acconto trattenuta dalla banca sui bonifici parlanti. */
+/**
+ * Ritenuta d'acconto trattenuta dalla banca sui bonifici parlanti.
+ * 11% dal 1° marzo 2024 (L. 213/2023 art. 1 c. 88, che modifica l'art. 25
+ * D.L. 78/2010); prima era l'8%.
+ */
 export const RITENUTA_BONIFICO_PARLANTE = 0.11;
+
+/**
+ * IVA con cui la BANCA scorpora l'imponibile dal bonifico. NON è l'IVA della
+ * fattura: l'istituto non la conosce e non può leggerla, quindi per prassi
+ * (circolare Agenzia delle Entrate 40/E del 2010) scorpora SEMPRE con
+ * l'aliquota ordinaria più alta, il 22%, qualunque sia quella applicata.
+ *
+ * È il punto in cui questo modulo sbagliava: calcolava l'11% sull'imponibile
+ * VERO. Su un lavoro con IVA al 10% — il caso normale in ristrutturazione —
+ * la trattenuta risultava più alta di circa un decimo, e l'incasso previsto
+ * più basso del dovuto: su 11.000 € il conto dava 1.100 € invece di 991,80 €.
+ * Coincidono solo quando l'IVA della fattura è davvero il 22%.
+ */
+export const IVA_SCORPORO_BANCA = 0.22;
+
+/** La ritenuta che la banca trattiene su un bonifico parlante di importo lordo. */
+export function ritenutaSuLordo(lordo: number): number {
+  return round2((num(lordo) / (1 + IVA_SCORPORO_BANCA)) * RITENUTA_BONIFICO_PARLANTE);
+}
 
 /** Tolleranza in € entro cui la ripartizione si considera quadrata (arrotondamenti). */
 export const TOLLERANZA_QUADRATURA = 0.01;
@@ -115,17 +140,21 @@ export function lordoRiga(line: BonusLine, vatRate: number | null | undefined): 
   return round2(num(line.imponibile) * (1 + (iva > 0 ? iva / 100 : 0)));
 }
 
-/** Ritenuta 11% trattenuta dalla banca su questa riga (base: imponibile). */
-export function ritenutaRiga(line: BonusLine): number {
+/**
+ * Ritenuta trattenuta dalla banca su questa riga.
+ * Base: il LORDO del bonifico scorporato al 22% convenzionale — è quello che
+ * fa la banca, non l'imponibile di fattura.
+ */
+export function ritenutaRiga(line: BonusLine, vatRate: number | null | undefined): number {
   const preset = getPreset(line.presetId);
   // Bonus mobili/verde non passano dal bonifico parlante → nessuna ritenuta.
   if (preset && preset.richiedeBonificoParlante === false) return 0;
-  return round2(num(line.imponibile) * RITENUTA_BONIFICO_PARLANTE);
+  return ritenutaSuLordo(lordoRiga(line, vatRate));
 }
 
 /** Quanto entra davvero in banca per questa riga (lordo − ritenuta). */
 export function nettoIncassatoRiga(line: BonusLine, vatRate: number | null | undefined): number {
-  return round2(lordoRiga(line, vatRate) - ritenutaRiga(line));
+  return round2(lordoRiga(line, vatRate) - ritenutaRiga(line, vatRate));
 }
 
 /**
@@ -161,7 +190,7 @@ export function totaliBonus(lines: BonusLine[], vatRate: number | null | undefin
     (acc, l) => ({
       imponibile: acc.imponibile + num(l.imponibile),
       lordo: acc.lordo + lordoRiga(l, vatRate),
-      ritenuta: acc.ritenuta + ritenutaRiga(l),
+      ritenuta: acc.ritenuta + ritenutaRiga(l, vatRate),
       detrazione: acc.detrazione + detrazioneRiga(l, vatRate),
     }),
     { imponibile: 0, lordo: 0, ritenuta: 0, detrazione: 0 },

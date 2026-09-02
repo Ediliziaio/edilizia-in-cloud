@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/formatters";
+import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Euro, Building2 } from "lucide-react";
 import type { Installment } from "@/lib/orderUtils";
@@ -52,8 +53,10 @@ export function CustomerFinancialSummary({
           <span>{formatCurrency(totalWithVat)}</span>
         </div>
         {hasBuildingBonus && (() => {
-          const bankTaxableBase = totalWithVat / 1.22;
-          const bankWithholding = bankTaxableBase * 0.11;
+          // Scorporo al 22% convenzionale come fa la banca (circolare AdE
+          // 40/E/2010): qui era gia' corretto, ora passa dalla funzione unica.
+          const bankTaxableBase = totalWithVat / (1 + IVA_SCORPORO_BANCA);
+          const bankWithholding = ritenutaSuLordo(totalWithVat);
           return (
             <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
               <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">

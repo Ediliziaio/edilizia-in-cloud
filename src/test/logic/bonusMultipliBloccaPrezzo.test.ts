@@ -77,20 +77,27 @@ describe("bonus edilizi multipli — ripartizione", () => {
 });
 
 describe("bonus edilizi multipli — ritenuta e detrazione", () => {
-  it("la ritenuta 11% sta sull'imponibile, non sul lordo", () => {
-    const [riga] = caseKeBei();
+  it("la banca scorpora al 22% convenzionale, non con l'IVA della fattura", () => {
+    const [riga] = caseKeBei(); // 10.000 imponibile, IVA 10% → lordo 11.000
     expect(lordoRiga(riga, 10)).toBe(11_000);
-    expect(ritenutaRiga(riga)).toBe(1_100); // 11% di 10.000, NON di 11.000
-    expect(nettoIncassatoRiga(riga, 10)).toBe(9_900);
+    // La banca non conosce l'aliquota applicata: scorpora sempre al 22%
+    // (circolare AdE 40/E/2010). 11.000 / 1,22 = 9.016,39 → 11% = 991,80.
+    expect(ritenutaRiga(riga, 10)).toBe(991.8);
+    expect(nettoIncassatoRiga(riga, 10)).toBe(round2(11_000 - 991.8));
+  });
+
+  it("con IVA al 22% scorporo e imponibile coincidono", () => {
+    const [riga] = caseKeBei(); // 10.000 imponibile
+    // lordo 12.200 → 12.200/1,22 = 10.000 → 11% = 1.100, cioè l'11% dell'imponibile vero.
+    expect(lordoRiga(riga, 22)).toBe(12_200);
+    expect(ritenutaRiga(riga, 22)).toBe(1_100);
   });
 
   it("la somma delle ritenute per riga fa la ritenuta totale della commessa", () => {
     const t = totaliBonus(caseKeBei(), 10);
-    // Stesso numero della vecchia formula: (totale ivato / 1,10) × 11%.
-    expect(t.ritenuta).toBe(round2((22_000 / 1.1) * 0.11));
-    expect(t.ritenuta).toBe(2_200);
     expect(t.lordo).toBe(22_000);
-    expect(t.netto).toBe(19_800);
+    expect(t.ritenuta).toBe(round2(991.8 * 2));
+    expect(t.netto).toBe(round2(22_000 - 991.8 * 2));
   });
 
   it("la detrazione del cliente si calcola sul lordo IVA inclusa", () => {
@@ -107,7 +114,7 @@ describe("bonus edilizi multipli — ritenuta e detrazione", () => {
 
   it("le agevolazioni senza bonifico parlante non subiscono ritenuta", () => {
     const mobili = bonusLineFromPreset("bonus_mobili", 0, 4_000);
-    expect(ritenutaRiga(mobili)).toBe(0);
+    expect(ritenutaRiga(mobili, 10)).toBe(0);
     expect(causaleBonificoParlante(mobili)).toContain("non richiede bonifico parlante");
   });
 
