@@ -17,7 +17,7 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
@@ -807,9 +807,17 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
           wallHungSelected
             ? "- wallhung_violation: the WC has a floor pedestal, monobloc base or exposed external cistern despite the selected WALL-HUNG WC."
             : "",
-          "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief.",
+          "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief. Small decorative props — a plant, towels, bottles, a soap dish — are STYLING, not invented objects: never report them.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
-          ...QA_BLOCCO_RICOMPOSIZIONE,
+          // Su un restyling completo il layout cambia per definizione (vasca al
+          // posto della doccia, mobile nuovo): il blocco generico "ogni oggetto
+          // deve esserci ancora" bocciava il lavoro ordinato (85c7d727:
+          // "dramatically expanded space, vanity repositioned"). L'ancora giusta
+          // e' l'architettura (pareti, aperture, soffitto, camera), come su
+          // stanza. Per gli interventi leggeri resta il blocco generico.
+          ...(String(session.tipo_intervento ?? "") === "restyling_completo"
+            ? QA_BLOCCO_RICOMPOSIZIONE_RESTYLING
+            : QA_BLOCCO_RICOMPOSIZIONE),
           "When in doubt, PASS. Minor styling differences are fine.",
         ].filter(Boolean).join("\n");
 
@@ -871,7 +879,10 @@ Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exac
           const primoDim = detectImageDimensions(primoPayload.bytes);
           const primoOk = !describeFormatMismatch(formatoAtteso, primoDim);
 
-          const retryResult = await generateCandidate(composedPrompt);
+          // Vincolato al diretto se il primo formato era giusto: un retry che
+          // torna quadrato viene comunque scartato dalla guardia — pagarlo e'
+          // inutile (visto in prod su 85c7d727: retry 1024x1024 scartato).
+          const retryResult = await generateCandidate(composedPrompt, primoOk);
           generationAttempts += 1;
           const retryPayload = dataUrlToBytes(retryResult.imageDataUrl);
           const retryDim = detectImageDimensions(retryPayload.bytes);
