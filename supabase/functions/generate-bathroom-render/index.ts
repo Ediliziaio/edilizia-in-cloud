@@ -807,8 +807,18 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
           wallHungSelected
             ? "- wallhung_violation: the WC has a floor pedestal, monobloc base or exposed external cistern despite the selected WALL-HUNG WC."
             : "",
-          "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief. Small decorative props — a plant, towels, bottles, a soap dish — are STYLING, not invented objects: never report them.",
-          "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+          "- invented_objects: fixtures, windows or furniture that are in neither the source photo nor the renovation brief. Small decorative props — a plant, towels, bottles, a soap dish — are STYLING, not invented objects: never report them. A mirror, radiator or light that sits where the source had one and is merely restyled or back-lit is a REPLACEMENT, not an invention.",
+          String(session.tipo_intervento ?? "") === "restyling_completo"
+            // Su un restyling completo il modello riprende la stanza da un punto
+            // leggermente piu' centrale e la vista esce un po' piu' larga: e' lo
+            // scarto fisiologico del contenitore, non un cambio di geometria.
+            // Sessione ebf4aa78: layout fedele (vasca a sinistra al posto della
+            // doccia, WC e bidet al centro, lavabo a destra) bocciato per
+            // "camera changed substantially". Qui la geometria e' violata solo
+            // se la stanza e' vista da un'ALTRA parete/angolo o se l'ordine
+            // sinistra-destra dei sanitari e' cambiato.
+            ? "- geometry_change: the room is seen from a clearly DIFFERENT wall or corner, or the LEFT-TO-RIGHT ORDER of shower/tub, WC, bidet and vanity along the walls has changed. A modestly wider or more central view of the SAME room from the SAME side is expected on a full restyling and is NOT a geometry change."
+            : "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           // Su un restyling completo il layout cambia per definizione (vasca al
           // posto della doccia, mobile nuovo): il blocco generico "ogni oggetto
           // deve esserci ancora" bocciava il lavoro ordinato (85c7d727:
@@ -852,7 +862,16 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         // su 10 render), finendo sul fallback che non rispetta il formato.
         // A 75s restano ~45s: o si fa, o si tiene la prima immagine.
         const budgetPerRetry = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
-        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && budgetPerRetry >= 45_000) {
+        // Su un restyling completo il QA (Haiku) ha bocciato 4 render su 4 della
+        // stessa configurazione con motivazioni false ("vasca al centro della
+        // stanza" — era contro la parete; "bidet = secondo water"), e i retry
+        // sono usciti peggiori o sono stati scartati dalla guardia sul formato:
+        // solo costo (~0.08 EUR, +40-100s) senza beneficio. Qui il QA resta
+        // ATTIVO ma CONSULTIVO: il verdetto viene loggato per la misura, il
+        // primo tentativo viene consegnato. Per gli interventi leggeri il retry
+        // resta, perche' li' le bocciature colgono difetti veri.
+        const qaConsultivo = String(session.tipo_intervento ?? "") === "restyling_completo";
+        if (!qaConsultivo && qaResult.checked && !qaResult.pass && qaIssues.length > 0 && budgetPerRetry >= 45_000) {
           console.log(JSON.stringify({
             fn: "generate-bathroom-render",
             msg: "qa_failed_retry_corrective",
@@ -903,6 +922,15 @@ Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exac
             renderResult = retryResult;
             uploadPayload = retryPayload;
           }
+        } else if (qaConsultivo && qaResult.checked && !qaResult.pass) {
+          console.warn(JSON.stringify({
+            fn: "generate-bathroom-render",
+            msg: "qa_consultivo_restyling_nessun_retry",
+            session_id,
+            qa_model: qaResult.modelUsed,
+            issues: qaIssues.map((i) => i.category),
+            dettagli: qaIssues.map((i) => `${i.category}: ${i.detail}`.substring(0, 300)),
+          }));
         } else if (qaResult.checked && qaResult.pass) {
           // Il QA promosso non lasciava traccia: si deduceva dall'ASSENZA della
           // riga di bocciatura. Silenzio = successo e' una pessima proprieta'.
