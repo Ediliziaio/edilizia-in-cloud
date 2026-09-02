@@ -365,32 +365,22 @@ export default function SettingsUserDetail() {
 
       // GUARD 2: last admin — impedisci di revocare l'ultimo admin della company
       if (currentRole === "company_admin" && newRole !== "company_admin") {
-        const { data: admins, error: adminCountErr } = await supabase
+        // user_roles.user_id punta ad auth.users: l'embed `profiles!inner(company_id)`
+        // rispondeva SEMPRE 400 e si finiva comunque qui. Due passi: gli id
+        // degli admin, poi quanti di loro sono di questa azienda.
+        const { data: profs, error: adminErr } = await supabase
           .from("user_roles")
-          .select("user_id, profiles!inner(company_id)")
-          .eq("role", "company_admin")
-          .eq("profiles.company_id", companyId);
-        if (adminCountErr) {
-          // Fallback: query diretta profiles
-          const { data: profs } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", "company_admin");
-          const adminIds = (profs ?? []).map((p) => p.user_id);
-          if (adminIds.length > 0) {
-            const { count } = await supabase
-              .from("profiles")
-              .select("id", { count: "exact", head: true })
-              .in("id", adminIds)
-              .eq("company_id", companyId);
-            if ((count ?? 0) <= 1) {
-              throw new Error(
-                "Impossibile rimuovere l'ultimo amministratore. Assegna prima un altro admin."
-              );
-            }
-          }
-        } else {
-          if ((admins ?? []).length <= 1) {
+          .select("user_id")
+          .eq("role", "company_admin");
+        if (adminErr) throw adminErr;
+        const adminIds = (profs ?? []).map((p) => p.user_id);
+        if (adminIds.length > 0) {
+          const { count } = await supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .in("id", adminIds)
+            .eq("company_id", companyId);
+          if ((count ?? 0) <= 1) {
             throw new Error(
               "Impossibile rimuovere l'ultimo amministratore. Assegna prima un altro admin."
             );

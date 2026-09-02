@@ -196,8 +196,10 @@ export default function CampoRapportino() {
         db.from("subappaltatori_sicurezza")
           .select("id, ragione_sociale")
           .eq("order_id", orderId),
+        // Hint obbligatorio: due FK verso profiles (user_id, assigned_by) → senza
+        // hint PostgREST risponde 400 PGRST201 e gli assegnati mancavano.
         db.from("order_campo_assignments")
-          .select("user_id, profiles(first_name, last_name)")
+          .select("user_id, profiles!order_campo_assignments_user_id_fkey(first_name, last_name)")
           .eq("order_id", orderId),
       ]);
       const visti = new Set<string>();

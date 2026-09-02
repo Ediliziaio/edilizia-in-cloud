@@ -1010,16 +1010,20 @@ function OrderDetailInner() {
       supabase.from("sal_records").select("*, sal_voci(*)").eq("order_id", id!).order("numero_sal"),
       supabase.from("order_salespeople").select("*, salesperson:salespeople(first_name, last_name)").eq("order_id", id!),
       supabase.from("purchase_orders").select("id, oda_number, status, total, suppliers(name)").eq("order_id", id!).order("created_at", { ascending: false }),
-      supabase.from("order_campo_assignments").select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)").eq("order_id", id!),
+      // Due trappole che rendevano la squadra di cantiere SEMPRE vuota (anche nel
+      // PDF): `subappaltatore:external_teams(name)` su una colonna che non esiste
+      // (PGRST200) e `profiles(…)` senza hint con DUE FK verso profiles
+      // (user_id e assigned_by → PGRST201 "more than one relationship").
+      supabase.from("order_campo_assignments").select("*, user:profiles!order_campo_assignments_user_id_fkey(first_name, last_name)").eq("order_id", id!),
       supabase.from("giornale_lavori").select("*, giornale_foto(id, url, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
       supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
       supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
       supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
       supabase.from("order_messages").select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
     ]);
-    const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
+    const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
-      subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
+      subappaltatore: null as { nome?: string } | null,
     }));
     return {
       order,

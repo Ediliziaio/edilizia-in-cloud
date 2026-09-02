@@ -255,7 +255,10 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("goods_receipts")
-        .select("*, order_items(id, description, quantity, order_id)")
+        // Hint obbligatorio: tra goods_receipts e order_items ci sono due strade
+        // (goods_receipts.order_item_id e l'inversa order_items.receipt_id) →
+        // senza hint PostgREST risponde 400 PGRST201 e le ricezioni non caricavano.
+        .select("*, order_items!goods_receipts_order_item_id_fkey(id, description, quantity, order_id)")
         .eq("ddt_ricezione_id", ddtId!)
         .order("receipt_date", { ascending: false });
       if (error) throw error;

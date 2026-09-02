@@ -122,7 +122,10 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_campo_assignments")
-        .select("*, profile:profiles(id, first_name, last_name, email)")
+        // Hint obbligatorio: order_campo_assignments ha DUE FK verso profiles
+        // (user_id e assigned_by) → senza hint PostgREST risponde 400 PGRST201
+        // e i costi manodopera restavano vuoti.
+        .select("*, profile:profiles!order_campo_assignments_user_id_fkey(id, first_name, last_name, email)")
         .eq("order_id", orderId)
         .order("created_at", { ascending: true });
       if (error) throw error;

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { caricaProfiliPerId } from "@/lib/profilesLookup";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -190,15 +191,16 @@ export default function SettingsTeams() {
     queryKey: ["team-members", companyId],
     enabled: !!companyId,
     queryFn: async () => {
+      // team_members.user_id punta ad auth.users: l'embed `profiles(…)` rispondeva
+      // 400 e la lista membri andava in errore per tutte le aziende.
       const { data, error } = await supabase
         .from("team_members")
-        .select("*, profile:profiles(first_name, last_name, email)")
+        .select("*")
         .eq("company_id", companyId!);
       if (error) throw error;
-      return (data ?? []).map((m: any) => ({
-        ...m,
-        profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
-      })) as TeamMember[];
+      const righe = (data ?? []) as any[];
+      const profili = await caricaProfiliPerId(righe.map((m) => m.user_id));
+      return righe.map((m) => ({ ...m, profile: profili.get(m.user_id) ?? null })) as TeamMember[];
     },
   });
 

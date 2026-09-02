@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, ListChecks } from "lucide-react";
+import { ChipIcona } from "./SezioneCard";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { logTaskActivity } from "@/lib/taskActivityLog";
@@ -112,8 +113,8 @@ export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistPro
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <ListChecks className="w-4 h-4 text-muted-foreground" />
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+        <ChipIcona icon={ListChecks} tono="blu" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Checklist
         </span>
         {total > 0 && (

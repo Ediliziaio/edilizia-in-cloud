@@ -6,10 +6,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
+import { ChipIcona } from "./SezioneCard";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { logTaskActivity } from "@/lib/taskActivityLog";
+import { caricaProfiliPerId } from "@/lib/profilesLookup";
 
 interface TaskCommentsProps {
   taskId: string;
@@ -27,22 +29,17 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
   const { data: comments = [] } = useQuery({
     queryKey,
     queryFn: async () => {
+      // task_comments.user_id punta ad auth.users: l'embed `profiles!…` falliva
+      // SEMPRE (400) e il vecchio fallback mostrava ogni autore come "Utente".
       const { data, error } = await supabase
         .from("task_comments")
-        .select("*, profile:profiles!task_comments_user_id_fkey(first_name, last_name)")
+        .select("*")
         .eq("task_id", taskId)
         .order("created_at", { ascending: true });
-      if (error) {
-        // Fallback without join if FK name doesn't match
-        const { data: d2, error: e2 } = await supabase
-          .from("task_comments")
-          .select("*")
-          .eq("task_id", taskId)
-          .order("created_at", { ascending: true });
-        if (e2) throw e2;
-        return (d2 || []) as any[];
-      }
-      return (data || []) as any[];
+      if (error) throw error;
+      const righe = (data || []) as any[];
+      const profili = await caricaProfiliPerId(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
     },
   });
 
@@ -100,8 +97,8 @@ export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-muted-foreground" />
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+        <ChipIcona icon={MessageSquare} tono="arancio" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Commenti
         </span>
         {comments.length > 0 && (

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSEO } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
+import { caricaProfiliPerId } from "@/lib/profilesLookup";
 import { useAccountantFirm } from "@/hooks/accountant/useAccountantPortalData";
 
 interface TeamMemberRow {
@@ -46,12 +47,11 @@ export default function AccountantTeam() {
     enabled: !!firmId,
     queryFn: async (): Promise<TeamMemberRow[]> => {
       if (!firmId) return [];
+      // user_id punta ad auth.users: l'embed `profiles!…` rispondeva 400 e la
+      // pagina diceva "Nessun membro nello studio" a tutti gli studi.
       const { data, error } = await supabase
         .from("accountant_firm_members")
-        .select(
-          `id, firm_id, user_id, role, status, accepted_at, created_at,
-           profile:profiles!accountant_firm_members_user_id_fkey(id, first_name, last_name, email)`,
-        )
+        .select("id, firm_id, user_id, role, status, accepted_at, created_at")
         .eq("firm_id", firmId)
         .neq("status", "suspended")
         .order("created_at", { ascending: true });
@@ -59,7 +59,9 @@ export default function AccountantTeam() {
         console.error("[AccountantTeam]", error);
         return [];
       }
-      return (data || []) as unknown as TeamMemberRow[];
+      const righe = (data || []) as Array<Omit<TeamMemberRow, "profile">>;
+      const profili = await caricaProfiliPerId(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
     },
   });
 

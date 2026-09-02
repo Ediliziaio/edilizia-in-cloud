@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Lock, ArrowRight, Search, CheckCircle2 } from "lucide-react";
+import { ChipIcona } from "./SezioneCard";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
@@ -125,8 +126,8 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide flex-1">
+        <ChipIcona icon={Lock} tono="arancio" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 flex-1">
           Dipendenze
         </span>
         {hasBlockers && (

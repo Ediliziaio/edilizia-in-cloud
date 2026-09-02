@@ -82,43 +82,48 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
         }
       }
 
-      // ── Strategia 2: profiles + user_roles join (se RLS permette) ──────
-      // Tentativo con join esplicito su user_roles. Funziona quando il
-      // chiamante ha permesso di leggere user_roles (tipicamente
-      // company_admin per la propria company).
+      // ── Strategia 2: profiles + user_roles in due passi (se RLS permette) ──
+      // user_roles.user_id punta ad auth.users, non a profiles: l'embed
+      // `user_roles!inner(role)` da profiles rispondeva SEMPRE 400 PGRST200,
+      // quindi questo fallback non era mai scattato. Ora: profili dell'azienda,
+      // poi i ruoli di quegli id (a blocchi, per non gonfiare l'URL), e si
+      // tengono SOLO i 'customer'. Funziona quando il chiamante può leggere
+      // user_roles (tipicamente company_admin per la propria company).
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: joinedData, error: joinErr } = await (supabase.from("profiles") as any)
-          .select("id, first_name, last_name, email, user_roles!inner(role)")
+        const { data: profs, error: profErr } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email")
           .eq("company_id", companyId)
-          .eq("user_roles.role", "customer")
           .order("last_name", { ascending: true, nullsFirst: false })
           .order("first_name", { ascending: true, nullsFirst: false })
           .limit(500);
+        if (profErr) throw profErr;
+        const profili = (profs ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
+        const clienti = new Set<string>();
+        let ruoliLeggibili = true;
+        for (let i = 0; i < profili.length; i += 100) {
+          const blocco = profili.slice(i, i + 100).map((p) => p.id);
+          const { data: ruoli, error: ruoliErr } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "customer")
+            .in("user_id", blocco);
+          if (ruoliErr) { ruoliLeggibili = false; logger.warn("[useCompanyCustomers] user_roles non leggibile:", ruoliErr); break; }
+          for (const r of ruoli ?? []) clienti.add(r.user_id);
+        }
 
         // Ritorna il risultato role-filtered ANCHE se VUOTO: "0 clienti" è una
         // risposta valida. NON si deve mai ricadere su un dump di tutti i profili
         // (mostrerebbe operai/dipendenti/collaboratori come "clienti" — bug reale
         // nella Nuova Commessa: es. commessa intestata a un dipendente).
-        if (!joinErr && Array.isArray(joinedData)) {
+        if (ruoliLeggibili) {
+          const filtrati = profili.filter((p) => clienti.has(p.id));
           // eslint-disable-next-line no-console
-          console.info(`[EIC picker] clienti azienda ${companyId}: ${joinedData.length} (via fallback profiles+user_roles). RPC aveva fallito: ${rpcErrMsg || "n/d"}`);
-          return (joinedData as Array<{
-            id: string;
-            first_name: string | null;
-            last_name: string | null;
-            email: string | null;
-          }>).map((p) => ({
-            id: p.id,
-            first_name: p.first_name,
-            last_name: p.last_name,
-            email: p.email,
-          }));
+          console.info(`[EIC picker] clienti azienda ${companyId}: ${filtrati.length} (via fallback profiles+user_roles). RPC aveva fallito: ${rpcErrMsg || "n/d"}`);
+          return filtrati.map((p) => ({ id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email }));
         }
-
-        logger.warn("[useCompanyCustomers] profiles+user_roles join failed:", joinErr);
       } catch (joinErr) {
-        logger.warn("[useCompanyCustomers] profiles+user_roles join threw:", joinErr);
+        logger.warn("[useCompanyCustomers] fallback profiles+user_roles threw:", joinErr);
       }
 
       // ── Strategia 3: lista vuota (graceful) ────────────────────────────

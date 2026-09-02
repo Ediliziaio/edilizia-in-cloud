@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { caricaProfiliPerId } from "@/lib/profilesLookup";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,14 +70,18 @@ export function TabWhiteLabel({ companyId }: Props) {
   const { data: auditLog } = useQuery({
     queryKey: ["admin", "whitelabel-audit", companyId],
     queryFn: async () => {
+      // actor_id non ha una FK verso profiles: l'embed `profiles!…` rispondeva
+      // 400 e l'audit log restava vuoto. Profili con una seconda query.
       const { data, error } = await supabase
         .from("whitelabel_audit_log")
-        .select("*, actor:profiles!whitelabel_audit_log_actor_id_fkey(first_name, last_name, email)")
+        .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      return data;
+      const righe = (data || []) as Array<Record<string, unknown> & { actor_id?: string | null }>;
+      const profili = await caricaProfiliPerId(righe.map((r) => r.actor_id));
+      return righe.map((r) => ({ ...r, actor: (r.actor_id && profili.get(r.actor_id)) || null }));
     },
   });
 

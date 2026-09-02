@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Calendar, Clock, Tag, FileText, User, ExternalLink, X, Link2,
@@ -25,6 +24,7 @@ import { TaskTagPicker } from "./TaskTagPicker";
 import { TaskTagBadge } from "./TaskTagBadge";
 import { TaskCorrelationPicker } from "./TaskCorrelationPicker";
 import { TaskDependencySection } from "./TaskDependencySection";
+import { ChipIcona, SezioneCard } from "./SezioneCard";
 import { describeTaskChanges, logTaskActivity, TASK_FIELD_LABELS } from "@/lib/taskActivityLog";
 import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
@@ -101,7 +101,7 @@ function EditableField({
 
   return (
     <div className="flex items-start gap-3">
-      <Icon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+      <ChipIcona icon={Icon} tono="blu" className="mt-0.5" />
       <div className="flex-1 min-w-0">
         <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
           {label}
@@ -155,6 +155,7 @@ function formatProfileName(profile: any, fallback = "Utente") {
   const name = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
   return name || fallback;
 }
+
 
 function TaskActivityLog({
   task,
@@ -223,8 +224,8 @@ function TaskActivityLog({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <History className="h-4 w-4 text-muted-foreground" />
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <ChipIcona icon={History} tono="neutro" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Cronologia
         </span>
         {logs.length > 0 && (
@@ -464,7 +465,8 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   return (
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col">
-        {/* Header */}
+        {/* Header: striscia nei colori del brand, poi titolo e stato */}
+        <div className="h-1 w-full shrink-0 bg-gradient-to-r from-[#1E3A5F] via-[#1E3A5F] to-orange-500" />
         <div className="border-b bg-card p-4 space-y-3">
           {/* Title */}
           <div className="pr-8">
@@ -485,7 +487,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               />
             ) : (
               <h2
-                className="text-lg font-semibold cursor-pointer hover:text-primary transition-colors"
+                className="text-lg font-semibold text-[#1E3A5F] dark:text-slate-100 cursor-pointer hover:text-orange-600 transition-colors"
                 onClick={() => {
                   setTitle(task.title);
                   setEditingTitle(true);
@@ -549,142 +551,143 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* Assignee (read-only) */}
-          <div className="flex items-start gap-3">
-            <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-            <div>
-              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                Assegnato a
+        {/* Body: fondo grigio chiaro, sezioni a card con barra brand alternata */}
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-3 space-y-3 dark:bg-slate-950/40">
+          {/* Dettagli */}
+          <SezioneCard titolo="Dettagli" icon={FileText} tono="blu">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              {/* Assignee (read-only) */}
+              <div className="flex items-start gap-3">
+                <ChipIcona icon={User} tono="blu" className="mt-0.5" />
+                <div>
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Assegnato a
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="w-6 h-6">
+                      <AvatarFallback className="text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-300">
+                        {(task.assigned_profile
+                          ? (task.assigned_profile.first_name?.[0] ?? "?")
+                          : "?"
+                        ).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm">
+                      {task.assigned_profile
+                        ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
+                        : "Non assegnato"}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Avatar className="w-6 h-6">
-                  <AvatarFallback className="text-[10px]">
-                    {(task.assigned_profile
-                      ? (task.assigned_profile.first_name?.[0] ?? "?")
-                      : "?"
-                    ).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm">
-                  {task.assigned_profile
-                    ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
-                    : "Non assegnato"}
-                </span>
+
+              {/* Due date */}
+              <EditableField
+                label="Scadenza"
+                icon={Calendar}
+                value={task.due_date ? task.due_date.split("T")[0] : null}
+                type="date"
+                onSave={saveField("due_date")}
+              />
+
+              {/* Stima ore */}
+              <EditableField
+                label="Stima (ore)"
+                icon={Clock}
+                value={task.estimated_hours != null ? String(task.estimated_hours) : null}
+                type="number"
+                onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
+              />
+
+              {/* Category */}
+              <div className="flex items-start gap-3">
+                <ChipIcona icon={Tag} tono="blu" className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Categoria
+                  </div>
+                  <Select
+                    value={task.category || "generale"}
+                    onValueChange={(val) => updateMutation.mutate({ category: val })}
+                  >
+                    <SelectTrigger className="h-7 text-sm w-auto">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
+                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="sm:col-span-2">
+                <EditableField
+                  label="Note"
+                  icon={FileText}
+                  value={task.notes}
+                  type="textarea"
+                  onSave={saveField("notes")}
+                />
               </div>
             </div>
-          </div>
-
-          {/* Due date */}
-          <EditableField
-            label="Scadenza"
-            icon={Calendar}
-            value={task.due_date ? task.due_date.split("T")[0] : null}
-            type="date"
-            onSave={saveField("due_date")}
-          />
-
-          {/* Stima ore */}
-          <EditableField
-            label="Stima (ore)"
-            icon={Clock}
-            value={task.estimated_hours != null ? String(task.estimated_hours) : null}
-            type="number"
-            onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
-          />
-
-          {/* Category */}
-          <div className="flex items-start gap-3">
-            <Tag className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                Categoria
-              </div>
-              <Select
-                value={task.category || "generale"}
-                onValueChange={(val) => updateMutation.mutate({ category: val })}
-              >
-                <SelectTrigger className="h-7 text-sm w-auto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v}>{l}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <EditableField
-            label="Note"
-            icon={FileText}
-            value={task.notes}
-            type="textarea"
-            onSave={saveField("notes")}
-          />
+          </SezioneCard>
 
           {/* Correlations */}
-          <Separator />
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-muted-foreground" />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide flex-1">
-                Correlazioni
-              </span>
+          <SezioneCard
+            titolo="Correlazioni"
+            icon={Link2}
+            tono="arancio"
+            azione={
               <TaskCorrelationPicker
                 task={task}
                 onUpdate={(updates) => updateMutation.mutate(updates)}
               />
-            </div>
-            {correlations.length === 0 && (
-              <p className="text-xs text-muted-foreground/60 italic pl-7">Nessuna correlazione</p>
-            )}
-            {correlations.map((c: any, i: number) => {
-              const Icon = c.icon;
-              return (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 rounded-md border px-3 py-2"
-                >
-                  <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] text-muted-foreground">{c.tipo}</div>
-                    <div className="text-sm font-medium truncate">{c.label}</div>
-                  </div>
-                  {c.to && (
-                    <Link
-                      to={c.to}
-                      className="text-primary hover:text-primary/80"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Link>
-                  )}
-                  <button
-                    className="text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={() => updateMutation.mutate({ [c.fkField]: null })}
-                    title="Rimuovi correlazione"
+            }
+          >
+            <div className="space-y-2">
+              {correlations.length === 0 && (
+                <p className="text-xs text-muted-foreground/70 italic">Nessuna correlazione</p>
+              )}
+              {correlations.map((c: any, i: number) => {
+                const Icon = c.icon;
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 rounded-md border bg-orange-500/[0.04] px-3 py-2"
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                    <Icon className="w-4 h-4 text-orange-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] text-muted-foreground">{c.tipo}</div>
+                      <div className="text-sm font-medium truncate">{c.label}</div>
+                    </div>
+                    {c.to && (
+                      <Link
+                        to={c.to}
+                        className="text-[#1E3A5F] hover:text-orange-600 dark:text-blue-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
+                    )}
+                    <button
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={() => updateMutation.mutate({ [c.fkField]: null })}
+                      title="Rimuovi correlazione"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </SezioneCard>
 
           {/* Etichette */}
-          <Separator />
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-muted-foreground shrink-0" />
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                Etichette
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pl-7">
+          <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
+            <div className="flex flex-wrap gap-1.5">
               {assignedTags.map((tag) => (
                 <TaskTagBadge
                   key={tag.id}
@@ -699,27 +702,30 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 onChanged={() => refetchTags()}
               />
             </div>
-          </div>
+          </SezioneCard>
 
           {/* Dipendenze */}
-          <Separator />
-          <TaskDependencySection taskId={task.id} companyId={companyId} />
+          <SezioneCard tono="arancio">
+            <TaskDependencySection taskId={task.id} companyId={companyId} />
+          </SezioneCard>
 
           {/* Checklist */}
-          <Separator />
-          <TaskChecklist taskId={task.id} companyId={companyId} taskTitle={task.title} />
+          <SezioneCard tono="blu">
+            <TaskChecklist taskId={task.id} companyId={companyId} taskTitle={task.title} />
+          </SezioneCard>
 
           {/* Comments */}
-          <Separator />
-          <TaskComments taskId={task.id} companyId={companyId} taskTitle={task.title} />
+          <SezioneCard tono="arancio">
+            <TaskComments taskId={task.id} companyId={companyId} taskTitle={task.title} />
+          </SezioneCard>
 
           {/* Cronologia */}
-          <Separator />
-          <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
+          <SezioneCard tono="neutro">
+            <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
+          </SezioneCard>
 
           {/* Meta */}
-          <Separator />
-          <div className="text-xs text-muted-foreground space-y-1">
+          <div className="px-1 pb-1 text-[11px] text-muted-foreground space-y-0.5">
             {task.created_at && (
               <p>
                 Creata da {creatorName} il{" "}
