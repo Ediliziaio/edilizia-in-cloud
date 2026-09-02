@@ -18,7 +18,9 @@ export function buildGardenTargetZonesMap(
   config: ConfigurazioneGiardino,
   scene: GardenSceneAnalysis,
 ): GardenTargetZonesMap {
-  const zones = config.target_zones.length ? config.target_zones : ["prato_principale"];
+  const zones: GardenTargetZone[] = config.target_zones.length
+    ? config.target_zones
+    : ["prato_principale"];
   const hasPool = zones.includes("bordo_piscina") || config.interventi.includes("bordo_piscina_verde");
   const hasPaths = zones.includes("area_camminamento") || config.camminamenti.attivo;
 

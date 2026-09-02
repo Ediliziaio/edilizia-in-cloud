@@ -14,6 +14,9 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder.ts";
 import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder.ts";
+import { buildGardenPrompt } from "../../../shared/render-garden/gardenPromptBuilder.ts";
+import { buildExteriorFloorPrompt } from "../../../shared/render-exterior-floor/exteriorFloorPromptBuilder.ts";
+import { bridgeTechnicalConfig } from "../../../shared/render-technical/bridge.ts";
 
 type TechnicalModuleId =
   | "ristrutturazioni"
@@ -295,48 +298,30 @@ function looksLikeStructuredDoorConfig(
     typeof (config as { door_type?: unknown }).door_type === "string";
 }
 
-function buildRichDoorPrompt(
-  moduleType: "porte-interne" | "porte-blindate",
-  config: Record<string, unknown>,
+/**
+ * Adatta il risultato di una libreria di prompt ricca (giardini, pavimenti
+ * esterni, porte) alla forma che il resto di questa edge si aspetta.
+ * Le quattro librerie ritornano la stessa struttura: systemPrompt, userPrompt,
+ * promptVersion, blocks, validation {isValid, missingSections,
+ * missingBusinessRules, warnings?}, normalizedConfig. Cambia solo il nome del
+ * campo che descrive la mappa dei target.
+ */
+function adattaRisultatoRicco(
+  built: {
+    systemPrompt: string;
+    userPrompt: string;
+    promptVersion: string;
+    blocks: Record<string, string>;
+    validation: {
+      isValid: boolean;
+      missingSections: string[];
+      missingBusinessRules: string[];
+      warnings?: string[];
+    };
+    normalizedConfig: Record<string, unknown>;
+  },
+  chiaveTargetMap: string,
 ) {
-  const rawAnalysis = (config as { scene_analysis?: unknown }).scene_analysis;
-  const photoMeta = (config as {
-    photo_meta?: {
-      width?: number;
-      height?: number;
-      orientation?: "portrait" | "landscape" | "square" | "unknown";
-    };
-  }).photo_meta ?? null;
-  if (moduleType === "porte-interne") {
-    const built = buildInteriorDoorPrompt(config, rawAnalysis, photoMeta);
-    return {
-      systemPrompt: built.systemPrompt,
-      userPrompt: built.userPrompt,
-      finalPrompt: `${built.systemPrompt}\n\n${built.userPrompt}`,
-      promptVersion: built.promptVersion,
-      promptPayload: {
-        scene_analysis: built.normalizedConfig.scene_analysis,
-        target_map: built.normalizedConfig.target_opening_map,
-        replacement_manifest: built.normalizedConfig.replacement_manifest,
-        validation: {
-          is_valid: built.validation.isValid,
-          warnings: built.validation.warnings,
-          errors: [
-            ...built.validation.missingSections.map((section) =>
-              `Missing section: ${section}`
-            ),
-            ...built.validation.missingBusinessRules.map((rule) =>
-              `Missing rule: ${rule}`
-            ),
-          ],
-          required_blocks: Object.keys(built.blocks),
-          missing_blocks: [] as string[],
-        },
-        blocks: built.blocks,
-      },
-    };
-  }
-  const built = buildSecurityDoorPrompt(config, rawAnalysis, photoMeta);
   return {
     systemPrompt: built.systemPrompt,
     userPrompt: built.userPrompt,
@@ -344,11 +329,11 @@ function buildRichDoorPrompt(
     promptVersion: built.promptVersion,
     promptPayload: {
       scene_analysis: built.normalizedConfig.scene_analysis,
-      target_map: built.normalizedConfig.target_opening_map,
+      target_map: built.normalizedConfig[chiaveTargetMap],
       replacement_manifest: built.normalizedConfig.replacement_manifest,
       validation: {
         is_valid: built.validation.isValid,
-        warnings: built.validation.warnings,
+        warnings: built.validation.warnings ?? [],
         errors: [
           ...built.validation.missingSections.map((section) =>
             `Missing section: ${section}`
@@ -365,6 +350,69 @@ function buildRichDoorPrompt(
   };
 }
 
+function leggiAnalisiEFoto(config: Record<string, unknown>) {
+  const rawAnalysis = (config as { scene_analysis?: unknown }).scene_analysis;
+  const photoMeta = (config as {
+    photo_meta?: {
+      width?: number;
+      height?: number;
+      orientation?: "portrait" | "landscape" | "square" | "unknown";
+    };
+  }).photo_meta ?? null;
+  return { rawAnalysis, photoMeta };
+}
+
+function buildRichDoorPrompt(
+  moduleType: "porte-interne" | "porte-blindate",
+  config: Record<string, unknown>,
+) {
+  const { rawAnalysis, photoMeta } = leggiAnalisiEFoto(config);
+  if (moduleType === "porte-interne") {
+    const built = buildInteriorDoorPrompt(config, rawAnalysis, photoMeta);
+    return adattaRisultatoRicco(
+      built as unknown as Parameters<typeof adattaRisultatoRicco>[0],
+      "target_opening_map",
+    );
+  }
+  const built = buildSecurityDoorPrompt(config, rawAnalysis, photoMeta);
+  return adattaRisultatoRicco(
+    built as unknown as Parameters<typeof adattaRisultatoRicco>[0],
+    "target_opening_map",
+  );
+}
+
+/**
+ * La configurazione generica della pagina (preset + testo libero) viene
+ * tradotta nella configurazione ricca del modulo e passata alla libreria di
+ * prompt dedicata. Prima di questo, giardini e pavimenti esterni finivano
+ * SEMPRE nella tabella generica di regole qui sotto, e le porte ci finivano
+ * ogni volta che la config non era gia' strutturata — cioe' sempre, perche' la
+ * pagina non ha un form porta. Quattro librerie di prompt con i test verdi che
+ * non raggiungevano mai il modello.
+ */
+function buildBridgedPrompt(
+  moduleType: "giardini" | "pavimenti-esterni" | "porte-interne" | "porte-blindate",
+  config: Record<string, unknown>,
+) {
+  const { rawAnalysis, photoMeta } = leggiAnalisiEFoto(config);
+  const ricca = bridgeTechnicalConfig(moduleType, config);
+  if (moduleType === "giardini") {
+    const built = buildGardenPrompt(ricca, rawAnalysis, photoMeta);
+    return adattaRisultatoRicco(
+      built as unknown as Parameters<typeof adattaRisultatoRicco>[0],
+      "target_zones_map",
+    );
+  }
+  if (moduleType === "pavimenti-esterni") {
+    const built = buildExteriorFloorPrompt(ricca, rawAnalysis, photoMeta);
+    return adattaRisultatoRicco(
+      built as unknown as Parameters<typeof adattaRisultatoRicco>[0],
+      "target_surface_map",
+    );
+  }
+  return buildRichDoorPrompt(moduleType, ricca);
+}
+
 function buildTechnicalPrompt(args: {
   moduleType: TechnicalModuleId;
   config: Record<string, unknown>;
@@ -376,6 +424,14 @@ function buildTechnicalPrompt(args: {
   ) {
     return buildRichDoorPrompt(moduleType, config);
   }
+  if (
+    moduleType === "giardini" || moduleType === "pavimenti-esterni" ||
+    moduleType === "porte-interne" || moduleType === "porte-blindate"
+  ) {
+    return buildBridgedPrompt(moduleType, config);
+  }
+  // Solo "ristrutturazioni" resta sulla tabella generica: la sua libreria vive
+  // in src/modules e non e' importabile dall'edge.
   const rules = MODULE_RULES[moduleType];
   const interventionPreset = text(
     config.interventionPreset,
