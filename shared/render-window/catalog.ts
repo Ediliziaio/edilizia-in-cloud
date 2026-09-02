@@ -579,12 +579,7 @@ export const WIZARD_CASS_MATERIALI = [
     label: "PVC Bianco",
     desc: "Cassonetto PVC bianco standard.",
     icon: "⬜",
-    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
-    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
-    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
-    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
-    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
-    // una senza il file.
+    referenceImage: "Cassonetto-PVC-Bianco-Sopra-Finestra.png",
   },
   {
     id: "alluminio",
@@ -721,12 +716,7 @@ export const WIZARD_CERNIERE_OPTIONS = [
     label: "Cerniere a vista",
     desc: "Cerniere classiche visibili sul lato dell'anta. Soluzione standard.",
     icon: "◖",
-    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
-    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
-    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
-    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
-    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
-    // una senza il file.
+    referenceImage: "Finestra-Cerniere-A-Vista-Montante-Laterale.png",
   },
   {
     id: "scomparsa",
@@ -734,12 +724,7 @@ export const WIZARD_CERNIERE_OPTIONS = [
     desc: "Cerniere completamente nascoste nel telaio. L'anta sembra fluttuare. Look premium architettonico.",
     icon: "▢",
     upsell: true,
-    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
-    // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
-    // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
-    // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
-    // src/test/logic/renderReferenceImages.test.ts impedisce di reintrodurne
-    // una senza il file.
+    referenceImage: "Finestra-2ante-Cerniere-Scomparsa-Montante-Pulito.png",
   },
 ] as const;
 

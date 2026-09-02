@@ -1061,6 +1061,9 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     let cacheHits = 0;
     let cacheMisses = 0;
     let cacheNegativeHits = 0;
+    const referenceImagesMancanti: Array<
+      { url: string; status: number; label: string }
+    > = [];
     const fetchReferenceImage = async (
       ref: { url: string; label: string; filename: string },
     ): Promise<{ label: string; dataUrl: string } | null> => {
@@ -1089,6 +1092,15 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
             msg: "reference_image_fetch_failed",
             url: ref.url,
             status: resp.status,
+          });
+          // Il render prosegue senza la foto guida. Finora questo restava solo
+          // nei log e nessuno lo guardava: quattro riferimenti sono rimasti
+          // rotti per mesi proprio cosi'. Registrandolo nella sessione, il
+          // buco si vede accanto al render che ne ha sofferto.
+          referenceImagesMancanti.push({
+            url: ref.url,
+            status: resp.status,
+            label: ref.label.substring(0, 80),
           });
           REFERENCE_IMAGE_CACHE_NEGATIVE.set(ref.url, Date.now());
           return null;
@@ -1608,6 +1620,9 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         // labels   = label semantiche delle reference inviate (debug)
         reference_images_requested: referenceImageDescriptors?.length ?? 0,
         reference_images_fetched: referenceImagesFetched.length,
+        reference_images_mancanti: referenceImagesMancanti.length > 0
+          ? referenceImagesMancanti
+          : undefined,
         reference_images_labels: referenceImagesFetched.map((r) =>
           r.label.substring(0, 100)
         ),
