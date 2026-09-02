@@ -45,6 +45,17 @@ import type {
   TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
 import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
+import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
+import { CONDIZIONI_STANDARD_MD } from "@/lib/condizioniStandard";
+import { markdownSempliceToHtml, sembraMarkdown } from "@/lib/markdownSemplice";
+import DOMPurify from "dompurify";
+
+/** Corrispondenza tra i tre caratteri del PDF (pdf-lib standard) e i font del browser per l'anteprima. */
+const FONT_CSS: Record<FontFamily, string> = {
+  helvetica: "Helvetica, Arial, sans-serif",
+  times: "'Times New Roman', Times, serif",
+  courier: "'Courier New', Courier, monospace",
+};
 import {
   buildQuoteTemplatesTabParams,
   normalizeQuoteTemplatesParams,
@@ -126,108 +137,29 @@ function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: Quote
     );
   }
 
-  // condizioni / legali / sezione → preview testo multi-pagina
-  const body = form.body_html ?? "";
+  // condizioni / legali / sezione → anteprima formattata, col carattere del blocco
+  const bodyRaw = form.body_html ?? "";
+  const bodyHtml = sembraMarkdown(bodyRaw) ? markdownSempliceToHtml(bodyRaw) : bodyRaw;
+  const fontCss = FONT_CSS[(form.font_family as FontFamily | undefined) ?? 'helvetica'] ?? FONT_CSS.helvetica;
   return (
     <div className={A4 + " p-8"}>
       <div className="border-b border-slate-200 pb-2 mb-4">
         <p className={`text-[10px] font-semibold uppercase tracking-wide ${meta.color}`}>{meta.label}</p>
-        <h3 className="text-base font-bold text-slate-900">{form.name || "Senza nome"}</h3>
+        <h2 className="text-lg font-bold text-slate-900 truncate">{form.name || `Nuovo ${meta.label}`}</h2>
       </div>
-      <div className="text-[10px] leading-relaxed text-slate-700 whitespace-pre-wrap font-mono">
-        {body || `(Vuoto — scrivi il testo a sinistra. Supporta merge tag {{cliente.nome}}.)`}
-      </div>
-    </div>
-  );
-}
-
-// ─── Sub-componente BlockLinkSelector (1 link a blocco kind) ──────────────
-interface BlockLinkSelectorProps {
-  label: string;
-  value: string | null;
-  options: QuoteTemplate[];
-  onChange: (id: string | null) => void;
-  onCreate?: () => void;
-}
-
-function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockLinkSelectorProps) {
-  const selected = options.find((o) => o.id === value);
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-slate-700">{label}</p>
-          {selected ? (
-            <p className="text-[11px] text-emerald-600 truncate">✓ {selected.name}</p>
-          ) : (
-            <p className="text-[11px] text-slate-400">Nessuno selezionato</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <select
-            value={value ?? ''}
-            onChange={(e) => onChange(e.target.value || null)}
-            className="h-8 text-xs rounded-md border-slate-200 bg-white px-2 max-w-[150px]"
-          >
-            <option value="">— Nessuno —</option>
-            {options.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-          {onCreate && options.length === 0 && (
-            <Button type="button" variant="outline" size="sm" className="h-8 text-[10px] gap-1" onClick={onCreate}>
-              <Plus className="h-3 w-3" />Crea
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Sub-componente MultiBlockSelector (N link, es. prodotti) ──────────────
-interface MultiBlockSelectorProps {
-  label: string;
-  values: string[];
-  options: QuoteTemplate[];
-  onChange: (ids: string[]) => void;
-}
-
-function MultiBlockSelector({ label, values, options, onChange }: MultiBlockSelectorProps) {
-  const toggle = (id: string) => {
-    if (values.includes(id)) onChange(values.filter((v) => v !== id));
-    else onChange([...values, id]);
-  };
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
-      <p className="text-xs font-medium text-slate-700 mb-2">{label} <span className="text-slate-400 font-normal">({values.length} selezionati)</span></p>
-      {options.length === 0 ? (
-        <p className="text-[11px] text-slate-400">Nessun blocco disponibile. Crealo nella sua tab.</p>
+      {bodyHtml.trim() ? (
+        <div
+          className="anteprima-blocco text-[11px] leading-relaxed text-slate-800 overflow-hidden [&_h1]:text-[15px] [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-[13px] [&_h2]:font-bold [&_h2]:text-slate-900 [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-[12px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-0.5 [&_h4]:text-[11px] [&_h4]:font-semibold [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_strong]:font-semibold"
+          style={{ fontFamily: fontCss }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml, { USE_PROFILES: { html: true } }) }}
+        />
       ) : (
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-          {options.map((o) => {
-            const sel = values.includes(o.id);
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => toggle(o.id)}
-                className={`px-2 py-1 text-[11px] rounded-full border transition-colors ${
-                  sel
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {sel ? '✓ ' : '+ '}
-                {o.name}
-              </button>
-            );
-          })}
-        </div>
+        <p className="text-[11px] italic text-slate-400">Il testo del blocco apparirà qui, formattato come nel PDF.</p>
       )}
     </div>
   );
 }
+
 
 // ─── Sub-componente ProductTemplateEditor (kind=prodotto) ───────────────────
 interface ProductTemplateEditorProps {
@@ -383,7 +315,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
     return (
       <div className={`aspect-[3/4] w-full max-w-[160px] rounded border ${kindMeta.borderColor} ${kindMeta.bgColor} p-3 overflow-hidden`}>
         <div className="text-[8px] leading-tight text-slate-700 line-clamp-[12]">
-          {tmpl.body_html ?? tmpl.contractual_terms_text ?? tmpl.legal_terms_text ?? "(vuoto)"}
+          {String(tmpl.body_html ?? tmpl.contractual_terms_text ?? tmpl.legal_terms_text ?? "(vuoto)").replace(/<[^>]+>/g, " ").replace(/^#{1,3}\s+/gm, "").replace(/\s+/g, " ").trim() || "(vuoto)"}
         </div>
       </div>
     );
@@ -908,6 +840,24 @@ export default function SettingsQuoteTemplates() {
                 <Plus className="h-4 w-4 mr-2" />Crea il primo
               </Button>
             )}
+            {isAdmin && activeKind === 'condizioni' && (
+              <div className="pt-1 text-xs text-muted-foreground">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => {
+                    if (!confirmDiscardChanges()) return;
+                    openNewTemplate('condizioni');
+                    // il form nuovo è vuoto: il modello standard va messo subito dopo
+                    setTimeout(() => updateForm({ body_html: markdownSempliceToHtml(CONDIZIONI_STANDARD_MD), body_format: 'html' }), 60);
+                  }}
+                >
+                  Parti dal modello standard
+                </Button>
+                <span> · oppure, nell'editor, importa le tue condizioni da PDF o Word: l'AI le riordina.</span>
+              </div>
+            )}
             {isAdmin && (
               <Button variant="outline" onClick={() => setCreateDialogOpen(true)} size="sm" className="ml-2">
                 Vedi tutti i tipi
@@ -1209,43 +1159,43 @@ export default function SettingsQuoteTemplates() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Formato</Label>
-                    <div className="flex gap-1.5">
-                      {(['markdown', 'html', 'plain'] as const).map((fmt) => (
-                        <button
-                          key={fmt}
-                          type="button"
-                          onClick={() => updateForm({ body_format: fmt })}
-                          className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
-                            form.body_format === fmt
-                              ? 'bg-slate-900 text-white border-slate-900'
-                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          {fmt}
-                        </button>
-                      ))}
-                    </div>
+                  {formKind === 'condizioni' && (
+                    <ImportaCondizioniBar
+                      companyId={effectiveCompany?.id}
+                      testoAttuale={form.body_html ?? ""}
+                      onTesto={(md) => updateForm({ body_html: markdownSempliceToHtml(md), body_format: 'html' })}
+                    />
+                  )}
+                  {/* Carattere del blocco: nel PDF vale per questa sezione (default: quello del master) */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Carattere</Label>
+                    {FONTS.map(f => (
+                      <Button
+                        key={f.key}
+                        type="button"
+                        variant={(form.font_family ?? 'helvetica') === f.key ? 'default' : 'outline'}
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => updateForm({ font_family: f.key })}
+                      >
+                        {f.label}
+                      </Button>
+                    ))}
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Testo</Label>
-                      <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v })} />
+                      <Label className="text-xs text-muted-foreground">Testo (titoli, grassetto, elenchi come negli altri template)</Label>
+                      <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v, body_format: 'html' })} />
                     </div>
-                    <Textarea
-                      ref={bodyHtmlRef}
-                      value={form.body_html ?? ''}
-                      onChange={e => updateForm({ body_html: e.target.value })}
-                      rows={20}
-                      className="font-mono text-[12px] leading-relaxed"
+                    <RichTextEditor
+                      value={sembraMarkdown(form.body_html ?? "") ? markdownSempliceToHtml(form.body_html ?? "") : (form.body_html ?? "")}
+                      onChange={(html) => updateForm({ body_html: html, body_format: 'html' })}
                       placeholder={
                         formKind === 'condizioni'
-                          ? `# Condizioni contrattuali\n\n## 1. Oggetto\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n## 2. Garanzia\n24 mesi dalla consegna.\n\n## 3. Varianti\nEventuali varianti devono essere concordate per iscritto.\n\n# Termini legali\n\n## Privacy (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} sono trattati solo per l'esecuzione del contratto.\n\n## Diritto di recesso\nEntro 14 giorni, art. 52 D.lgs 206/2005.\n\n## Foro competente\nPer ogni controversia è competente il Foro di [città].`
-                          : formKind === 'legali'
-                            ? `# Termini legali\n\n## Privacy (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} saranno trattati nel rispetto del GDPR…\n\n## Diritto di recesso\nIl cliente può recedere entro 14 giorni come da art. 52 D.lgs 206/2005.\n\n## Foro competente\nPer ogni controversia è competente il Foro di [città].`
-                            : `# {{titolo sezione}}\n\nContenuto libero della sezione…`
+                          ? "Condizioni contrattuali: oggetto, prezzi e pagamenti, tempi, varianti, garanzia… poi termini legali: privacy, recesso, foro. Usa i titoli per le sezioni e {{cliente.nome_completo}}, {{azienda.ragione_sociale}} per i dati che cambiano."
+                          : "Contenuto della sezione (es. Chi siamo, Garanzie, Come lavoriamo)…"
                       }
+                      minHeight={360}
                     />
                   </div>
                 </CardContent>
@@ -1422,7 +1372,8 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
-            {/* E: Tipografia — font, dimensioni, righe */}
+            {/* La tipografia completa (dimensioni, interlinea) vale per il master: i blocchi scelgono solo il carattere accanto al testo */}
+            {formKind === 'offerta' && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Tipografia</CardTitle>
@@ -1537,6 +1488,7 @@ export default function SettingsQuoteTemplates() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* SOLO offerta: Tabella voci + Margini + Elementi + Testi inline */}
             {formKind === 'offerta' && (

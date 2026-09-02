@@ -51,6 +51,7 @@ import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SerramentiLivePreviewPanel } from "@/components/serramenti/SerramentiLivePreviewPanel";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -3605,6 +3606,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </label>
           {form.condizioni_legali_attivo !== false && (
             <>
+              <ImportaCondizioniBar
+                soloImport
+                compatto
+                companyId={companyId}
+                testoAttuale={String(form.condizioni_legali_testo ?? "")}
+                onTesto={(md) => update("condizioni_legali_testo", md)}
+              />
               <Button
                 size="sm"
                 variant="outline"

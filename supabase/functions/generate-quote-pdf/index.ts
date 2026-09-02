@@ -532,7 +532,12 @@ Deno.serve(async (req) => {
     const contentLeftX = () => (t.layout === "bold" ? 100 : margin);
     const contentMaxWidth = () => (t.layout === "bold" ? contentWidth - 50 : contentWidth);
 
-    const drawRichTextBlock = (title: string, body: unknown, opts: { titoloDalTesto?: boolean } = {}) => {
+    const drawRichTextBlock = async (title: string, body: unknown, opts: { titoloDalTesto?: boolean; fontFamily?: string | null } = {}) => {
+      // Ogni blocco della libreria può avere il suo carattere (helvetica/times/courier):
+      // se impostato vale per questa sezione, altrimenti quello del master.
+      const famBlocco = opts.fontFamily && opts.fontFamily !== t.font_family ? opts.fontFamily : null;
+      const fontB = famBlocco ? await getFont(pdfDoc, famBlocco, "normal") : font;
+      const fontBoldB = famBlocco ? await getFont(pdfDoc, famBlocco, "bold") : fontBold;
       // L'editor rich text salva HTML: i titoli <h1-4> diventano heading
       // markdown (# …) così sotto vengono resi in grassetto e colore primario
       // invece di sparire nel testo piatto.
@@ -576,7 +581,7 @@ Deno.serve(async (req) => {
             x: isList ? x + 6 : x,
             y,
             size,
-            font: isHeading ? fontBold : font,
+            font: isHeading ? fontBoldB : fontB,
             color: isHeading ? primaryC : textC,
             maxWidth: contentMaxWidth() - (isList ? 6 : 0),
           });
@@ -1309,7 +1314,7 @@ Deno.serve(async (req) => {
     drawProductBlocks();
 
     for (const section of (t.composed_sections ?? [])) {
-      drawRichTextBlock(section.name || "Sezione", section.body_html, { titoloDalTesto: true });
+      await drawRichTextBlock(section.name || "Sezione", section.body_html, { titoloDalTesto: true, fontFamily: section.font_family ?? null });
     }
 
     // Condizioni contrattuali e termini legali: UNA sezione (prima erano due
@@ -1320,7 +1325,7 @@ Deno.serve(async (req) => {
       t.show_legal_terms ? normalizeTemplateText(t.legal_terms_text) : "",
     ].filter(Boolean).join("\n\n");
     if (condizioniETermini) {
-      drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", condizioniETermini);
+      await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", condizioniETermini, { fontFamily: t.composed_terms?.font_family ?? null });
     }
 
     // ─── Notes page ───

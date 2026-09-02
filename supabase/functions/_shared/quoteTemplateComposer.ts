@@ -35,6 +35,8 @@ export interface QuoteTemplateRow {
   // Body (kind=condizioni/legali/sezione)
   body_html?: string | null;
   body_format?: string | null;
+  /** Carattere del blocco (helvetica/times/courier): nel PDF vale per la sua sezione. */
+  font_family?: string | null;
   // Prodotto
   product_image_url?: string | null;
   product_short_description?: string | null;

@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
+import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import type { QuoteTemplate } from "@/types/quoteTemplate";
 
 /** Blocco della libreria Template offerte → testo semplice per la textarea. */
@@ -1361,6 +1362,12 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   </div>
                   {form.condizioni_legali_attivo !== false && (
                     <>
+                      <ImportaCondizioniBar
+                        companyId={companyId}
+                        testoAttuale={form.condizioni_legali_testo ?? ""}
+                        onTesto={(md) => set("condizioni_legali_testo", md)}
+                        compatto
+                      />
                       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                         <select
                           value={bloccoLibreriaId}

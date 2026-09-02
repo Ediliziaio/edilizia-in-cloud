@@ -70,6 +70,7 @@ const FvLivePreviewPanel = lazy(() => import("./FvLivePreviewPanel").then((m) =>
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
@@ -2838,6 +2839,12 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             </label>
             <div className="col-span-12">
               <Label className="text-xs">Condizioni commerciali / legali</Label>
+              <ImportaCondizioniBar
+                compatto
+                companyId={companyId}
+                testoAttuale={String(form.condizioni_legali_testo ?? "")}
+                onTesto={(md) => update("condizioni_legali_testo", md)}
+              />
               <Textarea
                 value={form.condizioni_legali_testo ?? ""}
                 onChange={(e) => update("condizioni_legali_testo", e.target.value)}
