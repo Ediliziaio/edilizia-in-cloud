@@ -25,8 +25,7 @@ import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
   Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
-  Brain, Bell, Bot, Wrench,
-} from "lucide-react";
+  Brain, Bell, Bot, Wrench, ImagePlus } from "lucide-react";
 
 interface SectionItem {
   to: string;
@@ -73,6 +72,7 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/listino",            label: "Listino prodotti", icon: Tag,            iconColor: "text-blue-600" },
       { to: "/azienda/impostazioni/tariffe",            label: "Tariffe & Manutenzione", icon: Wrench,   iconColor: "text-teal-600" },
       { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte", icon: FileText,       iconColor: "text-violet-600" },
+      { to: "/azienda/impostazioni/catalogo-render",  label: "Catalogo render",  icon: ImagePlus,      iconColor: "text-pink-600" },
       { to: "/azienda/impostazioni/firma-elettronica",  label: "Firma elettronica", icon: FileSignature, iconColor: "text-rose-600" },
       { to: "/azienda/impostazioni/sopralluoghi",       label: "Sopralluoghi",     icon: ScrollText,    iconColor: "text-amber-600" },
       { to: "/azienda/impostazioni/finanziamenti",      label: "Finanziamenti",    icon: Banknote,      iconColor: "text-emerald-600" },
@@ -109,6 +109,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/listino",            // Listino prodotti
   "/azienda/impostazioni/tariffe",            // Tariffe & Manutenzione
   "/azienda/impostazioni/template-preventivi",// Template offerte
+  "/azienda/impostazioni/catalogo-render",    // Catalogo render
   "/azienda/impostazioni/firma-elettronica",  // Firma elettronica
   "/azienda/impostazioni/finanziamenti",      // Finanziamenti
   "/azienda/impostazioni/integrazioni",       // Integrazioni

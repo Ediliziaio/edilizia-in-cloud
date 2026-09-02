@@ -67,6 +67,7 @@ import {
   Settings as SettingsIcon,
   PanelLeft,
   PanelLeftClose,
+  ImagePlus,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
@@ -815,6 +816,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/scontistica",          label: "Regole scontistica",  icon: <Percent className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsScontistica },
         { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
+        { to: "/azienda/impostazioni/catalogo-render",    label: "Catalogo render",     icon: <ImagePlus className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/condizioni-firma", label: "Condizioni e firma", icon: <Gavel className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
         { to: "/azienda/impostazioni/sopralluoghi",        label: "Impostazioni Sopralluoghi", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/firma-elettronica",   label: "Firma Elettronica",   icon: <FileSignature className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsIntegrations },

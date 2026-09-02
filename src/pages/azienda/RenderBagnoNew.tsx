@@ -986,7 +986,7 @@ export default function RenderBagnoNew() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <BathroomConfigForm value={config} onChange={setConfig} />
+              <BathroomConfigForm value={config} onChange={setConfig} companyId={companyId} />
             </CardContent>
           </Card>
 

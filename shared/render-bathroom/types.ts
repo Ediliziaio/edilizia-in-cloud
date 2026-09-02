@@ -206,6 +206,12 @@ export interface ConfigurazioneBagno {
   parete: ConfigParete;
   illuminazione_tipo?: string;
   note_libere?: string;
+  /**
+   * Foto prodotto del catalogo render dell'azienda (render_catalog_assets.id)
+   * scelte nel wizard, max 4: l'edge le allega al modello come immagini di
+   * riferimento etichettate ("VANITY UNIT TARGET — Mobile rovere 120").
+   */
+  catalogo_reference_ids?: string[];
 }
 
 export type BathroomImageOrientation = "portrait" | "landscape" | "square" | "unknown";

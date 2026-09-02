@@ -48,6 +48,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Catalogo", title: "Manodopera e Servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
   { group: "Catalogo", title: "Listino Manutenzione", url: "/azienda/impostazioni/tariffe?tab=manutenzione", keywords: ["manutenzione", "abbonamenti", "contratti", "impianti", "interventi"] },
   { group: "Catalogo", title: "Bundle & Pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano"] },
+  { group: "Catalogo", title: "Catalogo render", url: "/azienda/impostazioni/catalogo-render", keywords: ["render", "foto prodotto", "riferimento", "mobile bagno", "sanitari", "piastrelle", "catalogo render"] },
 
   // ── Preventivi & vendite ──
   { group: "Preventivi", title: "Margini preventivi", url: "/azienda/impostazioni/margini", keywords: ["margini", "ricarico", "markup"] },

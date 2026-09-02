@@ -22,6 +22,7 @@ import type {
   TipoIntervento,
 } from "@/modules/render-bagno/lib/types";
 import { cn } from "@/lib/utils";
+import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
 
 export type BathroomConfig = ConfigurazioneBagno;
 
@@ -248,6 +249,8 @@ const POSA_OPTIONS = [
 interface Props {
   value: BathroomConfig;
   onChange: (config: BathroomConfig) => void;
+  /** Se presente, ogni sezione mostra "Dal tuo catalogo" con le foto prodotto dell'azienda. */
+  companyId?: string;
 }
 
 function findVisualOption(options: VisualOption[], current: string): VisualOption {
@@ -390,8 +393,25 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
   );
 }
 
-export function BathroomConfigForm({ value, onChange }: Props) {
+export function BathroomConfigForm({ value, onChange, companyId }: Props) {
   const update = (partial: Partial<BathroomConfig>) => onChange({ ...value, ...partial });
+  /**
+   * "Dal tuo catalogo" per una sezione. Scegliere un prodotto dal catalogo
+   * accende da solo la sezione (se era spenta): chi sceglie il proprio
+   * mobile vuole che il render lo sostituisca.
+   */
+  const catalogo = (categorie: string[], attiva?: () => Partial<BathroomConfig>) => (
+    <CatalogReferencePicker
+      companyId={companyId}
+      verticale="bagno"
+      categorie={categorie}
+      selectedIds={value.catalogo_reference_ids ?? []}
+      onChange={(ids) => {
+        const aggiunta = ids.length > (value.catalogo_reference_ids ?? []).length;
+        update({ catalogo_reference_ids: ids, ...(aggiunta && attiva ? attiva() : {}) });
+      }}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -445,6 +465,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["piastrella_parete"], () => ({ sostituzione: { ...value.sostituzione, piastrelle_parete: true }, piastrelle_parete: { ...value.piastrelle_parete, attivo: true } }))}
             <VisualOptionGrid
               label="Effetto"
               helper="Tocca il materiale per vedere subito il mood"
@@ -535,6 +556,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["pavimento"], () => ({ sostituzione: { ...value.sostituzione, pavimento: true }, pavimento: { ...value.pavimento, attivo: true } }))}
             <VisualOptionGrid
               label="Effetto"
               helper="Così capisci subito il carattere del nuovo pavimento"
@@ -608,6 +630,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["box_doccia", "piatto_doccia", "soffione"], () => ({ sostituzione: { ...value.sostituzione, doccia: true }, doccia: { ...value.doccia, attivo: true } }))}
             <div>
               <Label className="text-xs">Tipo</Label>
               <Select
@@ -713,6 +736,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["vasca"], () => ({ sostituzione: { ...value.sostituzione, vasca: true }, vasca: { ...value.vasca, attivo: true } }))}
             <div>
               <Label className="text-xs">Tipo</Label>
               <Select
@@ -804,6 +828,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["mobile_bagno", "lavabo", "specchio"], () => ({ sostituzione: { ...value.sostituzione, mobile_bagno: true }, vanity: { ...value.vanity, attivo: true } }))}
             <div>
               <Label className="text-xs">Stile</Label>
               <Select
@@ -925,6 +950,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["wc", "bidet"], () => ({ sostituzione: { ...value.sostituzione, sanitari: true }, sanitari: { ...value.sanitari, attivo: true } }))}
             <div>
               <Label className="text-xs">WC</Label>
               <Select
@@ -1053,6 +1079,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
+            {catalogo(["rubinetteria"], () => ({ sostituzione: { ...value.sostituzione, rubinetteria: true }, rubinetteria: { ...value.rubinetteria, attivo: true } }))}
             <VisualOptionGrid
               label="Finitura"
               helper="Così la rubinetteria resta coerente in tutto il bagno"

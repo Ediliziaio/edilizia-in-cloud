@@ -118,6 +118,7 @@ const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardVie
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
+const SettingsCatalogoRender = lazy(() => import("@/pages/azienda/settings/SettingsCatalogoRender"));
 const SettingsCatalogImport = lazy(() => import("@/pages/azienda/settings/SettingsCatalogImport"));
 const SettingsFamilyEditor = lazy(() => import("@/pages/azienda/settings/SettingsFamilyEditor"));
 const SettingsBundle = lazy(() => import("@/pages/azienda/settings/SettingsBundle"));
@@ -1122,6 +1123,7 @@ export default function CompanyRoutesContainer() {
           <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
           <Route path="listino" element={withCompanyPermission("canViewSettingsPricing", <SettingsCatalog />)} />
+          <Route path="catalogo-render" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCatalogoRender />)} />
           <Route path="listino/import" element={withCompanyPermission("canEditSettingsPricing", <SettingsCatalogImport />)} />
           <Route path="catalogo/import" element={<Navigate to="../listino/import" replace />} />
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />

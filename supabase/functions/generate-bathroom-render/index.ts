@@ -17,6 +17,8 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
@@ -597,6 +599,10 @@ Deno.serve(async (req) => {
       const BAGNO_BUDGET_MS = 140_000;
       const jobStartMs = Date.now();
       const jobElapsed = () => Date.now() - jobStartMs;
+      // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
+      // riempite piu' sotto, PRIMA del primo tentativo, e passate al modello
+      // come immagini di riferimento etichettate.
+      let catalogReferences: ImageReferenceInput[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
@@ -612,6 +618,7 @@ Deno.serve(async (req) => {
           timeoutMs: perAttemptTimeout,
           directProviderOnly: soloProviderDiretto,
           maxRetries: 0,
+          referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id,
@@ -685,6 +692,40 @@ Deno.serve(async (req) => {
       // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando
       // ne servivano ~60, quadrato consegnato con QA a zero segnalazioni.
       // Col diretto a budget pieno: 146s -> 58s e formato corretto.
+      // CATALOGO RENDER — le foto dei prodotti dell'azienda scelte nel wizard
+      // diventano immagini di riferimento per il modello, con una legenda
+      // appesa DOPO la prosa (come le liste di preservazione). Il prompt
+      // salvato deve restare uguale a quello mandato: si riscrive prompt_usato.
+      try {
+        const catalogo = await loadCatalogReferences({
+          supabase,
+          companyId: session.company_id as string,
+          assetIds: (session.configurazione as Record<string, unknown> | null)?.catalogo_reference_ids,
+          log: (entry) => console.log(JSON.stringify({ fn: "generate-bathroom-render", session_id, ...entry })),
+        });
+        if (catalogo.references.length > 0) {
+          catalogReferences = catalogo.references;
+          composedPrompt = `${composedPrompt}\n\n${catalogo.legend}`;
+          try {
+            await supabase
+              .from("render_bagno_sessions")
+              .update({ prompt_usato: composedPrompt })
+              .eq("id", session_id);
+          } catch (_saveErr) { /* non bloccare il render */ }
+        }
+        if (catalogo.missing.length > 0) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-bathroom-render", session_id,
+            msg: "catalog_references_mancanti", mancanti: catalogo.missing,
+          }));
+        }
+      } catch (catErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-bathroom-render", session_id,
+          msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
+        }));
+      }
+
       let renderResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         renderResult = await generateCandidate(composedPrompt, true);
