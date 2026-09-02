@@ -97,13 +97,38 @@ Deno.serve(async (req) => {
       return errorResponse(`Errore creazione cantiere: ${insertErr?.message || "errore sconosciuto"}`, 500);
     }
 
+    // 5a. Piano dei pagamenti del preventivo → rate della commessa.
+    // La card del builder promette "riportate automaticamente nella commessa":
+    // qui invece arrivava acconto 0 e saldo = totale. Il trigger
+    // sync_installments_to_order_columns allinea le colonne legacy di orders.
+    const fasiPagamento = Array.isArray(quote.payment_phases)
+      ? (quote.payment_phases as Array<Record<string, unknown>>).filter((p) => p && typeof p === "object")
+      : [];
+    if (fasiPagamento.length > 0) {
+      const tipiRata = new Set(["deposit", "balance", "financing"]);
+      const rate = fasiPagamento.map((p, idx) => {
+        const tipo = tipiRata.has(String(p.type)) ? String(p.type) : (idx === fasiPagamento.length - 1 ? "balance" : "deposit");
+        return {
+          order_id: order.id,
+          position: idx,
+          label: String(p.label ?? "").trim() || (tipo === "balance" ? "Saldo" : `Acconto ${idx + 1}`),
+          type: tipo,
+          amount: round2(Number(p.amount) || 0),
+          is_paid: false,
+        };
+      });
+      const { error: rateErr } = await supabaseAdmin.from("order_installments").insert(rate);
+      if (rateErr) console.error("Rate preventivo→commessa non copiate:", rateErr);
+    }
+
     // 5b. Copia le RIGHE del preventivo (quote_items) → order_items.
     // Senza questo la commessa nasceva col solo totale aggregato, priva di
     // articoli/prezzi/IVA per riga → impossibili distinta materiali, margini per
     // riga e ordini fornitore. Saltiamo le categorie non-articolo (subtotale/sconto/nota).
-    // NB: la "spina misure" (family_id/axis_selections/misure_preventivo/measure_status)
-    // NON è copiata qui perché quelle colonne non sono ancora presenti su order_items
-    // in produzione (migrazioni measure-spine da applicare); aggiungerle quando lo saranno.
+    // Spina misure (family_id/axis_selections/misure_preventivo/measure_status) e
+    // sconto riga: stessa mappatura di useQuotePrefill, così le due strade
+    // preventivo→commessa producono la stessa commessa.
+    let righeAvviso: string | null = null;
     const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
     const { data: quoteItems, error: qiErr } = await supabaseAdmin
       .from("quote_items")
@@ -115,23 +140,39 @@ Deno.serve(async (req) => {
     } else if (quoteItems && quoteItems.length > 0) {
       const rows = (quoteItems as Array<Record<string, unknown>>)
         .filter((r) => !SKIP_CATEGORIES.has(String(r.item_category ?? "")))
-        .map((r, idx) => ({
-          order_id:       order.id,
-          company_id:     quote.company_id,
-          name:           String(r.name ?? ""),
-          description:    (r.description as string | null) ?? null,
-          quantity:       Number(r.quantity) || 1,
-          status:         "da_ordinare",
-          position:       idx,
-          unit_price:     r.unit_price != null ? Number(r.unit_price) : null,
-          purchase_price: r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
-          vat_rate:       r.vat_rate != null ? Number(r.vat_rate) : null,
-        }));
+        .map((r, idx) => {
+          const suMisura = !!r.family_id;
+          const mx = r.misura_x as number | null | undefined;
+          const my = r.misura_y as number | null | undefined;
+          const misurePreventivo = mx != null || my != null
+            ? { ...(mx != null ? { larghezza: Number(mx) } : {}), ...(my != null ? { altezza: Number(my) } : {}) }
+            : null;
+          return {
+            // NB: order_items NON ha company_id (l'azienda si legge dalla commessa):
+            // passarlo faceva fallire in silenzio l'intera copia delle righe.
+            order_id:         order.id,
+            name:             String(r.name ?? ""),
+            description:      (r.description as string | null) ?? null,
+            quantity:         Number(r.quantity) || 1,
+            status:           "da_ordinare",
+            position:         idx,
+            unit_price:       r.unit_price != null ? Number(r.unit_price) : null,
+            purchase_price:   r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
+            vat_rate:         r.vat_rate != null ? Number(r.vat_rate) : null,
+            discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
+            family_id:        suMisura ? (r.family_id as string) : null,
+            axis_selections:  suMisura ? ((r.axis_selections as Record<string, string> | null) ?? null) : null,
+            misure_preventivo: suMisura ? misurePreventivo : null,
+            measure_status:   suMisura ? "da_rilevare" : null,
+          };
+        });
       if (rows.length > 0) {
         const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows);
         if (itemsErr) {
-          // Non blocchiamo: il cantiere esiste già; le righe si possono aggiungere a mano.
+          // Non blocchiamo: il cantiere esiste già; ma lo diciamo al chiamante,
+          // prima la risposta era success:true con la commessa vuota.
           console.error("Errore copia righe preventivo→commessa:", itemsErr);
+          righeAvviso = `Righe non copiate: ${itemsErr.message}`;
         }
       }
     }
@@ -191,7 +232,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ success: true, order_id: order.id });
+    return jsonResponse({ success: true, order_id: order.id, avviso: righeAvviso });
   } catch (e) {
     if (e instanceof Response) return e;
     console.error("converti-preventivo-cantiere error:", e);

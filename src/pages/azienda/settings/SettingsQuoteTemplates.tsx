@@ -1477,7 +1477,7 @@ export default function SettingsQuoteTemplates() {
                     {(['left', 'center', 'right'] as TextAlignment[]).map((a) => (
                       <Button
                         key={a}
-                        variant={(form.header_alignment ?? 'left') === a ? 'default' : 'outline'}
+                        variant={(form.header_alignment ?? 'center') === a ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => updateForm({ header_alignment: a })}
                       >

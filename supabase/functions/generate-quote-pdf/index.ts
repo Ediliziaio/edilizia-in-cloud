@@ -100,6 +100,16 @@ const DEFAULT_T = {
   watermark_text: "",
   footer_text: "",
   cover_tagline: "",
+  // Tipografia e tabella: campi del form salvati da mesi e mai letti qui.
+  font_size_base: 10,
+  heading_size_scale: 1.6,
+  line_height: 1.4,
+  row_density: "normal",
+  table_zebra: true,
+  table_borders: "horizontal",
+  header_alignment: "center",
+  page_margin_mm: 18,
+  bank_details: "",
 };
 
 Deno.serve(async (req) => {
@@ -318,8 +328,27 @@ Deno.serve(async (req) => {
 
     const pageWidth = 595.28;
     const pageHeight = 841.89;
-    const margin = 50;
+    // Margine pagina dal template (mm → pt); 18 mm ≈ il vecchio 50 pt fisso.
+    const marginMm = Number(t.page_margin_mm);
+    const margin = Number.isFinite(marginMm) && marginMm >= 8 && marginMm <= 40 ? Math.round(marginMm * 2.8346) : 50;
     const contentWidth = pageWidth - margin * 2;
+    // ── Tipografia dal template: dimensione base, scala titoli, interlinea,
+    // densità righe, zebra, bordi. Erano nel form e nel DB, il PDF li ignorava.
+    const fsBase = Number(t.font_size_base);
+    const tipoScale = Number.isFinite(fsBase) && fsBase >= 8 && fsBase <= 14 ? fsBase / 10 : 1;
+    const sz = (n: number) => Math.round(n * tipoScale * 10) / 10;
+    const headingScaleRaw = Number(t.heading_size_scale);
+    const hScale = Number.isFinite(headingScaleRaw) && headingScaleRaw >= 1 && headingScaleRaw <= 2.5 ? headingScaleRaw / 1.6 : 1;
+    const lineHeightRaw = Number(t.line_height);
+    const lhScale = Number.isFinite(lineHeightRaw) && lineHeightRaw >= 1 && lineHeightRaw <= 2 ? lineHeightRaw / 1.4 : 1;
+    const densitaRighe = String(t.row_density ?? "normal");
+    const rowExtra = densitaRighe === "compact" ? -3 : densitaRighe === "comfortable" ? 4 : 0;
+    const zebraOn = t.table_zebra !== false;
+    const bordiTabella = String(t.table_borders ?? "horizontal");
+    const allineaHeader = String(t.header_alignment ?? "center");
+    // Numero di revisione accanto al numero preventivo (solo dalla prima revisione in poi).
+    const revisione = Number((quote as any)?.revision_number) || 0;
+    const revLabel = revisione > 0 ? ` · Rev. ${revisione}` : "";
 
     const primaryC = rgbColor(t.primary_color);
     const secondaryC = rgbColor(t.secondary_color);
@@ -483,7 +512,7 @@ Deno.serve(async (req) => {
       // Riquadro riferimenti: numero, data, cliente
       const boxY = Math.min(ty - 30, pageHeight * 0.42);
       const righe: Array<[string, string]> = [];
-      if (quote.quote_number) righe.push(["Preventivo", String(quote.quote_number)]);
+      if (quote.quote_number) righe.push(["Preventivo", `${quote.quote_number}${revLabel}`]);
       const dataDoc = quote.created_at ? new Date(quote.created_at).toLocaleDateString("it-IT") : new Date().toLocaleDateString("it-IT");
       righe.push(["Data", dataDoc]);
       if (quote.client_name) righe.push(["Cliente", String(quote.client_name)]);
@@ -572,7 +601,7 @@ Deno.serve(async (req) => {
           .replace(/^#{1,4}\s+/, "")
           .replace(/^[-*]\s+/, "- ");
         // Gerarchia visibile: H1 13pt, H2 11pt, H3+ 9.8pt; aria prima di ogni titolo.
-        const size = isHeading ? (livello === 1 ? 13 : livello === 2 ? 11 : 9.8) : 8.8;
+        const size = isHeading ? sz((livello === 1 ? 13 : livello === 2 ? 11 : 9.8) * hScale) : sz(8.8);
         if (isHeading && !precedenteEraHeading) y -= 8;
         const lines = wrapText(normalized, isHeading ? 72 : maxChars);
         for (const line of lines) {
@@ -585,7 +614,7 @@ Deno.serve(async (req) => {
             color: isHeading ? primaryC : textC,
             maxWidth: contentMaxWidth() - (isList ? 6 : 0),
           });
-          y -= isHeading ? size + 5 : 13;
+          y -= isHeading ? size + 5 : Math.round(13 * lhScale);
         }
         if (!isList) y -= isHeading ? 3 : 4;
         precedenteEraHeading = isHeading;
@@ -684,7 +713,7 @@ Deno.serve(async (req) => {
       page.drawText(company?.name || "Azienda", { x: margin, y: hy, size: 14, font: fontBold, color: headerTextC });
       hy -= 20;
       if (t.show_quote_number) {
-        page.drawText(`OFFERTA N. ${quote.quote_number}`, { x: margin, y: hy, size: 9, font, color: headerTextC });
+        page.drawText(`OFFERTA N. ${quote.quote_number}${revLabel}`, { x: margin, y: hy, size: 9, font, color: headerTextC });
         hy -= 16;
       }
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y: hy, size: 20, font: fontBold, color: headerTextC });
@@ -705,7 +734,7 @@ Deno.serve(async (req) => {
       page.drawText(company?.name || "Azienda", { x: margin, y, size: 16, font: fontBold, color: textC });
       y -= 20;
       if (t.show_quote_number) {
-        page.drawText(`N. ${quote.quote_number}`, { x: margin, y, size: 9, font, color: grayC });
+        page.drawText(`N. ${quote.quote_number}${revLabel}`, { x: margin, y, size: 9, font, color: grayC });
         y -= 14;
       }
       page.drawText("OFFERTA COMMERCIALE", { x: margin, y, size: 18, font: fontBold, color: textC });
@@ -719,7 +748,7 @@ Deno.serve(async (req) => {
       y = pageHeight - margin;
       y = drawLogo(page, y, contentX);
       if (t.show_quote_number) {
-        page.drawText(`OFFERTA N. ${quote.quote_number}`, { x: contentX, y, size: 9, font, color: grayC });
+        page.drawText(`OFFERTA N. ${quote.quote_number}${revLabel}`, { x: contentX, y, size: 9, font, color: grayC });
         y -= 20;
       }
       page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC }); y -= 28;
@@ -774,21 +803,23 @@ Deno.serve(async (req) => {
       // ── Titolo centrato + riga meta ──
       y = barY - 36;
       const bigTitle = "PREVENTIVO";
-      page.drawText(bigTitle, { x: (pageWidth - textW(bigTitle, 26, fontBold)) / 2, y, size: 26, font: fontBold, color: primaryC });
+      // Allineamento del blocco titolo dal template: centro (default storico), sinistra o destra.
+      const xAllineato = (w: number) => allineaHeader === "left" ? margin : allineaHeader === "right" ? pageWidth - margin - w : (pageWidth - w) / 2;
+      page.drawText(bigTitle, { x: xAllineato(textW(bigTitle, 26, fontBold)), y, size: 26, font: fontBold, color: primaryC });
       y -= 17;
       if (quote.title) {
         const sub = String(quote.title).slice(0, 82);
-        page.drawText(sub, { x: (pageWidth - textW(sub, 10, fontItalic)) / 2, y, size: 10, font: fontItalic, color: grayC });
+        page.drawText(sub, { x: xAllineato(textW(sub, 10, fontItalic)), y, size: 10, font: fontItalic, color: grayC });
         y -= 15;
       }
       const metaParts: string[] = [];
-      if (t.show_quote_number) metaParts.push(`N. ${quote.quote_number}`);
+      if (t.show_quote_number) metaParts.push(`N. ${quote.quote_number}${revLabel}`);
       metaParts.push(`Data: ${new Date(quote.created_at).toLocaleDateString("it-IT")}`);
       if (t.show_validity_date && quote.expires_at) {
         metaParts.push(`Valido fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`);
       }
       const meta = metaParts.join("   ·   ");
-      page.drawText(meta, { x: (pageWidth - textW(meta, 9)) / 2, y, size: 9, font, color: textC });
+      page.drawText(meta, { x: xAllineato(textW(meta, 9)), y, size: 9, font, color: textC });
       y -= 24;
 
       // ── Helper box con chip titolo ──
@@ -1000,10 +1031,14 @@ Deno.serve(async (req) => {
             item.description !== item.name &&
             !String(item.name).toLowerCase().includes(String(item.description).toLowerCase().trim())
           );
-          const rowH = hasDesc ? 29 : 18;
+          const rowH = (hasDesc ? 29 : 18) + rowExtra;
 
-          // Alternate row background (zebra)
-          if (rowNumber % 2 === 1) {
+          // Bordo completo di riga (template "tutti i bordi"), sotto il testo
+          if (bordiTabella === "all") {
+            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, borderColor: lightGrayC, borderWidth: 0.4 });
+          }
+          // Alternate row background (zebra), disattivabile dal template
+          if (zebraOn && rowNumber % 2 === 1) {
             page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
           }
 
@@ -1021,7 +1056,7 @@ Deno.serve(async (req) => {
           // U.M. troncata per LARGHEZZA misurata (non per numero di caratteri):
           // una unità di misura larga non deve invadere la colonna prezzo.
           let umText = String(item.unit_of_measure || "pz");
-          while (umText.length > 1 && textW(umText, 8.5) > umMaxW) umText = umText.slice(0, -1);
+          while (umText.length > 1 && textW(umText, sz(8.5)) > umMaxW) umText = umText.slice(0, -1);
           const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
           const discPct = Number(item.discount_percent || 0);
           const priceBase = fmtEur(Number(item.unit_price || 0));
@@ -1031,7 +1066,7 @@ Deno.serve(async (req) => {
           let priceText = priceBase;
           if (showDiscount && discPct > 0) {
             const withDisc = `${priceBase} (-${discPct}%)`;
-            if (priceRight - textW(withDisc, 8.5) >= priceLeftBound) priceText = withDisc;
+            if (priceRight - textW(withDisc, sz(8.5)) >= priceLeftBound) priceText = withDisc;
           }
           const vatText = `${Number(item.vat_rate || 0)}%`;
           // null-safe: un line_total legittimamente 0 (riga omaggio / 100% sconto)
@@ -1041,23 +1076,27 @@ Deno.serve(async (req) => {
             ? Number(ltRaw)
             : Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100);
 
-          page.drawText(String(rowNumber), { x: nX, y, size: 8.5, font, color: grayC });
-          page.drawText(nameText, { x: descX, y, size: 8.5, font, color: rowColor });
+          page.drawText(String(rowNumber), { x: nX, y, size: sz(8.5), font, color: grayC });
+          page.drawText(nameText, { x: descX, y, size: sz(8.5), font, color: rowColor });
           const showPrezziRiga = (quote as any).pdf_mostra_prezzi_per_riga !== false;
-          drawRight(page, qtyText, qtyRight, y, 8.5, font, rowColor);
-          page.drawText(umText, { x: umX, y, size: 8.5, font, color: rowColor });
+          drawRight(page, qtyText, qtyRight, y, sz(8.5), font, rowColor);
+          page.drawText(umText, { x: umX, y, size: sz(8.5), font, color: rowColor });
           if (showPrezziRiga) {
-            drawRight(page, priceText, priceRight, y, 8.5, font, rowColor);
-            drawRight(page, vatText, ivaRight, y, 8.5, font, rowColor);
+            drawRight(page, priceText, priceRight, y, sz(8.5), font, rowColor);
+            drawRight(page, vatText, ivaRight, y, sz(8.5), font, rowColor);
           }
-          drawRight(page, fmtEur(lineTotal), totRight, y, 8.5, fontBold, isOptional ? grayC : textC);
+          drawRight(page, fmtEur(lineTotal), totRight, y, sz(8.5), fontBold, isOptional ? grayC : textC);
           y -= 12;
 
           if (hasDesc) {
-            page.drawText(item.description.substring(0, 85), { x: descX, y, size: 7, font, color: grayC });
+            page.drawText(item.description.substring(0, 85), { x: descX, y, size: sz(7), font, color: grayC });
             y -= 11;
           }
-          y -= 6;
+          y -= 6 + rowExtra;
+          // Filetto orizzontale tra le righe (template "orizzontali" o "tutti")
+          if (bordiTabella === "horizontal") {
+            page.drawLine({ start: { x: itemLeftX, y: y + 4 }, end: { x: itemLeftX + itemWidth, y: y + 4 }, thickness: 0.35, color: lightGrayC });
+          }
         }
       }
 
@@ -1217,6 +1256,36 @@ Deno.serve(async (req) => {
         y -= finBoxH + 5;
       }
 
+      // ── Piano dei pagamenti strutturato (fasi salvate dal builder) ──
+      // Prima restava solo nel DB: il cliente firmava un PDF senza acconto e saldo.
+      const fasiPag = Array.isArray((quote as any).payment_phases)
+        ? ((quote as any).payment_phases as Array<Record<string, unknown>>).filter((p) => p && typeof p === "object")
+        : [];
+      if (fasiPag.length > 0) {
+        const metodoPag = typeof (quote as any).payment_method === "string" ? String((quote as any).payment_method).trim() : "";
+        const altezzaPiano = 30 + fasiPag.length * 13 + (metodoPag ? 12 : 0);
+        newPageIfNeeded(altezzaPiano + 20);
+        y -= 8;
+        const pianoX = totX - 10;
+        const pianoW = (itemLeftX + itemWidth) - pianoX;
+        page.drawRectangle({ x: pianoX, y: y - altezzaPiano + 14, width: pianoW, height: altezzaPiano, color: accentC, borderColor: primaryC, borderWidth: 0.6 });
+        page.drawText("PIANO DEI PAGAMENTI", { x: pianoX + 8, y, size: sz(8), font: fontBold, color: primaryC });
+        y -= 13;
+        if (metodoPag) {
+          page.drawText(`Modalità: ${metodoPag.slice(0, 40)}`, { x: pianoX + 8, y, size: sz(7.5), font, color: textC });
+          y -= 12;
+        }
+        for (const fase of fasiPag) {
+          const etichetta = String(fase.label ?? "").trim() || "Rata";
+          const pct = Number(fase.percent) || 0;
+          const importo = Number(fase.amount) || 0;
+          page.drawText(`${etichetta.slice(0, 26)}${pct ? ` (${pct}%)` : ""}`, { x: pianoX + 8, y, size: sz(7.5), font, color: textC });
+          drawRight(page, fmtEur(importo), totValX, y, sz(7.5), fontBold, textC);
+          y -= 13;
+        }
+        y -= 6;
+      }
+
       // ── QR firma digitale ──────────────────────────────────────────
       if ((quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
@@ -1266,6 +1335,9 @@ Deno.serve(async (req) => {
         if (t.show_payment_terms && payTxt) infoCols.push({ label: "CONDIZIONI DI PAGAMENTO", text: payTxt });
         if (t.show_delivery_terms && delTxt) infoCols.push({ label: "TEMPI DI ESECUZIONE", text: delTxt });
         if (t.show_notes) infoCols.push({ label: "NOTE", text: noteTxt });
+        // Coordinate bancarie del template: prima si salvavano e non uscivano mai.
+        const bancaTxt = normalizeTemplateText(t.bank_details);
+        if (bancaTxt) infoCols.push({ label: "COORDINATE BANCARIE", text: bancaTxt });
 
         if (infoCols.length > 0) {
           newPageIfNeeded(190);
@@ -1277,7 +1349,8 @@ Deno.serve(async (req) => {
           infoCols.forEach((c, ci) => {
             const cx = margin + ci * (colW + gap);
             page.drawRectangle({ x: cx, y: colTop - 1, width: 6, height: 6, color: primaryC });
-            page.drawText(c.label, { x: cx + 11, y: colTop, size: 8, font: fontBold, color: primaryC });
+            // Con quattro colonne (coordinate bancarie) l'etichetta si stringe per non toccare il filetto.
+            page.drawText(c.label, { x: cx + 11, y: colTop, size: infoCols.length >= 4 ? 6.8 : 8, font: fontBold, color: primaryC });
             let ty = colTop - 14;
             for (const line of wrapText(c.text.replace(/\s+/g, " ").slice(0, 320), maxChars).slice(0, 6)) {
               page.drawText(line, { x: cx, y: ty, size: 7.5, font, color: grayC });

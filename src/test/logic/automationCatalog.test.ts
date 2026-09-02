@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG } from "@/lib/flow-node-catalog";
+import { FLOW_TEMPLATES } from "@/lib/flow-templates";
 
 const ROOT = join(__dirname, "../../..");
 const EXECUTOR = readFileSync(join(ROOT, "supabase/functions/process-automation/index.ts"), "utf8");
@@ -77,6 +78,35 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
       .map((t) => t.id)
       .filter((id) => !mappa.has(id) && !gestitiAltrove.has(id));
     expect(orfani, `Trigger nel catalogo ma NON in TRIGGER_EVENT_MAP (il flusso non scatterà mai): ${orfani.join(", ")}`).toEqual([]);
+  });
+
+  it("ogni template pronto all'uso parte da un trigger che esiste nel catalogo", () => {
+    // Caso reale: T38 "Follow-up preventivo non risposto" usava quote_sent, un
+    // id mai esistito: si installava ma non poteva scattare. Un template è una
+    // promessa al cliente, il trigger deve esistere davvero.
+    // Vale sia l'id italiano del catalogo sia il suo evento canonico (il
+    // motore accetta entrambi): quello che non vale è un nome inventato.
+    const ids = new Set(TRIGGER_CATALOG.map((t) => t.id));
+    const canonici = new Set(eventiCanonici().values());
+    const gestitiAltrove = new Set(["cron_giornaliero", "cron_settimanale", "cron_mensile", "manuale"]);
+    // Debito noto (2026-09-02): tre template promettono trigger che il catalogo
+    // non ha ancora (manutenzione in scadenza, lavori completati, contratto di
+    // manutenzione in scadenza). Restano elencati qui, non nascosti sotto il
+    // tappeto: quando il trigger nascerà, va tolta la riga e il test lo pretende.
+    const debitoNoto = new Set(["manutenzione_scheduled", "order_work_completed", "contratto_manut_expiring"]);
+    const rotti = FLOW_TEMPLATES
+      .filter((tpl) => !ids.has(tpl.triggerTipo) && !canonici.has(tpl.triggerTipo) && !gestitiAltrove.has(tpl.triggerTipo) && !debitoNoto.has(tpl.triggerTipo))
+      .map((tpl) => `${tpl.id} → ${tpl.triggerTipo}`);
+    expect(rotti, `Template con trigger inesistente: ${rotti.join(", ")}`).toEqual([]);
+    // Il debito noto deve restare debito: se un trigger viene aggiunto al
+    // catalogo, la riga in debitoNoto va rimossa.
+    const risolti = [...debitoNoto].filter((t) => ids.has(t) || canonici.has(t));
+    expect(risolti, `Trigger ora esistenti ma ancora nel debito noto: ${risolti.join(", ")}`).toEqual([]);
+    for (const tpl of FLOW_TEMPLATES) {
+      const nodoTrigger = tpl.nodes.find((n) => n.nodeType === "trigger");
+      const tipoNodo = (nodoTrigger?.configJson as { trigger_type?: string } | undefined)?.trigger_type;
+      if (tipoNodo) expect(tipoNodo, `${tpl.id}: il nodo trigger non corrisponde a triggerTipo`).toBe(tpl.triggerTipo);
+    }
   });
 
   it("ogni azione del catalogo ha un case nel motore (direttamente o via alias)", () => {

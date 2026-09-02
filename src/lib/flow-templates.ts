@@ -852,10 +852,9 @@ const T38: FlowTemplate = {
   descrizione: 'Preventivo inviato → attendi 3gg → se non visualizzato WhatsApp → attendi 5gg → se non accettato email urgency → attendi 10gg → segna stagnante.',
   icona: '💰',
   difficolta: 'avanzato',
-  triggerTipo: 'quote_sent',
+  triggerTipo: 'preventivo_senza_risposta',
   nodes: [
-    { id: 'trigger-1', nodeType: 'trigger',   posX: 250, posY: 50,  configJson: { trigger_type: 'quote_sent' }, label: 'Preventivo inviato' },
-    { id: 'delay-1',   nodeType: 'delay',     posX: 250, posY: 200, configJson: { delay_type: 'attendi', giorni: 3 }, label: 'Attendi 3 giorni' },
+    { id: 'trigger-1', nodeType: 'trigger',   posX: 250, posY: 50,  configJson: { trigger_type: 'preventivo_senza_risposta', giorni_senza_risposta: 3 }, label: 'Preventivo senza risposta da 3 giorni' },
     { id: 'action-1',  nodeType: 'action',    posX: 250, posY: 350, configJson: { action_type: 'send_whatsapp', destinatario: '{{contact.phone}}', testo: 'Ciao {{contact.first_name}}! 👋 Hai avuto modo di vedere il preventivo che ti abbiamo inviato? Siamo disponibili per qualsiasi domanda.' }, label: 'WhatsApp reminder' },
     { id: 'delay-2',   nodeType: 'delay',     posX: 250, posY: 500, configJson: { delay_type: 'attendi', giorni: 5 }, label: 'Attendi 5 giorni' },
     { id: 'action-2',  nodeType: 'action',    posX: 250, posY: 650, configJson: { action_type: 'send_email', destinatario: '{{contact.email}}', oggetto: '⏰ Preventivo in scadenza — conferma entro domani', corpo: 'Gentile {{contact.first_name}},\n\nIl tuo preventivo da €{{quote.total}} è valido ancora per 48 ore. Scrivi subito per confermare il tuo posto in agenda.\n\nCordiali saluti' }, label: 'Email urgency' },
@@ -863,8 +862,7 @@ const T38: FlowTemplate = {
     { id: 'action-3',  nodeType: 'action',    posX: 250, posY: 950, configJson: { action_type: 'update_field', entity_type: 'opportunity', field_key: 'status', field_value: 'stale' }, label: 'Segna stagnante' },
   ],
   connections: [
-    { fromId: 'trigger-1', toId: 'delay-1'   },
-    { fromId: 'delay-1',   toId: 'action-1'  },
+    { fromId: 'trigger-1', toId: 'action-1'  },
     { fromId: 'action-1',  toId: 'delay-2'   },
     { fromId: 'delay-2',   toId: 'action-2'  },
     { fromId: 'action-2',  toId: 'delay-3'   },

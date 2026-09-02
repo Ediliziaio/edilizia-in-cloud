@@ -696,6 +696,26 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'giorni_prima', label: 'Giorni prima della scadenza', type: 'number', required: true, defaultValue: 3, min: 1, max: 30 },
     ],
   },
+  {
+    id: 'preventivo_senza_risposta',
+    label: 'Preventivo inviato senza risposta',
+    description: 'Scatta quando un preventivo inviato resta senza risposta da N giorni: né accettato né rifiutato',
+    icon: 'Clock',
+    categoria: 'preventivi',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
+      { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
+      { id: 'preventivo.total', label: 'Importo (€)', type: 'number' },
+      { id: 'preventivo.client_name', label: 'Nome cliente', type: 'string' },
+      { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
+      { id: 'preventivo.giorni_da_invio', label: 'Giorni dall\'invio', type: 'number' },
+      { id: 'preventivo.visualizzato', label: 'Il cliente lo ha aperto', type: 'boolean' },
+    ],
+    configSchema: [
+      { id: 'giorni_senza_risposta', label: 'Giorni dall\'invio senza risposta', type: 'number', required: true, defaultValue: 5, min: 1, max: 60, helpText: 'Scatta una volta sola per preventivo, quando dall\'invio sono passati almeno N giorni senza accettazione né rifiuto' },
+    ],
+  },
 
   // ═══ TICKET ASSISTENZA ═══
   {

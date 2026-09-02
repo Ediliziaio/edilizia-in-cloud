@@ -150,6 +150,7 @@ export const MERGE_TAGS: MergeTag[] = [
   { tag: "preventivo.totale", descrizione: "Totale offerta", group: "preventivo" },
   { tag: "preventivo.subtotale", descrizione: "Subtotale (imponibile)", group: "preventivo" },
   { tag: "preventivo.iva", descrizione: "Importo IVA", group: "preventivo" },
+  { tag: "preventivo.piano_pagamenti", descrizione: "Piano dei pagamenti (modalità e fasi)", group: "preventivo" },
   // Azienda (la tua)
   { tag: "azienda.ragione_sociale", descrizione: "Ragione sociale azienda", group: "azienda" },
   { tag: "azienda.partita_iva", descrizione: "P.IVA azienda", group: "azienda" },

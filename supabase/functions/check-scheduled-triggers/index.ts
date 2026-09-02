@@ -56,6 +56,7 @@ const SCHEDULED_EVENT_MAP: Record<string, string> = {
   appuntamento_imminente: "appointment_reminder",
   fattura_scaduta: "invoice_overdue",
   preventivo_in_scadenza: "quote_expiring",
+  preventivo_senza_risposta: "quote_unanswered",
   ticket_senza_risposta: "ticket_unanswered",
   contratto_in_scadenza: "contract_expiring",
   cantiere_in_ritardo: "site_overdue",
@@ -305,6 +306,7 @@ Deno.serve(async (req) => {
     appointment_reminder: 0,
     invoice_overdue: 0,
     quote_expiring: 0,
+    quote_unanswered: 0,
     ticket_unanswered: 0,
     contract_expiring: 0,
     site_overdue: 0,
@@ -626,6 +628,34 @@ Deno.serve(async (req) => {
                 client_name: q.client_name, client_email: q.client_email, giorni_alla_scadenza: giorniAlla,
               });
               if (emitted) results.quote_expiring++;
+            }
+            break;
+          }
+
+          case "quote_unanswered": {
+            // preventivo_senza_risposta: inviato da almeno N giorni, né accettato né
+            // rifiutato. Una sola emissione per preventivo (emitEventOnce).
+            const giorniAttesa = parseInt(cfg.giorni_senza_risposta) || 5;
+            const cutoffInvio = new Date(Date.now() - giorniAttesa * 86400000).toISOString();
+            const { data: senzaRisposta } = await supabase
+              .from("quotes")
+              .select("id, quote_number, total, client_name, client_email, sent_at, viewed_at, expires_at")
+              .eq("company_id", flow.company_id)
+              .eq("status", "inviata")
+              .is("signed_at", null)
+              .is("refused_at", null)
+              .is("deleted_at", null)
+              .not("sent_at", "is", null)
+              .lte("sent_at", cutoffInvio);
+
+            for (const q of senzaRisposta || []) {
+              const giorniDaInvio = Math.max(0, Math.floor((Date.now() - new Date(q.sent_at).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "quote_unanswered", q.id, "quote", {
+                preventivo_id: q.id, quote_number: q.quote_number, total: q.total,
+                client_name: q.client_name, client_email: q.client_email,
+                giorni_da_invio: giorniDaInvio, visualizzato: q.viewed_at != null, expires_at: q.expires_at,
+              });
+              if (emitted) results.quote_unanswered++;
             }
             break;
           }
