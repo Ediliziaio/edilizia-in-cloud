@@ -80,7 +80,7 @@ export function collectShutterReferenceImages(config: {
     out.push(makeReferenceImage(
       SHUTTER_FOLDER,
       tipo.filename,
-      `SHUTTER MODEL TARGET — ${config.tipo}: ${tipo.shape}. Copy the SHAPE and construction only; colour and material come from the written specification`,
+      `SHUTTER MODEL TARGET — ${config.tipo}: ${tipo.shape}. Copy the SHAPE and construction only — the photo is deliberately black-and-white: colour and material come from the written specification`,
     ));
   }
   const mat = config.materiale ? SHUTTER_MATERIAL_REFERENCES[config.materiale] : undefined;

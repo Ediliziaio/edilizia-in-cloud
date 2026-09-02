@@ -67,19 +67,19 @@ export function collectBathroomReferenceImages(config: BathroomReferenceConfig):
   const s = (config.sostituzione ?? {}) as Record<string, unknown>;
   if ((s.doccia === true || config.doccia?.attivo) && config.doccia?.tipo && SHOWER_TYPE_REFERENCES[config.doccia.tipo]) {
     const e = SHOWER_TYPE_REFERENCES[config.doccia.tipo];
-    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `SHOWER TYPE TARGET — ${config.doccia.tipo}: ${e.shape}. Copy the construction and glass layout; finishes come from the written specification`));
+    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `SHOWER TYPE TARGET — ${config.doccia.tipo}: ${e.shape}. Copy the construction and glass layout — the photo is deliberately black-and-white: finishes and colours come from the written specification`));
   } else if ((s.vasca === true || config.vasca?.attivo) && config.vasca?.tipo && BATHTUB_TYPE_REFERENCES[config.vasca.tipo]) {
     const e = BATHTUB_TYPE_REFERENCES[config.vasca.tipo];
-    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `BATHTUB TYPE TARGET — ${config.vasca.tipo}: ${e.shape}. Copy the construction; colour and material come from the written specification`));
+    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `BATHTUB TYPE TARGET — ${config.vasca.tipo}: ${e.shape}. Copy the construction — the photo is deliberately black-and-white: colour and material come from the written specification`));
   } else if ((s.sanitari === true || config.sanitari?.attivo) && config.sanitari?.azione_wc === "sostituisci" && (config.sanitari?.tipo_wc === "sospeso" || config.sanitari?.tipo_wc === "rimless_sospeso")) {
     const e = SANITARY_REFERENCES.wc_sospeso;
-    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `TOILET TYPE TARGET — ${config.sanitari.tipo_wc}: ${e.shape}. Copy the wall-hung construction; colour from the written specification`));
+    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `TOILET TYPE TARGET — ${config.sanitari.tipo_wc}: ${e.shape}. Copy the wall-hung construction — the photo is deliberately black-and-white: colour from the written specification`));
   } else if ((s.sanitari === true || config.sanitari?.attivo) && (config.sanitari?.azione_bidet === "sostituisci" || config.sanitari?.azione_bidet === "aggiungi") && config.sanitari?.tipo_bidet === "sospeso") {
     const e = SANITARY_REFERENCES.bidet_sospeso;
     out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `BIDET TYPE TARGET — sospeso: ${e.shape}`));
   } else if ((s.mobile_bagno === true || config.vanity?.attivo) && config.vanity?.stile && VANITY_STYLE_REFERENCES[config.vanity.stile]) {
     const e = VANITY_STYLE_REFERENCES[config.vanity.stile];
-    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `VANITY STYLE TARGET — ${config.vanity.stile}: ${e.shape}. Copy the construction; colour and top material from the written specification`));
+    out.push(makeReferenceImage(BATHROOM_FOLDER, e.filename, `VANITY STYLE TARGET — ${config.vanity.stile}: ${e.shape}. Copy the construction — the photo is deliberately black-and-white: colour and top material from the written specification`));
   }
   const effetto = (s.piastrelle_parete === true || config.piastrelle_parete?.attivo) ? config.piastrelle_parete?.effetto : undefined;
   if (effetto && TILE_EFFECT_REFERENCES[effetto]) {

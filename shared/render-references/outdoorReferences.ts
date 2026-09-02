@@ -43,7 +43,7 @@ export function collectPoolReferenceImages(config: { operazione?: string | null;
 export function collectPergolaReferenceImages(config: { tipo_struttura?: string | null }): SharedReferenceImage[] {
   const e = config.tipo_struttura ? PERGOLA_TYPE_REFERENCES[config.tipo_struttura] : undefined;
   if (!e) return [];
-  return [makeReferenceImage(OUTDOOR_FOLDER, e.filename, `PERGOLA TYPE TARGET — ${config.tipo_struttura}: ${e.shape}. Copy the structure only; do NOT copy the building, furniture or surroundings of this photo`)];
+  return [makeReferenceImage(OUTDOOR_FOLDER, e.filename, `PERGOLA TYPE TARGET — ${config.tipo_struttura}: ${e.shape}. Copy the structure only — the photo is deliberately black-and-white: colour and finish come from the written specification; do NOT copy the building, furniture or surroundings`)];
 }
 
 export function listOutdoorReferenceFilenames(): string[] {
