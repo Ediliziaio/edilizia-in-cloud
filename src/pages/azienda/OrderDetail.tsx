@@ -16,6 +16,7 @@ import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -777,7 +778,7 @@ function OrderDetailInner() {
         // Aggancio listino: link + categoria + baseline standard (€ listino) per
         // il confronto con il costo reale nel controllo di gestione.
         article_template_id: item.article_template_id || null,
-        posizioni: item.posizioni ?? null,
+        posizioni: (item.posizioni ?? null) as unknown as Json,
         product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
@@ -828,7 +829,7 @@ function OrderDetailInner() {
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
         // Distinta/abaco (posizioni multiple dentro l'articolo)
-        posizioni: item.posizioni ?? null,
+        posizioni: (item.posizioni ?? null) as unknown as Json,
       });
       if (error) throw error;
     },

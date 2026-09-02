@@ -34,7 +34,11 @@ const KbAdminPage = lazy(() =>
 const AdminSettingsAIPricing = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPricing"));
 const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSettingsAIActions"));
 const AdminSettingsAIMemory = lazy(() => import("@/pages/admin/settings/AdminSettingsAIMemory"));
-const ElevenLabsVoiceConfig = lazy(() => import("@/components/admin/settings/ElevenLabsVoiceConfig"));
+// Export nominato, non default: senza il .then() React.lazy fallisce a runtime
+// ("Expected the result of a dynamic import() call to have a default export").
+const ElevenLabsVoiceConfig = lazy(() =>
+  import("@/components/admin/settings/ElevenLabsVoiceConfig").then((m) => ({ default: m.ElevenLabsVoiceConfig })),
+);
 const PublicChatbotSettings = lazy(() =>
   import("@/components/admin/public-chat/PublicChatbotSettings").then((m) => ({
     default: m.PublicChatbotSettings,

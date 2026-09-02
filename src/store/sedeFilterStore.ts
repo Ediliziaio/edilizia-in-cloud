@@ -23,9 +23,9 @@ function defaultPeriodo() {
 export const useSedeFilter = create<SedeFilterState>()(
   persist(
     (set) => ({
-      sediSelezionate: [],
+      sediSelezionate: [] as string[],
       periodo:         defaultPeriodo(),
-      tipoSede:        null,
+      tipoSede:        null as string | null,
 
       setSediSelezionate: (ids) => set({ sediSelezionate: ids }),
       setPeriodo:         (da, a) => set({ periodo: { da, a } }),

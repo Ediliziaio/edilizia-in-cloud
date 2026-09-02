@@ -17,6 +17,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -406,7 +407,7 @@ export default function AdminWhatsappLocaleCampagne() {
 
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const patch: Record<string, unknown> = { stato, updated_at: new Date().toISOString() };
+      const patch: TablesUpdate<"openwa_campagne"> = { stato, updated_at: new Date().toISOString() };
       if (stato === "in_corso") patch.avviata_at = new Date().toISOString();
       const { error } = await supabase.from("openwa_campagne").update(patch).eq("id", id);
       if (error) throw error;

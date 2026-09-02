@@ -173,7 +173,7 @@ export function useApplyFeatureBundle() {
         is_enabled: true,
         notes: `Applicato bundle: ${bundle.name}`,
         set_by_email: userEmail ?? null,
-        price_override: null,
+        price_override: null as number | null,
       }));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)

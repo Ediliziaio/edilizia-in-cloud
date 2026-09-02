@@ -6,6 +6,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -223,7 +224,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       if (tipoFilter !== "all") {
         query = query.eq("tipo", tipoFilter);
       }
-      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+      if (statusFilter !== "all") query = query.eq("status", statusFilter as Enums<"ticket_status">);
       if (priorityFilter !== "all") query = query.eq("priority", priorityFilter);
 
       // 2026-05-27 (Security audit): tecnico/sopralluoghista con

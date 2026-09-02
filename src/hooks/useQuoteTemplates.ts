@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QuoteTemplate } from '@/types/quoteTemplate';
+import type { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 import { queryKeys } from '@/lib/queryKeys';
 import { logger } from '@/utils/logger';
 
@@ -46,7 +47,9 @@ export function useQuoteTemplates() {
       if (id) {
         const { data, error } = await supabase
           .from('quote_templates')
-          .update({ ...rest, updated_at: new Date().toISOString() })
+          // QuoteTemplate (tipo locale) è più largo delle colonne reali: il cast
+          // evita che i tipi generati rifiutino chiavi che a runtime restano undefined.
+          .update({ ...rest, updated_at: new Date().toISOString() } as unknown as TablesUpdate<'quote_templates'>)
           .eq('id', id)
           .eq('company_id', companyId)
           .select('id')
@@ -56,7 +59,7 @@ export function useQuoteTemplates() {
       } else {
         const { data, error } = await supabase
           .from('quote_templates')
-          .insert({ ...rest, company_id: companyId })
+          .insert({ ...rest, company_id: companyId } as unknown as TablesInsert<'quote_templates'>)
           .select('id')
           .single();
         if (error) throw error;

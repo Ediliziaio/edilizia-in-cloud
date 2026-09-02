@@ -22,7 +22,8 @@ const META_BATCH_SIZE = 500;
 
 async function fetchInBatches<T>(
   ids: string[],
-  fetcher: (chunk: string[]) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+  // PromiseLike: il builder PostgREST è thenable ma non una Promise.
+  fetcher: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   if (ids.length === 0) return [];
   const out: T[] = [];

@@ -213,7 +213,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   };
 
   const findDuplicateContact = async (email: string | null, phone: string | null, excludeId?: string) => {
-    const checks: Promise<{ data: ContactSearchResult[] | null; error: any }>[] = [];
+    // Il builder PostgREST è "thenable", non una Promise: Promise.all lo accetta,
+    // il tipo no → si dichiara come PromiseLike.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type ContactCheck = PromiseLike<{ data: ContactSearchResult[] | null; error: any }>;
+    const checks: ContactCheck[] = [];
     if (email) {
       checks.push(
         supabase
@@ -221,7 +225,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           .select("id, first_name, last_name, email, phone, city, company_name")
           .eq("company_id", companyId!)
           .eq("email", email)
-          .limit(1)
+          .limit(1) as unknown as ContactCheck
       );
     }
     if (phone) {
@@ -231,7 +235,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           .select("id, first_name, last_name, email, phone, city, company_name")
           .eq("company_id", companyId!)
           .eq("phone", phone)
-          .limit(1)
+          .limit(1) as unknown as ContactCheck
       );
     }
 

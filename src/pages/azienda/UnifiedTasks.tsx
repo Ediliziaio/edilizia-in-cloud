@@ -9,6 +9,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableTaskRow, type AzioniRiga } from "@/components/attivita/SortableTaskRow";
 import { PRIORITY_ORDER } from "@/lib/taskPriorities";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -490,7 +491,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     invalidaTask();
 
     const ripristina = async () => {
-      const indietro = { status: task.status, completed_at: task.completed_at ?? null };
+      const indietro: TablesUpdate<"tasks"> = { status: task.status, completed_at: (task.completed_at as string | null | undefined) ?? null };
       const { error: errUndo } = await supabase.from("tasks").update(indietro).eq("id", task.id);
       if (errUndo) { toast.error("Annullamento non riuscito", { description: errUndo.message }); return; }
       if (occorrenzaCreataId) await supabase.from("tasks").delete().eq("id", occorrenzaCreataId);
@@ -513,7 +514,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     applicaStato(task, getNextTaskStatusForQuickAction(task.status, statusOptions).value);
 
   /** Modifica di un campo singolo con toast; per la scadenza e la priorità dalla riga. */
-  const aggiornaCampo = async (task: any, updates: Record<string, unknown>, messaggio: string, campo: string) => {
+  const aggiornaCampo = async (task: any, updates: TablesUpdate<"tasks">, messaggio: string, campo: string) => {
     const { error } = await supabase.from("tasks").update(updates).eq("id", task.id);
     if (error) { toast.error("Modifica non salvata", { description: error.message }); return; }
     await logTaskActivity({
@@ -546,7 +547,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       recurrence_end_date: task.recurrence_end_date ?? null,
       estimated_hours: task.estimated_hours ?? null,
       created_by: user?.id,
-      completed_at: null,
+      completed_at: null as string | null,
     };
     const { data, error } = await supabase.from("tasks").insert(copia as any).select("id").single();
     if (error) { toast.error("Duplicazione non riuscita", { description: error.message }); return; }
@@ -626,7 +627,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "myday" | "all")}>
         <TabsList className="h-10 rounded-lg">
           <TabsTrigger value="myday">La mia giornata</TabsTrigger>
           <TabsTrigger value="all">Tutte le attività</TabsTrigger>
