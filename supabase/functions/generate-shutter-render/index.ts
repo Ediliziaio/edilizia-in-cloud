@@ -11,6 +11,11 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import {
+  describeFormatMismatch,
+  detectImageDimensions,
+  orientationFromDimensions,
+} from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
@@ -75,70 +80,6 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
   const bytes = new Uint8Array(imgBuffer);
   const base64 = bytesToBase64(bytes);
   return { mimeType, base64, bytes };
-}
-
-function readUint32BE(bytes: Uint8Array, offset: number): number {
-  return (
-    (bytes[offset] << 24) |
-    (bytes[offset + 1] << 16) |
-    (bytes[offset + 2] << 8) |
-    bytes[offset + 3]
-  ) >>> 0;
-}
-
-function detectImageDimensions(
-  bytes: Uint8Array,
-): { width: number; height: number } | null {
-  if (bytes.length < 16) return null;
-
-  if (
-    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    if (bytes.length < 24) return null;
-    return { width: readUint32BE(bytes, 16), height: readUint32BE(bytes, 20) };
-  }
-
-  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
-    let offset = 2;
-    while (offset + 8 < bytes.length) {
-      if (bytes[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-      while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
-      const marker = bytes[offset];
-      offset += 1;
-      if (marker === 0xd9 || marker === 0xda) break;
-      if (offset + 1 >= bytes.length) break;
-      const length = (bytes[offset] << 8) | bytes[offset + 1];
-      if (length < 2 || offset + length > bytes.length) break;
-
-      const isSofMarker = (marker >= 0xc0 && marker <= 0xc3) ||
-        (marker >= 0xc5 && marker <= 0xc7) ||
-        (marker >= 0xc9 && marker <= 0xcb) ||
-        (marker >= 0xcd && marker <= 0xcf);
-
-      if (isSofMarker && offset + 6 < bytes.length) {
-        return {
-          height: (bytes[offset + 3] << 8) | bytes[offset + 4],
-          width: (bytes[offset + 5] << 8) | bytes[offset + 6],
-        };
-      }
-
-      offset += length;
-    }
-  }
-
-  return null;
-}
-
-function orientationFromDimensions(
-  width: number,
-  height: number,
-): PersianePhotoMeta["orientation"] {
-  if (width === height) return "square";
-  return width > height ? "landscape" : "portrait";
 }
 
 function dataUrlToBytes(
@@ -623,13 +564,45 @@ Deno.serve(async (req) => {
         // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
         // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
         // la fa, si tiene il primo tentativo senza spendere altro.
+        //
+        // Vincolare il provider non basta pero' a garantire il formato: il
+        // diretto puo' rispondere senza errore e ignorare comunque la size, e
+        // un `catch` non intercetta una risposta riuscita ma quadrata. Si
+        // misura quindi il formato delle due immagini e si scarta il retry se
+        // rompe un formato che il primo tentativo aveva azzeccato.
+        const primoDim = detectImageDimensions(
+          dataUrlToBytes(primoTentativo.imageDataUrl).bytes,
+        );
+        const primoFormatoOk = !describeFormatMismatch(
+          sourceDimensions ?? null,
+          primoDim,
+        );
         try {
-          providerResult = await generateCandidate(`${combinedPrompt}
+          const retryResult = await generateCandidate(`${combinedPrompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows that have them per source/brief, same windows and doors in the same positions, facade wall untouched, same camera and crop.`, true);
+          const retryDim = detectImageDimensions(
+            dataUrlToBytes(retryResult.imageDataUrl).bytes,
+          );
+          const retryMismatch = describeFormatMismatch(
+            sourceDimensions ?? null,
+            retryDim,
+          );
+          if (retryMismatch && primoFormatoOk) {
+            console.warn(JSON.stringify({
+              lvl: "warn", fn: "generate-shutter-render", session_id,
+              msg: "qa_retry_scartato_formato_peggiore",
+              motivo: retryMismatch,
+              primo: primoDim ? `${primoDim.width}x${primoDim.height}` : null,
+              retry: retryDim ? `${retryDim.width}x${retryDim.height}` : null,
+            }));
+            providerResult = primoTentativo;
+          } else {
+            providerResult = retryResult;
+          }
         } catch (retryErr) {
           console.warn(JSON.stringify({
             lvl: "warn", fn: "generate-shutter-render", session_id,

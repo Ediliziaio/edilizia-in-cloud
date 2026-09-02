@@ -3,7 +3,10 @@
 // Prompt Engine v2.0 — surgical roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { detectImageDimensions } from "../_shared/imageDimensions.ts";
+import {
+  describeFormatMismatch,
+  detectImageDimensions,
+} from "../_shared/imageDimensions.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -1043,13 +1046,42 @@ Deno.serve(async (req) => {
           // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
           // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
           // la fa, si tiene il primo tentativo senza spendere altro.
+          //
+          // Vincolare il provider non basta pero' a garantire il formato: il
+          // diretto puo' rispondere senza errore e ignorare comunque la size, e
+          // un `catch` non intercetta una risposta riuscita ma quadrata. Si
+          // misura quindi il formato delle due immagini e si scarta il retry se
+          // rompe un formato che il primo tentativo aveva azzeccato.
+          const formatoAtteso = effectiveWidth && effectiveHeight
+            ? { width: effectiveWidth, height: effectiveHeight }
+            : null;
+          const primoDim = detectImageDimensions(
+            dataUrlToBytes(primoTentativo.imageDataUrl).bytes,
+          );
+          const primoFormatoOk = !describeFormatMismatch(formatoAtteso, primoDim);
           try {
-            providerResult = await generateCandidate(`${finalProviderPrompt}
+            const retryResult = await generateCandidate(`${finalProviderPrompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: same roof shape/pitch/ridge as the source, same dormers/chimneys/skylights in the same positions, facade untouched, same camera and crop. Only the roof covering specified in the brief changes.`, true);
+            const retryDim = detectImageDimensions(
+              dataUrlToBytes(retryResult.imageDataUrl).bytes,
+            );
+            const retryMismatch = describeFormatMismatch(formatoAtteso, retryDim);
+            if (retryMismatch && primoFormatoOk) {
+              console.warn(JSON.stringify({
+                lvl: "warn", fn: "generate-roof-render", session_id,
+                msg: "qa_retry_scartato_formato_peggiore",
+                motivo: retryMismatch,
+                primo: primoDim ? `${primoDim.width}x${primoDim.height}` : null,
+                retry: retryDim ? `${retryDim.width}x${retryDim.height}` : null,
+              }));
+              providerResult = primoTentativo;
+            } else {
+              providerResult = retryResult;
+            }
           } catch (retryErr) {
             console.warn(JSON.stringify({
               lvl: "warn", fn: "generate-roof-render", session_id,

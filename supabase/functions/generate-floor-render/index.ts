@@ -2,7 +2,10 @@
 // Render Pavimento AI — pipeline unificata via OpenRouter + fallback OpenAI.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { detectImageDimensions } from "../_shared/imageDimensions.ts";
+import {
+  describeFormatMismatch,
+  detectImageDimensions,
+} from "../_shared/imageDimensions.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -555,9 +558,38 @@ Regenerate applying the FULL brief. ABSOLUTE rules: change ONLY the floor, keep 
         // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
         // peggiore di quello che stava correggendo — pagandolo. Se il diretto non ce
         // la fa, si tiene il primo tentativo senza spendere altro.
+        //
+        // Vincolare il provider non basta pero' a garantire il formato: il
+        // diretto puo' rispondere senza errore e ignorare comunque la size, e
+        // un `catch` non intercetta una risposta riuscita ma quadrata. Si
+        // misura quindi il formato delle due immagini e si scarta il retry se
+        // rompe un formato che il primo tentativo aveva azzeccato.
+        const formatoAtteso = effectiveWidth && effectiveHeight
+          ? { width: effectiveWidth, height: effectiveHeight }
+          : null;
+        const primoDim = detectImageDimensions(
+          dataUrlToBytes(primoTentativo.imageDataUrl).bytes,
+        );
+        const primoFormatoOk = !describeFormatMismatch(formatoAtteso, primoDim);
         try {
-          renderResult = await generateCandidate(correctedPrompt, true);
+          const retryResult = await generateCandidate(correctedPrompt, true);
           generationAttempts += 1;
+          const retryDim = detectImageDimensions(
+            dataUrlToBytes(retryResult.imageDataUrl).bytes,
+          );
+          const retryMismatch = describeFormatMismatch(formatoAtteso, retryDim);
+          if (retryMismatch && primoFormatoOk) {
+            console.warn(JSON.stringify({
+              lvl: "warn", fn: "generate-floor-render", session_id,
+              msg: "qa_retry_scartato_formato_peggiore",
+              motivo: retryMismatch,
+              primo: primoDim ? `${primoDim.width}x${primoDim.height}` : null,
+              retry: retryDim ? `${retryDim.width}x${retryDim.height}` : null,
+            }));
+            renderResult = primoTentativo;
+          } else {
+            renderResult = retryResult;
+          }
         } catch (retryErr) {
           console.warn(JSON.stringify({
             lvl: "warn", fn: "generate-floor-render", session_id,

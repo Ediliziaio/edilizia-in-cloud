@@ -70,6 +70,42 @@ export function detectImageDimensions(
     }
   }
 
+  // WEBP: i provider immagine lo restituiscono, e senza questo ramo la
+  // funzione tornava null proprio sui render webp — la guardia sul formato
+  // si spegneva in silenzio invece di scartare un quadrato. Il ramo esisteva
+  // nella copia locale del render bagno ed era andato perso accorpando le tre
+  // copie qui dentro.
+  if (
+    bytes.length >= 30 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+  ) {
+    const chunkType = String.fromCharCode(...bytes.slice(12, 16));
+
+    if (chunkType === "VP8X") {
+      return {
+        width: 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16),
+        height: 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16),
+      };
+    }
+
+    if (chunkType === "VP8 ") {
+      const width = (bytes[26] | (bytes[27] << 8)) & 0x3fff;
+      const height = (bytes[28] | (bytes[29] << 8)) & 0x3fff;
+      if (width > 0 && height > 0) return { width, height };
+    }
+
+    if (chunkType === "VP8L" && bytes.length >= 25) {
+      const b0 = bytes[21];
+      const b1 = bytes[22];
+      const b2 = bytes[23];
+      const b3 = bytes[24];
+      const width = 1 + (((b1 & 0x3f) << 8) | b0);
+      const height = 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6));
+      if (width > 0 && height > 0) return { width, height };
+    }
+  }
+
   return null;
 }
 
