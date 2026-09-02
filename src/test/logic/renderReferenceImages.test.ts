@@ -65,3 +65,28 @@ describe("foto di riferimento del catalogo infissi", () => {
     expect(mancanti).toEqual([]);
   });
 });
+
+import { readTraversoMode, resolveTraversoRef, resolveProfileRef } from "../../../shared/render-window/windowReferenceImages.ts";
+
+describe("riferimenti profilo e traverso (infissi)", () => {
+  it("il modo traverso si legge da nuovo_infisso (dove lo salva il wizard), con ripiego su legacy_config", () => {
+    expect(readTraversoMode({ nuovo_infisso: { traverso_mode: "aggiungi" } })).toBe("aggiungi");
+    expect(readTraversoMode({ legacy_config: { traverso_mode: "rimuovi" } })).toBe("rimuovi");
+    expect(readTraversoMode({ nuovo_infisso: {} })).toBeNull();
+    expect(readTraversoMode(null)).toBeNull();
+  });
+  it("aggiungi → foto con traverso; rimuovi → finestra pulita; auto/mantieni → nessuna foto", () => {
+    expect(resolveTraversoRef("aggiungi")?.filename).toBe("Finestra-2ante-Con-Traverso-Orizzontale-Santorini.webp");
+    expect(resolveTraversoRef("aggiungi")?.label).toMatch(/ONE horizontal transom bar/);
+    expect(resolveTraversoRef("rimuovi")?.filename).toBe("Finestra-2ante-Cerniere-Scomparsa-Montante-Pulito.png");
+    expect(resolveTraversoRef("auto")).toBeNull();
+    expect(resolveTraversoRef("mantieni")).toBeNull();
+  });
+  it("il profilo porta la sezione reale per pvc/legno/legno_alluminio e nulla per alluminio/minimal", () => {
+    const spec = (profileId: string) => ({ profileId } as unknown as Parameters<typeof resolveProfileRef>[0]);
+    expect(resolveProfileRef(spec("pvc"))?.filename).toBe("Profilo-PVC-5-Camere-Sezione-Bianco.webp");
+    expect(resolveProfileRef(spec("legno"))?.label).toMatch(/cut sample, NOT a window/);
+    expect(resolveProfileRef(spec("alluminio"))).toBeNull();
+    expect(resolveProfileRef(spec("minimal"))).toBeNull();
+  });
+});

@@ -215,7 +215,7 @@ function resolveTapparellaColorRef(
  * vista, camere, fermavetro, guarnizioni — senza mostrare una finestra intera,
  * cosi' non porta con se' un numero di ante.
  */
-function resolveProfileRef(
+export function resolveProfileRef(
   spec: WindowTechnicalSpecification,
 ): RenderReferenceImage | null {
   const profilo = WIZARD_PROFILI.find((p) => p.id === spec.profileId);
@@ -237,7 +237,18 @@ function resolveProfileRef(
  * altezza; "rimuovi" → foto di ante a vetro intero. Con "auto"/"mantieni" la
  * scena comanda e nessuna foto viene allegata.
  */
-function resolveTraversoRef(
+/**
+ * Il wizard salva la scelta dell'utente in `nuovo_infisso.traverso_mode`
+ * (windowRenderConfig, oggetto nuovoInfisso); `legacy_config` e' il nome
+ * usato dagli altri verticali e resta come ripiego.
+ */
+export function readTraversoMode(config: unknown): string | null {
+  const c = config as { nuovo_infisso?: { traverso_mode?: unknown }; legacy_config?: { traverso_mode?: unknown } } | null;
+  const v = c?.nuovo_infisso?.traverso_mode ?? c?.legacy_config?.traverso_mode;
+  return typeof v === "string" ? v : null;
+}
+
+export function resolveTraversoRef(
   traversoMode: string | null | undefined,
 ): RenderReferenceImage | null {
   if (traversoMode !== "aggiungi" && traversoMode !== "rimuovi") return null;
@@ -302,8 +313,7 @@ export function collectReferenceImages(
     push(resolveHiddenHingesRef(spec));
     // Traverso solo su richiesta esplicita (aggiungi/rimuovi): e' un'istruzione
     // strutturale, viene prima di cassonetto e colore tapparella.
-    const traversoMode = (config as { legacy_config?: { traverso_mode?: string } }).legacy_config?.traverso_mode;
-    push(resolveTraversoRef(traversoMode));
+    push(resolveTraversoRef(readTraversoMode(config)));
     push(resolveCassonettoRef(spec));
     push(resolveTapparellaColorRef(spec));
   }
