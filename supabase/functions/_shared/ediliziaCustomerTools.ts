@@ -87,17 +87,22 @@ async function orariOccupati(admin: SupabaseClient, companyId: string, dataISO: 
   return occupati;
 }
 
-/** created_by per i record creati dall'assistente: titolare, poi un admin. */
+/**
+ * created_by per i record creati dall'assistente: un admin dell'azienda, poi
+ * uno staff. profiles NON ha una colonna role (la query precedente tornava
+ * sempre null): l'appartenenza sta in profiles.company_id, il ruolo in
+ * user_roles.
+ */
 async function profiloPerConto(admin: SupabaseClient, companyId: string, fallback?: string | null): Promise<string | null> {
-  for (const role of ["owner", "admin"]) {
-    const { data } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("role", role)
-      .limit(1)
-      .maybeSingle();
-    if (data?.id) return data.id as string;
+  const { data: membri } = await admin.from("profiles").select("id").eq("company_id", companyId).limit(50);
+  const ids = ((membri ?? []) as Array<{ id: string }>).map((m) => m.id);
+  if (ids.length) {
+    const { data: ruoli } = await admin
+      .from("user_roles").select("user_id, role").in("user_id", ids)
+      .in("role", ["company_admin", "company_staff"]);
+    const r = (ruoli ?? []) as Array<{ user_id: string; role: string }>;
+    const scelto = r.find((x) => x.role === "company_admin")?.user_id ?? r[0]?.user_id ?? null;
+    if (scelto) return scelto;
   }
   return fallback ?? null;
 }
@@ -114,14 +119,26 @@ export async function trovaContattoPerTelefono(admin: SupabaseClient, companyId:
   return data ?? null;
 }
 
+// In produzione gli stati dei preventivi convivono in DUE vocaboli (inviata e
+// inviato, accettata e accettato...): la mappa precedente conosceva solo il
+// femminile e per meta' dei preventivi ripiegava su "e' in lavorazione".
 const STATO_PREVENTIVO_PARLATO: Record<string, string> = {
   bozza: "è in preparazione: l'ufficio lo sta ancora completando",
   inviata: "le è stato inviato: controlli la posta, anche nello spam",
+  inviato: "le è stato inviato: controlli la posta, anche nello spam",
+  visto: "le è stato inviato e risulta aperto: se ha domande posso farla richiamare",
   accettata: "risulta accettato: l'ufficio la contatterà per i prossimi passi",
+  accettato: "risulta accettato: l'ufficio la contatterà per i prossimi passi",
+  firmato: "risulta firmato: l'ufficio la contatterà per organizzare i lavori",
   rifiutata: "risulta non accettato",
+  rifiutato: "risulta non accettato",
   scaduta: "è scaduto: se è ancora interessato possiamo farne preparare uno aggiornato",
+  scaduto: "è scaduto: se è ancora interessato possiamo farne preparare uno aggiornato",
   convertita: "è stato confermato ed è diventato un lavoro in corso",
+  convertito: "è stato confermato ed è diventato un lavoro in corso",
 };
+/** Stati in cui un preventivo e' ancora "aperto" per il cliente. */
+const STATI_PREVENTIVO_APERTI = ["bozza", "inviata", "inviato", "visto"];
 
 // ── STRUMENTI ────────────────────────────────────────────────────────────────
 
@@ -401,7 +418,7 @@ export async function infoCliente(admin: SupabaseClient, companyId: string, ctx:
       .ilike("client_phone", ctx.suffix ? `%${ctx.suffix}%` : "%NOMATCH%"),
     admin.from("quotes").select("id", { count: "exact", head: true })
       .eq("company_id", companyId).is("deleted_at", null)
-      .in("status", ["bozza", "inviata"])
+      .in("status", STATI_PREVENTIVO_APERTI)
       .ilike("client_phone", ctx.suffix ? `%${ctx.suffix}%` : "%NOMATCH%"),
   ]);
 

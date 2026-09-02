@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { verificaFirmaElevenLabs, normalizzaPostCall } from "../_shared/elevenlabsWebhook.ts";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
@@ -25,48 +26,21 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // --- HMAC Signature Verification (HARDENED) ---
-    const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
-    if (!webhookSecret) {
-      console.error("[INTERNAL-WEBHOOK] ELEVENLABS_WEBHOOK_SECRET non configurato — reject all");
-      return json({ error: "Webhook secret not configured on server" }, 503);
-    }
-    {
-      const signature = req.headers.get("xi-signature");
-      if (!signature) {
-        console.warn("[INTERNAL-WEBHOOK] Missing xi-signature header");
-        return json({ error: "Missing signature" }, 401);
-      }
-
-      const rawBody = await req.clone().text();
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(webhookSecret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
-      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-      const expectedSig = Array.from(new Uint8Array(sig))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      // Timing-safe comparison
-      const sigBytes = new TextEncoder().encode(signature);
-      const expBytes = new TextEncoder().encode(expectedSig);
-      if (sigBytes.length !== expBytes.length) {
-        return json({ error: "Invalid signature" }, 401);
-      }
-      let diff = 0;
-      for (let i = 0; i < sigBytes.length; i++) diff |= sigBytes[i] ^ expBytes[i];
-      if (diff !== 0) {
-        console.warn("[INTERNAL-WEBHOOK] Invalid signature");
-        return json({ error: "Invalid signature" }, 401);
-      }
+    // ── Firma ElevenLabs (formato vero + legacy dello sweeper) ──
+    // Prima si pretendeva `xi-signature` sull'HMAC del solo body: ElevenLabs
+    // manda `elevenlabs-signature: t=<unix>,v0=<hex>` su "<t>.<body>". Anche
+    // con il secret giusto, ogni webhook vero veniva rifiutato con 401.
+    const rawBody = await req.text();
+    const firma = await verificaFirmaElevenLabs(req, rawBody);
+    if (!firma.ok) {
+      console.warn("[INTERNAL-WEBHOOK] firma rifiutata:", firma.motivo);
+      return json({ error: firma.motivo }, firma.status);
     }
 
-    const body = await req.json();
+    const grezzo = JSON.parse(rawBody) as Record<string, unknown>;
+    const norm = normalizzaPostCall(grezzo);
+    if (norm.ignora) return json({ success: true, ignored: true });
+    const body = norm.piatto as unknown as Record<string, any>;
 
     const {
       agent_id: elevenlabsAgentId,

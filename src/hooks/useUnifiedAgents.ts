@@ -115,10 +115,11 @@ export function useCreateUnifiedAgent() {
 
       const needsElevenLabs = input.tipo === "vocale" || input.tipo === "campagna";
       let elAgentId: string | null = null;
+      let elToolIds: string[] = [];
 
       if (needsElevenLabs) {
         try {
-          const result = await callElevenLabsProxy<{ elevenlabs_agent_id: string }>({
+          const result = await callElevenLabsProxy<{ elevenlabs_agent_id: string; elevenlabs_tool_ids?: string[] }>({
             action: "create_agent",
             payload: {
               name: input.nome,
@@ -129,9 +130,14 @@ export function useCreateUnifiedAgent() {
               // Prima la voce scelta nel wizard restava solo nel nostro DB:
               // ElevenLabs creava l'agente con la voce di default.
               ...(input.elevenlabs_voice_id ? { voice_id: input.elevenlabs_voice_id } : {}),
+              // Gli strumenti abilitati dal template/wizard: il proxy li crea
+              // su ElevenLabs e li collega all'agente (prima nessun tool
+              // arrivava mai alla creazione).
+              ...(input.tools_config ? { tools_config: input.tools_config } : {}),
             },
           });
           elAgentId = result.elevenlabs_agent_id || null;
+          elToolIds = result.elevenlabs_tool_ids ?? [];
         } catch (e) {
           logger.warn("ElevenLabs creation failed, proceeding without:", e);
           // Non e' un successo a meta': un agente vocale senza ElevenLabs non
@@ -159,6 +165,7 @@ export function useCreateUnifiedAgent() {
           elevenlabs_agent_id: elAgentId,
           elevenlabs_voice_id: input.elevenlabs_voice_id || null,
           creato_da: user?.user?.id || null,
+          ...(input.tools_config ? { tools_config: { ...input.tools_config, elevenlabs_tool_ids: elToolIds } } : {}),
       };
 
       // Persist wizard-collected fields

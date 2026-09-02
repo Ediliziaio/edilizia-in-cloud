@@ -47,6 +47,18 @@ const STRUMENTI_CHIAMATA: Array<{ id: string; label: string; descrizione: string
 
 type EdiliziaToolCfg = { enabled?: boolean; webhook_url?: string };
 
+/** Nome canonico dello strumento (come nei prompt) → id del toggle in UI. */
+const CANONICO_A_UI: Record<string, string> = {
+  info_cliente: "get_lead_info",
+  stato_consegna: "stato_consegna",
+  stato_preventivo: "stato_preventivo",
+  fissa_appuntamento: "create_appointment",
+  disponibilita: "get_availability",
+  crea_ticket: "crea_ticket",
+  richiesta_richiamo: "assign_to_user",
+  info_prodotto: "search_products",
+};
+
 export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
@@ -339,6 +351,12 @@ export default function AgentDetailPage() {
                     if (!t) return;
                     setEditPrompt(t.systemPrompt);
                     setEditPrimoMsg(t.primoMessaggio);
+                    // Il prompt cita strumenti: senza abilitarli l'agente
+                    // promette al modello cose che non puo' fare.
+                    setEditTools((prev) => ({
+                      ...prev,
+                      ...Object.fromEntries(t.strumenti.map((c) => [CANONICO_A_UI[c] ?? c, true])),
+                    }));
                     toast.info(`Template "${t.nome}" applicato`, {
                       description: t.variabili.length
                         ? `Variabili da passare in chiamata: ${t.variabili.map((v) => `{{${v}}}`).join(", ")}`

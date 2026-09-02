@@ -44,35 +44,85 @@ const SYSTEM_TOOL_MAP: Record<string, string> = {
   voicemail_detection: "voicemail_detection",
 };
 
-// Le descrizioni sono LE istruzioni del tool per l'LLM: dicono quando usarlo e
-// QUALI campi mettere nel body JSON (l'azione la fissa il parametro `tool`
-// nell'URL generato dal server, così un nome sbagliato dall'LLM non conta).
-const EDILIZIA_TOOL_DESCRIPTIONS: Record<string, string> = {
-  get_lead_info: "Riepilogo del chiamante nel CRM: chi è, lavori e preventivi aperti. Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
-  create_appointment: "Fissa un appuntamento reale in agenda (sopralluogo, consulenza). Body JSON: {\"data\": \"AAAA-MM-GG\", \"ora\": \"HH:MM\", \"motivo\": \"...\", \"nome\": \"...\", \"telefono\": \"{{system__caller_id}}\"}. Se l'orario è occupato risponde con alternative da proporre.",
-  get_availability: "Slot liberi in agenda per un giorno. Usa PRIMA di fissare se il cliente non ha un orario preciso. Body JSON: {\"data\": \"AAAA-MM-GG\"}.",
-  search_products: "Cerca un prodotto o materiale nel listino aziendale. Body JSON: {\"prodotto\": \"nome del prodotto\"}.",
-  assign_to_user: "Il cliente vuole parlare con una persona: crea la richiesta di richiamo per l'ufficio. Body JSON: {\"motivo\": \"...\", \"nome\": \"...\", \"urgenza\": \"normale|urgente\", \"telefono\": \"{{system__caller_id}}\"}.",
-  stato_consegna: "Stato dell'ultima commessa del chiamante: merce arrivata in magazzino, avanzamento, consegna prevista. Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
-  crea_ticket: "Apre una segnalazione di assistenza col racconto del cliente. Body JSON: {\"descrizione\": \"il problema in una frase\", \"nome\": \"...\", \"urgenza\": \"normale|urgente\", \"telefono\": \"{{system__caller_id}}\"}.",
-  stato_preventivo: "Stato dell'ultimo preventivo del chiamante (inviato, accettato, scaduto...). Body JSON: {\"telefono\": \"{{system__caller_id}}\"}.",
+// ── Definizioni tool nel formato VERO di ElevenLabs ─────────────────────────
+// Prima si mandavano oggetti {type:"webhook", url, method, headers} inline in
+// conversation_config.agent.tools: quel campo e' deprecato e, soprattutto,
+// senza `api_schema.request_body_schema` il modello non sa QUALI campi mettere
+// nel body (data, ora, motivo...). I tool vanno creati con POST /convai/tools e
+// collegati all'agente via prompt.tool_ids. I nomi sono quelli canonici
+// italiani citati nei prompt dei template: prima l'LLM leggeva
+// "create_appointment" nella lista tool e "fissa_appuntamento" nel prompt.
+type SchemaCampo = { type: "string"; description?: string; dynamic_variable?: string };
+const TELEFONO: SchemaCampo = { type: "string", dynamic_variable: "system__caller_id" };
+const campo = (description: string): SchemaCampo => ({ type: "string", description });
+
+const DEFINIZIONI_TOOL: Record<string, { description: string; properties: Record<string, SchemaCampo>; required: string[] }> = {
+  info_cliente: {
+    description: "Riepilogo del chiamante nel gestionale: intestatario del numero, lavori e preventivi aperti. Usalo a inizio chiamata se serve capire chi chiama. Nessun dato da chiedere: il numero e' quello del chiamante.",
+    properties: { telefono: TELEFONO }, required: [],
+  },
+  stato_consegna: {
+    description: "Stato dell'ultima commessa del chiamante: merce arrivata in magazzino, avanzamento dei lavori, fine prevista. Usalo quando chiede 'quando arriva la merce' o 'a che punto siamo'.",
+    properties: { telefono: TELEFONO }, required: [],
+  },
+  stato_preventivo: {
+    description: "Stato dell'ultimo preventivo del chiamante: in preparazione, inviato, visto, accettato, firmato o scaduto.",
+    properties: { telefono: TELEFONO }, required: [],
+  },
+  disponibilita: {
+    description: "Orari liberi in agenda per un giorno. Usalo PRIMA di fissare, se il cliente non ha un orario preciso.",
+    properties: { data: campo("Giorno richiesto, formato AAAA-MM-GG") }, required: ["data"],
+  },
+  fissa_appuntamento: {
+    description: "Fissa un appuntamento reale in agenda (sopralluogo, consulenza). Se l'orario e' occupato la risposta contiene alternative: proponile e riprova. Conferma a voce giorno e ora.",
+    properties: {
+      data: campo("Giorno, formato AAAA-MM-GG"),
+      ora: campo("Orario, formato HH:MM (tra le 8 e le 18)"),
+      motivo: campo("Motivo breve, es. 'Sopralluogo infissi'"),
+      nome: campo("Nome del cliente, se lo ha detto"),
+      telefono: TELEFONO,
+    }, required: ["data"],
+  },
+  crea_ticket: {
+    description: "Apre una segnalazione di assistenza con il racconto del cliente e restituisce il riferimento da comunicare a voce.",
+    properties: {
+      descrizione: campo("Il problema, fedele alle parole del cliente"),
+      nome: campo("Nome del cliente, se noto"),
+      urgenza: campo("'urgente' se il cliente lo dichiara o e' un'emergenza (perdita, allagamento, non funziona)"),
+      telefono: TELEFONO,
+    }, required: ["descrizione"],
+  },
+  richiesta_richiamo: {
+    description: "Il cliente vuole parlare con una persona, o la chiamata va chiusa lasciando un messaggio: registra la richiesta di richiamo per l'ufficio.",
+    properties: {
+      motivo: campo("Motivo del richiamo, o esito della chiamata"),
+      nome: campo("Nome del cliente, se noto"),
+      urgenza: campo("'urgente' se serve il richiamo in giornata"),
+      telefono: TELEFONO,
+    }, required: ["motivo"],
+  },
+  info_prodotto: {
+    description: "Cerca un prodotto o materiale nel listino aziendale e dice se lo trattiamo.",
+    properties: { prodotto: campo("Nome del prodotto o materiale") }, required: ["prodotto"],
+  },
+};
+
+// Gli id usati dalla UI (STRUMENTI_CHIAMATA) e i sinonimi → nome canonico.
+const CANONICO: Record<string, string> = {
+  get_lead_info: "info_cliente", info_cliente: "info_cliente",
+  stato_consegna: "stato_consegna",
+  stato_preventivo: "stato_preventivo",
+  get_availability: "disponibilita", disponibilita: "disponibilita",
+  create_appointment: "fissa_appuntamento", fissa_appuntamento: "fissa_appuntamento",
+  crea_ticket: "crea_ticket",
+  assign_to_user: "richiesta_richiamo", richiesta_richiamo: "richiesta_richiamo",
+  search_products: "info_prodotto", info_prodotto: "info_prodotto",
 };
 
 // Tool con un backend reale in agent-tools: per questi il proxy genera da solo
 // l'URL del webhook (tool id → azione canonica passata come ?tool=). Gli id
 // NON in mappa restano configurabili solo con webhook_url manuale.
-const BACKED_EDILIZIA_TOOLS: Record<string, string> = {
-  stato_consegna: "stato_consegna",
-  crea_ticket: "crea_ticket",
-  create_appointment: "fissa_appuntamento",
-  fissa_appuntamento: "fissa_appuntamento",
-  get_availability: "disponibilita",
-  stato_preventivo: "stato_preventivo",
-  assign_to_user: "richiesta_richiamo",
-  richiesta_richiamo: "richiesta_richiamo",
-  search_products: "info_prodotto",
-  get_lead_info: "info_cliente",
-};
+const BACKED_EDILIZIA_TOOLS: Record<string, string> = CANONICO;
 
 // Chiave per-azienda negli URL dei tool: HMAC(secret, "agent-tools:"+company_id).
 // agent-tools accetta questa O il master secret; negli URL va SOLO la derivata,
@@ -97,6 +147,69 @@ async function makeAutoToolUrl(companyId: string, elevenlabsAgentId: string): Pr
     if (!azione) return null;
     return `${base}?agent=${encodeURIComponent(elevenlabsAgentId)}&key=${derived}&tool=${azione}`;
   };
+}
+
+/**
+ * Crea su ElevenLabs i tool abilitati in tools_config (POST /convai/tools) e
+ * restituisce gli id da collegare all'agente. I tool precedenti dell'agente
+ * (tools_config.elevenlabs_tool_ids) vengono eliminati prima: cosi' un update
+ * non lascia orfani sull'account EL.
+ */
+async function sincronizzaToolElevenLabs(
+  apiKey: string,
+  companyId: string,
+  elevenlabsAgentId: string,
+  toolsConfig: ToolsConfig | null | undefined,
+  precedenti: string[] | undefined,
+): Promise<{ toolIds: string[]; systemTools: unknown[] }> {
+  for (const id of precedenti ?? []) {
+    try { await elFetch(`/convai/tools/${id}`, "DELETE", apiKey); } catch (e) {
+      console.warn(`[PROXY] delete tool ${id} fallita:`, e instanceof Error ? e.message : e);
+    }
+  }
+  const systemTools: unknown[] = [];
+  if (toolsConfig?.system_tools) {
+    for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
+      const elName = SYSTEM_TOOL_MAP[id];
+      if (enabled && elName) systemTools.push({ type: "system", name: elName });
+    }
+  }
+  const autoUrl = await makeAutoToolUrl(companyId, elevenlabsAgentId);
+  const daCreare = new Map<string, string | null>(); // canonico → url esplicito
+  for (const [id, cfg] of Object.entries(toolsConfig?.edilizia_tools ?? {})) {
+    if (!cfg.enabled) continue;
+    const canon = CANONICO[id];
+    if (!canon) continue;
+    daCreare.set(canon, cfg.webhook_url || null);
+  }
+  const toolIds: string[] = [];
+  for (const [canon, urlEsplicito] of daCreare) {
+    const url = urlEsplicito || autoUrl?.(canon) || null;
+    if (!url) { console.warn(`[PROXY] tool ${canon} senza URL (secret mancante?): saltato`); continue; }
+    const def = DEFINIZIONI_TOOL[canon];
+    const body = {
+      tool_config: {
+        type: "webhook",
+        name: canon,
+        description: def.description,
+        response_timeout_secs: 20,
+        api_schema: {
+          url,
+          method: "POST",
+          request_headers: { "Content-Type": "application/json" },
+          request_body_schema: { type: "object", properties: def.properties, required: def.required },
+        },
+      },
+    };
+    try {
+      const res = await elFetch("/convai/tools", "POST", apiKey, body);
+      const id = res?.id ?? res?.tool_id;
+      if (id) toolIds.push(String(id));
+    } catch (e) {
+      console.error(`[PROXY] creazione tool ${canon} fallita:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return { toolIds, systemTools };
 }
 
 function buildElevenLabsToolsFromConfig(
@@ -234,13 +347,7 @@ Deno.serve(async (req) => {
         // FIX BUG #1: usa voce italiana di default e modello multilingual
         const voiceId = payload?.voice_id || DEFAULT_ITALIAN_VOICE_ID;
 
-        // FIX BUG #2: converti tools_config in tool definitions ElevenLabs.
-        // Gli URL auto-generati dei tool con backend richiedono l'agent id EL,
-        // che esiste solo DOPO la create: qui entrano solo i tool di sistema e
-        // quelli con URL esplicito; i backed vengono agganciati con la PATCH
-        // subito sotto (create-then-patch).
         const createToolsConfig = payload?.tools_config as ToolsConfig | null | undefined;
-        const elTools = buildElevenLabsToolsFromConfig(createToolsConfig);
 
         const createBody: Record<string, unknown> = {
           conversation_config: {
@@ -248,7 +355,6 @@ Deno.serve(async (req) => {
               prompt: { prompt: payload?.system_prompt || "" },
               first_message: payload?.first_message || "",
               language: payload?.language || "it",
-              ...(elTools.length > 0 ? { tools: elTools } : {}),
             },
             tts: {
               voice_id: voiceId,
@@ -262,19 +368,21 @@ Deno.serve(async (req) => {
 
         const elAgentId = elRes?.agent_id;
 
-        // Create-then-patch: ora che l'agent id EL esiste, aggancia i tool con
-        // backend auto-cablato. Best-effort: se la PATCH fallisce l'agente
-        // resta valido, solo senza tool (verranno risincronizzati al prossimo
-        // update_agent con tools_config).
-        if (elAgentId && hasAutoBackedTools(createToolsConfig)) {
+        // Tool: gli URL contengono l'agent id EL, che esiste solo ora. Si creano
+        // i tool e si collegano all'agente via prompt.tool_ids (il campo
+        // prompt.tools inline e' deprecato).
+        let elToolIds: string[] = [];
+        if (elAgentId && createToolsConfig) {
           try {
-            const autoUrl = await makeAutoToolUrl(companyId, elAgentId);
-            const fullTools = buildElevenLabsToolsFromConfig(createToolsConfig, autoUrl);
-            await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
-              conversation_config: { agent: { tools: fullTools } },
-            });
+            const sync = await sincronizzaToolElevenLabs(apiKey, companyId, elAgentId, createToolsConfig, []);
+            elToolIds = sync.toolIds;
+            if (elToolIds.length || sync.systemTools.length) {
+              await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
+                conversation_config: { agent: { prompt: { tool_ids: elToolIds }, ...(sync.systemTools.length ? { tools: sync.systemTools } : {}) } },
+              });
+            }
           } catch (toolErr) {
-            console.error(`[PROXY] Aggancio tool auto fallito per ${elAgentId}:`, toolErr);
+            console.error(`[PROXY] Aggancio tool fallito per ${elAgentId}:`, toolErr);
           }
         }
 
@@ -284,7 +392,7 @@ Deno.serve(async (req) => {
         const newAgent: { id: string | null } = { id: null };
         await auditLog(adminClient, companyId, null, userId, "create_agent", { name: payload?.name, elevenlabs_agent_id: elAgentId });
 
-        result = { agent_id: newAgent.id, elevenlabs_agent_id: elAgentId };
+        result = { agent_id: newAgent.id, elevenlabs_agent_id: elAgentId, elevenlabs_tool_ids: elToolIds };
         break;
       }
 
@@ -315,13 +423,14 @@ Deno.serve(async (req) => {
         // FIX BUG #2: quando tools_config viene aggiornato, ri-sincronizza i tool su
         // ElevenLabs. Qui l'agent id EL è noto → gli URL auto dei tool con backend
         // vengono generati subito.
+        let nuoviToolIds: string[] | null = null;
         if (payload?.tools_config !== undefined) {
-          const autoUrl = await makeAutoToolUrl(companyId, agent_id);
-          const elTools = buildElevenLabsToolsFromConfig(
-            payload.tools_config as ToolsConfig | null,
-            autoUrl
-          );
-          agentPatch.tools = elTools; // array vuoto = azzera i tool (intenzionale)
+          const cfg = payload.tools_config as (ToolsConfig & { elevenlabs_tool_ids?: string[] }) | null;
+          const precedenti = await toolIdsPrecedenti(adminClient, ownership);
+          const sync = await sincronizzaToolElevenLabs(apiKey, companyId, agent_id, cfg, precedenti);
+          nuoviToolIds = sync.toolIds;
+          agentPatch.prompt = { ...(agentPatch.prompt as Record<string, unknown> ?? {}), tool_ids: nuoviToolIds };
+          if (sync.systemTools.length) agentPatch.tools = sync.systemTools;
         }
 
         // FIX BUG #1: usa modello multilingual quando la voce viene aggiornata
@@ -362,7 +471,7 @@ Deno.serve(async (req) => {
           if (payload?.language !== undefined) v2Patch.lingua = payload.language;
           if (payload?.llm_model !== undefined) v2Patch.llm_model = payload.llm_model;
           if (payload?.voice_id !== undefined) v2Patch.elevenlabs_voice_id = payload.voice_id;
-          if (payload?.tools_config !== undefined) v2Patch.tools_config = payload.tools_config;
+          if (payload?.tools_config !== undefined) v2Patch.tools_config = { ...(payload.tools_config as Record<string, unknown>), elevenlabs_tool_ids: nuoviToolIds ?? [] };
           if (Object.keys(v2Patch).length > 0) {
             await adminClient
               .from("ai_agents_v2")
@@ -380,7 +489,7 @@ Deno.serve(async (req) => {
           if (payload?.language !== undefined) legacyPatch.language = payload.language;
           if (payload?.llm_model !== undefined) legacyPatch.llm_model = payload.llm_model;
           if (payload?.voice_id !== undefined) legacyPatch.voice_id = payload.voice_id;
-          if (payload?.tools_config !== undefined) legacyPatch.tools_config = payload.tools_config;
+          if (payload?.tools_config !== undefined) legacyPatch.tools_config = { ...(payload.tools_config as Record<string, unknown>), elevenlabs_tool_ids: nuoviToolIds ?? [] };
           if (Object.keys(legacyPatch).length > 0) {
             await adminClient
               .from("ai_agents")
@@ -405,6 +514,9 @@ Deno.serve(async (req) => {
         }
 
         try {
+          for (const tid of await toolIdsPrecedenti(adminClient, ownership)) {
+            try { await elFetch(`/convai/tools/${tid}`, "DELETE", apiKey); } catch { /* best effort */ }
+          }
           await elFetch(`/convai/agents/${agent_id}`, "DELETE", apiKey);
         } catch {
           // May already be deleted
@@ -761,6 +873,24 @@ async function isSuperAdmin(client: ReturnType<typeof createClient>, userId: str
     .select("role")
     .eq("user_id", userId);
   return ((data as Array<{ role?: string }> | null) ?? []).some((row) => row.role === "super_admin");
+}
+
+/** Gli id dei tool EL salvati nel tools_config locale (v2, poi legacy). */
+async function toolIdsPrecedenti(
+  client: ReturnType<typeof createClient>,
+  ownership: { legacyAgentId: string | null; v2AgentId: string | null },
+): Promise<string[]> {
+  if (ownership.v2AgentId) {
+    const { data } = await client.from("ai_agents_v2").select("tools_config").eq("id", ownership.v2AgentId).maybeSingle();
+    const ids = (data as { tools_config?: { elevenlabs_tool_ids?: string[] } } | null)?.tools_config?.elevenlabs_tool_ids;
+    if (Array.isArray(ids)) return ids.map(String);
+  }
+  if (ownership.legacyAgentId) {
+    const { data } = await client.from("ai_agents").select("tools_config").eq("id", ownership.legacyAgentId).maybeSingle();
+    const ids = (data as { tools_config?: { elevenlabs_tool_ids?: string[] } } | null)?.tools_config?.elevenlabs_tool_ids;
+    if (Array.isArray(ids)) return ids.map(String);
+  }
+  return [];
 }
 
 async function findOwnedAgentByElevenLabsId(

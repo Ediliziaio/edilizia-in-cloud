@@ -1,5 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { ELEVENLABS_VOICES_IT } from "@/constants/elevenlabsVoices";
+import { VOICE_AGENT_TEMPLATES } from "@/lib/voice-agent-templates";
+
+/** Nome canonico dello strumento (come nei prompt) → id del toggle in UI. */
+const CANONICO_A_UI: Record<string, string> = {
+  info_cliente: "get_lead_info", stato_consegna: "stato_consegna", stato_preventivo: "stato_preventivo",
+  fissa_appuntamento: "create_appointment", disponibilita: "get_availability", crea_ticket: "crea_ticket",
+  richiesta_richiamo: "assign_to_user", info_prodotto: "search_products",
+};
 import {
   Dialog,
   DialogContent,
@@ -101,6 +109,8 @@ interface WizardState {
   scopo: string;
   system_prompt: string;
   primo_messaggio: string;
+  /** Strumenti (nomi canonici) portati dal template scelto. */
+  strumenti: string[];
   lingua: string;
   temperatura: number;
   voice_id: string;
@@ -123,6 +133,7 @@ const INITIAL_STATE: WizardState = {
   scopo: "",
   system_prompt: "",
   primo_messaggio: "",
+  strumenti: [],
   lingua: "it",
   temperatura: 0.7,
   voice_id: "",
@@ -194,6 +205,9 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
       lingua: state.lingua,
       llm_model: "gemini-2.5-flash",
       elevenlabs_voice_id: state.voice_id || undefined,
+      tools_config: state.strumenti.length
+        ? { edilizia_tools: Object.fromEntries(state.strumenti.map((c) => [CANONICO_A_UI[c] ?? c, { enabled: true, webhook_url: "" }])) }
+        : undefined,
       temperatura: state.temperatura,
       voice_nome: state.voice_nome || undefined,
       // Vocal behavior
@@ -340,7 +354,14 @@ function StepTipo({ state, update, onSelectAndNext }: { state: WizardState; upda
 }
 
 function StepIdentita({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
-  const purposes = PURPOSE_OPTIONS[state.tipo] || [];
+  // Per gli agenti che parlano al telefono i preset generici producono agenti
+  // generici: qui entrano i 6 mestieri edilizia gia' scritti coi 6 blocchi
+  // ElevenLabs, che portano con se' primo messaggio e strumenti da abilitare.
+  const purposes = (state.tipo === "vocale" || state.tipo === "campagna")
+    ? VOICE_AGENT_TEMPLATES
+        .filter((t) => (state.tipo === "campagna" ? t.direzione === "outbound" : true))
+        .map((t) => ({ id: t.id, label: t.nome, prompt: t.systemPrompt, primo: t.primoMessaggio, strumenti: t.strumenti }))
+    : (PURPOSE_OPTIONS[state.tipo] || []).map((p) => ({ ...p, primo: "", strumenti: [] as string[] }));
   const promptLength = state.system_prompt.trim().length;
   const promptReady = promptLength >= 20;
 
@@ -350,6 +371,8 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
       update({
         scopo: p.label,
         system_prompt: state.system_prompt || p.prompt,
+        primo_messaggio: state.primo_messaggio || p.primo || "",
+        strumenti: p.strumenti,
       });
     }
   };

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { risolviTelnyx, numeroMittenteAzienda } from "../_shared/telnyxApiKey.ts";
+import { verificaFirmaElevenLabs, chiaveUrlValida } from "../_shared/elevenlabsWebhook.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
@@ -16,46 +17,29 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  // ──────────────────────────────────────────────────────────────────────
-  // 2026-05-27 SECURITY FIX: prima zero-auth → anyone could modify orders,
-  // create tickets/notes, send SMS Telnyx (at company expense) on ANY
-  // company. Now requires HMAC-SHA256 signature via xi-signature header
-  // matching ELEVENLABS_WEBHOOK_SECRET. Same pattern as internal-agent-webhook.
-  // ──────────────────────────────────────────────────────────────────────
-  const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
-  if (!webhookSecret) {
-    console.error("[INTERNAL-AGENT-TOOLS] ELEVENLABS_WEBHOOK_SECRET not configured — reject all");
-    return errorResponse("Webhook secret not configured on server", 503);
-  }
-  const signature = req.headers.get("xi-signature");
-  if (!signature) {
-    console.warn("[INTERNAL-AGENT-TOOLS] Missing xi-signature header");
-    return errorResponse("Missing signature", 401);
-  }
+  // ── Auth ──
+  // ElevenLabs NON firma le chiamate dei tool: pretendere `xi-signature`
+  // significava rifiutare ogni tool reale (2026-05-27 → oggi, mai funzionato).
+  // Come agent-tools: la credenziale sta nell'URL (?agent=<el_agent_id>&key=),
+  // master secret o chiave derivata dell'azienda. Il legacy `xi-signature`
+  // resta accettato per i chiamanti interni.
   const rawBody = await req.clone().text();
+  const url = new URL(req.url);
+  const elAgentFromUrl = url.searchParams.get("agent");
+  let companyFromUrl: string | null = null;
   {
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(webhookSecret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-    const expectedSig = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const sigBytes = new TextEncoder().encode(signature);
-    const expBytes = new TextEncoder().encode(expectedSig);
-    if (sigBytes.length !== expBytes.length) {
-      return errorResponse("Invalid signature", 401);
+    const supabaseUrl0 = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey0 = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin0 = createClient(supabaseUrl0, serviceRoleKey0, { auth: { autoRefreshToken: false, persistSession: false } });
+    if (elAgentFromUrl) {
+      const { data: ag } = await admin0.from("internal_ai_agents").select("company_id").eq("elevenlabs_agent_id", elAgentFromUrl).maybeSingle();
+      companyFromUrl = (ag as { company_id?: string } | null)?.company_id ?? null;
     }
-    let diff = 0;
-    for (let i = 0; i < sigBytes.length; i++) diff |= sigBytes[i] ^ expBytes[i];
-    if (diff !== 0) {
-      console.warn("[INTERNAL-AGENT-TOOLS] Invalid signature");
-      return errorResponse("Invalid signature", 401);
+    const perUrl = await chiaveUrlValida(req, companyFromUrl);
+    const perFirma = perUrl ? { ok: true as const } : await verificaFirmaElevenLabs(req, rawBody);
+    if (!perUrl && !perFirma.ok) {
+      console.warn("[INTERNAL-AGENT-TOOLS] rifiutata:", (perFirma as { motivo?: string }).motivo ?? "chiave URL non valida");
+      return errorResponse("Unauthorized", 401);
     }
   }
 
@@ -72,6 +56,7 @@ Deno.serve(async (req) => {
     // We normalize to: tool_name + parameters
     const toolName: string = body.tool_name || body.name || body.tool || "";
     const params: Record<string, unknown> = body.parameters || body.params || body.input || body;
+    if (!params.company_id && companyFromUrl) params.company_id = companyFromUrl;
 
     if (!toolName) {
       return errorResponse("tool_name is required", 400);

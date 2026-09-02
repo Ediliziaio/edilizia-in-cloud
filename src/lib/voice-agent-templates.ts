@@ -33,6 +33,12 @@ export interface VoiceAgentTemplate {
   primoMessaggio: string;
   /** Dynamic variables attese dal prompt (documentazione per chi collega). */
   variabili: string[];
+  /**
+   * Strumenti che il prompt cita nel blocco "# Strumenti" (nomi canonici di
+   * ediliziaCustomerTools). Applicare un template senza abilitarli produceva
+   * un agente che PROMETTE al modello strumenti che non ha.
+   */
+  strumenti: string[];
 }
 
 export const VOICE_AGENT_TEMPLATES: VoiceAgentTemplate[] = [
@@ -44,6 +50,7 @@ export const VOICE_AGENT_TEMPLATES: VoiceAgentTemplate[] = [
     direzione: "inbound",
     categoria: "Ricezione",
     variabili: ["azienda"],
+    strumenti: ["fissa_appuntamento", "disponibilita", "richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno, ha chiamato {{azienda}}. Sono l'assistente virtuale: il team è in cantiere in questo momento. Posso prendere il suo messaggio e farla richiamare — con chi ho il piacere di parlare?",
     systemPrompt: `# Personalità
@@ -78,6 +85,7 @@ Non chiedere all'interlocutore di ripetere dati che ha già dato.`,
     direzione: "outbound",
     categoria: "Vendita",
     variabili: ["azienda", "nome", "lavoro"],
+    strumenti: ["disponibilita", "fissa_appuntamento", "richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno {{nome}}, la chiamo da {{azienda}}: ha appena lasciato una richiesta per {{lavoro}} e volevo farle due domande veloci per farla richiamare dalla persona giusta. Ha due minuti?",
     systemPrompt: `# Personalità
@@ -115,6 +123,7 @@ Poi la chiusura: proponi un sopralluogo gratuito o una chiamata col titolare, of
     direzione: "outbound",
     categoria: "Vendita",
     variabili: ["azienda", "nome", "giorno", "ora", "indirizzo"],
+    strumenti: ["disponibilita", "fissa_appuntamento", "richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno {{nome}}, la chiamo da {{azienda}} per confermare il sopralluogo di {{giorno}} alle {{ora}} in {{indirizzo}}. Le va ancora bene?",
     systemPrompt: `# Personalità
@@ -147,6 +156,7 @@ Leggero e veloce. Dai del lei. La chiamata perfetta dura sotto il minuto.
     direzione: "outbound",
     categoria: "Amministrazione",
     variabili: ["azienda", "nome", "importo", "riferimento"],
+    strumenti: ["richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno {{nome}}, la chiamo dall'amministrazione di {{azienda}}. La disturbo un minuto per la rata di {{importo}} relativa a {{riferimento}}, che ci risulta scaduta da qualche giorno — probabilmente una svista. Ha un momento?",
     systemPrompt: `# Personalità
@@ -178,6 +188,7 @@ Cordialissimo, MAI accusatorio. "Probabilmente una svista", "capita a tutti". Da
     direzione: "outbound",
     categoria: "Post-vendita",
     variabili: ["azienda", "nome", "lavoro"],
+    strumenti: ["crea_ticket", "richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno {{nome}}, la chiamo da {{azienda}}. Abbiamo chiuso da poco {{lavoro}} da lei e volevo solo sentire come si trova — è tutto a posto?",
     systemPrompt: `# Personalità
@@ -214,6 +225,7 @@ Caldo, genuino. Dai del lei. Prima ascolta DAVVERO la risposta su come si trova:
       "commessa_recente", "stato_commessa", "avanzamento_commessa",
       "consegna_prevista", "merce_arrivata", "data_arrivo_merce", "ticket_aperti",
     ],
+    strumenti: ["info_cliente", "stato_consegna", "crea_ticket", "stato_preventivo", "disponibilita", "fissa_appuntamento", "richiesta_richiamo"],
     primoMessaggio:
       "Buongiorno, ha chiamato {{azienda}}. Sono l'assistente: come posso aiutarla?",
     systemPrompt: `# Personalità

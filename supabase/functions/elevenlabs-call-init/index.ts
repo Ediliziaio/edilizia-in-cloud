@@ -30,6 +30,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
+import { verificaFirmaElevenLabs, chiaveUrlValida } from "../_shared/elevenlabsWebhook.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -58,29 +59,46 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
 
-    // ── HMAC come elevenlabs-webhook: mai payload non firmati ──
-    const secret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
-    if (!secret) return json({ error: "Webhook secret not configured" }, 503);
-    const signature = req.headers.get("xi-signature");
-    if (!signature) return json({ error: "Missing signature" }, 401);
+    // ── Auth ──
+    // ElevenLabs NON firma questo webhook (documentazione "conversation
+    // initiation client data"): pretendere l'HMAC significava rispondere 401
+    // a ogni chiamata in entrata. La credenziale viaggia nell'URL configurato
+    // sull'agente (?key=master o chiave derivata dell'azienda); il legacy
+    // `xi-signature` resta accettato per i chiamanti interni.
     const rawBody = await req.clone().text();
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
-    const expected = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    const a = enc.encode(signature), b = enc.encode(expected);
-    let diff = a.length === b.length ? 0 : 1;
-    for (let i = 0; i < Math.min(a.length, b.length); i++) diff |= a[i] ^ b[i];
-    if (diff !== 0) return json({ error: "Invalid signature" }, 401);
+    let bodyPre: Record<string, unknown> = {};
+    try { bodyPre = JSON.parse(rawBody); } catch { /* vuoto */ }
+    let companyPerChiave: string | null = null;
+    {
+      const idAg = (bodyPre.agent_id as string) ?? null;
+      if (idAg) {
+        for (const tab of ["ai_agents_v2", "ai_agents", "internal_ai_agents"] as const) {
+          const { data } = await admin.from(tab).select("company_id").eq("elevenlabs_agent_id", idAg).maybeSingle();
+          if (data?.company_id) { companyPerChiave = data.company_id as string; break; }
+        }
+      }
+    }
+    const perUrl = await chiaveUrlValida(req, companyPerChiave);
+    if (!perUrl) {
+      const haFirma = !!(req.headers.get("elevenlabs-signature") || req.headers.get("xi-signature"));
+      if (!haFirma) return json({ error: "Unauthorized: chiave URL mancante o non valida" }, 401);
+      const firma = await verificaFirmaElevenLabs(req, rawBody);
+      if (!firma.ok) return json({ error: firma.motivo }, firma.status);
+    }
 
-    const body = await req.json();
-    // Campi del webhook di inizializzazione ElevenLabs (telefonia)
+    const body = bodyPre;
+    // Campi del webhook di inizializzazione ElevenLabs (telefonia):
+    // caller_id, agent_id, called_number, call_sid, conversation_id
     const elevenlabsAgentId: string | null = body.agent_id ?? null;
     const callerId: string | null = body.caller_id ?? body.caller_phone ?? null;
 
     // Default sicuri: valgono per chiamante sconosciuto E per ogni errore a
     // valle — l'agente non deve mai ricevere {{variabili}} non risolte.
     const vars: Record<string, string> = {
+      // Tutti i template dicono "{{azienda}}": senza, il modello legge la
+      // parentesi graffa a voce. Valorizzata appena si conosce l'azienda.
+      azienda: "",
+      telefono_azienda: "",
       cliente_esistente: "no",
       nome_cliente: "",
       commesse_aperte: "0",
@@ -103,6 +121,12 @@ Deno.serve(async (req) => {
       if (data?.company_id) { companyId = data.company_id as string; break; }
     }
     if (!companyId) return json(rispostaBase);
+
+    {
+      const { data: az } = await admin.from("companies").select("name, phone").eq("id", companyId).maybeSingle();
+      vars.azienda = String(az?.name ?? "");
+      vars.telefono_azienda = String(az?.phone ?? "");
+    }
 
     // ── Cliente dal numero (match sugli ultimi 9 caratteri, come i fratelli) ──
     const safePhone = sanitizePhoneForQuery(callerId);
@@ -160,7 +184,7 @@ Deno.serve(async (req) => {
         .eq("customer_id", contact.id)
         // ticket_status è un ENUM (aperto|in_lavorazione|risolto): un valore
         // fuori lista nel filtro fa FALLIRE la query (count null → "0" sempre).
-        .neq("status", "risolto");
+        .not("status", "in", '("risolto","chiuso","annullato")');
       vars.ticket_aperti = String(count ?? 0);
     }
 
@@ -184,6 +208,7 @@ Deno.serve(async (req) => {
     return json({
       type: "conversation_initiation_client_data",
       dynamic_variables: {
+        azienda: "", telefono_azienda: "",
         cliente_esistente: "no", nome_cliente: "", commesse_aperte: "0",
         commessa_recente: "", stato_commessa: "", avanzamento_commessa: "",
         consegna_prevista: "", merce_arrivata: "no", data_arrivo_merce: "", ticket_aperti: "0",

@@ -38,6 +38,8 @@ export interface UnifiedAgentInsert {
   lingua?: string;
   llm_model?: string;
   elevenlabs_voice_id?: string;
+  /** Strumenti abilitati (edilizia_tools/system_tools): il proxy li crea su ElevenLabs. */
+  tools_config?: Record<string, unknown>;
   // Wizard-collected fields
   temperatura?: number;
   voice_nome?: string;
