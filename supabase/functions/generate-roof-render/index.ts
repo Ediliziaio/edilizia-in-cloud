@@ -3,6 +3,8 @@
 // Prompt Engine v2.0 — surgical roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { ROOF_REWRITER_PROFILE } from "../_shared/ai-provider/roofRewriterProfile.ts";
 import {
   describeFormatMismatch,
   detectImageDimensions,
@@ -916,7 +918,32 @@ Deno.serve(async (req) => {
 
       const { systemPrompt, userPrompt, promptVersion, promptPayload } =
         buildRoofPrompt(sessionLike);
-      const finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      let finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+      // META-PROMPT REWRITER: prosa di 300-450 parole al posto di ~10 800
+      // caratteri di blocchi (il prompt piu' lungo di tutti i verticali).
+      // Fallback silenzioso e loggato sui blocchi.
+      try {
+        const meta = await rewriteDomainPrompt(
+          {
+            config: { ...asRecord(session.config), __payload: promptPayload },
+            metadata: { task_kind: "render_prompt_rewrite", company_id: session.company_id as string, session_id },
+          },
+          ROOF_REWRITER_PROFILE,
+        );
+        if (meta) {
+          finalProviderPrompt = [
+            "You are an expert photorealistic Italian roof-renovation render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+            meta.userPrompt,
+            "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, changed roof outline, invented dormers or chimneys, swatch rectangles, invented objects.",
+          ].join("\n\n");
+          console.log(JSON.stringify({ lvl: "info", fn: "generate-roof-render", session_id, msg: "meta_prompt_active", rewriter_model: meta.modelUsed, rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length }));
+        } else {
+          console.warn(JSON.stringify({ lvl: "warn", fn: "generate-roof-render", session_id, msg: "meta_prompt_fallback_to_blocks" }));
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-roof-render", session_id, msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e) }));
+      }
 
       // ── Chiama il provider AI ────────────────────────────────────────────────
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
@@ -1173,7 +1200,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: same roof shape/pitch/ridge 
         .update({
           status: "completed",
           result_urls: [resultUrl],
-          prompt_used: userPrompt,
+          prompt_used: finalProviderPrompt,
           prompt_version: promptVersion,
           prompt_char_count: finalProviderPrompt.length,
           provider_key: providerKey,

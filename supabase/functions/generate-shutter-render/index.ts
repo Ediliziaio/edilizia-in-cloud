@@ -20,6 +20,8 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { SHUTTER_REWRITER_PROFILE } from "../_shared/ai-provider/shutterRewriterProfile.ts";
 import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
 import type { PersianePhotoMeta } from "../../../shared/render-persiane/types.ts";
 
@@ -453,11 +455,36 @@ Deno.serve(async (req) => {
       photoMeta,
     );
 
-    const combinedPrompt = [
+    let combinedPrompt = [
       promptResult.systemPrompt,
       promptResult.userPrompt,
       `[NEGATIVE CONSTRAINTS]\n${promptResult.negativePrompt}`,
     ].join("\n\n");
+
+    // META-PROMPT REWRITER (stesso path di infissi, bagno, stanza, pavimento,
+    // facciata): prosa di 300-450 parole al posto di ~6 500 caratteri di
+    // blocchi. Fallback silenzioso e loggato sui blocchi.
+    try {
+      const meta = await rewriteDomainPrompt(
+        {
+          config: promptResult.normalizedConfig,
+          metadata: { task_kind: "render_prompt_rewrite", company_id: session.company_id, session_id },
+        },
+        SHUTTER_REWRITER_PROFILE,
+      );
+      if (meta) {
+        combinedPrompt = [
+          "You are an expert photorealistic Italian window-shutter render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+          meta.userPrompt,
+          `[NEGATIVE CONSTRAINTS]\n${promptResult.negativePrompt}`,
+        ].join("\n\n");
+        console.log(JSON.stringify({ lvl: "info", fn: "generate-shutter-render", session_id, msg: "meta_prompt_active", rewriter_model: meta.modelUsed, rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length }));
+      } else {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-shutter-render", session_id, msg: "meta_prompt_fallback_to_blocks" }));
+      }
+    } catch (e) {
+      console.warn(JSON.stringify({ lvl: "warn", fn: "generate-shutter-render", session_id, msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e) }));
+    }
 
     await supabase
       .from("render_persiane_sessions")

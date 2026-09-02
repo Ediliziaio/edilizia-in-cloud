@@ -3,6 +3,8 @@
 // Prompt Engine v1.0 — surgical outdoor pergola installation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { PERGOLA_REWRITER_PROFILE } from "../_shared/ai-provider/pergolaRewriterProfile.ts";
 import {
   describeFormatMismatch,
   detectImageDimensions,
@@ -731,7 +733,41 @@ Deno.serve(async (req) => {
         >;
       const { systemPrompt, userPrompt, promptVersion, promptPayload } =
         buildPergolaPrompt({ ...session, config: rawConfig });
-      const finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      let finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+      // META-PROMPT REWRITER: prosa di 300-450 parole al posto dei blocchi
+      // grezzi. Il compattatore legge lo stesso schema della libreria
+      // condivisa: legacy_config = config della pagina, piu' il payload del
+      // builder (mappa target, envelope, manifest, specifica).
+      try {
+        const meta = await rewriteDomainPrompt(
+          {
+            config: { legacy_config: asRecord(session.config), ...promptPayload },
+            metadata: { task_kind: "render_prompt_rewrite", company_id: session.company_id as string, session_id },
+          },
+          PERGOLA_REWRITER_PROFILE,
+        );
+        if (meta) {
+          finalProviderPrompt = [
+            "You are an expert photorealistic Italian pergola-installation render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+            meta.userPrompt,
+            // la lista del cliente arriva al modello anche se la prosa la perde
+            (() => {
+              const raw = asRecord(session.config).elementi_da_preservare;
+              const lista = Array.isArray(raw)
+                ? (raw as unknown[]).map((v) => String(v).trim()).filter(Boolean)
+                : String(raw ?? "").split(/[,;\n]/).map((v) => v.trim()).filter(Boolean);
+              return lista.length > 0 ? `Preserve EXACTLY as photographed, as listed by the customer: ${lista.join("; ")}.` : "";
+            })(),
+            "Avoid: cartoon, painterly, fake CGI, a second structure, floating posts, blocked doors or windows, changed facade or paving, swatch rectangles, invented objects.",
+          ].filter(Boolean).join("\n\n");
+          console.log(JSON.stringify({ lvl: "info", fn: "generate-pergola-render", session_id, msg: "meta_prompt_active", rewriter_model: meta.modelUsed, rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length }));
+        } else {
+          console.warn(JSON.stringify({ lvl: "warn", fn: "generate-pergola-render", session_id, msg: "meta_prompt_fallback_to_blocks" }));
+        }
+      } catch (e) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-pergola-render", session_id, msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e) }));
+      }
 
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       if (!imgResp.ok) {
@@ -980,7 +1016,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pergola, posts f
         .update({
           status: "completed",
           result_urls: [resultUrl],
-          prompt_used: userPrompt,
+          prompt_used: finalProviderPrompt,
           prompt_version: promptVersion,
           prompt_char_count: finalProviderPrompt.length,
           provider_key: providerKey,
