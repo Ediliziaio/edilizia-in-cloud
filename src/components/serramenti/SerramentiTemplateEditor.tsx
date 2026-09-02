@@ -564,14 +564,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     await upsertQuoteTemplate.mutateAsync({
       ...base,
       kind,
-      name: kind === "condizioni" ? "Condizioni serramenti" : "Termini legali serramenti",
+      name: kind === "condizioni" ? "Condizioni e termini legali serramenti" : "Termini legali serramenti",
       description: "Creato dal template preventivo serramenti.",
       body_html: text,
       body_format: "plain",
       is_default: false,
       is_active: true,
     });
-    toast.success(kind === "condizioni" ? "Condizioni salvate nei Template offerte" : "Termini legali salvati nei Template offerte", {
+    toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte", {
       description: "Ora il blocco è riutilizzabile anche nei preventivi standard.",
     });
   }, [form.condizioni_legali_testo, upsertQuoteTemplate]);
@@ -3532,7 +3532,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {/* ── Libreria condivisa ─────────────────────────────────────────── */}
       <SrCard
         title="Libreria Template offerte"
-        description="Riusa blocchi di condizioni/termini legali già salvati. Puoi applicarli direttamente qui senza passare per altri tab."
+        description={'Riusa i blocchi "Condizioni e termini legali" già salvati (clausole + privacy, recesso, foro). Puoi applicarli direttamente qui senza passare per altri tab.'}
         icon={<FileText className="h-4 w-4" />}
       >
         <div className="space-y-3">
@@ -3549,7 +3549,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </option>
               {sharedLegalTemplates.map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
-                  {tpl.kind === "condizioni" ? "📋 Condizioni" : "⚖️ Termini legali"} · {tpl.name}
+                  {tpl.kind === "condizioni" ? "📜 Condizioni e termini legali" : "⚖️ Termini legali (vecchio tipo)"} · {tpl.name}
                 </option>
               ))}
             </select>
@@ -3587,16 +3587,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               disabled={!form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
               onClick={() => saveSharedLegalTemplate("condizioni")}
             >
-              Salva come condizioni contrattuali
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs"
-              disabled={!form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
-              onClick={() => saveSharedLegalTemplate("legali")}
-            >
-              Salva come termini legali
+              Salva nella libreria come "Condizioni e termini legali"
             </Button>
           </div>
         </div>

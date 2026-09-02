@@ -41,6 +41,9 @@ export interface SrPdfData {
   incluso_investimento: string[];
   testimonianze: { quote: string; autore: string; citta?: string; intervento?: string }[];
   prossimi_passi: string[];
+  // Condizioni contrattuali e termini legali (sr_template_pdf): pagina dedicata in coda
+  condizioni_legali_testo?: string | null;
+  condizioni_legali_attivo?: boolean | null;
 
   // Economia
   totale_min: number;
@@ -210,8 +213,49 @@ function renderFooter(d: SrPdfData, page: number, total: number): string {
   `;
 }
 
+function haCondizioni(d: SrPdfData): boolean {
+  return d.condizioni_legali_attivo !== false && !!String(d.condizioni_legali_testo ?? "").trim();
+}
+
+/** Numero pagine dell'HTML generato (4 base + macro dedicate + condizioni). */
+export function countSrPdfPages(d: SrPdfData): number { return totalPages(d); }
+
 function totalPages(d: SrPdfData): number {
-  return 4 + (d.macro_pagine_dedicate?.length ?? 0);
+  return 4 + (d.macro_pagine_dedicate?.length ?? 0) + (haCondizioni(d) ? 1 : 0);
+}
+
+/**
+ * Testo semplice/markdown → HTML: "# " e "## " titoli, "- " elenco, il resto paragrafi.
+ * Il PDF scaricato dall'app stampava già questa pagina; la versione HTML
+ * pubblica (quella del link che il cliente firma) la saltava.
+ */
+function renderPaginaCondizioni(d: SrPdfData, page: number, total: number): string {
+  if (!haCondizioni(d)) return "";
+  const righe = String(d.condizioni_legali_testo).replace(/\r\n/g, "\n").split("\n");
+  const html: string[] = [];
+  let inLista = false;
+  const chiudiLista = () => { if (inLista) { html.push("</ul>"); inLista = false; } };
+  for (const raw of righe) {
+    const r = raw.trim();
+    if (!r) { chiudiLista(); continue; }
+    const h = /^(#{1,3})\s+(.+)$/.exec(r);
+    if (h) { chiudiLista(); html.push(h[1].length === 1 ? `<h2 class="section-title">${esc(h[2])}</h2>` : `<h3 class="cond-sub">${esc(h[2])}</h3>`); continue; }
+    const li = /^[-*]\s+(.+)$/.exec(r);
+    if (li) { if (!inLista) { html.push('<ul class="cond-list">'); inLista = true; } html.push(`<li>${esc(li[1])}</li>`); continue; }
+    chiudiLista(); html.push(`<p class="paragraph cond-p">${esc(r)}</p>`);
+  }
+  chiudiLista();
+  return `
+  <section class="page">
+    ${renderHeader(d, page, total)}
+    <main class="page-body">
+      <p class="overline">CONDIZIONI</p>
+      <h1 class="page-title">Condizioni contrattuali e termini legali</h1>
+      <div class="cond-body">${html.join("\n")}</div>
+    </main>
+    ${renderFooter(d, page, total)}
+  </section>
+  `;
 }
 
 function renderPage1(d: SrPdfData, total = totalPages(d)): string {
@@ -914,6 +958,12 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 @media print {
   html, body { background: white !important; }
   .print-wrap { padding: 0; }
+  .cond-body { font-size: 9.5pt; line-height: 1.5; }
+  .cond-body .section-title { margin-top: 14px; }
+  .cond-sub { font-size: 10.5pt; font-weight: 700; margin: 10px 0 3px; }
+  .cond-p { margin: 0 0 6px; }
+  .cond-list { margin: 0 0 6px 16px; padding: 0; }
+  .cond-list li { margin-bottom: 2px; }
   .page { box-shadow: none; margin: 0; page-break-after: always; }
   .page:last-child { page-break-after: auto; }
 }
@@ -938,6 +988,7 @@ export function renderSrPdfHtml(d: SrPdfData): string {
     ${renderPage3(d)}
     ${renderPage4(d)}
     ${renderPagineMacroDedicate(d)}
+    ${renderPaginaCondizioni(d, totalPages(d), totalPages(d))}
   </div>
 </body>
 </html>`;

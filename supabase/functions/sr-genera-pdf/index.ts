@@ -20,7 +20,7 @@
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { renderSrPdfHtml, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
+import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 
 interface Payload {
   progetto_id: string;
@@ -501,6 +501,8 @@ Deno.serve(async (req: Request) => {
       totale_serramenti: numSerr,
       totale_accessori: (accessori ?? []).reduce((acc: number, a: { quantita?: number }) => acc + (a.quantita ?? 1), 0),
       tipo_intervento: prog.tipo_intervento,
+      condizioni_legali_testo: tpl?.condizioni_legali_testo ?? null,
+      condizioni_legali_attivo: tpl?.condizioni_legali_attivo ?? true,
       intervento_titolo: prog.intervento_titolo || `Per ${prog.cliente_nome ?? ""}`,
       // Sintesi: usa quella esplicitamente inserita; se vuota, auto-genera dal BOM
       // così il PDF non resta mai senza sezione "L'intervento in sintesi".
@@ -621,7 +623,7 @@ Deno.serve(async (req: Request) => {
 
     // 10. Log
     const duration_ms = Date.now() - t0;
-    const pagesCount = 4 + macroPagineDedicate.length;
+    const pagesCount = countSrPdfPages(data);
     await supabaseAdmin.from("sr_pdf_generation_log").insert({
       progetto_id: prog.id,
       company_id: prog.company_id,

@@ -1193,14 +1193,14 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     await upsertQuoteTemplate.mutateAsync({
       ...base,
       kind,
-      name: kind === "condizioni" ? "Condizioni fotovoltaico" : "Termini legali fotovoltaico",
+      name: kind === "condizioni" ? "Condizioni e termini legali fotovoltaico" : "Termini legali fotovoltaico",
       description: "Creato dal template preventivo fotovoltaico.",
       body_html: text,
       body_format: "plain",
       is_default: false,
       is_active: true,
     });
-    toast.success(kind === "condizioni" ? "Condizioni salvate nei Template offerte" : "Termini legali salvati nei Template offerte");
+    toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte");
   }, [form.condizioni_legali_testo, upsertQuoteTemplate]);
 
   if (isLoading) {
@@ -2788,7 +2788,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     </option>
                     {sharedLegalTemplates.map((template) => (
                       <option key={template.id} value={template.id}>
-                        {template.kind === "condizioni" ? "Condizioni" : "Termini legali"} · {template.name}
+                        {template.kind === "condizioni" ? "📜 Condizioni e termini legali" : "⚖️ Termini legali (vecchio tipo)"} · {template.name}
                       </option>
                     ))}
                   </select>
@@ -2822,19 +2822,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     {upsertQuoteTemplate.isPending ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : null}
-                    Salva condizioni
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={!String(form.condizioni_legali_testo ?? "").trim() || upsertQuoteTemplate.isPending}
-                    onClick={() => void saveSharedLegalTemplate("legali")}
-                  >
-                    {upsertQuoteTemplate.isPending ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    Salva termini
+                    Salva nella libreria come "Condizioni e termini legali"
                   </Button>
                 </div>
               </div>

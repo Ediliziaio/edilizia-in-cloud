@@ -47212,6 +47212,7 @@ export type Database = {
       openwa_campagna_destinatari: {
         Row: {
           campagna_id: string
+          claimed_at: string | null
           contact_id: string
           created_at: string
           esito: string | null
@@ -47229,6 +47230,7 @@ export type Database = {
         }
         Insert: {
           campagna_id: string
+          claimed_at?: string | null
           contact_id: string
           created_at?: string
           esito?: string | null
@@ -47246,6 +47248,7 @@ export type Database = {
         }
         Update: {
           campagna_id?: string
+          claimed_at?: string | null
           contact_id?: string
           created_at?: string
           esito?: string | null
@@ -47508,6 +47511,7 @@ export type Database = {
           daily_sent_date: string | null
           deleted_at: string | null
           display_name: string | null
+          errori_consecutivi: number
           id: string
           last_message_at: string | null
           last_seen_at: string | null
@@ -47517,6 +47521,7 @@ export type Database = {
           session_id: string
           stato: string
           tags: string[]
+          ultimo_errore: string | null
           updated_at: string
           warmup_base: number
           warmup_step: number
@@ -47534,6 +47539,7 @@ export type Database = {
           daily_sent_date?: string | null
           deleted_at?: string | null
           display_name?: string | null
+          errori_consecutivi?: number
           id?: string
           last_message_at?: string | null
           last_seen_at?: string | null
@@ -47543,6 +47549,7 @@ export type Database = {
           session_id: string
           stato?: string
           tags?: string[]
+          ultimo_errore?: string | null
           updated_at?: string
           warmup_base?: number
           warmup_step?: number
@@ -47560,6 +47567,7 @@ export type Database = {
           daily_sent_date?: string | null
           deleted_at?: string | null
           display_name?: string | null
+          errori_consecutivi?: number
           id?: string
           last_message_at?: string | null
           last_seen_at?: string | null
@@ -47569,6 +47577,7 @@ export type Database = {
           session_id?: string
           stato?: string
           tags?: string[]
+          ultimo_errore?: string | null
           updated_at?: string
           warmup_base?: number
           warmup_step?: number
@@ -58052,10 +58061,17 @@ export type Database = {
         Row: {
           accent_color: string | null
           bank_details: string | null
+          body_format: string | null
+          body_html: string | null
           company_id: string
+          contractual_terms_text: string | null
+          cover_image_url: string | null
+          cover_subtitle: string | null
           cover_tagline: string | null
+          cover_title: string | null
           created_at: string | null
           delivery_terms_text: string | null
+          description: string | null
           font_family: string | null
           font_size_base: number
           footer_text: string | null
@@ -58065,8 +58081,15 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_default: boolean | null
+          kind: string
           layout: string
+          legal_terms_text: string | null
           line_height: number
+          linked_cover_id: string | null
+          linked_legal_id: string | null
+          linked_product_ids: string[] | null
+          linked_section_ids: string[] | null
+          linked_terms_id: string | null
           logo_position: string | null
           logo_size: string | null
           logo_url: string | null
@@ -58074,11 +58097,21 @@ export type Database = {
           page_margin_mm: number
           payment_terms_text: string | null
           primary_color: string | null
+          product_category: string | null
+          product_image_url: string | null
+          product_indicative_price: number | null
+          product_long_description: string | null
+          product_short_description: string | null
+          product_specs: Json | null
+          product_unit: string | null
           row_density: string
           secondary_color: string | null
           show_client_details: boolean | null
           show_company_details: boolean | null
+          show_contractual_terms: boolean | null
+          show_cover_image: boolean | null
           show_delivery_terms: boolean | null
+          show_legal_terms: boolean | null
           show_logo: boolean | null
           show_notes: boolean | null
           show_page_numbers: boolean | null
@@ -58089,16 +58122,24 @@ export type Database = {
           table_borders: string
           table_zebra: boolean
           text_color: string | null
+          thumbnail_url: string | null
           updated_at: string | null
           watermark_text: string | null
         }
         Insert: {
           accent_color?: string | null
           bank_details?: string | null
+          body_format?: string | null
+          body_html?: string | null
           company_id: string
+          contractual_terms_text?: string | null
+          cover_image_url?: string | null
+          cover_subtitle?: string | null
           cover_tagline?: string | null
+          cover_title?: string | null
           created_at?: string | null
           delivery_terms_text?: string | null
+          description?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -58108,8 +58149,15 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
+          kind?: string
           layout?: string
+          legal_terms_text?: string | null
           line_height?: number
+          linked_cover_id?: string | null
+          linked_legal_id?: string | null
+          linked_product_ids?: string[] | null
+          linked_section_ids?: string[] | null
+          linked_terms_id?: string | null
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
@@ -58117,11 +58165,21 @@ export type Database = {
           page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          product_category?: string | null
+          product_image_url?: string | null
+          product_indicative_price?: number | null
+          product_long_description?: string | null
+          product_short_description?: string | null
+          product_specs?: Json | null
+          product_unit?: string | null
           row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
+          show_contractual_terms?: boolean | null
+          show_cover_image?: boolean | null
           show_delivery_terms?: boolean | null
+          show_legal_terms?: boolean | null
           show_logo?: boolean | null
           show_notes?: boolean | null
           show_page_numbers?: boolean | null
@@ -58132,16 +58190,24 @@ export type Database = {
           table_borders?: string
           table_zebra?: boolean
           text_color?: string | null
+          thumbnail_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }
         Update: {
           accent_color?: string | null
           bank_details?: string | null
+          body_format?: string | null
+          body_html?: string | null
           company_id?: string
+          contractual_terms_text?: string | null
+          cover_image_url?: string | null
+          cover_subtitle?: string | null
           cover_tagline?: string | null
+          cover_title?: string | null
           created_at?: string | null
           delivery_terms_text?: string | null
+          description?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -58151,8 +58217,15 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
+          kind?: string
           layout?: string
+          legal_terms_text?: string | null
           line_height?: number
+          linked_cover_id?: string | null
+          linked_legal_id?: string | null
+          linked_product_ids?: string[] | null
+          linked_section_ids?: string[] | null
+          linked_terms_id?: string | null
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
@@ -58160,11 +58233,21 @@ export type Database = {
           page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          product_category?: string | null
+          product_image_url?: string | null
+          product_indicative_price?: number | null
+          product_long_description?: string | null
+          product_short_description?: string | null
+          product_specs?: Json | null
+          product_unit?: string | null
           row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
+          show_contractual_terms?: boolean | null
+          show_cover_image?: boolean | null
           show_delivery_terms?: boolean | null
+          show_legal_terms?: boolean | null
           show_logo?: boolean | null
           show_notes?: boolean | null
           show_page_numbers?: boolean | null
@@ -58175,6 +58258,7 @@ export type Database = {
           table_borders?: string
           table_zebra?: boolean
           text_color?: string | null
+          thumbnail_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }
@@ -58199,6 +58283,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_templates_linked_cover_id_fkey"
+            columns: ["linked_cover_id"]
+            isOneToOne: false
+            referencedRelation: "quote_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_templates_linked_legal_id_fkey"
+            columns: ["linked_legal_id"]
+            isOneToOne: false
+            referencedRelation: "quote_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_templates_linked_terms_id_fkey"
+            columns: ["linked_terms_id"]
+            isOneToOne: false
+            referencedRelation: "quote_templates"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -59820,6 +59925,7 @@ export type Database = {
           cost_billed: number | null
           cost_real: number | null
           created_at: string
+          error_message: string | null
           foto_originale_path: string | null
           foto_originale_url: string | null
           galleria_note: string | null
@@ -59848,6 +59954,7 @@ export type Database = {
           cost_billed?: number | null
           cost_real?: number | null
           created_at?: string
+          error_message?: string | null
           foto_originale_path?: string | null
           foto_originale_url?: string | null
           galleria_note?: string | null
@@ -59876,6 +59983,7 @@ export type Database = {
           cost_billed?: number | null
           cost_real?: number | null
           created_at?: string
+          error_message?: string | null
           foto_originale_path?: string | null
           foto_originale_url?: string | null
           galleria_note?: string | null
@@ -59938,6 +60046,79 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_catalog_assets: {
+        Row: {
+          altezza: number | null
+          attivo: boolean
+          bytes: number | null
+          categoria: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          etichetta: string
+          id: string
+          larghezza: number | null
+          storage_path: string
+          updated_at: string
+          verticale: string
+        }
+        Insert: {
+          altezza?: number | null
+          attivo?: boolean
+          bytes?: number | null
+          categoria: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          etichetta: string
+          id?: string
+          larghezza?: number | null
+          storage_path: string
+          updated_at?: string
+          verticale: string
+        }
+        Update: {
+          altezza?: number | null
+          attivo?: boolean
+          bytes?: number | null
+          categoria?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          etichetta?: string
+          id?: string
+          larghezza?: number | null
+          storage_path?: string
+          updated_at?: string
+          verticale?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_catalog_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "render_catalog_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_catalog_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -62770,6 +62951,8 @@ export type Database = {
           color_secondary: string | null
           color_text: string | null
           company_id: string
+          condizioni_legali_attivo: boolean
+          condizioni_legali_testo: string | null
           consulente_default: Json | null
           cover_image_url: string | null
           cover_logo_position: string | null
@@ -62841,6 +63024,8 @@ export type Database = {
           color_secondary?: string | null
           color_text?: string | null
           company_id: string
+          condizioni_legali_attivo?: boolean
+          condizioni_legali_testo?: string | null
           consulente_default?: Json | null
           cover_image_url?: string | null
           cover_logo_position?: string | null
@@ -62912,6 +63097,8 @@ export type Database = {
           color_secondary?: string | null
           color_text?: string | null
           company_id?: string
+          condizioni_legali_attivo?: boolean
+          condizioni_legali_testo?: string | null
           consulente_default?: Json | null
           cover_image_url?: string | null
           cover_logo_position?: string | null
@@ -82072,13 +82259,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -82088,7 +82268,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "v_ordine_esposizione"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -82101,13 +82281,20 @@ export type Database = {
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
+            columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
@@ -84689,6 +84876,37 @@ export type Database = {
           },
           {
             foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      v_quote_template_counts: {
+        Row: {
+          active_count: number | null
+          company_id: string | null
+          kind: string | null
+          total_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_templates_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "customer_profile"
@@ -88090,52 +88308,40 @@ export type Database = {
           variante: string
         }[]
       }
-      openwa_campagna_anteprima:
-        | {
-            Args: {
-              p_citta?: string
-              p_limite?: number
-              p_provincia?: string
-              p_source?: string
-              p_tags?: string[]
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              p_citta?: string
-              p_giorni_riposo?: number
-              p_limite?: number
-              p_provincia?: string
-              p_source?: string
-              p_tags?: string[]
-            }
-            Returns: number
-          }
-      openwa_campagna_carica_lista:
-        | {
-            Args: {
-              p_campagna_id: string
-              p_citta?: string
-              p_limite?: number
-              p_provincia?: string
-              p_source?: string
-              p_tags?: string[]
-            }
-            Returns: number
-          }
-        | {
-            Args: {
-              p_campagna_id: string
-              p_citta?: string
-              p_giorni_riposo?: number
-              p_limite?: number
-              p_provincia?: string
-              p_source?: string
-              p_tags?: string[]
-            }
-            Returns: number
-          }
+      openwa_campagna_anteprima: {
+        Args: {
+          p_citta?: string
+          p_giorni_riposo?: number
+          p_limite?: number
+          p_provincia?: string
+          p_source?: string
+          p_tags?: string[]
+        }
+        Returns: number
+      }
+      openwa_campagna_candidati: {
+        Args: {
+          p_citta: string
+          p_giorni_riposo: number
+          p_limite: number
+          p_provincia: string
+          p_source: string
+          p_tags: string[]
+        }
+        Returns: string[]
+      }
+      openwa_campagna_carica_lista: {
+        Args: {
+          p_campagna_id: string
+          p_citta?: string
+          p_giorni_riposo?: number
+          p_limite?: number
+          p_provincia?: string
+          p_source?: string
+          p_tags?: string[]
+        }
+        Returns: number
+      }
       openwa_campagna_prossimi: {
         Args: { p_limit?: number }
         Returns: {
@@ -88146,6 +88352,10 @@ export type Database = {
           tags_numeri: string[]
           tipo: string
         }[]
+      }
+      openwa_campagna_riprova_falliti: {
+        Args: { p_campagna_id: string }
+        Returns: number
       }
       openwa_campagna_risposte: {
         Args: { p_campagna_id: string }
@@ -88161,10 +88371,9 @@ export type Database = {
           wa_chat_id: string
         }[]
       }
-      openwa_campagna_segna_risposta: {
-        Args: { p_contact_id: string }
-        Returns: number
-      }
+      openwa_campagna_segna_risposta:
+        | { Args: { p_contact_id: string }; Returns: number }
+        | { Args: { p_phone: string }; Returns: number }
       openwa_campagne_completa_finite: { Args: never; Returns: number }
       openwa_campagne_riepilogo: {
         Args: never

@@ -43,6 +43,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
+import type { QuoteTemplate } from "@/types/quoteTemplate";
+
+/** Blocco della libreria Template offerte → testo semplice per la textarea. */
+function testoDaBloccoLibreria(template: QuoteTemplate): string {
+  const raw = String(template.body_html ?? template.contractual_terms_text ?? template.legal_terms_text ?? "");
+  return raw
+    .replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ").replace(/<h[1-6][^>]*>/gi, "\n").replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -165,6 +177,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
   | "gallery_lavori"
+  | "condizioni_legali_attivo" | "condizioni_legali_testo"
 >> & RstCoverPatch & {
   /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
   pdf_cover_eyebrow: string | null;
@@ -227,6 +240,8 @@ function templateToForm(t: RstTemplatePdf): FormState {
     payment_terms_text: t.payment_terms_text ?? "",
     validity_text: t.validity_text ?? "",
     footer_text: t.footer_text ?? "",
+    condizioni_legali_attivo: (t as { condizioni_legali_attivo?: boolean | null }).condizioni_legali_attivo ?? true,
+    condizioni_legali_testo: (t as { condizioni_legali_testo?: string | null }).condizioni_legali_testo ?? "",
     show_chi_siamo: t.show_chi_siamo ?? true,
     show_cronoprogramma: t.show_cronoprogramma ?? true,
     show_margine: t.show_margine ?? false,
@@ -289,6 +304,8 @@ interface GeneratedTemplateTexts {
   payment_terms_text?: string | null;
   validity_text?: string | null;
   footer_text?: string | null;
+  condizioni_legali_attivo?: boolean | null;
+  condizioni_legali_testo?: string | null;
 }
 
 interface Props {
@@ -354,6 +371,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     hydratedRef.current = true;
   }, [template]);
 
+  // Libreria Template offerte: i blocchi "Condizioni e termini legali" (e i vecchi "legali")
+  const { templates: templatesLibreria } = useQuoteTemplates();
+  const blocchiCondizioni = useMemo(
+    () => templatesLibreria.filter((t) => t.is_active !== false && (t.kind === "condizioni" || t.kind === "legali")),
+    [templatesLibreria],
+  );
+  const [bloccoLibreriaId, setBloccoLibreriaId] = useState("");
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     setDirty(true);
@@ -361,6 +385,15 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
   // ─── Cover preset 1-click (parità Serramenti) ──────────────────────────────
   // Applica in batch tutti i campi pdf_cover_* di un preset layout.
+  const applicaBloccoLibreria = (mode: "replace" | "append") => {
+    const blocco = blocchiCondizioni.find((b) => b.id === bloccoLibreriaId);
+    if (!blocco) return;
+    const testo = testoDaBloccoLibreria(blocco);
+    if (!testo) return;
+    const attuale = String(form.condizioni_legali_testo ?? "").trim();
+    set("condizioni_legali_testo", mode === "append" && attuale ? `${attuale}\n\n${testo}` : testo);
+  };
+
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [stockCategoria, setStockCategoria] = useState<(typeof COVER_STOCK_CATEGORIE)[number]["value"]>("all");
   const applyCoverPreset = (patch: CoverPresetPatch) => {
@@ -1314,6 +1347,47 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => set("footer_text", e.target.value)}
                     placeholder="Testo aggiuntivo nel footer (opzionale)"
                   />
+                </div>
+
+                {/* Condizioni contrattuali e termini legali: pagina dedicata in coda al PDF,
+                    con import dalla libreria Template offerte (stesso blocco degli altri moduli). */}
+                <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Condizioni contrattuali e termini legali</p>
+                      <p className="text-xs text-muted-foreground">Garanzia, varianti, penali, privacy, recesso, foro: una pagina dedicata in fondo al PDF.</p>
+                    </div>
+                    <Switch checked={form.condizioni_legali_attivo !== false} onCheckedChange={(v) => set("condizioni_legali_attivo", v)} />
+                  </div>
+                  {form.condizioni_legali_attivo !== false && (
+                    <>
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                        <select
+                          value={bloccoLibreriaId}
+                          onChange={(e) => setBloccoLibreriaId(e.target.value)}
+                          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+                        >
+                          <option value="">
+                            {blocchiCondizioni.length > 0 ? "Riusa un blocco dalla libreria Template offerte…" : "Nessun blocco in libreria: scrivi qui sotto"}
+                          </option>
+                          {blocchiCondizioni.map((b) => (
+                            <option key={b.id} value={b.id}>{b.kind === "condizioni" ? "📜" : "⚖️"} {b.name}</option>
+                          ))}
+                        </select>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" disabled={!bloccoLibreriaId} onClick={() => applicaBloccoLibreria("replace")}>Sostituisci</Button>
+                          <Button size="sm" variant="outline" disabled={!bloccoLibreriaId} onClick={() => applicaBloccoLibreria("append")}>Aggiungi in coda</Button>
+                        </div>
+                      </div>
+                      <Textarea
+                        value={form.condizioni_legali_testo ?? ""}
+                        onChange={(e) => set("condizioni_legali_testo", e.target.value)}
+                        rows={12}
+                        className="font-mono text-[12px] leading-relaxed"
+                        placeholder={"# Condizioni contrattuali\n\n## 1. Oggetto\n...\n\n# Termini legali\n\n## Privacy (GDPR)\n...\n## Diritto di recesso\n...\n## Foro competente\n..."}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </SectionCard>

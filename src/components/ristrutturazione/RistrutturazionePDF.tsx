@@ -689,6 +689,23 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
   };
   const showFooterVersion = t.show_footer_version !== false;
   const showFooterLegal = t.show_footer_legal === true;
+  // Condizioni contrattuali e termini legali: testo semplice/markdown → righe tipizzate
+  const tCond = t as { condizioni_legali_attivo?: boolean | null; condizioni_legali_testo?: string | null };
+  const righeCondizioniLegali: Array<{ tipo: "h1" | "h2" | "li" | "p"; testo: string }> =
+    tCond.condizioni_legali_attivo === false
+      ? []
+      : String(tCond.condizioni_legali_testo ?? "")
+          .replace(/\r\n/g, "\n")
+          .split("\n")
+          .map((riga) => riga.trim())
+          .filter(Boolean)
+          .map((riga) => {
+            const h = /^(#{1,3})\s+(.+)$/.exec(riga);
+            if (h) return { tipo: h[1].length === 1 ? "h1" as const : "h2" as const, testo: h[2] };
+            const li = /^[-*]\s+(.+)$/.exec(riga);
+            if (li) return { tipo: "li" as const, testo: li[1] };
+            return { tipo: "p" as const, testo: riga };
+          });
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   // Scala logo cover (60–160%) — parity con gli altri moduli; la colonna
@@ -1203,6 +1220,22 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
         <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
+      {/* ─── CONDIZIONI CONTRATTUALI E TERMINI LEGALI (pagina dedicata, come negli altri moduli) ─── */}
+      {righeCondizioniLegali.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Condizioni contrattuali e termini legali</Text>
+          <View style={{ marginTop: 6 }}>
+            {righeCondizioniLegali.map((r, i) =>
+              r.tipo === "h1" ? <Text key={i} style={[styles.condTitle, { fontSize: 11.5, marginTop: 10 }]}>{r.testo}</Text>
+              : r.tipo === "h2" ? <Text key={i} style={[styles.condTitle, { marginTop: 8 }]}>{r.testo}</Text>
+              : r.tipo === "li" ? <Text key={i} style={[styles.condText, { marginLeft: 10, marginBottom: 2 }]}>{`- ${r.testo}`}</Text>
+              : <Text key={i} style={[styles.condText, { marginBottom: 5 }]}>{r.testo}</Text>
+            )}
+          </View>
+          {footer}
+        </Page>
+      )}
     </Document>
   );
 }
