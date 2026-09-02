@@ -177,7 +177,7 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
             return (
               <Card
                 key={item.value}
-                className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+                className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && set("operazione", item.value)}
               >
                 <CardContent className="p-3 space-y-1">
@@ -201,7 +201,7 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
             return (
               <Card
                 key={item.value}
-                className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+                className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setInserimento("zona", item.value)}
               >
                 <CardContent className="p-3 space-y-1">

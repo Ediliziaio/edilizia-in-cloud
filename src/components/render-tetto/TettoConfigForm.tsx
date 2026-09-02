@@ -231,7 +231,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               <Card
                 key={item.value}
                 className={`cursor-pointer transition-all ${
-                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"
+                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setIntervento(item.value)}
               >
@@ -258,7 +258,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               <Card
                 key={item.value}
                 className={`cursor-pointer transition-all ${
-                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"
+                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setTarget("scope", item.value)}
               >
@@ -295,7 +295,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 className={`cursor-pointer transition-all ${
                   selected
                     ? "ring-2 ring-primary border-primary"
-                    : "hover:border-primary/40"
+                    : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && handleMantoSelect(m.value)}
               >

@@ -291,7 +291,7 @@ function VisualOptionGrid(props: {
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                 selected
                   ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border/70 hover:border-primary/40 hover:bg-muted/40",
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow",
               )}
             >
               <div
@@ -428,7 +428,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 "rounded-xl border px-3 py-3 text-left transition-all",
                 value.tipo_intervento === opt.value
                   ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border/70 hover:border-primary/30 hover:bg-muted/30",
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow",
               )}
               onClick={() => update({ tipo_intervento: opt.value })}
             >
@@ -1154,7 +1154,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                           type="button"
                           className={cn(
                             "flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-all",
-                            selected ? "border-primary bg-primary/5" : "border-border/70 hover:border-primary/30 hover:bg-muted/30",
+                            selected ? "border-primary bg-primary/5" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow",
                           )}
                           onClick={() => update({ parete: { ...value.parete, colore_hex: preset.value } })}
                         >

@@ -331,7 +331,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               className={`rounded-lg border p-2 text-left transition-all text-xs
                 ${value.tipo === ft.value
                   ? "border-primary bg-primary/5 ring-2 ring-primary/25"
-                  : "border-border hover:border-primary/40"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               <div className="mb-2 h-8 rounded border" style={{ background: ft.preview }} />
@@ -389,7 +389,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                 className={`rounded-lg border p-2 text-left text-xs transition-all
                   ${value.essenza_legno === wood.value
                     ? "border-primary bg-primary/5 ring-2 ring-primary/25"
-                    : "border-border hover:border-primary/40"
+                    : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                   } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
                 <span className="mb-1 block h-6 rounded border" style={{ backgroundColor: wood.color }} />
@@ -434,7 +434,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               className={`rounded-lg border p-2 text-left text-xs transition-all
                 ${value.pattern_posa === p.value
                   ? "border-primary bg-primary/5 ring-2 ring-primary/25"
-                  : "border-border hover:border-primary/40"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               <span className="mb-2 block h-7 rounded bg-muted" style={{ backgroundImage: p.preview }} />

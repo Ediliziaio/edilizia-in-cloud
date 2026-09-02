@@ -127,7 +127,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${
                 value.tipo_stanza === v
                   ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
-                  : "border-border hover:border-primary/40"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
               onClick={() => set("tipo_stanza", v)}
             >
@@ -150,7 +150,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition-all ${
                 value.stile_target === v
                   ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
-                  : "border-border hover:border-primary/40"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
               onClick={() => set("stile_target", v)}
             >
@@ -173,7 +173,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-center transition-all ${
                 value.intensita === v
                   ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-primary/40"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
               onClick={() => set("intensita", v)}
             >

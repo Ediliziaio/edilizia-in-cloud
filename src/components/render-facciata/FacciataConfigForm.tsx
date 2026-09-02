@@ -103,7 +103,7 @@ interface FacciataConfigFormProps {
 function cardClass(active: boolean) {
   return active
     ? "border-orange-500 bg-orange-50 shadow-sm"
-    : "border-border hover:border-orange-300";
+    : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow";
 }
 
 export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfigFormProps) {

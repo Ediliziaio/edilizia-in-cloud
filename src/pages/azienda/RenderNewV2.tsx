@@ -1737,7 +1737,7 @@ function StepTargeting({
                   onClick={() => toggle(opening.id)}
                   className={cn(
                     "rounded-2xl border p-4 text-left transition",
-                    checked ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                    checked ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -2010,7 +2010,7 @@ function StepFiniture({
                     onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
                     className={cn(
                       "relative rounded-2xl border-2 p-3 text-left transition flex gap-3",
-                      selected ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                      selected ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                     )}
                   >
                     {recommended && !selected && (
@@ -2056,7 +2056,7 @@ function StepFiniture({
                   onClick={() => setState((current) => ({ ...current, coloreHw: hardware.id as WizardHw }))}
                   className={cn(
                     "rounded-2xl border p-3 text-left transition",
-                    state.coloreHw === hardware.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                    state.coloreHw === hardware.id ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                   )}
                 >
                   <div className="h-11 rounded-xl border" style={{ background: hardware.hex }} />
@@ -2126,7 +2126,7 @@ function StepAccessori({
               onClick={() => setState((current) => ({ ...current, cass: !current.cass }))}
               className={cn(
                 "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
-                state.cass ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                state.cass ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
               )}
             >
               <SelectionMark checked={state.cass} />
@@ -2693,7 +2693,7 @@ function ColorSwatch({
         "group relative overflow-hidden rounded-2xl border-2 transition-all text-left",
         selected
           ? "border-orange-500 ring-2 ring-orange-200"
-          : "border-border hover:border-orange-300",
+          : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
       )}
       title={color.nome}
     >
@@ -2849,7 +2849,9 @@ function HandlePreview({ kind, finish }: { kind: string; finish: string }) {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div className="text-sm font-semibold">{children}</div>;
+  // Separatore sopra ogni sezione: le scelte di un blocco non si confondono
+  // con quelle del blocco precedente.
+  return <div className="border-t border-slate-200 pt-4 text-sm font-semibold">{children}</div>;
 }
 
 function SelectionMark({ checked }: { checked: boolean }) {
@@ -2884,15 +2886,27 @@ function ChoiceCard({
       type="button"
       disabled={disabled}
       onClick={onClick}
+      aria-pressed={selected}
       className={cn(
-        "rounded-2xl border p-4 text-left transition",
+        "relative rounded-2xl border p-4 pr-10 text-left transition",
         disabled
           ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 opacity-70"
           : selected
-            ? "border-orange-500 bg-orange-50"
-            : "border-border hover:border-orange-300",
+            ? "border-orange-500 bg-orange-50 ring-1 ring-orange-300"
+            : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
       )}
     >
+      {/* Indicatore radio: dice a colpo d'occhio che la scheda e' una scelta,
+          anche quando il bordo si vede poco. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full border-2",
+          selected ? "border-orange-500 bg-orange-500" : "border-slate-300 bg-white",
+        )}
+      >
+        {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+      </span>
       <div className="text-sm font-semibold">{title}</div>
       <div className="mt-1 text-sm text-muted-foreground">{desc}</div>
     </button>

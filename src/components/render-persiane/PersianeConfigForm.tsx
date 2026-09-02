@@ -177,7 +177,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
             className={`rounded-xl border p-3 text-left transition-all ${
               value.target_mode === "all_visible" || value.applica_tutte_finestre
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                : "border-border hover:border-muted-foreground/30"
+                : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
             <p className="text-sm font-medium">Tutte le aperture</p>
@@ -190,7 +190,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
             className={`rounded-xl border p-3 text-left transition-all ${
               value.target_mode === "main_opening"
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                : "border-border hover:border-muted-foreground/30"
+                : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
             <p className="text-sm font-medium">Solo apertura principale</p>
@@ -203,7 +203,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
             className={`rounded-xl border p-3 text-left transition-all ${
               value.target_mode === "selected_openings"
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                : "border-border hover:border-muted-foreground/30"
+                : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             } ${!canSelectSpecificOpenings ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             <p className="text-sm font-medium">Aperture selezionate</p>
@@ -222,7 +222,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   disabled={disabled}
                   onClick={() => toggleOpening(opening.id)}
                   className={`rounded-xl border p-3 text-left transition-all ${
-                    active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                    active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -251,7 +251,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               className={`rounded-xl border p-3 text-left transition-all ${
                 value.operazione === opValue
                   ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "border-border hover:border-muted-foreground/30"
+                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
             >
               <div className="flex items-start gap-3">
@@ -287,7 +287,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 className={`rounded-xl border p-3 text-left transition-all ${
                   value.tipo === shutterType
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                    : "border-border hover:border-muted-foreground/30"
+                    : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -318,7 +318,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 className={`rounded-xl border p-3 text-left transition-all ${
                   value.materiale === material.value
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                    : "border-border hover:border-muted-foreground/30"
+                    : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
                 <p className="text-sm font-medium">{material.label}</p>
@@ -345,7 +345,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                 value.colore_mode === "ral"
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground"
+                  : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
             >
               Colore RAL
@@ -357,7 +357,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                 value.colore_mode === "legno"
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground"
+                  : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
             >
               Effetto legno
@@ -382,7 +382,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                       })
                     }
                     className={`rounded-xl border p-3 text-left transition-all ${
-                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -407,7 +407,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     disabled={disabled}
                     onClick={() => set("effetto_legno", effect.value)}
                     className={`rounded-xl border p-3 text-left transition-all ${
-                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
                     <div className="h-10 rounded-lg border border-black/10" style={{ background: effect.swatch }} />
@@ -442,7 +442,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     disabled={disabled}
                     onClick={() => set("colore_profilo_hex", color.hex)}
                     className={`rounded-xl border p-3 text-left transition-all ${
-                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                      active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -473,7 +473,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 className={`rounded-xl border p-3 text-left transition-all ${
                   value.stato_apertura === state.value
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                    : "border-border hover:border-muted-foreground/30"
+                    : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
                 <p className="text-sm font-medium">{state.label}</p>
