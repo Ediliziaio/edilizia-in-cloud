@@ -38,6 +38,9 @@ import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDial
 import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
+import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
+import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/paymentTerms";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
@@ -314,6 +317,7 @@ export default function QuoteBuilder() {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
+  const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Gate PER-AZIENDA. Vista margini (link "Margini", margini inline legacy) →
@@ -362,6 +366,8 @@ export default function QuoteBuilder() {
   const [internalNotes, setInternalNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentPhases, setPaymentPhases] = useState<QuotePaymentPhase[]>([]);
+  // Ripartizione bonus decisa già in preventivo: la commessa la eredita.
+  const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [selectedRenders, setSelectedRenders] = useState<{ id: string; result_url: string | null; render_type: string; session_table: string }[]>([]);
 
   // P03: Step 0 extras
@@ -644,6 +650,7 @@ export default function QuoteBuilder() {
     setLayoutOverride,
     setPaymentMethod,
     setPaymentPhases,
+    setBonusLines,
   });
 
   // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
@@ -1531,6 +1538,12 @@ export default function QuoteBuilder() {
   // autoritativi della funzione: total = totaliPro.totale, vatAmount = total - netto.
   const total = totaliPro.totale;
   const vatAmount = Math.round((total - totaliPro.subtotale_netto) * 100) / 100;
+  // La ripartizione bonus ragiona sull'IMPONIBILE (come orders.total_amount).
+  // Le righe del preventivo possono avere aliquote diverse: qui serve solo una
+  // media per stimare il lordo dei bonifici, non un dato fiscale.
+  const imponibilePreventivo = totaliPro.subtotale_netto;
+  const aliquotaMediaPreventivo =
+    imponibilePreventivo > 0 ? ((total / imponibilePreventivo) - 1) * 100 : 22;
 
   // #40 Governance — valutazione (non bloccante) doppia approvazione sul netto.
   const approvazioneEsito = useMemo(
@@ -1588,6 +1601,7 @@ export default function QuoteBuilder() {
         internal_notes: internalNotes || null,
         payment_method: paymentMethod || null,
         payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total) : null,
+        bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
         created_by: user.id,
@@ -1999,6 +2013,23 @@ export default function QuoteBuilder() {
                 onPhasesChange={setPaymentPhases}
               />
             </div>
+
+            {/* Blocco 3c: ripartizione tra bonus edilizi (opt-in azienda). Si decide
+                qui perché è quello che il cliente firma; la commessa la eredita. */}
+            {bonusMultipliEnabled && (
+              <div className="border-t pt-4">
+                <BonusLinesCard
+                  lines={bonusLines}
+                  onChange={setBonusLines}
+                  totaleCommessa={imponibilePreventivo}
+                  vatRate={aliquotaMediaPreventivo}
+                  datiCausale={{
+                    cfBeneficiario: clientFiscalCode || null,
+                    pivaImpresa: effectiveCompany?.vat_number ?? null,
+                  }}
+                />
+              </div>
+            )}
 
             {/* Blocco 4: Dettagli lavoro */}
             <div className="space-y-3 border-t pt-4">

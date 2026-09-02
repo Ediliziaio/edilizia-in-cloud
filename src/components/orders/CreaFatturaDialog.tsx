@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DetrazioniFiscaliFields } from "@/components/orders/DetrazioniFiscaliFields";
 import { type DetrazioneValue, EMPTY_DETRAZIONE } from "@/lib/fatturazione/detrazioniEdilizie";
+import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { parseBonusLines, getPreset, causaleBonificoParlante } from "@/lib/orders/bonusFiscali";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -315,6 +317,24 @@ export function CreaFatturaDialog({
   // Detrazioni fiscali edilizie + causale/note editabile (richiesta utente:
   // "permetti anche la modifica" + clausole detrazioni per l'edilizia).
   const [detrazione, setDetrazione] = useState<DetrazioneValue>(EMPTY_DETRAZIONE);
+
+  // Commessa ripartita su più bonus: la fattura riguarda UNA pratica, quindi
+  // una sola clausola. Qui la si sceglie invece di riscriverla a mano.
+  const { bonusMultipli } = useBonusFiscaliFlags();
+  const { data: bonusLines = [] } = useQuery({
+    queryKey: ["order-bonus-lines", orderId],
+    enabled: open && bonusMultipli && !!orderId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_bonus_lines")
+        .select("*")
+        .eq("order_id", orderId)
+        .order("position");
+      if (error) throw error;
+      return parseBonusLines(data);
+    },
+  });
   const [noteOverride, setNoteOverride] = useState<string | null>(null);
   const autoNote = useMemo(() => {
     const rataLabel = selectedInstallment
@@ -667,6 +687,42 @@ export function CreaFatturaDialog({
               Modificabile. Righe e importi li rifinisci nell'editor che si apre dopo la creazione.
             </p>
           </div>
+          {bonusLines.length > 0 && (
+            <div className="rounded-lg border bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-2">
+              <p className="text-xs font-semibold">A quale pratica si riferisce questa fattura?</p>
+              <p className="text-[11px] text-muted-foreground">
+                La commessa è divisa su {bonusLines.length} agevolazioni: scegline una e la clausola
+                si compila da sola.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {bonusLines.map((l) => {
+                  const preset = getPreset(l.presetId);
+                  const attiva = detrazione.active && detrazione.presetId === l.presetId;
+                  return (
+                    <Button
+                      key={l.position}
+                      type="button"
+                      size="sm"
+                      variant={attiva ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() =>
+                        setDetrazione({
+                          ...detrazione,
+                          active: true,
+                          presetId: l.presetId,
+                          clausola: l.causale?.trim() || preset?.clausola || causaleBonificoParlante(l),
+                          manodoperaEvidenzia:
+                            detrazione.manodoperaEvidenzia || !!preset?.manodoperaConsigliata,
+                        })
+                      }
+                    >
+                      {l.label || preset?.label || "Agevolazione"} · {fmt(l.imponibile)}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <DetrazioniFiscaliFields value={detrazione} onChange={setDetrazione} />
         </div>
 

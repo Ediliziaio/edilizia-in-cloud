@@ -16,6 +16,18 @@ export interface DetrazionePreset {
   clausola: string;
   /** Per questi è prassi evidenziare il costo della manodopera. */
   manodoperaConsigliata?: boolean;
+  /**
+   * Aliquota di detrazione NUMERICA (non l'IVA), usata dalla ripartizione bonus
+   * della commessa per stimare quanto recupera il cliente. Dove la forbice è
+   * ampia (es. Ecobonus 50–65%) si usa il valore più prudente.
+   */
+  aliquotaNum?: number;
+  /** Tetto di spesa detraibile per unità immobiliare, in € (indicativo). */
+  tettoSpesa?: number;
+  /** L'agevolazione richiede il bonifico "parlante" (→ ritenuta 11% in banca). */
+  richiedeBonificoParlante?: boolean;
+  /** Riferimento normativo compatto, da mettere nella causale del bonifico. */
+  norma?: string;
 }
 
 /** Nota standard sul "bonifico parlante", riusata da più preset. */
@@ -25,6 +37,10 @@ const BONIFICO =
 export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
   {
     id: "ristrutturazione_50",
+    aliquotaNum: 50,
+    tettoSpesa: 96_000,
+    richiedeBonificoParlante: true,
+    norma: "art. 16-bis DPR 917/1986",
     label: "Ristrutturazione edilizia (Bonus Casa)",
     aliquota: "50%",
     clausola:
@@ -34,6 +50,10 @@ export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
   },
   {
     id: "ecobonus",
+    aliquotaNum: 50,
+    tettoSpesa: 60_000,
+    richiedeBonificoParlante: true,
+    norma: "art. 14 D.L. 63/2013",
     label: "Ecobonus — riqualificazione energetica",
     aliquota: "50–65%",
     clausola:
@@ -43,6 +63,10 @@ export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
   },
   {
     id: "sismabonus",
+    aliquotaNum: 50,
+    tettoSpesa: 96_000,
+    richiedeBonificoParlante: true,
+    norma: "art. 16 D.L. 63/2013",
     label: "Sismabonus — interventi antisismici",
     aliquota: "fino a 85%",
     clausola:
@@ -51,6 +75,10 @@ export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
   },
   {
     id: "barriere_75",
+    aliquotaNum: 75,
+    tettoSpesa: 50_000,
+    richiedeBonificoParlante: true,
+    norma: "art. 119-ter D.L. 34/2020",
     label: "Eliminazione barriere architettoniche",
     aliquota: "75%",
     clausola:
@@ -59,7 +87,24 @@ export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
     manodoperaConsigliata: true,
   },
   {
+    id: "sicurezza_50",
+    label: "Misure antintrusione / sicurezza",
+    aliquota: "50%",
+    aliquotaNum: 50,
+    tettoSpesa: 96_000,
+    richiedeBonificoParlante: true,
+    norma: "art. 16-bis c.1 lett. f) DPR 917/1986",
+    clausola:
+      "Interventi finalizzati alla prevenzione del compimento di atti illeciti da parte di terzi (porte blindate, inferriate, serrature e infissi di sicurezza) agevolabili ai sensi dell'art. 16-bis, comma 1, lett. f) del DPR 917/1986 (TUIR). " +
+      BONIFICO,
+    manodoperaConsigliata: true,
+  },
+  {
     id: "bonus_mobili",
+    aliquotaNum: 50,
+    tettoSpesa: 5_000,
+    richiedeBonificoParlante: false,
+    norma: "art. 16 c.2 D.L. 63/2013",
     label: "Bonus mobili ed elettrodomestici",
     aliquota: "50%",
     clausola:
@@ -67,6 +112,10 @@ export const DETRAZIONI_EDILIZIE: DetrazionePreset[] = [
   },
   {
     id: "bonus_verde",
+    aliquotaNum: 36,
+    tettoSpesa: 5_000,
+    richiedeBonificoParlante: false,
+    norma: "L. 205/2017 commi 12-15",
     label: "Bonus verde — sistemazione a verde",
     aliquota: "36%",
     clausola:

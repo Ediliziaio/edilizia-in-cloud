@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { Installment } from "@/lib/orderUtils";
 import { parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
+import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
 
 /**
  * useQuotePrefill — legge un preventivo (quotes + quote_items) e lo mappa in
@@ -37,6 +38,8 @@ export interface QuotePrefill {
   installments: Installment[];
   /** Il preventivo ha un finanziamento (financing_table_id o importo finanziato). */
   hasFinancing: boolean;
+  /** Ripartizione tra bonus edilizi decisa in preventivo (vuota se non usata). */
+  bonusLines: BonusLine[];
   client: QuotePrefillClient;
 }
 
@@ -104,6 +107,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
       }));
       const paymentMethod = typeof q.payment_method === "string" ? q.payment_method : null;
       const hasFinancing = (Number(q.financing_amount) || 0) > 0 || q.financing_table_id != null;
+      const bonusLines = parseBonusLines(q.bonus_lines);
 
       const quoteTyped = quote as {
         description?: string | null;
@@ -125,6 +129,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
         paymentMethod,
         installments,
         hasFinancing,
+        bonusLines,
         client: {
           name: quoteTyped.client_name ?? "",
           email: quoteTyped.client_email ?? "",

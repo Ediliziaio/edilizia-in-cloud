@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SendSignatureDialog } from "@/components/marketing/preventivi/SendSignatureDialog";
 import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
+import { BloccaPrezzoCard } from "@/components/orders/BloccaPrezzoCard";
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -638,7 +639,10 @@ export default function QuoteDetail() {
           </QuoteCard>
         </TabsContent>
 
-        <TabsContent value="attivita" className="mt-4">
+        <TabsContent value="attivita" className="mt-4 space-y-4">
+          {/* Blocca prezzo versato alla firma, prima che la commessa esista.
+              Alla trasformazione in commessa il versamento la segue. */}
+          <BloccaPrezzoCard quoteId={id!} />
           <QuoteSignatureStatusCard
             status={quote.status}
             createdAt={quote.created_at}

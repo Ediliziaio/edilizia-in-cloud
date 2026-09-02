@@ -31,6 +31,8 @@ export interface OrdinePDFProps {
   salespeople?: unknown[];
   campoAssignments?: unknown[];
   installments?: unknown[];
+  /** Ripartizione tra bonus edilizi (order_bonus_lines), se la commessa ne ha. */
+  bonusLines?: unknown[];
   giornaleLavori?: unknown[];
   varianti?: unknown[];
   diaryEvents?: unknown[];

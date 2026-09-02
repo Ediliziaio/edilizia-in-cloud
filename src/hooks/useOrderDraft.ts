@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import type { Installment } from "@/lib/orderUtils";
+import type { BonusLine } from "@/lib/orders/bonusFiscali";
 
 export interface OrderDraftData {
   customerId: string;
@@ -31,6 +32,8 @@ export interface OrderDraftData {
   orderItems: OrderItem[];
   // Building bonus
   hasBuildingBonus: boolean;
+  // Ripartizione su più agevolazioni (opt-in azienda)
+  bonusLines?: BonusLine[];
   // Meta
   savedAt: string;
 }

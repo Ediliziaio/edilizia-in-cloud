@@ -13,6 +13,8 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
+import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -138,6 +140,8 @@ function CreateOrderInner() {
   );
   const [numInstallments, setNumInstallments] = useState(2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
+  const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   // ?action=import-contratto (dal flusso "Importa documento intelligente" di
@@ -215,6 +219,7 @@ function CreateOrderInner() {
 
   // ── Draft auto-save ─────────────────────────────────────────
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
+  const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load draft on mount
@@ -247,6 +252,7 @@ function CreateOrderInner() {
       setNumInstallments(draft.installments.length);
     }
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+    if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
@@ -266,6 +272,11 @@ function CreateOrderInner() {
     // Preventivo con finanziamento → commessa in modalità finanziamento (il "Costo
     // Finanziaria"/commissione lo conferma l'utente: dipende dalla tabella finanziaria).
     if (quotePrefill.hasFinancing) setValue("payment_type", "financing");
+    // Ripartizione bonus decisa in preventivo → arriva già divisa in commessa.
+    if (quotePrefill.bonusLines.length > 0) {
+      setBonusLines(quotePrefill.bonusLines);
+      setValue("has_building_bonus", true);
+    }
     // Contatto del preventivo → apri il dialog "Nuovo cliente" già precompilato (una volta).
     if (quotePrefill.client.name.trim()) setShowCreateCustomer(true);
   }, [quotePrefill, selectedQuoteId, setValue]);
@@ -470,6 +481,7 @@ function CreateOrderInner() {
         vatRate: vatRate || "22",
         financingCost: financingCost || "",
         hasBuildingBonus: hasBuildingBonus || false,
+        bonusLines,
         orderItems,
         installments,
       });
@@ -482,7 +494,7 @@ function CreateOrderInner() {
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
       installments, financingCost,
-      hasBuildingBonus,
+      hasBuildingBonus, bonusLines,
       orderItems, createdOrderId, saveDraft, dateToIso]);
 
   const handleClearDraft = useCallback(() => {
@@ -753,6 +765,17 @@ function CreateOrderInner() {
           .update({ quote_id: selectedQuoteId, quote_number: quotePrefill?.quoteNumber ?? null })
           .eq("id", result.id);
         if (linkErr) console.error("[CreateOrder] collegamento preventivo non riuscito:", linkErr.message);
+
+        // Il blocca prezzo versato sul preventivo segue la commessa: senza
+        // questo aggancio resterebbe orfano sul preventivo e nessuno si
+        // ricorderebbe di restituirlo.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: bpErr } = await (supabase as any)
+          .from("blocca_prezzo")
+          .update({ order_id: result.id, customer_id: values.customer_id || null })
+          .eq("quote_id", selectedQuoteId)
+          .is("order_id", null);
+        if (bpErr) console.warn("[CreateOrder] aggancio blocca prezzo alla commessa fallito:", bpErr.message);
       }
 
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
@@ -766,6 +789,26 @@ function CreateOrderInner() {
           .eq("id", result.id);
         if (sedeErr) {
           console.warn("[CreateOrder] update sede_id fallito (ordine creato comunque):", sedeErr.message);
+        }
+      }
+
+      // Ripartizione bonus → order_bonus_lines (tabella a sé, non in whitelist
+      // della RPC atomica). Best-effort: la commessa è già creata, un errore qui
+      // non deve farla sparire — ma lo diciamo, perché senza righe le causali
+      // dei bonifici parlanti non esistono.
+      if (values.has_building_bonus && bonusMultipliEnabled && bonusLines.length > 0 && result.id) {
+        const payload = serializeBonusLines(bonusLines).map((r) => ({
+          ...r,
+          order_id: result.id,
+          company_id: effectiveCompany.id,
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: bonusErr } = await (supabase as any).from("order_bonus_lines").insert(payload);
+        if (bonusErr) {
+          console.warn("[CreateOrder] salvataggio ripartizione bonus fallito:", bonusErr.message);
+          toast.error("Ripartizione bonus non salvata", {
+            description: "La commessa è stata creata: riapri la scheda e reinserisci la divisione tra agevolazioni.",
+          });
         }
       }
 
@@ -1311,6 +1354,10 @@ function CreateOrderInner() {
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
             onHasBuildingBonusChange={(val) => setValue("has_building_bonus", val)}
+            bonusMultipliEnabled={bonusMultipliEnabled}
+            bonusLines={bonusLines}
+            onBonusLinesChange={setBonusLines}
+            datiCausale={{ pivaImpresa: effectiveCompany?.vat_number ?? null }}
             financingCost={financingCost || ""}
             onFinancingCostChange={(val) => setValue("financing_cost", val)}
           />

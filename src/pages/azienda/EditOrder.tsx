@@ -40,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
+import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { type BonusLine, parseBonusLines, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
@@ -102,6 +104,7 @@ interface OrderData {
 // (React #185 "Maximum update depth exceeded") sulla pagina di modifica commessa.
 const EMPTY_DB_INSTALLMENTS: (Installment & { id: string })[] = [];
 const EMPTY_ORDER_ITEMS: OrderItemData[] = [];
+const EMPTY_BONUS_LINES: BonusLine[] = [];
 
 function EditOrderInner() {
   const { id } = useParams<{ id: string }>();
@@ -132,6 +135,8 @@ function EditOrderInner() {
   const [vatRate, setVatRate] = useState("22");
   const [financingCost, setFinancingCost] = useState("");
   const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
+  // Ripartizione su più agevolazioni (opt-in azienda).
+  const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
 
   // Dynamic installments
   const [installments, setInstallments] = useState<Installment[]>(
@@ -160,6 +165,7 @@ function EditOrderInner() {
 
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id, id);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
 
   // Calculate balance
   const total = parseDecimalIT(totalAmount);
@@ -231,6 +237,22 @@ function EditOrderInner() {
     enabled: !!id && !!user,
   });
 
+  // Fetch righe bonus (ripartizione tra agevolazioni)
+  const { data: dbBonusLines = EMPTY_BONUS_LINES } = useQuery({
+    queryKey: ["order-bonus-lines", id],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_bonus_lines")
+        .select("*")
+        .eq("order_id", id!)
+        .order("position");
+      if (error) throw error;
+      return parseBonusLines(data);
+    },
+    enabled: !!id && !!user,
+  });
+
   // Fetch order items
   const { data: existingItems = EMPTY_ORDER_ITEMS } = useQuery({
     queryKey: ["order-items", id],
@@ -298,6 +320,7 @@ function EditOrderInner() {
       setVatRate(draft.vatRate || "22");
       setFinancingCost(draft.financingCost || "");
       setHasBuildingBonus(draft.hasBuildingBonus || false);
+      if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
       if (draft.installments?.length) {
         setInstallments(draft.installments);
         setNumInstallments(draft.installments.length);
@@ -331,6 +354,8 @@ function EditOrderInner() {
     if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
     setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
     setHasBuildingBonus(order.has_building_bonus || false);
+    // Ripartizione bonus già salvata sulla commessa.
+    if (dbBonusLines.length > 0) setBonusLines(dbBonusLines);
     setAssignedTo(order.assigned_to || "");
     // Modulo Appaltatori
     setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
@@ -359,7 +384,7 @@ function EditOrderInner() {
 
     setDataLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order, dbInstallments]);
+  }, [order, dbInstallments, dbBonusLines]);
 
   // Populate order items
   useEffect(() => {
@@ -395,6 +420,7 @@ function EditOrderInner() {
       paymentType, totalAmount, vatRate,
       financingCost,
       hasBuildingBonus,
+      bonusLines,
       orderItems,
       installments,
     });
@@ -402,7 +428,7 @@ function EditOrderInner() {
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
       installments, financingCost,
-      hasBuildingBonus,
+      hasBuildingBonus, bonusLines,
       orderItems, dataLoaded, saveDraft, dateToIso, order?.customer_id]);
 
   const handleClearDraft = useCallback(() => {
@@ -421,6 +447,7 @@ function EditOrderInner() {
       setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
       setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
       setHasBuildingBonus(order.has_building_bonus || false);
+      setBonusLines(dbBonusLines);
       // Restore installments from DB or legacy
       if (dbInstallments.length > 0) {
         setInstallments(dbInstallments.map(i => ({
@@ -438,7 +465,7 @@ function EditOrderInner() {
     if (existingItems.length > 0) {
       setOrderItems(existingItems.map(mapDbItemToOrderItem));
     }
-  }, [clearDraft, order, existingItems, dbInstallments]);
+  }, [clearDraft, order, existingItems, dbInstallments, dbBonusLines]);
 
   const { data: customers = [], isLoading: isLoadingCustomers } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -548,6 +575,29 @@ function EditOrderInner() {
           expected_date: i.expected_date || null,
         }));
         await supabase.from("order_installments").insert(instRows);
+      }
+
+      // Upsert righe bonus: stesso pattern delete+insert delle rate, ma SOLO se
+      // la funzione è accesa. Con la funzione spenta la card non si vede: una
+      // delete incondizionata cancellerebbe righe che l'utente non ha nemmeno
+      // avuto modo di guardare. Spegnere il bonus edilizio, invece, le azzera
+      // per davvero: è una scelta esplicita.
+      if (bonusMultipliEnabled) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: delBonusErr } = await (supabase as any)
+          .from("order_bonus_lines").delete().eq("order_id", id!);
+        if (delBonusErr) throw delBonusErr;
+      }
+      if (hasBuildingBonus && bonusMultipliEnabled && bonusLines.length > 0) {
+        const bonusRows = serializeBonusLines(bonusLines).map((r) => ({
+          ...r,
+          order_id: id!,
+          company_id: effectiveCompany.id,
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: insBonusErr } = await (supabase as any)
+          .from("order_bonus_lines").insert(bonusRows);
+        if (insBonusErr) throw insBonusErr;
       }
 
       // Handle order items (same logic as before)
@@ -698,6 +748,7 @@ function EditOrderInner() {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
       queryClient.invalidateQueries({ queryKey: ["order-salesperson", id] });
       queryClient.invalidateQueries({ queryKey: ["order-installments", id] });
+      queryClient.invalidateQueries({ queryKey: ["order-bonus-lines", id] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
@@ -904,6 +955,13 @@ function EditOrderInner() {
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
             onHasBuildingBonusChange={setHasBuildingBonus}
+            bonusMultipliEnabled={bonusMultipliEnabled}
+            bonusLines={bonusLines}
+            onBonusLinesChange={setBonusLines}
+            datiCausale={{
+              pivaImpresa: effectiveCompany?.vat_number ?? null,
+              cfBeneficiario: null,
+            }}
             financingCost={financingCost}
             onFinancingCostChange={setFinancingCost}
           />

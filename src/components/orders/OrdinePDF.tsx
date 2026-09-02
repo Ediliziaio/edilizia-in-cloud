@@ -245,6 +245,7 @@ export interface OrdinePDFProps {
   salespeople?: any[];
   campoAssignments?: any[];
   installments?: any[];
+  bonusLines?: any[];
   giornaleLavori?: any[];
   varianti?: any[];
   diaryEvents?: any[];
@@ -269,6 +270,7 @@ export function OrdinePDF({
   salespeople = [],
   campoAssignments = [],
   installments = [],
+  bonusLines = [],
   giornaleLavori = [],
   varianti = [],
   diaryEvents = [],
@@ -456,7 +458,13 @@ export function OrdinePDF({
             </View>
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Bonus edilizio</Text>
-              <Text style={[styles.valueNormal, { fontSize: 8 }]}>{order?.has_building_bonus ? "Sì" : "No"}</Text>
+              <Text style={[styles.valueNormal, { fontSize: 8 }]}>
+                {order?.has_building_bonus
+                  ? bonusLines.length > 0
+                    ? `Sì — ${bonusLines.length} pratiche`
+                    : "Sì"
+                  : "No"}
+              </Text>
             </View>
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Pagamento</Text>
@@ -632,6 +640,47 @@ export function OrdinePDF({
           </View>
           )}
         </View>
+
+        {/* ─── BONUS EDILIZI: UNA PRATICA PER RIGA ─── */}
+        {/* Il pezzo che il cliente deve avere davanti: quanti bonifici parlanti
+            servono, di quanto e con che causale. Un bonifico solo per due
+            pratiche = una detrazione persa. */}
+        {bonusLines.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
+            <View style={styles.sectionLine} />
+            <View style={[styles.financialBox, { marginBottom: 8 }]}>
+              {bonusLines.map((b: any, idx: number) => {
+                const imp = Number(b.imponibile) || 0;
+                const lordo = imp * (1 + (Number(ivaRate) || 0) / 100);
+                const ritenuta = imp * 0.11;
+                return (
+                  <View key={idx} style={{ marginBottom: idx < bonusLines.length - 1 ? 6 : 0 }}>
+                    <View style={styles.financialRow}>
+                      <Text style={[styles.financialLabel, { fontFamily: "Helvetica-Bold" }]}>
+                        {b.label ?? `Agevolazione ${idx + 1}`}
+                      </Text>
+                      <Text style={styles.financialValue}>{fmt(lordo)}</Text>
+                    </View>
+                    <View style={styles.financialRow}>
+                      <Text style={[styles.financialLabel, { fontSize: 7 }]}>
+                        Imponibile {fmt(imp)} - ritenuta 11% {fmt(ritenuta)}
+                      </Text>
+                      <Text style={[styles.financialValue, { fontSize: 7 }]}>
+                        Netto {fmt(lordo - ritenuta)}
+                      </Text>
+                    </View>
+                    {!!b.causale && (
+                      <Text style={[styles.valueNormal, { fontSize: 7, marginTop: 2 }]}>
+                        Causale: {String(b.causale)}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* ─── MANODOPERA DIPENDENTI ─── */}
         {showCosts && laborEmployees.length > 0 && (

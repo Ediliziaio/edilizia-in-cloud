@@ -37,6 +37,12 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { Installment } from "@/lib/orderUtils";
+import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
+import {
+  type BonusLine,
+  type DatiCausale,
+  bonusLineVuota,
+} from "@/lib/orders/bonusFiscali";
 
 export type PaymentType = 'standard' | 'financing';
 export type AmountInputMode = 'net' | 'gross';
@@ -200,6 +206,12 @@ interface FinancialSummaryProps {
   onHasBuildingBonusChange?: (value: boolean) => void;
   financingCost?: string;
   onFinancingCostChange?: (value: string) => void;
+  /** Ripartizione su più agevolazioni: attiva solo per le aziende che l'hanno accesa. */
+  bonusMultipliEnabled?: boolean;
+  bonusLines?: BonusLine[];
+  onBonusLinesChange?: (lines: BonusLine[]) => void;
+  /** CF cliente / P.IVA impresa, per comporre le causali dei bonifici parlanti. */
+  datiCausale?: DatiCausale;
 }
 
 export function FinancialSummary({
@@ -210,6 +222,8 @@ export function FinancialSummary({
   balance, readOnly = false,
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange,
+  bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
+  datiCausale,
 }: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
@@ -292,6 +306,15 @@ export function FinancialSummary({
       const newVat = parseFloat(newRate) || 22;
       const newGross = total * (1 + newVat / 100);
       setRawTotalInput(newGross > 0 ? newGross.toFixed(2) : "");
+    }
+  };
+
+  // Accendere il bonus con la ripartizione attiva semina subito una riga che
+  // copre tutto l'imponibile: l'utente la spezza invece di partire dal vuoto.
+  const handleBuildingBonusChange = (value: boolean) => {
+    onHasBuildingBonusChange?.(value);
+    if (value && bonusMultipliEnabled && onBonusLinesChange && bonusLines.length === 0) {
+      onBonusLinesChange([bonusLineVuota(0, total)]);
     }
   };
 
@@ -471,10 +494,24 @@ export function FinancialSummary({
           <Switch
             id="building-bonus"
             checked={hasBuildingBonus || false}
-            onCheckedChange={onHasBuildingBonusChange}
+            onCheckedChange={handleBuildingBonusChange}
             disabled={readOnly}
           />
         </div>
+
+        {/* Ripartizione su più agevolazioni (opt-in azienda): il contratto si
+            divide fra due o più bonus, ognuno con la sua pratica e la sua
+            causale di bonifico parlante. */}
+        {hasBuildingBonus && bonusMultipliEnabled && onBonusLinesChange && (
+          <BonusLinesCard
+            lines={bonusLines}
+            onChange={onBonusLinesChange}
+            totaleCommessa={total}
+            vatRate={vat}
+            readOnly={readOnly}
+            datiCausale={datiCausale}
+          />
+        )}
 
         {/* VAT Summary */}
         <div className="p-3 rounded-lg bg-muted/50 space-y-2">

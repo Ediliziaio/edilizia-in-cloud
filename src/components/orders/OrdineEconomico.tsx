@@ -2,6 +2,8 @@ import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import { OrderCommissions } from "./OrderCommissions";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
+import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
+import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
 
 interface OrdineEconomicoProps {
   orderId: string;
@@ -20,6 +22,10 @@ interface OrdineEconomicoProps {
   conPrimaNota?: boolean;
   /** Nome cliente per il match banca↔rate (citato nelle causali). */
   clienteNome?: string | null;
+  /** id del cliente: serve ai versamenti blocca prezzo (visibilità dal portale). */
+  customerId?: string | null;
+  /** P.IVA dell'impresa, per comporre le causali dei bonifici parlanti. */
+  pivaImpresa?: string | null;
 }
 
 // NB: niente card "Conto Economico" qui — il conto economico completo
@@ -39,6 +45,8 @@ export function OrdineEconomico({
   orderCode,
   conPrimaNota,
   clienteNome,
+  customerId,
+  pivaImpresa,
 }: OrdineEconomicoProps) {
   // Le provvigioni sono un dato di margine (vedi usePermissions: can_view_margins
   // copre "margine e provvigioni"): un ruolo senza quel permesso non deve
@@ -60,6 +68,23 @@ export function OrdineEconomico({
         conPrimaNota={conPrimaNota}
         clienteNome={clienteNome}
       />
+      {/* Ripartizione su più bonus: quanti bonifici parlanti servono e con che
+          causale. Si mostra da sé solo se l'azienda l'ha accesa e le righe ci sono. */}
+      <BonusRipartizioneCard
+        orderId={orderId}
+        vatRate={vatRate}
+        hasBuildingBonus={hasBuildingBonus}
+        datiCausale={{ pivaImpresa: pivaImpresa ?? null }}
+      />
+
+      {/* Blocca prezzo: soldi che stanno FUORI dal contratto e vanno restituiti. */}
+      <BloccaPrezzoCard
+        orderId={orderId}
+        customerId={customerId}
+        hasBuildingBonus={hasBuildingBonus}
+        saldoPagato={installments.some((i) => i.type === "balance" && i.is_paid)}
+      />
+
       {permissions.canViewMargins && (
         <OrderCommissions
           orderId={orderId}

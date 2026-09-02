@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { type QuotePaymentPhase, parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
+import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
 
 /**
  * P1-4: campi extra del preventivo (migration 20260324200*_preventivo_pro_v2).
@@ -20,6 +21,7 @@ export interface QuoteExtraFields {
   template_layout_override?: string | null;
   payment_method?: string | null;
   payment_phases?: unknown;
+  bonus_lines?: unknown;
 }
 
 export interface QuoteFormSetters {
@@ -51,6 +53,7 @@ export interface QuoteFormSetters {
   setLayoutOverride: (v: string | null) => void;
   setPaymentMethod: (v: string) => void;
   setPaymentPhases: (v: QuotePaymentPhase[]) => void;
+  setBonusLines?: (v: BonusLine[]) => void;
 }
 
 interface ExistingQuoteCore {
@@ -127,5 +130,6 @@ export function useQuoteFormHydration(
     s.setLayoutOverride(q.template_layout_override ?? null);
     s.setPaymentMethod(q.payment_method || "");
     s.setPaymentPhases(parseQuotePaymentPhases(q.payment_phases));
+    s.setBonusLines?.(parseBonusLines(q.bonus_lines));
   }, [existingQuote]);
 }

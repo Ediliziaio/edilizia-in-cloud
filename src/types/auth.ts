@@ -263,6 +263,11 @@ export interface Company {
   // Area privata clienti: se false, i nuovi clienti vengono creati senza
   // account auth (solo anagrafica). Default true per retro-compatibilità.
   customer_portal_enabled?: boolean;
+  // Ripartizione di una commessa su più bonus edilizi (pratiche distinte).
+  // Opt-in: default false, chi non l'accende vede il solo Sì/No di prima.
+  bonus_multipli_enabled?: boolean;
+  // Versamenti "blocca prezzo" da restituire prima dei bonifici parlanti.
+  blocca_prezzo_enabled?: boolean;
 }
 
 export interface AuthState {

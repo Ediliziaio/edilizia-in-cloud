@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, Users, Image as ImageIcon } from "lucide-react";
+import { Building2, Users, Image as ImageIcon, Percent } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import { CustomerPortalToggle } from "@/components/settings/CustomerPortalToggle";
+import { BonusFiscaliToggles } from "@/components/settings/BonusFiscaliToggles";
 
 export default function SettingsProfile() {
   const { effectiveCompany, refreshAuth } = useAuth();
@@ -97,6 +98,27 @@ export default function SettingsProfile() {
           </CardHeader>
           <CardContent>
             <CustomerPortalToggle />
+          </CardContent>
+        </Card>
+      )}
+
+      {canEdit && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Percent className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <CardTitle>Bonus fiscali e blocca prezzo</CardTitle>
+                <CardDescription>
+                  Funzioni per chi lavora con le detrazioni edilizie: attivale solo se ti servono.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <BonusFiscaliToggles />
           </CardContent>
         </Card>
       )}
