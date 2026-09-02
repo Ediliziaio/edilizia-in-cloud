@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, X, Trash2, Filter, Save, CheckCircle, RotateCcw, ChevronsUpDown } from "lucide-react";
+import { EvidenzaObbligatoria, campoVuoto as campoVuotoTag } from "./config-panels/EvidenzaObbligatoria";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -562,6 +563,7 @@ function TagActionPanel({
 
       {/* Tags */}
       <div className="space-y-2">
+        <EvidenzaObbligatoria mostra={campoVuotoTag(tags)}>
         <Label className="text-xs font-medium">
           {actionType === "aggiungi" ? "Tag da aggiungere" : "Tag da rimuovere"}{" "}
           <span className="text-destructive">*</span>
@@ -570,6 +572,7 @@ function TagActionPanel({
           selectedTags={tags}
           onTagsChange={(t) => onChange("tags", t)}
         />
+        </EvidenzaObbligatoria>
         <p className="text-[10px] text-muted-foreground">
           Seleziona tag esistenti o creane di nuovi direttamente qui.
         </p>

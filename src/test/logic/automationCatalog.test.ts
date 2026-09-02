@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { TRIGGER_CATALOG, ACTION_CATALOG } from "@/lib/flow-node-catalog";
+import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG } from "@/lib/flow-node-catalog";
 
 const ROOT = join(__dirname, "../../..");
 const EXECUTOR = readFileSync(join(ROOT, "supabase/functions/process-automation/index.ts"), "utf8");
@@ -102,6 +102,33 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
       }
     }
     expect(senzaEmettitore, `Eventi mappati che NESSUNO emette (trigger di cartone): ${senzaEmettitore.join(", ")}`).toEqual([]);
+  });
+
+  it("trigger, azioni e condizioni non condividono MAI un id (ruoli non intercambiabili)", () => {
+    // Un id in due cataloghi renderebbe ambigui getCatalogItem, la mappa
+    // eventi e gli alias azione: un trigger eseguito come azione (o
+    // viceversa) fallirebbe in modi difficili da diagnosticare. La
+    // separazione dei ruoli parte dai nomi.
+    const t = new Set(TRIGGER_CATALOG.map((x) => x.id));
+    const a = new Set(ACTION_CATALOG.map((x) => x.id));
+    const c = new Set(CONDITION_CATALOG.map((x) => x.id));
+    const collisioni = [
+      ...[...t].filter((id) => a.has(id)).map((id) => `${id} (trigger+azione)`),
+      ...[...t].filter((id) => c.has(id)).map((id) => `${id} (trigger+condizione)`),
+      ...[...a].filter((id) => c.has(id)).map((id) => `${id} (azione+condizione)`),
+    ];
+    expect(collisioni).toEqual([]);
+  });
+
+  it("i picker del builder attingono ognuno al SOLO catalogo del proprio ruolo", () => {
+    // Il '+ Trigger' non deve poter offrire azioni né viceversa: qui si
+    // verifica che i componenti catalogo importino solo la loro metà.
+    const triggerList = readFileSync(join(ROOT, "src/components/flow-builder/catalog/TriggerCatalogList.tsx"), "utf8");
+    const actionList = readFileSync(join(ROOT, "src/components/flow-builder/catalog/ActionCatalogList.tsx"), "utf8");
+    expect(triggerList).toContain("TRIGGERS_BY_CATEGORY");
+    expect(triggerList).not.toContain("ACTIONS_BY_CATEGORY");
+    expect(actionList).toContain("ACTIONS_BY_CATEGORY");
+    expect(actionList).not.toContain("TRIGGERS_BY_CATEGORY");
   });
 
   it("i campi required con default hanno il default seminabile (anti caso-Priorità)", () => {

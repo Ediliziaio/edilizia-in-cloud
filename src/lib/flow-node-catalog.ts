@@ -2040,8 +2040,10 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
     icon: 'GitBranch',
     configSchema: [
-      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
-      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
+      // Formato legacy (condition_field): il pannello e il motore usano `condizioni[]`.
+      // required tolto: bloccava la pubblicazione di OGNI nodo condizione del builder.
+      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: false, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
+      { id: 'operatore', label: 'Operatore', type: 'select', required: false, options: [
         { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
         { value: 'contiene', label: 'contiene' }, { value: 'non_contiene', label: 'non contiene' },
         { value: 'maggiore', label: '> maggiore di' }, { value: 'minore', label: '< minore di' },

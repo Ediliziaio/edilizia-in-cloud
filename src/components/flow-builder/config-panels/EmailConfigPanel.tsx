@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VariablePicker } from "./VariablePicker";
+import { EvidenzaObbligatoria, campoVuoto } from "./EvidenzaObbligatoria";
 import { EmailBodyEditor, type EmailVariable } from "./EmailBodyEditor";
 import { EmailPreviewActions } from "./EmailPreviewActions";
 
@@ -25,6 +26,9 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
   return (
     <div ref={ref} className="space-y-4">
       {/* Sender */}
+      <EvidenzaObbligatoria mostra={campoVuoto(config.destinatario)}>
+      <EvidenzaObbligatoria mostra={campoVuoto(config.oggetto)}>
+      <EvidenzaObbligatoria mostra={campoVuoto(config.corpo)}>
       <div className="space-y-1.5">
         <Label className="text-xs">Da (mittente)</Label>
         <Input
@@ -54,6 +58,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           className="h-8 text-xs"
         />
       </div>
+      </EvidenzaObbligatoria>
 
       {/* CC */}
       <div className="space-y-1.5">
@@ -79,6 +84,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           className="h-8 text-xs"
         />
       </div>
+      </EvidenzaObbligatoria>
 
       {/* Body — editor visuale (niente HTML a mano) */}
       <div className="space-y-1.5">
@@ -90,6 +96,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           triggerItemId={triggerItemId}
         />
       </div>
+      </EvidenzaObbligatoria>
 
       {/* Send delay */}
       <div className="space-y-1.5">
