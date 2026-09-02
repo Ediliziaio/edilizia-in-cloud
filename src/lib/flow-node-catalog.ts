@@ -717,6 +717,65 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
   },
 
+  {
+    id: 'manutenzione_in_scadenza',
+    label: 'Manutenzione programmata in scadenza',
+    description: 'Scatta N giorni prima della prossima manutenzione prevista da un piano attivo',
+    icon: 'Wrench',
+    categoria: 'assistenza',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'manutenzione.piano_id', label: 'ID Piano', type: 'uuid' },
+      { id: 'manutenzione.titolo', label: 'Titolo del piano', type: 'string' },
+      { id: 'manutenzione.prossima_scadenza', label: 'Data prevista', type: 'date' },
+      { id: 'manutenzione.giorni_alla_scadenza', label: 'Giorni mancanti', type: 'number' },
+      { id: 'contratto.id', label: 'ID Contratto', type: 'uuid' },
+      { id: 'cliente.id', label: 'ID Cliente', type: 'uuid' },
+    ],
+    configSchema: [
+      { id: 'giorni_prima', label: 'Giorni di preavviso', type: 'number', required: true, defaultValue: 30, min: 1, max: 180 },
+    ],
+  },
+  {
+    id: 'contratto_manutenzione_in_scadenza',
+    label: 'Contratto di manutenzione in scadenza',
+    description: 'Scatta N giorni prima della scadenza di un contratto di manutenzione attivo',
+    icon: 'FileClock',
+    categoria: 'assistenza',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'contratto.id', label: 'ID Contratto', type: 'uuid' },
+      { id: 'contratto.nome', label: 'Nome contratto', type: 'string' },
+      { id: 'contratto.canone', label: 'Canone (€)', type: 'number' },
+      { id: 'contratto.data_scadenza', label: 'Data scadenza', type: 'date' },
+      { id: 'contratto.giorni_alla_scadenza', label: 'Giorni mancanti', type: 'number' },
+      { id: 'contratto.rinnovo_automatico', label: 'Si rinnova da solo', type: 'boolean' },
+      { id: 'cliente.id', label: 'ID Cliente', type: 'uuid' },
+    ],
+    configSchema: [
+      { id: 'giorni_prima', label: 'Giorni di preavviso', type: 'number', required: true, defaultValue: 60, min: 1, max: 365 },
+    ],
+  },
+  {
+    id: 'cantiere_lavori_conclusi',
+    label: 'Lavori del cantiere conclusi',
+    description: 'Scatta quando la data di fine lavori è passata e la commessa risulta completata',
+    icon: 'PartyPopper',
+    categoria: 'cantieri',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'cantiere.id', label: 'ID Commessa', type: 'uuid' },
+      { id: 'cantiere.order_code', label: 'Codice commessa', type: 'string' },
+      { id: 'cantiere.descrizione', label: 'Descrizione', type: 'string' },
+      { id: 'cantiere.work_end_date', label: 'Fine lavori', type: 'date' },
+      { id: 'cantiere.giorni_da_fine_lavori', label: 'Giorni dalla fine lavori', type: 'number' },
+      { id: 'cliente.id', label: 'ID Cliente', type: 'uuid' },
+    ],
+    configSchema: [
+      { id: 'giorni_dopo', label: 'Giorni dopo la fine lavori', type: 'number', required: false, defaultValue: 0, min: 0, max: 90, helpText: 'Utile per aspettare qualche giorno prima di chiedere la recensione' },
+    ],
+  },
+
   // ═══ TICKET ASSISTENZA ═══
   {
     id: 'ticket_creato',

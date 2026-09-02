@@ -37,6 +37,7 @@ import {
   type RstPdfCompany, renderRstPreviewBlobUrl } from "@/hooks/useRistrutturazionePDF";
 import type { RstProgetto, RstComputoVoce, RstProgettoMedia } from "@/types/ristrutturazione";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
 
 interface Props {
   progetto: RstProgetto;
@@ -192,6 +193,16 @@ export default function StepPdf({ progetto, computo, media }: Props) {
             URL.revokeObjectURL(url);
             return blob;
           }}
+        />
+      )}
+
+      {/* Il cliente ha accettato: la commessa nasce col computo già dentro. */}
+      {progetto.id && (
+        <ConvertiInCommessaCard
+          modulo="rst"
+          progettoId={progetto.id}
+          ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
+          bloccoMotivo={computoVuoto ? "Aggiungi voci al computo prima di creare la commessa." : null}
         />
       )}
 

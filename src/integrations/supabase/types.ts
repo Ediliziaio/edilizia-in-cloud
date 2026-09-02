@@ -20001,6 +20001,67 @@ export type Database = {
           },
         ]
       }
+      company_task_statuses: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          label: string
+          locked: boolean
+          order_index: number
+          stage: string
+          tone: string | null
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          label: string
+          locked?: boolean
+          order_index?: number
+          stage?: string
+          tone?: string | null
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          label?: string
+          locked?: boolean
+          order_index?: number
+          stage?: string
+          tone?: string | null
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_task_statuses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_task_statuses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_task_statuses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       company_telephony_compliance: {
         Row: {
           cap: string | null
@@ -49545,10 +49606,13 @@ export type Database = {
       order_task_template: {
         Row: {
           assegna_a_ruolo: string | null
+          assegna_a_utente: string | null
           attivo: boolean
           company_id: string
           created_at: string
           descrizione: string | null
+          dipende_da_id: string | null
+          giorni_dopo_sblocco: number
           giorni_offset: number
           id: string
           priorita: string
@@ -49559,10 +49623,13 @@ export type Database = {
         }
         Insert: {
           assegna_a_ruolo?: string | null
+          assegna_a_utente?: string | null
           attivo?: boolean
           company_id: string
           created_at?: string
           descrizione?: string | null
+          dipende_da_id?: string | null
+          giorni_dopo_sblocco?: number
           giorni_offset?: number
           id?: string
           priorita?: string
@@ -49573,10 +49640,13 @@ export type Database = {
         }
         Update: {
           assegna_a_ruolo?: string | null
+          assegna_a_utente?: string | null
           attivo?: boolean
           company_id?: string
           created_at?: string
           descrizione?: string | null
+          dipende_da_id?: string | null
+          giorni_dopo_sblocco?: number
           giorni_offset?: number
           id?: string
           priorita?: string
@@ -49586,6 +49656,13 @@ export type Database = {
           vertical?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_task_template_assegna_a_utente_fkey"
+            columns: ["assegna_a_utente"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_task_template_company_id_fkey"
             columns: ["company_id"]
@@ -49606,6 +49683,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_task_template_dipende_da_id_fkey"
+            columns: ["dipende_da_id"]
+            isOneToOne: false
+            referencedRelation: "order_task_template"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -49903,6 +49987,7 @@ export type Database = {
           percentuale_avanzamento: number | null
           quote_id: string | null
           quote_number: string | null
+          rst_progetto_id: string | null
           sede_id: string | null
           status: string | null
           tipo_lavoro: string | null
@@ -49972,6 +50057,7 @@ export type Database = {
           percentuale_avanzamento?: number | null
           quote_id?: string | null
           quote_number?: string | null
+          rst_progetto_id?: string | null
           sede_id?: string | null
           status?: string | null
           tipo_lavoro?: string | null
@@ -50041,6 +50127,7 @@ export type Database = {
           percentuale_avanzamento?: number | null
           quote_id?: string | null
           quote_number?: string | null
+          rst_progetto_id?: string | null
           sede_id?: string | null
           status?: string | null
           tipo_lavoro?: string | null
@@ -63103,6 +63190,7 @@ export type Database = {
           note: string | null
           numero_vani: number | null
           opportunita_id: string | null
+          ordine_id: string | null
           sconto_pct: number
           stato: string
           template_id: string | null
@@ -63139,6 +63227,7 @@ export type Database = {
           note?: string | null
           numero_vani?: number | null
           opportunita_id?: string | null
+          ordine_id?: string | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -63175,6 +63264,7 @@ export type Database = {
           note?: string | null
           numero_vani?: number | null
           opportunita_id?: string | null
+          ordine_id?: string | null
           sconto_pct?: number
           stato?: string
           template_id?: string | null
@@ -63204,6 +63294,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rst_progetti_ordine_id_fkey"
+            columns: ["ordine_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -75951,7 +76062,9 @@ export type Database = {
       }
       task_checklist_items: {
         Row: {
+          assigned_to: string | null
           created_at: string
+          due_date: string | null
           id: string
           is_completed: boolean
           position: number
@@ -75959,7 +76072,9 @@ export type Database = {
           title: string
         }
         Insert: {
+          assigned_to?: string | null
           created_at?: string
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           position?: number
@@ -75967,7 +76082,9 @@ export type Database = {
           title: string
         }
         Update: {
+          assigned_to?: string | null
           created_at?: string
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           position?: number
@@ -75975,6 +76092,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_checklist_items_task_id_fkey"
             columns: ["task_id"]
@@ -76045,6 +76169,65 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_saved_views: {
+        Row: {
+          company_id: string
+          created_at: string
+          filters: Json
+          id: string
+          is_shared: boolean
+          name: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          filters?: Json
+          id?: string
+          is_shared?: boolean
+          name: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          filters?: Json
+          id?: string
+          is_shared?: boolean
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_saved_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "task_saved_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_saved_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "task_saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -76190,6 +76373,7 @@ export type Database = {
         Row: {
           actual_hours: number | null
           assigned_to: string | null
+          bloccata_da_task_id: string | null
           category: string
           company_id: string
           completed_at: string | null
@@ -76208,6 +76392,7 @@ export type Database = {
           priority: string
           recurrence_end_date: string | null
           recurrence_rule: string | null
+          sblocco_giorni: number | null
           sort_order: number | null
           status: string
           stock_item_id: string | null
@@ -76218,6 +76403,7 @@ export type Database = {
         Insert: {
           actual_hours?: number | null
           assigned_to?: string | null
+          bloccata_da_task_id?: string | null
           category?: string
           company_id: string
           completed_at?: string | null
@@ -76236,6 +76422,7 @@ export type Database = {
           priority?: string
           recurrence_end_date?: string | null
           recurrence_rule?: string | null
+          sblocco_giorni?: number | null
           sort_order?: number | null
           status?: string
           stock_item_id?: string | null
@@ -76246,6 +76433,7 @@ export type Database = {
         Update: {
           actual_hours?: number | null
           assigned_to?: string | null
+          bloccata_da_task_id?: string | null
           category?: string
           company_id?: string
           completed_at?: string | null
@@ -76264,6 +76452,7 @@ export type Database = {
           priority?: string
           recurrence_end_date?: string | null
           recurrence_rule?: string | null
+          sblocco_giorni?: number | null
           sort_order?: number | null
           status?: string
           stock_item_id?: string | null
@@ -76277,6 +76466,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_bloccata_da_task_id_fkey"
+            columns: ["bloccata_da_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
           {
@@ -85589,6 +85785,20 @@ export type Database = {
         }
         Returns: Json
       }
+      addebita_sms_wallet: {
+        Args: {
+          p_company_id: string
+          p_descrizione: string
+          p_importo: number
+          p_riferimento_id?: string
+          p_tipo: string
+        }
+        Returns: {
+          motivo: string
+          ok: boolean
+          saldo_dopo: number
+        }[]
+      }
       adjust_credits_atomic: {
         Args: {
           p_adjusted_by: string
@@ -88692,6 +88902,10 @@ export type Database = {
           p_total: number
         }
         Returns: number
+      }
+      normalizza_stato_preventivo: {
+        Args: { p_stato: string }
+        Returns: string
       }
       odv_reject_with_token: {
         Args: { p_firmato_da?: string; p_token: string }
@@ -92097,6 +92311,14 @@ export type Database = {
       }
       update_referrer_tier: {
         Args: { p_referrer_id: string }
+        Returns: undefined
+      }
+      update_sms_wallet_dopo_invio: {
+        Args: {
+          p_company_id: string
+          p_costo_reale: number
+          p_riservato_da_liberare: number
+        }
         Returns: undefined
       }
       upsert_mittente_noto: {

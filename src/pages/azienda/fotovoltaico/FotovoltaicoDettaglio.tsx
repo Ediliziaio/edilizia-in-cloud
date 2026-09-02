@@ -28,6 +28,8 @@ import {
   FileSignature,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProgetto,
@@ -71,6 +73,7 @@ export default function FotovoltaicoDettaglio() {
   const canManagePreventivo = permissions.canEditPreventivi;
 
   const { data: progetto, isLoading } = useProgetto(id);
+  const queryClient = useQueryClient();
   const { data: componenti = [] } = useComponentiProgetto(id);
   const { data: manodopera = [] } = useManodoperaProgetto(id);
   const { data: servizi = [] } = useServiziProgetto(id);
@@ -321,6 +324,23 @@ export default function FotovoltaicoDettaglio() {
             </div>
           </div>
         </div>
+
+        {/* Il cliente ha accettato: da qui nasce la commessa, senza riscrivere nulla. */}
+        {progetto.id && (
+          <ConvertiInCommessaCard
+            modulo="fv"
+            progettoId={progetto.id}
+            ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
+            bloccoMotivo={
+              !canManagePreventivo
+                ? "Serve il permesso di gestire i preventivi."
+                : Number(progetto.prezzo_vendita_manuale ?? progetto.prezzo_vendita_iva_inclusa ?? 0) <= 0
+                  ? "Il preventivo non ha ancora un prezzo di vendita."
+                  : null
+            }
+            onConvertito={() => queryClient.invalidateQueries({ queryKey: ["fv-progetto", progetto.id] })}
+          />
+        )}
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5">

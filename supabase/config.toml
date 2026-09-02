@@ -800,3 +800,7 @@ verify_jwt = false
 # questo il gateway rispondeva 401 prima del codice e nessun reminder partiva.
 [functions.quote-expiry-reminder]
 verify_jwt = false
+
+# Chiamata da pg_cron con x-cron-secret (verificato nel codice).
+[functions.task-riepilogo-email]
+verify_jwt = false

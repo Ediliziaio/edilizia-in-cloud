@@ -11,6 +11,7 @@ import { SortableTaskRow, type AzioniRiga } from "@/components/attivita/Sortable
 import { PRIORITY_ORDER, PRIORITY_CONFIG } from "@/lib/taskPriorities";
 import { TASK_CATEGORY_LABELS as ALL_CATEGORY_LABELS } from "@/lib/taskCategories";
 import { costruisciCsv, scaricaCsv } from "@/lib/csv";
+import { VistiSalvate, type FiltriVista } from "@/components/attivita/VistiSalvate";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -106,19 +107,24 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const initialVista: ViewMode = isViewMode(searchParams.get("vista")) ? (searchParams.get("vista") as ViewMode) : "list";
   const initialStato = searchParams.get("stato") || FILTRI_DEFAULT.stato;
   const initialAssegnatario = searchParams.get("assegnatario") || FILTRI_DEFAULT.assegnatario;
+  // Priorità, categoria e ricerca erano contate come "filtri attivi" ma non
+  // finivano nell'indirizzo: al ricaricamento della pagina sparivano.
+  const initialPriorita = searchParams.get("priorita") || FILTRI_DEFAULT.priorita;
+  const initialCategoria = searchParams.get("categoria") || FILTRI_DEFAULT.categoria;
+  const initialRicerca = searchParams.get("q") || "";
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogDefaultAssignedTo, setDialogDefaultAssignedTo] = useState<string | null | undefined>(undefined);
   const [filterStatus, setFilterStatus] = useState(initialStato);
-  const [filterPriority, setFilterPriority] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterPriority, setFilterPriority] = useState(initialPriorita);
+  const [filterCategory, setFilterCategory] = useState(initialCategoria);
   const [filterFonte, setFilterFonte] = useState(initialFonte);
   const [filterAssignee, setFilterAssignee] = useState(initialAssegnatario);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState(initialTab);
   const [viewMode, setViewMode] = useState<ViewMode>(initialVista);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(initialRicerca);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [statusSettingsOpen, setStatusSettingsOpen] = useState(false);
   const debouncedSearch = useDebounce(searchText, 300);
@@ -135,9 +141,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       metti("stato", filterStatus, FILTRI_DEFAULT.stato);
       metti("fonte", filterFonte, FILTRI_DEFAULT.fonte);
       metti("assegnatario", filterAssignee, FILTRI_DEFAULT.assegnatario);
+      metti("priorita", filterPriority, FILTRI_DEFAULT.priorita);
+      metti("categoria", filterCategory, FILTRI_DEFAULT.categoria);
+      metti("q", searchText, "");
       return next;
     }, { replace: true });
-  }, [viewMode, filterStatus, filterFonte, filterAssignee, setSearchParams]);
+  }, [viewMode, filterStatus, filterFonte, filterAssignee, filterPriority, filterCategory, searchText, setSearchParams]);
 
   const filtriAttivi =
     filterStatus !== FILTRI_DEFAULT.stato || filterPriority !== FILTRI_DEFAULT.priorita || filterCategory !== FILTRI_DEFAULT.categoria ||
@@ -145,6 +154,22 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const azzeraFiltri = () => {
     setFilterStatus(FILTRI_DEFAULT.stato); setFilterPriority(FILTRI_DEFAULT.priorita); setFilterCategory(FILTRI_DEFAULT.categoria);
     setFilterFonte(FILTRI_DEFAULT.fonte); setFilterAssignee(FILTRI_DEFAULT.assegnatario); setSearchText("");
+  };
+
+  /** La fotografia dei filtri: è quello che una vista salva e riapre. */
+  const filtriCorrenti: FiltriVista = {
+    vista: viewMode, stato: filterStatus, priorita: filterPriority, categoria: filterCategory,
+    fonte: filterFonte, assegnatario: filterAssignee, ricerca: searchText, ordina: sort,
+  };
+  const applicaVista = (f: FiltriVista) => {
+    if (f.vista && isViewMode(f.vista)) setViewMode(f.vista as ViewMode);
+    setFilterStatus(f.stato ?? FILTRI_DEFAULT.stato);
+    setFilterPriority(f.priorita ?? FILTRI_DEFAULT.priorita);
+    setFilterCategory(f.categoria ?? FILTRI_DEFAULT.categoria);
+    setFilterFonte(f.fonte ?? FILTRI_DEFAULT.fonte);
+    setFilterAssignee(f.assegnatario ?? FILTRI_DEFAULT.assegnatario);
+    setSearchText(f.ricerca ?? "");
+    setSort((f.ordina as { col: ColonnaOrdinabile; dir: "asc" | "desc" } | null) ?? null);
   };
 
   const sensors = useSensors(
@@ -617,6 +642,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               <Download className="h-4 w-4" />
               Esporta
             </Button>
+            <VistiSalvate
+              companyId={companyId}
+              userId={user?.id}
+              filtriCorrenti={filtriCorrenti}
+              onApplica={applicaVista}
+            />
           </div>
         </div>
       </div>

@@ -89,11 +89,8 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     const ids = new Set(TRIGGER_CATALOG.map((t) => t.id));
     const canonici = new Set(eventiCanonici().values());
     const gestitiAltrove = new Set(["cron_giornaliero", "cron_settimanale", "cron_mensile", "manuale"]);
-    // Debito noto (2026-09-02): tre template promettono trigger che il catalogo
-    // non ha ancora (manutenzione in scadenza, lavori completati, contratto di
-    // manutenzione in scadenza). Restano elencati qui, non nascosti sotto il
-    // tappeto: quando il trigger nascerà, va tolta la riga e il test lo pretende.
-    const debitoNoto = new Set(["manutenzione_scheduled", "order_work_completed", "contratto_manut_expiring"]);
+    // Il debito del 2026-09-02 (tre template senza trigger) è chiuso: la lista è vuota.
+    const debitoNoto = new Set<string>();
     const rotti = FLOW_TEMPLATES
       .filter((tpl) => !ids.has(tpl.triggerTipo) && !canonici.has(tpl.triggerTipo) && !gestitiAltrove.has(tpl.triggerTipo) && !debitoNoto.has(tpl.triggerTipo))
       .map((tpl) => `${tpl.id} → ${tpl.triggerTipo}`);

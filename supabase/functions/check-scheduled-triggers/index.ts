@@ -57,6 +57,9 @@ const SCHEDULED_EVENT_MAP: Record<string, string> = {
   fattura_scaduta: "invoice_overdue",
   preventivo_in_scadenza: "quote_expiring",
   preventivo_senza_risposta: "quote_unanswered",
+  manutenzione_in_scadenza: "manutenzione_scheduled",
+  contratto_manutenzione_in_scadenza: "contratto_manut_expiring",
+  cantiere_lavori_conclusi: "order_work_completed",
   ticket_senza_risposta: "ticket_unanswered",
   contratto_in_scadenza: "contract_expiring",
   cantiere_in_ritardo: "site_overdue",
@@ -307,6 +310,9 @@ Deno.serve(async (req) => {
     invoice_overdue: 0,
     quote_expiring: 0,
     quote_unanswered: 0,
+    manutenzione_scheduled: 0,
+    contratto_manut_expiring: 0,
+    order_work_completed: 0,
     ticket_unanswered: 0,
     contract_expiring: 0,
     site_overdue: 0,
@@ -656,6 +662,92 @@ Deno.serve(async (req) => {
                 giorni_da_invio: giorniDaInvio, visualizzato: q.viewed_at != null, expires_at: q.expires_at,
               });
               if (emitted) results.quote_unanswered++;
+            }
+            break;
+          }
+
+          case "manutenzione_scheduled": {
+            // Piano di manutenzione attivo con la prossima uscita entro N giorni.
+            const giorniPrima = parseInt(cfg.giorni_prima) || 30;
+            const limite = new Date(Date.now() + giorniPrima * 86400000).toISOString().split("T")[0];
+            const oggiStr = new Date().toISOString().split("T")[0];
+            const { data: piani } = await supabase
+              .from("piani_manutenzione")
+              .select("id, titolo, prossima_scadenza, contratto_id, tecnico_preferito")
+              .eq("company_id", flow.company_id)
+              .eq("attivo", true)
+              .not("prossima_scadenza", "is", null)
+              .gte("prossima_scadenza", oggiStr)
+              .lte("prossima_scadenza", limite);
+
+            for (const piano of piani || []) {
+              const giorni = Math.max(0, Math.ceil((new Date(piano.prossima_scadenza).getTime() - Date.now()) / 86400000));
+              // Il cliente sta sul contratto, non sul piano.
+              let clienteId: string | null = null;
+              if (piano.contratto_id) {
+                const { data: contratto } = await supabase
+                  .from("contratti_manutenzione").select("customer_id").eq("id", piano.contratto_id).maybeSingle();
+                clienteId = contratto?.customer_id ?? null;
+              }
+              const emitted = await emitEventOnce(supabase, flow.company_id, "manutenzione_scheduled", piano.id, "manutenzione", {
+                piano_id: piano.id, titolo: piano.titolo, prossima_scadenza: piano.prossima_scadenza,
+                giorni_alla_scadenza: giorni, contratto_id: piano.contratto_id, cliente_id: clienteId,
+                tecnico_preferito: piano.tecnico_preferito,
+              });
+              if (emitted) results.manutenzione_scheduled++;
+            }
+            break;
+          }
+
+          case "contratto_manut_expiring": {
+            // Contratto di manutenzione attivo che scade entro N giorni.
+            const giorniPrima = parseInt(cfg.giorni_prima) || 60;
+            const limite = new Date(Date.now() + giorniPrima * 86400000).toISOString().split("T")[0];
+            const oggiStr = new Date().toISOString().split("T")[0];
+            const { data: contratti } = await supabase
+              .from("contratti_manutenzione")
+              .select("id, nome_contratto, importo_canone, data_scadenza, rinnovo_automatico, customer_id, stato")
+              .eq("company_id", flow.company_id)
+              .not("data_scadenza", "is", null)
+              .gte("data_scadenza", oggiStr)
+              .lte("data_scadenza", limite);
+
+            for (const c of contratti || []) {
+              // Uno cessato o sospeso non va rinnovato.
+              const stato = String(c.stato || "").toLowerCase();
+              if (["cessato", "annullato", "sospeso", "scaduto"].includes(stato)) continue;
+              const giorni = Math.max(0, Math.ceil((new Date(c.data_scadenza).getTime() - Date.now()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "contratto_manut_expiring", c.id, "contratto_manutenzione", {
+                contratto_id: c.id, nome: c.nome_contratto, canone: c.importo_canone,
+                data_scadenza: c.data_scadenza, giorni_alla_scadenza: giorni,
+                rinnovo_automatico: c.rinnovo_automatico, cliente_id: c.customer_id,
+              });
+              if (emitted) results.contratto_manut_expiring++;
+            }
+            break;
+          }
+
+          case "order_work_completed": {
+            // Fine lavori passata (più l'eventuale attesa) e commessa completata:
+            // è il momento di chiedere la recensione o aprire la manutenzione.
+            const giorniDopo = parseInt(cfg.giorni_dopo) || 0;
+            const soglia = new Date(Date.now() - giorniDopo * 86400000).toISOString().split("T")[0];
+            const { data: concluse } = await supabase
+              .from("orders")
+              .select("id, order_code, description, work_end_date, status, customer_id")
+              .eq("company_id", flow.company_id)
+              .not("work_end_date", "is", null)
+              .lte("work_end_date", soglia);
+
+            for (const o of concluse || []) {
+              const stato = String(o.status || "").toLowerCase();
+              if (!["completato", "completata", "completed", "chiuso", "consegnato", "delivered", "closed"].includes(stato)) continue;
+              const giorni = Math.max(0, Math.floor((Date.now() - new Date(o.work_end_date).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "order_work_completed", o.id, "order", {
+                order_id: o.id, order_code: o.order_code, descrizione: o.description,
+                work_end_date: o.work_end_date, giorni_da_fine_lavori: giorni, cliente_id: o.customer_id,
+              });
+              if (emitted) results.order_work_completed++;
             }
             break;
           }

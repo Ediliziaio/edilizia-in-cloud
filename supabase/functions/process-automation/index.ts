@@ -241,6 +241,11 @@ async function handleTrigger(supabase: any, body: any) {
     preventivo_rifiutato: "quote_rejected",
     preventivo_in_scadenza: "quote_expiring",       // SCHEDULED
     preventivo_senza_risposta: "quote_unanswered",  // SCHEDULED
+    // Assistenza e cantieri: tre trigger che i template pronti promettevano
+    // da mesi con id inventati, quindi non scattavano mai.
+    manutenzione_in_scadenza: "manutenzione_scheduled",           // SCHEDULED
+    contratto_manutenzione_in_scadenza: "contratto_manut_expiring", // SCHEDULED
+    cantiere_lavori_conclusi: "order_work_completed",             // SCHEDULED
     // Assistenza / ticket
     ticket_creato: "ticket_created",
     ticket_stato_cambiato: "ticket_status_changed",
