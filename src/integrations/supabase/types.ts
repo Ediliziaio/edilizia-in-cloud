@@ -2278,7 +2278,8 @@ export type Database = {
       }
       ai_agent_conversations: {
         Row: {
-          agent_id: string
+          agent_id: string | null
+          agent_v2_id: string | null
           appointment_created: boolean
           branch_id: string | null
           call_direction: string
@@ -2297,7 +2298,8 @@ export type Database = {
           transcript: Json | null
         }
         Insert: {
-          agent_id: string
+          agent_id?: string | null
+          agent_v2_id?: string | null
           appointment_created?: boolean
           branch_id?: string | null
           call_direction?: string
@@ -2316,7 +2318,8 @@ export type Database = {
           transcript?: Json | null
         }
         Update: {
-          agent_id?: string
+          agent_id?: string | null
+          agent_v2_id?: string | null
           appointment_created?: boolean
           branch_id?: string | null
           call_direction?: string
@@ -2340,6 +2343,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_conversations_agent_v2_id_fkey"
+            columns: ["agent_v2_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
             referencedColumns: ["id"]
           },
           {
@@ -4356,6 +4366,7 @@ export type Database = {
       ai_credit_usage: {
         Row: {
           agent_id: string | null
+          agent_v2_id: string | null
           balance_after: number
           balance_before: number
           call_direction: string | null
@@ -4375,6 +4386,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          agent_v2_id?: string | null
           balance_after: number
           balance_before: number
           call_direction?: string | null
@@ -4394,6 +4406,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          agent_v2_id?: string | null
           balance_after?: number
           balance_before?: number
           call_direction?: string | null
@@ -4417,6 +4430,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_usage_agent_v2_id_fkey"
+            columns: ["agent_v2_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents_v2"
             referencedColumns: ["id"]
           },
           {
@@ -12773,6 +12793,124 @@ export type Database = {
           },
         ]
       }
+      blocca_prezzo: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          data_esito: string | null
+          data_incasso: string | null
+          id: string
+          importo: number
+          metodo: string
+          note: string | null
+          order_id: string | null
+          quote_id: string | null
+          riferimento: string | null
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          data_esito?: string | null
+          data_incasso?: string | null
+          id?: string
+          importo?: number
+          metodo?: string
+          note?: string | null
+          order_id?: string | null
+          quote_id?: string | null
+          riferimento?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          data_esito?: string | null
+          data_incasso?: string | null
+          id?: string
+          importo?: number
+          metodo?: string
+          note?: string | null
+          order_id?: string | null
+          quote_id?: string | null
+          riferimento?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocca_prezzo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocca_prezzo_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       bonifica_azioni: {
         Row: {
           annullabile: boolean
@@ -16947,6 +17085,8 @@ export type Database = {
           billing_mode: string
           billing_mode_set_at: string | null
           billing_mode_set_by: string | null
+          blocca_prezzo_enabled: boolean
+          bonus_multipli_enabled: boolean
           brand_accent_color: string | null
           brand_favicon_url: string | null
           brand_hide_powered_by: boolean | null
@@ -17105,6 +17245,8 @@ export type Database = {
           billing_mode?: string
           billing_mode_set_at?: string | null
           billing_mode_set_by?: string | null
+          blocca_prezzo_enabled?: boolean
+          bonus_multipli_enabled?: boolean
           brand_accent_color?: string | null
           brand_favicon_url?: string | null
           brand_hide_powered_by?: boolean | null
@@ -17263,6 +17405,8 @@ export type Database = {
           billing_mode?: string
           billing_mode_set_at?: string | null
           billing_mode_set_by?: string | null
+          blocca_prezzo_enabled?: boolean
+          bonus_multipli_enabled?: boolean
           brand_accent_color?: string | null
           brand_favicon_url?: string | null
           brand_hide_powered_by?: boolean | null
@@ -43366,6 +43510,7 @@ export type Database = {
           province: string | null
           qualificazione_json: Json | null
           region: string | null
+          ricontatta_dopo: string | null
           score: number
           sede_id: string | null
           source: string | null
@@ -43463,6 +43608,7 @@ export type Database = {
           province?: string | null
           qualificazione_json?: Json | null
           region?: string | null
+          ricontatta_dopo?: string | null
           score?: number
           sede_id?: string | null
           source?: string | null
@@ -43560,6 +43706,7 @@ export type Database = {
           province?: string | null
           qualificazione_json?: Json | null
           region?: string | null
+          ricontatta_dopo?: string | null
           score?: number
           sede_id?: string | null
           source?: string | null
@@ -47302,14 +47449,23 @@ export type Database = {
           followup2_messaggio: string | null
           followup3_dopo_giorni: number
           followup3_messaggio: string | null
+          giorni_settimana: number[] | null
           id: string
+          inviati_oggi: number
+          inviati_oggi_data: string | null
+          max_al_giorno: number | null
           messaggio: string
           messaggio_b: string | null
           nome: string
+          orario_a: number | null
+          orario_da: number | null
           parte_il: string | null
+          scadenza_il: string | null
           stato: string
+          stop_se_risponde: boolean
           tags_numeri: string[]
           updated_at: string
+          variabili: Json
         }
         Insert: {
           ai_istruzioni?: string | null
@@ -47324,14 +47480,23 @@ export type Database = {
           followup2_messaggio?: string | null
           followup3_dopo_giorni?: number
           followup3_messaggio?: string | null
+          giorni_settimana?: number[] | null
           id?: string
+          inviati_oggi?: number
+          inviati_oggi_data?: string | null
+          max_al_giorno?: number | null
           messaggio: string
           messaggio_b?: string | null
           nome: string
+          orario_a?: number | null
+          orario_da?: number | null
           parte_il?: string | null
+          scadenza_il?: string | null
           stato?: string
+          stop_se_risponde?: boolean
           tags_numeri?: string[]
           updated_at?: string
+          variabili?: Json
         }
         Update: {
           ai_istruzioni?: string | null
@@ -47346,14 +47511,23 @@ export type Database = {
           followup2_messaggio?: string | null
           followup3_dopo_giorni?: number
           followup3_messaggio?: string | null
+          giorni_settimana?: number[] | null
           id?: string
+          inviati_oggi?: number
+          inviati_oggi_data?: string | null
+          max_al_giorno?: number | null
           messaggio?: string
           messaggio_b?: string | null
           nome?: string
+          orario_a?: number | null
+          orario_da?: number | null
           parte_il?: string | null
+          scadenza_il?: string | null
           stato?: string
+          stop_se_risponde?: boolean
           tags_numeri?: string[]
           updated_at?: string
+          variabili?: Json
         }
         Relationships: []
       }
@@ -47818,6 +47992,91 @@ export type Database = {
           },
           {
             foreignKeyName: "order_attachments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_bonus_lines: {
+        Row: {
+          aliquota_detrazione: number | null
+          causale: string | null
+          company_id: string
+          created_at: string
+          id: string
+          imponibile: number
+          label: string
+          note: string | null
+          order_id: string
+          position: number
+          preset_id: string | null
+        }
+        Insert: {
+          aliquota_detrazione?: number | null
+          causale?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          imponibile?: number
+          label: string
+          note?: string | null
+          order_id: string
+          position?: number
+          preset_id?: string | null
+        }
+        Update: {
+          aliquota_detrazione?: number | null
+          causale?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          imponibile?: number
+          label?: string
+          note?: string | null
+          order_id?: string
+          position?: number
+          preset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_bonus_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_bonus_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_bonus_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_bonus_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_bonus_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_bonus_lines_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
@@ -50338,6 +50597,7 @@ export type Database = {
           name: string
           notes: string | null
           reply_to: string | null
+          send_window: Json | null
           signature: string | null
           status: string
           updated_at: string
@@ -50352,6 +50612,7 @@ export type Database = {
           name: string
           notes?: string | null
           reply_to?: string | null
+          send_window?: Json | null
           signature?: string | null
           status?: string
           updated_at?: string
@@ -50366,6 +50627,7 @@ export type Database = {
           name?: string
           notes?: string | null
           reply_to?: string | null
+          send_window?: Json | null
           signature?: string | null
           status?: string
           updated_at?: string
@@ -50898,6 +51160,7 @@ export type Database = {
           id: string
           intent: string | null
           intent_confidence: number | null
+          message_id: string | null
           raw: Json
           received_at: string
           snippet: string | null
@@ -50915,6 +51178,7 @@ export type Database = {
           id?: string
           intent?: string | null
           intent_confidence?: number | null
+          message_id?: string | null
           raw?: Json
           received_at?: string
           snippet?: string | null
@@ -50932,6 +51196,7 @@ export type Database = {
           id?: string
           intent?: string | null
           intent_confidence?: number | null
+          message_id?: string | null
           raw?: Json
           received_at?: string
           snippet?: string | null
@@ -50983,6 +51248,33 @@ export type Database = {
           },
         ]
       }
+      outreach_runs: {
+        Row: {
+          errore: string | null
+          esito: Json | null
+          finished_at: string | null
+          funzione: string
+          id: number
+          started_at: string
+        }
+        Insert: {
+          errore?: string | null
+          esito?: Json | null
+          finished_at?: string | null
+          funzione: string
+          id?: number
+          started_at?: string
+        }
+        Update: {
+          errore?: string | null
+          esito?: Json | null
+          finished_at?: string | null
+          funzione?: string
+          id?: number
+          started_at?: string
+        }
+        Relationships: []
+      }
       outreach_send_queue: {
         Row: {
           attempts: number
@@ -50997,9 +51289,11 @@ export type Database = {
           kind: string
           last_error: string | null
           max_attempts: number
+          message_id: string | null
           node_id: string | null
           open_count: number
           opened_at: string | null
+          provider_thread_id: string | null
           scheduled_for: string
           sender_account_id: string | null
           sent_at: string | null
@@ -51023,9 +51317,11 @@ export type Database = {
           kind?: string
           last_error?: string | null
           max_attempts?: number
+          message_id?: string | null
           node_id?: string | null
           open_count?: number
           opened_at?: string | null
+          provider_thread_id?: string | null
           scheduled_for?: string
           sender_account_id?: string | null
           sent_at?: string | null
@@ -51049,9 +51345,11 @@ export type Database = {
           kind?: string
           last_error?: string | null
           max_attempts?: number
+          message_id?: string | null
           node_id?: string | null
           open_count?: number
           opened_at?: string | null
+          provider_thread_id?: string | null
           scheduled_for?: string
           sender_account_id?: string | null
           sent_at?: string | null
@@ -51144,6 +51442,7 @@ export type Database = {
       }
       outreach_sender_accounts: {
         Row: {
+          alert_at: string | null
           bounce_count: number
           brand_id: string | null
           company_id: string
@@ -51164,9 +51463,11 @@ export type Database = {
           last_imap_check_at: string | null
           last_imap_uid: string | null
           last_sent_at: string | null
+          oauth_connection_id: string | null
           provider: string
           secret_ref: string | null
           sending_domain_id: string | null
+          signature: string | null
           smtp_host: string | null
           smtp_port: number | null
           smtp_secure: boolean | null
@@ -51179,6 +51480,7 @@ export type Database = {
           warmup_step: number
         }
         Insert: {
+          alert_at?: string | null
           bounce_count?: number
           brand_id?: string | null
           company_id: string
@@ -51199,9 +51501,11 @@ export type Database = {
           last_imap_check_at?: string | null
           last_imap_uid?: string | null
           last_sent_at?: string | null
+          oauth_connection_id?: string | null
           provider?: string
           secret_ref?: string | null
           sending_domain_id?: string | null
+          signature?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -51214,6 +51518,7 @@ export type Database = {
           warmup_step?: number
         }
         Update: {
+          alert_at?: string | null
           bounce_count?: number
           brand_id?: string | null
           company_id?: string
@@ -51234,9 +51539,11 @@ export type Database = {
           last_imap_check_at?: string | null
           last_imap_uid?: string | null
           last_sent_at?: string | null
+          oauth_connection_id?: string | null
           provider?: string
           secret_ref?: string | null
           sending_domain_id?: string | null
+          signature?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -51283,6 +51590,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sender_accounts_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "outreach_sender_accounts_sending_domain_id_fkey"
@@ -51478,6 +51799,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          plain_text_only: boolean
           status: string
           track_opens: boolean
           updated_at: string
@@ -51490,6 +51812,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          plain_text_only?: boolean
           status?: string
           track_opens?: boolean
           updated_at?: string
@@ -51502,6 +51825,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          plain_text_only?: boolean
           status?: string
           track_opens?: boolean
           updated_at?: string
@@ -58387,6 +58711,7 @@ export type Database = {
           ai_predicted_close_date: string | null
           approval_status: string | null
           assigned_to: string | null
+          bonus_lines: Json | null
           client_address: string | null
           client_company: string | null
           client_email: string | null
@@ -58481,6 +58806,7 @@ export type Database = {
           ai_predicted_close_date?: string | null
           approval_status?: string | null
           assigned_to?: string | null
+          bonus_lines?: Json | null
           client_address?: string | null
           client_company?: string | null
           client_email?: string | null
@@ -58575,6 +58901,7 @@ export type Database = {
           ai_predicted_close_date?: string | null
           approval_status?: string | null
           assigned_to?: string | null
+          bonus_lines?: Json | null
           client_address?: string | null
           client_company?: string | null
           client_email?: string | null
@@ -75410,6 +75737,78 @@ export type Database = {
           },
         ]
       }
+      task_attachments: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_name: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          task_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          task_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          task_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "task_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_automation_log: {
         Row: {
           created_at: string | null
@@ -75789,6 +76188,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          actual_hours: number | null
           assigned_to: string | null
           category: string
           company_id: string
@@ -75816,6 +76216,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actual_hours?: number | null
           assigned_to?: string | null
           category?: string
           company_id: string
@@ -75843,6 +76244,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actual_hours?: number | null
           assigned_to?: string | null
           category?: string
           company_id?: string
@@ -88342,6 +88744,10 @@ export type Database = {
         }
         Returns: number
       }
+      openwa_campagna_conta_invio: {
+        Args: { p_campagna_id: string }
+        Returns: boolean
+      }
       openwa_campagna_prossimi: {
         Args: { p_limit?: number }
         Returns: {
@@ -88370,6 +88776,10 @@ export type Database = {
           variante: string
           wa_chat_id: string
         }[]
+      }
+      openwa_campagna_scala_invio: {
+        Args: { p_campagna_id: string }
+        Returns: undefined
       }
       openwa_campagna_segna_risposta:
         | { Args: { p_contact_id: string }; Returns: number }
@@ -88506,6 +88916,10 @@ export type Database = {
         Returns: boolean
       }
       outreach_norm_rag_soc: { Args: { p_nome: string }; Returns: string }
+      outreach_prenota_invio: {
+        Args: { p_cap: number; p_sender_id: string; p_today: string }
+        Returns: boolean
+      }
       outreach_register_open: {
         Args: { p_queue_id: string }
         Returns: undefined
@@ -88519,6 +88933,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      outreach_rilascia_invio: {
+        Args: { p_sender_id: string; p_today: string }
+        Returns: undefined
+      }
+      outreach_runs_pulisci: { Args: never; Returns: undefined }
       outreach_stats_by_sender: {
         Args: { p_company: string }
         Returns: {

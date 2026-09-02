@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { TASK_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/taskCategories";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { TaskAllegati } from "@/components/attivita/TaskAllegati";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,16 +48,6 @@ const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   urgente: { label: "Urgente", emoji: "🔴" },
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  generale: "Generale",
-  ordini: "Ordini",
-  magazzino: "Magazzino",
-  pagamenti: "Pagamenti",
-  costi: "Costi",
-  marketing: "Marketing",
-  contatti: "Contatti",
-  opportunita: "Opportunità",
-};
 
 const TASK_EVENT_LABELS: Record<string, string> = {
   task_created: "ha creato l'attività",
@@ -399,6 +392,19 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     onError: () => toast.error("Errore nel salvataggio"),
   });
 
+  // Assegnatario modificabile da qui come stato, priorità e scadenza: prima
+  // era l'unico campo in sola lettura del pannello.
+  const { data: staff = [] } = useCompanyStaffUsers(companyId);
+  const opzioniAssegnatario = useMemo(() => {
+    const lista = staff.map((u) => ({ id: u.id, nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente" }));
+    const attuale = task?.assigned_to as string | null | undefined;
+    if (attuale && !lista.some((u) => u.id === attuale)) {
+      const p = task.assigned_profile as { first_name?: string | null; last_name?: string | null } | null;
+      lista.unshift({ id: attuale, nome: p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "Utente" : "Utente non più attivo" });
+    }
+    return lista;
+  }, [staff, task]);
+
   const saveField = (field: string) => (val: string | null) => {
     updateMutation.mutate({ [field]: val });
   };
@@ -556,10 +562,10 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           {/* Dettagli */}
           <SezioneCard titolo="Dettagli" icon={FileText} tono="blu">
             <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-              {/* Assignee (read-only) */}
+              {/* Assignee: si cambia da qui */}
               <div className="flex items-start gap-3">
                 <ChipIcona icon={User} tono="blu" className="mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     Assegnato a
                   </div>
@@ -572,11 +578,20 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                         ).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm">
-                      {task.assigned_profile
-                        ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
-                        : "Non assegnato"}
-                    </span>
+                    <Select
+                      value={(task.assigned_to as string | null | undefined) ?? "none"}
+                      onValueChange={(val) => updateMutation.mutate({ assigned_to: val === "none" ? null : val })}
+                    >
+                      <SelectTrigger className="h-7 w-auto max-w-full text-sm" aria-label="Cambia assegnatario">
+                        <SelectValue placeholder="Non assegnato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Non assegnato</SelectItem>
+                        {opzioniAssegnatario.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -597,6 +612,14 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 value={task.estimated_hours != null ? String(task.estimated_hours) : null}
                 type="number"
                 onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
+              />
+
+              <EditableField
+                label="Ore effettive"
+                icon={Clock}
+                value={task.actual_hours != null ? String(task.actual_hours) : null}
+                type="number"
+                onSave={(val) => updateMutation.mutate({ actual_hours: val ? parseFloat(val) : null })}
               />
 
               {/* Category */}
@@ -686,6 +709,8 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           </SezioneCard>
 
           {/* Etichette */}
+          <TaskAllegati taskId={task.id} companyId={companyId} />
+
           <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
             <div className="flex flex-wrap gap-1.5">
               {assignedTags.map((tag) => (

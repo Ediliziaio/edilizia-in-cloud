@@ -19,6 +19,7 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { TASK_CATEGORY_OPTIONS as CATEGORIES } from "@/lib/taskCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -84,17 +85,6 @@ const PRIORITIES = [
   { value: "urgente", label: "Urgente" },
 ];
 
-const CATEGORIES = [
-  { value: "generale", label: "Generale" },
-  { value: "ordini", label: "Ordini" },
-  { value: "magazzino", label: "Magazzino" },
-  { value: "pagamenti", label: "Pagamenti" },
-  { value: "costi", label: "Costi" },
-  { value: "marketing", label: "Marketing" },
-  { value: "contatti", label: "Contatti" },
-  { value: "opportunita", label: "Opportunità" },
-  { value: "assistenza", label: "Assistenza" },
-];
 
 const MAX_INITIAL_CHECKLIST_ITEMS = 20;
 

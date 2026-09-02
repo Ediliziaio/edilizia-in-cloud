@@ -9,21 +9,12 @@ import { CheckCircle2, Clock, TrendingUp, ListTodo } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { TASK_STATUS_TONE_CLASSES, isTaskDoneStatus } from "@/lib/taskStatuses";
+import { TASK_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/taskCategories";
 const PRIORITY_COLORS: Record<string, string> = {
   bassa:   "#94a3b8",
   normale: "#3b82f6",
   alta:    "#f97316",
   urgente: "#ef4444",
-};
-const CATEGORY_LABELS: Record<string, string> = {
-  generale:    "Generale",
-  ordini:      "Ordini",
-  magazzino:   "Magazzino",
-  pagamenti:   "Pagamenti",
-  costi:       "Costi",
-  marketing:   "Marketing",
-  contatti:    "Contatti",
-  opportunita: "Opportunità",
 };
 
 interface StatsTask {

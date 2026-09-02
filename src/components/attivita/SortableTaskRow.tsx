@@ -27,18 +27,8 @@ import {
 } from "@/lib/taskStatuses";
 
 import { PRIORITY_CONFIG, PRIORITY_ORDER } from "@/lib/taskPriorities";
+import { TASK_CATEGORY_LABELS as ALL_CATEGORY_LABELS } from "@/lib/taskCategories";
 
-const ALL_CATEGORY_LABELS: Record<string, string> = {
-  generale:   "Generale",
-  ordini:     "Ordini",
-  magazzino:  "Magazzino",
-  pagamenti:  "Pagamenti",
-  costi:      "Costi",
-  marketing:  "Marketing",
-  contatti:   "Contatti",
-  opportunita: "Opportunità",
-  assistenza: "Assistenza",
-};
 
 /**
  * Azioni che la riga può chiedere al genitore. La riga non parla col DB:

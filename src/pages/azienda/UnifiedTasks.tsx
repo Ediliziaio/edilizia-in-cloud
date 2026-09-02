@@ -8,7 +8,9 @@ import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { SortableTaskRow, type AzioniRiga } from "@/components/attivita/SortableTaskRow";
-import { PRIORITY_ORDER } from "@/lib/taskPriorities";
+import { PRIORITY_ORDER, PRIORITY_CONFIG } from "@/lib/taskPriorities";
+import { TASK_CATEGORY_LABELS as ALL_CATEGORY_LABELS } from "@/lib/taskCategories";
+import { costruisciCsv, scaricaCsv } from "@/lib/csv";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -22,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange,
   BarChart2, User, Users, SlidersHorizontal, ArrowUp, ArrowDown, ArrowUpDown,
+  Download,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -61,16 +64,6 @@ import {
 
 type ColonnaOrdinabile = "title" | "assignee" | "priority" | "due_date" | "status";
 
-const ALL_CATEGORY_LABELS: Record<string, string> = {
-  generale: "Generale",
-  ordini: "Ordini",
-  magazzino: "Magazzino",
-  pagamenti: "Pagamenti",
-  costi: "Costi",
-  marketing: "Marketing",
-  contatti: "Contatti",
-  opportunita: "Opportunità",
-};
 
 const FONTE_OPTIONS = [
   { value: "all", label: "Tutte le fonti" },
@@ -397,6 +390,28 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     });
   }, [tasks, reorderMutation, queryClient]);
 
+  /** Le attività filtrate e ordinate come le vedi, in CSV apribile da Excel. */
+  const esportaCsv = () => {
+    if (sortedTasks.length === 0) { toast.info("Nessuna attività da esportare con i filtri attuali"); return; }
+    const nome = (t: any) => t.assigned_profile ? `${t.assigned_profile.first_name ?? ""} ${t.assigned_profile.last_name ?? ""}`.trim() : "";
+    const data = (v: unknown) => (typeof v === "string" && v ? format(parseISO(v), "dd/MM/yyyy") : "");
+    const csv = costruisciCsv(sortedTasks as any[], [
+      { label: "Titolo", valore: (t) => t.title },
+      { label: "Stato", valore: (t) => getTaskStatusLabel(t.status, statusOptions) },
+      { label: "Priorità", valore: (t) => PRIORITY_CONFIG[t.priority as keyof typeof PRIORITY_CONFIG]?.label ?? t.priority },
+      { label: "Categoria", valore: (t) => ALL_CATEGORY_LABELS[t.category] ?? t.category },
+      { label: "Scadenza", valore: (t) => data(t.due_date) },
+      { label: "Assegnata a", valore: nome },
+      { label: "Commessa", valore: (t) => t.order?.order_code ?? "" },
+      { label: "Stima ore", valore: (t) => t.estimated_hours ?? "" },
+      { label: "Ore effettive", valore: (t) => t.actual_hours ?? "" },
+      { label: "Creata il", valore: (t) => data(t.created_at) },
+      { label: "Note", valore: (t) => t.notes ?? "" },
+    ]);
+    scaricaCsv(`attivita-${format(new Date(), "yyyy-MM-dd")}.csv`, csv);
+    toast.success(sortedTasks.length === 1 ? "1 attività esportata" : `${sortedTasks.length} attività esportate`);
+  };
+
   const openNewTask = useCallback((options?: { assignedTo?: string | null; defaults?: Record<string, unknown> | null }) => {
     const defaultAssignee =
       options?.assignedTo !== undefined
@@ -597,6 +612,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             <Button variant="outline" className="gap-2" onClick={() => setStatusSettingsOpen(true)}>
               <SlidersHorizontal className="h-4 w-4" />
               Stati
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={esportaCsv} title="Scarica in CSV (Excel) le attività filtrate">
+              <Download className="h-4 w-4" />
+              Esporta
             </Button>
           </div>
         </div>
@@ -810,7 +829,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               />
             ) : (
               <>
-                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
+                <BulkActionsBar companyId={companyId} selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
                 <Card>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <div className="overflow-x-auto">

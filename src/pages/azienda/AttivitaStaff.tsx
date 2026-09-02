@@ -65,6 +65,7 @@ import {
   weatherCodeToLabel,
   type WeatherDay,
 } from "@/hooks/useWeatherForecast";
+import { TASK_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from "@/lib/taskCategories";
 
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
@@ -85,17 +86,10 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
 const STATUS_CONFIG: Record<string, { label: string; className: string; next: string | null }> = {
   da_fare:     { label: "Da fare",     className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",     next: "in_corso" },
   in_corso:    { label: "In corso",    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      next: "completata" },
+  in_revisione: { label: "In revisione", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", next: "completata" },
   completata:  { label: "Completata",  className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  next: null },
 };
 
-const CATEGORY_OPTIONS = [
-  { value: "amministrazione", label: "Amministrazione" },
-  { value: "hr",              label: "Risorse Umane" },
-  { value: "contabilita",     label: "Contabilità" },
-  { value: "commerciale",     label: "Commerciale" },
-  { value: "logistica",       label: "Logistica" },
-  { value: "altro",           label: "Altro" },
-];
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const ORE_GRIGLIA = Array.from({ length: 14 }, (_, i) => 7 + i); // 07:00 → 20:00

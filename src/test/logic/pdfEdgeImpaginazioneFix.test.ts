@@ -87,7 +87,7 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
 
     it("colonna prezzo con bordo sinistro garantito (no collisione con U.M.)", () => {
       expect(source).toContain("priceLeftBound");
-      expect(source).toContain("priceRight - textW(withDisc, 8.5) >= priceLeftBound");
+      expect(source).toContain("priceRight - textW(withDisc, sz(8.5)) >= priceLeftBound");
     });
 
     it("box finanziamento allineato al contenuto (non sfora la pagina)", () => {

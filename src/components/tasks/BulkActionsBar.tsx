@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CheckCircle2, Trash2, X, ArrowUpDown } from "lucide-react";
+import { CheckCircle2, Trash2, X, ArrowUpDown, UserPlus } from "lucide-react";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,9 +15,12 @@ interface BulkActionsBarProps {
   statusOptions?: TaskStatusDefinition[];
   /** Le attività caricate: servono per ricordare gli stati precedenti e offrire "Annulla". */
   tasks?: Array<{ id: string; status?: string | null; completed_at?: string | null }>;
+  /** Serve per popolare "Assegna a" con lo staff dell'azienda. */
+  companyId?: string | null;
 }
 
-export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks = [] }: BulkActionsBarProps) {
+export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks = [], companyId = null }: BulkActionsBarProps) {
+  const { data: staff = [] } = useCompanyStaffUsers(companyId);
   const queryClient = useQueryClient();
   const count = selectedIds.size;
 
@@ -95,6 +99,23 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks
     }
   };
 
+  // Riassegnare venti attività prima voleva dire aprirle una per una.
+  const handleBulkAssign = async (userId: string) => {
+    const ids = Array.from(selectedIds);
+    const assegnatario = userId === "none" ? null : userId;
+    const { error } = await supabase.from("tasks").update({ assigned_to: assegnatario }).in("id", ids);
+    if (error) {
+      toast.error("Assegnazione non riuscita", { description: error.message });
+      return;
+    }
+    const chi = staff.find((u) => u.id === assegnatario);
+    const nome = chi ? `${chi.first_name ?? ""} ${chi.last_name ?? ""}`.trim() : "nessuno";
+    toast.success(ids.length === 1 ? `Attività assegnata a ${nome}` : `${ids.length} attività assegnate a ${nome}`);
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+    onClear();
+  };
+
   if (count === 0) return null;
 
   return (
@@ -127,6 +148,19 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks
         <SelectContent>
           {statusOptions.map((status) => (
             <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select onValueChange={handleBulkAssign}>
+        <SelectTrigger className="w-[190px] h-8 text-sm" aria-label="Assegna le attività selezionate">
+          <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+          <SelectValue placeholder="Assegna a" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Nessuno (togli assegnatario)</SelectItem>
+          {staff.map((u) => (
+            <SelectItem key={u.id} value={u.id}>{`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente"}</SelectItem>
           ))}
         </SelectContent>
       </Select>

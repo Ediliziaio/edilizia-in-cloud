@@ -10,7 +10,9 @@ import { it } from "date-fns/locale";
 import {
   Plus, CheckCircle, Clock, Circle, Loader2, Calendar as CalendarIcon,
   X, HardHat, MapPin, ListChecks, PlayCircle,
+  Eye,
 } from "lucide-react";
+import { DEFAULT_TASK_STATUS_DEFINITIONS, getNextTaskStatusForQuickAction } from "@/lib/taskStatuses";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,13 +31,14 @@ const PRIORITY_CONFIG: Record<string, { label: string; dot: string; badge: strin
 const STATUS_CONFIG: Record<string, { label: string; icon: any; cls: string }> = {
   da_fare:     { label: "Da fare",     icon: Circle,      cls: "text-slate-500" },
   in_corso:    { label: "In corso",    icon: Clock,       cls: "text-blue-600" },
+  in_revisione: { label: "In revisione", icon: Eye,       cls: "text-amber-600" },
   completata:  { label: "Completata",  icon: CheckCircle, cls: "text-green-600" },
 };
 
 const PRIORITIES = ["urgente", "alta", "normale", "bassa"];
-const STATUSES = ["da_fare", "in_corso", "completata"];
+const STATUSES = ["da_fare", "in_corso", "in_revisione", "completata"];
 
-type StatusFilter = "tutte" | "da_fare" | "in_corso" | "completata";
+type StatusFilter = "tutte" | "da_fare" | "in_corso" | "in_revisione" | "completata";
 
 export default function CampoAttivita() {
   const navigate = useNavigate();
@@ -115,10 +118,10 @@ export default function CampoAttivita() {
     onError: (err: any) => toast.error(err.message ?? "Errore"),
   });
 
+  // Stessa sequenza della Regia (da fare → in corso → in revisione → fatta):
+  // prima "in revisione" non era in lista e il tap la riportava a "da fare".
   const cycleStatus = (task: any) => {
-    const order = ["da_fare", "in_corso", "completata"];
-    const idx = order.indexOf(task.status);
-    const next = order[(idx + 1) % order.length];
+    const next = getNextTaskStatusForQuickAction(task.status, DEFAULT_TASK_STATUS_DEFINITIONS).value;
     statusMutation.mutate({ id: task.id, newStatus: next });
   };
 

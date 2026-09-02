@@ -803,7 +803,7 @@ function CreateOrderInner() {
           const { data: comp } = await supabase
             .from("companies").select("playbook_auto_apply").eq("id", effectiveCompany.id).maybeSingle();
           if ((comp as { playbook_auto_apply?: boolean } | null)?.playbook_auto_apply) {
-            await applyPlaybookToOrder({ companyId: effectiveCompany.id, orderId: order.id, vertical, baseDate: new Date() });
+            await applyPlaybookToOrder({ companyId: effectiveCompany.id, orderId: order.id, vertical, baseDate: new Date(), assignedTo: getValues("assigned_to") || null });
           }
         }
       } catch { /* non bloccare la creazione della commessa */ }

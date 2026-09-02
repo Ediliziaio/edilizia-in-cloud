@@ -867,6 +867,7 @@ function OrderDetailInner() {
         orderId: id!,
         vertical,
         baseDate: order.created_at ? new Date(order.created_at) : new Date(),
+        assignedTo: ((order as { assigned_to?: string | null }).assigned_to) ?? null,
       });
       if (created === 0) {
         toast.info("Le attività del processo standard sono già presenti su questa commessa.");
@@ -1005,6 +1006,7 @@ function OrderDetailInner() {
     const [
       laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
       campoAssignmentsRaw, giornaleLavori, odv, vc, diaryEvents, diaryMessages,
+      bonusLinesRes,
     ] = await Promise.all([
       supabase.from("order_employees").select("*, employee:employees(first_name, last_name)").eq("order_id", id!),
       supabase.from("order_external_teams").select("*, external_team:external_teams(name)").eq("order_id", id!),
@@ -1021,6 +1023,10 @@ function OrderDetailInner() {
       supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
       supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
       supabase.from("order_messages").select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
+      // Ripartizione bonus: nel PDF diventa la lista dei bonifici parlanti da
+      // fare, causale compresa. Fetchata solo al click su "Scarica PDF".
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("order_bonus_lines").select("*").eq("order_id", id!).order("position"),
     ]);
     const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
@@ -1036,6 +1042,7 @@ function OrderDetailInner() {
       purchaseOrders: purchaseOrders.data ?? [],
       campoAssignments,
       installments: displayInstallments,
+      bonusLines: (bonusLinesRes?.data as unknown[]) ?? [],
       giornaleLavori: giornaleLavori.data ?? [],
       varianti: [...(odv.data ?? []), ...(vc.data ?? [])],
       diaryEvents: diaryEvents.data ?? [],
@@ -1583,6 +1590,8 @@ function OrderDetailInner() {
                 orderCode={order.order_code}
                 conPrimaNota={permissions.canViewPrimaNota}
                 clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
+                customerId={order.customer_id}
+                pivaImpresa={effectiveCompany?.vat_number ?? null}
               />
               )}
               {/* Chi finanzia il cantiere: cassa consuntiva (incassato vs pagato).
@@ -2070,6 +2079,8 @@ function OrderDetailInner() {
                 orderCode={order.order_code}
                 conPrimaNota={permissions.canViewPrimaNota}
                 clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
+                customerId={order.customer_id}
+                pivaImpresa={effectiveCompany?.vat_number ?? null}
               />
               )}
             </div>

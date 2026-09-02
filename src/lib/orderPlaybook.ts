@@ -94,8 +94,10 @@ export async function applyPlaybookToOrder(params: {
   orderId: string;
   vertical?: string | null;
   baseDate: Date;
+  /** Responsabile della commessa: le fasi nascono assegnate a lui, altrimenti a chi le crea. */
+  assignedTo?: string | null;
 }): Promise<{ created: number; playbookKey: string }> {
-  const { companyId, orderId, vertical, baseDate } = params;
+  const { companyId, orderId, vertical, baseDate, assignedTo } = params;
   const { key } = getOrderPlaybook(vertical);
 
   // created_by è NOT NULL su tasks: serve l'utente corrente.
@@ -141,7 +143,9 @@ export async function applyPlaybookToOrder(params: {
       priority: s.priorita,
       due_date: format(addDays(baseDate, s.giorni_offset), "yyyy-MM-dd"),
       category: "ordini",
-      assigned_to: null,
+      // Prima nascevano senza assegnatario: in produzione erano il grosso delle
+      // attività scadute che nessuno vedeva come proprie.
+      assigned_to: assignedTo ?? createdBy,
       created_by: createdBy,
     }));
 
