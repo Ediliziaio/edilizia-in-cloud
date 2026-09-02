@@ -161,6 +161,16 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       toast.error("Copia non riuscita", { description: linkDi(m) });
     }
   };
+  // Stesso pattern dell'embed dei moduli lead: iframe pronto da incollare.
+  const copiaEmbed = async (m: CandidaturaForm) => {
+    const snippet = `<iframe src="${linkDi(m)}?embed=1" title="${m.titolo.replace(/"/g, "&quot;")}" width="100%" height="760" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;min-height:760px;border:0;max-width:640px;margin:0 auto;display:block;border-radius:12px;overflow:hidden;"></iframe>`;
+    try {
+      await navigator.clipboard.writeText(snippet);
+      toast.success("Codice embed copiato: incollalo nell'HTML del sito");
+    } catch {
+      toast.error("Copia non riuscita");
+    }
+  };
   const crea = () => {
     if (!titolo.trim()) { toast.error("Dai un titolo al modulo (es. Lavora con noi)"); return; }
     upsert.mutate({
@@ -251,6 +261,9 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copia(m)}>
                     <Copy className="h-3 w-3" /> Copia link
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copiaEmbed(m)}>
+                    <Copy className="h-3 w-3" /> Copia embed
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => window.open(linkDi(m), "_blank")}>
                     <ExternalLink className="h-3 w-3" /> Anteprima

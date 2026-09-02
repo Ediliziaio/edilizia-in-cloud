@@ -250,6 +250,11 @@ async function handleTrigger(supabase: any, body: any) {
     carico_magazzino: "stock_received",
     // HR
     dipendente_creato: "employee_created",
+    // Selezione candidati (emettitori: migration 20280902130000)
+    candidato_creato: "candidate_created",
+    candidato_fase_cambiata: "candidate_stage_changed",
+    candidato_assunto: "candidate_hired",
+    colloquio_fissato: "interview_scheduled",
     contratto_in_scadenza: "contract_expiring",     // SCHEDULED
     documento_hr_in_scadenza: "hr_document_expiring", // SCHEDULED (emesso da hr-check-scadenze)
     ferie_richiesta: "leave_requested",

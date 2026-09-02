@@ -148,6 +148,8 @@ export const FOLDER_COLORS: Record<string, string> = {
   ticket: "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
   task: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
   employee: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
+  candidato: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  colloquio: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   warehouse: "bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300",
   user: "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300",
   salesperson: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
@@ -194,6 +196,8 @@ export const FOLDER_LABELS: Record<string, string> = {
   ticket: "Ticket",
   task: "Task",
   employee: "Dipendente",
+  candidato: "Candidato",
+  colloquio: "Colloquio Candidato",
   warehouse: "Magazzino",
   user: "Utente",
   salesperson: "Venditore",
@@ -468,6 +472,32 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_emp_contract_end",  "Data Fine Contratto", "Dipendente", "employee", "{{ employee.contract_end_date }}"),
   sysField("sys_emp_hourly_cost",   "Costo Orario",        "Dipendente", "employee", "{{ employee.hourly_cost }}"),
   sysField("sys_emp_specializ",     "Specializzazione",    "Dipendente", "employee", "{{ employee.specializzazione }}"),
+
+  // ══════════════════════════════════════
+  // ── Candidato (banca dati selezione) ──
+  // ══════════════════════════════════════
+  sysField("sys_cand_id",          "ID Candidato",          "Candidato (Selezione)", "candidato", "{{ candidato.id }}"),
+  sysField("sys_cand_nome",        "Nome Candidato",        "Candidato (Selezione)", "candidato", "{{ candidato.nome }}"),
+  sysField("sys_cand_cognome",     "Cognome Candidato",     "Candidato (Selezione)", "candidato", "{{ candidato.cognome }}"),
+  sysField("sys_cand_email",       "Email Candidato",       "Candidato (Selezione)", "candidato", "{{ candidato.email }}"),
+  sysField("sys_cand_telefono",    "Telefono Candidato",    "Candidato (Selezione)", "candidato", "{{ candidato.telefono }}"),
+  sysField("sys_cand_citta",       "Città",                 "Candidato (Selezione)", "candidato", "{{ candidato.citta }}"),
+  sysField("sys_cand_ruolo",       "Ruolo Cercato",         "Candidato (Selezione)", "candidato", "{{ candidato.ruolo }}"),
+  sysField("sys_cand_fonte",       "Fonte",                 "Candidato (Selezione)", "candidato", "{{ candidato.fonte }}"),
+  sysField("sys_cand_stato",       "Esito / Stato",         "Candidato (Selezione)", "candidato", "{{ candidato.stato }}"),
+  sysField("sys_cand_fase",        "Fase Selezione",        "Candidato (Selezione)", "candidato", "{{ candidato.fase_nome }}"),
+  sysField("sys_cand_valutazione", "Valutazione (stelle)",  "Candidato (Selezione)", "candidato", "{{ candidato.valutazione }}"),
+  sysField("sys_cand_cv_nome",     "Nome File CV",          "Candidato (Selezione)", "candidato", "{{ candidato.cv_nome }}"),
+  sysField("sys_cand_note",        "Note",                  "Candidato (Selezione)", "candidato", "{{ candidato.note }}"),
+  sysField("sys_cand_created",     "Data Candidatura",      "Candidato (Selezione)", "candidato", "{{ candidato.created_at }}"),
+  sysField("sys_cand_modulo",      "Modulo di Provenienza", "Candidato (Selezione)", "candidato", "{{ candidato.modulo_titolo }}"),
+
+  // ── Colloquio candidato ──
+  sysField("sys_coll_data",  "Data Colloquio",     "Colloquio Candidato", "colloquio", "{{ colloquio.data_colloquio }}"),
+  sysField("sys_coll_ora",   "Ora Colloquio",      "Colloquio Candidato", "colloquio", "{{ colloquio.ora_colloquio }}"),
+  sysField("sys_coll_tipo",  "Tipo Colloquio",     "Colloquio Candidato", "colloquio", "{{ colloquio.tipo }}"),
+  sysField("sys_coll_esito", "Esito Colloquio",    "Colloquio Candidato", "colloquio", "{{ colloquio.esito }}"),
+  sysField("sys_coll_note",  "Note Colloquio",     "Colloquio Candidato", "colloquio", "{{ colloquio.note }}"),
   sysField("sys_emp_notes",         "Note Interne",        "Dipendente", "employee", "{{ employee.notes }}"),
 
   // ══════════════════════════════════════
@@ -902,6 +932,9 @@ const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
   ddt_ricezione:         [{ value: "ddt_ricezione",         label: "DDT Ricezione Merce" }],
   // ── Finanza ──
   costo_aziendale:       [{ value: "costo_aziendale",       label: "Costo Aziendale" }],
+  // ── Personale & HR: selezione ──
+  candidato:             [{ value: "candidato",             label: "Candidato (Selezione)" }],
+  colloquio:             [{ value: "colloquio",             label: "Colloquio Candidato" }],
   // ── Azienda ──
   company:               [{ value: "company",               label: "Azienda / Profilo" }],
   // ── Catalogo Esteso (Sprint C) ──
@@ -979,6 +1012,8 @@ export const GROUP_OPTIONS = [
 
 export const OBJECT_NAME_MAP: Record<string, string> = {
   contact: "Contatto",
+  candidato: "Candidato (Selezione)",
+  colloquio: "Colloquio Candidato",
   opportunity: "Opportunità",
   appointment: "Appuntamento",
   order: "Ordine",

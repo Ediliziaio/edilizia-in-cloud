@@ -7,7 +7,7 @@
  * edge function candidatura-submit, mai col database.
  */
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { HardHat, CheckCircle2, Upload, Loader2, XCircle } from "lucide-react";
 
 const EDGE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/candidatura-submit`;
@@ -38,6 +38,10 @@ function schiarisci(hex: string, f = 0.25): string {
 
 export default function CandidaturaPubblica() {
   const { token } = useParams<{ token: string }>();
+  // Dentro un iframe sul sito dell'impresa il modulo deve fondersi con la
+  // pagina ospite: niente sfondo grigio, niente cornice, larghezza piena.
+  const [searchParams] = useSearchParams();
+  const embed = searchParams.get("embed") === "1";
   const [config, setConfig] = useState<ConfigModulo | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [inviata, setInviata] = useState(false);
@@ -125,10 +129,10 @@ export default function CandidaturaPubblica() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8">
-      <div className="mx-auto w-full max-w-lg">
+    <div className={embed ? "min-h-screen bg-white" : "min-h-screen bg-slate-100 px-4 py-8"}>
+      <div className={embed ? "w-full" : "mx-auto w-full max-w-lg"}>
         {errore && !config ? (
-          <div className="rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <div className={embed ? "bg-white p-8 text-center" : "rounded-2xl border bg-white p-8 text-center shadow-sm"}>
             <XCircle className="mx-auto h-10 w-10 text-slate-300" />
             <p className="mt-3 font-semibold text-slate-800">Modulo non disponibile</p>
             <p className="mt-1 text-sm text-slate-500">{errore}</p>
@@ -138,7 +142,7 @@ export default function CandidaturaPubblica() {
             <Loader2 className="h-5 w-5 animate-spin" /> Caricamento…
           </div>
         ) : inviata ? (
-          <div className="rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <div className={embed ? "bg-white p-8 text-center" : "rounded-2xl border bg-white p-8 text-center shadow-sm"}>
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
             <h1 className="mt-3 text-xl font-bold text-slate-900">Candidatura inviata</h1>
             <p className="mt-2 text-sm text-slate-600">
@@ -147,8 +151,8 @@ export default function CandidaturaPubblica() {
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl border bg-white shadow-sm">
-            <div className="border-b px-6 py-5 rounded-t-2xl" style={{ background: testataBg, color: testataTesto }}>
+          <div className={embed ? "bg-white" : "rounded-2xl border bg-white shadow-sm"}>
+            <div className={`border-b px-6 py-5 ${embed ? "" : "rounded-t-2xl"}`} style={{ background: testataBg, color: testataTesto }}>
               {stile.mostra_azienda && config.azienda && (
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ opacity: 0.9 }}>
                   <HardHat className="h-4 w-4" /> {config.azienda}
