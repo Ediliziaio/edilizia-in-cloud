@@ -12,6 +12,8 @@ export interface SentStep {
   messageId: string | null;
   subject: string | null;
   threadId?: string | null;
+  /** Casella che ha spedito quel passo (il follow-up deve partire dalla stessa). */
+  senderId?: string | null;
 }
 
 export interface FollowupHeaders {
@@ -35,7 +37,9 @@ export function stripRe(subject: string | null | undefined): string {
  * primo. Oggetto valorizzato = si usa quello, ma resta agganciato al thread.
  */
 export function buildFollowupHeaders(previous: SentStep[], stepSubject: string | null | undefined): FollowupHeaders {
-  const conId = previous.filter((p) => !!p.messageId);
+  // Solo Message-ID RFC ("<…@…>"): gli id API di Elastic Email non lo sono e
+  // finirebbero in un In-Reply-To malformato.
+  const conId = previous.filter((p) => !!p.messageId && p.messageId.trim().startsWith("<"));
   const touch = previous.length + 1;
   const proprio = String(stepSubject ?? "").trim();
   if (previous.length === 0) {

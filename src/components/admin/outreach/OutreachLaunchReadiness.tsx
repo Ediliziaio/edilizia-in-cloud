@@ -26,6 +26,7 @@ import { isMissingTableError } from "./_shared";
  */
 
 type Riga = {
+  provider?: string | null;
   brand_id: string;
   brand: string;
   brand_status: string | null;

@@ -148,17 +148,23 @@ function nuovoMessageId(email: string): string {
   return `<${crypto.randomUUID()}@${dom}>`;
 }
 
-const ACCOUNT_FAIL_RE = /token_refresh_failed|tokens_not_found|refresh_token_missing|oauth_not_configured|invalid_grant|_401|_403|_429|username and password not accepted|authentication (failed|unsuccessful)|invalid (credentials|login)|\b53[045]\b|smtp_unexpected: 4|smtp_connection_closed|connection refused|econnrefused|timed out|network|tls/i;
-
-function classificaErrore(msg: string): { accountFailure: boolean; transient: boolean } {
+/**
+ * Classifica un errore d'invio. Regola: il RIFIUTO DEL DESTINATARIO e' solo il
+ * caso certo (SMTP 55x su RCPT TO, o 400 del provider che nomina il
+ * destinatario); il transitorio (rete, 5xx, 4xx temporanei) si ritenta; TUTTO
+ * il resto e' la casella che non spedisce → si ferma il giro, la riga resta in
+ * coda. Prima ogni 4xx sconosciuto chiudeva l'iscrizione del prospect.
+ */
+function classificaErrore(msg: string): { accountFailure: boolean; transient: boolean; recipientRejected: boolean } {
   const m = msg.toLowerCase();
-  if (/token_refresh_failed|tokens_not_found|refresh_token_missing|oauth_not_configured|invalid_grant|_401|_403|_429|username and password not accepted|authentication (failed|unsuccessful)|invalid (credentials|login)|\b53[045]\b/.test(m)) {
-    return { accountFailure: true, transient: false };
+  if (/^smtp_rcpt_rejected: 5/.test(m)) return { accountFailure: false, transient: false, recipientRejected: true };
+  if (/^(gmail_send|outlook_send)_400/.test(m) && /invalid (to|recipient|address)|errorinvalidrecipients|recipient/.test(m)) {
+    return { accountFailure: false, transient: false, recipientRejected: true };
   }
-  if (/smtp_unexpected: 4|smtp_connection_closed|connection refused|econnrefused|timed out|network|tls|_5\d\d:|gmail_send_5|outlook_send_5/.test(m)) {
-    return { accountFailure: false, transient: true };
+  if (/smtp_unexpected: 4|smtp_rcpt_rejected: 4|smtp_connection_closed|connection refused|econnrefused|timed out|network|tls|_5\d\d:|gmail_send_5|outlook_send_5|failed to fetch/.test(m)) {
+    return { accountFailure: false, transient: true, recipientRejected: false };
   }
-  return { accountFailure: false, transient: false };
+  return { accountFailure: true, transient: false, recipientRejected: false };
 }
 
 async function gmailSend(accessToken: string, rfc822: string, threadId?: string | null): Promise<{ id: string; threadId: string | null }> {
@@ -255,8 +261,7 @@ export async function sendViaNativeSender(admin: any, sender: NativeSender, msg:
     await log("failed", null, err, { account_failure: cls.accountFailure, transient: cls.transient });
     // Transitorio (rete, 5xx, 4xx SMTP): si LANCIA, cosi' il dispatcher ritenta con backoff.
     if (cls.transient) throw new Error(err);
-    return { ok: false, status: cls.accountFailure ? 503 : 502, messageId: null, threadId: null, providerUsed: provider, error: err, body: err, accountFailure: cls.accountFailure };
+    return { ok: false, status: cls.recipientRejected ? 400 : 503, messageId: null, threadId: null, providerUsed: provider, error: err, body: err, accountFailure: cls.accountFailure };
   }
 }
 
-export { ACCOUNT_FAIL_RE };

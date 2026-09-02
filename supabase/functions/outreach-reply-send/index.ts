@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { isNativeProvider, sendViaNativeSender } from "../_shared/outreachMailboxSend.ts";
 import { htmlToPlainText } from "../_shared/outreach-template.ts";
 
 /**
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
     // 4. dati casella + brand
     const { data: sender, error: sErr } = await admin
       .from("outreach_sender_accounts")
-      .select("id,email,display_name,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,brand_id,status")
+      .select("id,email,display_name,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,brand_id,status,oauth_connection_id")
       .eq("id", senderId).maybeSingle();
     if (sErr) throw sErr;
     if (!sender) return errorResponse("Casella mittente non trovata", 404, corsH);
@@ -138,38 +139,34 @@ Deno.serve(async (req) => {
       inReplyToHeaders["References"] = priorMsgId;
     }
 
-    // 8. casella SMTP propria → password dal Vault via RPC; EE legacy → nessun override
-    let mailboxOverride:
-      | { host: string; port: number; secure: boolean; username: string; password: string }
-      | undefined;
-    if (sender.provider === "smtp" && sender.secret_ref) {
-      const { data: pwd } = await admin.rpc("outreach_mailbox_secret", { p_ref: sender.secret_ref });
-      if (pwd && sender.smtp_host && sender.smtp_port) {
-        mailboxOverride = {
-          host: sender.smtp_host,
-          port: sender.smtp_port,
-          secure: sender.smtp_secure ?? true,
-          username: sender.smtp_username ?? sender.email,
-          password: pwd as string,
-        };
-      }
+    // 8. invio: caselle native (gmail/outlook/smtp) dal LORO provider, con il
+    // thread della risposta del prospect; Elastic Email legacy via sendEmailUnified.
+    let res: { ok: boolean; body?: unknown; providerMessageId?: string | null };
+    if (isNativeProvider(sender.provider)) {
+      const r = await sendViaNativeSender(admin, sender, {
+        companyId: PLATFORM_COMPANY, to, subject, html: body, text: htmlToPlainText(body),
+        fromName: brand?.from_name ?? sender.display_name ?? null, replyTo,
+        inReplyTo: priorMsgId || null, references: priorMsgId ? [priorMsgId] : [],
+        metadata: { outreach_reply: true, contact_id: contactId || null, to_email: to, sender_account_id: sender.id, by: userId },
+      });
+      res = { ok: r.ok, body: r.error ?? r.body, providerMessageId: r.messageId };
+    } else {
+      const u = await sendEmailUnified({
+        companyId: PLATFORM_COMPANY,
+        stream: "marketing",
+        to,
+        subject,
+        html: body,
+        // part text/plain (multipart/alternative): meno spam-score della HTML-only.
+        text: htmlToPlainText(body),
+        senderOverride: { from, replyTo, source: "outreach_reply" },
+        headers: Object.keys(inReplyToHeaders).length ? inReplyToHeaders : undefined,
+        adminClient: admin,
+        metadata: { outreach_reply: true, contact_id: contactId || null, to_email: to, sender_account_id: sender.id, by: userId },
+      });
+      res = { ok: !(u && u.ok === false), body: u?.body, providerMessageId: u?.providerMessageId ?? null };
     }
-
-    const res = await sendEmailUnified({
-      companyId: PLATFORM_COMPANY,
-      stream: "marketing",
-      to,
-      subject,
-      html: body,
-      // part text/plain (multipart/alternative): meno spam-score della HTML-only.
-      text: htmlToPlainText(body),
-      senderOverride: { from, replyTo, source: "outreach_reply" },
-      mailboxOverride,
-      headers: Object.keys(inReplyToHeaders).length ? inReplyToHeaders : undefined,
-      adminClient: admin,
-      metadata: { outreach_reply: true, contact_id: contactId || null, to_email: to, sender_account_id: sender.id, by: userId },
-    });
-    if (res && res.ok === false) {
+    if (!res.ok) {
       return errorResponse(
         `Invio non riuscito: ${typeof res.body === "string" ? res.body : JSON.stringify(res.body)}`,
         502,

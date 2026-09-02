@@ -91,10 +91,32 @@ async function applicaBounce(admin: any, mb: Casella, b: BounceInfo): Promise<vo
   }
 }
 
+/** Tra gli indirizzi candidati, quelli a cui la casella ha spedito (30 gg). */
+async function destinatariRecenti(admin: any, senderId: string, emails: string[]): Promise<string[]> {
+  const puliti = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s,]+@[^\s,]+$/.test(e)))].slice(0, 20);
+  if (puliti.length === 0) return [];
+  const { data } = await admin.from("outreach_send_queue").select("to_email")
+    .eq("sender_account_id", senderId).eq("status", "sent")
+    .gte("sent_at", new Date(Date.now() - 30 * DAY_MS).toISOString())
+    .or(puliti.map((e) => `to_email.ilike.${e}`).join(","))
+    .limit(50);
+  const spediti = new Set(((data ?? []) as Array<{ to_email: string | null }>).map((r) => String(r.to_email ?? "").toLowerCase()));
+  return puliti.filter((e) => spediti.has(e));
+}
+
 /** Un messaggio arrivato nella casella: bounce, risposta di un prospect o rumore. */
 async function processa(admin: any, mb: Casella, msg: MsgIn): Promise<"bounce" | "risposta" | "ignorato"> {
   const bounce = parseBounce({ from: msg.from, subject: msg.subject, text: msg.text, ignoreEmails: [mb.email] });
-  if (bounce.isBounce) { await applicaBounce(admin, mb, bounce); return "bounce"; }
+  if (bounce.isBounce) {
+    // Contano SOLO gli indirizzi a cui questa casella ha davvero scritto negli
+    // ultimi 30 giorni: il classificatore gira anche sulla posta personale
+    // delle caselle OAuth (newsletter, notifiche) e il testo libero e' pieno
+    // di indirizzi che non c'entrano.
+    const noti = await destinatariRecenti(admin, mb.id, bounce.failedEmails);
+    if (noti.length === 0) return "ignorato";
+    await applicaBounce(admin, mb, { ...bounce, failedEmails: noti });
+    return "bounce";
+  }
 
   const addr = addrOf(msg.from);
   if (!addr || addr === mb.email.toLowerCase()) return "ignorato";
@@ -181,17 +203,19 @@ Deno.serve(async (req) => {
         const sinceIso = mb.last_imap_check_at ?? new Date(Date.now() - DAY_MS).toISOString();
         const { data: rows, error: rErr } = await admin
           .from("email_inbox")
-          .select("id, message_id, from_email, from_name, subject, raw_text, raw_html, received_at, in_reply_to, references_ids, headers")
+          .select("id, message_id, from_email, from_name, subject, raw_text, raw_html, received_at, created_at, in_reply_to, references_ids, headers")
           .eq("oauth_connection_id", mb.oauth_connection_id)
           .or("mailbox_folder.eq.inbox,mailbox_folder.is.null")
-          .gt("received_at", sinceIso)
-          .order("received_at", { ascending: true })
+          // cursore su created_at (inserimento), non received_at: un messaggio
+          // scaricato in ritardo con data vecchia non deve sparire
+          .gt("created_at", sinceIso)
+          .order("created_at", { ascending: true })
           .limit(PER_MAILBOX);
         if (rErr) throw rErr;
         esito.checked++;
         let ultimo: string | null = null;
         for (const r of (rows ?? []) as any[]) {
-          ultimo = r.received_at ?? ultimo;
+          ultimo = r.created_at ?? ultimo;
           const from = r.from_name ? `${r.from_name} <${r.from_email}>` : String(r.from_email ?? "");
           const headers: Record<string, string> = {};
           if (r.headers && typeof r.headers === "object") {

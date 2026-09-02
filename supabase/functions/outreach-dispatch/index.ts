@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, dailyCapWithVariance, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
@@ -178,10 +178,12 @@ async function inviatiPrecedenti(supabase: any, enrId: string): Promise<SentStep
   try {
     const { data } = await supabase
       .from("outreach_send_queue")
-      .select("message_id,subject,provider_thread_id,sent_at")
-      .eq("enrollment_id", enrId).eq("status", "sent").eq("channel", "email")
+      .select("message_id,subject,provider_thread_id,sent_at,sender_account_id")
+      .eq("enrollment_id", enrId).eq("status", "sent").eq("channel", "email").eq("kind", "send")
       .order("sent_at", { ascending: true });
-    return ((data ?? []) as any[]).map((r) => ({ messageId: r.message_id ?? null, subject: r.subject ?? null, threadId: r.provider_thread_id ?? null }));
+    return ((data ?? []) as any[]).map((r) => ({
+      messageId: r.message_id ?? null, subject: r.subject ?? null, threadId: r.provider_thread_id ?? null, senderId: r.sender_account_id ?? null,
+    }));
   } catch { return []; }
 }
 
@@ -888,14 +890,48 @@ Deno.serve(async (req) => {
       arr.push(q.id);
       itemsByBrand.set(k, arr);
     }
+    // Mittente "sticky": il follow-up parte dalla STESSA casella del primo
+    // messaggio (stesso thread, stessa persona; Gmail rifiuta un threadId di
+    // un'altra casella). Se quella casella oggi non ha capacita' il follow-up
+    // aspetta; se non e' piu' nel pool si riparte da capo con un'altra.
+    const stickyByEnrollment = new Map<string, string>();
+    if (enrollmentIds.length) {
+      try {
+        const { data: primi } = await supabase
+          .from("outreach_send_queue").select("enrollment_id,sender_account_id,sent_at")
+          .in("enrollment_id", enrollmentIds).eq("status", "sent").eq("kind", "send").eq("channel", "email")
+          .not("sender_account_id", "is", null).order("sent_at", { ascending: true });
+        for (const r of (primi ?? []) as any[]) {
+          if (!stickyByEnrollment.has(r.enrollment_id)) stickyByEnrollment.set(r.enrollment_id, r.sender_account_id);
+        }
+      } catch { /* pre-migrazione grafo: nessuno sticky */ }
+    }
     for (const [brand, ids] of itemsByBrand) {
       const brandSenders = sendersByBrand.get(brand) ?? [];
       if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
+      const brandIds = new Set(brandSenders.map((s) => s.id));
+      const usati = new Map<string, number>();
+      const liberi: string[] = [];
+      for (const qid of ids) {
+        const q = queueById.get(qid);
+        const sid = q?.enrollment_id ? stickyByEnrollment.get(q.enrollment_id) : undefined;
+        if (sid && brandIds.has(sid)) {
+          const s = senderById.get(sid) as SenderState;
+          const rem = remainingToday(s, today, today) - (usati.get(sid) ?? 0);
+          if (rem > 0) { assignments.push({ queueId: qid, senderId: sid }); usati.set(sid, (usati.get(sid) ?? 0) + 1); }
+          else result.deferred++;
+          continue;
+        }
+        liberi.push(qid);
+      }
       // varianceKey=today: il tetto per-casella varia leggermente per casella+giorno
       // (sempre ≤ cap effettivo) → volume "umano", non un numero tondo fisso ogni giorno.
-      const r = assignSenders(ids, brandSenders, today, today);
+      const brandSendersAdj = brandSenders.map((s) => usati.has(s.id)
+        ? { ...s, daily_sent: sentToday(s, today) + (usati.get(s.id) ?? 0), daily_sent_date: today }
+        : s);
+      const r = assignSenders(liberi, brandSendersAdj, today, today);
       assignments.push(...r.assignments);
-      result.deferred += ids.length - r.assignments.length;
+      result.deferred += liberi.length - r.assignments.length;
     }
 
     // Running total per casella, seminato dallo snapshot iniziale. Il contatore
@@ -963,6 +999,7 @@ Deno.serve(async (req) => {
       const { data: claimed } = await supabase.from("outreach_send_queue")
         .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
       if (!claimed || claimed.length === 0) { result.skipped++; continue; }
+      let capPrenotato = false;
       try {
         const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
         const fromName = brand?.from_name || sender.display_name;
@@ -986,6 +1023,11 @@ Deno.serve(async (req) => {
         const precedenti = enr ? await inviatiPrecedenti(supabase, enr.id) : [];
         const oggettoStep = renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed });
         const thr = buildFollowupHeaders(precedenti, oggettoStep);
+        // Casella diversa dal primo passo (sticky non disponibile): niente
+        // header di thread, sarebbe una "risposta" da un'altra persona.
+        if (precedenti.length && precedenti[0].senderId && precedenti[0].senderId !== sender.id) {
+          thr.inReplyTo = null; thr.references = []; thr.threadId = null;
+        }
         const subjectFinale = thr.subject;
 
         // GATE DI CONTENUTO sul corpo, con il touch REALE. Prima si lintava il
@@ -1030,6 +1072,21 @@ Deno.serve(async (req) => {
           }
         }
 
+        // ── PRENOTAZIONE ATOMICA DEL CAP (prima era read-modify-write) ──
+        const capOggi = dailyCapWithVariance(sender as SenderState, today);
+        const { data: prenotato, error: prenErr } = await supabase.rpc("outreach_prenota_invio", {
+          p_sender_id: sender.id, p_today: today, p_cap: capOggi,
+        });
+        if (prenErr) throw prenErr;
+        capPrenotato = prenotato === true;
+        if (prenotato === false) {
+          await supabase.from("outreach_send_queue")
+            .update({ status: "queued", last_error: `rimandato: cap giornaliero di ${sender.email} raggiunto` })
+            .eq("id", item.id);
+          result.deferred++;
+          continue;
+        }
+
         // THROTTLING PER SERVER DI DESTINAZIONE (non per dominio): max 4/ora
         // dalla stessa casella verso lo stesso gruppo MX (Aruba, Register…).
         const domDest = String(item.to_email).split("@")[1]?.toLowerCase() ?? "";
@@ -1039,26 +1096,15 @@ Deno.serve(async (req) => {
             p_mx_group: gruppo, p_sender_key: sender.email, p_max_ora: 4,
           });
           if (viaLibera === false) {
+            // Cap gia' prenotato: torna indietro, la riga riparte al tick dopo.
+            await supabase.rpc("outreach_rilascia_invio", { p_sender_id: sender.id, p_today: today });
+            capPrenotato = false;
             await supabase.from("outreach_send_queue")
               .update({ status: "queued", last_error: `rimandato: quota oraria ${gruppo} esaurita per ${sender.email}` })
               .eq("id", item.id);
             result.deferred++;
             continue;
           }
-        }
-
-        // ── PRENOTAZIONE ATOMICA DEL CAP (prima era read-modify-write) ──
-        const capOggi = dailyCapWithVariance(sender as SenderState, today);
-        const { data: prenotato, error: prenErr } = await supabase.rpc("outreach_prenota_invio", {
-          p_sender_id: sender.id, p_today: today, p_cap: capOggi,
-        });
-        if (prenErr) throw prenErr;
-        if (prenotato === false) {
-          await supabase.from("outreach_send_queue")
-            .update({ status: "queued", last_error: `rimandato: cap giornaliero di ${sender.email} raggiunto` })
-            .eq("id", item.id);
-          result.deferred++;
-          continue;
         }
 
         // ── INVIO: caselle native (gmail/outlook/smtp) dal loro provider, il
@@ -1094,6 +1140,7 @@ Deno.serve(async (req) => {
         if (!esito.ok) {
           // Non e' partito nulla: la prenotazione del cap torna indietro.
           await supabase.rpc("outreach_rilascia_invio", { p_sender_id: sender.id, p_today: today });
+          capPrenotato = false;
           const guastoAccount = esito.accountFailure
             ? String(typeof esito.body === "string" ? esito.body : JSON.stringify(esito.body ?? "guasto account")).slice(0, 300)
             : isAccountLevelFailure(esito.body);
@@ -1133,7 +1180,9 @@ Deno.serve(async (req) => {
           .update({
             status: "sent", sent_at: new Date().toISOString(), sender_account_id: sender.id, variant_index: variantIndex,
             // oggetto DAVVERO spedito e Message-ID: e' da qui che il follow-up costruisce "Re:" e In-Reply-To
-            subject: subjectFinale, message_id: esito.messageId, provider_thread_id: esito.threadId,
+            subject: subjectFinale,
+            message_id: esito.messageId && esito.messageId.trim().startsWith("<") ? esito.messageId : null,
+            provider_thread_id: esito.threadId,
           })
           .eq("id", item.id);
         result.sent++;
@@ -1145,6 +1194,11 @@ Deno.serve(async (req) => {
           catch (advErr) { console.warn("[outreach-dispatch] advance fallito:", advErr instanceof Error ? advErr.message : advErr); }
         }
       } catch (e) {
+        // Eccezione (transitorio, rete): la prenotazione del cap va restituita,
+        // altrimenti ogni retry consumava un invio del giorno.
+        if (capPrenotato) {
+          try { await supabase.rpc("outreach_rilascia_invio", { p_sender_id: sender.id, p_today: today }); } catch { /* best effort */ }
+        }
         const attempts = (item.attempts || 0) + 1;
         const isFinal = attempts >= (item.max_attempts || 3);
         // Retry con backoff esponenziale (15min·2^attempts): niente martellamento

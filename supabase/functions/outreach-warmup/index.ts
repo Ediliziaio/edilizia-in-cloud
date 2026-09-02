@@ -15,6 +15,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { isNativeProvider, sendViaNativeSender } from "../_shared/outreachMailboxSend.ts";
 import { warmupTargetForDay, buildWarmupPairs, type WarmupBox } from "../_shared/outreach-warmup.ts";
 import { selectReplyIndexes } from "../_shared/outreach-warmup-engage.ts";
 
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
   try {
     const { data: raw, error } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,email,display_name,warmup_day,status,warmup_started_on,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref")
+      .select("id,email,display_name,warmup_day,status,warmup_started_on,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,oauth_connection_id")
       .in("status", ["active", "warming"]);
     if (error) throw error;
 
@@ -98,18 +99,26 @@ Deno.serve(async (req) => {
       const body = BODIES[n % BODIES.length];
       n++;
       try {
-        const res = await sendEmailUnified({
-          companyId: PLATFORM_COMPANY,
-          stream: "marketing",
-          to: p.toEmail,
-          subject,
-          html: `<p>${body}</p>`,
-          // multipart/alternative: il corpo warm-up è già prosa, il plain è il body nudo.
-          text: body,
-          senderOverride: { from: fromAddr, replyTo: p.fromEmail, source: "outreach_warmup" },
-          mailboxOverride: await mailboxFor(from),
-          metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
-        });
+        // Caselle native (gmail/outlook/smtp): dal LORO provider, cosi' si scalda
+        // la reputazione giusta; il resto via provider marketing come prima.
+        const res = from && isNativeProvider(from.provider)
+          ? await sendViaNativeSender(supabase, from, {
+              companyId: PLATFORM_COMPANY, to: p.toEmail, subject, html: `<p>${body}</p>`, text: body,
+              fromName: from.display_name ?? null, replyTo: p.fromEmail,
+              metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
+            })
+          : await sendEmailUnified({
+              companyId: PLATFORM_COMPANY,
+              stream: "marketing",
+              to: p.toEmail,
+              subject,
+              html: `<p>${body}</p>`,
+              // multipart/alternative: il corpo warm-up è già prosa, il plain è il body nudo.
+              text: body,
+              senderOverride: { from: fromAddr, replyTo: p.fromEmail, source: "outreach_warmup" },
+              mailboxOverride: await mailboxFor(from),
+              metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
+            });
         if (res && res.ok === false) result.failed++; else result.sent++;
       } catch {
         result.failed++;
@@ -124,17 +133,24 @@ Deno.serve(async (req) => {
       const replierAddr = replier?.display_name ? `${replier.display_name} <${p.toEmail}>` : p.toEmail;
       const origSubject = SUBJECTS[idx % SUBJECTS.length];
       try {
-        const res = await sendEmailUnified({
-          companyId: PLATFORM_COMPANY,
-          stream: "marketing",
-          to: p.fromEmail,
-          subject: `Re: ${origSubject}`,
-          html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
-          text: "Ricevuto, grazie! Ci sentiamo presto.",
-          senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
-          mailboxOverride: await mailboxFor(replier),
-          metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
-        });
+        const res = replier && isNativeProvider(replier.provider)
+          ? await sendViaNativeSender(supabase, replier, {
+              companyId: PLATFORM_COMPANY, to: p.fromEmail, subject: `Re: ${origSubject}`,
+              html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>", text: "Ricevuto, grazie! Ci sentiamo presto.",
+              fromName: replier.display_name ?? null, replyTo: p.toEmail,
+              metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
+            })
+          : await sendEmailUnified({
+              companyId: PLATFORM_COMPANY,
+              stream: "marketing",
+              to: p.fromEmail,
+              subject: `Re: ${origSubject}`,
+              html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
+              text: "Ricevuto, grazie! Ci sentiamo presto.",
+              senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
+              mailboxOverride: await mailboxFor(replier),
+              metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
+            });
         if (!(res && res.ok === false)) result.replied++;
       } catch { /* best effort */ }
     }

@@ -107,7 +107,12 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
     const recipients = [...msg.to, ...(msg.cc ?? []), ...(msg.bcc ?? [])];
     for (const r of recipients) {
       await send(`RCPT TO:<${r}>`);
-      await expect("250");
+      const rcpt = await readLine();
+      if (!rcpt.startsWith("250")) {
+        // Rifiuto DEL DESTINATARIO (utente inesistente, relay negato): taggato
+        // per distinguerlo da un guasto della casella.
+        throw new Error(`smtp_rcpt_rejected: ${rcpt.slice(0, 200)}`);
+      }
     }
 
     await send("DATA");

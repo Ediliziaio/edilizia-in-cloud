@@ -142,7 +142,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       const { error } = await db.from(T_SEQ).update({ plain_text_only: value }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_res, vars) => { toast.success(vars.value ? "Tracking aperture attivo" : "Tracking aperture disattivato"); invalidate(); },
+    onSuccess: (_res, vars) => { toast.success(vars.value ? "Solo testo aggiornato" : "Solo testo aggiornato"); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 

@@ -38,3 +38,12 @@ describe("buildFollowupHeaders", () => {
     expect(h.touch).toBe(2);
   });
 });
+
+describe("buildFollowupHeaders — id non RFC", () => {
+  it("un id API (senza <…>) non finisce in In-Reply-To/References", () => {
+    const h = buildFollowupHeaders([{ messageId: "abc123ee", subject: "Ciao", senderId: "s1" }, { messageId: "<x@y>", subject: "Re: Ciao" }], "");
+    expect(h.inReplyTo).toBe("<x@y>");
+    expect(h.references).toEqual(["<x@y>"]);
+    expect(h.touch).toBe(3);
+  });
+});
