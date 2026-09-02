@@ -221,3 +221,22 @@ export const QA_BLOCCO_RICOMPOSIZIONE: readonly string[] = [
   "What IS a defect: the scene rebuilt to fill the new shape. (a) The target element must keep the same size RELATIVE TO WHAT IS BESIDE IT — count tiles, bricks, panels, boards or furniture next to it: if it now covers noticeably more or fewer, FAIL. (b) Every object in Image 1 must still be there unchanged — shelves, radiators, sills, switches, furniture, plants, fixtures: if one disappeared, moved or was re-drawn differently, FAIL. (c) No surface may be INVENTED to fill space — new wall, tiles, floor, ceiling or sky that Image 1 did not show. Seeing a little more of a surface that was already there is fine; seeing one that did not exist is not. (d) CHECK THE FOUR BORDERS explicitly: name what touches the left, right, top and bottom edge of Image 1, then look for the same things in Image 2. If Image 2's borders show things that were well INSIDE Image 1 — i.e. the view has been zoomed or cropped and content at the edges is gone on two or more sides — FAIL. A modest extra margin on ONE axis is the expected picture-shape difference; losing edge content is not.",
   "The leniency rule below does NOT apply to [framing_changed]: a rebuilt scene is always a failure, however pretty the result. A merely different picture shape is not.",
 ];
+
+/**
+ * Variante per il RESTYLING di una stanza, dove cambiare i mobili e' il lavoro.
+ *
+ * Il blocco generico dice "ogni oggetto della foto deve esserci ancora": su un
+ * restyling completo non puo' valere — tavolo, sedie e lampade vengono
+ * sostituiti per definizione — e infatti sul primo render di controllo in
+ * produzione (stanza a12c5ba3) ha fatto scattare `framing_changed` e un retry
+ * inutile: una generazione in piu' (~0.04 EUR, ~40s) su ogni restyling.
+ * Qui l'ancora non sono gli oggetti ma l'ARCHITETTURA della stanza: pareti,
+ * aperture, linea del soffitto, piano del pavimento, punto di ripresa. Quelli
+ * devono restare; l'arredo no.
+ */
+export const QA_BLOCCO_RICOMPOSIZIONE_RESTYLING: readonly string[] = [
+  "[framing_changed] — Has the ROOM ITSELF been rebuilt? Furniture, decor, finishes and lighting are EXPECTED to change: never report them here. Judge only the architecture and the camera.",
+  "FIRST, what is NOT a defect: the render is always produced at one of three fixed picture shapes, chosen as the closest to the source, so Image 2 will normally show a slightly taller or wider view than Image 1. That alone is EXPECTED — never report it.",
+  "What IS a defect: (a) walls, windows, doors, columns, niches, the ceiling line or the floor plane moved, resized or reshaped relative to each other — count the openings and wall panels: if the room is now wider, longer or taller than its own walls allow, FAIL; (b) the camera position or angle changed so the room is seen from a different point; (c) CHECK THE FOUR BORDERS: name what touches the left, right, top and bottom edge of Image 1, then look for it in Image 2 — if the view has been zoomed or cropped and edge content is gone on two or more sides, FAIL. A modest extra margin on ONE axis is the expected picture-shape difference.",
+  "The leniency rule below does NOT apply to a rebuilt room: moved walls or openings are always a failure, however pretty the result. Replaced furniture is never a failure under this category.",
+];

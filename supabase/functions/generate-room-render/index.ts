@@ -13,7 +13,7 @@ import {
   detectImageDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
-import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
+import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
@@ -415,7 +415,7 @@ Deno.serve(async (req: Request) => {
           "- invented_openings: windows or doors added, removed or relocated compared to the source walls.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
-          ...QA_BLOCCO_RICOMPOSIZIONE,
+          ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
           "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
@@ -448,6 +448,10 @@ Deno.serve(async (req: Request) => {
             session_id,
             qa_model: qaResult.modelUsed,
             issues: qaIssues.map((i) => i.category),
+            // il testo, non solo la categoria: senza non si distingue un
+            // difetto vero da un falso positivo, e ogni falso positivo costa
+            // una generazione
+            dettagli: qaIssues.map((i) => `${i.category}: ${i.detail}`.substring(0, 300)),
           }));
           const correctedPrompt = `${fullPrompt}
 
@@ -498,6 +502,16 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             }));
             providerResult = primoTentativo;
           }
+        } else if (qaResult.checked && qaResult.pass) {
+          // Finora il QA promosso non lasciava traccia: l'unico modo per
+          // sapere che era passato era l'ASSENZA della riga di bocciatura.
+          // Silenzio = successo e' una pessima proprieta' da verificare.
+          console.log(JSON.stringify({
+            fn: "generate-room-render",
+            msg: "qa_passed_first_attempt",
+            session_id,
+            qa_model: qaResult.modelUsed,
+          }));
         } else if (qaResult.checked && !qaResult.pass) {
           console.warn(JSON.stringify({
             fn: "generate-room-render",
