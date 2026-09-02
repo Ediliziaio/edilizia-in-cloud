@@ -744,9 +744,56 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         const showerToTub = qaSpec.bathtub.replace && !qaSpec.shower.replace &&
           qaScene.shower.present;
 
+        // Cio' che il cliente HA ORDINATO. Senza questo elenco il QA bocciava
+        // proprio il lavoro richiesto: sessione 9703a2bd, brief con vasca
+        // freestanding al posto della doccia -> "invented_objects: freestanding
+        // bathtub not in source", "geometry_change: shower location moved".
+        // Stessa classe del falso positivo sul cassonetto infissi. Ogni falso
+        // positivo costa una generazione in piu' e ~40s.
+        const modificheAutorizzate: string[] = [];
+        if (showerToTub) {
+          modificheAutorizzate.push(
+            "the existing SHOWER is REMOVED and a NEW BATHTUB" +
+              (qaSpec.bathtub.type ? ` (${String(qaSpec.bathtub.type).replace(/_/g, " ")})` : "") +
+              " takes its place: the tub is ordered work, never an invented object, and the shower's disappearance is never a geometry change",
+          );
+        }
+        if (tubToShower) {
+          modificheAutorizzate.push(
+            "the existing BATHTUB is REMOVED and a NEW SHOWER takes its place: the shower is ordered work, never an invented object",
+          );
+        }
+        if (qaSpec.sanitaryWare.replace) {
+          modificheAutorizzate.push(
+            "the WC" + (wallHungSelected ? " (now WALL-HUNG)" : "") +
+              " and the other sanitary ware are REPLACED one-for-one with new models",
+          );
+        }
+        const bidetAction = String(qaSpec.sanitaryWare.bidetAction ?? "");
+        if (bidetAction === "aggiungi") {
+          modificheAutorizzate.push(
+            "a NEW BIDET is ADDED beside the WC: a bidet is NOT a second toilet and must never be reported as a duplicated fixture",
+          );
+        } else if (bidetAction === "rimuovi") {
+          modificheAutorizzate.push("the existing BIDET is REMOVED");
+        } else if (bidetAction === "sostituisci" || qaScene.sanitaryWare.bidetPresent) {
+          modificheAutorizzate.push(
+            "a bidet is present beside the WC (as in the source, or replaced): a bidet is NOT a second toilet",
+          );
+        }
+        if (qaSpec.vanity.replace) modificheAutorizzate.push("the VANITY/washbasin unit is replaced");
+        if (qaSpec.wallTiles.replace) modificheAutorizzate.push("the WALL TILES/cladding are replaced");
+        if (qaSpec.floor.replace) modificheAutorizzate.push("the FLOOR finish is replaced");
+        if (qaSpec.faucets.replace) modificheAutorizzate.push("taps and fittings are replaced");
+        if (qaSpec.lighting.replace) modificheAutorizzate.push("the lighting fixtures are replaced");
+
         const qaPrompt = [
           "You are a LENIENT quality inspector for a bathroom renovation render.",
           "Image 1 = SOURCE photo of the real bathroom. Image 2 = CANDIDATE render.",
+          modificheAutorizzate.length > 0
+            ? "AUTHORISED CHANGES — the customer ordered these. A difference here is the requested work and must NEVER be reported under any category:\n" +
+              modificheAutorizzate.map((r) => `- ${r}`).join("\n")
+            : "",
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations of these categories:",
           "- duplicated_wc: the candidate shows TWO OR MORE toilets (a real bathroom has exactly one).",
@@ -804,6 +851,9 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
             session_id,
             qa_model: qaResult.modelUsed,
             issues: qaIssues.map((i) => i.category),
+            // il testo, non solo la categoria: e' cio' che ha permesso di capire
+            // che la bocciatura colpiva il lavoro ordinato
+            dettagli: qaIssues.map((i) => `${i.category}: ${i.detail}`.substring(0, 300)),
           }));
           composedPrompt = `${composedPrompt}
 
