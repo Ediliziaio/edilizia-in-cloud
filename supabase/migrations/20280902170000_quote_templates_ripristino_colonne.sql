@@ -71,3 +71,12 @@ CREATE TRIGGER trg_quote_template_cleanup_arrays
   FOR EACH ROW
   WHEN (OLD.is_active IS DISTINCT FROM NEW.is_active)
   EXECUTE FUNCTION public.tg_quote_template_cleanup_array_refs();
+
+-- "Un solo default per azienda" era un trigger BEFORE che aggiornava altre righe:
+-- ogni UPDATE multi-riga falliva (27000). Va in AFTER, come suggerisce Postgres.
+DROP TRIGGER IF EXISTS single_default_template ON public.quote_templates;
+CREATE TRIGGER single_default_template
+  AFTER INSERT OR UPDATE OF is_default ON public.quote_templates
+  FOR EACH ROW
+  WHEN (new.is_default = true)
+  EXECUTE FUNCTION public.enforce_single_default_template();

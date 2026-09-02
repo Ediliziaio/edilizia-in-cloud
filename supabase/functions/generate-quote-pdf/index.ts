@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
           t.show_legal_terms = true;
         }
       }
-      t = applyMergeTagsToTemplate(t as ComposedTemplate, buildMergeContext({ quote, company }));
+      t = applyMergeTagsToTemplate(t as ComposedTemplate, buildMergeContext({ quote, company, template: t }));
     } else {
       // ─── NORMAL MODE ───
       if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
       }
       try {
         // Contact già prefetchato nel batch parallelo
-        const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact });
+        const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact, template: t });
         t = applyMergeTagsToTemplate(t as ComposedTemplate, mergeCtx);
       } catch (e) {
         console.warn("[generate-quote-pdf] merge tag substitution fallita (non bloccante):", e instanceof Error ? e.message : e);
@@ -429,6 +429,80 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════
+    // PAGINA DI COPERTINA (blocco "Copertina" della libreria o campi inline)
+    // ═══════════════════════════════════════
+    // Prima di oggi i campi cover_title/cover_subtitle/cover_image_url venivano
+    // caricati ma nessuno li disegnava: la copertina collegata non usciva mai.
+    // Una pagina dedicata: immagine (se c'è) in alto, titolo grande, sottotitolo,
+    // riquadro con numero/data/cliente, azienda in basso. Senza numero di pagina.
+    let pagineSenzaFooter = 0;
+    const haCopertina = !!(String(t.cover_title ?? "").trim() || String(t.cover_subtitle ?? "").trim() || (t.show_cover_image && t.cover_image_url));
+    if (haCopertina) {
+      const cover = pdfDoc.addPage([pageWidth, pageHeight]);
+      pagineSenzaFooter = 1;
+      let cy = pageHeight;
+      // Immagine di copertina: piena larghezza, max 45% dell'altezza, proporzioni mantenute.
+      if (t.show_cover_image && t.cover_image_url) {
+        try {
+          const path = String(t.cover_image_url);
+          const { data: fileData } = await supabaseAdmin.storage.from("quote-template-assets").download(path);
+          if (fileData) {
+            const bytes = new Uint8Array(await fileData.arrayBuffer());
+            const img = bytes[0] === 0x89 && bytes[1] === 0x50 ? await pdfDoc.embedPng(bytes)
+              : bytes[0] === 0xff && bytes[1] === 0xd8 ? await pdfDoc.embedJpg(bytes) : null;
+            if (img) {
+              const maxH = pageHeight * 0.45;
+              const scale = Math.min(pageWidth / img.width, maxH / img.height);
+              const w = img.width * scale;
+              const h = img.height * scale;
+              cover.drawImage(img, { x: (pageWidth - w) / 2, y: pageHeight - h, width: w, height: h });
+              cy = pageHeight - h;
+            }
+          }
+        } catch (e) {
+          console.warn("[generate-quote-pdf] immagine copertina non caricata (pagina senza immagine):", e instanceof Error ? e.message : e);
+        }
+      }
+      // Fascia brand sotto l'immagine (o in testa se non c'è immagine)
+      cover.drawRectangle({ x: 0, y: cy - 6, width: pageWidth, height: 6, color: primaryC });
+      let ty = cy - 6 - 60;
+      ty = drawLogo(cover, ty + 20) - 10;
+      const titolo = String(t.cover_title ?? "").trim() || "Offerta";
+      for (const line of wrapText(titolo, 26).slice(0, 3)) {
+        cover.drawText(line, { x: margin, y: ty, size: 30, font: fontBold, color: primaryC });
+        ty -= 38;
+      }
+      const sottotitolo = String(t.cover_subtitle ?? "").trim();
+      if (sottotitolo) {
+        ty -= 4;
+        for (const line of wrapText(sottotitolo, 60).slice(0, 3)) {
+          cover.drawText(line, { x: margin, y: ty, size: 14, font, color: grayC });
+          ty -= 20;
+        }
+      }
+      // Riquadro riferimenti: numero, data, cliente
+      const boxY = Math.min(ty - 30, pageHeight * 0.42);
+      const righe: Array<[string, string]> = [];
+      if (quote.quote_number) righe.push(["Preventivo", String(quote.quote_number)]);
+      const dataDoc = quote.created_at ? new Date(quote.created_at).toLocaleDateString("it-IT") : new Date().toLocaleDateString("it-IT");
+      righe.push(["Data", dataDoc]);
+      if (quote.client_name) righe.push(["Cliente", String(quote.client_name)]);
+      if (quote.client_address) righe.push(["Indirizzo", String(quote.client_address)]);
+      const boxH = 22 + righe.length * 18;
+      cover.drawRectangle({ x: margin, y: boxY - boxH, width: contentWidth, height: boxH, color: accentC, borderColor: primaryC, borderWidth: 0.6 });
+      let ry = boxY - 18;
+      for (const [k, v] of righe) {
+        cover.drawText(k.toUpperCase(), { x: margin + 14, y: ry, size: 7.5, font: fontBold, color: primaryC });
+        cover.drawText(String(v).slice(0, 80), { x: margin + 110, y: ry, size: 10, font, color: textC });
+        ry -= 18;
+      }
+      // Azienda in basso
+      const az = [company?.name, company?.legal_address, company?.legal_city].filter(Boolean).join(" · ");
+      if (az) cover.drawText(String(az).slice(0, 110), { x: margin, y: margin + 10, size: 8.5, font, color: grayC });
+      cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: 6, color: primaryC });
+    }
+
+    // ═══════════════════════════════════════
     // COVER PAGE
     // ═══════════════════════════════════════
     let page = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -458,37 +532,58 @@ Deno.serve(async (req) => {
     const contentLeftX = () => (t.layout === "bold" ? 100 : margin);
     const contentMaxWidth = () => (t.layout === "bold" ? contentWidth - 50 : contentWidth);
 
-    const drawRichTextBlock = (title: string, body: unknown) => {
-      const text = normalizeTemplateText(body);
+    const drawRichTextBlock = (title: string, body: unknown, opts: { titoloDalTesto?: boolean } = {}) => {
+      // L'editor rich text salva HTML: i titoli <h1-4> diventano heading
+      // markdown (# …) così sotto vengono resi in grassetto e colore primario
+      // invece di sparire nel testo piatto.
+      const conHeading = String(body ?? "").replace(/<h([1-4])[^>]*>/gi, (_m, n: string) => `\n${"#".repeat(Number(n))} `);
+      let text = normalizeTemplateText(conHeading);
       if (!text) return;
+      // Se il testo apre con un titolo di primo livello, non lo ripetiamo sotto
+      // l'intestazione di pagina. Per le sezioni libere (titoloDalTesto) quel
+      // titolo DIVENTA l'intestazione: il nome del blocco è un'etichetta di
+      // libreria ("Chi siamo v2"), non un titolo da stampare.
+      const primaRiga = text.split(/\n/)[0].trim();
+      const primoH1 = /^#\s+(.+)$/.exec(primaRiga)?.[1]?.trim();
+      if (primoH1 && (opts.titoloDalTesto || primoH1.toLowerCase() === String(title).toLowerCase())) {
+        if (opts.titoloDalTesto) title = primoH1;
+        text = text.split(/\n/).slice(1).join("\n").trim();
+      }
       startContentPage(title);
       const x = contentLeftX();
       const maxChars = t.layout === "bold" ? 86 : 96;
+      let precedenteEraHeading = true; // in testa alla pagina niente spazio extra
       for (const rawLine of text.split(/\n+/)) {
         const trimmed = rawLine.trim();
         if (!trimmed) {
           y -= 8;
           continue;
         }
-        const isHeading = /^#{1,4}\s+/.test(trimmed);
+        const livello = /^(#{1,4})\s+/.exec(trimmed)?.[1].length ?? 0;
+        const isHeading = livello > 0;
         const isList = /^[-*]\s+/.test(trimmed);
+        // "-" al posto di "•": il bullet non è garantito in WinAnsi e sparirebbe.
         const normalized = trimmed
           .replace(/^#{1,4}\s+/, "")
-          .replace(/^[-*]\s+/, "• ");
+          .replace(/^[-*]\s+/, "- ");
+        // Gerarchia visibile: H1 13pt, H2 11pt, H3+ 9.8pt; aria prima di ogni titolo.
+        const size = isHeading ? (livello === 1 ? 13 : livello === 2 ? 11 : 9.8) : 8.8;
+        if (isHeading && !precedenteEraHeading) y -= 8;
         const lines = wrapText(normalized, isHeading ? 72 : maxChars);
         for (const line of lines) {
-          ensureSpace(isHeading ? 26 : 18, title);
+          ensureSpace(isHeading ? 28 : 18, title);
           page.drawText(line, {
-            x,
+            x: isList ? x + 6 : x,
             y,
-            size: isHeading ? 11 : 8.8,
+            size,
             font: isHeading ? fontBold : font,
             color: isHeading ? primaryC : textC,
-            maxWidth: contentMaxWidth(),
+            maxWidth: contentMaxWidth() - (isList ? 6 : 0),
           });
-          y -= isHeading ? 16 : 13;
+          y -= isHeading ? size + 5 : 13;
         }
-        if (!isList) y -= isHeading ? 4 : 2;
+        if (!isList) y -= isHeading ? 3 : 4;
+        precedenteEraHeading = isHeading;
       }
       drawWatermark(page);
     };
@@ -1214,15 +1309,18 @@ Deno.serve(async (req) => {
     drawProductBlocks();
 
     for (const section of (t.composed_sections ?? [])) {
-      drawRichTextBlock(section.name || "Sezione", section.body_html);
+      drawRichTextBlock(section.name || "Sezione", section.body_html, { titoloDalTesto: true });
     }
 
-    if (t.show_contractual_terms && t.contractual_terms_text) {
-      drawRichTextBlock("CONDIZIONI CONTRATTUALI", t.contractual_terms_text);
-    }
-
-    if (t.show_legal_terms && t.legal_terms_text) {
-      drawRichTextBlock("TERMINI LEGALI E PRIVACY", t.legal_terms_text);
+    // Condizioni contrattuali e termini legali: UNA sezione (prima erano due
+    // pagine separate). Il vecchio campo legal_terms_text, se ancora presente,
+    // viene stampato di seguito nella stessa sezione.
+    const condizioniETermini = [
+      t.show_contractual_terms ? normalizeTemplateText(t.contractual_terms_text) : "",
+      t.show_legal_terms ? normalizeTemplateText(t.legal_terms_text) : "",
+    ].filter(Boolean).join("\n\n");
+    if (condizioniETermini) {
+      drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", condizioniETermini);
     }
 
     // ─── Notes page ───
@@ -1329,9 +1427,10 @@ Deno.serve(async (req) => {
 
     // ─── Add page numbers to all pages ───
     console.log(`[generate-quote-pdf] ${quote?.quote_number ?? "?"} — dati+render in ${Date.now() - startedAt}ms`);
+    // La copertina (se c'è) resta senza banda footer e non entra nella numerazione.
     const totalPages = pdfDoc.getPageCount();
-    for (let i = 0; i < totalPages; i++) {
-      drawPageExtras(pdfDoc.getPage(i), i + 1, totalPages);
+    for (let i = pagineSenzaFooter; i < totalPages; i++) {
+      drawPageExtras(pdfDoc.getPage(i), i + 1 - pagineSenzaFooter, totalPages - pagineSenzaFooter);
     }
 
     // ─── Preview mode: return PDF directly without storage ───

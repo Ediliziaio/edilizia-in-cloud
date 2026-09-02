@@ -277,12 +277,18 @@ export function buildMergeContext(args: {
   contact?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cantiere?: any;
+  /** Template in uso: serve per il fallback di {{preventivo.piano_pagamenti}}. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  template?: any;
 }): MergeContext {
-  const { quote, company, contact, cantiere } = args;
+  const { quote, company, contact, cantiere, template } = args;
+  // Stesso formato del resto del PDF: 28.816,40 € (punto migliaia, virgola decimali, euro dopo).
   const fmtMoney = (n: unknown) => {
     if (n === null || n === undefined) return "";
     const num = typeof n === "number" ? n : parseFloat(String(n));
-    return isFinite(num) ? `€ ${num.toFixed(2).replace(".", ",")}` : "";
+    if (!isFinite(num)) return "";
+    const [intero, dec] = num.toFixed(2).split(".");
+    return `${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec} €`;
   };
   const fmtDate = (s: unknown) => {
     if (!s) return "";
@@ -339,6 +345,12 @@ export function buildMergeContext(args: {
           const pct = Number((p as { percent?: unknown }).percent) || 0;
           const amt = fmtMoney((p as { amount?: unknown }).amount);
           parts.push(`${label} ${pct}%${amt ? ` (${amt})` : ""}`);
+        }
+        // Senza fasi strutturate il tag non deve restare vuoto nel contratto:
+        // vale il testo "Condizioni di pagamento" del template.
+        if (parts.length === 0) {
+          const testo = String(template?.payment_terms_text ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          return testo || "come da condizioni di pagamento concordate";
         }
         return parts.join(" · ");
       })(),

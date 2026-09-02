@@ -208,17 +208,19 @@ export const KIND_META: Record<QuoteTemplateKind, {
     borderColor: 'border-pink-200',
   },
   condizioni: {
-    label: 'Condizioni contrattuali',
+    label: 'Condizioni e termini legali',
     emoji: '📜',
-    description: 'Clausole contrattuali multi-pagina (garanzia, varianti, penali).',
+    description: 'Un unico blocco in coda al PDF: clausole contrattuali (garanzia, varianti, penali) e termini legali (privacy GDPR, recesso, foro competente).',
     color: 'text-blue-700',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
   },
+  // Tipo storico: oggi condizioni e termini legali vivono in un solo blocco
+  // ("condizioni"). Resta per i record esistenti, non è più proposto.
   legali: {
-    label: 'Termini legali',
+    label: 'Termini legali (vecchio tipo)',
     emoji: '⚖️',
-    description: 'Privacy GDPR, recesso, foro competente.',
+    description: 'Blocco storico. Oggi privacy, recesso e foro competente stanno nel blocco "Condizioni e termini legali".',
     color: 'text-purple-700',
     bgColor: 'bg-purple-50',
     borderColor: 'border-purple-200',
@@ -241,7 +243,8 @@ export const KIND_META: Record<QuoteTemplateKind, {
   },
 };
 
-export const KIND_ORDER: QuoteTemplateKind[] = ['offerta', 'copertina', 'condizioni', 'legali', 'prodotto', 'sezione'];
+/** Tipi proposti nella libreria. 'legali' non c'è più: è unito a 'condizioni'. */
+export const KIND_ORDER: QuoteTemplateKind[] = ['offerta', 'copertina', 'condizioni', 'prodotto', 'sezione'];
 
 export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'created_at' | 'updated_at'> = {
   kind: 'offerta',

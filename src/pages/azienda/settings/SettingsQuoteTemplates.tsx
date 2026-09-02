@@ -28,7 +28,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
-  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, ArrowLeft, Save,
+  CheckCircle2, Palette, Wand2, FileImage, ScrollText, ArrowLeft, Save,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
@@ -394,10 +394,11 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
     if (kind === 'offerta') {
       const parts: string[] = [tmpl.layout];
       if (tmpl.linked_cover_id) parts.push("+ copertina");
-      if (tmpl.linked_terms_id) parts.push("+ condizioni");
-      if (tmpl.linked_legal_id) parts.push("+ legali");
+      if (tmpl.linked_terms_id || tmpl.linked_legal_id) parts.push("+ condizioni e termini legali");
       const productCount = (tmpl.linked_product_ids ?? []).length;
-      if (productCount > 0) parts.push(`+ ${productCount} prodotti`);
+      if (productCount > 0) parts.push(`+ ${productCount} ${productCount === 1 ? "prodotto" : "prodotti"}`);
+      const sectionCount = (tmpl.linked_section_ids ?? []).length;
+      if (sectionCount > 0) parts.push(`+ ${sectionCount} ${sectionCount === 1 ? "sezione" : "sezioni"}`);
       return parts.join(" · ");
     }
     if (kind === 'prodotto') {
@@ -409,8 +410,8 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
       return parts.join(" · ") || "Scheda prodotto";
     }
     if (kind === 'copertina') return "Pagina cover";
-    if (kind === 'condizioni') return `Clausole · ${tmpl.body_format ?? 'markdown'}`;
-    if (kind === 'legali') return "Privacy + recesso";
+    if (kind === 'condizioni') return `Clausole + termini legali · ${tmpl.body_format ?? 'markdown'}`;
+    if (kind === 'legali') return "Termini legali (vecchio tipo)";
     if (kind === 'sezione') return "Sezione libera";
     return kindMeta.label;
   };
@@ -749,7 +750,6 @@ export default function SettingsQuoteTemplates() {
   const paymentRef = useRef<HTMLTextAreaElement>(null);
   const deliveryRef = useRef<HTMLTextAreaElement>(null);
   const contractualRef = useRef<HTMLTextAreaElement>(null);
-  const legalRef = useRef<HTMLTextAreaElement>(null);
   const footerRef = useRef<HTMLTextAreaElement>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
   const bodyHtmlRef = useRef<HTMLTextAreaElement>(null);
@@ -1104,25 +1104,19 @@ export default function SettingsQuoteTemplates() {
                     }}
                   />
                   <BlockLinkSelector
-                    label="📜 Condizioni contrattuali"
-                    value={form.linked_terms_id ?? null}
-                    options={templatesByKind('condizioni')}
-                    onChange={(id) => updateForm({ linked_terms_id: id })}
+                    label="📜 Condizioni e termini legali"
+                    value={form.linked_terms_id ?? form.linked_legal_id ?? null}
+                    // I vecchi blocchi "legali" restano selezionabili qui: è lo stesso posto nel PDF.
+                    options={[...templatesByKind('condizioni'), ...templatesByKind('legali')]}
+                    onChange={(id) => {
+                      // Il DB valida il tipo per colonna: un vecchio blocco "legali" va in linked_legal_id.
+                      const eLegacyLegali = !!id && templatesByKind('legali').some((t) => t.id === id);
+                      updateForm(eLegacyLegali ? { linked_legal_id: id, linked_terms_id: null } : { linked_terms_id: id, linked_legal_id: null });
+                    }}
                     onCreate={() => {
                       if (!handleCancel()) return;
                       setActiveKind('condizioni');
                       setTimeout(() => openNewTemplate('condizioni'), 50);
-                    }}
-                  />
-                  <BlockLinkSelector
-                    label="⚖️ Termini legali"
-                    value={form.linked_legal_id ?? null}
-                    options={templatesByKind('legali')}
-                    onChange={(id) => updateForm({ linked_legal_id: id })}
-                    onCreate={() => {
-                      if (!handleCancel()) return;
-                      setActiveKind('legali');
-                      setTimeout(() => openNewTemplate('legali'), 50);
                     }}
                   />
                   <MultiBlockSelector
@@ -1247,7 +1241,7 @@ export default function SettingsQuoteTemplates() {
                       className="font-mono text-[12px] leading-relaxed"
                       placeholder={
                         formKind === 'condizioni'
-                          ? `# Condizioni contrattuali\n\n## 1. Oggetto\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n## 2. Garanzia\n24 mesi dalla consegna.\n\n## 3. Varianti\nEventuali varianti devono essere concordate per iscritto…`
+                          ? `# Condizioni contrattuali\n\n## 1. Oggetto\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n## 2. Garanzia\n24 mesi dalla consegna.\n\n## 3. Varianti\nEventuali varianti devono essere concordate per iscritto.\n\n# Termini legali\n\n## Privacy (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} sono trattati solo per l'esecuzione del contratto.\n\n## Diritto di recesso\nEntro 14 giorni, art. 52 D.lgs 206/2005.\n\n## Foro competente\nPer ogni controversia è competente il Foro di [città].`
                           : formKind === 'legali'
                             ? `# Termini legali\n\n## Privacy (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} saranno trattati nel rispetto del GDPR…\n\n## Diritto di recesso\nIl cliente può recedere entro 14 giorni come da art. 52 D.lgs 206/2005.\n\n## Foro competente\nPer ogni controversia è competente il Foro di [città].`
                             : `# {{titolo sezione}}\n\nContenuto libero della sezione…`
@@ -1851,26 +1845,33 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
-            {/* T4: Termini contrattuali estesi */}
+            {/* T4: Condizioni contrattuali e termini legali — un solo blocco,
+                perché per chi firma sono la stessa cosa: le clausole in coda al PDF.
+                Se il template ha ancora il vecchio campo "termini legali" separato,
+                lo si vede qui e lo si unisce con un click. */}
             <Card className="border-blue-200">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ScrollText className="h-4 w-4 text-blue-600" />
-                  Termini contrattuali
+                  Condizioni contrattuali e termini legali
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Clausole contrattuali specifiche (oltre pagamento/consegna): garanzia, varianti, penali, modifica progetto, ecc.
+                  Garanzia, varianti, penali, e poi privacy GDPR, diritto di recesso, foro competente: tutto in un'unica sezione in coda al PDF.
+                  Se hai già un blocco "Condizioni e termini legali" nella libreria, collegalo sopra in "Componi l'offerta": vince su questo testo.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2">
                   <Label className="text-sm font-medium">Mostra in PDF</Label>
-                  <Switch checked={!!form.show_contractual_terms} onCheckedChange={(v) => updateForm({ show_contractual_terms: v })} />
+                  <Switch
+                    checked={!!form.show_contractual_terms}
+                    onCheckedChange={(v) => updateForm({ show_contractual_terms: v, show_legal_terms: v && !!form.legal_terms_text })}
+                  />
                 </div>
                 {form.show_contractual_terms && (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Testo clausole contrattuali</Label>
+                      <Label className="text-xs text-muted-foreground">Testo (clausole + termini legali)</Label>
                       <MergeTagInserter
                         targetRef={contractualRef}
                         currentValue={form.contractual_terms_text ?? ""}
@@ -1880,46 +1881,33 @@ export default function SettingsQuoteTemplates() {
                     <RichTextEditor
                       value={form.contractual_terms_text ?? ''}
                       onChange={(html) => updateForm({ contractual_terms_text: html })}
-                      placeholder="1. OGGETTO — L'azienda {{azienda.ragione_sociale}} si impegna...&#10;2. GARANZIA — La garanzia è di 24 mesi...&#10;3. VARIANTI — Eventuali varianti devono essere concordate per iscritto..."
-                      minHeight={180}
+                      placeholder="1. OGGETTO — {{azienda.ragione_sociale}} si impegna a eseguire i lavori presso {{cantiere.indirizzo}}…&#10;2. GARANZIA — 24 mesi dalla consegna…&#10;3. VARIANTI — concordate per iscritto…&#10;PRIVACY (GDPR Reg. UE 2016/679) — i dati di {{cliente.nome_completo}} sono trattati per…&#10;DIRITTO DI RECESSO — entro 14 giorni (art. 52 D.lgs 206/2005)…&#10;FORO COMPETENTE — Foro di [città azienda]."
+                      minHeight={220}
                     />
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* T5: Termini legali */}
-            <Card className="border-purple-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Scale className="h-4 w-4 text-purple-600" />
-                  Termini legali
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Privacy GDPR, diritto di recesso, foro competente. Apparirà in coda al PDF.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50/40 px-3 py-2">
-                  <Label className="text-sm font-medium">Mostra in PDF</Label>
-                  <Switch checked={!!form.show_legal_terms} onCheckedChange={(v) => updateForm({ show_legal_terms: v })} />
-                </div>
-                {form.show_legal_terms && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Testo termini legali</Label>
-                      <MergeTagInserter
-                        targetRef={legalRef}
-                        currentValue={form.legal_terms_text ?? ""}
-                        onInsert={(v) => updateForm({ legal_terms_text: v })}
-                      />
+                {!!form.legal_terms_text && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-2">
+                    <p className="text-amber-900">
+                      Questo template ha ancora un testo "Termini legali" separato (vecchia impostazione). Nel PDF viene già stampato di seguito alle condizioni.
+                      Unendolo qui potrai modificarlo in un unico posto.
+                    </p>
+                    <div className="max-h-24 overflow-y-auto rounded border bg-white/70 p-2 text-[11px] text-slate-700 whitespace-pre-wrap">
+                      {String(form.legal_terms_text).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400)}
                     </div>
-                    <RichTextEditor
-                      value={form.legal_terms_text ?? ''}
-                      onChange={(html) => updateForm({ legal_terms_text: html })}
-                      placeholder="PRIVACY (GDPR Reg. UE 2016/679) — I dati personali di {{cliente.nome_completo}}...&#10;DIRITTO DI RECESSO — entro 14 giorni come da art. 52 D.lgs 206/2005...&#10;FORO COMPETENTE — Foro di [città azienda]."
-                      minHeight={180}
-                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => updateForm({
+                        contractual_terms_text: [form.contractual_terms_text ?? "", form.legal_terms_text ?? ""].filter(Boolean).join("\n\n"),
+                        legal_terms_text: null,
+                        show_legal_terms: false,
+                        show_contractual_terms: true,
+                      })}
+                    >
+                      Unisci qui i termini legali
+                    </Button>
                   </div>
                 )}
               </CardContent>
