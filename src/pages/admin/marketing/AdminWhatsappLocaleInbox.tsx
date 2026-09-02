@@ -573,7 +573,7 @@ export default function AdminWhatsappLocaleInbox() {
                 </span>
               ))}
             </span>
-            <Link to="/admin/impostazioni/whatsapp-locale" className="font-medium underline underline-offset-2">
+            <Link to="/admin/marketing/whatsapp-locale/numeri" className="font-medium underline underline-offset-2">
               Vai ai numeri
             </Link>
           </div>

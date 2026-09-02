@@ -458,7 +458,7 @@ export default function AdminWhatsappLocaleCampagne() {
                 </p>
               )}
               <Button asChild size="sm" variant="outline" className="mt-1">
-                <Link to="/admin/impostazioni/whatsapp-locale">
+                <Link to="/admin/marketing/whatsapp-locale/numeri">
                   Vai ai numeri <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
                 </Link>
               </Button>

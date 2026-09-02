@@ -40,7 +40,6 @@ import {
   Receipt,
   Library,
   HardHat,
-  Send,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -191,7 +190,6 @@ const adminMarketingNavItems: AdminNavItem[] = [
   { title: "SMS Marketing", url: "/admin/marketing/sms", icon: MessageSquare, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "WhatsApp Locale", url: "/admin/marketing/whatsapp-locale", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
-  { title: "Campagne WhatsApp", url: "/admin/marketing/whatsapp-locale/campagne", icon: Send, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
   { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
 ];

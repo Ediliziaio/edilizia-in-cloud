@@ -82,8 +82,7 @@ const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminM
 const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
 const AdminSmsMarketing = lazy(() => import("@/pages/admin/marketing/AdminSmsMarketing"));
 const AdminWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminWhatsApp"));
-const AdminWhatsappLocaleInbox = lazy(() => import("@/pages/admin/marketing/AdminWhatsappLocaleInbox"));
-const AdminWhatsappLocaleCampagne = lazy(() => import("@/pages/admin/marketing/AdminWhatsappLocaleCampagne"));
+const AdminWhatsappLocaleHub = lazy(() => import("@/pages/admin/marketing/AdminWhatsappLocaleHub"));
 const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomations"));
 const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/AdminMarketingContactDetail"));
 // MP-CLEANUP: AdminMarketingWhatsApp rimosso (dominio messaging legacy).
@@ -337,8 +336,10 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/sms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSmsMarketing /></RequireAdminPermission>} />
         {/* wildcard: AdminWhatsApp gestisce internamente broadcast/nuovo, broadcast/:id, numeri/:id */}
         <Route path="marketing/whatsapp/*" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsApp /></RequireAdminPermission>} />
-        <Route path="marketing/whatsapp-locale" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleInbox /></RequireAdminPermission>} />
-        <Route path="marketing/whatsapp-locale/campagne" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleCampagne /></RequireAdminPermission>} />
+        {/* WhatsApp Locale: una pagina, tre tab (conversazioni / campagne / numeri). L'URL segue il tab. */}
+        <Route path="marketing/whatsapp-locale" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleHub /></RequireAdminPermission>} />
+        <Route path="marketing/whatsapp-locale/campagne" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleHub /></RequireAdminPermission>} />
+        <Route path="marketing/whatsapp-locale/numeri" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsappLocaleHub /></RequireAdminPermission>} />
         <Route path="marketing/automazioni" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAutomations /></RequireAdminPermission>} />
         {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
         <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />
