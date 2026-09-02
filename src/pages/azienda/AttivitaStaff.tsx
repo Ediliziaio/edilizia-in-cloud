@@ -2254,11 +2254,18 @@ function TabFallback() {
 export default function AttivitaStaff() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
+  // La Regia è lo strumento "di team": la vede l'admin e chi ha il permesso
+  // esplicito "Attività del team" (che già vedeva i filtri per persona nella
+  // Dashboard ma non aveva la pagina per lavorarci). La RLS resta il confine.
+  const { canViewTeamTasks } = usePermissions();
+  const seesRegia = isAdmin || canViewTeamTasks;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") || "attivita";
   const allowedTabs = isAdmin
     ? ["attivita", "regia"]
-    : ["attivita", "timbrature", "ferie", "cedolini"];
+    : seesRegia
+      ? ["attivita", "regia", "timbrature", "ferie", "cedolini"]
+      : ["attivita", "timbrature", "ferie", "cedolini"];
   const activeTab = allowedTabs.includes(requestedTab) ? requestedTab : "attivita";
 
   useEffect(() => {
@@ -2290,15 +2297,18 @@ export default function AttivitaStaff() {
             <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-2"><Users className="h-4 w-4" /><span className="truncate"><span className="hidden sm:inline">Regia </span>attività</span></TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid w-full grid-cols-4 max-w-xl h-auto">
+          <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl" : "grid-cols-4 max-w-xl")}>
             <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">Attività</span></TabsTrigger>
+            {seesRegia && (
+              <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">Regia</span></TabsTrigger>
+            )}
             <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">Timbra</span></TabsTrigger>
             <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">Ferie</span></TabsTrigger>
             <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
           </TabsList>
         )}
         <TabsContent value="attivita" className="mt-4 sm:mt-6"><TabAttivita /></TabsContent>
-        {isAdmin && (
+        {seesRegia && (
           <TabsContent value="regia" className="mt-6">
             <Suspense fallback={<TabFallback />}>
               <UnifiedTasks embedded initialTab="all" />

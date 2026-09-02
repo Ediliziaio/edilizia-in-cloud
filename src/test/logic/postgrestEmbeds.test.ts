@@ -102,13 +102,6 @@ function tuttiGliEmbed(note: Set<string>): Embed[] {
   return out;
 }
 
-/**
- * FK presenti nel DB (verificate su pg_constraint il 2026-09-02) ma non ancora
- * nei tipi generati, che sono del 2026-07-27. Rigenerando types.ts queste
- * eccezioni vanno tolte.
- */
-const FK_NON_ANCORA_NEI_TIPI = new Set(["hr_timbrature→orders", "ritenute_garanzia→orders"]);
-
 describe("embed PostgREST ↔ foreign key reali", () => {
   const note = new Set(REL.keys());
 
@@ -120,7 +113,6 @@ describe("embed PostgREST ↔ foreign key reali", () => {
   it("ogni embed ha UNA FK che PostgREST può seguire (niente 400 PGRST200/PGRST201 muti)", () => {
     const rotti: string[] = [];
     for (const e of tuttiGliEmbed(note)) {
-      if (FK_NON_ANCORA_NEI_TIPI.has(`${e.padre}→${e.target}`)) continue;
       const daPadre = (REL.get(e.padre) ?? []).filter((r) => r.target === e.target);
       const inverse = (REL.get(e.target) ?? []).filter((r) => r.target === e.padre);
       if (e.hint) {
