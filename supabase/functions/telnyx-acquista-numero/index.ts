@@ -75,6 +75,33 @@ Deno.serve(async (req: Request) => {
     let telnyxPhoneNumberId = `mock_num_${numero_e164.replace(/[^0-9]/g, "")}`;
     const messagingProfileId  = `mock_profile_${company_id.slice(0, 8)}`;
 
+    // Canone: quello che il superadmin imposta in Prezzi SMS, non un numero
+    // scritto nel codice (30 € fissi, qualunque cosa dicesse la pagina). Il
+    // costo all'ingrosso viene da voice_pricing_config, che lo conserva.
+    const [{ data: prezziSms }, { data: prezziVoce }] = await Promise.all([
+      adminClient.from("sms_pricing_config").select("prezzo_numero_mensile").eq("attivo", true).limit(1).maybeSingle(),
+      adminClient.from("voice_pricing_config").select("costo_numero_wholesale").eq("attivo", true).limit(1).maybeSingle(),
+    ]);
+    const canoneCliente = Number(prezziSms?.prezzo_numero_mensile ?? 30);
+    const canoneWholesale = Number(prezziVoce?.costo_numero_wholesale ?? 1.5);
+
+    // Primo mese addebitato SUBITO sul wallet SMS, prima dell'acquisto su
+    // Telnyx: prima il numero veniva comprato (e pagato da noi) senza scalare
+    // nulla al cliente, ne' all'acquisto ne' ai rinnovi.
+    const { data: addebito, error: addErr } = await adminClient.rpc("addebita_sms_wallet", {
+      p_company_id: company_id,
+      p_importo: canoneCliente,
+      p_tipo: "canone_numero",
+      p_descrizione: `Attivazione numero ${numero_e164} — primo mese`,
+      p_riferimento_id: null,
+    });
+    const esitoAddebito = (Array.isArray(addebito) ? addebito[0] : addebito) as { ok?: boolean; saldo_dopo?: number; motivo?: string } | null;
+    if (addErr || !esitoAddebito?.ok) {
+      return json({
+        error: `Credito SMS insufficiente per attivare il numero: servono ${canoneCliente.toFixed(2)} € (saldo ${(esitoAddebito?.saldo_dopo ?? 0).toFixed(2)} €). Ricarica il wallet SMS.`,
+      }, 402);
+    }
+
     // Acquisto reale se API key disponibile.
     // 2026-06-11 (fix bug + endpoint): prima un fallimento Telnyx veniva
     // INGHIOTTITO e il numero risultava "attivo" nel DB senza esistere
@@ -121,8 +148,8 @@ Deno.serve(async (req: Request) => {
         telnyx_phone_number_id: telnyxPhoneNumberId,
         messaging_profile_id: messagingProfileId,
         stato: "attivo",
-        costo_mensile_wholesale: 1.50,
-        costo_mensile_cliente: 30.00,
+        costo_mensile_wholesale: canoneWholesale,
+        costo_mensile_cliente: canoneCliente,
         prossimo_rinnovo: prossimoRinnovo.toISOString(),
       });
 

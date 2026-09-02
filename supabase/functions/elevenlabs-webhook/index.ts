@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { verificaFirmaElevenLabs, normalizzaPostCall } from "../_shared/elevenlabsWebhook.ts";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
-import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -415,30 +415,14 @@ Deno.serve(async (req) => {
 
     // ============ CREDIT SYSTEM (ATOMIC) ============
     const durationMin = Math.max(0.0167, durationSeconds / 60);
-    const ttsModel = agent.tts_model || "eleven_multilingual_v2";
-
-    // Check billing override for AI
-    const billingConfig = await getCompanyBillingConfig(adminClient, companyId, "ai_agents");
-
-    // Get pricing for this LLM+TTS combo
-    const { data: pricing } = await adminClient
-      .from("platform_pricing")
-      .select("cost_real_per_min, cost_billed_per_min")
-      .eq("llm_model", agent.llm_model)
-      .eq("tts_model", ttsModel)
-      .maybeSingle();
-
-    const costRealPerMin = pricing?.cost_real_per_min ?? 0.0200;
-    let costBilledPerMin = pricing?.cost_billed_per_min ?? 0.0400;
-
-    // Apply billing overrides
-    if (billingConfig.isFree) {
-      costBilledPerMin = 0;
-    } else if (billingConfig.pricePerUnitEur != null) {
-      costBilledPerMin = billingConfig.pricePerUnitEur;
-    } else if (billingConfig.markupMultiplier != null) {
-      costBilledPerMin = costRealPerMin * billingConfig.markupMultiplier;
-    }
+    // Tariffa al minuto dal helper condiviso (platform_pricing + override
+    // azienda). Prima si cercava "eleven_multilingual_v2" per gli agenti v2,
+    // che invece parlano con eleven_flash_v2_5: nessuna riga, prezzo hardcodato.
+    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llm_model, agent.tts_model);
+    const ttsModel = tariffa.ttsModel;
+    const costRealPerMin = tariffa.costoRealePerMin;
+    const costBilledPerMin = tariffa.prezzoPerMin;
+    if (tariffa.fonte === "ripiego") console.error("[WEBHOOK] tariffa di ripiego usata per", agent.llm_model, ttsModel);
 
     const costRealTotal = Number((durationMin * costRealPerMin).toFixed(4));
     const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));

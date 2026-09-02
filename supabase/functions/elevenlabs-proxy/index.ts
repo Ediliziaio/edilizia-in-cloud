@@ -3,6 +3,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 import { risolviTelnyx } from "../_shared/telnyxApiKey.ts";
+import { TTS_MODEL_VOCE } from "../_shared/voicePricing.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
@@ -22,7 +23,7 @@ const DEFAULT_ITALIAN_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
 // sembra rotto. (Guida ufficiale ElevenLabs: "speed-optimized TTS like Flash
 // for real-time voice agents".) Vale per gli agenti NUOVI; gli esistenti
 // tengono il loro modello.
-const DEFAULT_TTS_MODEL = "eleven_flash_v2_5";
+const DEFAULT_TTS_MODEL = TTS_MODEL_VOCE; // unica fonte: _shared/voicePricing.ts
 
 // ── FIX BUG #2 — Tool builder inline (non può importare da src/) ─────────────
 // Converte tools_config (JSONB dal DB) nel formato array richiesto da ElevenLabs ConvAI.

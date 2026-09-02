@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { verificaFirmaElevenLabs, normalizzaPostCall } from "../_shared/elevenlabsWebhook.ts";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
-import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 const corsHeaders = {
@@ -194,29 +194,12 @@ Deno.serve(async (req) => {
 
     // ── Credit Deduction (reuses same atomic RPC) ──
     const durationMin = Math.max(0.0167, durationSeconds / 60);
-    const ttsModel = "eleven_multilingual_v2"; // default TTS for internal agents
-
-    const billingConfig = await getCompanyBillingConfig(adminClient, companyId, "ai_agents");
-
-    const { data: pricing } = await adminClient
-      .from("platform_pricing")
-      .select("cost_real_per_min, cost_billed_per_min")
-      .eq("llm_model", agent.llm_model)
-      .eq("tts_model", ttsModel)
-      .maybeSingle();
-
-    // FIX: ?? invece di || — un piano con cost_real_per_min=0 veniva
-    // sovrascritto con 0.02 e gonfiava i costi reportati.
-    const costRealPerMin = pricing?.cost_real_per_min ?? 0.0200;
-    let costBilledPerMin = pricing?.cost_billed_per_min ?? 0.0400;
-
-    if (billingConfig.isFree) {
-      costBilledPerMin = 0;
-    } else if (billingConfig.pricePerUnitEur != null) {
-      costBilledPerMin = billingConfig.pricePerUnitEur;
-    } else if (billingConfig.markupMultiplier != null) {
-      costBilledPerMin = costRealPerMin * billingConfig.markupMultiplier;
-    }
+    // Tariffa dal helper condiviso: gli agenti interni nascono con lo stesso
+    // TTS degli altri (eleven_flash_v2_5), non con multilingual.
+    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llm_model, (agent as { tts_model?: string | null }).tts_model);
+    const ttsModel = tariffa.ttsModel;
+    const costRealPerMin = tariffa.costoRealePerMin;
+    const costBilledPerMin = tariffa.prezzoPerMin;
 
     const costRealTotal = Number((durationMin * costRealPerMin).toFixed(4));
     const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));

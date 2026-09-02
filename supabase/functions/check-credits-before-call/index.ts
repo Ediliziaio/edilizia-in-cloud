@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { saldoVoce, SOGLIA_MINIMA_CHIAMATA_EUR } from "../_shared/voiceCredits.ts";
+import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -59,19 +60,9 @@ Deno.serve(async (req) => {
       return json({ error: "Agent not found" }, 404);
     }
 
-    // Get pricing for this combo
-    const { data: pricing } = await adminClient
-      .from("platform_pricing")
-      .select("cost_billed_per_min")
-      .eq("llm_model", agent.llm_model)
-      .eq("tts_model", (agent as { tts_model?: string | null }).tts_model || "eleven_multilingual_v2")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    // Soglia e saldo spendibile (ricarica + omaggio del mese) dal helper
-    // condiviso: prima qui si guardava solo balance_eur e la soglia era
-    // diversa da quella dei due flussi di chiamata.
-    const costPerMin = pricing?.cost_billed_per_min || 0.04;
+    // Tariffa dal helper condiviso (stessa della fatturazione a fine chiamata).
+    const tariffa = await prezzoMinutoVoce(adminClient, profile.company_id, agent.llm_model, (agent as { tts_model?: string | null }).tts_model);
+    const costPerMin = tariffa.prezzoPerMin || 0.04;
     const minCostPerCall = Math.max(costPerMin, SOGLIA_MINIMA_CHIAMATA_EUR);
     const saldo = await saldoVoce(adminClient, profile.company_id);
     const balance = saldo.spendibile;
