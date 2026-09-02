@@ -185,11 +185,11 @@ export const WIZARD_RAL = [
   { id: "220_blu_acciaio", code: "220", nome: "Blu Acciaio", hex: "#2E4A6B",
     family: "blu", referenceImage: "220-Blu-Acciaio-Finitura-classica-PVC.webp" },
   { id: "5010_blu_genziana", code: "5010", nome: "Blu Genziana (RAL 5010)", hex: "#0E294B",
-    family: "blu", referenceImage: null },
+    family: "blu", referenceImage: "RAL-5010-Blu-Genziana-Alluminio-Opaco.webp" },
   { id: "5003_blu_zaffiro", code: "5003", nome: "Blu Zaffiro (RAL 5003)", hex: "#1B2D44",
-    family: "blu", referenceImage: null },
+    family: "blu", referenceImage: "RAL-5003-Blu-Zaffiro-Alluminio-Opaco.webp" },
   { id: "5014_blu_colomba", code: "5014", nome: "Blu Colomba (RAL 5014)", hex: "#637D96",
-    family: "blu", referenceImage: null },
+    family: "blu", referenceImage: "RAL-5014-Blu-Colomba-Alluminio-Opaco.webp" },
 
   // ── Rossi ──
   { id: "136_rosso_rubino", code: "136", nome: "Rosso Rubino", hex: "#7A1F2C",
@@ -197,59 +197,59 @@ export const WIZARD_RAL = [
   { id: "137_rosso_vino", code: "137", nome: "Rosso Vino", hex: "#5E2028",
     family: "rossi", referenceImage: "137-Rosso-Vino-Finitura-classica-PVC.webp" },
   { id: "3003_rosso_rubino_ral", code: "3003", nome: "Rosso Rubino (RAL 3003)", hex: "#9B111E",
-    family: "rossi", referenceImage: null },
+    family: "rossi", referenceImage: "RAL-3003-Rosso-Rubino-Alluminio-Opaco.webp" },
   { id: "3005_rosso_vino_ral", code: "3005", nome: "Rosso Vino (RAL 3005)", hex: "#5E2129",
-    family: "rossi", referenceImage: null },
+    family: "rossi", referenceImage: "RAL-3005-Rosso-Vino-Alluminio-Opaco.webp" },
   { id: "3011_rosso_marrone", code: "3011", nome: "Rosso Marrone (RAL 3011)", hex: "#781F19",
-    family: "rossi", referenceImage: null },
+    family: "rossi", referenceImage: "RAL-3011-Rosso-Marrone-Alluminio-Opaco.webp" },
 
   // ── Verdi ──
   { id: "6005_verde_muschio", code: "6005", nome: "Verde Muschio (RAL 6005)", hex: "#114232",
-    family: "verdi", referenceImage: null },
+    family: "verdi", referenceImage: "RAL-6005-Verde-Muschio-Alluminio-Opaco.webp" },
   { id: "6009_verde_abete", code: "6009", nome: "Verde Abete (RAL 6009)", hex: "#27352A",
-    family: "verdi", referenceImage: null },
+    family: "verdi", referenceImage: "RAL-6009-Verde-Abete-Alluminio-Opaco.webp" },
   { id: "6021_verde_pallido", code: "6021", nome: "Verde Pallido (RAL 6021)", hex: "#89A86B",
-    family: "verdi", referenceImage: null },
+    family: "verdi", referenceImage: "RAL-6021-Verde-Pallido-Alluminio-Opaco.webp" },
   { id: "6029_verde_menta", code: "6029", nome: "Verde Menta (RAL 6029)", hex: "#20603D",
-    family: "verdi", referenceImage: null },
+    family: "verdi", referenceImage: "RAL-6029-Verde-Menta-Alluminio-Opaco.webp" },
 
   // v8.6.14 — Espansione catalogo Serbaplast: colori finitura classica più richiesti.
   // Foto reference non ancora disponibili (referenceImage: null) — UI mostra swatch CSS.
   // ── Bianchi/Avori aggiuntivi ──
   { id: "21_bianco_pellicolato", code: "21", nome: "Bianco Pellicolato", hex: "#F5F2EB",
-    family: "bianchi", referenceImage: null },
+    family: "bianchi", referenceImage: "21-Bianco-Pellicolato-Finitura-classica-PVC.webp" },
   { id: "1004_avorio", code: "1004", nome: "Avorio", hex: "#E8DCC0",
-    family: "bianchi", referenceImage: null },
+    family: "bianchi", referenceImage: "1004-Avorio-Finitura-classica-PVC.webp" },
   { id: "131_bianco_papiro", code: "131", nome: "Bianco Papiro", hex: "#EFEAD8",
-    family: "bianchi", referenceImage: null },
+    family: "bianchi", referenceImage: "131-Bianco-Papiro-Finitura-classica-PVC.webp" },
   // ── Grigi aggiuntivi (essenziali) ──
   { id: "86_grigio_antracite", code: "86", nome: "Grigio Antracite", hex: "#3C4248",
-    family: "grigi", referenceImage: null },
+    family: "grigi", referenceImage: "86-Grigio-Antracite-Finitura-classica-PVC.webp" },
   { id: "88_grigio_agata", code: "88", nome: "Grigio Agata", hex: "#828A8C",
-    family: "grigi", referenceImage: null },
+    family: "grigi", referenceImage: "88-Grigio-Agata-Finitura-classica-PVC.webp" },
   { id: "133_grigio_luce", code: "133", nome: "Grigio Luce", hex: "#B5B8B5",
-    family: "grigi", referenceImage: null },
+    family: "grigi", referenceImage: "133-Grigio-Luce-Finitura-classica-PVC.webp" },
   { id: "227_grigio_basalto", code: "227", nome: "Grigio Basalto", hex: "#4A4D52",
-    family: "grigi", referenceImage: null },
+    family: "grigi", referenceImage: "227-Grigio-Basalto-Finitura-classica-PVC.webp" },
   { id: "514_grigio_quarzo", code: "514", nome: "Grigio Quarzo", hex: "#7C7E7E",
-    family: "grigi", referenceImage: null },
+    family: "grigi", referenceImage: "514-Grigio-Quarzo-Finitura-classica-PVC.webp" },
   // ── Marroni / Effetti legno classici aggiuntivi ──
   { id: "228_winchester", code: "228", nome: "Winchester", hex: "#5A3825",
-    family: "marroni", referenceImage: null },
+    family: "marroni", referenceImage: "228-Winchester-Finitura-classica-PVC.webp" },
   { id: "221_siena_rosso", code: "221", nome: "Siena Rosso", hex: "#7A2A14",
-    family: "marroni", referenceImage: null },
+    family: "marroni", referenceImage: "221-Siena-Rosso-Finitura-classica-PVC.webp" },
   { id: "226_siena_noce", code: "226", nome: "Siena Noce", hex: "#5C3B22",
-    family: "marroni", referenceImage: null },
+    family: "marroni", referenceImage: "226-Siena-Noce-Finitura-classica-PVC.webp" },
   // ── Blu aggiuntivo ──
   { id: "132_blu_brillante", code: "132", nome: "Blu Brillante", hex: "#1E4D7B",
-    family: "blu", referenceImage: null },
+    family: "blu", referenceImage: "132-Blu-Brillante-Finitura-classica-PVC.webp" },
   // ── Premium / Touch Feinstruktur goffrati (espansi) ──
   { id: "1300_feinstruktur_antracite", code: "1300", nome: "Feinstruktur Grigio Antracite (Touch goffrato)",
-    hex: "#383E42", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+    hex: "#383E42", family: "premium", touch: "goffrato", upsell: true, referenceImage: "1300-Feinstruktur-Grigio-Antracite-Finitura-Touch-effetto-goffrato.webp" },
   { id: "1302_feinstruktur_ardesia", code: "1302", nome: "Feinstruktur Grigio Ardesia (Touch goffrato)",
-    hex: "#5A5E63", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+    hex: "#5A5E63", family: "premium", touch: "goffrato", upsell: true, referenceImage: "1302-Feinstruktur-Grigio-Ardesia-Finitura-Touch-effetto-goffrato.webp" },
   { id: "1307_feinstruktur_bianco", code: "1307", nome: "Feinstruktur Bianco (Touch goffrato)",
-    hex: "#EFEDE5", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+    hex: "#EFEDE5", family: "premium", touch: "goffrato", upsell: true, referenceImage: "1307-Feinstruktur-Bianco-Finitura-Touch-effetto-goffrato.webp" },
 
   // ── Touch Premium (effetto goffrato / strutturato) ──
   { id: "1301_feinstruktur_nero", code: "1301", nome: "Feinstruktur Nero (Touch goffrato)", hex: "#1C1C1C",
@@ -624,31 +624,31 @@ export const WIZARD_TAPP_OPTIONS = [
 
 export const WIZARD_TAPP_COLORS = [
   // ── Bianchi/Crema ──
-  { id: "tapp_9010_bianco", code: "9010", nome: "Bianco Puro (RAL 9010)", hex: "#F7F7F4", family: "bianchi" as const },
-  { id: "tapp_9001_crema", code: "9001", nome: "Bianco Crema (RAL 9001)", hex: "#EAE6CA", family: "bianchi" as const },
-  { id: "tapp_1013_avorio", code: "1013", nome: "Bianco Avorio (RAL 1013)", hex: "#E3D9C6", family: "bianchi" as const },
+  { id: "tapp_9010_bianco", code: "9010", nome: "Bianco Puro (RAL 9010)", hex: "#F7F7F4", family: "bianchi" as const, referenceImage: "Tapparella-RAL-9010-Bianco-Puro.webp" },
+  { id: "tapp_9001_crema", code: "9001", nome: "Bianco Crema (RAL 9001)", hex: "#EAE6CA", family: "bianchi" as const, referenceImage: "Tapparella-RAL-9001-Bianco-Crema.webp" },
+  { id: "tapp_1013_avorio", code: "1013", nome: "Bianco Avorio (RAL 1013)", hex: "#E3D9C6", family: "bianchi" as const, referenceImage: "Tapparella-RAL-1013-Bianco-Avorio.webp" },
   // ── Grigi ──
-  { id: "tapp_7035_grigio_chiaro", code: "7035", nome: "Grigio Chiaro (RAL 7035)", hex: "#C7CAC9", family: "grigi" as const },
-  { id: "tapp_7016_antracite", code: "7016", nome: "Grigio Antracite (RAL 7016)", hex: "#383E42", family: "grigi" as const },
-  { id: "tapp_9006_argento", code: "9006", nome: "Argento Metallizzato (RAL 9006)", hex: "#A5A5A5", family: "grigi" as const },
+  { id: "tapp_7035_grigio_chiaro", code: "7035", nome: "Grigio Chiaro (RAL 7035)", hex: "#C7CAC9", family: "grigi" as const, referenceImage: "Tapparella-RAL-7035-Grigio-Chiaro.webp" },
+  { id: "tapp_7016_antracite", code: "7016", nome: "Grigio Antracite (RAL 7016)", hex: "#383E42", family: "grigi" as const, referenceImage: "Tapparella-RAL-7016-Grigio-Antracite.webp" },
+  { id: "tapp_9006_argento", code: "9006", nome: "Argento Metallizzato (RAL 9006)", hex: "#A5A5A5", family: "grigi" as const, referenceImage: "Tapparella-RAL-9006-Argento-Metallizzato.webp" },
   // ── Marroni ──
-  { id: "tapp_8017_cioccolato", code: "8017", nome: "Marrone Cioccolato (RAL 8017)", hex: "#45322E", family: "marroni" as const },
-  { id: "tapp_8014_seppia", code: "8014", nome: "Marrone Seppia (RAL 8014)", hex: "#4A3328", family: "marroni" as const },
-  { id: "tapp_8003_argilla", code: "8003", nome: "Marrone Argilla (RAL 8003)", hex: "#7E4B26", family: "marroni" as const },
+  { id: "tapp_8017_cioccolato", code: "8017", nome: "Marrone Cioccolato (RAL 8017)", hex: "#45322E", family: "marroni" as const, referenceImage: "Tapparella-RAL-8017-Marrone-Cioccolato.webp" },
+  { id: "tapp_8014_seppia", code: "8014", nome: "Marrone Seppia (RAL 8014)", hex: "#4A3328", family: "marroni" as const, referenceImage: "Tapparella-RAL-8014-Marrone-Seppia.webp" },
+  { id: "tapp_8003_argilla", code: "8003", nome: "Marrone Argilla (RAL 8003)", hex: "#7E4B26", family: "marroni" as const, referenceImage: "Tapparella-RAL-8003-Marrone-Argilla.webp" },
   // ── Verdi ──
-  { id: "tapp_6005_muschio", code: "6005", nome: "Verde Muschio (RAL 6005)", hex: "#114232", family: "verdi" as const },
-  { id: "tapp_6009_abete", code: "6009", nome: "Verde Abete (RAL 6009)", hex: "#27352A", family: "verdi" as const },
-  { id: "tapp_6021_pallido", code: "6021", nome: "Verde Pallido (RAL 6021)", hex: "#89A86B", family: "verdi" as const },
+  { id: "tapp_6005_muschio", code: "6005", nome: "Verde Muschio (RAL 6005)", hex: "#114232", family: "verdi" as const, referenceImage: "Tapparella-RAL-6005-Verde-Muschio.webp" },
+  { id: "tapp_6009_abete", code: "6009", nome: "Verde Abete (RAL 6009)", hex: "#27352A", family: "verdi" as const, referenceImage: "Tapparella-RAL-6009-Verde-Abete.webp" },
+  { id: "tapp_6021_pallido", code: "6021", nome: "Verde Pallido (RAL 6021)", hex: "#89A86B", family: "verdi" as const, referenceImage: "Tapparella-RAL-6021-Verde-Pallido.webp" },
   // ── Rossi ──
-  { id: "tapp_3003_rubino", code: "3003", nome: "Rosso Rubino (RAL 3003)", hex: "#9B111E", family: "rossi" as const },
-  { id: "tapp_3005_vino", code: "3005", nome: "Rosso Vino (RAL 3005)", hex: "#5E2129", family: "rossi" as const },
-  { id: "tapp_3011_marrone", code: "3011", nome: "Rosso Marrone (RAL 3011)", hex: "#781F19", family: "rossi" as const },
+  { id: "tapp_3003_rubino", code: "3003", nome: "Rosso Rubino (RAL 3003)", hex: "#9B111E", family: "rossi" as const, referenceImage: "Tapparella-RAL-3003-Rosso-Rubino.webp" },
+  { id: "tapp_3005_vino", code: "3005", nome: "Rosso Vino (RAL 3005)", hex: "#5E2129", family: "rossi" as const, referenceImage: "Tapparella-RAL-3005-Rosso-Vino.webp" },
+  { id: "tapp_3011_marrone", code: "3011", nome: "Rosso Marrone (RAL 3011)", hex: "#781F19", family: "rossi" as const, referenceImage: "Tapparella-RAL-3011-Rosso-Marrone.webp" },
   // ── Blu ──
-  { id: "tapp_5010_genziana", code: "5010", nome: "Blu Genziana (RAL 5010)", hex: "#0E294B", family: "blu" as const },
-  { id: "tapp_5003_zaffiro", code: "5003", nome: "Blu Zaffiro (RAL 5003)", hex: "#1B2D44", family: "blu" as const },
-  { id: "tapp_5014_colomba", code: "5014", nome: "Blu Colomba (RAL 5014)", hex: "#637D96", family: "blu" as const },
+  { id: "tapp_5010_genziana", code: "5010", nome: "Blu Genziana (RAL 5010)", hex: "#0E294B", family: "blu" as const, referenceImage: "Tapparella-RAL-5010-Blu-Genziana.webp" },
+  { id: "tapp_5003_zaffiro", code: "5003", nome: "Blu Zaffiro (RAL 5003)", hex: "#1B2D44", family: "blu" as const, referenceImage: "Tapparella-RAL-5003-Blu-Zaffiro.webp" },
+  { id: "tapp_5014_colomba", code: "5014", nome: "Blu Colomba (RAL 5014)", hex: "#637D96", family: "blu" as const, referenceImage: "Tapparella-RAL-5014-Blu-Colomba.webp" },
   // ── Nero ──
-  { id: "tapp_9005_nero", code: "9005", nome: "Nero Intenso (RAL 9005)", hex: "#0A0A0A", family: "premium" as const },
+  { id: "tapp_9005_nero", code: "9005", nome: "Nero Intenso (RAL 9005)", hex: "#0A0A0A", family: "premium" as const, referenceImage: "Tapparella-RAL-9005-Nero-Intenso.webp" },
 ] as const;
 
 export type WizardTappColor = (typeof WIZARD_TAPP_COLORS)[number]["id"];
