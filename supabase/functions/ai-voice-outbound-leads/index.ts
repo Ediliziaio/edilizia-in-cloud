@@ -106,6 +106,26 @@ Deno.serve(async (req) => {
     return pronto;
   }
 
+  const adminPerAzienda = new Map<string, string | null>();
+  async function adminAzienda(companyId: string): Promise<string | null> {
+    if (adminPerAzienda.has(companyId)) return adminPerAzienda.get(companyId)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: membri } = await (supabase as any)
+      .from("profiles").select("id").eq("company_id", companyId).limit(50);
+    const ids = ((membri ?? []) as Array<{ id: string }>).map((m) => m.id);
+    let scelto: string | null = null;
+    if (ids.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ruoli } = await (supabase as any)
+        .from("user_roles").select("user_id, role").in("user_id", ids)
+        .in("role", ["company_admin", "company_staff"]);
+      const r = (ruoli ?? []) as Array<{ user_id: string; role: string }>;
+      scelto = r.find((x) => x.role === "company_admin")?.user_id ?? r[0]?.user_id ?? null;
+    }
+    adminPerAzienda.set(companyId, scelto);
+    return scelto;
+  }
+
   for (const o of (opps ?? []) as Array<Record<string, unknown>>) {
     if (summary.proposals_created >= MAX_CALLS_PER_RUN) break;
     summary.scanned += 1;
@@ -115,7 +135,10 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: contact } = await (supabase as any)
       .from("marketing_contacts")
-      .select("first_name, last_name, phone, optout_phone, optout_call")
+      // optout_phone NON esiste: con quella colonna la select falliva, il
+      // contatto risultava null e OGNI lead finiva in skipped_no_phone. Il cron
+      // girava ogni 5 minuti senza proporre mai una chiamata.
+      .select("first_name, last_name, phone, optout_call")
       .eq("id", contactId)
       .maybeSingle();
 
@@ -123,7 +146,7 @@ Deno.serve(async (req) => {
       summary.skipped_no_phone += 1;
       continue;
     }
-    if (contact.optout_phone === true || contact.optout_call === true) {
+    if (contact.optout_call === true) {
       summary.skipped_optout += 1;
       continue;
     }
@@ -141,16 +164,10 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    // Risolvi user admin per la company
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: roleRow } = await (supabase as any)
-      .from("user_roles")
-      .select("user_id")
-      .eq("company_id", companyId)
-      .in("role", ["company_admin", "company_staff"])
-      .limit(1)
-      .maybeSingle();
-    const adminUserId = (roleRow as { user_id?: string } | null)?.user_id;
+    // Risolvi un admin dell'azienda. user_roles NON ha company_id (e' solo
+    // user_id+role): l'appartenenza sta in profiles. Prima la query filtrava
+    // su una colonna inesistente e nessuna proposta veniva mai creata.
+    const adminUserId = await adminAzienda(companyId);
     if (!adminUserId) continue;
 
     const contactName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Cliente";

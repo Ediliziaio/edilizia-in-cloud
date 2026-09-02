@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
+import { risolviTelnyx } from "../_shared/telnyxApiKey.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
@@ -10,7 +11,10 @@ const EL_BASE = "https://api.elevenlabs.io/v1";
 // "JBFqnCBsd6RMkjVDRZzb" (George) è una voce inglese monolingua: produce output
 // in inglese anche con testo italiano. Usare always eleven_multilingual_v2.
 // Rachel (21m00Tcm4TlvDq8ikWAM) supporta italiano nativo con multilingual_v2.
-const DEFAULT_ITALIAN_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+// Prima era "21m00Tcm4TlvDq8ikWAM" (Rachel), una voce INGLESE spacciata per
+// italiana nel commento. Si usa la stessa voce che la UI propone per prima
+// ("Giulia", multilingue), cosi' agente creato e agente mostrato coincidono.
+const DEFAULT_ITALIAN_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
 // Flash v2.5: ~75ms di inferenza contro ~300ms di multilingual_v2, italiano
 // supportato, costo per carattere circa dimezzato. Al telefono la qualità
 // extra di multilingual non passa dal codec della linea, la latenza invece è
@@ -274,40 +278,13 @@ Deno.serve(async (req) => {
           }
         }
 
-        const { data: newAgent, error: insertErr } = await adminClient
-          .from("ai_agents")
-          .insert({
-            company_id: companyId,
-            elevenlabs_agent_id: elAgentId || null,
-            name: payload?.name || "Nuovo Agente",
-            system_prompt: payload?.system_prompt || "",
-            first_message: payload?.first_message || "",
-            voice_id: voiceId, // FIX BUG #1: salva la voce italiana scelta
-            llm_model: payload?.llm_model || "gemini-2.5-flash",
-            language: payload?.language || "it",
-            created_by: userId,
-            ...(payload?.tools_config ? { tools_config: payload.tools_config } : {}),
-          })
-          .select("id")
-          .single();
+        // Il record locale lo scrive il chiamante nel modello v2 (ai_agents_v2):
+        // prima qui si inseriva ANCHE in ai_agents (v1) e ogni agente nasceva
+        // doppio, con la copia v1 orfana per sempre. Qui resta solo ElevenLabs.
+        const newAgent: { id: string | null } = { id: null };
+        await auditLog(adminClient, companyId, null, userId, "create_agent", { name: payload?.name, elevenlabs_agent_id: elAgentId });
 
-        if (insertErr) {
-          // ROLLBACK: se l'insert DB fallisce, elimina l'agente appena creato su ElevenLabs
-          // per non lasciare orfani remoti che continuano a consumare crediti.
-          if (elAgentId) {
-            try {
-              await elFetch(`/convai/agents/${elAgentId}`, "DELETE", apiKey);
-              console.log(`[PROXY] Rollback ElevenLabs agent ${elAgentId} dopo fallimento DB`);
-            } catch (rbErr) {
-              console.error(`[PROXY] Rollback ElevenLabs fallito per ${elAgentId}:`, rbErr);
-            }
-          }
-          throw insertErr;
-        }
-
-        await auditLog(adminClient, companyId, newAgent?.id, userId, "create_agent", { name: payload?.name });
-
-        result = { agent_id: newAgent?.id, elevenlabs_agent_id: elAgentId };
+        result = { agent_id: newAgent.id, elevenlabs_agent_id: elAgentId };
         break;
       }
 
@@ -638,28 +615,19 @@ Deno.serve(async (req) => {
         const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
-        // Get Telnyx settings for API key and connection_id
-        const { data: telnyxSettings } = await adminClient
-          .from("telnyx_settings")
-          .select("api_key_encrypted, connection_id")
-          .eq("is_active", true)
-          .limit(1)
-          .maybeSingle();
-
-        if (!telnyxSettings?.api_key_encrypted) {
-          throw new Error("Telnyx non configurato");
-        }
-
-        const { decrypt: decryptFn, getEncryptionKey: getKey } = await import("../_shared/encryption.ts");
-        const telnyxApiKey = await decryptFn(telnyxSettings.api_key_encrypted, getKey());
+        // Chiave Telnyx: secret env prima, tabella dopo. In produzione la
+        // tabella ha api_key_encrypted VUOTO e questo ramo falliva sempre con
+        // "Telnyx non configurato" — con TELNYX_API_KEY sano a un metro.
+        const telnyx = await risolviTelnyx(adminClient);
+        if (!telnyx) throw new Error("Telnyx non configurato: manca TELNYX_API_KEY (secret) e telnyx_settings e' vuota");
 
         const linkBody: Record<string, unknown> = {
           phone_number: payload.phone_number,
           provider: "telnyx",
-          telnyx_api_key: telnyxApiKey,
+          telnyx_api_key: telnyx.apiKey,
         };
-        if (telnyxSettings.connection_id) {
-          linkBody.telnyx_connection_id = telnyxSettings.connection_id;
+        if (telnyx.connectionId) {
+          linkBody.telnyx_connection_id = telnyx.connectionId;
         }
 
         const linkRes = await elFetch("/convai/phone-numbers/create", "POST", apiKey, linkBody);

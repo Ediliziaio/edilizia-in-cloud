@@ -10,6 +10,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const ENV_FIRST_KEYS = new Set<string>([
   "stripe_secret_key",
   "stripe_webhook_secret",
+  // La chiave ElevenLabs paga a consumo: non deve dipendere da cio' che chiunque
+  // con accesso a platform_settings potrebbe scrivere. Secret store prima.
+  "elevenlabs_api_key",
 ]);
 
 /**

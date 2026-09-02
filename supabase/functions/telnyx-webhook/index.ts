@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
+import { saldoVoce } from "../_shared/voiceCredits.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -248,22 +249,61 @@ Deno.serve(async (req) => {
         }
         const toDigits = safeTo.replace(/\+/g, "");
 
-        // Lookup agent phone number (includes routing_mode and internal_agent_id)
-        const { data: phoneRec } = await supabase
-          .from("ai_agent_phone_numbers")
-          .select("id, agent_id, internal_agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id, routing_mode")
-          .in("phone_number", [safeTo, toDigits])
+        // ── Pool v2 PRIMA: e' il modello che la UI popola. Prima questo webhook
+        // conosceva solo ai_agent_phone_numbers (v1): un numero collegato dalla
+        // pagina Telefonia non veniva mai riconosciuto e la chiamata in
+        // entrata restava ignorata.
+        const { data: phoneV2 } = await supabase
+          .from("ai_phone_numbers_v2")
+          .select("id, agent_id, company_id, elevenlabs_phone_id, attivo")
+          .in("numero", [safeTo, `+${toDigits}`, toDigits])
+          .eq("attivo", true)
           .limit(1)
           .maybeSingle();
+
+        let phoneRec: {
+          id: string; agent_id: string | null; internal_agent_id: string | null; company_id: string;
+          elevenlabs_phone_number_id: string | null; telnyx_connection_id: string | null; routing_mode: string | null;
+        } | null = null;
+        let resolved: ResolvedAgent | null = null;
+
+        if (phoneV2) {
+          phoneRec = {
+            id: phoneV2.id, agent_id: phoneV2.agent_id, internal_agent_id: null, company_id: phoneV2.company_id,
+            elevenlabs_phone_number_id: phoneV2.elevenlabs_phone_id, telnyx_connection_id: null, routing_mode: "v2",
+          };
+          if (phoneV2.agent_id) {
+            const { data: agV2 } = await supabase
+              .from("ai_agents_v2")
+              .select("id, elevenlabs_agent_id, stato")
+              .eq("id", phoneV2.agent_id)
+              .maybeSingle();
+            if (agV2?.elevenlabs_agent_id && agV2.stato === "attivo") {
+              resolved = { type: "v2", agentId: agV2.id, elevenlabsAgentId: agV2.elevenlabs_agent_id, companyId: phoneV2.company_id };
+            } else {
+              console.log(`[telnyx-webhook] numero v2 con agente non attivo/non collegato (stato=${agV2?.stato ?? "?"})`);
+            }
+          }
+        } else {
+          const { data: phoneV1 } = await supabase
+            .from("ai_agent_phone_numbers")
+            .select("id, agent_id, internal_agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id, routing_mode")
+            .in("phone_number", [safeTo, toDigits])
+            .limit(1)
+            .maybeSingle();
+          phoneRec = phoneV1 as typeof phoneRec;
+        }
 
         if (!phoneRec) {
           console.log(`[telnyx-webhook] No agent phone found for ${safeTo}, ignoring`);
           break;
         }
 
-        // ── Smart Routing: resolve the correct agent ──
+        // ── Smart Routing (legacy v1): resolve the correct agent ──
         const routingMode = phoneRec.routing_mode || "marketing";
-        const resolved = await resolveAgent(supabase, phoneRec, routingMode);
+        if (!resolved && routingMode !== "v2") {
+          resolved = await resolveAgent(supabase, phoneRec as Parameters<typeof resolveAgent>[1], routingMode);
+        }
 
         if (!resolved) {
           console.log(`[telnyx-webhook] No agent resolved for routing_mode=${routingMode}, rejecting`);
@@ -273,15 +313,9 @@ Deno.serve(async (req) => {
 
         console.log(`[telnyx-webhook] Resolved agent: type=${resolved.type}, elAgentId=${resolved.elevenlabsAgentId}`);
 
-        // Credit check (shared wallet)
-        const { data: credits } = await supabase
-          .from("ai_credits")
-          .select("balance_eur, calls_blocked")
-          .eq("company_id", phoneRec.company_id)
-          .maybeSingle();
-
-        const balance = credits?.balance_eur || 0;
-        if (credits?.calls_blocked || balance < 0.04) {
+        // Credit check: saldo spendibile (ricarica + omaggio) e soglia unica
+        const saldo = await saldoVoce(supabase, phoneRec.company_id);
+        if (saldo.bloccato) {
           console.log(`[telnyx-webhook] Insufficient credits for company ${phoneRec.company_id}, rejecting`);
           await telnyxCallControl(callControlId, "reject", { cause: "CALL_REJECTED" });
           break;
@@ -329,7 +363,7 @@ Deno.serve(async (req) => {
             });
           } else {
             await supabase.from("ai_agent_conversations").insert({
-              agent_id: resolved.agentId,
+              ...(resolved.type === "v2" ? { agent_v2_id: resolved.agentId } : { agent_id: resolved.agentId }),
               company_id: phoneRec.company_id,
               contact_id: contactId,
               call_direction: "inbound",
@@ -366,7 +400,7 @@ Deno.serve(async (req) => {
             });
           } else {
             await supabase.from("ai_agent_conversations").insert({
-              agent_id: resolved.agentId,
+              ...(resolved.type === "v2" ? { agent_v2_id: resolved.agentId } : { agent_id: resolved.agentId }),
               company_id: phoneRec.company_id,
               contact_id: contactId,
               call_direction: "inbound",
@@ -510,7 +544,7 @@ async function telnyxCallControl(callControlId: string, command: string, params:
 
 // ── Smart Routing: resolve agent by routing_mode ──
 interface ResolvedAgent {
-  type: "marketing" | "internal";
+  type: "marketing" | "internal" | "v2";
   agentId: string;
   elevenlabsAgentId: string;
   companyId: string;

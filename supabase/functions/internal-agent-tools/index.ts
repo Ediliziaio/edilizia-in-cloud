@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { risolviTelnyx, numeroMittenteAzienda } from "../_shared/telnyxApiKey.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
@@ -143,6 +144,8 @@ async function identifyCaller(admin: AdminClient, params: Record<string, unknown
   const exact = await admin
     .from("marketing_contacts")
     .select("id, first_name, last_name, email, phone, company_id, tags, score, assigned_to")
+    // Tenancy: senza company_id il tool cercava in TUTTE le aziende.
+    .match(typeof params.company_id === "string" ? { company_id: params.company_id } : {})
     .eq("phone", phone)
     .limit(1);
 
@@ -203,6 +206,8 @@ async function getClientInfo(admin: AdminClient, params: Record<string, unknown>
   const { data: contact } = await admin
     .from("marketing_contacts")
     .select("id, first_name, last_name, email, phone, company_id, contact_type, source, tags, score, assigned_to, created_at")
+    // Tenancy: senza company_id il tool cercava in TUTTE le aziende.
+    .match(typeof params.company_id === "string" ? { company_id: params.company_id } : {})
     .eq("id", contactId)
     .single();
 
@@ -426,22 +431,25 @@ async function sendSmsConfirmation(admin: AdminClient, params: Record<string, un
   const messageTemplate = String(params.message_template || params.message || "");
   if (!phone || !messageTemplate) return { error: "phone e message_template richiesti" };
 
-  // Get Telnyx settings
-  const { data: telnyxSettings } = await admin
-    .from("telnyx_settings")
-    .select("api_key_encrypted, messaging_profile_id, sender_number")
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
+  // Chiave Telnyx: secret env prima, tabella dopo (in produzione la tabella ha
+  // la chiave VUOTA e qui si rispondeva sempre "Telnyx non configurato").
+  const telnyx = await risolviTelnyx(admin);
+  if (!telnyx) return { error: "Telnyx non configurato per SMS" };
 
-  if (!telnyxSettings?.api_key_encrypted) {
-    return { error: "Telnyx non configurato per SMS" };
+  // Mittente: telnyx_settings.sender_number NON esiste (la select falliva).
+  // Il numero si prende dal pool dell'azienda; l'azienda arriva dai parametri
+  // o, in mancanza, dal contatto che ha quel telefono.
+  let companyId = typeof params.company_id === "string" ? params.company_id : null;
+  if (!companyId) {
+    const suffisso = phone.replace(/\D/g, "").slice(-9);
+    const { data: c } = await admin.from("marketing_contacts").select("company_id")
+      .ilike("phone", `%${suffisso}%`).limit(1).maybeSingle();
+    companyId = (c as { company_id?: string } | null)?.company_id ?? null;
   }
+  const mittente = companyId ? await numeroMittenteAzienda(admin, companyId) : null;
+  if (!mittente) return { error: "Nessun numero mittente attivo per l'azienda: collega un numero in Telefonia" };
 
   try {
-    const { decrypt, getEncryptionKey } = await import("../_shared/encryption.ts");
-    const telnyxApiKey = await decrypt(telnyxSettings.api_key_encrypted, getEncryptionKey());
-
     // Apply template vars if provided
     let message = messageTemplate;
     if (params.vars && typeof params.vars === "object") {
@@ -450,19 +458,13 @@ async function sendSmsConfirmation(admin: AdminClient, params: Record<string, un
       }
     }
 
-    const smsBody: Record<string, unknown> = {
-      from: telnyxSettings.sender_number || "+39000000000",
-      to: phone,
-      text: message,
-    };
-    if (telnyxSettings.messaging_profile_id) {
-      smsBody.messaging_profile_id = telnyxSettings.messaging_profile_id;
-    }
+    const smsBody: Record<string, unknown> = { from: mittente, to: phone, text: message };
+    if (telnyx.messagingProfileId) smsBody.messaging_profile_id = telnyx.messagingProfileId;
 
     const res = await fetch("https://api.telnyx.com/v2/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${telnyxApiKey}`,
+        Authorization: `Bearer ${telnyx.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(smsBody),

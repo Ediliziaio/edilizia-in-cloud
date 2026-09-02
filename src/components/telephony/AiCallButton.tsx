@@ -78,6 +78,19 @@ export function AiCallButton({
       const body: Record<string, unknown> = { agent_id: agentId };
       if (contactId) body.contact_id = contactId;
       else if (phone) body.phone_number = phone;
+      // Pre-check crediti: check-credits-before-call esisteva ma nessuno la
+      // chiamava. Meglio un "ti mancano 0,10 €" prima, che un 402 muto dopo.
+      const pre = await supabase.functions.invoke("check-credits-before-call", { body: { agentId } });
+      const esito = pre.data as { allowed?: boolean; reason?: string; balance_eur?: number; min_required_eur?: number } | null;
+      if (esito && esito.allowed === false) {
+        const saldo = typeof esito.balance_eur === "number" ? esito.balance_eur.toFixed(2) : "?";
+        const minimo = typeof esito.min_required_eur === "number" ? esito.min_required_eur.toFixed(2) : "0.10";
+        throw new Error(
+          esito.reason === "insufficient_balance"
+            ? `Crediti AI insufficienti: saldo ${saldo} €, servono almeno ${minimo} €. Ricarica per chiamare.`
+            : "Chiamate AI bloccate per questa azienda (credito esaurito). Ricarica per riattivarle.",
+        );
+      }
       const { data, error } = await supabase.functions.invoke("initiate-outbound-call", { body });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);

@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { saldoVoce, SOGLIA_MINIMA_CHIAMATA_EUR } from "../_shared/voiceCredits.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -67,25 +68,18 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    // Richiediamo almeno 1 minuto di chiamata come saldo minimo (non solo €0.04
-    // che è il costo al minuto). Così evitiamo che una chiamata parta con saldo
-    // sufficiente per 5 secondi e vada subito in negativo.
+    // Soglia e saldo spendibile (ricarica + omaggio del mese) dal helper
+    // condiviso: prima qui si guardava solo balance_eur e la soglia era
+    // diversa da quella dei due flussi di chiamata.
     const costPerMin = pricing?.cost_billed_per_min || 0.04;
-    const minCostPerCall = Math.max(costPerMin * 1, 0.10);
+    const minCostPerCall = Math.max(costPerMin, SOGLIA_MINIMA_CHIAMATA_EUR);
+    const saldo = await saldoVoce(adminClient, profile.company_id);
+    const balance = saldo.spendibile;
 
-    // Get credits
-    const { data: credits } = await adminClient
-      .from("ai_credits")
-      .select("balance_eur, calls_blocked, blocked_reason")
-      .eq("company_id", profile.company_id)
-      .maybeSingle();
-
-    const balance = credits?.balance_eur ?? 0;
-
-    if (credits?.calls_blocked || balance < minCostPerCall) {
+    if (saldo.bloccato || balance < minCostPerCall) {
       return json({
         allowed: false,
-        reason: credits?.calls_blocked ? (credits.blocked_reason || "balance_zero") : "insufficient_balance",
+        reason: saldo.motivo ?? "insufficient_balance",
         balance_eur: balance,
         min_required_eur: minCostPerCall,
       }, 402);

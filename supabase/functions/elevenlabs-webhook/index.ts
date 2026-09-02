@@ -158,12 +158,19 @@ Deno.serve(async (req) => {
     // ============ DND CHECK FOR INBOUND CALLS (FIX 8) ============
     const callDirection = metadata?.call_direction || "inbound";
     if (callDirection === "inbound" && metadata?.caller_phone) {
-      const { data: callerContact } = await adminClient
-        .from("marketing_contacts")
-        .select("id, optout_call")
-        .eq("company_id", companyId)
-        .eq("phone", metadata.caller_phone)
-        .maybeSingle();
+      // Match sul suffisso (9 cifre) come telnyx-webhook e call-init: il
+      // confronto esatto con il formato di ElevenLabs non combaciava mai, e il
+      // contatto restava scollegato dalla conversazione in entrata.
+      const suffisso = String(metadata.caller_phone).replace(/\D/g, "").slice(-9);
+      const { data: callerContact } = suffisso.length >= 6
+        ? await adminClient
+            .from("marketing_contacts")
+            .select("id, optout_call")
+            .eq("company_id", companyId)
+            .ilike("phone", `%${suffisso}%`)
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
       if (callerContact?.optout_call) {
         console.warn("[WEBHOOK] Inbound call from DND contact", {
           contact_id: callerContact.id,
@@ -201,12 +208,18 @@ Deno.serve(async (req) => {
             appointmentCreated = true;
             // P2-03: Push to Google Calendar (fire-and-forget)
             // Find the agent owner to determine which Google Calendar to sync to
-            const { data: agentProfile } = await adminClient
-              .from("profiles")
-              .select("id")
-              .eq("company_id", companyId)
-              .eq("role", "owner")
-              .maybeSingle();
+            // profiles.role non esiste: la query tornava sempre null e la
+            // sync col calendario dopo un appuntamento non partiva mai.
+            const { data: membri } = await adminClient
+              .from("profiles").select("id").eq("company_id", companyId).limit(50);
+            const ids = ((membri ?? []) as Array<{ id: string }>).map((m) => m.id);
+            let ownerId: string | null = null;
+            if (ids.length) {
+              const { data: ruoli } = await adminClient
+                .from("user_roles").select("user_id").in("user_id", ids).eq("role", "company_admin").limit(1);
+              ownerId = (ruoli as Array<{ user_id: string }> | null)?.[0]?.user_id ?? null;
+            }
+            const agentProfile = ownerId ? { id: ownerId } : null;
             if (agentProfile?.id && appointment.id) {
               fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-sync`, {
                 method: "POST",
@@ -309,7 +322,10 @@ Deno.serve(async (req) => {
 
     // Save conversation
     const convInsert: Record<string, unknown> = {
-      agent_id: agent.id,
+      // Agente v2 → agent_v2_id (FK su ai_agents_v2); legacy → agent_id.
+      // Prima si scriveva sempre agent_id: con un agente v2 l'insert violava
+      // la FK su ai_agents e la conversazione andava persa.
+      ...(agentV2Id ? { agent_v2_id: agentV2Id, agent_id: null } : { agent_id: agent.id }),
       company_id: companyId,
       elevenlabs_conversation_id: conversationId,
       contact_id: contactId,
@@ -508,10 +524,10 @@ Deno.serve(async (req) => {
     }
 
     // Record usage
-    await adminClient.from("ai_credit_usage").insert({
+    const { error: usageErr } = await adminClient.from("ai_credit_usage").insert({
       company_id: companyId,
       conversation_id: convRecord?.id || null,
-      agent_id: agent.id,
+      ...(agentV2Id ? { agent_id: null, agent_v2_id: agentV2Id } : { agent_id: agent.id }),
       duration_sec: durationSeconds,
       duration_min: Number(durationMin.toFixed(4)),
       llm_model: agent.llm_model,
@@ -524,6 +540,7 @@ Deno.serve(async (req) => {
       balance_before: balanceBefore,
       balance_after: balanceAfter,
     });
+    if (usageErr) console.error("[WEBHOOK] ai_credit_usage NON salvato:", usageErr.message);
 
     // Handle low/zero balance
     if (balanceAfter <= 0) {

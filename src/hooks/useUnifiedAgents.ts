@@ -126,11 +126,21 @@ export function useCreateUnifiedAgent() {
               first_message: input.primo_messaggio || "",
               llm_model: input.llm_model || "gemini-2.5-flash",
               language: input.lingua || "it",
+              // Prima la voce scelta nel wizard restava solo nel nostro DB:
+              // ElevenLabs creava l'agente con la voce di default.
+              ...(input.elevenlabs_voice_id ? { voice_id: input.elevenlabs_voice_id } : {}),
             },
           });
           elAgentId = result.elevenlabs_agent_id || null;
         } catch (e) {
           logger.warn("ElevenLabs creation failed, proceeding without:", e);
+          // Non e' un successo a meta': un agente vocale senza ElevenLabs non
+          // puo' ne' chiamare ne' rispondere. Lo si dice subito, non in log.
+          toast.warning(
+            "Agente salvato, ma NON collegato a ElevenLabs: " +
+              (e instanceof Error ? e.message : "errore sconosciuto") +
+              ". Non potra' chiamare finche' non viene ricollegato.",
+          );
         }
       }
 

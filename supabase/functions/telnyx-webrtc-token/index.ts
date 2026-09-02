@@ -140,6 +140,15 @@ Deno.serve(async (req) => {
       .eq("is_active", true);
     (vNums ?? []).forEach((n: { phone_number?: string | null }) => n.phone_number && callerNumbers.push(n.phone_number));
 
+    // I numeri del centralino AI (pool v2) mancavano: un operatore non poteva
+    // chiamare mostrando il numero dell'azienda usato dall'agente.
+    const { data: aiNums } = await admin
+      .from("ai_phone_numbers_v2")
+      .select("numero, attivo")
+      .eq("company_id", companyId)
+      .eq("attivo", true);
+    (aiNums ?? []).forEach((n: { numero?: string | null }) => n.numero && callerNumbers.push(n.numero));
+
     return jsonResponse({
       login_token: loginToken,
       caller_numbers: [...new Set(callerNumbers)],

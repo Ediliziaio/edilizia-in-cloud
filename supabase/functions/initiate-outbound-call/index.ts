@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { saldoVoce, SOGLIA_MINIMA_CHIAMATA_EUR } from "../_shared/voiceCredits.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -109,6 +110,7 @@ async function handleOutboundCall(
     giorni_attivi?: number[] | null;
   };
   let agent: CallAgent | null = null;
+  let agenteV2 = false;
 
   const { data: agentV2 } = await adminClient
     .from("ai_agents_v2")
@@ -118,6 +120,7 @@ async function handleOutboundCall(
     .maybeSingle();
   if (agentV2) {
     agent = { id: agentV2.id, elevenlabs_agent_id: agentV2.elevenlabs_agent_id, name: agentV2.nome };
+    agenteV2 = true;
   } else {
     const { data: agentLegacy } = await adminClient
       .from("ai_agents")
@@ -169,7 +172,11 @@ async function handleOutboundCall(
     targetContactId = contact.id;
   }
 
-  // Subscription check
+  // Gate funzionalita'. Prima si guardava ai_subscriptions, tabella del vecchio
+  // modulo AI che in produzione e' VUOTA: ogni utente non super_admin riceveva
+  // "Abbonamento AI non attivo" e le chiamate in uscita erano impossibili per
+  // costruzione. La fonte di verita' e' il feature gating dei piani
+  // (resolve_company_feature), la stessa usata dalla UI per mostrare l'area.
   if (!skipSubscriptionCheck) {
     const { data: roleData } = await adminClient
       .from("user_roles")
@@ -179,47 +186,26 @@ async function handleOutboundCall(
       .maybeSingle();
 
     if (!roleData) {
-      const { data: subscription } = await adminClient
-        .from("ai_subscriptions")
-        .select("status, trial_ends_at")
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      const isSubActive = subscription?.status === "active" ||
-        (subscription?.status === "trial" && subscription.trial_ends_at && new Date(subscription.trial_ends_at) > new Date());
-      if (!isSubActive) {
-        return json(req, { error: "Abbonamento AI non attivo." }, 403);
+      const { data: feat, error: featErr } = await adminClient.rpc("resolve_company_feature", {
+        p_company_id: companyId,
+        p_feature_key: "ai_agents",
+      });
+      const abilitata = Array.isArray(feat) ? feat[0]?.is_enabled === true : (feat as { is_enabled?: boolean } | null)?.is_enabled === true;
+      if (featErr) console.error("[OUTBOUND] resolve_company_feature:", featErr.message);
+      if (!abilitata) {
+        return json(req, { error: "Gli agenti vocali AI non sono inclusi nel piano di questa azienda." }, 403);
       }
     }
   }
 
-  // Credit check — il saldo spendibile e' la somma dei due borsellini:
-  // l'omaggio incluso nel piano (che si azzera ogni mese) e la ricarica
-  // pagata con la carta (che resta). Guardare solo balance_eur bloccherebbe
-  // chi ha ancora crediti inclusi da usare.
-  const { data: credits } = await adminClient
-    .from("ai_credits")
-    .select("balance_eur, calls_blocked")
-    .eq("company_id", companyId)
-    .maybeSingle();
-
-  // Lettura separata e tollerante: se la colonna non c'e' ancora (migration
-  // non applicata) l'omaggio vale 0 e il controllo torna a guardare la sola
-  // ricarica, com'era prima.
-  let freeBalance = 0;
-  const { data: freeRow, error: freeErr } = await adminClient
-    .from("ai_credits")
-    .select("free_balance_eur")
-    .eq("company_id", companyId)
-    .maybeSingle();
-  if (!freeErr && freeRow) {
-    freeBalance = Number((freeRow as { free_balance_eur?: number }).free_balance_eur ?? 0);
-  }
-
-  const spendibile = Number(credits?.balance_eur ?? 0) + freeBalance;
-
-  if (credits?.calls_blocked || spendibile < 0.04) {
-    return json(req, { error: "Crediti AI insufficienti." }, 402);
+  // Crediti: saldo spendibile (ricarica + omaggio) e soglia unica per tutti i flussi.
+  const saldo = await saldoVoce(adminClient, companyId);
+  if (saldo.bloccato) {
+    return json(req, {
+      error: saldo.motivo === "insufficient_balance"
+        ? `Crediti AI insufficienti (saldo ${saldo.spendibile.toFixed(2)} €, minimo ${SOGLIA_MINIMA_CHIAMATA_EUR.toFixed(2)} €).`
+        : "Chiamate AI bloccate: credito esaurito.",
+    }, 402);
   }
 
   // Get ElevenLabs API key
@@ -298,9 +284,12 @@ async function handleOutboundCall(
     return json(req, { error: (callData as any)?.detail?.message || (callData as any)?.detail || "Errore ElevenLabs" }, callRes!.status);
   }
 
-  // Save conversation record
-  await adminClient.from("ai_agent_conversations").insert({
-    agent_id: agent.id,
+  // Save conversation record. Per gli agenti v2 la FK e' agent_v2_id: prima
+  // si scriveva agent_id (FK su ai_agents v1) e l'insert falliva in silenzio —
+  // il webhook post-call non trovava il segnaposto e perdeva contatto,
+  // telefono e chi aveva avviato la chiamata.
+  const { error: convErr } = await adminClient.from("ai_agent_conversations").insert({
+    ...(agenteV2 ? { agent_v2_id: agent.id } : { agent_id: agent.id }),
     company_id: companyId,
     contact_id: targetContactId || null,
     elevenlabs_conversation_id: callData.conversation_id || null,
@@ -310,6 +299,7 @@ async function handleOutboundCall(
     messages_count: 0,
     metadata: { outbound: true, phone: targetPhone, initiated_by: userId, provider: "telnyx" },
   });
+  if (convErr) console.error("[OUTBOUND] segnaposto conversazione NON salvato:", convErr.message);
 
   // Audit log
   await adminClient.from("ai_agent_audit_log").insert({
