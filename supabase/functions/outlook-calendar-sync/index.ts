@@ -227,7 +227,19 @@ Deno.serve(async (req) => {
     // peggio che un estraneo puo' fare e' farci aggiornare i calendari.
     if (body.action === "cron-full-sync") {
       const token = authHeader.replace("Bearer ", "");
-      if (token !== Deno.env.get("SUPABASE_ANON_KEY") && token !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      // Il progetto e' passato alle chiavi nuove (sb_publishable_…) ma i job
+      // pg_cron portano ancora la chiave anon "storica" in formato JWT: sono
+      // entrambe pubbliche e entrambe legittime. Si accetta: la chiave
+      // corrente, la service role, oppure un JWT anon di QUESTO progetto.
+      const ref = (Deno.env.get("SUPABASE_URL") ?? "").match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
+      const anonJwtDiQuestoProgetto = (() => {
+        try {
+          const p = token.split(".")[1]; if (!p) return false;
+          const c = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/")));
+          return c?.role === "anon" && c?.iss === "supabase" && (!ref || c?.ref === ref);
+        } catch { return false; }
+      })();
+      if (token !== Deno.env.get("SUPABASE_ANON_KEY") && token !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") && !anonJwtDiQuestoProgetto) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
