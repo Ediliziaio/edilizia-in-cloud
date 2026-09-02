@@ -430,7 +430,8 @@ Deno.serve(async (req) => {
         if (session_id) {
           await supabase
             .from("render_bagno_sessions")
-            .update({ stato: "analysis_done" })
+            // il motivo resta in sessione: prima finiva solo nei log
+            .update({ stato: "analysis_done", error_message: `analisi: ${message.substring(0, 480)}` })
             .eq("id", session_id);
         }
 
@@ -1009,6 +1010,7 @@ Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exac
         .from("render_bagno_sessions")
         .update({
           stato: "completato",
+          error_message: null,
           render_result_path: resultPath,
           render_result_url: resultUrl,
           prompt_usato: composedPrompt,
@@ -1059,6 +1061,7 @@ Regenerate applying the FULL brief. The FIXTURE COUNT CONTRACT is ABSOLUTE: exac
         .from("render_bagno_sessions")
         .update({
           stato: "errore",
+          error_message: message.substring(0, 500),
           processing_completed_at: new Date().toISOString(),
         })
         .eq("id", session_id);
