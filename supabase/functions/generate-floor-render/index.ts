@@ -460,8 +460,11 @@ Use short values. Do not describe a renovation.`;
       return editImage({
         prompt,
         sourceImageBlob: imageBlob,
-        effectiveWidth: prepared.effective_width ?? undefined,
-        effectiveHeight: prepared.effective_height ?? undefined,
+        // Le variabili, non `prepared.*`: quando il client non manda le
+        // dimensioni, `prepared.effective_*` resta null e qui si tornava al
+        // quadrato anche se la rete di sicurezza le aveva gia' lette dai byte.
+        effectiveWidth,
+        effectiveHeight,
         openaiQuality: "medium",
         timeoutMs: perAttemptTimeout,
           directProviderOnly: soloProviderDiretto,
