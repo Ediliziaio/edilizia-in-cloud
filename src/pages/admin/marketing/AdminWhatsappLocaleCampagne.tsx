@@ -15,6 +15,7 @@
  * modo più rapido di farsi segnalare come spam.
  */
 import { useMemo, useState } from "react";
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
@@ -70,6 +71,14 @@ const STATO_NUMERO: Record<string, { label: string; className: string }> = {
   disconnected: { label: "disconnesso", className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
   banned: { label: "BANNATO", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
 };
+
+
+/** Data ISO → valore per <input type="datetime-local"> in ora locale. */
+function aDatetimeLocale(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 export default function AdminWhatsappLocaleCampagne() {
   const qc = useQueryClient();
@@ -281,7 +290,7 @@ export default function AdminWhatsappLocaleCampagne() {
       const { data, error } = await supabase.functions.invoke("openwa-gateway", {
         body: { action: "send_text", to: numero, text: testo },
       });
-      if (error) throw new Error(error.message ?? "Invio fallito");
+      if (error) throw new Error(await readInvokeError(error));
       const r = data as { ok?: boolean; error?: string } | null;
       if (r?.ok === false || r?.error) throw new Error(r?.error ?? "Invio fallito");
     },
@@ -308,7 +317,9 @@ export default function AdminWhatsappLocaleCampagne() {
     setMessaggioB(src.messaggio_b ?? "");
     setAiAttiva(!!src.ai_personalizza);
     setAiIstruzioni(src.ai_istruzioni ?? "");
-    setParteIl(src.parte_il ? new Date(src.parte_il).toISOString().slice(0, 16) : "");
+    // datetime-local vuole l'ora LOCALE: con toISOString() (UTC) una campagna
+    // delle 10:00 si riapriva alle 08:00 e ogni salvataggio la anticipava.
+    setParteIl(src.parte_il ? aDatetimeLocale(src.parte_il) : "");
     setCreaAperto(true);
   };
 
@@ -335,14 +346,11 @@ export default function AdminWhatsappLocaleCampagne() {
   // senza questo pulsante restava fallito per sempre.
   const riprovaFalliti = useMutation({
     mutationFn: async (campagnaId: string) => {
-      const { data, error } = await supabase
-        .from("openwa_campagna_destinatari")
-        .update({ stato: "da_inviare", tentativi: 0, ultimo_errore: null })
-        .eq("campagna_id", campagnaId)
-        .eq("stato", "fallito")
-        .select("id");
+      // La RPC riparte dal passo GIA' raggiunto: rimettere tutti a "da_inviare"
+      // rispediva il primo messaggio a chi era fallito su un follow-up.
+      const { data, error } = await supabase.rpc("openwa_campagna_riprova_falliti", { p_campagna_id: campagnaId });
       if (error) throw error;
-      return data?.length ?? 0;
+      return (data as number | null) ?? 0;
     },
     onSuccess: (n) => {
       toast.success(`${n} destinatari rimessi in coda`, {
@@ -408,9 +416,14 @@ export default function AdminWhatsappLocaleCampagne() {
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const patch: TablesUpdate<"openwa_campagne"> = { stato, updated_at: new Date().toISOString() };
-      if (stato === "in_corso") patch.avviata_at = new Date().toISOString();
       const { error } = await supabase.from("openwa_campagne").update(patch).eq("id", id);
       if (error) throw error;
+      // "avviata il" e' la PRIMA partenza: riprendere da pausa non la riscrive.
+      if (stato === "in_corso") {
+        const { error: e2 } = await supabase.from("openwa_campagne")
+          .update({ avviata_at: new Date().toISOString() }).eq("id", id).is("avviata_at", null);
+        if (e2) throw e2;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["openwa-campagne"] }),
     onError: (e: Error) => toast.error("Operazione non riuscita", { description: e.message }),
@@ -575,7 +588,7 @@ export default function AdminWhatsappLocaleCampagne() {
                       {[
                         { n: c.totali, label: "destinatari" },
                         { n: c.da_inviare, label: "in coda" },
-                        { n: c.inviati + c.followup_inviati, label: "contattati" },
+                        { n: contattati, label: "contattati" },
                         { n: c.risposti, label: tassoRisposta !== null ? `risposte (${tassoRisposta}%)` : "risposte", forte: true },
                         ...(c.saltati > 0 ? [{ n: c.saltati, label: "saltati" }] : []),
                         ...(c.falliti > 0 ? [{ n: c.falliti, label: "falliti", rosso: true }] : []),
@@ -664,7 +677,7 @@ export default function AdminWhatsappLocaleCampagne() {
                       </Button>
                     ) : (c.stato === "bozza" || c.stato === "in_pausa") ? (
                       <Button size="sm"
-                        disabled={c.da_inviare === 0 && c.inviati === 0}
+                        disabled={c.totali === 0 || cambiaStato.isPending}
                         title={c.totali === 0 ? "Carica prima i destinatari" : undefined}
                         onClick={() => cambiaStato.mutate({ id: c.id, stato: "in_corso" })}>
                         <Play className="h-4 w-4 mr-1.5" /> Avvia

@@ -136,7 +136,12 @@ Deno.serve(async (req) => {
       for (const c of cfg ?? []) campagneAi.set(c.id, c as CampagnaAi);
     }
 
+    // Le righe restituite da openwa_campagna_prossimi sono CLAIMATE (claimed_at)
+    // per 15 minuti: ogni esito qui sotto le rilascia; quelle che restano non
+    // lavorate (pool esaurito) vengono rilasciate subito in fondo.
+    const lavorati = new Set<string>();
     for (const m of (maturi ?? []) as Maturo[]) {
+      lavorati.add(m.destinatario_id);
       const cfgAi = campagneAi.get(m.campagna_id);
       let testo = (m.messaggio ?? "").trim();
 
@@ -164,7 +169,7 @@ Deno.serve(async (req) => {
       if (!testo) {
         // Campagna senza testo per questo passo: non e' un errore da ritentare.
         await admin.from("openwa_campagna_destinatari")
-          .update({ stato: "saltato", ultimo_errore: "messaggio non configurato" })
+          .update({ stato: "saltato", ultimo_errore: "messaggio non configurato", claimed_at: null })
           .eq("id", m.destinatario_id);
         esito.saltati++;
         continue;
@@ -191,7 +196,9 @@ Deno.serve(async (req) => {
           followup3: { stato: "followup3_inviato", followup3_inviato_at: ora },
         };
         await admin.from("openwa_campagna_destinatari")
-          .update({ ...patchPerTipo[m.tipo], ultimo_errore: null })
+          // tentativi torna a 0: i tentativi bruciati sul passo precedente non
+          // devono far diventare "fallito" al primo inciampo del passo dopo.
+          .update({ ...patchPerTipo[m.tipo], ultimo_errore: null, tentativi: 0, claimed_at: null })
           .eq("id", m.destinatario_id);
         if (m.tipo === "primo") esito.inviati++; else esito.followup++;
         continue;
@@ -201,6 +208,7 @@ Deno.serve(async (req) => {
       // Ci si ferma qui senza consumare tentativi — riprende il giro dopo.
       if (res.status === 409) {
         esito.pool_esaurito = true;
+        lavorati.delete(m.destinatario_id); // questo NON e' stato lavorato
         break;
       }
 
@@ -208,7 +216,7 @@ Deno.serve(async (req) => {
       // inutile ritentare all'infinito.
       if (res.status === 400) {
         await admin.from("openwa_campagna_destinatari")
-          .update({ stato: "saltato", ultimo_errore: res.error ?? "non contattabile" })
+          .update({ stato: "saltato", ultimo_errore: res.error ?? "non contattabile", claimed_at: null })
           .eq("id", m.destinatario_id);
         esito.saltati++;
         continue;
@@ -225,8 +233,18 @@ Deno.serve(async (req) => {
         tentativi,
         ultimo_errore: res.error ?? "invio fallito",
         ...(tentativi >= 5 ? { stato: "fallito" } : {}),
+        claimed_at: null,
       }).eq("id", m.destinatario_id);
       esito.falliti++;
+    }
+
+    // Rilascio immediato dei claim non lavorati (pool esaurito / fuori orario):
+    // senza, resterebbero bloccati 15 minuti anche se un numero si libera.
+    const nonLavorati = ((maturi ?? []) as Maturo[])
+      .map((x) => x.destinatario_id).filter((id) => !lavorati.has(id));
+    if (nonLavorati.length) {
+      await admin.from("openwa_campagna_destinatari")
+        .update({ claimed_at: null }).in("id", nonLavorati);
     }
 
     const { data: completate } = await admin.rpc("openwa_campagne_completa_finite");

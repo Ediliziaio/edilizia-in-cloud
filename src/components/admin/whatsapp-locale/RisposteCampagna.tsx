@@ -13,6 +13,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +83,7 @@ export default function RisposteCampagna({ campagnaId, nome, haVarianteB, aperta
       const { data, error } = await supabase.functions.invoke("openwa-classifica-risposte", {
         body: { campagna_id: campagnaId },
       });
-      if (error) throw new Error(error.message ?? "Classificazione fallita");
+      if (error) throw new Error(await readInvokeError(error));
       return data as { classificati: number; incerti: number; restanti: number };
     },
     onSuccess: (r) => {

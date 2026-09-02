@@ -134,8 +134,12 @@ Deno.serve(async (req) => {
       if (!r.ok) return new Response(JSON.stringify({ error: `Gateway: ${r.status} ${r.text}` }), { status: 502, headers: jsonH });
 
       const raw = String(r.json?.status ?? r.json?.state ?? "").toLowerCase();
-      const connected = raw === "ready" || raw.includes("connect") || raw.includes("authenticated");
-      const stato = connected ? "connected" : (raw.includes("ban") ? "banned" : "connecting");
+      // Stessa regola del webhook: "disconnected" contiene "connect".
+      const stato = raw.includes("ban") ? "banned"
+        : /disconnect|unpaired|logout|logged_out|close|timeout|conflict|unlaunched/.test(raw) ? "disconnected"
+        : /^(connected|ready|authenticated|open|inchat|online)$/.test(raw) ? "connected"
+        : "connecting";
+      const connected = stato === "connected";
       const numero = r.json?.phone ?? r.json?.me?.phone ?? null;
       const pushName = r.json?.pushName ?? null;
 

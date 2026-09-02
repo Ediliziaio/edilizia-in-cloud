@@ -152,7 +152,9 @@ async function applyRules(admin: any, ctx: { numberId: string | null; chatId: st
     if (!matched) continue;
     if (r.block) return; // spam/ignora → stop, nessuna altra azione
 
-    if (r.reply_text) {
+    // Senza numberId la risposta partirebbe da un numero DIVERSO da quello a cui
+    // la persona ha scritto (rotazione): per il destinatario e' uno sconosciuto.
+    if (r.reply_text && ctx.numberId) {
       // sendOpenWaMessage applica già lo spintax e sceglie/riusa il numero.
       await sendOpenWaMessage(admin, {
         to: ctx.phone || ctx.chatId,
@@ -218,10 +220,13 @@ Deno.serve(async (req) => {
     // ── session.status ────────────────────────────────────────────────────────
     if (event.includes("session") || event.includes("status") || event === "session.status") {
       const raw = String(payload.status ?? payload.state ?? payload.payload?.status ?? "").toLowerCase();
+      // ORDINE E UGUAGLIANZA CONTANO: "disconnected" contiene "connect", e un
+      // includes() valutato per primo marcava CONNESSO un numero caduto — cosi'
+      // l'avviso di caduta non scattava mai e il numero restava in rotazione.
       let stato = "connecting";
-      if (raw.includes("connect") || raw.includes("ready") || raw.includes("authenticated")) stato = "connected";
-      else if (raw.includes("ban")) stato = "banned";
-      else if (raw.includes("disconnect") || raw.includes("logout") || raw.includes("close")) stato = "disconnected";
+      if (raw.includes("ban")) stato = "banned";
+      else if (/disconnect|unpaired|logout|logged_out|close|timeout|conflict|unlaunched/.test(raw)) stato = "disconnected";
+      else if (/^(connected|ready|authenticated|open|inchat|online)$/.test(raw)) stato = "connected";
 
       if (number) {
         await admin.from("openwa_numbers")
@@ -280,6 +285,12 @@ Deno.serve(async (req) => {
 
     const fromRaw: string = msg.from ?? msg.chatId ?? msg.sender ?? "";
     let chatId = fromRaw.includes("@") ? fromRaw : (digitsOnly(fromRaw) ? `${digitsOnly(fromRaw)}@c.us` : "");
+    // Gruppi (@g.us) e stati (@broadcast) non sono conversazioni con una
+    // persona: entrerebbero nell'inbox come thread fantasma e le regole
+    // "any" proverebbero a rispondere a un id di gruppo.
+    if (/@g\.us$|@broadcast$/i.test(chatId)) {
+      return new Response(JSON.stringify({ ok: true, skipped: "gruppo-o-broadcast" }), { headers: jsonH });
+    }
     const text: string = msg.body ?? msg.text ?? msg.caption ?? "";
     const notifyName: string | null = msg.notifyName ?? msg.notify_name ?? msg.pushName ?? null;
     const providerMsgId: string | null = msg.id ?? msg.messageId ?? msg.message_id ?? null;
@@ -308,9 +319,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const phoneDigits = digitsOnly(chatId);
-    // Media in arrivo: base64 → bucket privato → path (o URL diretto se fornito).
-    const mediaUrl: string | null = await uploadInboundMedia(admin, number?.id ?? null, providerMsgId, msg);
+    // Le cifre di un LID non sono un numero di telefono: salvarle come tale
+    // faceva partire le risposte verso "+194360…@c.us", che non esiste.
+    const phoneDigits = isLid(chatId) ? "" : digitsOnly(chatId);
+    // Media: presenza rilevata subito (per scartare gli eventi vuoti), upload
+    // DOPO il dedup — ogni retry del gateway ricaricava il file.
+    const haMedia = !!(msg.media?.data ?? msg.mediaData ?? msg.mediaUrl ?? msg.media_url ?? (typeof msg.data === "string" ? msg.data : null));
 
     if (!chatId) {
       return new Response(JSON.stringify({ ok: true, skipped: "no-chat-id" }), { headers: jsonH });
@@ -320,7 +334,7 @@ Deno.serve(async (req) => {
     // presente sul telefono: nessun testo, nessun media. Non sono messaggi —
     // se entrassero, l'inbox si riempirebbe di conversazioni fantasma con i
     // contatti privati del titolare del numero.
-    if (!text && !mediaUrl) {
+    if (!text && !haMedia) {
       return new Response(JSON.stringify({ ok: true, skipped: "evento-vuoto" }), { headers: jsonH });
     }
 
@@ -336,6 +350,8 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), { headers: jsonH });
       }
     }
+
+    const mediaUrl: string | null = await uploadInboundMedia(admin, number?.id ?? null, providerMsgId, msg);
 
     // Prova a collegare il messaggio a un contatto marketing della piattaforma
     // (match sulle ultime 9 cifre del numero — tollerante ai formati salvati).
@@ -357,7 +373,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    await admin.from("openwa_messages").insert({
+    const { error: insErr } = await admin.from("openwa_messages").insert({
       number_id: number?.id ?? null,
       contact_id: contactId,
       wa_chat_id: chatId,
@@ -370,10 +386,22 @@ Deno.serve(async (req) => {
       status: "delivered",
       provider_msg_id: providerMsgId,
     });
+    if (insErr) {
+      // 23505 = arrivato due volte in parallelo: gia' salvato, non e' un errore.
+      if ((insErr as { code?: string }).code === "23505") {
+        return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), { headers: jsonH });
+      }
+      // Qualsiasi altro errore: 500, cosi' il gateway RITENTA. Rispondere 200 a
+      // un insert fallito significava perdere il messaggio in silenzio.
+      console.error("[openwa-webhook] insert fallito:", insErr);
+      return new Response(JSON.stringify({ error: "insert failed" }), { status: 500, headers: jsonH });
+    }
 
+    // Solo il "visto": lo STATO lo decide session.status. Un inbound in ritardo
+    // riportava a "connected" un numero bannato o caduto.
     if (number) {
       await admin.from("openwa_numbers")
-        .update({ last_seen_at: new Date().toISOString(), stato: "connected" })
+        .update({ last_seen_at: new Date().toISOString() })
         .eq("id", number.id);
     }
 
@@ -392,13 +420,20 @@ Deno.serve(async (req) => {
     // Opt-out automatico: se il contatto risponde STOP/CANCELLA/… lo rispettiamo
     // (compliance + anti-ban: non ricontattare chi ha chiesto di smettere).
     let didOptOut = false;
-    if (contactId && text) {
+    if (text && (contactId || phoneDigits.length >= 9)) {
       const normUp = text.trim().toUpperCase().replace(/[.!?,;:]/g, "");
       const OPTOUT = ["STOP", "CANCELLA", "CANCELLAMI", "CANCELLARE", "RIMUOVI", "RIMUOVIMI", "UNSUBSCRIBE", "ANNULLA", "BASTA"];
       if (OPTOUT.includes(normUp) || normUp.startsWith("STOP ")) {
-        await admin.from("marketing_contacts")
-          .update({ optout_whatsapp: true, optout_at: new Date().toISOString(), optout_reason: "STOP via WhatsApp Locale" })
-          .eq("id", contactId);
+        // TUTTE le schede con quel numero, non solo quella agganciata: con i
+        // doppioni in archivio lo STOP finiva su una scheda e la campagna
+        // ricontattava l'altra. E vale anche senza match univoco.
+        const patchOptOut = { optout_whatsapp: true, optout_at: new Date().toISOString(), optout_reason: "STOP via WhatsApp Locale" };
+        if (phoneDigits.length >= 9) {
+          await admin.from("marketing_contacts").update(patchOptOut)
+            .eq("company_id", PLATFORM_COMPANY_ID).ilike("phone", `%${phoneDigits.slice(-9)}%`);
+        } else if (contactId) {
+          await admin.from("marketing_contacts").update(patchOptOut).eq("id", contactId);
+        }
         didOptOut = true;
       }
     }
@@ -443,9 +478,13 @@ Deno.serve(async (req) => {
     // Una risposta chiude il contatto in TUTTE le campagne attive: da qui in
     // poi non riceve piu' follow-up. E' la meta' dell'anello anti-spam —
     // l'altra e' l'evento per le automazioni qui sopra.
-    if (contactId) {
+    // Per TELEFONO quando c'e': con i doppioni in archivio il contatto della
+    // campagna puo' essere la scheda gemella (contactId nullo o diverso) e la
+    // sequenza continuava a scrivere a chi aveva gia' risposto.
+    if (contactId || phoneDigits.length >= 9) {
       try {
-        await admin.rpc("openwa_campagna_segna_risposta", { p_contact_id: contactId });
+        if (phoneDigits.length >= 9) await admin.rpc("openwa_campagna_segna_risposta", { p_phone: phoneDigits });
+        else await admin.rpc("openwa_campagna_segna_risposta", { p_contact_id: contactId });
       } catch (e) {
         console.error("[openwa-webhook] segna risposta campagne:", (e as Error)?.message);
       }

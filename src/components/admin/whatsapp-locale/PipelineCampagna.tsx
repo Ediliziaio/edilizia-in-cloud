@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -22,7 +23,6 @@ import {
 } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -69,8 +69,11 @@ function colonnaDi(d: Destinatario): string {
   if (d.stato === "followup_inviato") return "messaggio_2";
   if (d.stato === "inviato") return "messaggio_1";
   if (d.stato === "da_inviare") return "in_coda";
-  return "in_coda"; // saltati/falliti non compaiono: hanno gia' il dialog Problemi
+  return "problemi"; // saltati/falliti: nessuna colonna, li mostra il dialog Problemi
 }
+
+/** Stati in cui la persona ha ricevuto almeno un messaggio. */
+const STATI_CONTATTATI = new Set(["inviato", "followup_inviato", "followup2_inviato", "followup3_inviato", "risposto"]);
 
 function nomeDi(d: Destinatario): string {
   const c = d.marketing_contacts;
@@ -198,7 +201,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
   // "il 40% di chi risponde fissa un appuntamento" e' cio' che giudica il flusso.
   const funnel = useMemo(() => {
     const tot = destinatari.length;
-    const contattati = destinatari.filter((d) => d.stato !== "da_inviare").length;
+    const contattati = destinatari.filter((d) => STATI_CONTATTATI.has(d.stato) || !!d.esito).length;
     const risposte = destinatari.filter((d) => d.stato === "risposto" || d.esito).length;
     const appuntamenti = destinatari.filter((d) => d.esito === "appuntamento" || d.esito === "cliente").length;
     const clienti = destinatari.filter((d) => d.esito === "cliente").length;
@@ -265,7 +268,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
       const { data: pipe } = await sb
         .from("marketing_pipelines")
         .select("id, name, marketing_pipeline_stages(id, position)")
-        .eq("company_id", "00000000-0000-0000-0000-000000000001")
+        .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
         .order("created_at", { ascending: true })
         .limit(1);
       const pipeline = pipe?.[0];
@@ -274,7 +277,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
       if (!pipeline || !stage) throw new Error("Nessuna pipeline opportunità configurata sulla piattaforma");
 
       const { error } = await sb.from("marketing_opportunities").insert({
-        company_id: "00000000-0000-0000-0000-000000000001",
+        company_id: PLATFORM_ADMIN_COMPANY_ID,
         contact_id: d.contact_id,
         pipeline_id: pipeline.id,
         stage_id: stage.id,
@@ -367,7 +370,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
                           d={d}
                           // Si qualifica chi e' stato almeno contattato; chi e'
                           // in coda non ha ancora niente da qualificare.
-                          trascinabile={d.stato !== "da_inviare"}
+                          trascinabile={STATI_CONTATTATI.has(d.stato) || !!d.esito}
                           onRimuovi={d.stato === "da_inviare" ? () => rimuovi.mutate(d.id) : undefined}
                           onApriChat={d.stato === "risposto" || d.esito ? () => void apriChat(d.contact_id) : undefined}
                           onOpportunita={d.stato === "risposto" || d.esito ? () => creaOpportunita.mutate(d) : undefined}

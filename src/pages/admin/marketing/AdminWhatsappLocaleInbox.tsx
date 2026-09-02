@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +25,6 @@ import { toast } from "sonner";
 import { Send, Plus, MessageCircle, Smartphone, RefreshCw, Paperclip, Bell, BellOff, Search, Check, CheckCheck, AlertCircle, Ban, WifiOff, CheckCircle2, StickyNote, PanelRightClose, PanelRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import IdentitaThread from "@/components/admin/whatsapp-locale/IdentitaThread";
 import PannelloChat from "@/components/admin/whatsapp-locale/PannelloChat";
@@ -90,16 +90,6 @@ interface ThreadRow {
   note_count: number;
 }
 
-async function readInvokeError(error: unknown): Promise<string> {
-  try {
-    const ctx = (error as { context?: Response }).context;
-    if (ctx && typeof ctx.json === "function") {
-      const body = await ctx.json();
-      if (body?.error) return body.error;
-    }
-  } catch { /* ignore */ }
-  return (error as Error)?.message ?? "Errore imprevisto";
-}
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);
@@ -155,17 +145,22 @@ function extOf(u: string): string {
 
 /** Allegato media: i path del bucket privato openwa-media diventano signed URL. */
 function MediaAttachment({ path }: { path: string }) {
-  const { data: url } = useQuery({
+  const urlQuery = useQuery({
     queryKey: ["openwa", "media", path],
     queryFn: async () => {
       if (isHttpUrl(path)) return path;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any).storage.from("openwa-media").createSignedUrl(path, 3600);
-      return data?.signedUrl ?? null;
+      const { data, error } = await (supabase as any).storage.from("openwa-media").createSignedUrl(path, 3600);
+      // Se fallisce si LANCIA: restituire null mostrava "media…" per sempre.
+      if (error) throw error;
+      if (!data?.signedUrl) throw new Error("URL dell'allegato non disponibile");
+      return data.signedUrl as string;
     },
     staleTime: 50 * 60 * 1000,
   });
+  const url = urlQuery.data;
   const ext = extOf(path);
+  if (urlQuery.isError) return <span className="text-xs opacity-70" title={String((urlQuery.error as Error)?.message ?? "")}>📎 allegato non disponibile</span>;
   if (!url) return <span className="text-xs opacity-70">📎 media…</span>;
   if (["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
     return <img src={url} alt="allegato" className="max-h-48 rounded" />;
@@ -182,6 +177,7 @@ function MediaAttachment({ path }: { path: string }) {
 export default function AdminWhatsappLocaleInbox() {
   const queryClient = useQueryClient();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  selectedChatRef.current = selectedChat;
   const [filtro, setFiltro] = useState("");
   const [soloNonLetti, setSoloNonLetti] = useState(false);
   const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
@@ -224,6 +220,8 @@ export default function AdminWhatsappLocaleInbox() {
   // tutto). Paginate: si carica altro solo quando serve.
   const [pagine, setPagine] = useState(1);
   const PER_PAGINA = 50;
+  const ultimoActiveRef = useRef<Thread | null>(null);
+  const selectedChatRef = useRef<string | null>(null);
 
   const threadsQuery = useQuery({
     queryKey: ["openwa", "threads", filtroStato, soloNonLetti, pagine],
@@ -309,10 +307,22 @@ export default function AdminWhatsappLocaleInbox() {
       .channel("openwa-inbox")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "openwa_messages" },
-        () => {
+        // "*": anche UPDATE (spunte consegnato/letto, read_at) e non solo gli
+        // inserimenti, altrimenti lo stato si aggiornava solo ricliccando.
+        { event: "*", schema: "public", table: "openwa_messages" },
+        (payload) => {
           queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
           queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
+          // Un inbound nella chat che si sta leggendo e' gia' letto: senza
+          // questo il badge "da leggere" cresceva proprio sulla chat aperta.
+          const riga = (payload as { eventType?: string; new?: { wa_chat_id?: string; direction?: string } }).new;
+          const chatAperta = selectedChatRef.current;
+          if (payload.eventType === "INSERT" && riga?.direction === "inbound" && riga.wa_chat_id && riga.wa_chat_id === chatAperta) {
+            void (supabase as any).from("openwa_messages")
+              .update({ read_at: new Date().toISOString() })
+              .eq("wa_chat_id", chatAperta).eq("direction", "inbound").is("read_at", null)
+              .then(() => queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] }));
+          }
         },
       )
       .subscribe();
@@ -386,12 +396,18 @@ export default function AdminWhatsappLocaleInbox() {
     if (!chat || !threadsQuery.data) return;
     const trovata = threadsQuery.data.some((r) => r.wa_chat_id === chat);
     const altrePagine = threadsQuery.data.length >= PER_PAGINA * pagine;
-    if (!trovata && altrePagine && pagine < 10) setPagine((n) => n + 1);
+    if (!trovata && altrePagine && pagine < 20) setPagine((n) => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadsQuery.data, searchParams]);
 
-  const active = threadsVisibili.find((t) => t.chatId === selectedChat)
+  // La chat aperta resta aperta anche se la lista filtrata non la contiene
+  // piu' (col filtro "Da leggere" aprirla la segna letta e la lista la
+  // scartava un istante dopo → pannello vuoto). Si tiene l'ultima riga vista.
+  const trovato = threadsVisibili.find((t) => t.chatId === selectedChat)
     ?? threads.find((t) => t.chatId === selectedChat) ?? null;
+  if (trovato) ultimoActiveRef.current = trovato;
+  const active = trovato
+    ?? (ultimoActiveRef.current?.chatId === selectedChat ? ultimoActiveRef.current : null);
   const numeroAttivo = active?.numberId ? numeriById.get(active.numberId) ?? null : null;
   const piuNumeri = (numbersQuery.data?.length ?? 0) > 1;
 
@@ -630,7 +646,11 @@ export default function AdminWhatsappLocaleInbox() {
             ))}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
-          {threadsQuery.isLoading ? (
+          {threadsQuery.isError ? (
+            <div className="p-6 text-center text-sm text-destructive">
+              Impossibile caricare le conversazioni: {(threadsQuery.error as Error)?.message ?? "errore"}
+            </div>
+          ) : threadsQuery.isLoading ? (
             <div className="space-y-2 p-3">
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />

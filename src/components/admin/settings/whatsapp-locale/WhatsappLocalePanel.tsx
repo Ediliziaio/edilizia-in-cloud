@@ -42,6 +42,11 @@ interface OpenWaNumberRow {
   stato: string;
   tags: string[];
   daily_cap: number;
+  // Mancava dal select: il campo "Cap/sett." mostrava sempre 40 e ogni
+  // salvataggio (anche dei soli tag) sovrascriveva il valore vero in DB.
+  weekly_cap: number | null;
+  errori_consecutivi?: number | null;
+  ultimo_errore?: string | null;
   daily_sent: number;
   daily_sent_date: string | null;
   last_seen_at: string | null;
@@ -160,7 +165,7 @@ export default function WhatsappLocalePanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("openwa_numbers")
-        .select("id, session_id, numero, display_name, stato, tags, daily_cap, daily_sent, daily_sent_date, last_seen_at, connected_since, warmup_base, warmup_step, min_gap_seconds")
+        .select("id, session_id, numero, display_name, stato, tags, daily_cap, weekly_cap, daily_sent, daily_sent_date, last_seen_at, connected_since, warmup_base, warmup_step, min_gap_seconds, errori_consecutivi, ultimo_errore")
         .is("deleted_at", null)
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -425,7 +430,7 @@ export default function WhatsappLocalePanel() {
                 key={n.id}
                 number={n}
                 onSaved={() => queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] })}
-                onDisconnect={() => disconnectNumber.mutate(n.session_id)}
+                onDisconnect={() => { if (window.confirm(`Scollegare ${n.numero ?? n.session_id}? La sessione WhatsApp viene chiusa e per ricollegarlo va riletto il QR.`)) disconnectNumber.mutate(n.session_id); }}
                 disconnecting={disconnectNumber.isPending}
               />
             ))
@@ -571,9 +576,10 @@ function NumberRow({
     onSaved();
   }
 
-  const sentToday = number.daily_sent_date && number.daily_sent
-    ? number.daily_sent
-    : 0;
+  // Il contatore vale solo se e' di OGGI: un numero che ieri ha inviato 30
+  // mostrava "Oggi 30 su 10".
+  const oggiRoma = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  const sentToday = number.daily_sent_date === oggiRoma ? (number.daily_sent ?? 0) : 0;
   const effCap = effectiveCapToday(number);
   const warming = effCap < number.daily_cap;
 

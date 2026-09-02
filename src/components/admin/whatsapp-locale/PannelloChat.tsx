@@ -66,16 +66,25 @@ export default function PannelloChat({ chatId, stato, assegnatoA, onCambiato }: 
     staleTime: 10 * 60_000,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // Due query: la FK di user_roles punta ad auth.users, non a profiles, e
+      // l'embed "profiles:user_id(...)" rispondeva PGRST200 — errore che veniva
+      // inghiottito, cosi' "Chi la segue" era sempre vuoto.
       const { data, error } = await (supabase as any)
         .from("user_roles")
-        .select("user_id, profiles:user_id(first_name, last_name, email)")
-        .eq("role", "super_admin");
-      if (error) return [];
+        .select("user_id")
+        .in("role", ["super_admin", "platform_manager", "platform_marketing", "platform_sales", "platform_support", "platform_implementation"]);
+      if (error) throw error;
+      const ids = [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
+      if (ids.length === 0) return [];
+      const { data: profili, error: e2 } = await (supabase as any)
+        .from("profiles").select("id, first_name, last_name, email").in("id", ids);
+      if (e2) throw e2;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({
-        id: r.user_id as string,
-        nome: [r.profiles?.first_name, r.profiles?.last_name].filter(Boolean).join(" ") || r.profiles?.email || "Utente",
-      }));
+      const byId = new Map<string, any>((profili ?? []).map((p: any) => [p.id, p]));
+      return ids.map((id) => {
+        const p = byId.get(id);
+        return { id, nome: [p?.first_name, p?.last_name].filter(Boolean).join(" ") || p?.email || "Utente" };
+      });
     },
   });
 
@@ -98,11 +107,18 @@ export default function PannelloChat({ chatId, stato, assegnatoA, onCambiato }: 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("openwa_note")
-        .select("id, testo, autore, created_at, profiles:autore(first_name, last_name)")
+        .select("id, testo, autore, created_at")
         .eq("wa_chat_id", chatId)
         .order("created_at", { ascending: false });
-      if (error) return [];
-      return (data ?? []) as Nota[];
+      if (error) throw error;
+      const note = (data ?? []) as Nota[];
+      const autori = [...new Set(note.map((n) => n.autore).filter(Boolean))] as string[];
+      if (autori.length === 0) return note;
+      const { data: profili } = await (supabase as any)
+        .from("profiles").select("id, first_name, last_name").in("id", autori);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byId = new Map<string, any>((profili ?? []).map((p: any) => [p.id, p]));
+      return note.map((n) => ({ ...n, profiles: n.autore ? byId.get(n.autore) ?? null : null }));
     },
   });
 

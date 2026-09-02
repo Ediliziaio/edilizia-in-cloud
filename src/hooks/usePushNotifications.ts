@@ -16,6 +16,8 @@ export type PushPermissionState = "default" | "granted" | "denied" | "unsupporte
 
 interface UsePushNotificationsReturn {
   permission: PushPermissionState;
+  /** Il browser supporta le push (serviceWorker + PushManager + Notification). */
+  supported: boolean;
   isSubscribed: boolean;
   isLoading: boolean;
   subscribe: () => Promise<void>;
@@ -158,5 +160,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     }
   }, [supported, user]);
 
-  return { permission, isSubscribed, isLoading, subscribe, unsubscribe };
+  return {
+    supported,
+    permission, isSubscribed, isLoading, subscribe, unsubscribe };
 }

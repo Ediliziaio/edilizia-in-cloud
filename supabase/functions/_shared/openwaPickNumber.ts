@@ -26,6 +26,7 @@ export interface OpenWaNumberState {
   warmup_base?: number | null;
   warmup_step?: number | null;
   min_gap_seconds?: number | null;
+  errori_consecutivi?: number | null;
   last_message_at?: string | null;  // ISO timestamp
   // Tetto settimanale (opzionale).
   weekly_cap?: number | null;
@@ -35,9 +36,17 @@ export interface OpenWaNumberState {
 
 /** Chiave settimana per il reset del tetto settimanale (blocchi di 7 giorni). */
 export function weekKeyOf(dateStr: string): string {
+  // Settimana ISO (parte il LUNEDI'). Prima erano blocchi di 7 giorni dal
+  // 1970-01-01, che era un giovedi': il tetto settimanale si azzerava il
+  // giovedi', e con il weekend chiuso i 60 invii finivano su 4+2 giorni.
   const ms = Date.parse(`${dateStr}T00:00:00Z`);
   if (Number.isNaN(ms)) return "";
-  return `W${Math.floor(ms / (7 * 86_400_000))}`;
+  const d = new Date(ms);
+  const giorno = d.getUTCDay() || 7;                 // lun=1 … dom=7
+  d.setUTCDate(d.getUTCDate() + 4 - giorno);          // giovedi' della stessa settimana ISO
+  const inizioAnno = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const settimana = Math.ceil(((d.getTime() - inizioAnno) / 86_400_000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(settimana).padStart(2, "0")}`;
 }
 
 /** Residuo settimanale del numero (mai negativo). Senza weekly_cap = infinito. */
@@ -120,6 +129,9 @@ export function pickOpenWaNumber(
 
   const eligible = numbers
     .filter((n) => effRemaining(n) > 0)
+    // Tre invii falliti di fila = sessione probabilmente morta anche se il DB
+    // dice "connected": fuori dalla rotazione finche' un invio non riesce.
+    .filter((n) => (n.errori_consecutivi ?? 0) < 3)
     .filter((n) => (nowMs == null ? true : !isThrottledOpenWa(n, nowMs)))
     .filter((n) => numberServesContact(n.tags ?? [], contactTags ?? []));
   if (eligible.length === 0) return null;

@@ -149,7 +149,7 @@ export default function RisposteRapide({ onScegli, categoria = "risposta", etich
                     </button>
                     <Button variant="ghost" size="icon"
                       className="h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                      onClick={() => elimina.mutate(r.id)} title="Elimina">
+                      onClick={() => { if (window.confirm(`Eliminare il template "${r.titolo}"?`)) elimina.mutate(r.id); }} title="Elimina">
                       <Trash2 className="h-3 w-3 text-muted-foreground" />
                     </Button>
                   </div>

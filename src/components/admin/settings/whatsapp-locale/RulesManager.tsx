@@ -121,6 +121,7 @@ export default function RulesManager({ numbers }: { numbers: NumberOpt[] }) {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["openwa", "rules"] }),
+    onError: (e: Error) => toast.error("Regola non aggiornata", { description: e.message }),
   });
 
   const deleteRule = useMutation({
@@ -133,6 +134,7 @@ export default function RulesManager({ numbers }: { numbers: NumberOpt[] }) {
       toast.success("Regola eliminata");
       queryClient.invalidateQueries({ queryKey: ["openwa", "rules"] });
     },
+    onError: (e: Error) => toast.error("Regola non eliminata", { description: e.message }),
   });
 
   function actionsSummary(r: RuleRow): string {
@@ -180,7 +182,7 @@ export default function RulesManager({ numbers }: { numbers: NumberOpt[] }) {
               <div className="flex items-center gap-1">
                 <Switch checked={r.enabled} onCheckedChange={(v) => toggleRule.mutate({ id: r.id, enabled: v })} />
                 <Button variant="ghost" size="sm" onClick={() => setEditing(r)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => deleteRule.mutate(r.id)}><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => { if (window.confirm("Eliminare questa regola?")) deleteRule.mutate(r.id); }}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
           ))

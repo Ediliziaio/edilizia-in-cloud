@@ -40,11 +40,19 @@ export const OWA_PATHS = {
 /** Risolve lo spintax "{ciao|salve|buongiorno}" scegliendo un'opzione a caso.
  *  Variare il testo evita l'impronta "stesso messaggio in massa" = spam. */
 export function applySpintax(text: string): string {
-  return (text ?? "").replace(/\{([^{}]+)\}/g, (whole, inner) => {
-    const opts = String(inner).split("|");
-    if (opts.length < 2) return whole; // non è spintax, lascia com'è
-    return opts[Math.floor(Math.random() * opts.length)].trim();
-  });
+  // Piu' passate: {a|{b|c}} risolve prima l'interno, poi l'esterno. Una sola
+  // passata spediva "{a|c}" con le graffe.
+  let out = text ?? "";
+  for (let i = 0; i < 5; i++) {
+    const next = out.replace(/\{([^{}]+)\}/g, (whole, inner) => {
+      const opts = String(inner).split("|");
+      if (opts.length < 2) return whole; // non è spintax, lascia com'è
+      return opts[Math.floor(Math.random() * opts.length)].trim();
+    });
+    if (next === out) break;
+    out = next;
+  }
+  return out;
 }
 
 /**
@@ -131,6 +139,9 @@ export function digitsOnly(s: string): string {
 
 /** phone → chatId WhatsApp ("39333...@c.us"). */
 export function toChatId(phone: string): string {
+  // Un id gia' formato (…@c.us, …@lid) passa intatto: e' l'unico modo per
+  // rispondere a chi arriva con un LID non ancora risolto.
+  if (/@(c\.us|lid)$/i.test(phone.trim())) return phone.trim().toLowerCase();
   const d = digitsOnly(phone);
   return d ? `${d}@c.us` : "";
 }
@@ -307,7 +318,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   const { data: numbers } = await admin
     .from("openwa_numbers")
-    .select("id, session_id, numero, stato, tags, daily_cap, daily_sent, daily_sent_date, connected_since, warmup_base, warmup_step, min_gap_seconds, last_message_at, weekly_cap, weekly_sent, weekly_sent_week")
+    .select("id, session_id, numero, stato, tags, daily_cap, daily_sent, daily_sent_date, connected_since, warmup_base, warmup_step, min_gap_seconds, last_message_at, weekly_cap, weekly_sent, weekly_sent_week, errori_consecutivi")
     .is("deleted_at", null);
   const pool = (numbers ?? []) as (OpenWaNumberState & { session_id: string; numero: string | null })[];
   const today = romeToday();
@@ -332,7 +343,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   // fallimento silenzioso. Difensivo: se il check non risponde in modo utile
   // (endpoint assente/irraggiungibile) si prosegue col chatId ingenuo.
   let sendChatId = chatId;
-  {
+  if (!/@lid$/i.test(chatId)) {
     const digits = digitsOnly(phone);
     const chk = await owaFetch(cfg, OWA_PATHS.checkNumber(chosen.session_id, digits), { method: "GET" }, 8000);
     if (chk.ok && chk.json && typeof chk.json.exists === "boolean") {
@@ -383,7 +394,7 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   await admin.from("openwa_messages").insert({
     number_id: chosen.id,
     contact_id: contactIdEffettivo,
-    wa_chat_id: chatId,
+    wa_chat_id: sendChatId,
     contact_phone: phone,
     contact_name: contactName,
     direction: "outbound",
@@ -399,9 +410,19 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
   // LID → numero e' nota con certezza: registrandola qui, la risposta che
   // arrivera' dal webhook finisce nello stesso thread invece che in uno nuovo.
   const lidDest = lidDaMessageId(r.json?.id ?? r.json?.messageId ?? null);
-  if (lidDest) await registraLid(admin, lidDest, phone, chatId, "outbound");
+  if (lidDest) await registraLid(admin, lidDest, phone, sendChatId, "outbound");
 
-  if (!r.ok) return { ok: false, error: `Invio fallito: ${r.status} ${r.text}`, status: 502, numberId: chosen.id, chatId };
+  if (!r.ok) {
+    // Un invio fallito deve pesare sul numero: senza, un numero con la sessione
+    // morta ma "connected" nel DB restava sempre il meno carico, veniva scelto
+    // a ogni giro e bruciava i tentativi di decine di destinatari.
+    await admin.from("openwa_numbers").update({
+      last_message_at: nowIso,
+      errori_consecutivi: (chosen.errori_consecutivi ?? 0) + 1,
+      ultimo_errore: `${r.status}: ${String(r.text ?? "").slice(0, 200)}`,
+    }).eq("id", chosen.id);
+    return { ok: false, error: `Invio fallito: ${r.status} ${r.text}`, status: 502, numberId: chosen.id, chatId: sendChatId };
+  }
 
   // Aggiorna cap giornaliero + settimanale + timestamp per il throttle.
   await admin
@@ -410,8 +431,9 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
       daily_sent: sentDate + 1, daily_sent_date: today,
       weekly_sent: sentWeek + 1, weekly_sent_week: weekKey,
       last_message_at: nowIso, last_seen_at: nowIso,
+      errori_consecutivi: 0, ultimo_errore: null,
     })
     .eq("id", chosen.id);
 
-  return { ok: true, numberId: chosen.id, chatId };
+  return { ok: true, numberId: chosen.id, chatId: sendChatId };
 }

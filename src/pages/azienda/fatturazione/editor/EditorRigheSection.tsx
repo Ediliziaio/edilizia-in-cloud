@@ -285,7 +285,7 @@ function SortableRowImpl({
                 </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
-                  <Button aria-label="Espandi o riduci la riga"
+                  <Button
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 md:h-7 md:w-7"
