@@ -795,3 +795,8 @@ verify_jwt = true
 # Modulo di candidatura pubblico: pagina anonima, il gate e' il token del modulo.
 [functions.candidatura-submit]
 verify_jwt = false
+
+# Chiamata dal cron pg_cron con x-cron-secret (verificato dalla edge): senza
+# questo il gateway rispondeva 401 prima del codice e nessun reminder partiva.
+[functions.quote-expiry-reminder]
+verify_jwt = false

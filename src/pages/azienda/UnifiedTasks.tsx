@@ -37,7 +37,7 @@ import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
 import { TaskStatsView } from "@/components/attivita/TaskStatsView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
-import { format, isAfter, isBefore, addHours, startOfWeek, addDays, addWeeks, addMonths, parseISO, startOfDay } from "date-fns";
+import { format, isAfter, isBefore, addHours, startOfWeek, addDays, parseISO, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
@@ -454,39 +454,9 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       afterSnapshot: { ...task, ...updates },
     });
 
-    // Task ricorrente completata → crea la prossima occorrenza
-    let occorrenzaCreataId: string | null = null;
-    if (isTaskDoneStatus(nuovoStato, statusOptions) && task.is_recurring && task.recurrence_rule && task.due_date) {
-      const base = parseISO(task.due_date);
-      let nextDue: Date;
-      switch (task.recurrence_rule) {
-        case "daily":     nextDue = addDays(base, 1);    break;
-        case "weekly":    nextDue = addWeeks(base, 1);   break;
-        case "biweekly":  nextDue = addWeeks(base, 2);   break;
-        case "monthly":   nextDue = addMonths(base, 1);  break;
-        default:          nextDue = addWeeks(base, 1);
-      }
-      const endDate = task.recurrence_end_date ? parseISO(task.recurrence_end_date) : null;
-      if (!endDate || nextDue <= endDate) {
-        const { id: _id, created_at: _ca, updated_at: _ua, completed_at: _coa, ...rest } = task;
-        const { data: creata, error: insErr } = await supabase.from("tasks").insert({
-          ...rest,
-          status: "da_fare",
-          due_date: format(nextDue, "yyyy-MM-dd"),
-          parent_task_id: task.id,
-          completed_at: null,
-          creator_profile: undefined, // campo sintetico (non colonna): escludere o PostgREST rifiuta l'insert (PGRST204) e la ricorrenza si interrompe
-          assigned_profile: undefined,
-          order: undefined,
-          stock_item: undefined,
-          cost: undefined,
-          contact: undefined,
-          opportunity: undefined,
-        } as any).select("id").single();
-        if (insErr) toast.error("Errore creazione ricorrenza", { description: insErr.message });
-        else occorrenzaCreataId = (creata as { id: string } | null)?.id ?? null;
-      }
-    }
+    // La prossima occorrenza di una ricorrente la crea il DB (trigger
+    // trg_task_ricorrenza_prossima): vale da qui, dal kanban, dal pannello,
+    // dalle azioni multiple, dal campo, da Silvio e dalle automazioni.
 
     invalidaTask();
 
@@ -494,7 +464,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       const indietro: TablesUpdate<"tasks"> = { status: task.status, completed_at: (task.completed_at as string | null | undefined) ?? null };
       const { error: errUndo } = await supabase.from("tasks").update(indietro).eq("id", task.id);
       if (errUndo) { toast.error("Annullamento non riuscito", { description: errUndo.message }); return; }
-      if (occorrenzaCreataId) await supabase.from("tasks").delete().eq("id", occorrenzaCreataId);
+      // Se il completamento ha generato la prossima occorrenza, va via anche quella.
+      if (task.is_recurring) {
+        // Solo le figlie nate dopo l'ultima modifica della task: quelle generate da questo completamento.
+        const daQuando = (task.updated_at as string | null | undefined) ?? (task.created_at as string);
+        await supabase.from("tasks").delete().eq("parent_task_id", task.id).eq("status", "da_fare").gte("created_at", daQuando);
+      }
       await logTaskActivity({
         companyId, userId: user?.id, taskId: task.id, taskTitle: task.title,
         eventType: "task_status_changed",

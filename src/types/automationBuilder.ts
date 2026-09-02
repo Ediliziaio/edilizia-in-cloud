@@ -263,7 +263,7 @@ export const CONSTRUCTION_TRIGGER_FIELDS: TriggerFieldDef[] = [
 
 export const QUOTE_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "quote_number", label: "Numero preventivo", type: "text", group: "Preventivo" },
-  { key: "status", label: "Stato", type: "select", group: "Preventivo", options: [{ value: "bozza", label: "Bozza" }, { value: "inviato", label: "Inviato" }, { value: "accettato", label: "Accettato" }, { value: "rifiutato", label: "Rifiutato" }, { value: "scaduto", label: "Scaduto" }] },
+  { key: "status", label: "Stato", type: "select", group: "Preventivo", options: [{ value: "bozza", label: "Bozza" }, { value: "inviata", label: "Inviata" }, { value: "accettata", label: "Accettata" }, { value: "rifiutata", label: "Rifiutata" }, { value: "scaduta", label: "Scaduta" }, { value: "convertita", label: "Convertita in commessa" }] },
   { key: "total_amount", label: "Importo", type: "number", group: "Preventivo" },
   { key: "valid_until", label: "Valido fino al", type: "date", group: "Preventivo" },
   { key: "created_at", label: "Data creazione", type: "date", group: "Preventivo" },

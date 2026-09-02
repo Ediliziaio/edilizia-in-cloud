@@ -1411,7 +1411,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           .select("id")
           .eq("company_id", companyId)
           .eq("contact_id", entityId)
-          .neq("status", "completato")
+          .not("status", "in", "(completata,completato,completed,done,fatto,annullata)")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();

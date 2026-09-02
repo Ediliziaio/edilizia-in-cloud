@@ -1223,7 +1223,7 @@ Deno.serve(async (req) => {
           // QR (55pt) + etichetta: senza guardia usciva dal fondo pagina.
           newPageIfNeeded(100);
           const siteUrl = branding?.siteUrl || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
-          const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
+          const signUrl = `${siteUrl}/preventivo/${quote.id}?token=${(quote as any).signature_token}`;
           const qr = qrcode(0, "M");
           qr.addData(signUrl);
           qr.make();

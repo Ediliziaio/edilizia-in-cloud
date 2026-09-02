@@ -20,10 +20,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
-  // Auth cron: richiede secret header
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  const requestSecret = req.headers.get("x-cron-secret");
-  if (!cronSecret || requestSecret !== cronSecret) {
+  // Auth cron: richiede secret header. Accetta gli stessi segreti delle altre
+  // edge chiamate da pg_cron (CRON_SECRET / PROACTIVE_CRON_SECRET): prima
+  // leggeva solo INTERNAL_CRON_SECRET, mai impostato, e rispondeva 401 a tutto.
+  const segretiValidi = ["INTERNAL_CRON_SECRET", "CRON_SECRET", "PROACTIVE_CRON_SECRET"]
+    .map((k) => Deno.env.get(k) ?? "")
+    .filter((v) => v.length > 0);
+  const requestSecret = req.headers.get("x-cron-secret") ?? "";
+  if (requestSecret.length === 0 || !segretiValidi.includes(requestSecret)) {
     console.error("quote-expiry-reminder: accesso non autorizzato");
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
@@ -99,7 +103,7 @@ Deno.serve(async (req) => {
         if (quote.client_email && quote.signature_token) {
           const quoteBranding = await getBrandingForCompany(supabase, quote.company_id);
           const siteUrl = quoteBranding.siteUrl || defaultSiteUrl;
-          const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${quote.signature_token}`;
+          const signUrl = `${siteUrl}/preventivo/${quote.id}?token=${quote.signature_token}`;
           const html = `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
               <h2 style="color:#1E40AF;">Reminder: Offerta commerciale in scadenza</h2>

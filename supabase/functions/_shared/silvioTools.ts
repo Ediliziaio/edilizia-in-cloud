@@ -20,6 +20,7 @@
 type SupabaseClient = any;
 
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts";
+import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
 
 /**
@@ -6340,7 +6341,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           type: "object",
           properties: {
             preventivo: { type: "string", description: "Numero preventivo (es. OFF-2026-012) o nome del cliente — OBBLIGATORIO" },
-            nuovo_stato: { type: "string", description: "accettato | rifiutato | inviato | visto | scaduto | bozza — OBBLIGATORIO" },
+            nuovo_stato: { type: "string", description: "accettata | rifiutata | inviata | scaduta | bozza — OBBLIGATORIO (va bene anche al maschile)" },
           },
           required: ["preventivo", "nuovo_stato"],
         },
@@ -6348,18 +6349,19 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     executor: async (args, ctx) => {
       const q = String(args?.preventivo ?? "").trim();
-      const nuovoStato = String(args?.nuovo_stato ?? "").trim().toLowerCase();
+      // Vocabolario unico degli stati (lo stesso del DB): il maschile detto a voce
+      // ("accettato") viene normalizzato, non rifiutato.
+      const nuovoStato = normalizzaStatoPreventivo(String(args?.nuovo_stato ?? ""));
       if (!q || !nuovoStato) return { error: "Preventivo e nuovo stato obbligatori." };
-      // 'firmato' è escluso di proposito: lo imposta il flusso di firma elettronica.
-      const STATI = ["bozza", "inviato", "visto", "accettato", "rifiutato", "scaduto"];
+      const STATI = ["bozza", "inviata", "accettata", "rifiutata", "scaduta"];
       if (!STATI.includes(nuovoStato)) {
-        return { error: `Stato non valido. Valori: ${STATI.join(", ")}. ('firmato' lo imposta solo la firma elettronica.)` };
+        return { error: `Stato non valido. Valori: ${STATI.join(", ")}. ('convertita' la imposta la conversione in commessa, la firma elettronica segna da sola 'accettata'.)` };
       }
 
       const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
       const { data: quotes } = await ctx.supabase
         .from("quotes")
-        .select("id, quote_number, status, total, contact_id, marketing_contacts(first_name, last_name)")
+        .select("id, quote_number, status, total, contact_id, signed_at, marketing_contacts(first_name, last_name)")
         .eq("company_id", ctx.companyId)
         .order("created_at", { ascending: false })
         .limit(2000);
@@ -6370,7 +6372,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           norm(`${c?.first_name ?? ""} ${c?.last_name ?? ""}`).includes(qn);
       });
       // Nome cliente ambiguo → preferisci i preventivi ancora "vivi".
-      const vivi = candidate.filter((qt) => !["accettato", "rifiutato", "scaduto", "firmato"].includes(qt.status ?? ""));
+      const vivi = candidate.filter((qt) => !["accettata", "rifiutata", "scaduta", "convertita", "annullata"].includes(qt.status ?? ""));
       const pool = vivi.length > 0 && candidate.length > 1 ? vivi : candidate;
       if (pool.length === 0) return { error: `Nessun preventivo trovato per "${q}".` };
       if (pool.length > 1) {
@@ -6380,7 +6382,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       if (quote.status === nuovoStato) {
         return { error: `Il preventivo ${quote.quote_number} è GIÀ in stato "${nuovoStato}". Nessuna modifica.` };
       }
-      if (quote.status === "firmato") {
+      if (quote.signed_at) {
         return { error: `Il preventivo ${quote.quote_number} è FIRMATO elettronicamente: lo stato non va cambiato da qui.` };
       }
 
@@ -6399,7 +6401,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         importo: `${Number(quote.total ?? 0).toFixed(2)}€`,
         stato: `${quote.status} → ${nuovoStato}`,
         link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
-        nota: nuovoStato === "accettato"
+        nota: nuovoStato === "accettata"
           ? "Preventivo ACCETTATO. Se serve, ora puoi trasformarlo in commessa dalla pagina del preventivo."
           : "Stato del preventivo aggiornato.",
       };

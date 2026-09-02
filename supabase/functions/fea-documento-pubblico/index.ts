@@ -30,12 +30,21 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Carica sigReq via token
+    // Carica sigReq via token. I link costruiti con quotes.signature_token
+    // (uuid, quindi con i trattini) devono trovare la richiesta il cui token è
+    // la stessa stringa senza trattini.
+    const tokenPulito = String(token).trim();
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(tokenPulito)) {
+      return errore(400, "token non valido");
+    }
+    const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, sessione_id, order_id, quote_id, company_id, signed_at")
-      .eq("token", token)
-      .single();
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at")
+      .in("token", variantiToken)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (fetchErr || !sigReq) {
       return errore(404, "Link di firma non trovato o scaduto");
@@ -108,11 +117,33 @@ Deno.serve(async (req: Request) => {
     } else if (tipo === "quote" && sigReq.quote_id) {
       const { data: quote } = await supabaseAdmin
         .from("quotes")
-        .select("title, quote_number")
+        .select("title, quote_number, pdf_storage_path")
         .eq("id", sigReq.quote_id)
         .single();
       if (quote) {
         documento_titolo = `Preventivo ${quote.quote_number}`;
+        // Il PDF congelato all'invio: senza, il cliente firmava senza vedere il documento.
+        if (quote.pdf_storage_path) {
+          const { data: firmato } = await supabaseAdmin.storage
+            .from("quote-pdfs")
+            .createSignedUrl(quote.pdf_storage_path, 3600);
+          pdf_url = firmato?.signedUrl ?? null;
+        }
+      }
+    } else if (tipo === "fv" && sigReq.fv_progetto_id) {
+      const { data: progetto } = await supabaseAdmin
+        .from("fv_progetti")
+        .select("numero, pdf_vendita_url")
+        .eq("id", sigReq.fv_progetto_id)
+        .single();
+      if (progetto) {
+        documento_titolo = `Preventivo fotovoltaico ${progetto.numero ?? ""}`.trim();
+        if (progetto.pdf_vendita_url) {
+          const { data: firmato } = await supabaseAdmin.storage
+            .from("fv-progetti")
+            .createSignedUrl(progetto.pdf_vendita_url, 3600);
+          pdf_url = firmato?.signedUrl ?? null;
+        }
       }
     } else if (tipo === "order" && sigReq.order_id) {
       const { data: order } = await supabaseAdmin

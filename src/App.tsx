@@ -732,6 +732,8 @@ const App = () => (
               <Route path="/candidatura/:token" element={<CandidaturaPubblica />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
+              {/* I PDF stampati e i QR fin qui puntavano a /accetta-preventivo/:id, rotta mai esistita. */}
+              <Route path="/accetta-preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
               <Route path="/review/:companyId" element={<PublicReview />} />
               {/* Microsito pubblico Serramenti (no login, token-based) */}

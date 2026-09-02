@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       .from("v_preventivo_analisi")
       .select("*")
       .eq("company_id", company_id)
-      .in("status", ["accettata", "firmato", "vinto"])
+      .in("status", ["accettata", "convertita"])
       .gte("created_at", cutoffDate);
 
     if (prevErr) throw new Error(`Preventivi query error: ${prevErr.message}`);
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       .from("quotes")
       .select("id")
       .eq("company_id", company_id)
-      .in("status", ["accettata", "firmato"])
+      .in("status", ["accettata", "convertita"])
       .gte("created_at", cutoffDate);
 
     const quoteIds = (acceptedQuotes ?? []).map((q: any) => q.id as string);

@@ -464,7 +464,7 @@ Deno.serve(async (req) => {
               .eq("company_id", flow.company_id)
               .not("due_date", "is", null)
               .lt("due_date", todayStr)
-              .neq("status", "completato");
+              .not("status", "in", "(completata,completato,completed,done,fatto,annullata)");
 
             for (const task of overdueTasks || []) {
               const giorni = Math.max(0, Math.floor((Date.now() - new Date(task.due_date).getTime()) / 86400000));

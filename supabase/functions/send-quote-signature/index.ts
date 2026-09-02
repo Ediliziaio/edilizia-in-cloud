@@ -70,7 +70,9 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceRoleKey}`,
+            // generate-quote-pdf pretende il JWT dell'utente (requireAuth): la
+            // service-role come Bearer veniva rifiutata e il PDF non nasceva mai.
+            Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKey}`,
           },
           body: JSON.stringify({ quote_id }),
         },
@@ -145,6 +147,42 @@ Deno.serve(async (req) => {
     const tipoFirmatario = quote.client_company || quote.client_vat_number ? "b2b" : "b2c";
     const nowIso = new Date().toISOString();
 
+    // ── Il PDF che il cliente firma va congelato ADESSO: generato (o riusato,
+    // per i moduli che lo caricano già pronto) e con impronta SHA-256 sulla
+    // richiesta. Prima la pagina di firma FEA non aveva alcun PDF: si firmava
+    // alla cieca.
+    const supabaseUrlFirma = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKeyFirma = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const daModulo = typeof quote.source === "string" && quote.source.startsWith("modulo:");
+    let pdfPathFirma: string | null = daModulo && typeof quote.pdf_storage_path === "string" ? quote.pdf_storage_path : null;
+    if (!pdfPathFirma) {
+      const pdfResp = await fetchWithTimeout(
+        `${supabaseUrlFirma}/functions/v1/generate-quote-pdf`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKeyFirma}` },
+          body: JSON.stringify({ quote_id }),
+        },
+        60_000,
+      );
+      if (!pdfResp.ok) {
+        return errorResponse("Generazione PDF non riuscita: controlla il preventivo e riprova", 500);
+      }
+      const pdfJson = await pdfResp.json();
+      pdfPathFirma = typeof pdfJson?.pdf_path === "string" ? pdfJson.pdf_path : null;
+      if (!pdfPathFirma) return errorResponse("PDF del preventivo non disponibile", 500);
+    }
+    let documentoHash: string | null = null;
+    try {
+      const { data: pdfFile } = await supabaseAdmin.storage.from("quote-pdfs").download(pdfPathFirma);
+      if (pdfFile) {
+        const digest = await crypto.subtle.digest("SHA-256", await pdfFile.arrayBuffer());
+        documentoHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+    } catch (e) {
+      console.warn("Impronta PDF non calcolata:", e);
+    }
+
     // Una sola richiesta attiva per preventivo: le vecchie richieste aperte vengono annullate.
     const { error: cancelErr } = await supabaseAdmin
       .from("signature_requests")
@@ -170,6 +208,7 @@ Deno.serve(async (req) => {
         created_by: userId,
         tipo_documento: "quote",
         tipo_firmatario: tipoFirmatario,
+        documento_hash: documentoHash,
       })
       .select("id, token")
       .single();

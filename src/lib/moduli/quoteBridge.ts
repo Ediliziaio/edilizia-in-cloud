@@ -154,7 +154,21 @@ export async function sendModuleQuoteSignature(
   }
 }
 
-/** Link pubblico di firma (stessa route dell'email). */
+/** Link pubblico di firma (stessa route dell'email). `quotes.signature_token` è
+ *  un uuid e torna con i trattini; la richiesta FEA conserva la stessa stringa
+ *  senza trattini: si normalizza, altrimenti il link non risolve. */
 export function signatureLink(token: string): string {
-  return `${window.location.origin}/firma-fea/${token}`;
+  return `${window.location.origin}/firma-fea/${token.replace(/-/g, "")}`;
+}
+
+/** Link di firma della richiesta FEA più recente del preventivo (fonte di verità). */
+export async function resolveModuleSignatureLink(quoteId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("signature_requests")
+    .select("token")
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.token ? `${window.location.origin}/firma-fea/${data.token}` : null;
 }

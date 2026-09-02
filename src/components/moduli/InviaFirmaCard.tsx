@@ -20,7 +20,7 @@ import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock } from "lucide-r
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink,
+  getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
   type ModuleQuoteRow,
 } from "@/lib/moduli/quoteBridge";
 
@@ -94,9 +94,12 @@ export function InviaFirmaCard(props: Props) {
     }
   };
 
-  const copiaLink = () => {
-    if (!quote?.signature_token) return;
-    void navigator.clipboard.writeText(signatureLink(quote.signature_token));
+  const copiaLink = async () => {
+    if (!quote) return;
+    const link = (await resolveModuleSignatureLink(quote.id))
+      ?? (quote.signature_token ? signatureLink(quote.signature_token) : null);
+    if (!link) { toast.error("Nessun link di firma: invia prima il preventivo"); return; }
+    await navigator.clipboard.writeText(link);
     toast.success("Link di firma copiato");
   };
 
@@ -151,8 +154,8 @@ export function InviaFirmaCard(props: Props) {
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
             {quote?.sent_at ? "Reinvia aggiornato" : "Invia per firma"}
           </Button>
-          {quote?.signature_token && (
-            <Button size="sm" variant="outline" className="h-8" onClick={copiaLink}>
+          {(quote?.sent_at || quote?.signature_token) && (
+            <Button size="sm" variant="outline" className="h-8" onClick={() => { void copiaLink(); }}>
               <Copy className="h-3.5 w-3.5 mr-1.5" /> Copia link firma
             </Button>
           )}
