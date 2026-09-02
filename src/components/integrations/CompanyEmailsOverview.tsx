@@ -89,9 +89,12 @@ function providerLabel(provider: string, providerLabel: string | null): string {
 }
 
 function StatusBadge({ status, consecutiveErrors }: { status: string; consecutiveErrors: number | null }) {
-  const isOk = status === "connected" && (consecutiveErrors ?? 0) === 0;
-  const isWarn = status === "connected" && (consecutiveErrors ?? 0) > 0;
-  const isError = status !== "connected";
+  // Lo stato scritto in DB è "active" (mai "connected"): prima ogni casella
+  // viva risultava in errore.
+  const attiva = status === "active" || status === "connected";
+  const isOk = attiva && (consecutiveErrors ?? 0) === 0;
+  const isWarn = attiva && (consecutiveErrors ?? 0) > 0;
+  const isError = !attiva;
   return (
     <Badge
       variant={isOk ? "default" : isWarn ? "secondary" : "destructive"}
@@ -154,16 +157,32 @@ export default function CompanyEmailsOverview() {
       if (!companyId) return [];
       // Selezioniamo SOLO colonne non-sensibili (no token, no password, no scopes
       // dettagliati). I token cifrati restano sul server, mai esposti al client.
+      // NIENTE embed `profiles!user_id`: user_id punta ad auth.users, non
+      // esiste una FK verso profiles → PostgREST rispondeva 400 e la
+      // panoramica diceva "nessun account collegato" a TUTTE le aziende.
+      // I profili si prendono con una seconda query .in() (pattern LMS).
       const { data, error } = await supabase
         .from("email_oauth_connections")
         .select(
-          "id, user_id, provider, provider_label, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_enabled, profile:profiles!user_id(id, first_name, last_name, email)",
+          "id, user_id, provider, provider_label, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_enabled",
         )
         .eq("company_id", companyId)
         .order("status", { ascending: true })
         .order("last_synced_at", { ascending: false });
       if (error) throw error;
-      return ((data || []) as unknown) as EmailConnRow[];
+      const righe = (data || []) as Array<Omit<EmailConnRow, "profile"> & { user_id: string | null }>;
+      const userIds = [...new Set(righe.map((r) => r.user_id).filter((x): x is string => !!x))];
+      const profili = new Map<string, EmailConnRow["profile"]>();
+      if (userIds.length > 0) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email")
+          .in("id", userIds);
+        for (const p of (prof ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>) {
+          profili.set(p.id, p);
+        }
+      }
+      return righe.map((r) => ({ ...r, profile: (r.user_id && profili.get(r.user_id)) || null })) as EmailConnRow[];
     },
     enabled: isAdmin && !!companyId,
   });
@@ -180,8 +199,9 @@ export default function CompanyEmailsOverview() {
     return acc;
   }, {});
 
-  const activeCount = rows.filter((r) => r.status === "connected" && (r.consecutive_errors ?? 0) === 0).length;
-  const errorCount = rows.filter((r) => r.status !== "connected" || (r.consecutive_errors ?? 0) > 0).length;
+  const viva = (s: string) => s === "active" || s === "connected";
+  const activeCount = rows.filter((r) => viva(r.status) && (r.consecutive_errors ?? 0) === 0).length;
+  const errorCount = rows.filter((r) => !viva(r.status) || (r.consecutive_errors ?? 0) > 0).length;
 
   return (
     <Card>
@@ -312,7 +332,7 @@ function EmailRow({
         <div className="text-xs text-muted-foreground truncate">
           {emailAddress}
         </div>
-        {lastError && status !== "connected" && (
+        {lastError && status !== "active" && status !== "connected" && (
           <div className="text-xs text-destructive mt-0.5 truncate" title={lastError}>
             {lastError}
           </div>

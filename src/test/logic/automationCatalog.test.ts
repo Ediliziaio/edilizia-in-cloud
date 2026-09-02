@@ -131,6 +131,40 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     expect(actionList).not.toContain("TRIGGERS_BY_CATEGORY");
   });
 
+  it("nessun elemento del catalogo dichiara due volte la stessa chiave (l'ultima vince e cancella la prima)", () => {
+    // Caso reale: ai trigger fattura/preventivo/ferie erano stati aggiunti i
+    // filtri in un `configSchema: [...]`, ma in coda all'oggetto restava il
+    // vecchio `configSchema: []` → in JavaScript vince l'ultimo e nel builder
+    // i filtri non comparivano. esbuild lo dice solo come warning.
+    const sorgente = readFileSync(join(ROOT, "src/lib/flow-node-catalog.ts"), "utf8").split("\n");
+    const doppie: string[] = [];
+    for (let i = 0; i < sorgente.length; i++) {
+      if (sorgente[i] !== "  {") continue;
+      let j = i + 1;
+      while (j < sorgente.length && !sorgente[j].startsWith("  }")) j++;
+      const chiavi = new Map<string, number>();
+      let id = "?";
+      for (const riga of sorgente.slice(i + 1, j)) {
+        const m = /^ {4}([A-Za-z_]+):/.exec(riga);
+        if (!m) continue;
+        if (m[1] === "id") id = riga.trim();
+        chiavi.set(m[1], (chiavi.get(m[1]) ?? 0) + 1);
+      }
+      for (const [k, n] of chiavi) if (n > 1) doppie.push(`${id} → ${k} ×${n}`);
+      i = j;
+    }
+    expect(doppie).toEqual([]);
+  });
+
+  it("i filtri dei trigger sono davvero nel configSchema esposto al builder", () => {
+    const filtro = (triggerId: string, campo: string) =>
+      (TRIGGER_CATALOG.find((t) => t.id === triggerId)?.configSchema ?? []).some((f) => f.id === campo);
+    expect(filtro("preventivo_creato", "importo_minimo")).toBe(true);
+    expect(filtro("preventivo_accettato", "importo_minimo")).toBe(true);
+    expect(filtro("fattura_creata", "importo_minimo")).toBe(true);
+    expect(filtro("ferie_richiesta", "tipo_richiesta_filtro")).toBe(true);
+  });
+
   it("i campi required con default hanno il default seminabile (anti caso-Priorità)", () => {
     // Un required SENZA defaultValue costringe l'utente a compilare: ok.
     // Un required CON defaultValue viene seminato alla creazione del nodo

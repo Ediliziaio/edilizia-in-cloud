@@ -61,6 +61,21 @@ type AppleCalRow = {
   profile?: ProfileLite | null;
 };
 
+/**
+ * Profili degli utenti collegati con una seconda query `.in()`.
+ * NIENTE embed `profiles!user_id`: user_id punta ad auth.users e non esiste
+ * una FK verso profiles → PostgREST rispondeva 400 e la panoramica diceva
+ * "nessun calendario collegato" a TUTTE le aziende.
+ */
+async function caricaProfili(userIds: Array<string | null | undefined>): Promise<Map<string, ProfileLite>> {
+  const ids = [...new Set(userIds.filter((x): x is string => !!x))];
+  const mappa = new Map<string, ProfileLite>();
+  if (ids.length === 0) return mappa;
+  const { data } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+  for (const p of (data ?? []) as ProfileLite[]) mappa.set(p.id, p);
+  return mappa;
+}
+
 function formatUserName(p: ProfileLite | null | undefined, fallbackUserId: string): string {
   if (!p) return `Utente ${fallbackUserId.slice(0, 6)}…`;
   const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
@@ -135,14 +150,14 @@ export default function CompanyCalendarsOverview() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("google_calendar_connections")
-        .select(
-          "id, user_id, google_account_email, status, last_sync_at, last_error, updated_at, profile:profiles!user_id(id, first_name, last_name, email)",
-        )
+        .select("id, user_id, google_account_email, status, last_sync_at, last_error, updated_at")
         .eq("company_id", companyId)
         .order("status", { ascending: true })
         .order("last_sync_at", { ascending: false });
       if (error) throw error;
-      return ((data || []) as unknown) as GoogleCalRow[];
+      const righe = (data || []) as GoogleCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
     },
     enabled: isAdmin && !!companyId,
   });
@@ -153,14 +168,14 @@ export default function CompanyCalendarsOverview() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("apple_calendar_connections")
-        .select(
-          "id, user_id, apple_id_email, status, last_sync_at, last_error, updated_at, profile:profiles!user_id(id, first_name, last_name, email)",
-        )
+        .select("id, user_id, apple_id_email, status, last_sync_at, last_error, updated_at")
         .eq("company_id", companyId)
         .order("status", { ascending: true })
         .order("last_sync_at", { ascending: false });
       if (error) throw error;
-      return ((data || []) as unknown) as AppleCalRow[];
+      const righe = (data || []) as AppleCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
     },
     enabled: isAdmin && !!companyId,
   });

@@ -65,7 +65,18 @@ async function verificaDominio(domain: string, caselle: Casella[]) {
   const dkim = analizzaDkim(risultatiDkim);
 
   const pec = caselle.some((c) => c.is_pec);
-  const problemi = [...spf.problemi, ...dkim.problemi, ...dmarc.problemi];
+  // MX: un dominio che non riceve posta è sospetto per i filtri antispam
+  // (e i bounce/reply non tornano indietro).
+  const mx_ok = mx.length > 0;
+  const problemiMx = mx_ok ? [] : ["Il dominio non ha record MX: non riceve posta. I filtri antispam penalizzano i mittenti che non possono ricevere risposte."];
+  const problemi = [...problemiMx, ...spf.problemi, ...dkim.problemi, ...dmarc.problemi];
+  // Punteggio 0-100 leggibile dal titolare: SPF 35, DKIM 30, DMARC 20, MX 15.
+  const punteggio =
+    (spf.stato === "ok" ? 35 : spf.stato === "errato" ? 10 : 0) +
+    (dkim.stato === "ok" ? 30 : 0) +
+    (dmarc.stato === "ok" ? 20 : dmarc.stato === "debole" ? 12 : 0) +
+    (mx_ok ? 15 : 0);
+  const rischio_spam: "basso" | "medio" | "alto" = punteggio >= 85 ? "basso" : punteggio >= 55 ? "medio" : "alto";
   const suggeriti = {
     spf: spf.stato === "ok" ? null : {
       tipo: "TXT", host: "@",
@@ -92,6 +103,7 @@ async function verificaDominio(domain: string, caselle: Casella[]) {
     dkim_selector: dkim.selettore, dmarc_policy: dmarc.policy,
     // v2
     stati: { spf: spf.stato, dkim: dkim.stato, dmarc: dmarc.stato },
+    mx_ok, mx, punteggio, rischio_spam,
     record: { spf: spf.record, dkim: dkim.record, dmarc: dmarc.record },
     problemi, suggeriti,
   };

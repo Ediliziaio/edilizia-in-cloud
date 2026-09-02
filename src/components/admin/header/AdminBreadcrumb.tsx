@@ -40,7 +40,6 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/audit-log": "Audit Log",
   "/admin/feature-flags": "Funzionalità Azienda",
   "/admin/annunci": "Annunci",
-  "/admin/sync-logs": "Sync Logs",
   "/admin/gdpr": "GDPR",
   "/admin/referral": "Referral",
   "/admin/ai-usage": "Monitor AI",

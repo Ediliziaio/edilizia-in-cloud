@@ -244,8 +244,11 @@ export default function SettingsIntegrations() {
     result["google-ads"] = { status: gadsStatus, detail: null };
 
     // Email
-    const emailConnected = emailConnections.some((c) => c.status === "connected");
-    const firstEmail = emailConnections.find((c) => c.status === "connected");
+    // Lo stato scritto dal DB è "active" (mai "connected"): con il confronto
+    // sbagliato l'email risultava SEMPRE scollegata, anche con caselle attive.
+    const isAttiva = (s: string | null) => s === "active" || s === "connected";
+    const emailConnected = emailConnections.some((c) => isAttiva(c.status));
+    const firstEmail = emailConnections.find((c) => isAttiva(c.status));
     result["email"] = {
       status: emailConnected ? "connected" : "disconnected",
       detail: firstEmail?.email_address ?? null,

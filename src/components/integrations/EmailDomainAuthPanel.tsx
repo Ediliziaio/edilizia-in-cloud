@@ -23,6 +23,9 @@ interface EsitoDominio {
   pec: boolean;
   caselle: string[];
   stati: { spf: Stato; dkim: Stato; dmarc: Stato };
+  mx_ok?: boolean;
+  punteggio?: number;
+  rischio_spam?: "basso" | "medio" | "alto";
   problemi: string[];
   suggeriti: { spf: RecordSuggerito | null; dkim: RecordSuggerito | null; dmarc: RecordSuggerito | null };
 }
@@ -127,12 +130,29 @@ export function EmailDomainAuthPanel({ haCaselle }: { haCaselle: boolean }) {
             {domini.map((d) => (
               <div key={d.dominio} className="rounded-xl border p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
+                  {typeof d.punteggio === "number" && (
+                    <div
+                      className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg border text-center ${
+                        d.rischio_spam === "basso" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : d.rischio_spam === "medio" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-rose-200 bg-rose-50 text-rose-700"
+                      }`}
+                      title="Punteggio autenticazione: SPF 35, DKIM 30, DMARC 20, MX 15"
+                    >
+                      <span className="text-sm font-bold leading-none">{d.punteggio}</span>
+                      <span className="text-[9px] leading-none">/100</span>
+                    </div>
+                  )}
                   <span className="font-mono text-sm font-semibold">{d.dominio}</span>
                   <Badge variant="outline" className="text-[10px]">{d.provider_label}</Badge>
+                  {d.rischio_spam && (
+                    <Badge variant="outline" className={`text-[10px] ${d.rischio_spam === "basso" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : d.rischio_spam === "medio" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                      Rischio spam {d.rischio_spam}
+                    </Badge>
+                  )}
                   {d.pec && <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700">PEC: record gestiti dal gestore</Badge>}
                   <span className="ml-auto text-[11px] text-muted-foreground truncate">{d.caselle.join(", ")}</span>
                 </div>
-                <div className="grid gap-1.5 sm:grid-cols-3">
+                <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+                  <Semaforo nome="MX" stato={d.mx_ok === false ? "assente" : "ok"} descr="il dominio riceve posta" />
                   <Semaforo nome="SPF" stato={d.stati.spf} descr="chi può spedire per te" />
                   <Semaforo nome="DKIM" stato={d.stati.dkim} descr="firma anti-falsificazione" />
                   <Semaforo nome="DMARC" stato={d.stati.dmarc} descr="cosa fare se ti falsificano" />

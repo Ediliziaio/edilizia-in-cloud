@@ -546,7 +546,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'fattura.client_email', label: 'Email cliente', type: 'string' },
       { id: 'fattura.due_date', label: 'Data scadenza pagamento', type: 'date' },
     ],
-    configSchema: [],
   },
   {
     id: 'fattura_scaduta',
@@ -641,7 +640,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
       { id: 'preventivo.expires_at', label: 'Data validità', type: 'date' },
     ],
-    configSchema: [],
   },
   {
     id: 'preventivo_accettato',
@@ -662,7 +660,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'preventivo.client_email', label: 'Email cliente', type: 'string' },
       { id: 'preventivo.contact_id', label: 'ID Contatto', type: 'uuid' },
     ],
-    configSchema: [],
   },
   {
     id: 'preventivo_rifiutato',
@@ -1006,7 +1003,6 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'richiesta.data_fine', label: 'Al', type: 'date' },
       { id: 'richiesta.giorni', label: 'Numero giorni', type: 'number' },
     ],
-    configSchema: [],
   },
   {
     id: 'candidato_creato',

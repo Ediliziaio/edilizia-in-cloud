@@ -113,8 +113,12 @@ const store = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
       try {
+        // Con l'apikey il gateway risponde 200: senza, ogni 30s un 401 rosso
+        // in console che copre gli errori veri. La chiave anon è pubblica.
+        const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
         const res = await fetch(HEARTBEAT_URL, {
           method: "GET",
+          headers: apikey ? { apikey } : undefined,
           signal: controller.signal,
           cache: "no-store",
         });
