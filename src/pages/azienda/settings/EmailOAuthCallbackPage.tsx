@@ -46,7 +46,12 @@ export default function EmailOAuthCallbackPage() {
       return;
     }
 
-    const redirectUri = `${window.location.origin}/azienda/impostazioni/integrazioni/email-callback`;
+    // Il redirect_uri dello scambio token DEVE essere identico a quello usato
+    // all'avvio, e l'avvio ne usa due: /azienda/... per le aziende e /admin/...
+    // per la piattaforma. Questa pagina E' quell'indirizzo: basta leggerlo da
+    // se' stessa. Il valore fisso su /azienda/ faceva fallire ogni collegamento
+    // partito dall'area admin con "redirect_uri mismatch".
+    const redirectUri = `${window.location.origin}${window.location.pathname}`;
 
     void (async () => {
       try {
