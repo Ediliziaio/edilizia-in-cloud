@@ -184,7 +184,18 @@ export function expectedOutputSize(
 ): { width: number; height: number } {
   if (!width || !height) return { width: 1024, height: 1024 };
   const ratio = width / height;
-  if (ratio < 0.8) return { width: 1024, height: 1536 };
-  if (ratio > 1.25) return { width: 1536, height: 1024 };
+  // Scelta del formato OpenAI PIU' VICINO al rapporto della foto (1:1, 2:3, 3:2).
+  // I confini sono i punti di mezzo geometrici tra i tre rapporti:
+  //   sqrt(2/3 * 1) = 0.8165  e  sqrt(1 * 3/2) = 1.2247.
+  // Con la vecchia soglia `< 0.8` una foto 4:5 (1080x1350, formato molto comune
+  // da smartphone/Instagram) finiva nel quadrato: il modello tagliava soffitto e
+  // pavimento. Ora 4:5 -> 2:3 (deviazione 0.13 invece di 0.20).
+  if (ratio < PORTRAIT_SQUARE_BOUNDARY) return { width: 1024, height: 1536 };
+  if (ratio > SQUARE_LANDSCAPE_BOUNDARY) return { width: 1536, height: 1024 };
   return { width: 1024, height: 1024 };
 }
+
+/** Punto di mezzo geometrico tra 2:3 (0.667) e 1:1. */
+export const PORTRAIT_SQUARE_BOUNDARY = Math.sqrt(2 / 3);
+/** Punto di mezzo geometrico tra 1:1 e 3:2 (1.5). */
+export const SQUARE_LANDSCAPE_BOUNDARY = Math.sqrt(3 / 2);
