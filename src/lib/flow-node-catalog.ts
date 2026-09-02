@@ -997,6 +997,18 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'hr',
     dbTable: 'hr_candidati',
     dbEvent: 'INSERT',
+    configSchema: [
+      { id: 'fonte_filtro', label: 'Solo da questa fonte', type: 'select', required: false, options: [
+        { value: '', label: 'Tutte le fonti' },
+        { value: 'sito', label: 'Sito / annuncio (modulo)' },
+        { value: 'manuale', label: 'Inserito a mano' },
+        { value: 'campagna', label: 'Campagna di ricerca' },
+        { value: 'segnalazione', label: 'Segnalazione' },
+        { value: 'test_attitudinale', label: 'Test attitudinale' },
+        { value: 'altro', label: 'Altro' },
+      ], helpText: 'Vuoto = scatta per ogni candidato, da qualsiasi fonte' },
+      { id: 'ruolo_filtro', label: 'Solo se il ruolo contiene', type: 'text', required: false, placeholder: 'Es. muratore', helpText: 'Confronto "contiene", senza maiuscole/minuscole. Vuoto = tutti i ruoli' },
+    ],
     outputVariables: [
       { id: 'candidato.id', label: 'ID Candidato', type: 'uuid' },
       { id: 'candidato.nome', label: 'Nome', type: 'string' },
@@ -1016,6 +1028,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'hr',
     dbTable: 'hr_candidati',
     dbEvent: 'UPDATE',
+    configSchema: [
+      { id: 'fase_a', label: 'Solo quando arriva in questa fase', type: 'text', required: false, placeholder: 'Es. Offerta', helpText: 'Nome della fase come scritto nella pipeline. Vuoto = ogni spostamento' },
+    ],
     outputVariables: [
       { id: 'candidato.id', label: 'ID Candidato', type: 'uuid' },
       { id: 'candidato.nome', label: 'Nome', type: 'string' },
@@ -1033,6 +1048,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'hr',
     dbTable: 'hr_candidati',
     dbEvent: 'UPDATE',
+    configSchema: [
+      { id: 'ruolo_filtro', label: 'Solo se il ruolo contiene', type: 'text', required: false, placeholder: 'Es. posatore', helpText: 'Vuoto = ogni assunzione' },
+    ],
     outputVariables: [
       { id: 'candidato.id', label: 'ID Candidato', type: 'uuid' },
       { id: 'candidato.nome', label: 'Nome', type: 'string' },
@@ -1050,6 +1068,16 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'hr',
     dbTable: 'hr_candidati_colloqui',
     dbEvent: 'INSERT',
+    configSchema: [
+      { id: 'tipo_colloquio_filtro', label: 'Solo colloqui di tipo', type: 'select', required: false, options: [
+        { value: '', label: 'Tutti i tipi' },
+        { value: 'telefonico', label: 'Telefonico' },
+        { value: 'conoscitivo', label: 'Conoscitivo' },
+        { value: 'tecnico', label: 'Tecnico' },
+        { value: 'in_cantiere', label: 'Prova in cantiere' },
+        { value: 'finale', label: 'Finale' },
+      ] },
+    ],
     outputVariables: [
       { id: 'colloquio.id', label: 'ID Colloquio', type: 'uuid' },
       { id: 'candidato.nome', label: 'Nome candidato', type: 'string' },
@@ -2185,6 +2213,21 @@ export const FULL_CATALOG: CatalogItem[] = [
   ...ACTION_CATALOG_ITEMS,
   ...CONDITION_CATALOG_ITEMS,
 ];
+
+/**
+ * Default del configSchema materializzati come config iniziale del nodo.
+ * Il pannello MOSTRA i default ("Priorità: Media") ma finché nessuno li
+ * scrive nel config la validazione li vede vuoti e il motore non li riceve:
+ * un nodo appena creato deve nascere già con ciò che l'utente vede.
+ */
+export function seedConfigDefaults(itemId: string): Record<string, unknown> {
+  const item = getCatalogItem(itemId);
+  const out: Record<string, unknown> = {};
+  for (const f of item?.configSchema ?? []) {
+    if (f.defaultValue !== undefined) out[f.id] = f.defaultValue;
+  }
+  return out;
+}
 
 export function getCatalogItem(itemId: string): CatalogItem | undefined {
   if (itemId === "note") return NOTE_CATALOG_ITEM;

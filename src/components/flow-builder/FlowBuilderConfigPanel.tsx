@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
+import { seedConfigDefaults, getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import {
   NOTIFICATION_TEMPLATES,
   templatePerTrigger,
@@ -181,8 +181,21 @@ export function FlowBuilderConfigPanel({
       initialDataRef.current = { ...(selectedNode.data as Record<string, any>) };
       setIsDirty(false);
       setShowUnsavedDialog(false);
+      // Nodi nati PRIMA della semina dei default (o da template): ciò che il
+      // pannello mostra come default va scritto nel nodo, altrimenti la
+      // pubblicazione lo dichiara "obbligatorio non compilato" e il motore
+      // non lo riceve (il caso Priorità del crea_task).
+      const dati = selectedNode.data as Record<string, any>;
+      const defaults = seedConfigDefaults(String(dati?.itemId ?? ""));
+      const mancanti: Record<string, any> = {};
+      for (const [k, v] of Object.entries(defaults)) {
+        if (dati?.[k] == null || dati[k] === "") mancanti[k] = v;
+      }
+      if (Object.keys(mancanti).length > 0) {
+        onUpdateData(selectedNode.id, { ...dati, ...mancanti });
+      }
     }
-  }, [selectedNode]);
+  }, [selectedNode, onUpdateData]);
 
   if (!selectedNode) return null;
 

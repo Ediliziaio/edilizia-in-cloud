@@ -34,7 +34,7 @@ import { WorkflowImpostazioni } from "./tabs/WorkflowImpostazioni";
 import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
-import { getCatalogItem, type CatalogItem } from "@/lib/flow-node-catalog";
+import { seedConfigDefaults, getCatalogItem, type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle, Wand2, Monitor } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -418,6 +418,7 @@ export function FlowBuilderPage() {
                       nodeType: "trigger",
                       itemId: item.id,
                       dbNodeId: newNodeId,
+                      ...seedConfigDefaults(item.id),
                       onAddTrigger: () => openCatalog("trigger"),
                     },
                   }
@@ -432,7 +433,7 @@ export function FlowBuilderPage() {
             id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
             node_type: "trigger",
             position_x: Math.round(placeholder.position.x), position_y: Math.round(placeholder.position.y),
-            config_json: { item_id: item.id },
+            config_json: { item_id: item.id, ...seedConfigDefaults(item.id) },
             label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
           });
           // Auto-open config for the new trigger
@@ -454,7 +455,7 @@ export function FlowBuilderPage() {
           id: newNodeId,
           type: "trigger",
           position: pos,
-          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId, onAddTrigger: () => openCatalog("trigger") },
+          data: { label: item.label, nodeType: "trigger", itemId: item.id, dbNodeId: newNodeId, ...seedConfigDefaults(item.id), onAddTrigger: () => openCatalog("trigger") },
         };
         setRfNodes((nds) => [...nds, rfNode]);
         // Connect to the first action or end node
@@ -485,7 +486,7 @@ export function FlowBuilderPage() {
           id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
           node_type: "trigger",
           position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-          config_json: { item_id: item.id },
+          config_json: { item_id: item.id, ...seedConfigDefaults(item.id) },
           label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         });
         // Auto-open config for the new trigger
@@ -505,6 +506,7 @@ export function FlowBuilderPage() {
           nodeType: item.kind === "condition" ? "condition" : item.kind === "delay" ? "delay" : item.kind === "goal" ? "goal" : item.kind === "split" ? "split" : "action",
           itemId: item.id,
           dbNodeId: newNodeId,
+          ...seedConfigDefaults(item.id),
           ...(item.kind === "note" ? { note_text: "" } : {}),
         },
       };
@@ -514,7 +516,7 @@ export function FlowBuilderPage() {
         id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
         node_type: rfNode.data.nodeType as any,
         position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-        config_json: { item_id: item.id, ...(item.kind === "note" ? { note_text: "" } : {}) },
+        config_json: { item_id: item.id, ...seedConfigDefaults(item.id), ...(item.kind === "note" ? { note_text: "" } : {}) },
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
 
@@ -620,7 +622,7 @@ export function FlowBuilderPage() {
               id: newNodeId,
               type: item.kind,
               position: pos,
-              data: { label: item.label, nodeType, itemId: item.id, dbNodeId: newNodeId },
+              data: { label: item.label, nodeType, itemId: item.id, dbNodeId: newNodeId, ...seedConfigDefaults(item.id) },
             };
 
             // Remove old edge, add node, add new edges
@@ -724,7 +726,7 @@ export function FlowBuilderPage() {
                 id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
                 node_type: nodeType as any,
                 position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-                config_json: { item_id: item.id },
+                config_json: { item_id: item.id, ...seedConfigDefaults(item.id) },
                 label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
               });
               if (item.kind !== "split") {
@@ -747,7 +749,7 @@ export function FlowBuilderPage() {
                 id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
                 node_type: nodeType as any,
                 position_x: Math.round(pos.x), position_y: Math.round(pos.y),
-                config_json: { item_id: item.id },
+                config_json: { item_id: item.id, ...seedConfigDefaults(item.id) },
                 label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
               });
             }

@@ -3,16 +3,24 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("Talent Profile HR tab", () => {
-  it("aggiunge Selezioni come tab nativa in Personale & HR", () => {
+  it("le Selezioni vivono dentro la tab Candidati (vista test, chunk lazy)", () => {
+    // Redesign 2026-09: il test attitudinale non è più una tab diretta di
+    // Personale & HR — è la terza vista della tab Candidati (testata
+    // unificata), montato embedded e lazy per non pagare i 500KB di report.
+    const candidatiSource = readFileSync(
+      resolve(process.cwd(), "src/pages/azienda/personale/tabs/TabCandidati.tsx"),
+      "utf8",
+    );
+    expect(candidatiSource).toContain('lazy(() => import("./TabSelezioni")');
+    expect(candidatiSource).toContain("<TabSelezioni embedded />");
+
+    // E Personale & HR instrada ?tab=selezioni sulla tab Candidati (i vecchi
+    // link e il FAB Silvio non devono rompersi).
     const pageSource = readFileSync(
       resolve(process.cwd(), "src/pages/azienda/personale/PersonalePage.tsx"),
       "utf8",
     );
-
-    expect(pageSource).toContain('const TabSelezioni = lazy(() => import("./tabs/TabSelezioni")');
-    expect(pageSource).toContain('"selezioni"');
-    expect(pageSource).toContain('TabsTrigger value="selezioni"');
-    expect(pageSource).toContain("<TabSelezioni />");
+    expect(pageSource).toContain('"candidati"');
   });
 
   it("espone una dashboard collegata alle tabelle hr_talent e al motore V5", () => {

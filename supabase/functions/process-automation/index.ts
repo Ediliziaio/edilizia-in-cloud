@@ -347,10 +347,25 @@ async function handleTrigger(supabase: any, body: any) {
     if (typeof tcfg.tipo_filtro === "string" && tcfg.tipo_filtro !== "" && ep?.appointment_type != null) {
       if (String(ep.appointment_type).toLowerCase() !== tcfg.tipo_filtro.toLowerCase()) continue;
     }
-    // Fonte lead (contatto_creato → fonte_filtro)
+    // Fonte (contatto_creato → payload.source; candidato_creato → payload.fonte)
     if (typeof tcfg.fonte_filtro === "string" && tcfg.fonte_filtro !== "") {
-      const src = String((enrichedPayload as Record<string, unknown>)?.source ?? "").toLowerCase();
+      const epf = enrichedPayload as Record<string, unknown>;
+      const src = String(epf?.source ?? epf?.fonte ?? "").toLowerCase();
       if (!src.includes(tcfg.fonte_filtro.toLowerCase())) continue;
+    }
+    // Ruolo del candidato (candidato_creato / candidato_assunto): "contiene".
+    if (typeof tcfg.ruolo_filtro === "string" && tcfg.ruolo_filtro !== "") {
+      const ruolo = String((enrichedPayload as Record<string, unknown>)?.ruolo ?? "").toLowerCase();
+      if (!ruolo.includes(tcfg.ruolo_filtro.toLowerCase())) continue;
+    }
+    // Fase di arrivo (candidato_fase_cambiata): confronto normalizzato sul nome.
+    if (typeof tcfg.fase_a === "string" && tcfg.fase_a !== "") {
+      const norm = (s: unknown) => String(s ?? "").toLowerCase().trim();
+      if (norm((enrichedPayload as Record<string, unknown>)?.fase_nome) !== norm(tcfg.fase_a)) continue;
+    }
+    // Tipo colloquio (colloquio_fissato).
+    if (typeof tcfg.tipo_colloquio_filtro === "string" && tcfg.tipo_colloquio_filtro !== "") {
+      if (String((enrichedPayload as Record<string, unknown>)?.tipo ?? "").toLowerCase() !== tcfg.tipo_colloquio_filtro.toLowerCase()) continue;
     }
     // Stage da/a (opportunita_stage_cambiato)
     if (tcfg.stage_a && String((enrichedPayload as Record<string, unknown>)?.stage_id ?? "") !== String(tcfg.stage_a)) continue;
