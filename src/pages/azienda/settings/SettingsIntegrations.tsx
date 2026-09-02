@@ -40,6 +40,7 @@ import IntegrationsGrid, {
   type IntegrationStatusMap,
 } from "@/components/integrations/IntegrationsGrid";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
+import { EmailDomainAuthPanel } from "@/components/integrations/EmailDomainAuthPanel";
 
 const TOKEN_STALE_DAYS = 60;
 
@@ -399,6 +400,10 @@ export default function SettingsIntegrations() {
           Per non-admin entrambi i componenti mostrano solo un placeholder con CTA. */}
       <CompanyCalendarsOverview />
       <CompanyEmailsOverview />
+
+      {/* SPF/DKIM/DMARC dei domini delle caselle collegate: controllo
+          automatico, non su richiesta — se manca o è sbagliato lo si vede qui. */}
+      <EmailDomainAuthPanel haCaselle />
 
       {/* Open Banking — collegamento conti correnti + import movimenti */}
       <BankConnectionsCard />

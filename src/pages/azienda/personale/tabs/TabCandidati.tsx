@@ -49,6 +49,9 @@ const RUOLI_SUGGERITI = [
   "Commerciale", "Altro",
 ];
 
+/** Colonne dell'elenco (griglia da md in su): Candidato | Fase | Stelle | CV | Contatti | Fonte. */
+const COLONNE_ELENCO = "lg:grid-cols-[minmax(150px,1.3fr)_170px_110px_56px_minmax(220px,1.8fr)_120px]";
+
 type Esito = "in_selezione" | "assunto" | "scartato" | "archiviato";
 /** L'esito riassume lo stato: i valori legacy di processo contano come "in selezione". */
 const esitoDi = (c: HrCandidato): Esito =>
@@ -1069,6 +1072,16 @@ export function TabCandidati() {
         <p className="py-8 text-center text-sm text-muted-foreground">Nessun candidato con questi filtri.</p>
       ) : (
         <div className="space-y-4">
+          {/* Intestazioni: l'elenco si legge come una tabella, colonne allineate
+              su tutti i gruppi (su mobile le righe tornano a scorrere). */}
+          <div className={`hidden lg:grid ${COLONNE_ELENCO} items-center gap-x-3 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}>
+            <span>Candidato</span>
+            <span>Fase / Esito</span>
+            <span>Valutazione</span>
+            <span>CV</span>
+            <span>Contatti</span>
+            <span className="text-right">Fonte</span>
+          </div>
           {perRuolo.map(([ruolo, lista]) => (
             <div key={ruolo}>
               <div className="mb-1.5 flex items-center gap-2">
@@ -1085,25 +1098,29 @@ export function TabCandidati() {
                       key={c.id}
                       type="button"
                       onClick={() => setApertoId(c.id)}
-                      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-muted/50 ${i > 0 ? "border-t" : ""}`}
+                      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-muted/50 lg:grid ${COLONNE_ELENCO} ${i > 0 ? "border-t" : ""}`}
                     >
-                      <span className="min-w-[140px] font-medium text-sm">{c.nome} {c.cognome}</span>
-                      {fase ? (
-                        <Badge variant="outline" className="gap-1 text-[11px]">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: fase.colore ?? "#94A3B8" }} />
-                          {fase.nome}
-                        </Badge>
-                      ) : (
-                        <Badge className={`${ESITI[es].classe} border-0 text-[11px]`}>{ESITI[es].label}</Badge>
-                      )}
-                      <Stelle valore={c.valutazione} />
-                      {c.cv_path && <span className="flex items-center gap-1 text-xs text-slate-500"><FileText className="h-3.5 w-3.5" /> CV</span>}
-                      <span className="ml-auto flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        {c.telefono && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.telefono}</span>}
-                        {c.email && <span className="hidden sm:flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</span>}
-                        {c.citta && <span className="hidden md:flex items-center gap-1"><MapPin className="h-3 w-3" />{c.citta}</span>}
-                        <span className="text-[11px]">{FONTI_CANDIDATO[c.fonte]}</span>
+                      <span className="min-w-[140px] truncate font-medium text-sm">{c.nome} {c.cognome}</span>
+                      <span>
+                        {fase ? (
+                          <Badge variant="outline" className="gap-1 text-[11px]">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: fase.colore ?? "#94A3B8" }} />
+                            {fase.nome}
+                          </Badge>
+                        ) : (
+                          <Badge className={`${ESITI[es].classe} border-0 text-[11px]`}>{ESITI[es].label}</Badge>
+                        )}
                       </span>
+                      <Stelle valore={c.valutazione} />
+                      <span className="flex items-center gap-1 text-xs text-slate-500">
+                        {c.cv_path ? <><FileText className="h-3.5 w-3.5" /> CV</> : <span className="text-slate-300">—</span>}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground lg:ml-0 ml-auto">
+                        {c.telefono && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.telefono}</span>}
+                        {c.email && <span className="hidden sm:flex items-center gap-1 truncate"><Mail className="h-3 w-3 shrink-0" />{c.email}</span>}
+                        {c.citta && <span className="hidden lg:flex items-center gap-1"><MapPin className="h-3 w-3" />{c.citta}</span>}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground lg:text-right">{FONTI_CANDIDATO[c.fonte]}</span>
                     </button>
                   );
                 })}
