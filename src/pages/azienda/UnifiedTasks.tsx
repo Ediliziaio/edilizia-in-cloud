@@ -7,7 +7,8 @@ import {
 import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
-import { SortableTaskRow } from "@/components/attivita/SortableTaskRow";
+import { SortableTaskRow, type AzioniRiga } from "@/components/attivita/SortableTaskRow";
+import { PRIORITY_ORDER } from "@/lib/taskPriorities";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,8 +20,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange,
-  BarChart2, User, Users, SlidersHorizontal,
+  BarChart2, User, Users, SlidersHorizontal, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -31,7 +36,7 @@ import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
 import { TaskStatsView } from "@/components/attivita/TaskStatsView";
 import { TaskDetailPanel } from "@/components/attivita/TaskDetailPanel";
-import { format, isAfter, isBefore, addHours, startOfWeek, addDays, addWeeks, addMonths, parseISO } from "date-fns";
+import { format, isAfter, isBefore, addHours, startOfWeek, addDays, addWeeks, addMonths, parseISO, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
@@ -50,7 +55,10 @@ import {
   getTaskStatusEventType,
   getTaskStatusTransitionDescription,
   isTaskDoneStatus,
+  getTaskStatusLabel,
 } from "@/lib/taskStatuses";
+
+type ColonnaOrdinabile = "title" | "assignee" | "priority" | "due_date" | "status";
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
   generale: "Generale",
@@ -120,6 +128,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [statusSettingsOpen, setStatusSettingsOpen] = useState(false);
   const debouncedSearch = useDebounce(searchText, 300);
+  const [sort, setSort] = useState<{ col: ColonnaOrdinabile; dir: "asc" | "desc" } | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<any>(null);
+  const ricercaRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     setSearchParams((prev) => {
@@ -316,9 +328,59 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     });
   }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch, statusOptions]);
 
+  // Ordinamento per colonna (click sull'intestazione). Senza ordinamento vale
+  // l'ordine manuale (sort_order) e il trascinamento resta attivo.
+  const sortedTasks = useMemo(() => {
+    if (!sort) return filteredTasks;
+    const nome = (t: any) => t.assigned_profile ? `${t.assigned_profile.last_name ?? ""} ${t.assigned_profile.first_name ?? ""}`.trim().toLowerCase() : "";
+    const ordineStato = (t: any) => statusOptions.find((s) => s.value === t.status)?.order ?? 999;
+    const cmp = (a: any, b: any) => {
+      switch (sort.col) {
+        case "title": return (a.title ?? "").localeCompare(b.title ?? "", "it");
+        case "assignee": return nome(a).localeCompare(nome(b), "it") || (nome(a) ? 0 : 1) - (nome(b) ? 0 : 1);
+        case "priority": return PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+        case "due_date": {
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1; // senza scadenza sempre in fondo
+          if (!b.due_date) return -1;
+          return String(a.due_date).localeCompare(String(b.due_date));
+        }
+        case "status": return ordineStato(a) - ordineStato(b);
+        default: return 0;
+      }
+    };
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...filteredTasks].sort((a, b) => {
+      const r = cmp(a, b);
+      // le "senza scadenza" restano in fondo anche in ordine decrescente
+      if (sort.col === "due_date" && (!a.due_date || !b.due_date)) return r;
+      return r * dir;
+    });
+  }, [filteredTasks, sort, statusOptions]);
+
+  const toggleSort = (col: ColonnaOrdinabile) =>
+    setSort((prev) => (!prev || prev.col !== col ? { col, dir: "asc" } : prev.dir === "asc" ? { col, dir: "desc" } : null));
+
+  const intestazione = (col: ColonnaOrdinabile, label: string) => {
+    const attiva = sort?.col === col;
+    const Icona = !attiva ? ArrowUpDown : sort!.dir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(col)}
+        className={cn("inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground", attiva && "text-foreground font-semibold")}
+        title={attiva ? (sort!.dir === "asc" ? "Ordine crescente (clicca per decrescente)" : "Ordine decrescente (clicca per togliere)") : `Ordina per ${label.toLowerCase()}`}
+        aria-sort={attiva ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
+      >
+        {label}
+        <Icona className={cn("h-3.5 w-3.5", !attiva && "opacity-40")} />
+      </button>
+    );
+  };
+
   // DnD is only meaningful when showing all tasks unfiltered — otherwise sort_order
   // would be calculated only over the visible subset, corrupting the order of hidden tasks.
-  const isDragDisabled = filtriAttivi || !!debouncedSearch;
+  const isDragDisabled = filtriAttivi || !!debouncedSearch || !!sort;
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -344,15 +406,38 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     setDialogOpen(true);
   }, [user?.id]);
 
-  const handleToggleComplete = async (task: any) => {
-    const nextStatus = getNextTaskStatusForQuickAction(task.status, statusOptions);
-    const updates = buildTaskStatusUpdate(nextStatus.value, statusOptions);
-    const { error } = await supabase
-      .from("tasks")
-      .update(updates)
-      .eq("id", task.id);
+  // Scorciatoie da tastiera (come nei task manager): n = nuova attività, / = cerca.
+  // Ignorate mentre si scrive in un campo o con un dialog aperto.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (e.key === "n") { e.preventDefault(); openNewTask({ assignedTo: user?.id ?? null }); }
+      if (e.key === "/") { e.preventDefault(); setActiveTab("all"); ricercaRef.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openNewTask, user?.id]);
+
+  const invalidaTask = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+  };
+
+  /**
+   * Applica uno stato scelto (dal menu o dall'azione rapida) e offre "Annulla"
+   * nel toast: chi segna "fatto" per sbaglio torna indietro con un click.
+   * Se la chiusura di una ricorrente crea l'occorrenza successiva, l'annulla
+   * la elimina.
+   */
+  const applicaStato = async (task: any, nuovoStato: string) => {
+    if (nuovoStato === task.status) return;
+    const updates = buildTaskStatusUpdate(nuovoStato, statusOptions);
+    const { error } = await supabase.from("tasks").update(updates).eq("id", task.id);
     if (error) {
-      toast.error("Errore", { description: error.message });
+      toast.error("Stato non cambiato", { description: error.message });
       return;
     }
 
@@ -361,15 +446,16 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       userId: user?.id,
       taskId: task.id,
       taskTitle: task.title,
-      eventType: getTaskStatusEventType(task.status, nextStatus.value, statusOptions),
-      description: getTaskStatusTransitionDescription(task.status, nextStatus.value, statusOptions),
+      eventType: getTaskStatusEventType(task.status, nuovoStato, statusOptions),
+      description: getTaskStatusTransitionDescription(task.status, nuovoStato, statusOptions),
       changes: updates,
       beforeSnapshot: task,
       afterSnapshot: { ...task, ...updates },
     });
 
     // Task ricorrente completata → crea la prossima occorrenza
-    if (isTaskDoneStatus(nextStatus.value, statusOptions) && task.is_recurring && task.recurrence_rule && task.due_date) {
+    let occorrenzaCreataId: string | null = null;
+    if (isTaskDoneStatus(nuovoStato, statusOptions) && task.is_recurring && task.recurrence_rule && task.due_date) {
       const base = parseISO(task.due_date);
       let nextDue: Date;
       switch (task.recurrence_rule) {
@@ -382,7 +468,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       const endDate = task.recurrence_end_date ? parseISO(task.recurrence_end_date) : null;
       if (!endDate || nextDue <= endDate) {
         const { id: _id, created_at: _ca, updated_at: _ua, completed_at: _coa, ...rest } = task;
-        const { error: insErr } = await supabase.from("tasks").insert({
+        const { data: creata, error: insErr } = await supabase.from("tasks").insert({
           ...rest,
           status: "da_fare",
           due_date: format(nextDue, "yyyy-MM-dd"),
@@ -395,14 +481,109 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
           cost: undefined,
           contact: undefined,
           opportunity: undefined,
-        } as any);
+        } as any).select("id").single();
         if (insErr) toast.error("Errore creazione ricorrenza", { description: insErr.message });
+        else occorrenzaCreataId = (creata as { id: string } | null)?.id ?? null;
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
-    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+    invalidaTask();
+
+    const ripristina = async () => {
+      const indietro = { status: task.status, completed_at: task.completed_at ?? null };
+      const { error: errUndo } = await supabase.from("tasks").update(indietro).eq("id", task.id);
+      if (errUndo) { toast.error("Annullamento non riuscito", { description: errUndo.message }); return; }
+      if (occorrenzaCreataId) await supabase.from("tasks").delete().eq("id", occorrenzaCreataId);
+      await logTaskActivity({
+        companyId, userId: user?.id, taskId: task.id, taskTitle: task.title,
+        eventType: "task_status_changed",
+        description: `ha annullato il cambio di stato (di nuovo ${getTaskStatusLabel(task.status, statusOptions)})`,
+        changes: indietro, beforeSnapshot: { ...task, ...updates }, afterSnapshot: { ...task, ...indietro },
+      });
+      invalidaTask();
+      toast.success("Ripristinato", { description: `"${task.title}" è di nuovo ${getTaskStatusLabel(task.status, statusOptions)}` });
+    };
+    toast.success(`${isTaskDoneStatus(nuovoStato, statusOptions) ? "Completata" : getTaskStatusLabel(nuovoStato, statusOptions)}: ${task.title}`, {
+      duration: 8000,
+      action: { label: "Annulla", onClick: () => { void ripristina(); } },
+    });
   };
+
+  const handleToggleComplete = (task: any) =>
+    applicaStato(task, getNextTaskStatusForQuickAction(task.status, statusOptions).value);
+
+  /** Modifica di un campo singolo con toast; per la scadenza e la priorità dalla riga. */
+  const aggiornaCampo = async (task: any, updates: Record<string, unknown>, messaggio: string, campo: string) => {
+    const { error } = await supabase.from("tasks").update(updates).eq("id", task.id);
+    if (error) { toast.error("Modifica non salvata", { description: error.message }); return; }
+    await logTaskActivity({
+      companyId, userId: user?.id, taskId: task.id, taskTitle: task.title,
+      eventType: "task_updated", description: `ha modificato ${campo}`,
+      changes: updates, beforeSnapshot: task, afterSnapshot: { ...task, ...updates },
+    });
+    invalidaTask();
+    toast.success(messaggio);
+  };
+
+  const duplicaTask = async (task: any) => {
+    const copia = {
+      company_id: task.company_id ?? companyId,
+      title: `${task.title} (copia)`,
+      notes: task.notes ?? null,
+      status: statusOptions.find((s) => s.stage === "todo")?.value ?? "da_fare",
+      priority: task.priority ?? "normale",
+      due_date: task.due_date ?? null,
+      assigned_to: task.assigned_to ?? null,
+      order_id: task.order_id ?? null,
+      stock_item_id: task.stock_item_id ?? null,
+      cost_id: task.cost_id ?? null,
+      category: task.category ?? "generale",
+      contact_id: task.contact_id ?? null,
+      opportunity_id: task.opportunity_id ?? null,
+      ticket_id: task.ticket_id ?? null,
+      is_recurring: task.is_recurring ?? false,
+      recurrence_rule: task.recurrence_rule ?? null,
+      recurrence_end_date: task.recurrence_end_date ?? null,
+      estimated_hours: task.estimated_hours ?? null,
+      created_by: user?.id,
+      completed_at: null,
+    };
+    const { data, error } = await supabase.from("tasks").insert(copia as any).select("id").single();
+    if (error) { toast.error("Duplicazione non riuscita", { description: error.message }); return; }
+    const nuovoId = (data as { id: string } | null)?.id;
+    invalidaTask();
+    toast.success("Attività duplicata", {
+      description: copia.title,
+      action: nuovoId ? { label: "Annulla", onClick: () => { void supabase.from("tasks").delete().eq("id", nuovoId).then(() => invalidaTask()); } } : undefined,
+    });
+  };
+
+  const eliminaTask = async () => {
+    const task = taskToDelete;
+    if (!task) return;
+    setTaskToDelete(null);
+    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    if (error) { toast.error("Eliminazione non riuscita", { description: error.message }); return; }
+    if (selectedTask?.id === task.id) setSelectedTask(null);
+    invalidaTask();
+    toast.success("Attività eliminata", { description: task.title });
+  };
+
+  const costruisciAzioni = (task: any): AzioniRiga => ({
+    onChangeStatus: (status) => { void applicaStato(task, status); },
+    onChangePriority: (priority) => { void aggiornaCampo(task, { priority }, `Priorità: ${priority}`, "la priorità"); },
+    onChangeDueDate: (date) => { void aggiornaCampo(task, { due_date: date }, date ? `Scadenza: ${format(parseISO(date), "d MMM yyyy", { locale: it })}` : "Scadenza rimossa", "la scadenza"); },
+    onAssignToMe: user?.id && task.assigned_to !== user.id
+      ? () => { void aggiornaCampo(task, { assigned_to: user.id }, "Assegnata a te", "l'assegnatario"); }
+      : undefined,
+    onDuplicate: () => { void duplicaTask(task); },
+    onPostpone: (giorni) => {
+      const base = task.due_date ? parseISO(String(task.due_date).slice(0, 10)) : startOfDay(new Date());
+      const nuova = format(addDays(base, giorni), "yyyy-MM-dd");
+      void aggiornaCampo(task, { due_date: nuova }, `Rimandata al ${format(parseISO(nuova), "d MMM yyyy", { locale: it })}`, "la scadenza");
+    },
+    onDelete: () => setTaskToDelete(task),
+  });
 
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
@@ -489,7 +670,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca attività..."
+                  ref={ricercaRef}
+                  placeholder="Cerca attività...  (tasto /)"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   className="pl-9 h-9"
@@ -652,7 +834,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               />
             ) : (
               <>
-                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} />
+                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
                 <Card>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <div className="overflow-x-auto">
@@ -663,18 +845,19 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                             <TableHead className="w-10">
                               <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
                             </TableHead>
-                            <TableHead>Titolo</TableHead>
-                            <TableHead>Assegnatario</TableHead>
+                            <TableHead>{intestazione("title", "Titolo")}</TableHead>
+                            <TableHead>{intestazione("assignee", "Assegnatario")}</TableHead>
                             <TableHead>Collegamento</TableHead>
                             <TableHead>Categoria</TableHead>
-                            <TableHead>Priorità</TableHead>
-                            <TableHead>Scadenza</TableHead>
-                            <TableHead>Stato</TableHead>
+                            <TableHead>{intestazione("priority", "Priorità")}</TableHead>
+                            <TableHead>{intestazione("due_date", "Scadenza")}</TableHead>
+                            <TableHead>{intestazione("status", "Stato")}</TableHead>
+                            <TableHead className="w-10" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                            {filteredTasks.map((task) => (
+                          <SortableContext items={sortedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {sortedTasks.map((task) => (
                               <SortableTaskRow
                                 key={task.id}
                                 task={task}
@@ -684,6 +867,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                                 onToggleComplete={() => handleToggleComplete(task)}
                                 dragDisabled={isDragDisabled}
                                 statusOptions={statusOptions}
+                                azioni={costruisciAzioni(task)}
                               />
                             ))}
                           </SortableContext>
@@ -697,6 +881,19 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
           </div>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!taskToDelete} onOpenChange={(o) => { if (!o) setTaskToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{taskToDelete?.title}"?</AlertDialogTitle>
+            <AlertDialogDescription>Commenti, checklist e cronologia dell'attività vengono eliminati. Questa azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { void eliminaTask(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TaskDialog
         open={dialogOpen}

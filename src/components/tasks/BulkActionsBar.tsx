@@ -12,14 +12,36 @@ interface BulkActionsBarProps {
   selectedIds: Set<string>;
   onClear: () => void;
   statusOptions?: TaskStatusDefinition[];
+  /** Le attività caricate: servono per ricordare gli stati precedenti e offrire "Annulla". */
+  tasks?: Array<{ id: string; status?: string | null; completed_at?: string | null }>;
 }
 
-export function BulkActionsBar({ selectedIds, onClear, statusOptions = [] }: BulkActionsBarProps) {
+export function BulkActionsBar({ selectedIds, onClear, statusOptions = [], tasks = [] }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const count = selectedIds.size;
 
+  /** Riporta ogni attività al suo stato di prima (raggruppando per stato: poche query). */
+  const ripristinaStati = async (prima: Array<{ id: string; status: string | null; completed_at: string | null }>) => {
+    const gruppi = new Map<string, { ids: string[]; status: string | null; completed_at: string | null }>();
+    for (const p of prima) {
+      const k = `${p.status ?? ""}|${p.completed_at ?? ""}`;
+      if (!gruppi.has(k)) gruppi.set(k, { ids: [], status: p.status, completed_at: p.completed_at });
+      gruppi.get(k)!.ids.push(p.id);
+    }
+    for (const g of gruppi.values()) {
+      const { error } = await supabase.from("tasks").update({ status: g.status ?? "da_fare", completed_at: g.completed_at } as any).in("id", g.ids);
+      if (error) { toast.error("Annullamento non riuscito", { description: error.message }); return; }
+    }
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    toast.success(prima.length === 1 ? "1 attività ripristinata" : `${prima.length} attività ripristinate`);
+  };
+
   const handleBulkComplete = async () => {
     const ids = Array.from(selectedIds);
+    const prima = ids.map((id) => {
+      const t = tasks.find((x) => x.id === id);
+      return { id, status: t?.status ?? null, completed_at: t?.completed_at ?? null };
+    });
     const doneStatus = statusOptions.find((status) => status.stage === "done")?.value || "completata";
     const { error } = await supabase
       .from("tasks")
@@ -28,7 +50,10 @@ export function BulkActionsBar({ selectedIds, onClear, statusOptions = [] }: Bul
     if (error) {
       toast.error("Errore", { description: error.message });
     } else {
-      toast.success(`${ids.length} attività completate`);
+      toast.success(ids.length === 1 ? "1 attività completata" : `${ids.length} attività completate`, {
+        duration: 8000,
+        action: { label: "Annulla", onClick: () => { void ripristinaStati(prima); } },
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       onClear();
     }
