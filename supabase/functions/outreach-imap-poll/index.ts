@@ -26,6 +26,7 @@ import { handleInboundReply } from "../_shared/outreach-reply-handler.ts";
 import { parseBounce, type BounceInfo } from "../_shared/outreach-bounce.ts";
 import { htmlToPlainText } from "../_shared/outreach-template.ts";
 import { shouldAutoPause } from "../_shared/outreach-dispatch-logic.ts";
+import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -146,6 +147,7 @@ Deno.serve(async (req) => {
   if (!authorized) return json({ error: "unauthorized" }, 401, cors);
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const avvio = new Date();
   const esito = { checked: 0, replies: 0, bounces: 0, ignored: 0, errors: [] as string[] };
   const conta = (r: "bounce" | "risposta" | "ignorato") => {
     if (r === "bounce") esito.bounces++; else if (r === "risposta") esito.replies++; else esito.ignored++;
@@ -235,8 +237,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (esito.errors.length) {
+      await alertOutreach(admin, {
+        chiave: "poll-risposte", tipo: "outreach_poll_errore", ogniOre: 6,
+        titolo: `Lettura risposte outreach: ${esito.errors.length} errori`,
+        testo: esito.errors.slice(0, 3).join(" · ").slice(0, 300),
+        url: "/admin/marketing?tab=deliverability",
+      });
+    }
+    await logRun(admin, "outreach-imap-poll", avvio, esito);
     return json(esito, 200, cors);
   } catch (e) {
+    await logRun(admin, "outreach-imap-poll", avvio, esito, e instanceof Error ? e.message : String(e));
     return json({ error: e instanceof Error ? e.message : String(e), ...esito }, 500, cors);
   }
 });

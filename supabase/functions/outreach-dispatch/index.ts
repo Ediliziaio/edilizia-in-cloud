@@ -23,7 +23,7 @@ import { assignSenders, dailyCapWithVariance, remainingToday, sentToday, type Se
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
-import { nextEmailStep, computeStepSchedule, applyJitter, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { nextEmailStep, computeStepSchedule, applyJitter, spostaFuoriWeekend, type SeqStep } from "../_shared/outreach-sequence.ts";
 import {
   isGraphSequence,
   entryNode,
@@ -37,9 +37,11 @@ import { channelForNodeType, planChannelSend, hasTemplate, orderTemplateParams, 
 import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreachChannelSend.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 import { lintEmail, puoPartire } from "../_shared/outreach-linter.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { buildFollowupHeaders, type SentStep } from "../_shared/outreach-threading.ts";
 import { pauseBetweenSendsMs } from "../_shared/outreach-spread.ts";
 import { sendViaNativeSender, isNativeProvider, getOauthAccessToken } from "../_shared/outreachMailboxSend.ts";
+import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -207,7 +209,7 @@ async function enqueuePlanned(
   const when = computeStepSchedule(baseAt, delayDays, delayHours);
   // Jitter umano: 2..90 min al SECONDO (non sul minuto tondo) → i follow-up non
   // partono tutti allo stesso minuto del tick. Finestra business applicata a valle.
-  const whenJ = applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 }).toISOString();
+  const whenJ = spostaFuoriWeekend(applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 })).toISOString();
   // Canale della riga = canale del nodo d'invio (email/whatsapp/sms). Le righe
   // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
   // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
@@ -315,7 +317,7 @@ async function advanceEnrollment(
   const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours);
   // Jitter umano: spalma il follow-up su 2..90 min al SECONDO così i passi successivi
   // non partono tutti allo stesso minuto del tick. La finestra di invio resta a valle.
-  const whenJ = applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 }).toISOString();
+  const whenJ = spostaFuoriWeekend(applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 })).toISOString();
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -715,6 +717,10 @@ Deno.serve(async (req) => {
   if (!isWithinSendWindow(now, sendWindow)) {
     return json({ ...result, note: "fuori finestra di invio" }, 200, cors);
   }
+  // Base dei link di tracking/disiscrizione: un dominio proprio (setting
+  // outreach_tracking_base_url, es. https://link.tuodominio.it) invece di
+  // *.supabase.co dentro ogni email da casella vera.
+  const trackingBase = String((await getPlatformSetting("outreach_tracking_base_url").catch(() => null)) || `${SUPABASE_URL}/functions/v1`).replace(/\/+$/, "");
 
   try {
     // 0-ter. REAPER — righe rimaste 'sending' oltre REAP_STUCK_MS sono orfane
@@ -788,12 +794,12 @@ Deno.serve(async (req) => {
         queue = r.data;
       }
     }
-    if (!queue || queue.length === 0) return json({ ...result, note: "coda vuota" }, 200, cors);
+    if (!queue || queue.length === 0) { await logRun(supabase, "outreach-dispatch", now, { ...result, note: "coda vuota" }); return json({ ...result, note: "coda vuota" }, 200, cors); }
 
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,sending_domain_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,connection_status,oauth_connection_id,signature")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     // Una casella in errore NON entra in rotazione: prima veniva scelta lo
@@ -814,6 +820,12 @@ Deno.serve(async (req) => {
             await supabase.from("outreach_sender_accounts")
               .update({ connection_error: `OAuth: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300), connection_checked_at: now.toISOString() })
               .eq("id", s.id);
+            await alertOutreach(supabase, {
+              chiave: `oauth:${s.id}`, tipo: "outreach_oauth_scaduto", ogniOre: 12,
+              titolo: `Casella ${s.email}: accesso Google/Microsoft scaduto`,
+              testo: "Il token OAuth non si rinnova: ricollega la casella da Impostazioni → Email, poi premi \"Testa\" nel pool.",
+              url: "/admin/impostazioni/mio-profilo?tab=email",
+            });
             continue;
           }
         } else if (s.provider === "smtp") {
@@ -822,14 +834,14 @@ Deno.serve(async (req) => {
       }
       senders.push(s);
     }
-    if (senders.length === 0) return json({ ...result, note: "nessuna casella attiva" }, 200, cors);
+    if (senders.length === 0) { await logRun(supabase, "outreach-dispatch", now, { ...result, note: "nessuna casella attiva" }); return json({ ...result, note: "nessuna casella attiva" }, 200, cors); }
 
     const senderById = new Map(senders.map((s) => [s.id, s]));
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
     // identità per brand (from_name / reply_to override) + firma e indirizzo footer
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address");
-    const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null }>();
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address,send_window");
+    const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null; send_window?: unknown }>();
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -943,6 +955,33 @@ Deno.serve(async (req) => {
       result.deferred += liberi.length - r.assignments.length;
     }
 
+    // Cap per DOMINIO (outreach_sending_domains.daily_cap): prima era solo
+    // decorativo. Somma degli invii di oggi delle caselle del dominio + quelli
+    // di questo giro; oltre il tetto le righe aspettano domani.
+    try {
+      const { data: doms } = await supabase.from("outreach_sending_domains").select("id,daily_cap");
+      const capDom = new Map<string, number>();
+      for (const d of (doms ?? []) as any[]) if (d.daily_cap != null && Number(d.daily_cap) > 0) capDom.set(d.id, Number(d.daily_cap));
+      if (capDom.size) {
+        const usato = new Map<string, number>();
+        for (const s of senders) if (s.sending_domain_id && capDom.has(s.sending_domain_id)) {
+          usato.set(s.sending_domain_id, (usato.get(s.sending_domain_id) ?? 0) + sentToday(s as SenderState, today));
+        }
+        const tenuti: typeof assignments = [];
+        for (const a of assignments) {
+          const dom = senderById.get(a.senderId)?.sending_domain_id as string | null | undefined;
+          if (dom && capDom.has(dom)) {
+            const u = usato.get(dom) ?? 0;
+            if (u >= (capDom.get(dom) ?? 0)) { result.deferred++; continue; }
+            usato.set(dom, u + 1);
+          }
+          tenuti.push(a);
+        }
+        assignments.length = 0;
+        assignments.push(...tenuti);
+      }
+    } catch { /* cap dominio best-effort */ }
+
     // Running total per casella, seminato dallo snapshot iniziale. Il contatore
     // viene scritto DOPO OGNI invio (non a fine tick): se il tick viene ucciso
     // dal timeout, i daily_sent già spediti non si perdono e il warm-up cap
@@ -1004,6 +1043,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Finestra di invio del BRAND (se impostata): fuori orario la riga aspetta.
+      {
+        const bw = sender.brand_id ? brandById.get(sender.brand_id)?.send_window : null;
+        if (bw && !isWithinSendWindow(now, parseSendWindow(bw))) { result.deferred++; continue; }
+      }
+
       // CLAIM ATOMICO (compare-and-swap): passiamo a 'sending' SOLO se la riga è
       // ancora 'queued'. `.select()` ritorna le righe effettivamente aggiornate:
       // se un altro run del dispatcher (cron sovrapposto / invocazione manuale)
@@ -1015,7 +1060,8 @@ Deno.serve(async (req) => {
       let capPrenotato = false;
       try {
         const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
-        const fromName = brand?.from_name || sender.display_name;
+        // Identita': la CASELLA vince sul brand (20 caselle non possono firmare tutte "Mario Rossi").
+        const fromName = sender.display_name || brand?.from_name;
         const from = fromName ? `${fromName} <${sender.email}>` : sender.email;
         // Caselle native: il Reply-To e' la casella stessa. Un reply_to di brand
         // esterno manderebbe le risposte dove il poll non guarda mai.
@@ -1031,7 +1077,8 @@ Deno.serve(async (req) => {
         // compliance/deliverability del cold. Serve il contatto (rid) per la soppressione.
         // ── CORPO scritto dall'utente (+ firma brand), SENZA footer ──────────
         let corpo = renderTemplate(item.body || "", vars, { seed });
-        if (brand?.signature) corpo += `<br><br>${renderTemplate(brand.signature, vars, { seed })}`;
+        const firma = sender.signature || brand?.signature;
+        if (firma) corpo += `<br><br>${renderTemplate(firma, vars, { seed })}`;
         const testoCorpo = htmlToPlainText(corpo);
 
         // ── THREADING: i follow-up restano nel thread del primo messaggio ──
@@ -1064,7 +1111,7 @@ Deno.serve(async (req) => {
         let unsubscribeUrl: string | undefined;
         if (item.contact_id) {
           unsubscribeUrl = await appendTrackingSig(
-            `${SUPABASE_URL}/functions/v1/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
+            `${trackingBase}/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
             { co: PLATFORM_COMPANY, rid: item.contact_id, type: "unsub" },
           );
         }
@@ -1082,7 +1129,7 @@ Deno.serve(async (req) => {
         const trackOpens = seqIdForItem ? (trackOpensBySequence.get(seqIdForItem) ?? false) : false;
         const plainOnly = seqIdForItem ? (plainTextBySequence.get(seqIdForItem) ?? false) : false;
         if (trackOpens && !plainOnly) {
-          const pixelUrl = await outreachOpenPixelUrl(`${SUPABASE_URL}/functions/v1`, item.id);
+          const pixelUrl = await outreachOpenPixelUrl(trackingBase, item.id);
           if (pixelUrl) {
             html += `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;width:1px;height:1px;border:0;overflow:hidden" />`;
           } else {
@@ -1175,6 +1222,12 @@ Deno.serve(async (req) => {
             console.error(`[outreach-dispatch] GUASTO ACCOUNT su ${sender.email}: ${guastoAccount} — tick interrotto, coda preservata`);
             result.deferred++;
             result.providerBlocked = `${sender.email}: ${guastoAccount}`;
+            await alertOutreach(supabase, {
+              chiave: `casella:${sender.id}`, tipo: "outreach_casella_errore",
+              titolo: `Casella outreach in errore: ${sender.email}`,
+              testo: `${guastoAccount.slice(0, 160)} — il giro si e' fermato, la coda e' intatta. Apri Deliverability e usa "Testa" o ricollega la casella.`,
+              url: "/admin/marketing?tab=deliverability",
+            });
             break;
           }
           // Recapito rifiutato (soppresso, hard fail): non ritentare E fermare l'iscrizione.
@@ -1241,8 +1294,9 @@ Deno.serve(async (req) => {
     // I contatori giornalieri delle caselle sono già scritti per-invio nel loop
     // (sopravvivono al timeout del tick): niente flush finale da fare qui.
 
-    return json(result, 200, cors);
+    { await logRun(supabase, "outreach-dispatch", now, result); return json(result, 200, cors); }
   } catch (e) {
+    await logRun(supabase, "outreach-dispatch", now, result, e instanceof Error ? e.message : String(e));
     return json({ error: e instanceof Error ? e.message : String(e) }, 500, cors);
   }
 });

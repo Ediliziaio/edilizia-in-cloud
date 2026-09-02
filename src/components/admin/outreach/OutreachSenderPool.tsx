@@ -64,6 +64,7 @@ interface Sender {
   connection_status?: string | null; connection_error?: string | null;
   smtp_host?: string | null; bounce_count?: number | null; complaint_count?: number | null;
   oauth_connection_id?: string | null; warmup_base?: number | null; warmup_step?: number | null;
+  signature?: string | null;
 }
 
 const BASE = 5;
@@ -641,6 +642,18 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [editingCap, setEditingCap] = useState(false);
+  // identita' della casella (nome mittente + firma): precedenza sul brand
+  const [editIdent, setEditIdent] = useState(false);
+  const [nomeDraft, setNomeDraft] = useState(casella.display_name ?? "");
+  const [firmaDraft, setFirmaDraft] = useState(casella.signature ?? "");
+  const [savingIdent, setSavingIdent] = useState(false);
+  async function saveIdent() {
+    setSavingIdent(true);
+    const { error } = await db.from(T_SENDERS).update({ display_name: nomeDraft.trim() || null, signature: firmaDraft.trim() || null }).eq("id", casella.id);
+    setSavingIdent(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Identita' della casella salvata"); setEditIdent(false); onChange();
+  }
   const [capDraft, setCapDraft] = useState(String(casella.daily_cap_target));
   const [savingCap, setSavingCap] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -727,6 +740,26 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
           <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> <span className="truncate">{casella.connection_error}</span>
         </p>
       )}
+
+      {/* identita' per casella: nome mittente e firma (precedenza sul brand) */}
+      <div className="mt-2">
+        {editIdent ? (
+          <div className="space-y-1.5 rounded-md border bg-muted/30 p-2">
+            <Input value={nomeDraft} onChange={(e) => setNomeDraft(e.target.value)} placeholder="Nome mittente (es. Marco Rossi)" className="h-7 text-xs" />
+            <Textarea value={firmaDraft} onChange={(e) => setFirmaDraft(e.target.value)} rows={2} placeholder="Firma di questa casella (vuota = firma del brand)" className="text-xs" />
+            <div className="flex justify-end gap-1">
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditIdent(false)}>Annulla</Button>
+              <Button size="sm" className="h-6 px-2 text-xs" disabled={savingIdent} onClick={saveIdent}>{savingIdent ? "…" : "Salva"}</Button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => { setNomeDraft(casella.display_name ?? ""); setFirmaDraft(casella.signature ?? ""); setEditIdent(true); }}
+            className="group inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground" title="Nome mittente e firma di questa casella">
+            {casella.display_name ? `Mittente: ${casella.display_name}` : "Mittente: nome del brand"}{casella.signature ? " · firma propria" : ""}
+            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100" />
+          </button>
+        )}
+      </div>
 
       {/* metriche: warm-up + inviate oggi + salute */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1.4fr_1fr_auto] sm:items-end">

@@ -142,6 +142,15 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     }
   }
 
+  // 4-ter. "Non interessato": cooldown di 6 mesi. Prima restava contattabile
+  // e la campagna successiva lo riprendeva dopo 90 giorni.
+  if (intent === "not_interested" && r.contactId) {
+    try {
+      await admin.from("marketing_contacts")
+        .update({ ricontatta_dopo: new Date(Date.now() + 183 * 86_400_000).toISOString() }).eq("id", r.contactId);
+    } catch { /* colonna assente pre-migrazione */ }
+  }
+
   // 4. Se l'AI ha capito "unsubscribe", opt-out del contatto e blocklist.
   if (intent === "unsubscribe") {
     if (r.contactId) {

@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { firstEmailStep, nonEmailStepCount, computeStepSchedule, type SeqStep } from "../_shared/outreach-sequence.ts";
 import { effectiveDailyCap } from "../_shared/outreach-dispatch-logic.ts";
 import { spreadFirstTouch } from "../_shared/outreach-spread.ts";
+import { isPecEmail, isRoleEmail, domainOf, domainHasMx } from "../_shared/outreach-email-check.ts";
 
 /**
  * outreach-enroll — il SUPER_ADMIN iscrive contatti a una sequenza cold.
@@ -24,6 +25,9 @@ interface ContactRow {
   id: string;
   email: string | null;
   optout_email: boolean | null;
+  province?: string | null;
+  city?: string | null;
+  ricontatta_dopo?: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -44,8 +48,16 @@ Deno.serve(async (req) => {
     const tag = typeof body?.tag === "string" && body.tag.trim() ? body.tag.trim() : "";
     const source = typeof body?.source === "string" && body.source.trim() ? body.source.trim() : "";
     const all = body?.scope === "all" || body?.all === true;
-    if (!contactIds.length && !tag && !source && !all) {
-      return errorResponse("Specifica chi iscrivere: contact_ids, tag, source oppure scope:'all'.", 400, corsH);
+    // Filtri ICP (facoltativi, combinabili con tag/source): provincia e citta'.
+    const filtri = (body?.filtri && typeof body.filtri === "object") ? body.filtri as Record<string, unknown> : {};
+    const provincia = typeof filtri.provincia === "string" ? filtri.provincia.trim() : "";
+    const citta = typeof filtri.citta === "string" ? filtri.citta.trim() : "";
+    // Qualita' indirizzi: di default fuori PEC, indirizzi generici (info@…) e domini senza MX.
+    const includiRole = body?.includi_role === true;
+    const includiPec = body?.includi_pec === true;
+    const verificaMx = body?.verifica_mx !== false;
+    if (!contactIds.length && !tag && !source && !all && !provincia && !citta) {
+      return errorResponse("Specifica chi iscrivere: contact_ids, tag, source, filtri (provincia/citta) oppure scope:'all'.", 400, corsH);
     }
 
     // 1. sequenza + step
@@ -75,13 +87,15 @@ Deno.serve(async (req) => {
     for (let from = 0; from < MAX_CONTACTS; from += PAGE) {
       let q = admin
         .from("marketing_contacts")
-        .select("id,email,optout_email")
+        .select("id,email,optout_email,province,city,ricontatta_dopo")
         .eq("company_id", PLATFORM_COMPANY)
         .order("id", { ascending: true })
         .range(from, Math.min(from + PAGE, MAX_CONTACTS) - 1);
       if (contactIds.length) q = q.in("id", contactIds);
       if (tag) q = q.contains("tags", [tag]);
       if (source) q = q.eq("source", source);
+      if (provincia) q = q.ilike("province", provincia);
+      if (citta) q = q.ilike("city", citta);
       const { data: pageRows, error: cErr } = await q;
       if (cErr) throw cErr;
       const rows = (pageRows ?? []) as ContactRow[];
@@ -98,6 +112,10 @@ Deno.serve(async (req) => {
       skipped_optout: 0,
       skipped_suppressed: 0,
       skipped_already: 0,
+      skipped_role: 0,
+      skipped_pec: 0,
+      skipped_no_mx: 0,
+      skipped_cooldown: 0,
       // lock multi-brand
       skipped_lock: 0,
       skipped_senza_azienda: 0,
@@ -125,11 +143,17 @@ Deno.serve(async (req) => {
 
     // 4. filtro
     const eligible: ContactRow[] = [];
+    const mxCache = new Map<string, boolean>();
+    const nowMs = Date.now();
     for (const c of contacts) {
       if (already.has(c.id)) { stats.skipped_already++; continue; }
       if (!c.email) { stats.skipped_no_email++; continue; }
       if (c.optout_email) { stats.skipped_optout++; continue; }
       if (suppressed.has(norm(c.email))) { stats.skipped_suppressed++; continue; }
+      if (c.ricontatta_dopo && Date.parse(c.ricontatta_dopo) > nowMs) { stats.skipped_cooldown++; continue; }
+      if (!includiPec && isPecEmail(c.email)) { stats.skipped_pec++; continue; }
+      if (!includiRole && isRoleEmail(c.email)) { stats.skipped_role++; continue; }
+      if (verificaMx && !(await domainHasMx(admin, domainOf(c.email), mxCache))) { stats.skipped_no_mx++; continue; }
       eligible.push(c);
     }
     if (eligible.length === 0) {

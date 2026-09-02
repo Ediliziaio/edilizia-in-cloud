@@ -48,6 +48,17 @@ export function nonEmailStepCount(steps: SeqStep[]): number {
  * Quando spedire uno step: base + delay (giorni + ore), mai nel passato.
  * La finestra di invio è applicata a valle dal dispatcher.
  */
+/**
+ * Se la data cade di sabato o domenica (fuso dato) la sposta al lunedi' alla
+ * stessa ora: un follow-up "dopo 3 giorni" che scade nel weekend non deve
+ * accumularsi e partire a raffica alle 8 di lunedi' insieme a tutti gli altri.
+ */
+export function spostaFuoriWeekend(d: Date, timeZone = "Europe/Rome"): Date {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(d);
+  const salto = wd === "Sat" ? 2 : wd === "Sun" ? 1 : 0;
+  return salto ? new Date(d.getTime() + salto * 86_400_000) : d;
+}
+
 export function computeStepSchedule(base: Date, delayDays?: number | null, delayHours?: number | null): Date {
   const d = Math.max(0, Math.trunc(delayDays ?? 0));
   const h = Math.max(0, Math.trunc(delayHours ?? 0));

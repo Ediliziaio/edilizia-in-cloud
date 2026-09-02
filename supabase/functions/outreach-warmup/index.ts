@@ -16,7 +16,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { isNativeProvider, sendViaNativeSender } from "../_shared/outreachMailboxSend.ts";
-import { warmupTargetForDay, buildWarmupPairs, type WarmupBox } from "../_shared/outreach-warmup.ts";
+import { warmupTargetForDay, buildWarmupPairs, warmupMessage, warmupReply, type WarmupBox } from "../_shared/outreach-warmup.ts";
+import { engageMailbox } from "../_shared/outreachWarmupEngage.ts";
+import { logRun } from "../_shared/outreachAlert.ts";
 import { selectReplyIndexes } from "../_shared/outreach-warmup-engage.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -24,13 +26,6 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
-const SUBJECTS = ["Due parole", "Come va?", "Aggiornamento veloce", "Ci sentiamo", "Un saluto"];
-const BODIES = [
-  "Ciao, volevo solo restare in contatto. Buona giornata!",
-  "Tutto bene da queste parti, ci aggiorniamo presto.",
-  "Grazie del confronto dell'altra volta, a presto.",
-  "Ti scrivo per tenere viva la conversazione. A presto!",
-];
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -44,19 +39,21 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0, replied: 0 };
+  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0, replied: 0, spam_recuperate: 0, lette: 0, engage_errori: [] as string[] };
   const REPLY_RATE = 0.4; // frazione di email di warm-up che riceve una risposta
 
   try {
     const { data: raw, error } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,email,display_name,warmup_day,status,warmup_started_on,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,oauth_connection_id")
+      .select("id,email,display_name,warmup_day,status,warmup_started_on,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref,oauth_connection_id,connection_status")
       .in("status", ["active", "warming"]);
     if (error) throw error;
 
-    // Le caselle SMTP proprie devono scaldare il LORO server (SPF/DKIM del dominio),
-    // non il provider marketing. Costruiamo l'override SMTP per casella (password in
-    // Vault). Cache per-ref così non ripetiamo la RPC per la stessa casella.
+    // Caselle in errore: non scaldano e non ricevono (un warm-up su una casella
+    // morta e' un bounce in piu').
+    const boxes = ((raw || []) as any[]).filter((b) => b.connection_status !== "error");
+    result.boxes = boxes.length;
+
     const secretCache = new Map<string, string | null>();
     const mailboxFor = async (box: any) => {
       if (!box || box.provider !== "smtp" || !box.secret_ref || !box.smtp_host || !box.smtp_port) return undefined;
@@ -69,95 +66,99 @@ Deno.serve(async (req) => {
       if (!pwd) return undefined;
       return { host: box.smtp_host, port: box.smtp_port, secure: box.smtp_secure ?? true, username: box.smtp_username ?? box.email, password: pwd };
     };
-    const boxes = (raw || []) as any[];
-    result.boxes = boxes.length;
-    if (boxes.length < 2) return json({ ...result, note: "pool troppo piccolo per il warm-up" }, 200, cors);
 
-    // avanza warmup_day in base a warmup_started_on (o inizializza la casella)
-    for (const b of boxes) {
-      if (!b.warmup_started_on) {
-        await supabase.from("outreach_sender_accounts").update({ warmup_started_on: today, warmup_day: 0 }).eq("id", b.id);
-        b.warmup_day = 0;
-      } else {
-        const day = Math.max(0, Math.floor((now.getTime() - new Date(b.warmup_started_on).getTime()) / 86400000));
-        if (day !== b.warmup_day) {
-          await supabase.from("outreach_sender_accounts").update({ warmup_day: day }).eq("id", b.id);
-          b.warmup_day = day;
+    // Un invio: casella nativa dal suo provider, altrimenti provider marketing.
+    const invia = async (box: any, to: string, subject: string, body: string, opts: { inReplyTo?: string | null; references?: string[]; meta: Record<string, unknown> }) => {
+      if (isNativeProvider(box.provider)) {
+        const r = await sendViaNativeSender(supabase, box, {
+          companyId: PLATFORM_COMPANY, to, subject, html: `<p>${body}</p>`, text: body,
+          fromName: box.display_name ?? null, replyTo: box.email,
+          inReplyTo: opts.inReplyTo ?? null, references: opts.references ?? [], metadata: opts.meta,
+        });
+        return { ok: r.ok, messageId: r.messageId };
+      }
+      const fromAddr = box.display_name ? `${box.display_name} <${box.email}>` : box.email;
+      const res = await sendEmailUnified({
+        companyId: PLATFORM_COMPANY, stream: "marketing", to, subject, html: `<p>${body}</p>`, text: body,
+        senderOverride: { from: fromAddr, replyTo: box.email, source: "outreach_warmup" },
+        mailboxOverride: await mailboxFor(box),
+        headers: opts.inReplyTo ? { "In-Reply-To": opts.inReplyTo, "References": (opts.references ?? [opts.inReplyTo]).join(" ") } : undefined,
+        metadata: opts.meta,
+      });
+      const ok = !(res && res.ok === false);
+      return { ok, messageId: ok ? (res?.providerMessageId ?? null) : null };
+    };
+
+    if (boxes.length >= 2) {
+      // avanza warmup_day in base a warmup_started_on (o inizializza la casella)
+      for (const b of boxes) {
+        if (!b.warmup_started_on) {
+          await supabase.from("outreach_sender_accounts").update({ warmup_started_on: today, warmup_day: 0 }).eq("id", b.id);
+          b.warmup_day = 0;
+        } else {
+          const day = Math.max(0, Math.floor((now.getTime() - new Date(b.warmup_started_on).getTime()) / 86400000));
+          if (day !== b.warmup_day) {
+            await supabase.from("outreach_sender_accounts").update({ warmup_day: day }).eq("id", b.id);
+            b.warmup_day = day;
+          }
         }
       }
-    }
 
-    const pairs = buildWarmupPairs(boxes as WarmupBox[], (b) => warmupTargetForDay(b.warmup_day));
-    result.pairs = pairs.length;
+      const pairs = buildWarmupPairs(boxes as WarmupBox[], (b) => warmupTargetForDay(b.warmup_day));
+      result.pairs = pairs.length;
+      const byId = new Map(boxes.map((b) => [b.id, b]));
+      // Message-ID e oggetto del giro: la "risposta" resta NEL THREAD.
+      const spediti = new Map<number, { messageId: string | null; subject: string }>();
+      let n = 0;
+      for (const p of pairs) {
+        const from = byId.get(p.fromId);
+        const { subject, body } = warmupMessage(n + now.getDate() * 3, Math.random);
+        n++;
+        try {
+          const r = await invia(from, p.toEmail, subject, body, { meta: { warmup: true, from_box: p.fromId, to_box: p.toId } });
+          if (r.ok) { result.sent++; spediti.set(n - 1, { messageId: r.messageId, subject }); } else result.failed++;
+        } catch { result.failed++; }
+      }
 
-    const byId = new Map(boxes.map((b) => [b.id, b]));
-    let n = 0;
-    for (const p of pairs) {
-      const from = byId.get(p.fromId);
-      const fromAddr = from?.display_name ? `${from.display_name} <${p.fromEmail}>` : p.fromEmail;
-      const subject = SUBJECTS[n % SUBJECTS.length];
-      const body = BODIES[n % BODIES.length];
-      n++;
-      try {
-        // Caselle native (gmail/outlook/smtp): dal LORO provider, cosi' si scalda
-        // la reputazione giusta; il resto via provider marketing come prima.
-        const res = from && isNativeProvider(from.provider)
-          ? await sendViaNativeSender(supabase, from, {
-              companyId: PLATFORM_COMPANY, to: p.toEmail, subject, html: `<p>${body}</p>`, text: body,
-              fromName: from.display_name ?? null, replyTo: p.fromEmail,
-              metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
-            })
-          : await sendEmailUnified({
-              companyId: PLATFORM_COMPANY,
-              stream: "marketing",
-              to: p.toEmail,
-              subject,
-              html: `<p>${body}</p>`,
-              // multipart/alternative: il corpo warm-up è già prosa, il plain è il body nudo.
-              text: body,
-              senderOverride: { from: fromAddr, replyTo: p.fromEmail, source: "outreach_warmup" },
-              mailboxOverride: await mailboxFor(from),
-              metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
-            });
-        if (res && res.ok === false) result.failed++; else result.sent++;
-      } catch {
-        result.failed++;
+      // engagement a due vie: chi ha ricevuto risponde nel thread a una frazione delle email
+      for (const idx of selectReplyIndexes(pairs.length, REPLY_RATE)) {
+        const p = pairs[idx];
+        const replier = byId.get(p.toId);
+        const orig = spediti.get(idx);
+        if (!orig) continue;
+        try {
+          const r = await invia(replier, p.fromEmail, `Re: ${orig.subject}`, warmupReply(), {
+            inReplyTo: orig.messageId && orig.messageId.startsWith("<") ? orig.messageId : null,
+            references: orig.messageId && orig.messageId.startsWith("<") ? [orig.messageId] : [],
+            meta: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
+          });
+          if (r.ok) result.replied++;
+        } catch { /* best effort */ }
       }
     }
 
-    // engagement a due vie: chi ha ricevuto risponde a una frazione delle email
-    // (segnale di reputazione forte, in uscita dal pool, senza IMAP)
-    for (const idx of selectReplyIndexes(pairs.length, REPLY_RATE)) {
-      const p = pairs[idx];
-      const replier = byId.get(p.toId);
-      const replierAddr = replier?.display_name ? `${replier.display_name} <${p.toEmail}>` : p.toEmail;
-      const origSubject = SUBJECTS[idx % SUBJECTS.length];
+    // Engagement REALE lato inbox (Gmail/Outlook via OAuth): le email di warm-up
+    // finite nello spam tornano in inbox e vengono segnate lette. E' cio' che
+    // insegna al provider che quel mittente e' gradito.
+    const poolEmails = boxes.map((b) => String(b.email).toLowerCase());
+    for (const b of boxes) {
+      if (!b.oauth_connection_id || !(b.provider === "gmail" || b.provider === "outlook")) continue;
       try {
-        const res = replier && isNativeProvider(replier.provider)
-          ? await sendViaNativeSender(supabase, replier, {
-              companyId: PLATFORM_COMPANY, to: p.fromEmail, subject: `Re: ${origSubject}`,
-              html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>", text: "Ricevuto, grazie! Ci sentiamo presto.",
-              fromName: replier.display_name ?? null, replyTo: p.toEmail,
-              metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
-            })
-          : await sendEmailUnified({
-              companyId: PLATFORM_COMPANY,
-              stream: "marketing",
-              to: p.fromEmail,
-              subject: `Re: ${origSubject}`,
-              html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
-              text: "Ricevuto, grazie! Ci sentiamo presto.",
-              senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
-              mailboxOverride: await mailboxFor(replier),
-              metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
-            });
-        if (!(res && res.ok === false)) result.replied++;
-      } catch { /* best effort */ }
+        const e = await engageMailbox(supabase, b, poolEmails);
+        result.spam_recuperate += e.recuperate;
+        result.lette += e.lette;
+        if (e.errore) result.engage_errori.push(`${b.email}: ${e.errore}`);
+      } catch (e) {
+        result.engage_errori.push(`${b.email}: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
 
-    return json(result, 200, cors);
+    await logRun(supabase, "outreach-warmup", now, result);
+    return json(boxes.length < 2 ? { ...result, note: "pool troppo piccolo per lo scambio, fatto solo l'engagement" } : result, 200, cors);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500, cors);
+    const msg = e instanceof Error ? e.message : String(e);
+    await logRun(supabase, "outreach-warmup", now, result, msg);
+    return json({ error: msg }, 500, cors);
   }
 });
 

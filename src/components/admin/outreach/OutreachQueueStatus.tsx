@@ -32,6 +32,14 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         db.from("outreach_send_queue").select("scheduled_for").eq("company_id", companyId).eq("status", "queued").order("scheduled_for", { ascending: true }).limit(1).maybeSingle(),
       ]);
       if (queued.error) throw queued.error;
+      // Ultimo giro per funzione (outreach_runs): dispatcher, poll risposte, warm-up.
+      let giri: Record<string, { at: string; esito: Record<string, unknown> | null; errore: string | null }> = {};
+      try {
+        const { data: runs } = await db.from("outreach_runs").select("funzione,started_at,esito,errore").order("started_at", { ascending: false }).limit(40);
+        for (const r of (runs ?? []) as Array<{ funzione: string; started_at: string; esito: Record<string, unknown> | null; errore: string | null }>) {
+          if (!giri[r.funzione]) giri[r.funzione] = { at: r.started_at, esito: r.esito, errore: r.errore };
+        }
+      } catch { giri = {}; }
       // Etichetta "prossimo invio" calcolata QUI (non in render: purezza) e
       // rinfrescata dal refetch 30s. Se scheduled_for è nel PASSATO i messaggi
       // sono già "pronti" e partono al prossimo tick nel limite del cap
@@ -55,6 +63,7 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         failed: failed.count ?? 0,
         active: active.count ?? 0,
         nextLabel,
+        giri,
       };
     },
   });
@@ -72,6 +81,7 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         <CardTitle className="flex items-center gap-2 text-base"><Send className="h-5 w-5 text-orange-500" /> Motore invii — oggi</CardTitle>
       </CardHeader>
       <CardContent>
+        <UltimiGiri giri={d.giri} />
         {idle ? (
           <p className="py-2 text-sm text-muted-foreground">
             Motore fermo: nessun invio in corso. Arruola una lista in una sequenza (scheda <strong>Sequenze</strong>) per avviare il flusso.
@@ -86,6 +96,34 @@ export function OutreachQueueStatus({ companyId }: { companyId: string }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const NOMI_GIRI: Array<[string, string]> = [["outreach-dispatch", "Invii"], ["outreach-imap-poll", "Risposte"], ["outreach-warmup", "Warm-up"]];
+function UltimiGiri({ giri }: { giri: Record<string, { at: string; esito: Record<string, unknown> | null; errore: string | null }> }) {
+  const righe = NOMI_GIRI.map(([k, label]) => ({ label, g: giri[k] })).filter((r) => r.g);
+  if (righe.length === 0) return null;
+  return (
+    <p className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <span className="font-medium text-foreground">Ultimo giro:</span>
+      {righe.map(({ label, g }) => {
+        let quando: string;
+        try { quando = formatDistanceToNow(new Date(g.at), { addSuffix: true, locale: it }); } catch { quando = g.at; }
+        const e = g.esito ?? {};
+        const dettaglio = [
+          e.sent != null ? `${e.sent} inviate` : null,
+          e.replies != null ? `${e.replies} risposte` : null,
+          e.bounces ? `${e.bounces} bounce` : null,
+          e.providerBlocked ? `BLOCCATO: ${String(e.providerBlocked).slice(0, 60)}` : null,
+          Array.isArray(e.errors) && e.errors.length ? `${e.errors.length} errori` : null,
+        ].filter(Boolean).join(", ");
+        return (
+          <span key={label} className={g.errore || e.providerBlocked ? "text-red-600" : ""}>
+            {label} {quando}{dettaglio ? ` (${dettaglio})` : ""}{g.errore ? ` — ${g.errore.slice(0, 60)}` : ""}
+          </span>
+        );
+      })}
+    </p>
   );
 }
 

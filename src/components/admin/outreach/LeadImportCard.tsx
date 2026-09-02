@@ -18,7 +18,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, RotateCcw, ArrowR
  * funziona da subito, nessuna migrazione richiesta.
  */
 
-type Field = "first_name" | "last_name" | "email" | "phone" | "company_name" | "notes";
+type Field = "first_name" | "last_name" | "email" | "phone" | "company_name" | "notes" | "city" | "province" | "website" | "vat_number";
 type Mapping = Partial<Record<Field, string>>;
 type CsvRow = Record<string, string>;
 
@@ -31,6 +31,10 @@ const FIELDS: { key: Field; label: string }[] = [
   { key: "email", label: "Email" },
   { key: "phone", label: "Telefono" },
   { key: "company_name", label: "Azienda" },
+  { key: "city", label: "Città" },
+  { key: "province", label: "Provincia" },
+  { key: "website", label: "Sito web" },
+  { key: "vat_number", label: "Partita IVA" },
   { key: "notes", label: "Note" },
 ];
 
@@ -41,6 +45,10 @@ const HINTS: Record<Field, string[]> = {
   phone: ["phone", "tel", "telefono", "cellulare", "mobile", "cell"],
   company_name: ["company", "azienda", "ragione", "ditta", "business", "società", "societa"],
   notes: ["note", "comment", "descrizione", "messaggio"],
+  city: ["city", "città", "citta", "comune", "località", "localita"],
+  province: ["province", "provincia", "prov", "sigla"],
+  website: ["website", "sito", "web", "url", "www"],
+  vat_number: ["vat", "p.iva", "piva", "partita", "iva", "cf/piva"],
 };
 
 function autoMap(headers: string[]): Mapping {
@@ -147,6 +155,10 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
         email: email || null,
         phone: phone || null,
         company_name: get("company_name") || null,
+        city: get("city") || null,
+        province: get("province").toUpperCase().slice(0, 4) || null,
+        website: get("website") || null,
+        vat_number: get("vat_number").replace(/\s+/g, "") || null,
         notes: get("notes") || null,
         tags: [tag],
         source: "csv_import",

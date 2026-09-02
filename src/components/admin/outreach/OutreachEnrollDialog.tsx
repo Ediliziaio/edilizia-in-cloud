@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Loader2, Users } from "lucide-react";
 
@@ -29,6 +30,12 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
   const [tag, setTag] = useState("");
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
+  // Filtri ICP e qualita' degli indirizzi
+  const [provincia, setProvincia] = useState("");
+  const [citta, setCitta] = useState("");
+  const [includiRole, setIncludiRole] = useState(false);
+  const [includiPec, setIncludiPec] = useState(false);
+  const [verificaMx, setVerificaMx] = useState(true);
 
   // tag e sorgenti disponibili (aggregazione client-side come la vista Liste)
   const facets = useQuery({
@@ -50,7 +57,7 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
   // conteggio contattabili per il target scelto (limite superiore: il backend
   // scarta poi opt-out/blocklist/già iscritti)
   const count = useQuery({
-    queryKey: ["enroll-count", companyId, mode, tag, source],
+    queryKey: ["enroll-count", companyId, mode, tag, source, provincia, citta],
     enabled: open && (mode === "all" || (mode === "tag" && !!tag) || (mode === "source" && !!source)),
     queryFn: async () => {
       let q = supabase
@@ -61,6 +68,8 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
         .not("email", "is", null);
       if (mode === "tag" && tag) q = q.contains("tags", [tag]);
       if (mode === "source" && source) q = q.eq("source", source);
+      if (provincia.trim()) q = q.ilike("province", provincia.trim());
+      if (citta.trim()) q = q.ilike("city", citta.trim());
       const { count: c } = await q;
       return c ?? 0;
     },
@@ -76,6 +85,10 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
       if (mode === "all") payload.scope = "all";
       else if (mode === "tag") payload.tag = tag;
       else if (mode === "source") payload.source = source;
+      if (provincia.trim() || citta.trim()) payload.filtri = { provincia: provincia.trim() || undefined, citta: citta.trim() || undefined };
+      payload.includi_role = includiRole;
+      payload.includi_pec = includiPec;
+      payload.verifica_mx = verificaMx;
       const { data, error } = await supabase.functions.invoke("outreach-enroll", { body: payload });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -86,6 +99,10 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
       if (data?.skipped_optout) skips.push(`${data.skipped_optout} opt-out`);
       if (data?.skipped_suppressed) skips.push(`${data.skipped_suppressed} in blocklist`);
       if (data?.skipped_no_email) skips.push(`${data.skipped_no_email} senza email`);
+      if (data?.skipped_role) skips.push(`${data.skipped_role} indirizzi generici (info@…)`);
+      if (data?.skipped_pec) skips.push(`${data.skipped_pec} PEC`);
+      if (data?.skipped_no_mx) skips.push(`${data.skipped_no_mx} domini senza posta`);
+      if (data?.skipped_cooldown) skips.push(`${data.skipped_cooldown} in cooldown (non interessati)`);
       if (enrolled > 0) {
         toast.success(`${enrolled} contatti iscritti a "${sequenceName}"`, {
           description: skips.length ? `Saltati: ${skips.join(", ")}.` : undefined,
@@ -160,6 +177,22 @@ export function OutreachEnrollDialog({ companyId, sequenceId, sequenceName, emai
                 </Select>
               </div>
             )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Provincia (sigla, facoltativa)</Label>
+                <Input value={provincia} onChange={(e) => setProvincia(e.target.value)} placeholder="es. MI" className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Città (facoltativa)</Label>
+                <Input value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="es. Milano" className="h-9" />
+              </div>
+            </div>
+            <div className="space-y-1 text-xs">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={verificaMx} onChange={(e) => setVerificaMx(e.target.checked)} /> Scarta i domini senza posta (controllo MX)</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={includiRole} onChange={(e) => setIncludiRole(e.target.checked)} /> Includi indirizzi generici (info@, amministrazione@…)</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={includiPec} onChange={(e) => setIncludiPec(e.target.checked)} /> Includi PEC (sconsigliato)</label>
+            </div>
 
             <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-2.5 text-sm">
               <Users className="h-4 w-4 shrink-0 text-muted-foreground" />

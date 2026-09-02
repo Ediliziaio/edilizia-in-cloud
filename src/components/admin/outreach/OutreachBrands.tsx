@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check } from "lucide-react";
+import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { FieldLabel } from "./deliverabilityUi";
 
@@ -21,6 +21,36 @@ const T = "outreach_brands";
 interface Brand {
   id: string; name: string; from_name: string | null; reply_to: string | null; status: string;
   signature: string | null; footer_address: string | null;
+  send_window?: Finestra | null;
+}
+/** Finestra di invio del brand (stesso formato del setting globale). 0=Dom … 6=Sab. */
+interface Finestra { days: number[]; startHour: number; endHour: number; timeZone: string }
+const GIORNI: Array<[number, string]> = [[1, "Lun"], [2, "Mar"], [3, "Mer"], [4, "Gio"], [5, "Ven"], [6, "Sab"], [0, "Dom"]];
+function descriviFinestra(f: Finestra | null | undefined): string {
+  if (!f) return "globale";
+  const g = GIORNI.filter(([n]) => f.days.includes(n)).map(([, l]) => l).join(" ");
+  return `${g || "nessun giorno"} · ${f.startHour}-${f.endHour}`;
+}
+function FinestraEditor({ value, onChange }: { value: Finestra | null; onChange: (v: Finestra | null) => void }) {
+  const f = value ?? { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 19, timeZone: "Europe/Rome" };
+  const attiva = value != null;
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={attiva} onChange={(e) => onChange(e.target.checked ? f : null)} /> Orari propri del brand (altrimenti finestra globale)</label>
+      {attiva && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input type="number" min={0} max={23} value={f.startHour} onChange={(e) => onChange({ ...f, startHour: Number(e.target.value) })} className="h-7 w-16 text-xs" aria-label="Dalle" />
+          <span className="text-xs text-muted-foreground">-</span>
+          <Input type="number" min={1} max={24} value={f.endHour} onChange={(e) => onChange({ ...f, endHour: Number(e.target.value) })} className="h-7 w-16 text-xs" aria-label="Alle" />
+          {GIORNI.map(([n, l]) => (
+            <button key={n} type="button" aria-pressed={f.days.includes(n)}
+              onClick={() => onChange({ ...f, days: f.days.includes(n) ? f.days.filter((x) => x !== n) : [...f.days, n] })}
+              className={`rounded border px-1.5 py-0.5 text-[11px] ${f.days.includes(n) ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"}`}>{l}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function OutreachBrands({ companyId }: { companyId: string }) {
@@ -31,6 +61,7 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
   const [replyTo, setReplyTo] = useState("");
   const [signature, setSignature] = useState("");
   const [footerAddress, setFooterAddress] = useState("");
+  const [finestra, setFinestra] = useState<Finestra | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
@@ -52,10 +83,19 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         company_id: companyId, name: name.trim(),
         from_name: fromName.trim() || null, reply_to: replyTo.trim() || null,
         signature: signature.trim() || null, footer_address: footerAddress.trim() || null,
+        send_window: finestra,
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setSignature(""); setFooterAddress(""); setShow(false); invalidate(); },
+    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setSignature(""); setFooterAddress(""); setFinestra(null); setShow(false); invalidate(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  const salvaFinestra = useMutation({
+    mutationFn: async ({ id, finestra: f }: { id: string; finestra: Finestra | null }) => {
+      const { error } = await db.from(T).update({ send_window: f }).eq("id", id); if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Orari del brand salvati"); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
@@ -114,6 +154,8 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
             <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Indirizzo (footer)</FieldLabel>
               <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-9" />
               <p className="text-[11px] text-muted-foreground">Indirizzo postale nel footer (obbligo anti-spam).</p></div>
+            <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Orari di invio</FieldLabel>
+              <FinestraEditor value={finestra} onChange={setFinestra} /></div>
           </div>
           <div className="mt-3 flex justify-end">
             <Button size="sm" className="h-9" disabled={add.isPending} onClick={() => add.mutate()}>{add.isPending ? "…" : "Salva brand"}</Button>
@@ -132,14 +174,16 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} />)}
+          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} onSalvaFinestra={(f) => salvaFinestra.mutate({ id: b.id, finestra: f })} />)}
         </div>
       )}
     </section>
   );
 }
 
-function BrandCard({ brand, onDelete, deleting }: { brand: Brand; onDelete: () => void; deleting: boolean }) {
+function BrandCard({ brand, onDelete, deleting, onSalvaFinestra }: { brand: Brand; onDelete: () => void; deleting: boolean; onSalvaFinestra: (f: Finestra | null) => void }) {
+  const [editOrari, setEditOrari] = useState(false);
+  const [finestra, setFinestra] = useState<Finestra | null>(brand.send_window ?? null);
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -162,6 +206,21 @@ function BrandCard({ brand, onDelete, deleting }: { brand: Brand; onDelete: () =
           {brand.signature
             ? <span className="line-clamp-2 whitespace-pre-line text-muted-foreground">{brand.signature}</span>
             : <span className="text-muted-foreground/70">non impostata</span>}
+        </Row>
+        <Row icon={Clock} label="Orari">
+          {editOrari ? (
+            <div className="space-y-1.5">
+              <FinestraEditor value={finestra} onChange={setFinestra} />
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setFinestra(brand.send_window ?? null); setEditOrari(false); }}>Annulla</Button>
+                <Button size="sm" className="h-6 px-2 text-xs" onClick={() => { onSalvaFinestra(finestra); setEditOrari(false); }}>Salva</Button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="text-left hover:underline" onClick={() => setEditOrari(true)} title="Modifica gli orari di invio del brand">
+              {descriviFinestra(brand.send_window)}
+            </button>
+          )}
         </Row>
         <Row icon={MapPin} label="Footer">
           {brand.footer_address

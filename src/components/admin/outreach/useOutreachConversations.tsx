@@ -599,9 +599,17 @@ export function useOutreachConversations(companyId: string) {
         .update({ intent, intent_confidence: 1 })
         .eq("id", last.id);
       if (error) throw error;
+      // "Non interessato" = cooldown di 6 mesi: l'arruolamento lo salta finche'
+      // non scade. Prima restava contattabile alla campagna successiva.
+      if (intent === "not_interested") {
+        const { error: e2 } = await db.from("marketing_contacts")
+          .update({ ricontatta_dopo: new Date(Date.now() + 183 * 86_400_000).toISOString() })
+          .eq("id", contactId);
+        if (e2) throw e2;
+      }
     },
-    onSuccess: () => {
-      toast.success("Intento aggiornato");
+    onSuccess: (_d, v) => {
+      toast.success(v.intent === "not_interested" ? "Segnato non interessato: non verrà ricontattato per 6 mesi" : "Intento aggiornato");
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
