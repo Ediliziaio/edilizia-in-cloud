@@ -3,7 +3,7 @@
  *
  * Endpoints:
  *   POST  /functions/v1/outlook-calendar-auth?action=start       → { url }
- *   GET   /functions/v1/outlook-calendar-auth?action=callback    → HTML postMessage
+ *   GET   /functions/v1/outlook-calendar-auth?code=…&state=…    → callback (URL registrato in Azure SENZA query)
  *   POST  /functions/v1/outlook-calendar-auth?action=disconnect  → revoca
  *
  * Scopes: Calendars.ReadWrite offline_access User.Read
@@ -30,8 +30,12 @@ function admin() {
   );
 }
 
+// Azure NON accetta URL di reindirizzamento con una query string: il vecchio
+// `?action=callback` faceva fallire la registrazione dell'app. L'URL registrato
+// e' quindi nudo, e il ritorno si riconosce dai parametri che Microsoft
+// aggiunge da solo (code/state, oppure error).
 async function getRedirectUri(): Promise<string> {
-  return `${Deno.env.get("SUPABASE_URL")!}/functions/v1/outlook-calendar-auth?action=callback`;
+  return `${Deno.env.get("SUPABASE_URL")!}/functions/v1/outlook-calendar-auth`;
 }
 
 async function getCredentials() {
@@ -232,7 +236,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+  const sp = url.searchParams;
+  // Callback = c'e' `code` (o `error`) di Microsoft; `action=callback` resta
+  // accettato per compatibilita' con eventuali link vecchi.
+  const action = sp.get("action") ?? ((sp.has("code") || sp.has("error")) ? "callback" : null);
 
   if (action === "callback") return handleCallback(req);
 
