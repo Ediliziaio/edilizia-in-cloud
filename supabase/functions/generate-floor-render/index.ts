@@ -14,6 +14,8 @@ import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectFloorReferenceImages } from "../../../shared/render-references/floorReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
@@ -559,6 +561,26 @@ Use short values. Do not describe a renovation.`;
         lvl: "warn", fn: "generate-floor-render", session_id,
         msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
       }));
+    }
+
+    // RIFERIMENTI CONDIVISI (libreria uguale per tutti: tipo e tessitura reali).
+    // Entrano solo negli slot lasciati liberi dal catalogo dell'azienda: al
+    // massimo 4 immagini in tutto, e la foto del prodotto dell'azienda vince.
+    try {
+      const refsCondivise = collectFloorReferenceImages((activeConfig ?? {}) as Record<string, unknown>);
+      const slotLiberi = 4 - catalogReferences.length;
+      if (refsCondivise.length > 0 && slotLiberi > 0) {
+        const fetched = await fetchSharedReferenceImages(
+          refsCondivise.slice(0, slotLiberi),
+          (entry) => console.log(JSON.stringify({ fn: "generate-floor-render", session_id, ...entry })),
+        );
+        if (fetched.references.length > 0) {
+          catalogReferences = [...catalogReferences, ...fetched.references];
+          fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+        }
+      }
+    } catch (refErr) {
+      console.warn(JSON.stringify({ lvl: "warn", fn: "generate-floor-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
     }
 
     let renderResult: Awaited<ReturnType<typeof generateCandidate>>;

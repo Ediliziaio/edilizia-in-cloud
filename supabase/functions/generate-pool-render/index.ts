@@ -16,6 +16,9 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectPoolReferenceImages } from "../../../shared/render-references/outdoorReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 
 const POOL_TYPE: Record<string, string> = {
@@ -970,6 +973,7 @@ Deno.serve(async (req) => {
       const PISCINE_BUDGET_MS = 140_000;
       const jobStartMs = Date.now();
       const jobElapsed = () => Date.now() - jobStartMs;
+      let sharedReferences: ImageReferenceInput[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = PISCINE_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
@@ -985,6 +989,7 @@ Deno.serve(async (req) => {
           timeoutMs: perAttemptTimeout,
           directProviderOnly: soloProviderDiretto,
           maxRetries: 0,
+          referenceImages: sharedReferences.length > 0 ? sharedReferences : undefined,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id,
@@ -1001,6 +1006,21 @@ Deno.serve(async (req) => {
       // pronto affamava il provider buono e faceva consegnare proprio quei quadrati.
       // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando ne
       // servivano ~60. Col diretto a budget pieno: 146s -> 58s e formato corretto.
+      // RIFERIMENTI CONDIVISI — foto reale del tipo scelto (Wikimedia Commons,
+      // crediti in public/render-references/CREDITS.md), con legenda DOPO la prosa.
+      try {
+        const refsCondivise = collectPoolReferenceImages((() => { const c = asRecord(session.config); const p = asRecord(c.piscina); return { operazione: c.operazione as string | undefined, tipo: p.tipo as string | undefined }; })());
+        if (refsCondivise.length > 0) {
+          const fetched = await fetchSharedReferenceImages(refsCondivise, (entry) => console.log(JSON.stringify({ fn: "generate-pool-render", session_id, ...entry })));
+          if (fetched.references.length > 0) {
+            sharedReferences = fetched.references;
+            finalProviderPrompt = `${finalProviderPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+          }
+        }
+      } catch (refErr) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-pool-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
+      }
+
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         providerResult = await generateCandidate(finalProviderPrompt, true);

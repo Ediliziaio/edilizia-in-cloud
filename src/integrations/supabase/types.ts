@@ -59916,57 +59916,6 @@ export type Database = {
           },
         ]
       }
-      render_catalog_assets: {
-        Row: {
-          altezza: number | null
-          attivo: boolean
-          bytes: number | null
-          categoria: string
-          company_id: string
-          created_at: string
-          created_by: string | null
-          descrizione: string | null
-          etichetta: string
-          id: string
-          larghezza: number | null
-          storage_path: string
-          updated_at: string
-          verticale: string
-        }
-        Insert: {
-          altezza?: number | null
-          attivo?: boolean
-          bytes?: number | null
-          categoria: string
-          company_id: string
-          created_at?: string
-          created_by?: string | null
-          descrizione?: string | null
-          etichetta: string
-          id?: string
-          larghezza?: number | null
-          storage_path: string
-          updated_at?: string
-          verticale: string
-        }
-        Update: {
-          altezza?: number | null
-          attivo?: boolean
-          bytes?: number | null
-          categoria?: string
-          company_id?: string
-          created_at?: string
-          created_by?: string | null
-          descrizione?: string | null
-          etichetta?: string
-          id?: string
-          larghezza?: number | null
-          storage_path?: string
-          updated_at?: string
-          verticale?: string
-        }
-        Relationships: []
-      }
       render_bagno_sessions: {
         Row: {
           analisi_bagno: Json | null

@@ -19,6 +19,8 @@ import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectBathroomReferenceImages } from "../../../shared/render-references/bathroomReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
@@ -726,6 +728,29 @@ Deno.serve(async (req) => {
         }));
       }
 
+      // RIFERIMENTI CONDIVISI (libreria uguale per tutti: tipo e tessitura reali).
+      // Entrano solo negli slot lasciati liberi dal catalogo dell'azienda: al
+      // massimo 4 immagini in tutto, e la foto del prodotto dell'azienda vince.
+      try {
+        const refsCondivise = collectBathroomReferenceImages((session.configurazione ?? {}) as Record<string, unknown>);
+        const slotLiberi = 4 - catalogReferences.length;
+        if (refsCondivise.length > 0 && slotLiberi > 0) {
+          const fetched = await fetchSharedReferenceImages(
+            refsCondivise.slice(0, slotLiberi),
+            (entry) => console.log(JSON.stringify({ fn: "generate-bathroom-render", session_id, ...entry })),
+          );
+          if (fetched.references.length > 0) {
+            catalogReferences = [...catalogReferences, ...fetched.references];
+            composedPrompt = `${composedPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+          }
+        }
+      } catch (refErr) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-bathroom-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
+      }
+
+      try {
+        await supabase.from("render_bagno_sessions").update({ prompt_usato: composedPrompt }).eq("id", session_id);
+      } catch (_saveErr) { /* non bloccare il render */ }
       let renderResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         renderResult = await generateCandidate(composedPrompt, true);

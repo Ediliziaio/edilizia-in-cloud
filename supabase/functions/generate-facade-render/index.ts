@@ -10,6 +10,9 @@ import {
   orientationFromDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectFacadeReferenceImages } from "../../../shared/render-references/facadeReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
@@ -237,6 +240,7 @@ async function renderWithProvider(params: {
    *  quadrato: su una facciata il quadrato costringe il modello a ricomporre
    *  l'edificio, e cambiano piani, finestre e prospettiva. */
   directProviderOnly?: boolean;
+  referenceImages?: ImageReferenceInput[];
 }): Promise<
   {
     imageData: string;
@@ -265,6 +269,7 @@ async function renderWithProvider(params: {
     timeoutMs: params.timeoutMs ?? 75_000,
     directProviderOnly: params.directProviderOnly ?? false,
     maxRetries: 0,
+    referenceImages: params.referenceImages && params.referenceImages.length > 0 ? params.referenceImages : undefined,
     metadata: {
       task_kind: "render_image_edit",
       company_id: params.companyId,
@@ -581,11 +586,28 @@ Deno.serve(async (req) => {
     // `requestSessionId` e' un `let` allargato a `string | null`: dentro una
     // closure TypeScript non puo' piu' fidarsi del controllo di non-nullita'
     // fatto sopra. Si fissa qui, dove il controllo e' ancora valido.
+    // RIFERIMENTI CONDIVISI — tessitura reale del rivestimento / finitura
+    // intonaco (Poly Haven CC0 + Wikimedia Commons, crediti in CREDITS.md).
+    let sharedReferences: ImageReferenceInput[] = [];
+    try {
+      const refsCondivise = collectFacadeReferenceImages(normalizedConfig.legacy_config as unknown as Record<string, unknown>);
+      if (refsCondivise.length > 0) {
+        const fetched = await fetchSharedReferenceImages(refsCondivise, (entry) => console.log(JSON.stringify({ fn: "generate-facade-render", session_id: requestSessionId, ...entry })));
+        if (fetched.references.length > 0) {
+          sharedReferences = fetched.references;
+          prompt = `${prompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+        }
+      }
+    } catch (refErr) {
+      console.warn(JSON.stringify({ lvl: "warn", fn: "generate-facade-render", session_id: requestSessionId, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
+    }
+
     const idSessione = requestSessionId;
     const primoTentativo = async () => {
       try {
         return await renderWithProvider({
           prompt,
+          referenceImages: sharedReferences,
           preparedUrl: prepared.url,
           width: dimensions?.width ?? undefined,
           height: dimensions?.height ?? undefined,
@@ -605,6 +627,7 @@ Deno.serve(async (req) => {
         }));
         return await renderWithProvider({
           prompt,
+          referenceImages: sharedReferences,
           preparedUrl: prepared.url,
           width: dimensions?.width ?? undefined,
           height: dimensions?.height ?? undefined,

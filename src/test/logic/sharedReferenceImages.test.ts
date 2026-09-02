@@ -62,3 +62,46 @@ describe("foto di riferimento condivise: tetto", () => {
     for (const t of tipi) expect(collectRoofReferenceImages({ tipo_manto: t }).length, t).toBeGreaterThan(0);
   });
 });
+
+import { BATHROOM_FOLDER, collectBathroomReferenceImages, listBathroomReferenceFilenames } from "../../../shared/render-references/bathroomReferences.ts";
+import { FLOOR_FOLDER, collectFloorReferenceImages, listFloorReferenceFilenames } from "../../../shared/render-references/floorReferences.ts";
+import { FACADE_FOLDER, collectFacadeReferenceImages, listFacadeReferenceFilenames } from "../../../shared/render-references/facadeReferences.ts";
+import { OUTDOOR_FOLDER, collectPergolaReferenceImages, collectPoolReferenceImages, listOutdoorReferenceFilenames } from "../../../shared/render-references/outdoorReferences.ts";
+
+describe("foto di riferimento condivise: bagno, pavimento, facciata, esterni", () => {
+  it("ogni file dichiarato esiste su disco", () => {
+    const mancanti = [
+      ...listBathroomReferenceFilenames().map((f) => join(BATHROOM_FOLDER, f)),
+      ...listFloorReferenceFilenames().map((f) => join(FLOOR_FOLDER, f)),
+      ...listFacadeReferenceFilenames().map((f) => join(FACADE_FOLDER, f)),
+      ...listOutdoorReferenceFilenames().map((f) => join(OUTDOOR_FOLDER, f)),
+    ].filter((rel) => !existsSync(join(RADICE, rel)));
+    expect(mancanti).toEqual([]);
+  });
+  it("bagno: doccia walk-in + effetto piastrelle, max 2, la doccia vince sulla vasca", () => {
+    const refs = collectBathroomReferenceImages({ sostituzione: { doccia: true, vasca: true, piastrelle_parete: true }, doccia: { attivo: true, tipo: "walk_in" }, vasca: { attivo: true, tipo: "freestanding_ovale" }, piastrelle_parete: { attivo: true, effetto: "marmo_carrara" } });
+    expect(refs.map((r) => r.label.split(" — ")[0])).toEqual(["SHOWER TYPE TARGET", "WALL TILE EFFECT TARGET"]);
+  });
+  it("bagno: niente sostituzioni → nessuna foto", () => {
+    expect(collectBathroomReferenceImages({ sostituzione: {}, doccia: { attivo: false, tipo: "walk_in" } })).toEqual([]);
+  });
+  it("pavimento: spina di pesce → posa + materiale (senza doppioni dello stesso file)", () => {
+    const refs = collectFloorReferenceImages({ tipo: "parquet_prefinito", pattern_posa: "spina_di_pesce" });
+    expect(refs).toHaveLength(2);
+    expect(refs[0].label).toMatch(/^LAYING PATTERN TARGET — spina_di_pesce/);
+    const gres = collectFloorReferenceImages({ tipo: "gres_porcellanato", effetto_visivo: "cemento", pattern_posa: "rettilineo_dritto" });
+    expect(gres).toHaveLength(1);
+    expect(gres[0].label).toMatch(/^FLOOR MATERIAL TARGET — gres_porcellanato \/ cemento/);
+  });
+  it("facciata: rivestimento prima della finitura intonaco; disattivi → niente", () => {
+    const refs = collectFacadeReferenceImages({ intonaco: { attivo: true, finitura: "graffiato_medio" }, rivestimento: { attivo: true, tipo: "clinker_rosso" } });
+    expect(refs.map((r) => r.label.split(" — ")[0])).toEqual(["CLADDING TARGET", "PLASTER FINISH TARGET"]);
+    expect(collectFacadeReferenceImages({ intonaco: { attivo: false, finitura: "liscio" }, rivestimento: { attivo: false, tipo: "clinker_rosso" } })).toEqual([]);
+  });
+  it("piscina: solo per nuova o sostituzione; pergola per tipo struttura", () => {
+    expect(collectPoolReferenceImages({ operazione: "add_new_pool", tipo: "infinity_pool" })[0].label).toMatch(/^POOL TYPE TARGET — infinity_pool/);
+    expect(collectPoolReferenceImages({ operazione: "change_coping_only", tipo: "infinity_pool" })).toEqual([]);
+    expect(collectPergolaReferenceImages({ tipo_struttura: "bioclimatica_addossata" })[0].label).toMatch(/^PERGOLA TYPE TARGET/);
+    expect(collectPergolaReferenceImages({ tipo_struttura: "boh" })).toEqual([]);
+  });
+});
