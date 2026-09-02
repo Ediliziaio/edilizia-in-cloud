@@ -105,3 +105,15 @@ describe("foto di riferimento condivise: bagno, pavimento, facciata, esterni", (
     expect(collectPergolaReferenceImages({ tipo_struttura: "boh" })).toEqual([]);
   });
 });
+
+describe("bagno: WC sospeso e stile mobile", () => {
+  it("sanitari sostituiti con WC sospeso → foto del WC (dopo doccia/vasca)", () => {
+    const refs = collectBathroomReferenceImages({ sostituzione: { sanitari: true }, sanitari: { attivo: true, azione_wc: "sostituisci", tipo_wc: "rimless_sospeso", azione_bidet: "mantieni" } });
+    expect(refs).toHaveLength(1);
+    expect(refs[0].label).toMatch(/^TOILET TYPE TARGET — rimless_sospeso/);
+  });
+  it("mobile a terra classico → foto dello stile; sospeso → nessuna (solo catalogo)", () => {
+    expect(collectBathroomReferenceImages({ sostituzione: { mobile_bagno: true }, vanity: { attivo: true, stile: "a_terra_classico" } })[0].label).toMatch(/^VANITY STYLE TARGET/);
+    expect(collectBathroomReferenceImages({ sostituzione: { mobile_bagno: true }, vanity: { attivo: true, stile: "sospeso_moderno" } })).toEqual([]);
+  });
+});

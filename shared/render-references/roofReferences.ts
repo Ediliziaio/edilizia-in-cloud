@@ -59,6 +59,14 @@ export const ROOF_COVERING_REFERENCES: Record<string, RoofReferenceEntry> = {
     overview: "Tetto-Lamiera-Aggraffata-Bianca-Casa.webp",
     texture: "zinc-titanium standing-seam roof: matte blue-grey patina, slim raised seams, folded eaves and ridge",
   },
+  guaina_bituminosa: {
+    detail: "Tetto-Piano-Guaina-Zavorra-Ghiaia.webp",
+    texture: "flat roof with bituminous membrane under gravel ballast, upstands and vents",
+  },
+  guaina_tpo: {
+    detail: "Tetto-Piano-Membrana-TPO-Bianca.webp",
+    texture: "flat roof with white TPO membrane, welded seams, clean matte surface",
+  },
   tegole_fotovoltaiche: {
     detail: "Tetto-Tegole-Fotovoltaiche-Integrate.webp",
     overview: "Tetto-Tegole-Fotovoltaiche-Shingle-Abbaino.webp",

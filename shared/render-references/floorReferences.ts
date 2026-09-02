@@ -30,6 +30,7 @@ export const FLOOR_MATERIAL_REFERENCES: Record<string, Entry> = {
   microcemento: { filename: "Pavimento-Cemento-Lisciato.webp", texture: "microcement: trowelled seamless surface with soft cloudy variations" },
   terrazzo_veneziano: { filename: "Pavimento-Terrazzo-Veneziano.webp", texture: "Venetian terrazzo: marble chips in a cement matrix, polished, seamless" },
   pietra_naturale: { filename: "Pavimento-Betonelle-Cemento.webp", texture: "natural stone slabs with slight surface variation and visible joints" },
+  cotto: { filename: "Pavimento-Cotto-Quadrotte.webp", texture: "terracotta square tiles with warm tonal variation and visible joints" },
 };
 
 /** Per effetto visivo (gres/ceramica): vince sul materiale generico. */
@@ -38,7 +39,7 @@ export const FLOOR_EFFECT_REFERENCES: Record<string, Entry> = {
   cemento: { filename: "Pavimento-Cemento-Piastrelle.webp", texture: "concrete-effect tiles, matte grey with fine trowel texture" },
   legno: { filename: "Pavimento-Parquet-Rettangolare.webp", texture: "wood-effect planks in staggered rows" },
   terrazzo: { filename: "Pavimento-Terrazzo-Veneziano.webp", texture: "terrazzo-effect tiles, stone chips in a matrix" },
-  cotto: { filename: "Pavimento-Betonelle-Cemento.webp", texture: "terracotta-look square tiles with warm variation" },
+  cotto: { filename: "Pavimento-Cotto-Quadrotte.webp", texture: "terracotta square tiles with warm tonal variation and visible joints" },
 };
 
 export interface FloorReferenceConfig { tipo?: string | null; effetto_visivo?: string | null; pattern_posa?: string | null }

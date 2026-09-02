@@ -22,8 +22,10 @@ export const PLASTER_FINISH_REFERENCES: Record<string, Entry> = {
 export const CLADDING_TYPE_REFERENCES: Record<string, Entry> = {
   clinker_rosso: { filename: "Facciata-Clinker-Rosso-Scuro.webp", texture: "dark red clinker brick cladding in running bond with recessed dark joints" },
   cotto_rosso: { filename: "Facciata-Mattoni-Rossi-Casa.webp", texture: "red terracotta brick facing, warm tone, regular courses" },
-  pietra_rustica: { filename: "Facciata-Pietra-Rustica-Muro.webp", texture: "rustic natural stone wall: irregular stones, thick mortar joints" },
-  splitface_grigio: { filename: "Facciata-Pietra-Rustica-Muro.webp", texture: "split-face grey stone cladding with rough faces in courses" },
+  pietra_rustica: { filename: "Facciata-Pietra-Rustica-Casa.webp", texture: "rustic natural stone cladding on a house: irregular warm stones, recessed mortar joints" },
+  splitface_grigio: { filename: "Facciata-Splitface-Grigio-Moderna.webp", texture: "split-face grey stone cladding on a modern house: rough faces, dry-stack look" },
+  travertino: { filename: "Facciata-Travertino-Lastre.webp", texture: "travertine slabs: beige stone with pitted surface and soft banding, tight joints" },
+  arenaria_beige: { filename: "Facciata-Travertino-Muro-Rockface.webp", texture: "beige rock-face sandstone/travertine cladding with split faces in courses" },
   marmo_bianco: { filename: "Facciata-Marmo-Bianco-Lastre.webp", texture: "light marble slabs with fine speckled veining, thin joints" },
 };
 

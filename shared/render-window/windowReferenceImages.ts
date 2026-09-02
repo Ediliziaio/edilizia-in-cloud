@@ -306,14 +306,15 @@ export function collectReferenceImages(
   push(resolveFrameColorRef(spec));
   push(resolveHandleRef(spec));
   if (!hasCompositionChange) {
+    // Traverso solo su richiesta esplicita (aggiungi/rimuovi): e' la modifica
+    // strutturale che l'utente ha chiesto, quindi entra PRIMA di nodo,
+    // profilo e cerniere — con il tetto di 4 immagini, messo dopo veniva
+    // tagliato (misurato: sessione d70970d2, 4 reference senza traverso).
+    push(resolveTraversoRef(readTraversoMode(config)));
     push(resolveNodeProfileRef(spec));
-    // Sezione reale del profilo: dopo il nodo (che decide la struttura a 2
-    // ante) e prima delle cerniere. E' un campione tagliato, non porta ante.
+    // Sezione reale del profilo: e' un campione tagliato, non porta ante.
     push(resolveProfileRef(spec));
     push(resolveHiddenHingesRef(spec));
-    // Traverso solo su richiesta esplicita (aggiungi/rimuovi): e' un'istruzione
-    // strutturale, viene prima di cassonetto e colore tapparella.
-    push(resolveTraversoRef(readTraversoMode(config)));
     push(resolveCassonettoRef(spec));
     push(resolveTapparellaColorRef(spec));
   }

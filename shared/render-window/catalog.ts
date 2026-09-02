@@ -586,7 +586,7 @@ export const WIZARD_CASS_MATERIALI = [
     label: "Alluminio coibentato",
     desc: "Cassonetto coibentato in alluminio.",
     icon: "🔲",
-    referenceImage: null,  // mancante
+    referenceImage: "Cassonetto-Esterno-Alluminio-Bianco.webp",
   },
   {
     id: "colore_custom",
