@@ -76,6 +76,14 @@ Camera angle: ${normalizedConfig.scene_analysis.cameraAngle}
 Lighting condition: ${normalizedConfig.scene_analysis.lightingCondition}
 Wall texture/color: ${normalizedConfig.scene_analysis.wallTexture} / ${normalizedConfig.scene_analysis.wallColor}
 Preserve anchors: ${normalizedConfig.scene_analysis.preserveRigidly.join(", ")}
+${
+    // La casella "mantieni accessori non target" del form era salvata nella
+    // config e non letta da nessuno: l'utente la spuntava e non cambiava nulla.
+    // Default true (il form la mostra spuntata).
+    normalizedConfig.legacy_config.mantieni_accessori_non_target === false
+      ? "Non-target accessories (hooks, brackets, lamps, cables, awnings, signs) around the target openings MAY be removed and the wall cleaned where they conflict with the new shutters."
+      : "Non-target accessories (hooks, brackets, lamps, cables, awnings, signs, drains) must stay EXACTLY as photographed: same position, same size, same finish. Do not remove, move or restyle them."
+  }
 
 ${bullets(normalizedConfig.scene_analysis.openings.map(describeOpening))}`;
 

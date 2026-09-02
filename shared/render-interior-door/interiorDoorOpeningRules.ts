@@ -34,7 +34,15 @@ export function buildInteriorDoorTargetOpeningMap(
   const wallSlidingFeasible = wallSliding && (wallSpace === "sufficiente" || wallSpace === "ampio");
   const wallSlidingNotFeasible = wallSliding && (wallSpace === "assente" || wallSpace === "ridotto");
   return {
-    targetDoorway: `${config.apertura.vano_target}: visible internal doorway in ${scene.doorwayPosition}`,
+    targetDoorway: [
+      `${config.apertura.vano_target}: visible internal doorway in ${scene.doorwayPosition}`,
+      config.apertura.rapporto_con_parete ? `wall relation: ${config.apertura.rapporto_con_parete}` : "",
+      config.apertura.rapporto_con_zoccolino ? `skirting relation: ${config.apertura.rapporto_con_zoccolino}` : "",
+      config.apertura.rapporto_con_soffitto ? `ceiling relation: ${config.apertura.rapporto_con_soffitto}` : "",
+      (config.apertura.interferenze_note ?? []).length > 0
+        ? `known interferences to respect: ${(config.apertura.interferenze_note ?? []).join("; ")}`
+        : "",
+    ].filter(Boolean).join(". "),
     openingLimits: [
       "left/right limits follow the existing visible doorway jambs or selected casing limits",
       "top limit follows existing head frame or selected full-height relation",

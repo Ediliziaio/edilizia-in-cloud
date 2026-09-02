@@ -23,7 +23,14 @@ export function buildSecurityDoorTargetOpeningMap(
   const sidelightFeasible = sidelightSelected && config.apertura.larghezza_apparente !== "stretta";
   const transomFeasible = transomSelected && config.apertura.altezza_apparente !== "bassa";
   return {
-    targetOpening: `${config.apertura.vano_target}: existing entrance doorway visible in ${scene.environmentType}`,
+    targetOpening: [
+      `${config.apertura.vano_target}: existing entrance doorway visible in ${scene.environmentType}`,
+      config.apertura.rapporto_con_parete ? `wall relation: ${config.apertura.rapporto_con_parete}` : "",
+      config.apertura.rapporto_con_pavimento ? `floor/threshold relation: ${config.apertura.rapporto_con_pavimento}` : "",
+      (config.apertura.interferenze_note ?? []).length > 0
+        ? `known interferences to respect: ${(config.apertura.interferenze_note ?? []).join("; ")}`
+        : "",
+    ].filter(Boolean).join(". "),
     openingPerimeter: "use the exact visible doorway perimeter as the installation boundary; do not move the opening",
     leafArea: "replace/refinish only the visible door leaf plane inside the existing opening",
     frameArea: "frame zone around the leaf, including visible jambs and head frame",

@@ -370,12 +370,19 @@ function buildPergolaPrompt(session: Record<string, unknown>) {
     );
   }
 
+  // La pagina invia `elementi_da_preservare` (lista scritta dal cliente:
+  // "non toccare l'ulivo a sinistra") e questa edge non la leggeva mai.
+  // Un campo raccolto e ignorato e' peggio di un campo assente.
+  const preservaUtente = Array.isArray(config.elementi_da_preservare)
+    ? (config.elementi_da_preservare as unknown[]).map((v) => String(v).trim()).filter(Boolean)
+    : text(config.elementi_da_preservare, "").split(/[,;\n]/).map((v) => v.trim()).filter(Boolean);
   const preserve = [
     "same house, facade, doors, windows and shutters unless explicitly targeted",
     "paving outside pergola footprint",
     "garden, pool, parapets, railings, walls, fences and neighboring buildings",
     "outdoor furniture unless explicitly changed",
     "sky, weather, camera angle, perspective, crop, image dimensions and orientation",
+    ...preservaUtente.map((v) => `USER-LISTED, must stay exactly as photographed: ${v}`),
   ];
 
   const blocks: Record<string, string> = {
