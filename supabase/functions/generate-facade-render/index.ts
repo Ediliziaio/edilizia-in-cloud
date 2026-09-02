@@ -13,6 +13,8 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { FACADE_REWRITER_PROFILE } from "../_shared/ai-provider/facadeRewriterProfile.ts";
 import { ensureFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
 
 import { normalizeFacciataSceneAnalysis } from "../../../shared/render-facciata/facciataSceneAnalysis.ts";
@@ -534,7 +536,44 @@ Deno.serve(async (req) => {
         normalizedConfig as unknown as Record<string, unknown>,
       );
 
-    const prompt = `${systemPrompt}\n\n${userPrompt}`;
+    let prompt = `${systemPrompt}\n\n${userPrompt}`;
+
+    // META-PROMPT REWRITER (stesso path di infissi, bagno, stanza, pavimento):
+    // prosa di 300-450 parole al posto di 8 000 caratteri di blocchi. Se
+    // fallisce o la prosa non nomina sistemi/piani/aperture/preservazione, si
+    // resta sui blocchi (fallback silenzioso, loggato).
+    try {
+      const meta = await rewriteDomainPrompt(
+        {
+          config: normalizedConfig,
+          metadata: {
+            task_kind: "render_prompt_rewrite",
+            company_id: typedSession.company_id,
+            session_id: requestSessionId,
+          },
+        },
+        FACADE_REWRITER_PROFILE,
+      );
+      if (meta) {
+        prompt = [
+          "You are an expert photorealistic Italian facade-renovation render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+          meta.userPrompt,
+          "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, added or moved storeys/openings, swatch rectangles, invented objects.",
+        ].join("\n\n");
+        console.log(JSON.stringify({
+          lvl: "info", fn: "generate-facade-render", session_id: requestSessionId,
+          msg: "meta_prompt_active", rewriter_model: meta.modelUsed,
+          rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length,
+        }));
+      } else {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-facade-render", session_id: requestSessionId, msg: "meta_prompt_fallback_to_blocks" }));
+      }
+    } catch (e) {
+      console.warn(JSON.stringify({
+        lvl: "warn", fn: "generate-facade-render", session_id: requestSessionId,
+        msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e),
+      }));
+    }
     // Il primo tentativo va SOLO sul provider diretto, l'unico che riceve la
     // size come parametro vero. Il fallback resta come rete sull'errore: su una
     // facciata un quadrato non e' un dettaglio estetico, costringe il modello a
@@ -749,7 +788,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as th
         config: normalizedConfig,
         foto_analisi: normalizedConfig.scene_analysis,
         result_urls: [resultUrl],
-        prompt_used: userPrompt,
+        prompt_used: prompt,
         prompt_blocks: blocks,
         prompt_version: promptVersion,
         prompt_char_count: prompt.length,

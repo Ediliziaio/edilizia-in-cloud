@@ -15,6 +15,8 @@ import { editImage } from "../_shared/ai-provider/image.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
+import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
+import { FLOOR_REWRITER_PROFILE } from "../_shared/ai-provider/floorRewriterProfile.ts";
 import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
@@ -440,7 +442,45 @@ Use short values. Do not describe a renovation.`;
       normalizedConfig,
       validation,
     } = buildFloorPrompt(activeConfig, activeAnalysis, activePhotoMeta);
-    const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+    let fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+    // META-PROMPT REWRITER (stesso path di qualita' di infissi e bagno): un LLM
+    // testuale riscrive lo schema v2 in 300-450 parole di prosa, che i modelli
+    // immagine seguono meglio dei 7 700 caratteri di blocchi. Se fallisce o la
+    // prosa non nomina materiale/formato/giunti/preservazione, si resta sui
+    // blocchi (fallback silenzioso, loggato).
+    try {
+      const meta = await rewriteDomainPrompt(
+        {
+          config: normalizedConfig,
+          metadata: {
+            task_kind: "render_prompt_rewrite",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        },
+        FLOOR_REWRITER_PROFILE,
+      );
+      if (meta) {
+        fullPrompt = [
+          "You are an expert photorealistic Italian floor-replacement render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+          meta.userPrompt,
+          "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, swatch rectangles, invented objects, any change outside the floor.",
+        ].join("\n\n");
+        console.log(JSON.stringify({
+          lvl: "info", fn: "generate-floor-render", session_id,
+          msg: "meta_prompt_active", rewriter_model: meta.modelUsed,
+          rewriter_latency_ms: meta.latencyMs, prose_length: meta.userPrompt.length,
+        }));
+      } else {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-floor-render", session_id, msg: "meta_prompt_fallback_to_blocks" }));
+      }
+    } catch (e) {
+      console.warn(JSON.stringify({
+        lvl: "warn", fn: "generate-floor-render", session_id,
+        msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e),
+      }));
+    }
     const imageBlob = new Blob([
       originalImage.bytes.buffer.slice(
         originalImage.bytes.byteOffset,
