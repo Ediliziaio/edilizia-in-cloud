@@ -101,12 +101,12 @@ export function StatisticheTab() {
   }
 
   const kpis = [
-    { label: "Chiamate", value: analytics.chiamate.totali, icon: Phone, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Tasso Risposta", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Chat", value: analytics.chat.totali, icon: MessageSquare, color: "text-accent-foreground", bg: "bg-accent/50" },
-    { label: "Durata Media", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-accent-foreground", bg: "bg-accent/50" },
-    { label: "Crediti Usati", value: analytics.crediti.totale_consumato.toFixed(1), icon: CreditCard, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Agenti Attivi", value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-accent-foreground", bg: "bg-accent/50" },
+    { label: "Chiamate", value: analytics.chiamate.totali, icon: Phone, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Tasso Risposta", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Chat", value: analytics.chat.totali, icon: MessageSquare, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: "Durata Media", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: "Crediti Usati", value: analytics.crediti.totale_consumato.toFixed(1), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Agenti Attivi", value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
   ];
 
   const pieData = analytics.agenti.map((a) => ({

@@ -539,7 +539,7 @@ export default function DDTRicezioneList() {
       {/* ─── Filter pills + Search ─────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-        <div className="flex overflow-x-auto gap-1 p-0.5 rounded-lg bg-muted/50 scrollbar-none">
+        <div className="scrollbar-none flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-100 p-0.5">
           {FILTERS.map((f) => {
             const c = counts[f.key] ?? 0;
             const isActive = tab === f.key;

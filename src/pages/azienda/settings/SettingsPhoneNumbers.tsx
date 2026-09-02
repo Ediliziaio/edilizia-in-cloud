@@ -261,7 +261,7 @@ export default function SettingsPhoneNumbers() {
                         key={i}
                         onClick={() => { setSelectedNumber(num); setStep("confirm"); }}
                         className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-muted ${
-                          selectedNumber?.phone_number === num.phone_number ? "border-primary bg-muted" : "border-border"
+                          selectedNumber?.phone_number === num.phone_number ? "border-primary bg-primary/5 shadow-sm" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"
                         }`}
                       >
                         <div className="flex items-center justify-between">

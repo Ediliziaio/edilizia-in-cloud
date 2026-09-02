@@ -294,7 +294,7 @@ export default function MarketingDashboard() {
 
   if (!effectiveCompany?.id) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
         <LayoutDashboard className="h-12 w-12 text-muted-foreground/40 mb-4" />
         <h2 className="text-lg font-semibold text-muted-foreground">Nessuna azienda selezionata</h2>
         <p className="text-sm text-muted-foreground/70 mt-1">Seleziona un'azienda per visualizzare la dashboard</p>

@@ -591,7 +591,7 @@ function TemplateLibraryContent({
                       <button
                         key={s.id}
                         onClick={() => navigate(s.url)}
-                        className="group rounded-xl overflow-hidden border-2 border-transparent hover:border-primary hover:shadow-xl transition-all duration-200 text-left bg-white"
+                        className="group overflow-hidden rounded-xl border-2 border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:border-primary hover:shadow-xl"
                       >
                         <div className={cn(
                           "h-44 bg-gradient-to-br relative overflow-hidden flex items-center justify-center",
@@ -650,7 +650,7 @@ function TemplateLibraryContent({
                         <button
                           key={tpl.id}
                           onClick={() => onSelect(tpl)}
-                          className="group rounded-xl overflow-hidden border-2 border-transparent hover:border-primary hover:shadow-xl transition-all duration-200 text-left bg-white"
+                          className="group overflow-hidden rounded-xl border-2 border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:border-primary hover:shadow-xl"
                         >
                           <div className={cn(
                             "h-44 bg-gradient-to-br relative overflow-hidden flex items-center justify-center",
@@ -811,7 +811,7 @@ function NameDialog({
           {isAdmin && (
             <>
               <Separator />
-              <div className="rounded-xl bg-muted/40 p-4 flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <p className="text-sm font-medium leading-none">Dashboard privato</p>
                   <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">

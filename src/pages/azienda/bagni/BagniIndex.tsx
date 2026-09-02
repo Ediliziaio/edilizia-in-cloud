@@ -366,7 +366,7 @@ export default function BagniIndex() {
                     return (
                       <div
                         key={p.id}
-                        className="rounded-lg border bg-card p-3 space-y-2 cursor-pointer hover:bg-orange-50/30"
+                        className="rounded-lg border border-slate-200 bg-card p-3 space-y-2 shadow-sm cursor-pointer transition-shadow hover:border-orange-300 hover:bg-orange-50/30 hover:shadow"
                         onClick={() => navigate(`/azienda/bagni/${p.id}/modifica`)}
                       >
                         <div className="flex items-start justify-between gap-2">

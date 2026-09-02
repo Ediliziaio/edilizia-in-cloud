@@ -625,7 +625,7 @@ function ArticleDialog({
                     griglia: { title: "Griglia prezzi", desc: "Matrice larghezza × altezza con prezzi" },
                   };
                   return (
-                    <Card key={m} className={`cursor-pointer border-2 transition-colors ${modalita === m ? "border-primary" : "border-muted"}`}
+                    <Card key={m} className={`cursor-pointer border-2 transition-colors ${modalita === m ? "border-primary shadow-sm" : "border-slate-300 shadow-sm hover:border-primary/50"}`}
                       onClick={() => setModalita(m)}>
                       <CardContent className="p-3">
                         <div className="flex items-start gap-2">

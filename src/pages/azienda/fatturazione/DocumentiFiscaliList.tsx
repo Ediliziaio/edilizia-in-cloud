@@ -766,7 +766,7 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Table ──────────────────────────────────────── */}
       {isError ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14">
           <p className="text-sm text-muted-foreground">Errore nel caricamento dei documenti. Riprova.</p>
           <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
             {isFetching ? (
@@ -778,7 +778,7 @@ function DocumentiFiscaliListInner() {
           </Button>
         </div>
       ) : isLoading ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <div>
             <p className="text-sm font-medium text-slate-700">Caricamento documenti...</p>
@@ -800,7 +800,7 @@ function DocumentiFiscaliListInner() {
           )}
         </div>
       ) : docs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
           <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4" />
           <p className="text-lg font-medium">{currentTab.emptyTitle}</p>
           <p className="text-sm text-muted-foreground mt-1">

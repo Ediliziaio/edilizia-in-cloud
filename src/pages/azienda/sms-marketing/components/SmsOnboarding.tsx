@@ -195,7 +195,7 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
                 <button
                   key={n.numero_e164}
                   onClick={() => setNumeroSelezionato(n)}
-                  className={`w-full border rounded-lg p-3 text-left transition-colors hover:bg-muted/50 ${
+                  className={`w-full rounded-lg border border-slate-300 bg-white p-3 text-left shadow-sm transition-all hover:border-primary/60 hover:shadow ${
                     numeroSelezionato?.numero_e164 === n.numero_e164 ? "border-primary bg-primary/5" : ""
                   }`}
                 >

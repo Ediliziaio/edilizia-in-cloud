@@ -76,6 +76,25 @@
   }
 }
 
+/* ── Bordi dei <button>: la causa vera del "sembra tutto bianco" ──────────────
+   Il CSS critico inline in index.html (serve alla schermata di avvio, quindi
+   NON puo' stare in @layer) contiene `button{...border:0...}`: azzera anche lo
+   STILE del bordo, e quando lo stile e' `none` la larghezza calcolata resta 0
+   qualunque utility Tailwind si usi. Risultato: ogni scheda selezionabile resa
+   come <button> — tipi di agente, opzioni dei wizard render, chip dei filtri —
+   dichiarava un bordo che il browser non disegnava, e le scelte sembravano
+   testo appoggiato sulla pagina. Misurato: su Agenti AI 5 bottoni su 6 con
+   utility `border` avevano border-style: none e larghezza 0.
+
+   Qui ripristiniamo solo lo STILE, non la larghezza: i bottoni senza utility di
+   bordo restano senza bordo (larghezza 0 dal reset), quelli che ne dichiarano
+   uno finalmente lo mostrano. Regola non layerizzata e con specificita' 0-2-1,
+   cosi' vince sul reset `button` (0-0-1) indipendentemente dall'ordine di
+   caricamento. Stessa tecnica gia' usata qui sotto per i trigger dei Select. */
+button:not(.border-0):not(.border-none) {
+  border-style: solid;
+}
+
 /* ── Fix bordo trigger Select (Radix) ──────────────────────────────────────────
    I trigger dei Select sono <button>: il reset globale `button { border: 0 }`
    (non in @layer, quindi vince sulle utility Tailwind) ne azzerava il bordo,

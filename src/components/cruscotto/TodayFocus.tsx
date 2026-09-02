@@ -191,7 +191,7 @@ export function TodayFocus({ todayData, isLoading, dateFrom, dateTo, onDateRange
             key={t.label}
             onClick={() => navigate(t.link)}
             className={cn(
-              "border rounded-xl p-3 text-left hover:shadow-sm transition-all bg-card border-border",
+              "rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md",
               t.alert && t.alertBg
             )}
           >

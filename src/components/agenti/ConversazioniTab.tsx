@@ -161,7 +161,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
               <button
                 key={conv.id}
                 onClick={() => setSelectedConv(conv)}
-                className="w-full text-left p-4 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors"
+                className="w-full rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:bg-slate-50 hover:shadow"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">

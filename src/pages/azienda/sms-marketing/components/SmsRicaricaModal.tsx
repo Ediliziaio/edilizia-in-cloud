@@ -102,7 +102,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
                   key={p.id}
                   onClick={() => handleSelezionaPacchetto(p)}
                   disabled={isRicaricando}
-                  className={`w-full border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors relative ${
+                  className={`w-full rounded-lg border border-slate-300 bg-white p-4 text-left shadow-sm transition-all hover:border-primary/60 hover:shadow relative ${
                     p.evidenziato ? "border-primary" : ""
                   }`}
                 >

@@ -516,7 +516,7 @@ function TemplateDetailDialog({
                       <div key={k} className="border rounded-md overflow-hidden">
                         <button
                           type="button"
-                          className="w-full p-2.5 bg-muted/30 flex items-center justify-between text-left"
+                          className="flex w-full items-center justify-between border-b border-slate-200 bg-slate-100 p-2.5 text-left"
                           onClick={() => setExpandedSection(open ? null : k)}
                         >
                           <div>
@@ -589,7 +589,7 @@ function TemplateDetailDialog({
                       <div key={k} className="border rounded-md overflow-hidden">
                         <button
                           type="button"
-                          className="w-full p-2.5 bg-muted/30 flex items-center justify-between text-left"
+                          className="flex w-full items-center justify-between border-b border-slate-200 bg-slate-100 p-2.5 text-left"
                           onClick={() => setExpandedSection(open ? null : k)}
                         >
                           <div>

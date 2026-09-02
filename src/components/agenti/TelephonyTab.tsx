@@ -160,7 +160,7 @@ export function TelephonyTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : numbers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
             <Phone className="h-7 w-7 text-primary" />
           </div>

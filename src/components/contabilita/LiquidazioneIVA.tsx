@@ -174,7 +174,7 @@ export function LiquidazioneIVA({ calcola, isCalcolando, risultato, reset }: Pro
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1 p-3 bg-muted/40 rounded-lg">
+              <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">
                   IVA su vendite
                 </div>
@@ -183,7 +183,7 @@ export function LiquidazioneIVA({ calcola, isCalcolando, risultato, reset }: Pro
                 </div>
               </div>
 
-              <div className="space-y-1 p-3 bg-muted/40 rounded-lg">
+              <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">
                   IVA su acquisti
                 </div>

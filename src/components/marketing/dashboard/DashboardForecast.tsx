@@ -115,17 +115,17 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
 
           {/* Conversion Rates */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-3 rounded-lg bg-muted/50">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{leadToAppt}%</div>
               <div className="text-[10px] text-muted-foreground">Lead → App.</div>
             </div>
-            <div className="text-center p-3 rounded-lg bg-muted/50">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{apptToContract}%</div>
               <div className="text-[10px] text-muted-foreground">App. → Contratto</div>
             </div>
-            <div className="text-center p-3 rounded-lg bg-muted/50">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{leadToContract}%</div>
               <div className="text-[10px] text-muted-foreground">Lead → Contratto</div>

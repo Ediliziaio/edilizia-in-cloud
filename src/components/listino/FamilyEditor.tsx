@@ -1248,7 +1248,7 @@ export function FamilyEditor() {
                         <label
                           key={m.value}
                           htmlFor={`mod-${m.value}`}
-                          className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${modalita === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "hover:border-primary/50"}`}
+                          className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${modalita === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"}`}
                         >
                           <RadioGroupItem
                             id={`mod-${m.value}`}
@@ -1653,7 +1653,7 @@ export function FamilyEditor() {
                           <label
                             key={m.value}
                             htmlFor={`price-mode-${m.value}`}
-                            className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${prezzoBaseMode === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "hover:border-primary/50"}`}
+                            className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${prezzoBaseMode === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"}`}
                           >
                             <RadioGroupItem
                               id={`price-mode-${m.value}`}
