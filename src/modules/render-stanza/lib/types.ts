@@ -113,6 +113,8 @@ export interface ConfigurazioneStanza {
   restyling_cucina?: ConfigRestylingCucina;
   spazi_dettagli?: ConfigSpaziDettagli;
   note_libere?: string;
+  /** Foto prodotto del catalogo render dell'azienda scelte nel wizard (max 4). */
+  catalogo_reference_ids?: string[];
 }
 
 export interface AnalisiStanza {

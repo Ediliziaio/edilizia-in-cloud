@@ -99,6 +99,8 @@ export interface ConfigurazionePavimento {
     altezza_cm?: 6 | 8 | 10;
   };
   note_libere?: string;
+  /** Foto prodotto del catalogo render dell'azienda scelte nel wizard (max 4). */
+  catalogo_reference_ids?: string[];
 }
 
 export interface AnalisiPavimento {

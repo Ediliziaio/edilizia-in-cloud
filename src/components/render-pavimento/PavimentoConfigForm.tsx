@@ -20,6 +20,7 @@ import type {
   TipoPavimento,
   VariazioneTono,
 } from "@/modules/render-pavimento/lib/types";
+import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
 
 type BattiscopaTipo = NonNullable<ConfigurazionePavimento["battiscopa"]>["tipo"];
 
@@ -264,6 +265,8 @@ interface Props {
   value: ConfigurazionePavimento;
   onChange: (v: ConfigurazionePavimento) => void;
   disabled?: boolean;
+  /** Se presente, mostra "Dal tuo catalogo" con le foto prodotto dell'azienda. */
+  companyId?: string;
 }
 
 function isSeamless(type: TipoPavimento): boolean {
@@ -274,7 +277,7 @@ function isWoodLike(config: ConfigurazionePavimento): boolean {
   return config.effetto_visivo === "legno" || ["parquet_massello", "parquet_prefinito", "laminato", "vinile_lvt"].includes(config.tipo);
 }
 
-export function PavimentoConfigForm({ value, onChange, disabled }: Props) {
+export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Props) {
   const set = <K extends keyof ConfigurazionePavimento>(
     key: K,
     val: ConfigurazionePavimento[K],
@@ -338,6 +341,7 @@ export function PavimentoConfigForm({ value, onChange, disabled }: Props) {
           ))}
         </div>
       </div>
+      <CatalogReferencePicker companyId={companyId} verticale="pavimento" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => update({ catalogo_reference_ids: ids })} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -626,6 +630,7 @@ export function PavimentoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       <div className="space-y-3 rounded-lg border p-3">
+        <CatalogReferencePicker companyId={companyId} verticale="pavimento" categorie={["battiscopa"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => update({ catalogo_reference_ids: ids })} />
         <div className="flex items-center justify-between gap-3">
           <Label className="text-sm font-semibold">Battiscopa</Label>
           <Select

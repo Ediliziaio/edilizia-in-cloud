@@ -42,6 +42,8 @@ import {
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
 
+import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
+import type { RenderCatalogVerticale } from "@/lib/render/renderCatalog";
 type Step = 1 | 2 | 3 | 4;
 
 type DynamicRenderDbQuery<T = unknown> = PromiseLike<{ data: T | null; error: { message?: string } | null }> & {
@@ -82,6 +84,14 @@ async function getImageDimensions(src: string): Promise<{ width?: number; height
   };
 }
 
+/** Verticale e categorie del catalogo render per ogni modulo tecnico. */
+const CATALOGO_PER_MODULO: Partial<Record<TechnicalRenderModuleId, { verticale: RenderCatalogVerticale; categorie: string[] }>> = {
+  "porte-interne": { verticale: "porte", categorie: ["porta_interna", "maniglia"] },
+  "porte-blindate": { verticale: "porte", categorie: ["porta_blindata", "maniglia"] },
+  giardini: { verticale: "esterni", categorie: ["giardino"] },
+  "pavimenti-esterni": { verticale: "esterni", categorie: ["pavimento_esterno"] },
+};
+
 export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -89,6 +99,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const companyId = effectiveCompany?.id;
   const db = supabase as unknown as DynamicRenderDb;
   const spec = getTechnicalRenderModuleSpec(moduleId);
+  const catalogoModulo = CATALOGO_PER_MODULO[moduleId];
   const hubConfig = renderModuleHubConfigs[moduleId];
 
   const [step, setStep] = useState<Step>(1);
@@ -466,6 +477,16 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                 <Label>Elementi da preservare</Label>
                 <Textarea rows={3} value={config.preserveNotes} onChange={(event) => setConfig((prev) => ({ ...prev, preserveNotes: event.target.value }))} />
               </div>
+
+              {catalogoModulo && (
+                <CatalogReferencePicker
+                  companyId={companyId}
+                  verticale={catalogoModulo.verticale}
+                  categorie={catalogoModulo.categorie}
+                  selectedIds={config.catalogo_reference_ids ?? []}
+                  onChange={(ids) => setConfig((prev) => ({ ...prev, catalogo_reference_ids: ids }))}
+                />
+              )}
             </CardContent>
           </Card>
 

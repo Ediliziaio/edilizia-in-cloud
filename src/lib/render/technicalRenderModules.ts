@@ -16,6 +16,8 @@ export interface TechnicalRenderConfig {
   technicalDetails: string;
   preserveNotes: string;
   intensity: "leggera" | "media" | "completa";
+  /** Foto prodotto del catalogo render dell'azienda scelte nel wizard (max 4). */
+  catalogo_reference_ids?: string[];
 }
 
 export interface TechnicalRenderModuleSpec {

@@ -523,7 +523,7 @@ export default function RenderStanzaNew() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <StanzaConfigForm value={config} onChange={setConfig} />
+              <StanzaConfigForm value={config} onChange={setConfig} companyId={companyId} />
             </CardContent>
           </Card>
 

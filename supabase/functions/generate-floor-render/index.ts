@@ -12,6 +12,8 @@ import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
@@ -494,6 +496,9 @@ Use short values. Do not describe a renovation.`;
     const PAVIMENTO_BUDGET_MS = 140_000;
     const jobStartMs = Date.now();
     const jobElapsed = () => Date.now() - jobStartMs;
+    // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
+    // riempite PRIMA del primo tentativo e allegate al modello come reference.
+    let catalogReferences: ImageReferenceInput[] = [];
     const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
       const remaining = PAVIMENTO_BUDGET_MS - jobElapsed() - 15_000;
       const perAttemptTimeout = Math.max(
@@ -512,6 +517,7 @@ Use short values. Do not describe a renovation.`;
         timeoutMs: perAttemptTimeout,
           directProviderOnly: soloProviderDiretto,
         maxRetries: 0,
+        referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
         metadata: {
           task_kind: "render_image_edit",
           company_id: session.company_id as string,
@@ -528,6 +534,33 @@ Use short values. Do not describe a renovation.`;
     // pronto affamava il provider buono e faceva consegnare proprio quei quadrati.
     // Misurato su infissi (sessione d655a562): diretto abortito a 53s quando ne
     // servivano ~60. Col diretto a budget pieno: 146s -> 58s e formato corretto.
+    // CATALOGO RENDER — le foto dei prodotti dell'azienda scelte nel wizard
+    // diventano immagini di riferimento per il modello, con una legenda appesa
+    // DOPO la prosa (come le liste di preservazione).
+    try {
+      const catalogo = await loadCatalogReferences({
+        supabase,
+        companyId: session.company_id as string,
+        assetIds: (activeConfig as Record<string, unknown> | null)?.catalogo_reference_ids,
+        log: (entry) => console.log(JSON.stringify({ fn: "generate-floor-render", session_id, ...entry })),
+      });
+      if (catalogo.references.length > 0) {
+        catalogReferences = catalogo.references;
+        fullPrompt = `${fullPrompt}\n\n${catalogo.legend}`;
+      }
+      if (catalogo.missing.length > 0) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-floor-render", session_id,
+          msg: "catalog_references_mancanti", mancanti: catalogo.missing,
+        }));
+      }
+    } catch (catErr) {
+      console.warn(JSON.stringify({
+        lvl: "warn", fn: "generate-floor-render", session_id,
+        msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
+      }));
+    }
+
     let renderResult: Awaited<ReturnType<typeof generateCandidate>>;
     try {
       renderResult = await generateCandidate(fullPrompt, true);

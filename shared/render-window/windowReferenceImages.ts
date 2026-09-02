@@ -108,7 +108,10 @@ function resolveHandleRef(
   if (!handle?.referenceImage) return null;
   return {
     kind: "handle",
-    label: `HANDLE MODEL TARGET — ${handle.label} (${spec.handleFinish})`,
+    // La foto mostra il MODELLO in una sola finitura: se il cliente ne ha
+    // scelta un'altra, il modello deve copiare la forma e applicare la finitura
+    // richiesta, non quella della foto.
+    label: `HANDLE MODEL TARGET — ${handle.label}: copy the SHAPE from this photo; apply the requested finish "${spec.handleFinish}" even if the photo shows a different finish`,
     filename: handle.referenceImage,
     url: getReferenceImageUrl(handle.referenceImage)!,
   };

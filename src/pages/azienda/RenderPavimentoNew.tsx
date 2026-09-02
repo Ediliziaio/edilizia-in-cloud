@@ -553,6 +553,7 @@ export default function RenderPavimentoNew() {
                 value={config}
                 onChange={setConfig}
                 disabled={false}
+                companyId={companyId}
               />
             </CardContent>
           </Card>

@@ -21,6 +21,7 @@ import type {
   StileTarget,
   IntensitaTrasformazione,
 } from "@/modules/render-stanza/lib/types";
+import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
 
 // ── Default config ───────────────────────────────────────────────────────────
 export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
@@ -90,10 +91,12 @@ interface Props {
   value: ConfigurazioneStanza;
   onChange: (v: ConfigurazioneStanza) => void;
   disabled?: boolean;
+  /** Se presente, mostra "Dal tuo catalogo" con le foto prodotto dell'azienda. */
+  companyId?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export function StanzaConfigForm({ value, onChange, disabled }: Props) {
+export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props) {
   const set = <K extends keyof ConfigurazioneStanza>(key: K, val: ConfigurazioneStanza[K]) =>
     onChange({ ...value, [key]: val });
 
@@ -204,6 +207,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
             </AccordionTrigger>
             {value.verniciatura.attivo && (
               <AccordionContent className="pb-3 space-y-3">
+                <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Colore</Label>
@@ -296,6 +300,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
             </AccordionTrigger>
             {value.pavimento.attivo && (
               <AccordionContent className="pb-3 space-y-3">
+                <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Tipo</Label>
@@ -489,6 +494,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
             </AccordionTrigger>
             {value.arredo.attivo && (
               <AccordionContent className="pb-3 space-y-3">
+                <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["arredo"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="space-y-1">
                   <Label className="text-xs">Intensita cambio</Label>
                   <Select
@@ -695,6 +701,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
             </AccordionTrigger>
             {value.carta_da_parati.attivo && (
               <AccordionContent className="pb-3 space-y-3">
+                <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Pattern</Label>
@@ -773,6 +780,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
             </AccordionTrigger>
             {value.rivestimento_pareti.attivo && (
               <AccordionContent className="pb-3 space-y-3">
+                <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Tipo</Label>

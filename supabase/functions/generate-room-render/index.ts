@@ -13,6 +13,8 @@ import {
   detectImageDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
@@ -295,6 +297,36 @@ Deno.serve(async (req: Request) => {
         }));
       }
 
+      // Foto prodotto del catalogo dell'azienda: dichiarate qui perche' nella stanza
+      // il prompt viene salvato PRIMA di generare, quindi la legenda va appesa ora.
+      let catalogReferences: ImageReferenceInput[] = [];
+      // CATALOGO RENDER — le foto dei prodotti dell'azienda scelte nel wizard
+      // diventano immagini di riferimento per il modello, con una legenda appesa
+      // DOPO la prosa (come le liste di preservazione).
+      try {
+        const catalogo = await loadCatalogReferences({
+          supabase,
+          companyId: companyId as string,
+          assetIds: (cfg as Record<string, unknown> | null)?.catalogo_reference_ids,
+          log: (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
+        });
+        if (catalogo.references.length > 0) {
+          catalogReferences = catalogo.references;
+          fullPrompt = `${fullPrompt}\n\n${catalogo.legend}`;
+        }
+        if (catalogo.missing.length > 0) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-room-render", session_id,
+            msg: "catalog_references_mancanti", mancanti: catalogo.missing,
+          }));
+        }
+      } catch (catErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-room-render", session_id,
+          msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
+        }));
+      }
+
       // Store prompt
       await supabase
         .from("render_stanza_sessions")
@@ -366,6 +398,7 @@ Deno.serve(async (req: Request) => {
           timeoutMs: perAttemptTimeout,
           directProviderOnly: soloProviderDiretto,
           maxRetries: 0,
+          referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
           metadata: {
             task_kind: "render_image_edit",
             company_id: companyId as string,
