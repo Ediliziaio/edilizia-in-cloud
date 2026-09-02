@@ -104,11 +104,11 @@ export const WIZARD_TIPI = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const WIZARD_PROFILI = [
-  { id: "pvc", label: "PVC", desc: "Profilo isolante classico 70-80 mm, adatto a sostituzione residenziale." },
+  { id: "pvc", referenceImage: "Profilo-PVC-5-Camere-Sezione-Bianco.webp", label: "PVC", desc: "Profilo isolante classico 70-80 mm, adatto a sostituzione residenziale." },
   { id: "alluminio", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
   { id: "minimal", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium)." },
-  { id: "legno", label: "Legno", desc: "Resa calda e tradizionale con profilo 82 mm più materico." },
-  { id: "legno_alluminio", label: "Legno-Alluminio", desc: "Legno interno 82 mm + protezione alluminio esterna." },
+  { id: "legno", referenceImage: "Profilo-Legno-Euro68-Sezione-Vetrocamera.webp", label: "Legno", desc: "Resa calda e tradizionale con profilo 82 mm più materico." },
+  { id: "legno_alluminio", referenceImage: "Profilo-Legno-Alluminio-Sezione-Tripla-Vetrata.webp", label: "Legno-Alluminio", desc: "Legno interno 82 mm + protezione alluminio esterna." },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -678,7 +678,7 @@ export const WIZARD_TRAVERSO_OPTIONS = [
     label: "Mantieni traverso",
     desc: "Mantengo il montante orizzontale a metà altezza.",
     icon: "═",
-    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    referenceImage: "Finestra-2ante-Con-Traverso-Orizzontale-Santorini.webp",
     // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
     // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
     // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
@@ -690,7 +690,7 @@ export const WIZARD_TRAVERSO_OPTIONS = [
     label: "Rimuovi traverso",
     desc: "Anta intera completamente vetrata. Look contemporaneo.",
     icon: "▭",
-    referenceImage: null, // FOTO MANCANTE: mai committata in public/render-references/examples.
+    referenceImage: "Finestra-2ante-Cerniere-Scomparsa-Montante-Pulito.png",
     // Il fetch tornava 404 e il render proseguiva senza la foto guida, in
     // silenzio, proprio sulle lavorazioni piu' difficili da rendere. Meglio
     // dichiarare che non c'e' che chiederla a vuoto a ogni render. Il test
@@ -702,8 +702,7 @@ export const WIZARD_TRAVERSO_OPTIONS = [
     label: "Aggiungi traverso",
     desc: "Aggiungo un traverso orizzontale a metà altezza (look classico).",
     icon: "╋",
-    referenceImage: null,
-  },
+    referenceImage: "Finestra-2ante-Con-Traverso-Orizzontale-Santorini.webp",},
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

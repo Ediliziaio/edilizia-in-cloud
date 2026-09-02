@@ -27,6 +27,8 @@ import {
   WIZARD_TAPP_COLORS,
   findWizardWood,
   getReferenceImageUrl,
+  WIZARD_PROFILI,
+  WIZARD_TRAVERSO_OPTIONS,
 } from "./catalog.ts";
 import type { WindowRenderConfig, WindowTechnicalSpecification } from "./types.ts";
 
@@ -36,7 +38,9 @@ export type RenderReferenceKind =
   | "node_profile"
   | "hidden_hinges"
   | "cassonetto"
-  | "tapparella_color";
+  | "tapparella_color"
+  | "profile"
+  | "traverso";
 
 export interface RenderReferenceImage {
   /** Categoria semantica (per logging / debug). */
@@ -201,6 +205,56 @@ function resolveTapparellaColorRef(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Profilo (materiale del telaio) e traverso — foto reali da Wikimedia Commons
+// (crediti in public/render-references/CREDITS.md).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sezione reale del profilo scelto (PVC 5 camere, legno Euro 68,
+ * legno-alluminio): dice al modello com'e' fatto il telaio — spessore a
+ * vista, camere, fermavetro, guarnizioni — senza mostrare una finestra intera,
+ * cosi' non porta con se' un numero di ante.
+ */
+function resolveProfileRef(
+  spec: WindowTechnicalSpecification,
+): RenderReferenceImage | null {
+  const profilo = WIZARD_PROFILI.find((p) => p.id === spec.profileId);
+  const filename = profilo && "referenceImage" in profilo
+    ? (profilo as { referenceImage?: string }).referenceImage
+    : undefined;
+  if (!profilo || !filename) return null;
+  return {
+    kind: "profile",
+    label: `FRAME PROFILE TARGET — ${profilo.label}: real cross-section of this frame system; take the visible frame depth, glazing bead, gasket and material construction from it. It is a cut sample, NOT a window: do not copy any sash count or layout from it`,
+    filename,
+    url: getReferenceImageUrl(filename)!,
+  };
+}
+
+/**
+ * Traverso: solo quando l'utente ha chiesto esplicitamente di aggiungerlo o
+ * di toglierlo. "aggiungi" → foto di una finestra con UN traverso a meta'
+ * altezza; "rimuovi" → foto di ante a vetro intero. Con "auto"/"mantieni" la
+ * scena comanda e nessuna foto viene allegata.
+ */
+function resolveTraversoRef(
+  traversoMode: string | null | undefined,
+): RenderReferenceImage | null {
+  if (traversoMode !== "aggiungi" && traversoMode !== "rimuovi") return null;
+  const opt = WIZARD_TRAVERSO_OPTIONS.find((o) => o.id === traversoMode);
+  const filename = opt && "referenceImage" in opt ? (opt as { referenceImage?: string | null }).referenceImage : undefined;
+  if (!filename) return null;
+  return {
+    kind: "traverso",
+    label: traversoMode === "aggiungi"
+      ? "TRANSOM TARGET — the new window MUST have ONE horizontal transom bar at about mid-height, dividing each sash into an upper and a lower glass pane, exactly like this photo (copy the bar, not the building)"
+      : "NO-TRANSOM TARGET — the new window has full-height sashes, each a single uninterrupted glass pane with NO horizontal bar, like this photo (copy the clean sash, not the room)",
+    filename,
+    url: getReferenceImageUrl(filename)!,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -242,7 +296,14 @@ export function collectReferenceImages(
   push(resolveHandleRef(spec));
   if (!hasCompositionChange) {
     push(resolveNodeProfileRef(spec));
+    // Sezione reale del profilo: dopo il nodo (che decide la struttura a 2
+    // ante) e prima delle cerniere. E' un campione tagliato, non porta ante.
+    push(resolveProfileRef(spec));
     push(resolveHiddenHingesRef(spec));
+    // Traverso solo su richiesta esplicita (aggiungi/rimuovi): e' un'istruzione
+    // strutturale, viene prima di cassonetto e colore tapparella.
+    const traversoMode = (config as { legacy_config?: { traverso_mode?: string } }).legacy_config?.traverso_mode;
+    push(resolveTraversoRef(traversoMode));
     push(resolveCassonettoRef(spec));
     push(resolveTapparellaColorRef(spec));
   }

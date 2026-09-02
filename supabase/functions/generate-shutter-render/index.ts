@@ -17,6 +17,9 @@ import {
   orientationFromDimensions,
 } from "../_shared/imageDimensions.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectShutterReferenceImages } from "../../../shared/render-references/shutterReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
@@ -507,6 +510,9 @@ Deno.serve(async (req) => {
     // arrivava a ~225s contro il cap 150s. Il fallback è il Tier 2.
     const jobStartMs = Date.now();
     const jobElapsed = () => Date.now() - jobStartMs;
+    // Foto reali di riferimento (libreria condivisa, uguale per tutti): riempite
+    // PRIMA del primo tentativo e allegate al modello.
+    let sharedReferences: ImageReferenceInput[] = [];
     const generateCandidate = (prompt: string, soloProviderDiretto = false) =>
       editImage({
         prompt,
@@ -517,6 +523,7 @@ Deno.serve(async (req) => {
         timeoutMs: 70_000,
         directProviderOnly: soloProviderDiretto,
         maxRetries: 0,
+        referenceImages: sharedReferences.length > 0 ? sharedReferences : undefined,
         metadata: {
           task_kind: "render_image_edit",
           company_id: session.company_id,
@@ -528,6 +535,26 @@ Deno.serve(async (req) => {
     // OpenRouter, che ignora la size e restituisce un quadrato, e per riempirlo
     // il modello inventa scena ai lati ridisegnando la facciata intorno alle
     // persiane. Il fallback resta come rete sull'errore.
+    // RIFERIMENTI CONDIVISI — foto reali del tipo/manto scelto (Wikimedia Commons,
+    // crediti in public/render-references/CREDITS.md), allegate al modello con
+    // una legenda appesa DOPO la prosa. Mai bloccanti: se il sito non risponde
+    // il render prosegue senza foto e lo si vede nei log.
+    try {
+      const refsCondivise = collectShutterReferenceImages((() => { const c = (config || session.config || {}) as Record<string, unknown>; return { tipo: c.tipo as string | undefined, materiale: c.materiale as string | undefined, operazione: c.operazione as string | undefined }; })());
+      if (refsCondivise.length > 0) {
+        const fetched = await fetchSharedReferenceImages(
+          refsCondivise,
+          (entry) => console.log(JSON.stringify({ fn: "generate-shutter-render", session_id, ...entry })),
+        );
+        if (fetched.references.length > 0) {
+          sharedReferences = fetched.references;
+          combinedPrompt = `${combinedPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+        }
+      }
+    } catch (refErr) {
+      console.warn(JSON.stringify({ lvl: "warn", fn: "generate-shutter-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
+    }
+
     let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
     try {
       providerResult = await generateCandidate(combinedPrompt, true);
