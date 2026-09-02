@@ -680,6 +680,15 @@ Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as th
             error: String((retryErr as Error)?.message ?? retryErr).substring(0, 200),
           }));
         }
+      } else if (qaResult.checked && qaResult.pass) {
+        // Il QA promosso non lasciava traccia: si deduceva dall'ASSENZA della
+        // riga di bocciatura. Silenzio = successo e' una pessima proprieta'.
+        console.log(JSON.stringify({
+          fn: "generate-facade-render",
+          msg: "qa_passed_first_attempt",
+          session_id: requestSessionId,
+          qa_model: qaResult.modelUsed,
+        }));
       } else if (qaResult.checked && !qaResult.pass) {
         console.warn(JSON.stringify({
           fn: "generate-facade-render",

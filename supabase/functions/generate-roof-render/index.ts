@@ -1091,6 +1091,15 @@ Regenerate applying the FULL brief. ABSOLUTE rules: same roof shape/pitch/ridge 
             }));
             providerResult = primoTentativo;
           }
+        } else if (qaResult.checked && qaResult.pass) {
+          // Il QA promosso non lasciava traccia: si deduceva dall'ASSENZA della
+          // riga di bocciatura. Silenzio = successo e' una pessima proprieta'.
+          console.log(JSON.stringify({
+            fn: "generate-roof-render",
+            msg: "qa_passed_first_attempt",
+            session_id,
+            qa_model: qaResult.modelUsed,
+          }));
         } else if (qaResult.checked && !qaResult.pass) {
           console.warn(JSON.stringify({
             fn: "generate-roof-render",
