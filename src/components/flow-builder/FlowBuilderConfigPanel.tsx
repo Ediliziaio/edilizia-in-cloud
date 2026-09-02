@@ -623,6 +623,23 @@ function ConfigField({
     field.type === "user_select" || field.type === "user_multi_select" ? companyId : undefined,
   );
 
+  // Automazioni pubblicate per il picker "flow_select" (azioni cross-flusso).
+  const { data: flussiPubblicati = [] } = useQuery({
+    queryKey: ["flow-select-published", companyId],
+    enabled: field.type === "flow_select" && !!companyId,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("automation_flows")
+        .select("id, name, status")
+        .eq("company_id", companyId!)
+        .eq("status", "published")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
   // ── Dati reali per i picker stile GHL ──
   // Pagine Meta collegate (servono anche al multi-select moduli per filtrare
   // i moduli della pagina scelta: meta_lead_forms.page_asset_id → meta_assets.id).
@@ -814,6 +831,23 @@ function ConfigField({
           </Select>
         );
       })()}
+
+      {field.type === "flow_select" && (
+        <Select value={value ?? ""} onValueChange={onChange}>
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Scegli l'automazione..." />
+          </SelectTrigger>
+          <SelectContent>
+            {field.allowAll && <SelectItem value="__tutte__">Tutte le automazioni attive</SelectItem>}
+            {flussiPubblicati.map((fl) => (
+              <SelectItem key={fl.id} value={fl.id}>{fl.name}</SelectItem>
+            ))}
+            {flussiPubblicati.length === 0 && (
+              <SelectItem value="__nessuna__" disabled>Nessuna automazione pubblicata</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      )}
 
       {field.type === "user_select" && (
         companyUsers.length > 0 ? (

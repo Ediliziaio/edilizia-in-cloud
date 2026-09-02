@@ -126,8 +126,35 @@ export function FlowBuilderPage() {
       // Scaffold "Fine": senza, l'ultimo nodo del flusso non ha l'arco col
       // "+" e non si può aggiungere nulla in coda (bug segnalato).
       const scaffolded = withEndScaffold(mappedNodes, mappedEdges);
-      setRfNodes(scaffolded.nodes);
-      setRfEdges(scaffolded.edges);
+      // Una bozza può avere azioni PRIMA del trigger (si costruisce in
+      // qualsiasi ordine), ma riaprendola senza trigger il segnaposto non
+      // veniva ricreato: si vedeva un'azione orfana e nessun invito visivo —
+      // "come mai c'è un'azione senza trigger?". Il segnaposto torna sempre.
+      const nodiFinali = [...scaffolded.nodes];
+      const edgesFinali = [...scaffolded.edges];
+      if (!nodiFinali.some((n) => n.type === "trigger")) {
+        const primo = nodiFinali.filter((n) => n.type !== "end").sort((a, b) => a.position.y - b.position.y)[0];
+        const triggerId = "placeholder-trigger";
+        nodiFinali.unshift({
+          id: triggerId,
+          type: "trigger",
+          position: { x: primo?.position.x ?? 300, y: (primo?.position.y ?? 280) - 200 },
+          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger", onOpenCatalog: () => openCatalog("trigger") },
+        });
+        if (primo) {
+          edgesFinali.unshift({
+            id: "e-placeholder-trigger",
+            source: triggerId,
+            target: primo.id,
+            type: "addStep",
+            animated: false,
+            style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+            data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
+          });
+        }
+      }
+      setRfNodes(nodiFinali);
+      setRfEdges(edgesFinali);
       initializedRef.current = true;
     } else if (builder.remoteEmpty && (flowId || isNewFlowRoute)) {
       // Empty canvas placeholder: trigger + end node.
@@ -961,9 +988,19 @@ export function FlowBuilderPage() {
     for (const n of nonNoteNodes) {
       if (n.type === "end") continue;
 
-      // Trigger: empty placeholder not configured
+      // Trigger: empty placeholder not configured. Con almeno uno step
+      // operativo NON è un errore: il flusso può vivere da "ricevente"
+      // (iscritto da un'altra automazione) — resta un avviso informativo.
       if (n.type === "trigger" && n.data?.isEmpty) {
-        errs.push({ nodeId: n.id, nodeLabel: "Trigger", tipo: "errore", messaggio: "Trigger non configurato — seleziona un evento di attivazione." });
+        const haStep = nonNoteNodes.some((x) => ["action", "condition", "delay", "goal", "split"].includes(String(x.type)));
+        errs.push({
+          nodeId: n.id,
+          nodeLabel: "Trigger",
+          tipo: haStep ? "avviso" : "errore",
+          messaggio: haStep
+            ? "Nessun trigger: l'automazione partirà solo se un'altra automazione ci manda dentro contatti (azione \"Passa a un'altra automazione\")."
+            : "Trigger non configurato — seleziona un evento di attivazione.",
+        });
         continue;
       }
 
@@ -1041,7 +1078,12 @@ export function FlowBuilderPage() {
     const warnings = validationErrors.filter(e => e.tipo === "avviso").length;
 
     return [
-      { label: "Trigger configurato", ok: hasTrigger },
+      // Un flusso SENZA trigger è legittimo: è "ricevente" — parte solo quando
+      // un'altra automazione ci manda dentro l'entità (azione "Passa a
+      // un'altra automazione"). Si pubblica, con l'avviso che lo dice chiaro.
+      hasTrigger
+        ? { label: "Trigger configurato", ok: true }
+        : { label: "Senza trigger: parte solo se richiamata da un'altra automazione", ok: hasAction, warning: true },
       { label: "Almeno uno step operativo", ok: hasAction },
       { label: "Nessun errore bloccante", ok: blockingErrors === 0 },
       // Gli AVVISI non bloccano il publish: i nodi Fine non vengono persistiti

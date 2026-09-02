@@ -1075,6 +1075,80 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
   switch (actionType) {
+    // ── Cross-automazione (stile GHL): passa/togli l'entità tra flussi ──
+    case "iscrivi_in_automazione": {
+      const targetFlowId = String(ncfg.flow_id ?? "");
+      if (!targetFlowId || targetFlowId === "__tutte__") return { success: false, error: "Nessuna automazione di destinazione configurata" };
+      if (targetFlowId === queueItem?.flow_id) return { success: false, error: "Un'automazione non può iscrivere in se stessa" };
+      const { data: target } = await supabase
+        .from("automation_flows").select("id, version, status")
+        .eq("id", targetFlowId).eq("company_id", companyId).maybeSingle();
+      if (!target || target.status !== "published") return { success: false, error: "Automazione di destinazione non trovata o non pubblicata" };
+      // Anti-loop/doppione: se l'entità è già dentro (attiva o in attesa) non si ri-iscrive.
+      const { data: giaDentro } = await supabase
+        .from("automation_enrollments").select("id")
+        .eq("flow_id", targetFlowId).eq("entity_id", entityId)
+        .in("status", ["active", "waiting"]).limit(1).maybeSingle();
+      if (giaDentro) return { success: true, output: { skipped: "entità già iscritta nell'automazione di destinazione" } };
+      const { data: currEnr } = await supabase
+        .from("automation_enrollments").select("entity_type").eq("id", queueItem?.enrollment_id).maybeSingle();
+      const entityType = currEnr?.entity_type ?? "contact";
+      const { data: enr, error: enrErr } = await supabase
+        .from("automation_enrollments")
+        .insert({ flow_id: targetFlowId, company_id: companyId, entity_id: entityId, entity_type: entityType, flow_version: target.version, status: "active" })
+        .select("id").single();
+      if (enrErr) return { success: false, error: `Iscrizione fallita: ${enrErr.message}` };
+      // Primo step: dopo il trigger se c'è; altrimenti (flusso RICEVENTE senza
+      // trigger) il primo nodo operativo senza archi entranti.
+      const [tN, allN, cN] = await Promise.all([
+        supabase.from("automation_nodes").select("id").eq("flow_id", targetFlowId).eq("node_type", "trigger"),
+        supabase.from("automation_nodes").select("id, node_type").eq("flow_id", targetFlowId),
+        supabase.from("automation_connections").select("from_node_id, to_node_id, label").eq("flow_id", targetFlowId),
+      ]);
+      const triggerIds = new Set((tN.data ?? []).map((n: { id: string }) => n.id));
+      const conns = (cN.data ?? []) as Array<{ from_node_id: string; to_node_id: string; label?: string }>;
+      let partenze = conns.filter((c) => triggerIds.has(c.from_node_id)).map((c) => ({ nodo: c.to_node_id, branch: c.label }));
+      if (partenze.length === 0) {
+        const conIngresso = new Set(conns.map((c) => c.to_node_id));
+        partenze = (allN.data ?? [])
+          .filter((n: { id: string; node_type: string }) => n.node_type !== "trigger" && n.node_type !== "end" && n.node_type !== "note" && !conIngresso.has(n.id))
+          .map((n: { id: string }) => ({ nodo: n.id, branch: undefined }));
+      }
+      if (partenze.length === 0) {
+        await supabase.from("automation_enrollments").update({ status: "failed" }).eq("id", enr.id);
+        return { success: false, error: "L'automazione di destinazione non ha step eseguibili" };
+      }
+      for (const p of partenze) {
+        await supabase.from("automation_queue").insert({
+          enrollment_id: enr.id, flow_id: targetFlowId, company_id: companyId,
+          current_node_id: p.nodo, entity_id: entityId, entity_type: entityType,
+          status: "pending", execute_at: new Date().toISOString(),
+          context_json: { payload: pPayload, branch: p.branch },
+        });
+      }
+      return { success: true, output: { automazione: targetFlowId, step_avviati: partenze.length } };
+    }
+
+    case "rimuovi_da_automazione": {
+      const target = String(ncfg.flow_id ?? "");
+      if (!target) return { success: false, error: "Nessuna automazione configurata" };
+      let sel = supabase
+        .from("automation_enrollments")
+        .update({ status: "removed" })
+        .eq("entity_id", entityId).eq("company_id", companyId)
+        .in("status", ["active", "waiting"]);
+      // "Tutte" non tocca il flusso corrente: si toglierebbe il terreno da
+      // sotto i piedi a metà esecuzione.
+      sel = target === "__tutte__" ? sel.neq("flow_id", queueItem?.flow_id ?? "") : sel.eq("flow_id", target);
+      const { data: rimossi, error: remErr } = await sel.select("id");
+      if (remErr) return { success: false, error: remErr.message };
+      const ids = (rimossi ?? []).map((r: { id: string }) => r.id);
+      if (ids.length > 0) {
+        await supabase.from("automation_queue").update({ status: "canceled" }).in("enrollment_id", ids).in("status", ["pending", "waiting"]);
+      }
+      return { success: true, output: { iscrizioni_rimosse: ids.length } };
+    }
+
     case "add_tag": {
       // Il builder salva `tags` come ARRAY (multi-select): prima veniva
       // applicato solo il primo. Applica tutti i tag configurati.

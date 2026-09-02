@@ -237,8 +237,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
     const persistableNodes = nodes.filter(isPersistableNode);
     const hasTrigger = persistableNodes.some(n => n.node_type === "trigger");
     const hasPublishableStep = persistableNodes.some(n => PUBLISHABLE_NODE_TYPES.has(n.node_type));
-    if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
-    if (!hasPublishableStep) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+    // Senza trigger il flusso è "ricevente": si pubblica se ha almeno uno step
+    // (ci si entra dall'azione "Passa a un'altra automazione").
+    if (!hasTrigger && !hasPublishableStep) errors.push("Aggiungi un trigger o almeno un'azione: il flusso è vuoto.");
+    if (hasTrigger && !hasPublishableStep) errors.push("Aggiungi almeno un'azione dopo il trigger.");
 
     const incompleteAction = persistableNodes.find(n => {
       if (n.node_type !== "action") return false;

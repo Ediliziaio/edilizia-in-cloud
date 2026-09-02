@@ -31,7 +31,7 @@ export type ConfigFieldType =
   | 'tag_input'
   | 'json_editor'
   | 'richhtml' // editor email visuale (WYSIWYG) → HTML
-  | 'tags'; // backward compat alias for tag_input
+  | 'tags' | "flow_select"; // backward compat alias for tag_input
 
 export interface ConfigFieldOption {
   value: string;
@@ -50,6 +50,8 @@ export interface ConfigFieldSchema {
   min?: number;
   max?: number;
   defaultValue?: any;
+  /** flow_select: aggiunge l'opzione "Tutte le automazioni" (value __tutte__). */
+  allowAll?: boolean;
 }
 
 export interface TriggerDefinition {
@@ -2029,6 +2031,27 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'assegna_cs', label: 'Assegna Customer Success', type: 'user_select', required: false, helpText: 'Il CS sarà responsabile del follow-up' },
     ],
   },
+  {
+    id: 'iscrivi_in_automazione',
+    label: 'Passa a un\'altra automazione',
+    description: 'Iscrive il contatto/entità corrente in un\'altra automazione pubblicata (anche senza trigger: parte dal primo step)',
+    icon: 'Workflow',
+    categoria: 'generale',
+    configSchema: [
+      { id: 'flow_id', label: 'Automazione di destinazione', type: 'flow_select', required: true, helpText: 'Solo automazioni pubblicate. Se l\'entità è già dentro, non viene iscritta due volte.' },
+    ],
+  },
+  {
+    id: 'rimuovi_da_automazione',
+    label: 'Togli da automazione',
+    description: 'Rimuove il contatto/entità da un\'automazione in corso (o da tutte): gli step non ancora eseguiti si fermano',
+    icon: 'CircleOff',
+    categoria: 'generale',
+    configSchema: [
+      { id: 'flow_id', label: 'Da quale automazione', type: 'flow_select', required: true, allowAll: true, helpText: '"Tutte" ferma ogni automazione attiva per questa entità (questa esclusa)' },
+    ],
+  },
+
 ];
 
 // ─── CONDITION CATALOG ───────────────────────────────────────────────────────
