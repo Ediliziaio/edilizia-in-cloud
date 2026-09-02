@@ -14,7 +14,7 @@
  * destinatario esce dalla coda. Insistere con chi ti ha già risposto è il
  * modo più rapido di farsi segnalare come spam.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { readInvokeError } from "@/lib/readInvokeError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,6 +73,23 @@ const STATO_NUMERO: Record<string, { label: string; className: string }> = {
 };
 
 
+/** Variabili del contatto disponibili nei testi ({{nome}}, {{azienda}}…). */
+const VARIABILI_CONTATTO = ["nome", "cognome", "nome_completo", "azienda", "citta", "provincia", "telefono", "email", "sito", "fonte", "tag"] as const;
+const GIORNI_SETTIMANA: Array<[number, string]> = [[1, "Lun"], [2, "Mar"], [3, "Mer"], [4, "Gio"], [5, "Ven"], [6, "Sab"], [7, "Dom"]];
+
+/** "chiave=valore" per riga → oggetto; chiavi in minuscolo, solo lettere/numeri/_ . */
+function parseVariabili(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const riga of (text ?? "").split(/\r?\n/)) {
+    const i = riga.indexOf("=");
+    if (i <= 0) continue;
+    const k = riga.slice(0, i).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const v = riga.slice(i + 1).trim();
+    if (k && v) out[k] = v;
+  }
+  return out;
+}
+
 /** Data ISO → valore per <input type="datetime-local"> in ora locale. */
 function aDatetimeLocale(iso: string): string {
   const d = new Date(iso);
@@ -98,6 +115,23 @@ export default function AdminWhatsappLocaleCampagne() {
   const [aiAttiva, setAiAttiva] = useState(false);
   const [aiIstruzioni, setAiIstruzioni] = useState("");
   const [parteIl, setParteIl] = useState("");
+  // Tempi, limiti e variabili della campagna (vuoto = finestra globale anti-ban).
+  const [orarioDa, setOrarioDa] = useState("");
+  const [orarioA, setOrarioA] = useState("");
+  const [giorni, setGiorni] = useState<number[]>([]);
+  const [scadenzaIl, setScadenzaIl] = useState("");
+  const [maxAlGiorno, setMaxAlGiorno] = useState("");
+  const [variabiliText, setVariabiliText] = useState("");
+  const [stopSeRisponde, setStopSeRisponde] = useState(true);
+  const campoAttivoRef = useRef<"msg" | "msgB" | "msg2" | "msg3" | "msg4">("msg");
+  /** Inserisce {{variabile}} nel testo su cui si stava scrivendo. */
+  const inserisciVariabile = (v: string) => {
+    const tok = `{{${v}}}`;
+    const app = (s: string) => (s ? `${s} ${tok}` : tok);
+    const c = campoAttivoRef.current;
+    if (c === "msg") setMessaggio(app); else if (c === "msgB") setMessaggioB(app);
+    else if (c === "msg2") setFollowup(app); else if (c === "msg3") setFollowup2(app); else setFollowup3(app);
+  };
   // Modifica: stesso dialog della creazione, con l'id di chi si sta correggendo.
   const [modificaId, setModificaId] = useState<string | null>(null);
   // Prova: mandarsi la campagna prima di lanciarla su centinaia di persone.
@@ -169,9 +203,9 @@ export default function AdminWhatsappLocaleCampagne() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("openwa_campagne")
-        .select("id, messaggio, messaggio_b, ai_personalizza, ai_istruzioni, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome");
+        .select("id, messaggio, messaggio_b, ai_personalizza, ai_istruzioni, followup_messaggio, followup_dopo_giorni, followup2_messaggio, followup2_dopo_giorni, followup3_messaggio, followup3_dopo_giorni, parte_il, nome, orario_da, orario_a, giorni_settimana, scadenza_il, max_al_giorno, variabili, stop_se_risponde");
       if (error) throw error;
-      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; messaggio_b: string | null; ai_personalizza: boolean; ai_istruzioni: string | null; parte_il: string | null; nome: string }> = {};
+      const m: Record<string, { messaggio: string; followup_messaggio: string | null; followup_dopo_giorni: number; followup2_messaggio: string | null; followup2_dopo_giorni: number; followup3_messaggio: string | null; followup3_dopo_giorni: number; messaggio_b: string | null; ai_personalizza: boolean; ai_istruzioni: string | null; parte_il: string | null; nome: string; orario_da: number | null; orario_a: number | null; giorni_settimana: number[] | null; scadenza_il: string | null; max_al_giorno: number | null; variabili: Record<string, string> | null; stop_se_risponde: boolean | null }> = {};
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const c of (data ?? []) as any[]) m[c.id] = c;
       return m;
@@ -213,6 +247,7 @@ export default function AdminWhatsappLocaleCampagne() {
     setNome(""); setMessaggio(""); setFollowup(""); setFollowupGiorni(3);
     setFollowup2(""); setFollowup2Giorni(3); setFollowup3(""); setFollowup3Giorni(3); setParteIl("");
     setMessaggioB(""); setAiAttiva(false); setAiIstruzioni("");
+    setOrarioDa(""); setOrarioA(""); setGiorni([]); setScadenzaIl(""); setMaxAlGiorno(""); setVariabiliText(""); setStopSeRisponde(true);
   };
 
   const crea = useMutation({
@@ -230,6 +265,13 @@ export default function AdminWhatsappLocaleCampagne() {
         ai_personalizza: aiAttiva,
         ai_istruzioni: aiIstruzioni.trim() || null,
         parte_il: parteIl ? new Date(parteIl).toISOString() : null,
+        orario_da: orarioDa === "" ? null : Number(orarioDa),
+        orario_a: orarioA === "" ? null : Number(orarioA),
+        giorni_settimana: giorni.length ? [...giorni].sort() : null,
+        scadenza_il: scadenzaIl ? new Date(scadenzaIl).toISOString() : null,
+        max_al_giorno: maxAlGiorno.trim() ? Math.max(1, Math.round(Number(maxAlGiorno))) : null,
+        variabili: parseVariabili(variabiliText),
+        stop_se_risponde: stopSeRisponde,
       };
       // Modifica: consentita solo finche' la campagna non e' partita — cambiare
       // il testo a meta' invio significa due messaggi diversi nella stessa
@@ -320,6 +362,13 @@ export default function AdminWhatsappLocaleCampagne() {
     // datetime-local vuole l'ora LOCALE: con toISOString() (UTC) una campagna
     // delle 10:00 si riapriva alle 08:00 e ogni salvataggio la anticipava.
     setParteIl(src.parte_il ? aDatetimeLocale(src.parte_il) : "");
+    setOrarioDa(src.orario_da == null ? "" : String(src.orario_da));
+    setOrarioA(src.orario_a == null ? "" : String(src.orario_a));
+    setGiorni(src.giorni_settimana ?? []);
+    setScadenzaIl(src.scadenza_il ? aDatetimeLocale(src.scadenza_il) : "");
+    setMaxAlGiorno(src.max_al_giorno == null ? "" : String(src.max_al_giorno));
+    setVariabiliText(Object.entries(src.variabili ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"));
+    setStopSeRisponde(src.stop_se_risponde !== false);
     setCreaAperto(true);
   };
 
@@ -581,6 +630,18 @@ export default function AdminWhatsappLocaleCampagne() {
                         {new Date(testiById[c.id].parte_il!).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     )}
+                    {(() => {
+                      const t = testiById[c.id];
+                      if (!t) return null;
+                      const parti = [
+                        t.orario_da != null || t.orario_a != null ? `ore ${t.orario_da ?? 8}-${t.orario_a ?? 21}` : null,
+                        t.giorni_settimana?.length ? t.giorni_settimana.map((g) => GIORNI_SETTIMANA.find(([n]) => n === g)?.[1]).filter(Boolean).join(" ") : null,
+                        t.max_al_giorno ? `max ${t.max_al_giorno}/giorno` : null,
+                        t.scadenza_il ? `scade il ${new Date(t.scadenza_il).toLocaleDateString("it-IT")}` : null,
+                        t.stop_se_risponde === false ? "continua anche se risponde" : null,
+                      ].filter(Boolean);
+                      return parti.length ? <p className="text-xs text-muted-foreground">Tempi: {parti.join(" · ")}</p> : null;
+                    })()}
                     {/* La riga "479 · 12 · 30 · …" era illeggibile: numeri
                         etichettati, e una barra che mostra COSA è successo,
                         non solo quanto. */}
@@ -698,10 +759,9 @@ export default function AdminWhatsappLocaleCampagne() {
             <DialogTitle>{modificaId ? "Modifica campagna" : "Nuova campagna"}</DialogTitle>
             <DialogDescription>
               Varianti <code>{"{ciao|salve}"}</code>: a ogni invio ne esce una a caso, così i
-              messaggi non sono tutti identici. Variabili disponibili:{" "}
-              <code>{"{{nome}}"}</code> <code>{"{{cognome}}"}</code>{" "}
-              <code>{"{{azienda}}"}</code> <code>{"{{citta}}"}</code> — se il contatto non ha
-              quel dato, il segnaposto sparisce senza lasciare buchi nella frase.
+              messaggi non sono tutti identici. Variabili: clicca un chip per inserirla nel
+              testo; <code>{"{{nome|ciao}}"}</code> usa "ciao" se il contatto non ha il nome, senza
+              riserva il segnaposto sparisce senza lasciare buchi nella frase.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -718,13 +778,13 @@ export default function AdminWhatsappLocaleCampagne() {
                 <RisposteRapide categoria="campagna" etichetta="Template"
                   onScegli={(t) => setMessaggio((m) => (m ? `${m}\n${t}` : t))} />
               </div>
-              <Textarea id="msg" rows={4} value={messaggio} onChange={(e) => setMessaggio(e.target.value)}
+              <Textarea id="msg" rows={4} value={messaggio} onFocus={() => { campoAttivoRef.current = "msg"; }} onChange={(e) => setMessaggio(e.target.value)}
                 placeholder="{Ciao|Salve} {{nome}}, ..." />
               <div className="mt-2">
                 <Label htmlFor="msgB" className="text-xs text-muted-foreground">
                   Variante B — A/B test (facoltativa)
                 </Label>
-                <Textarea id="msgB" rows={2} value={messaggioB}
+                <Textarea id="msgB" rows={2} value={messaggioB} onFocus={() => { campoAttivoRef.current = "msgB"; }}
                   onChange={(e) => setMessaggioB(e.target.value)}
                   placeholder="Un testo alternativo: metà lista riceve questo, e confronti i tassi" />
               </div>
@@ -768,7 +828,7 @@ export default function AdminWhatsappLocaleCampagne() {
                       giorni
                     </div>
                   </div>
-                  <Textarea id={`msg${p2.n}`} rows={2} value={p2.testo}
+                  <Textarea id={`msg${p2.n}`} rows={2} value={p2.testo} onFocus={() => { campoAttivoRef.current = `msg${p2.n}` as "msg2" | "msg3" | "msg4"; }}
                     onChange={(e) => p2.setTesto(e.target.value)}
                     placeholder="Lascia vuoto per fermare la sequenza qui" className="mt-1.5" />
                 </div>
@@ -777,6 +837,68 @@ export default function AdminWhatsappLocaleCampagne() {
             <p className="text-xs text-muted-foreground -mt-2">
               Ogni messaggio parte solo verso chi <strong>non ha risposto</strong> al precedente.
             </p>
+            {/* Variabili: quelle del contatto + quelle scritte qui (chiave=valore). */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <Label className="text-sm font-medium">Variabili</Label>
+              <div className="flex flex-wrap gap-1">
+                {[...VARIABILI_CONTATTO, ...Object.keys(parseVariabili(variabiliText))].map((v) => (
+                  <button key={v} type="button" onClick={() => inserisciVariabile(v)}
+                    className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] hover:bg-accent"
+                    title={`Inserisci {{${v}}} nel testo su cui stavi scrivendo`}>{`{{${v}}}`}</button>
+                ))}
+              </div>
+              <Textarea rows={2} value={variabiliText} onChange={(e) => setVariabiliText(e.target.value)}
+                placeholder={"Variabili tue, una per riga: chiave=valore\nofferta=sopralluogo gratuito entro venerdì\nlink=https://…"}
+                className="font-mono text-xs" />
+            </div>
+
+            {/* Tempi e limiti: vuoto = finestra globale anti-ban (8-21, feriali). */}
+            <div className="rounded-lg border p-3 space-y-3">
+              <Label className="text-sm font-medium">Tempi e limiti</Label>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <Label htmlFor="orario-da" className="text-xs text-muted-foreground">Dalle</Label>
+                  <Input id="orario-da" type="number" min={0} max={23} value={orarioDa} placeholder="8"
+                    onChange={(e) => setOrarioDa(e.target.value)} className="h-8 w-20" />
+                </div>
+                <div>
+                  <Label htmlFor="orario-a" className="text-xs text-muted-foreground">Alle</Label>
+                  <Input id="orario-a" type="number" min={1} max={24} value={orarioA} placeholder="21"
+                    onChange={(e) => setOrarioA(e.target.value)} className="h-8 w-20" />
+                </div>
+                <div>
+                  <Label htmlFor="max-giorno" className="text-xs text-muted-foreground">Max al giorno (campagna)</Label>
+                  <Input id="max-giorno" type="number" min={1} value={maxAlGiorno} placeholder="senza limite"
+                    onChange={(e) => setMaxAlGiorno(e.target.value)} className="h-8 w-36" />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="mr-1 text-xs text-muted-foreground">Giorni:</span>
+                {GIORNI_SETTIMANA.map(([n, label]) => {
+                  const on = giorni.includes(n);
+                  return (
+                    <button key={n} type="button" aria-pressed={on}
+                      onClick={() => setGiorni((g) => (g.includes(n) ? g.filter((x) => x !== n) : [...g, n]))}
+                      className={`rounded border px-2 py-0.5 text-xs ${on ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"}`}>
+                      {label}
+                    </button>
+                  );
+                })}
+                <span className="ml-1 text-[11px] text-muted-foreground">{giorni.length === 0 ? "(nessuno selezionato = feriali, finestra globale)" : ""}</span>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <Label htmlFor="scadenza" className="text-xs text-muted-foreground">Scade il (poi si chiude da sola)</Label>
+                  <Input id="scadenza" type="datetime-local" value={scadenzaIl}
+                    onChange={(e) => setScadenzaIl(e.target.value)} className="h-8 w-56" />
+                </div>
+                <label className="flex items-center gap-2 pb-1.5 text-sm">
+                  <input type="checkbox" checked={stopSeRisponde} onChange={(e) => setStopSeRisponde(e.target.checked)} />
+                  Ferma la sequenza quando risponde
+                </label>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-4">
               <div>
                 <Label htmlFor="parteil">Parte il (facoltativo)</Label>

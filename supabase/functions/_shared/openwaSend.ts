@@ -69,9 +69,12 @@ export function applySpintax(text: string): string {
  * ("Ciao ," → "Ciao").
  */
 export function applyVariabili(text: string, dati: Record<string, string | null | undefined>): string {
-  let out = (text ?? "").replace(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g, (_m, chiave) => {
+  // {{chiave}} oppure {{chiave|testo di riserva}}: se il dato manca si usa la
+  // riserva (es. "{{nome|ciao}}" → "ciao"); senza riserva il segnaposto sparisce.
+  let out = (text ?? "").replace(/\{\{\s*([a-zA-Z_][\w.]*)\s*(?:\|([^{}]*))?\}\}/g, (_m, chiave, riserva) => {
     const v = dati[String(chiave).toLowerCase()];
-    return v ? String(v).trim() : "";
+    if (v && String(v).trim()) return String(v).trim();
+    return riserva != null ? String(riserva).trim() : "";
   });
   // Ripulisce cio' che resta dopo un segnaposto vuoto.
   out = out
@@ -211,6 +214,8 @@ export interface SendParams {
    * conversazione, dove sarebbe fuori luogo.
    */
   coldOutreach?: boolean;
+  /** Variabili extra (es. della campagna): {{offerta}}, {{link}}… Il contatto ha la precedenza. */
+  variabili?: Record<string, string | null | undefined> | null;
   /** Simula "sta scrivendo…" + ritardo umano prima di inviare. Default true. */
   simulateTyping?: boolean;
   /** Media in uscita: path bucket openwa-media (o URL http). `text` = caption. */
@@ -253,12 +258,12 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   // Dati per le variabili del messaggio. Vuoti se l'invio e' a numero libero:
   // in quel caso i segnaposto spariscono invece di restare a vista.
-  const datiContatto: { first_name?: string | null; last_name?: string | null; company_name?: string | null; citta?: string | null } = {};
+  const datiContatto: Record<string, string | null | undefined> = {};
 
   if (params.contactId) {
     const { data: c } = await admin
       .from("marketing_contacts")
-      .select("phone, tags, first_name, last_name, company_name, city, optout_whatsapp")
+      .select("phone, tags, first_name, last_name, company_name, city, province, email, website, source, optout_whatsapp")
       .eq("id", params.contactId)
       .maybeSingle();
     if (c) {
@@ -266,10 +271,17 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
       phone = phone || c.phone || "";
       contactTags = contactTags.length ? contactTags : (c.tags ?? []);
       contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
+      const cc = c as Record<string, unknown>;
       datiContatto.first_name = c.first_name;
       datiContatto.last_name = c.last_name;
-      datiContatto.company_name = (c as { company_name?: string | null }).company_name ?? null;
-      datiContatto.citta = (c as { city?: string | null }).city ?? null;
+      datiContatto.company_name = (cc.company_name as string | null) ?? null;
+      datiContatto.citta = (cc.city as string | null) ?? null;
+      datiContatto.provincia = (cc.province as string | null) ?? null;
+      datiContatto.telefono = (cc.phone as string | null) ?? null;
+      datiContatto.email = (cc.email as string | null) ?? null;
+      datiContatto.sito = (cc.website as string | null) ?? null;
+      datiContatto.fonte = (cc.source as string | null) ?? null;
+      datiContatto.tag = Array.isArray(cc.tags) ? (cc.tags as string[]).join(", ") : null;
     }
   }
 
@@ -301,11 +313,23 @@ export async function sendOpenWaMessage(admin: Admin, params: SendParams): Promi
 
   // Variabili del contatto ({{nome}}, {{cognome}}, {{azienda}}, {{citta}}) e
   // POI spintax: prima si riempie, poi si varia.
+  // Variabili: quelle della campagna ({{offerta}}…) sotto, quelle del contatto sopra.
+  const extra: Record<string, string | null | undefined> = {};
+  for (const [k, v] of Object.entries(params.variabili ?? {})) extra[String(k).toLowerCase()] = v == null ? null : String(v);
+  const nomeCompleto = [datiContatto.first_name, datiContatto.last_name].filter(Boolean).join(" ") || null;
   let text = applySpintax(applyVariabili(rawText, {
+    ...extra,
     nome: datiContatto.first_name,
     cognome: datiContatto.last_name,
+    nome_completo: nomeCompleto,
     azienda: datiContatto.company_name,
     citta: datiContatto.citta,
+    provincia: datiContatto.provincia,
+    telefono: datiContatto.telefono,
+    email: datiContatto.email,
+    sito: datiContatto.sito,
+    fonte: datiContatto.fonte,
+    tag: datiContatto.tag,
   }));
   if (params.coldOutreach) {
     const nota = (await getPlatformSetting("openwa_nota_optout"))

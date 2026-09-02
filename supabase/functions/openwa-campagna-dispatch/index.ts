@@ -27,6 +27,8 @@ interface CampagnaAi {
   ai_personalizza: boolean;
   ai_istruzioni: string | null;
   messaggio_b: string | null;
+  variabili?: Record<string, string> | null;
+  max_al_giorno?: number | null;
 }
 
 /**
@@ -119,7 +121,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
   }
 
-  const esito = { inviati: 0, followup: 0, saltati: 0, falliti: 0, pool_esaurito: false, completate: 0 };
+  const esito = { inviati: 0, followup: 0, saltati: 0, falliti: 0, pool_esaurito: false, completate: 0, limitati: 0 };
 
   try {
     const { data: maturi, error } = await admin.rpc("openwa_campagna_prossimi", { p_limit: PER_GIRO });
@@ -131,7 +133,7 @@ Deno.serve(async (req) => {
     if (campagneIds.length) {
       const { data: cfg } = await admin
         .from("openwa_campagne")
-        .select("id, ai_personalizza, ai_istruzioni, messaggio_b")
+        .select("id, ai_personalizza, ai_istruzioni, messaggio_b, variabili, max_al_giorno")
         .in("id", campagneIds);
       for (const c of cfg ?? []) campagneAi.set(c.id, c as CampagnaAi);
     }
@@ -175,9 +177,23 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Tetto giornaliero DELLA CAMPAGNA (oltre a quello dei numeri): contato in
+      // modo atomico prima dell'invio; se pieno la riga torna libera per domani.
+      if (cfgAi?.max_al_giorno) {
+        const { data: sottoTetto } = await admin.rpc("openwa_campagna_conta_invio", { p_campagna_id: m.campagna_id });
+        if (sottoTetto === false) {
+          await admin.from("openwa_campagna_destinatari").update({ claimed_at: null }).eq("id", m.destinatario_id);
+          lavorati.delete(m.destinatario_id);
+          esito.limitati++;
+          continue;
+        }
+      }
+      const scalaTetto = async () => { if (cfgAi?.max_al_giorno) await admin.rpc("openwa_campagna_scala_invio", { p_campagna_id: m.campagna_id }); };
+
       const res = await sendOpenWaMessage(admin, {
         contactId: m.contact_id,
         text: testo,
+        variabili: cfgAi?.variabili ?? null,
         contactTags: m.tags_numeri ?? [],
         // Primo contatto E follow-up sono entrambi non richiesti: in tutti e
         // due i casi la persona deve poter dire basta con una parola.
@@ -209,12 +225,14 @@ Deno.serve(async (req) => {
       if (res.status === 409) {
         esito.pool_esaurito = true;
         lavorati.delete(m.destinatario_id); // questo NON e' stato lavorato
+        await scalaTetto();
         break;
       }
 
       // 400 = destinatario non contattabile (opt-out, numero mancante):
       // inutile ritentare all'infinito.
       if (res.status === 400) {
+        await scalaTetto();
         await admin.from("openwa_campagna_destinatari")
           .update({ stato: "saltato", ultimo_errore: res.error ?? "non contattabile", claimed_at: null })
           .eq("id", m.destinatario_id);
@@ -225,6 +243,7 @@ Deno.serve(async (req) => {
       // Errore vero (gateway giu', ecc.): conta un tentativo e riprova.
       // Il builder di supabase-js e' un Thenable, non una Promise: niente
       // .catch() qui, si legge il conteggio e si riscrive.
+      await scalaTetto();
       const { data: row } = await admin
         .from("openwa_campagna_destinatari")
         .select("tentativi").eq("id", m.destinatario_id).maybeSingle();
@@ -247,6 +266,11 @@ Deno.serve(async (req) => {
         .update({ claimed_at: null }).in("id", nonLavorati);
     }
 
+    // Scadenza della campagna: oltre la data si chiude, chi resta in coda non
+    // riceve piu' nulla (i tempi li decide chi la lancia, non il motore).
+    await admin.from("openwa_campagne")
+      .update({ stato: "completata", completata_at: new Date().toISOString() })
+      .eq("stato", "in_corso").lte("scadenza_il", new Date().toISOString());
     const { data: completate } = await admin.rpc("openwa_campagne_completa_finite");
     esito.completate = (completate as number | null) ?? 0;
 
