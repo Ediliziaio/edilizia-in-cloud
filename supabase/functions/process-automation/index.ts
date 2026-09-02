@@ -316,7 +316,7 @@ async function handleTrigger(supabase: any, body: any) {
     const sogliaRaw = tcfg.importo_minimo ?? tcfg.importo_soglia ?? tcfg.valore_minimo;
     if (sogliaRaw != null && sogliaRaw !== "") {
       const soglia = Number(sogliaRaw);
-      const importo = Number(ep?.importo ?? ep?.total_amount ?? ep?.value);
+      const importo = Number(ep?.importo ?? ep?.total_amount ?? ep?.value ?? ep?.total);
       if (Number.isFinite(soglia) && !(Number.isFinite(importo) && importo >= soglia)) continue;
     }
     // Stato di arrivo (ordine_stato_cambiato / ticket_stato_cambiato): confronto
@@ -362,6 +362,10 @@ async function handleTrigger(supabase: any, body: any) {
     if (typeof tcfg.fase_a === "string" && tcfg.fase_a !== "") {
       const norm = (s: unknown) => String(s ?? "").toLowerCase().trim();
       if (norm((enrichedPayload as Record<string, unknown>)?.fase_nome) !== norm(tcfg.fase_a)) continue;
+    }
+    // Tipo richiesta (ferie_richiesta: ferie/permesso/malattia).
+    if (typeof tcfg.tipo_richiesta_filtro === "string" && tcfg.tipo_richiesta_filtro !== "") {
+      if (String((enrichedPayload as Record<string, unknown>)?.tipo ?? "").toLowerCase() !== tcfg.tipo_richiesta_filtro.toLowerCase()) continue;
     }
     // Tipo colloquio (colloquio_fissato).
     if (typeof tcfg.tipo_colloquio_filtro === "string" && tcfg.tipo_colloquio_filtro !== "") {

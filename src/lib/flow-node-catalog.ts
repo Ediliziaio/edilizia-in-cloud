@@ -532,6 +532,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'fatturazione',
     dbTable: 'invoices',
     dbEvent: 'INSERT',
+    configSchema: [
+      { id: 'importo_minimo', label: 'Solo fatture superiori a (€)', type: 'number', required: false, placeholder: 'Es: 1000', helpText: 'Lascia vuoto per qualsiasi importo' },
+    ],
     outputVariables: [
       { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
       { id: 'fattura.invoice_number', label: 'Numero fattura', type: 'string' },
@@ -625,6 +628,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'INSERT',
+    configSchema: [
+      { id: 'importo_minimo', label: 'Solo preventivi superiori a (€)', type: 'number', required: false, placeholder: 'Es: 5000', helpText: 'Lascia vuoto per qualsiasi importo' },
+    ],
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
       { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
@@ -643,6 +649,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'preventivi',
     dbTable: 'quotes',
     dbEvent: 'UPDATE',
+    configSchema: [
+      { id: 'importo_minimo', label: 'Solo preventivi superiori a (€)', type: 'number', required: false, placeholder: 'Es: 5000', helpText: 'Lascia vuoto per qualsiasi importo' },
+    ],
     outputVariables: [
       { id: 'preventivo.id', label: 'ID Preventivo', type: 'uuid' },
       { id: 'preventivo.quote_number', label: 'Numero preventivo', type: 'string' },
@@ -978,6 +987,14 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     icon: 'Calendar',
     categoria: 'hr',
     dbEvent: 'INSERT',
+    configSchema: [
+      { id: 'tipo_richiesta_filtro', label: 'Solo richieste di tipo', type: 'select', required: false, options: [
+        { value: '', label: 'Tutti i tipi' },
+        { value: 'ferie', label: 'Ferie' },
+        { value: 'permesso', label: 'Permesso' },
+        { value: 'malattia', label: 'Malattia' },
+      ] },
+    ],
     outputVariables: [
       { id: 'richiesta.id', label: 'ID Richiesta', type: 'uuid' },
       { id: 'dipendente.first_name', label: 'Nome dipendente', type: 'string' },

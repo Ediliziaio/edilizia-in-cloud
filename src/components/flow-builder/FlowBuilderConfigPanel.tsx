@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Trash2, Filter, Save, CheckCircle, RotateCcw, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, X, Trash2, Filter, Save, CheckCircle, RotateCcw, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -201,6 +201,11 @@ export function FlowBuilderConfigPanel({
 
   const schema = catalog?.configSchema ?? [];
   const nodeData = selectedNode.data as Record<string, any>;
+  // Validazione LIVE per-campo: stessa regola della checklist di pubblicazione,
+  // ma mostrata QUI mentre compili — scoprire i buchi solo al "Pubblica"
+  // significa riaprire ogni nodo a caccia del campo dimenticato.
+  const vuoto = (v: unknown) => (Array.isArray(v) ? v.length === 0 : v == null || (typeof v === "string" && v.trim() === ""));
+  const campiMancanti = schema.filter((f) => f.required && vuoto(nodeData[f.id]));
   const itemId = nodeData.itemId as string;
   const nodeType = nodeData.nodeType as string;
 
@@ -337,19 +342,24 @@ export function FlowBuilderConfigPanel({
           )}
 
           {/* Generic fields from configSchema (only if NOT specialized) */}
-          {!isSpecialized && schema.map((field) => (
-            <ConfigField
-              key={field.id}
-              field={field}
-              value={nodeData[field.id]}
-              onChange={(v) => handleChange(field.id, v)}
-              onPatch={handlePatch}
-              nodeConfig={nodeData}
-              triggerProvidesContact={triggerProvidesContact}
-              companyId={companyId}
-              triggerItemId={triggerItemId}
-            />
-          ))}
+          {!isSpecialized && schema.map((field) => {
+            const mancante = field.required && vuoto(nodeData[field.id]);
+            return (
+              <div key={field.id} className={mancante ? "rounded-lg bg-destructive/5 ring-1 ring-destructive/40 p-2 -mx-2" : undefined}>
+                <ConfigField
+                  field={field}
+                  value={nodeData[field.id]}
+                  onChange={(v) => handleChange(field.id, v)}
+                  onPatch={handlePatch}
+                  nodeConfig={nodeData}
+                  triggerProvidesContact={triggerProvidesContact}
+                  companyId={companyId}
+                  triggerItemId={triggerItemId}
+                />
+                {mancante && <p className="mt-1 text-[11px] font-medium text-destructive">Campo obbligatorio: da compilare prima di pubblicare.</p>}
+              </div>
+            );
+          })}
 
           {/* Anteprima + invio di prova per il nodo email super-admin */}
           {itemId === "invia_email_admin_azienda" && (
@@ -385,6 +395,13 @@ export function FlowBuilderConfigPanel({
           {catalog?.description && (
             <div className="rounded-lg border bg-muted/50 p-3.5">
               <p className="text-[11px] leading-relaxed text-muted-foreground">{catalog.description}</p>
+            </div>
+          )}
+
+          {campiMancanti.length > 0 && (
+            <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>Da completare: {campiMancanti.map((f) => f.label).join(", ")}.</span>
             </div>
           )}
 
