@@ -23,6 +23,7 @@ import {
   useHrCandidati, useUpsertCandidato, useDeleteCandidato,
   useColloquiCandidato, useAddColloquio, useDeleteColloquio,
   useFasiSelezione, useUpsertFase, useDeleteFase, useScambiaFasi, useSpostaFase, useAssumiCandidato,
+  useCandidaturaForms, useUpsertCandidaturaForm, useDeleteCandidaturaForm, type CandidaturaForm, type StatoCampoModulo,
   STATI_CANDIDATO, FONTI_CANDIDATO, TIPI_COLLOQUIO, ESITI_COLLOQUIO,
   type HrCandidato, type CandidatoStato, type CandidatoFonte, type ColloquioTipo, type ColloquioEsito, type FaseSelezione,
 } from "@/hooks/useHrCandidati";
@@ -37,9 +38,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowDown, ArrowUp, BrainCircuit, CalendarCheck, Download, FileText, HardHat, KanbanSquare,
-  Link2, List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2, Upload,
-  UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
+  ArrowDown, ArrowUp, BrainCircuit, CalendarCheck, Copy, Download, ExternalLink, FileText, Globe,
+  HardHat, KanbanSquare, Link2, List, Mail, MapPin, Phone, Plus, Search, Settings2, Star, Trash2,
+  Upload, UserRoundSearch, Users, XCircle, CheckCircle2, Archive,
 } from "lucide-react";
 
 const RUOLI_SUGGERITI = [
@@ -137,6 +138,121 @@ function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: bo
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
             <Button variant="brand" onClick={salva} disabled={upsert.isPending}>Aggiungi</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Moduli di candidatura pubblici: il link da mettere sul sito o nell'annuncio. */
+function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { data: moduli = [], isLoading } = useCandidaturaForms();
+  const upsert = useUpsertCandidaturaForm();
+  const del = useDeleteCandidaturaForm();
+  const [titolo, setTitolo] = useState("");
+  const [ruoli, setRuoli] = useState("");
+  const linkDi = (m: CandidaturaForm) => `${window.location.origin}/candidatura/${m.token}`;
+  const copia = async (m: CandidaturaForm) => {
+    try {
+      await navigator.clipboard.writeText(linkDi(m));
+      toast.success("Link copiato: incollalo sul sito o nell'annuncio");
+    } catch {
+      toast.error("Copia non riuscita", { description: linkDi(m) });
+    }
+  };
+  const crea = () => {
+    if (!titolo.trim()) { toast.error("Dai un titolo al modulo (es. Lavora con noi)"); return; }
+    upsert.mutate({
+      titolo: titolo.trim(),
+      descrizione: null,
+      ruoli: ruoli.split(",").map((r) => r.trim()).filter(Boolean),
+    });
+    setTitolo("");
+    setRuoli("");
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Moduli di candidatura per il tuo sito</DialogTitle></DialogHeader>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Crea il modulo e metti il link sul tuo sito o nell'annuncio: chi si candida
+          finisce qui dentro, in prima fase, col CV allegato. Spegnendo il modulo il link smette di funzionare.
+        </p>
+        {isLoading ? <Skeleton className="h-16 w-full" /> : moduli.length === 0 ? (
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Nessun modulo ancora: creane uno qui sotto.</p>
+        ) : (
+          <div className="space-y-2">
+            {moduli.map((m) => (
+              <div key={m.id} className="rounded-lg border p-2.5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Globe className={`h-4 w-4 shrink-0 ${m.attivo ? "text-emerald-500" : "text-slate-300"}`} />
+                  <p className="flex-1 truncate text-sm font-semibold">{m.titolo}</p>
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">{m.total_submissions} candidature · {m.total_views} visite</span>
+                </div>
+                {m.ruoli.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground truncate">Ruoli proposti: {m.ruoli.join(", ")}</p>
+                )}
+                {/* Ogni impresa decide cosa chiedere: obbligatorio, facoltativo o via. */}
+                <details className="rounded border bg-slate-50/60 px-2 py-1">
+                  <summary className="cursor-pointer text-[11px] font-medium text-slate-600">Campi del modulo</summary>
+                  <div className="grid grid-cols-1 gap-1 py-1.5 sm:grid-cols-2">
+                    {([["cognome", "Cognome"], ["telefono", "Telefono"], ["email", "Email"], ["citta", "Città"], ["ruolo", "Ruolo"], ["messaggio", "Presentazione"], ["cv", "Curriculum"]] as const).map(([campo, label]) => {
+                      const valore: StatoCampoModulo = m.campi?.[campo] ?? (campo === "telefono" ? "obbligatorio" : "facoltativo");
+                      return (
+                        <label key={campo} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-slate-600">{label}</span>
+                          <select
+                            className="h-6 rounded border bg-white px-1 text-[11px]"
+                            value={valore}
+                            onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, campi: { ...(m.campi ?? {}), [campo]: e.target.value as StatoCampoModulo } })}
+                          >
+                            <option value="obbligatorio">Obbligatorio</option>
+                            <option value="facoltativo">Facoltativo</option>
+                            <option value="nascosto">Nascosto</option>
+                          </select>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="pb-1 text-[10px] text-muted-foreground">Il nome è sempre obbligatorio; serve comunque almeno un contatto (telefono o email).</p>
+                </details>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copia(m)}>
+                    <Copy className="h-3 w-3" /> Copia link
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => window.open(linkDi(m), "_blank")}>
+                    <ExternalLink className="h-3 w-3" /> Anteprima
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => upsert.mutate({ id: m.id, titolo: m.titolo, attivo: !m.attivo })}
+                  >
+                    {m.attivo ? "Spegni" : "Riattiva"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="ml-auto text-slate-400 hover:text-destructive"
+                    aria-label={`Elimina modulo ${m.titolo}`}
+                    onClick={() => { if (window.confirm(`Eliminare il modulo "${m.titolo}"? Il link smette di funzionare.`)) del.mutate(m.id); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nuovo modulo</p>
+          <Input placeholder="Titolo (es. Lavora con noi — Cerchiamo muratori)" value={titolo} onChange={(e) => setTitolo(e.target.value)} />
+          <Input placeholder="Ruoli proposti, separati da virgola (vuoto = campo libero)" value={ruoli} onChange={(e) => setRuoli(e.target.value)} />
+          <div className="flex justify-end">
+            <Button size="sm" variant="brand" className="gap-1" disabled={upsert.isPending} onClick={crea}>
+              <Plus className="h-3.5 w-3.5" /> Crea modulo
+            </Button>
           </div>
         </div>
       </DialogContent>
@@ -585,6 +701,7 @@ export function TabCandidati() {
   const [filtroEsito, setFiltroEsito] = useState<"in_selezione" | "tutti" | Esito>("in_selezione");
   const [nuovoAperto, setNuovoAperto] = useState(false);
   const [fasiAperte, setFasiAperte] = useState(false);
+  const [moduliAperti, setModuliAperti] = useState(false);
   const [apertoId, setApertoId] = useState<string | null>(null);
   // Istante di riferimento per "Ng fermo": preso al mount, la precisione al
   // minuto non serve e il render resta puro (react-compiler).
@@ -746,6 +863,11 @@ export function TabCandidati() {
           </Button>
         )}
         {vista !== "test" && (
+          <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setModuliAperti(true)}>
+            <Globe className="h-3.5 w-3.5" /> Modulo sito
+          </Button>
+        )}
+        {vista !== "test" && (
           <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Nuovo candidato</Button>
         )}
       </div>
@@ -836,6 +958,7 @@ export function TabCandidati() {
 
       <NuovoCandidatoDialog open={nuovoAperto} onOpenChange={setNuovoAperto} fasi={fasi} onCreato={(c) => setApertoId(c.id)} />
       <GestisciFasiDialog open={fasiAperte} onOpenChange={setFasiAperte} fasi={fasi} candidati={candidati} />
+      <ModuliSitoDialog open={moduliAperti} onOpenChange={setModuliAperti} />
       {aperto && <SchedaCandidato key={aperto.id} candidato={aperto} fasi={fasi} onClose={() => setApertoId(null)} vaiAlTest={vaiAlTest} vaiOrganigramma={vaiOrganigramma} />}
     </div>
   );

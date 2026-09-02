@@ -426,6 +426,74 @@ export function useScambiaFasi() {
   });
 }
 
+// ── Moduli di candidatura pubblici (per il sito dell'impresa) ───────────────
+
+export type StatoCampoModulo = "obbligatorio" | "facoltativo" | "nascosto";
+
+export interface CandidaturaForm {
+  id: string;
+  company_id: string;
+  token: string;
+  titolo: string;
+  descrizione: string | null;
+  ruoli: string[];
+  /** Config campi: {campo: obbligatorio|facoltativo|nascosto}. Vuoto = default. */
+  campi: Record<string, StatoCampoModulo>;
+  attivo: boolean;
+  total_views: number;
+  total_submissions: number;
+  created_at: string;
+}
+
+export function useCandidaturaForms() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["hr-candidatura-forms", companyId],
+    enabled: !!companyId,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<CandidaturaForm[]> => {
+      const { data, error } = await db
+        .from("hr_candidatura_forms")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as CandidaturaForm[];
+    },
+  });
+}
+
+export function useUpsertCandidaturaForm() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (form: Partial<CandidaturaForm> & { titolo: string }) => {
+      const { id, company_id: _c, token: _t, total_views: _v, total_submissions: _s, created_at: _d, ...rest } = form as Record<string, unknown> & { id?: string };
+      if (id) {
+        const { error } = await db.from("hr_candidatura_forms").update(rest).eq("id", id);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await db.from("hr_candidatura_forms").insert({ ...rest, company_id: companyId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-candidatura-forms"] }),
+    onError: (e) => toast.error("Modulo non salvato", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
+export function useDeleteCandidaturaForm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("hr_candidatura_forms").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-candidatura-forms"] }),
+    onError: (e) => toast.error("Modulo non eliminato", { description: e instanceof Error ? e.message : undefined }),
+  });
+}
+
 /** Sposta un candidato di fase (drag nel kanban o select nella scheda). */
 export function useSpostaFase() {
   const qc = useQueryClient();
