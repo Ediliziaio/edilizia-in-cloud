@@ -20,7 +20,20 @@ interface ConfigModulo {
   descrizione: string | null;
   ruoli: string[];
   campi: Record<string, StatoCampo>;
+  stile?: { testata: string; bottone: string; mostra_azienda: boolean };
   azienda: string;
+}
+
+/** Testo bianco o scuro a seconda della tinta scelta (luminanza YIQ). */
+function testoSu(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const yiq = (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
+  return yiq >= 160 ? "#1E293B" : "#FFFFFF";
+}
+function schiarisci(hex: string, f = 0.25): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.min(255, Math.round(v + (255 - v) * f));
+  return `#${[(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => c(v).toString(16).padStart(2, "0")).join("")}`;
 }
 
 export default function CandidaturaPubblica() {
@@ -100,6 +113,11 @@ export default function CandidaturaPubblica() {
     }
   };
 
+  const stile = config?.stile ?? { testata: "#F97316", bottone: "#F97316", mostra_azienda: false };
+  const testataBg = `linear-gradient(135deg, ${stile.testata}, ${schiarisci(stile.testata)})`;
+  const testataTesto = testoSu(stile.testata);
+  const bottoneTesto = testoSu(stile.bottone);
+
   const scegliCv = (f: File | null) => {
     if (f && f.size > MAX_CV) { setErrore("Il CV supera i 6 MB: riducilo o invialo dopo."); return; }
     setErrore(null);
@@ -130,12 +148,14 @@ export default function CandidaturaPubblica() {
           </div>
         ) : (
           <div className="rounded-2xl border bg-white shadow-sm">
-            <div className="border-b bg-gradient-to-br from-orange-500 to-amber-400 px-6 py-5 rounded-t-2xl">
-              <div className="flex items-center gap-2 text-white/90 text-xs font-semibold uppercase tracking-wide">
-                <HardHat className="h-4 w-4" /> {config.azienda || "Lavora con noi"}
-              </div>
-              <h1 className="mt-1 text-xl font-bold text-white">{config.titolo}</h1>
-              {config.descrizione && <p className="mt-1 text-sm text-white/90">{config.descrizione}</p>}
+            <div className="border-b px-6 py-5 rounded-t-2xl" style={{ background: testataBg, color: testataTesto }}>
+              {stile.mostra_azienda && config.azienda && (
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ opacity: 0.9 }}>
+                  <HardHat className="h-4 w-4" /> {config.azienda}
+                </div>
+              )}
+              <h1 className="text-xl font-bold">{config.titolo}</h1>
+              {config.descrizione && <p className="mt-1 text-sm" style={{ opacity: 0.92 }}>{config.descrizione}</p>}
             </div>
 
             <div className="space-y-3 p-6">
@@ -224,7 +244,8 @@ export default function CandidaturaPubblica() {
                 type="button"
                 disabled={inviando}
                 onClick={invia}
-                className="w-full rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 py-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="w-full rounded-xl py-3 text-sm font-semibold shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={{ background: `linear-gradient(135deg, ${stile.bottone}, ${schiarisci(stile.bottone, 0.18)})`, color: bottoneTesto }}
               >
                 {inviando ? "Invio in corso…" : "Invia la candidatura"}
               </button>

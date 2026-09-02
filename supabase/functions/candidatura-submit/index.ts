@@ -21,6 +21,16 @@ const CAMPI_DEFAULT: Record<string, StatoCampo> = {
   cognome: "facoltativo", telefono: "obbligatorio", email: "facoltativo",
   citta: "facoltativo", ruolo: "facoltativo", messaggio: "facoltativo", cv: "facoltativo",
 };
+const COLORE_RE = /^#[0-9a-fA-F]{6}$/;
+function normalizzaStile(raw: unknown): { testata: string; bottone: string; mostra_azienda: boolean } {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    testata: typeof r.testata === "string" && COLORE_RE.test(r.testata) ? r.testata : "#F97316",
+    bottone: typeof r.bottone === "string" && COLORE_RE.test(r.bottone) ? r.bottone : "#F97316",
+    mostra_azienda: r.mostra_azienda === true,
+  };
+}
+
 function normalizzaCampi(raw: unknown): Record<string, StatoCampo> {
   const out = { ...CAMPI_DEFAULT };
   if (raw && typeof raw === "object") {
@@ -50,7 +60,7 @@ Deno.serve(async (req) => {
       }
       const { data: form } = await db
         .from("hr_candidatura_forms")
-        .select("id, company_id, titolo, descrizione, ruoli, attivo, campi")
+        .select("id, company_id, titolo, descrizione, ruoli, attivo, campi, stile")
         .eq("token", token)
         .maybeSingle();
       if (!form || !form.attivo) return json({ error: "Modulo non trovato" }, 404, cors);
@@ -70,6 +80,7 @@ Deno.serve(async (req) => {
         descrizione: form.descrizione,
         ruoli: form.ruoli ?? [],
         campi: normalizzaCampi(form.campi),
+        stile: normalizzaStile(form.stile),
         azienda: company?.name ?? "",
       }, 200, cors);
     }

@@ -205,7 +205,7 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                           <select
                             className="h-6 rounded border bg-white px-1 text-[11px]"
                             value={valore}
-                            onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, campi: { ...(m.campi ?? {}), [campo]: e.target.value as StatoCampoModulo } })}
+                            onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, campi: { [campo]: e.target.value as StatoCampoModulo } })}
                           >
                             <option value="obbligatorio">Obbligatorio</option>
                             <option value="facoltativo">Facoltativo</option>
@@ -216,6 +216,37 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                     })}
                   </div>
                   <p className="pb-1 text-[10px] text-muted-foreground">Il nome è sempre obbligatorio; serve comunque almeno un contatto (telefono o email).</p>
+                  <div className="flex flex-wrap items-center gap-3 border-t py-1.5">
+                    <span className="text-[11px] font-medium text-slate-600">Aspetto:</span>
+                    <label className="flex items-center gap-1 text-[11px] text-slate-600">
+                      Testata
+                      <input
+                        type="color"
+                        value={m.stile?.testata ?? "#F97316"}
+                        onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { testata: e.target.value } })}
+                        className="h-5 w-6 cursor-pointer rounded border bg-transparent p-0"
+                        aria-label="Colore testata"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1 text-[11px] text-slate-600">
+                      Bottone
+                      <input
+                        type="color"
+                        value={m.stile?.bottone ?? "#F97316"}
+                        onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { bottone: e.target.value } })}
+                        className="h-5 w-6 cursor-pointer rounded border bg-transparent p-0"
+                        aria-label="Colore bottone"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={m.stile?.mostra_azienda === true}
+                        onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { mostra_azienda: e.target.checked } })}
+                      />
+                      Mostra nome azienda
+                    </label>
+                  </div>
                 </details>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copia(m)}>

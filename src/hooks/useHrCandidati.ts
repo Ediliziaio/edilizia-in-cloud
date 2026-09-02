@@ -439,6 +439,8 @@ export interface CandidaturaForm {
   ruoli: string[];
   /** Config campi: {campo: obbligatorio|facoltativo|nascosto}. Vuoto = default. */
   campi: Record<string, StatoCampoModulo>;
+  /** Aspetto: colori testata/bottone e visibilità del nome azienda. */
+  stile: { testata?: string; bottone?: string; mostra_azienda?: boolean } | null;
   attivo: boolean;
   total_views: number;
   total_submissions: number;
@@ -470,6 +472,15 @@ export function useUpsertCandidaturaForm() {
     mutationFn: async (form: Partial<CandidaturaForm> & { titolo: string }) => {
       const { id, company_id: _c, token: _t, total_views: _v, total_submissions: _s, created_at: _d, ...rest } = form as Record<string, unknown> & { id?: string };
       if (id) {
+        // campi e stile sono jsonb costruiti dal chiamante sopra la SUA copia:
+        // due modifiche ravvicinate (es. colore testata poi bottone) partono
+        // entrambe dalla cache e la seconda cancella la prima. Merge su dati
+        // freschi letti ADESSO, non su quelli di quando è nato il click.
+        if (rest.campi || rest.stile) {
+          const { data: cur } = await db.from("hr_candidatura_forms").select("campi, stile").eq("id", id).maybeSingle();
+          if (rest.campi) rest.campi = { ...(cur?.campi ?? {}), ...(rest.campi as Record<string, unknown>) };
+          if (rest.stile) rest.stile = { ...(cur?.stile ?? {}), ...(rest.stile as Record<string, unknown>) };
+        }
         const { error } = await db.from("hr_candidatura_forms").update(rest).eq("id", id);
         if (error) throw error;
         return;
