@@ -54,10 +54,19 @@ const CONDIZIONE_TRASFERIMENTO_DEFAULT =
  * ma l'agente non sa DOVE trasferire: la chiamata muore li'. Serve almeno una
  * destinazione con la condizione in cui usarla.
  *
- * Il tipo e' `sip_refer` perche' i numeri di questa piattaforma sono su Telnyx:
- * il trasferimento "conference" (quello in cui l'AI riassume a voce
- * all'operatore prima di passare) e' disponibile solo con l'integrazione
- * nativa Twilio. Il riassunto per l'operatore lo diamo a schermo, non a voce.
+ * Tipo `conference`, che e' anche il default di ElevenLabs: EL squilla al numero
+ * dell'operatore mentre il cliente resta in linea, li unisce in una stanza e poi
+ * si toglie di mezzo, lasciando soli cliente e operatore.
+ *
+ * NON si usa `sip_refer` benche' i nostri numeri passino da un trunk SIP Telnyx:
+ * REFER richiede che il trunk lo consenta esplicitamente, e se non e' abilitato
+ * il trasferimento fallisce in chiamata, davanti al cliente. `conference`
+ * funziona sia con i numeri sia col trunk SIP e non chiede configurazioni in
+ * piu'. `blind` e' escluso perche' e' solo Twilio nativo.
+ *
+ * Quello che con Telnyx NON si puo' avere e' `agent_message`, cioe' l'AI che
+ * riassume a voce all'operatore prima di passargli il cliente: e' riservato a
+ * Twilio nativo. Per questo il riassunto lo diamo a schermo.
  */
 function costruisciStrumentoSistema(elName: string, toolsConfig: ToolsConfig): unknown | null {
   if (elName !== "transfer_to_number") return { type: "system", name: elName };
@@ -79,7 +88,7 @@ function costruisciStrumentoSistema(elName: string, toolsConfig: ToolsConfig): u
         {
           transfer_destination: { type: "phone", phone_number: numero },
           condition: toolsConfig.trasferimento?.condizione?.trim() || CONDIZIONE_TRASFERIMENTO_DEFAULT,
-          transfer_type: "sip_refer",
+          transfer_type: "conference",
         },
       ],
     },
