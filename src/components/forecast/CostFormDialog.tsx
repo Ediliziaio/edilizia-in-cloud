@@ -34,6 +34,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
 import { toast } from "sonner";
 import type { CostFormData } from "@/hooks/useCompanyCostsMutations";
+import { EVENTI_USCITA, termineLeggibile } from "@/lib/costi/uscitaEventi";
 import {
   calculatePeriodsFromDates,
   getNextDate,
@@ -157,6 +158,11 @@ export function CostFormDialog({
     }
     onSave(formData);
   };
+  // Termine scelto: decide se ha senso chiedere i giorni di dilazione e se la
+  // data scritta a mano è solo una previsione.
+  const defEvento = EVENTI_USCITA.find((e) => e.value === (formData.trigger_evento || "data_fissa"));
+  const aTermine = (formData.trigger_evento || "data_fissa") !== "data_fissa";
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); onOpenChange(o); }}>
@@ -348,9 +354,66 @@ export function CostFormDialog({
                 </Select>
               </div>
               <div>
-                <Label>Data scadenza *</Label>
+                <Label>{aTermine ? "Data prevista" : "Data scadenza *"}</Label>
                 <Input type="date" value={formData.due_date || ""} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
               </div>
+            </div>
+
+            {/* Termini di pagamento come si dicono davvero: "30 gg data fattura",
+                "60 gg fine mese". Scritti così la scadenza si ricalcola quando la
+                fattura del fornitore arriva, invece di restare quella digitata. */}
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2.5">
+              <span className="text-xs text-muted-foreground">Si paga</span>
+              <Select
+                value={formData.trigger_evento || "data_fissa"}
+                onValueChange={(v) => setFormData({ ...formData, trigger_evento: v })}
+              >
+                <SelectTrigger className="h-8 w-auto min-w-[190px] text-xs" aria-label="Da cosa si conta la scadenza">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENTI_USCITA.map((e) => (
+                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {defEvento?.conGiorni && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  +
+                  <Input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={formData.giorni_dilazione ?? 0}
+                    onChange={(e) => setFormData({ ...formData, giorni_dilazione: Math.max(0, Math.min(365, Number(e.target.value) || 0)) })}
+                    className="h-8 w-16 px-2 text-xs"
+                    aria-label="Giorni di dilazione"
+                  />
+                  giorni
+                </span>
+              )}
+
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                · avvisami
+                <Input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={formData.giorni_preavviso ?? 7}
+                  onChange={(e) => setFormData({ ...formData, giorni_preavviso: Math.max(0, Math.min(90, Number(e.target.value) || 0)) })}
+                  className="h-8 w-14 px-2 text-xs"
+                  aria-label="Giorni di preavviso"
+                />
+                giorni prima
+              </span>
+
+              {aTermine && (
+                <span className="w-full text-[11px] text-muted-foreground">
+                  {termineLeggibile(formData.trigger_evento, formData.giorni_dilazione)} — la scadenza si calcola da sola
+                  {formData.trigger_evento?.includes("fattura") ? " quando arriva la fattura del fornitore." : " dall'evento dell'ordine."}
+                </span>
+              )}
             </div>
 
             {formData.recurrence !== "once" && (
@@ -481,7 +544,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name.trim() || !formData.amount || !formData.due_date || isSaving}
+            disabled={!formData.name.trim() || !formData.amount || (!formData.due_date && !aTermine) || isSaving}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>

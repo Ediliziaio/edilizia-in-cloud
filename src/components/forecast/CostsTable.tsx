@@ -56,6 +56,9 @@ function getCategoryColor(category: string): string {
 }
 
 interface CostsTableProps {
+  /** Stato reale dell'uscita per id, dalla vista v_uscite_stato: conosce i
+      termini ("60 gg fine mese") che la sola due_date non racconta. */
+  statoUscitaById?: Map<string, { data_pagamento: string | null; giorni: number | null; stato: string }>;
   /** Contenuto a sinistra della riga strumenti (i chip di stato): cosi'
       filtri e menu Colonne condividono UNA riga invece di due. */
   leftSlot?: React.ReactNode;
@@ -104,6 +107,7 @@ const CONFIGURABLE_COLUMNS = [
 const DEFAULT_VISIBLE_COLUMNS = new Set(["supplier", "gross", "dueDate", "status", "order"]);
 
 export function CostsTable({
+  statoUscitaById,
   items,
   type,
   selectedIds,
@@ -218,6 +222,7 @@ export function CostsTable({
 
   const getStatusBadge = (cost: UnifiedCost) => {
     const dueDate = parseCostDate(cost.due_date);
+    const uscita = statoUscitaById?.get(cost.id);
 
     if (cost.is_paid) {
       const paidLabel = cost.paid_date ? `Pagato il ${format(parseISO(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
@@ -230,6 +235,25 @@ export function CostsTable({
             <span className="text-xs text-muted-foreground">({(cost as any).payment_method})</span>
           )}
         </div>
+      );
+    }
+
+    // Preavviso: i soldi stanno per uscire e c'è ancora tempo per
+    // organizzarsi. Vale anche quando la data la calcola il termine.
+    if (uscita?.stato === "preavviso") {
+      const g = uscita.giorni;
+      return (
+        <Badge className="gap-1 border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-300">
+          <AlertTriangle className="h-3 w-3" />
+          {g === null ? "In uscita a breve" : g <= 1 ? "Esce domani" : `Esce tra ${g}gg`}
+        </Badge>
+      );
+    }
+    if (uscita?.stato === "scaduta" && uscita.giorni !== null && !dueDate) {
+      return (
+        <Badge className="gap-1 border-red-300 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-400">
+          <AlertTriangle className="h-3 w-3" /> Scaduto {Math.abs(uscita.giorni)}gg
+        </Badge>
       );
     }
 

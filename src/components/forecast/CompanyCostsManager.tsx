@@ -596,6 +596,29 @@ export default function CompanyCostsManager({
 
   // Sintesi ricorrenti per la testata della tab Spese fisse: quante voci
   // madri attive e quanto valgono al mese (annuali /12, trimestrali /3).
+  // Stato reale delle uscite: la vista sa quando escono davvero i soldi quando
+  // i termini sono "30 gg data fattura" o "60 gg fine mese", e la data si
+  // sposta con la fattura del fornitore invece di restare quella digitata.
+  const { data: statoUscitaById } = useQuery({
+    queryKey: ["uscite-stato", companyId],
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_uscite_stato")
+        .select("id, data_pagamento, giorni_al_pagamento, stato_uscita")
+        .eq("company_id", companyId!)
+        .eq("is_paid", false)
+        .limit(2000);
+      if (error) throw error;
+      const mappa = new Map<string, { data_pagamento: string | null; giorni: number | null; stato: string }>();
+      for (const r of (data ?? []) as Array<{ id: string; data_pagamento: string | null; giorni_al_pagamento: number | null; stato_uscita: string }>) {
+        mappa.set(r.id, { data_pagamento: r.data_pagamento, giorni: r.giorni_al_pagamento, stato: r.stato_uscita });
+      }
+      return mappa;
+    },
+  });
+
   const ricorrentiSintesi = useQuery({
     queryKey: ["costi-ricorrenti-sintesi", companyId],
     queryFn: async () => {
@@ -1047,6 +1070,7 @@ export default function CompanyCostsManager({
           })()}
 
           <CostsTable
+            statoUscitaById={statoUscitaById}
                   leftSlot={<div className="flex gap-1 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0 [&>button]:shrink-0">
             {([
               // Conteggi del SOLO tipo di questa tab: la tab gemella ha i suoi.

@@ -22,9 +22,18 @@ export interface CostFormData {
   end_date: string;
   recurrence_auto: boolean;
   allocations?: Array<{ order_id: string; pct: number }>;
+  /** Da cosa si conta la scadenza: data fattura, fine mese, consegna… */
+  trigger_evento?: string;
+  /** Giorni di dilazione dalla base ('30 gg data fattura'). */
+  giorni_dilazione?: number;
+  /** Giorni di anticipo dell'avviso "stanno per uscire i soldi". */
+  giorni_preavviso?: number;
 }
 
 export const defaultFormData: CostFormData = {
+  trigger_evento: "data_fissa",
+  giorni_dilazione: 0,
+  giorni_preavviso: 7,
   name: "",
   cost_type: "fixed",
   amount: "",
@@ -221,6 +230,11 @@ export function useCompanyCostsMutations({
         recurrence_auto: normalized.recurrence !== "once" ? (data.recurrence_auto || false) : false,
         recurrence_end_date: normalized.endDate || null,
         allocations: normalized.allocations,
+        // Termini di pagamento come dato: senza questi la scadenza resta
+        // quella digitata e non segue la fattura del fornitore.
+        trigger_evento: data.trigger_evento || 'data_fissa',
+        giorni_dilazione: Number(data.giorni_dilazione) || 0,
+        giorni_preavviso: Number.isFinite(Number(data.giorni_preavviso)) ? Number(data.giorni_preavviso) : 7,
       };
 
       if (editingCostId) {
