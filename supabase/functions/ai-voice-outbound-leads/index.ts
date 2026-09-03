@@ -5,9 +5,13 @@
  * GLOBALE di piattaforma e tabella voice_agent_calls parallela — un provider
  * per tutte le aziende non ha senso in multi-tenant, ed è stato rimosso).
  *
+ * Vale per TUTTE le aziende, compresa "Platform Admin CRM" dove vivono i lead
+ * AEDIX: stesso motore, stesso cancello del consenso, destinatari diversi.
+ *
  * Flusso attuale:
- *   1. Cron ogni 5 minuti: trova marketing_opportunities nuove (<30 min)
- *      con contatto telefonabile (no optout_phone/optout_call).
+ *   1. Cron ogni 5 minuti: trova le marketing_opportunities ancora da lavorare
+ *      degli ultimi 7 giorni, dalla più recente, con contatto telefonabile
+ *      (no optout_call) e con consenso esplicito a essere richiamato.
  *   2. Risolve l'AGENTE VOCALE DELL'AZIENDA: ai_agents_v2 attivo, tipo
  *      vocale/campagna, collegato a ElevenLabs e con un numero in
  *      ai_phone_numbers_v2. Niente agente pronto → nessuna proposta
@@ -25,8 +29,22 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 
-const HOT_LEAD_WINDOW_MINUTES = 30; // intercetta lead arrivati negli ultimi 30 min
+// Quanto indietro si guarda. Il valore che conta è il primo: un lead chiamato
+// entro pochi minuti converte molto più di uno chiamato domani, e l'ordinamento
+// dal più recente fa sì che i caldi passino sempre per primi.
+//
+// La finestra però non può essere di soli 30 minuti: un cron saltato, un agente
+// configurato il giorno dopo o un lead arrivato di notte lo perderebbero per
+// sempre. Sette giorni è il compromesso — oltre, una telefonata "a proposito
+// della richiesta della settimana scorsa" fa più danno che altro.
+const FINESTRA_GIORNI = 7;
 const MAX_CALLS_PER_RUN = 5;
+
+// Gli stati di un'opportunità ancora da lavorare. "new" NON esisteva: tutte
+// nascono `open` (316 su 316 negli ultimi 90 giorni). Con il filtro sbagliato
+// la query non tornava MAI una riga e il cron girava a vuoto ogni 5 minuti,
+// per tutte le aziende, senza che nulla lo segnalasse.
+const STATI_DA_LAVORARE = ["open", "new"];
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -53,17 +71,20 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   const t0 = Date.now();
 
-  const cutoff = new Date(Date.now() - HOT_LEAD_WINDOW_MINUTES * 60_000).toISOString();
+  const cutoff = new Date(Date.now() - FINESTRA_GIORNI * 24 * 60 * 60_000).toISOString();
 
-  // Lead nuovi che NON sono già stati processati (signal entity_id deduplica via proposal)
+  // Lead ancora da lavorare, dal più recente. Chi è già stato proposto viene
+  // scartato più avanti da create_proactive_proposal (dedup su signal entity),
+  // quindi l'overscan serve a raggiungere comunque quelli mai visti.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: opps } = await (supabase as any)
     .from("marketing_opportunities")
     .select("id, company_id, name, contact_id, created_at, source")
-    .eq("status", "new")
+    .in("status", STATI_DA_LAVORARE)
+    .is("deleted_at", null)
     .gte("created_at", cutoff)
     .order("created_at", { ascending: false })
-    .limit(MAX_CALLS_PER_RUN * 4); // overscan, poi filtriamo via contact
+    .limit(60);
 
   const summary = {
     scanned: 0,
@@ -72,6 +93,7 @@ Deno.serve(async (req) => {
     skipped_optout: 0,
     skipped_no_consent: 0,
     skipped_no_agent: 0,
+    skipped_no_owner: 0,
     skipped_existing: 0,
     duration_ms: 0,
   };
@@ -107,6 +129,18 @@ Deno.serve(async (req) => {
     return pronto;
   }
 
+  // Il super admin, letto una volta sola: è il destinatario di riserva quando
+  // l'azienda non ha membri propri.
+  let superAdminId: string | null | undefined;
+  async function unSuperAdmin(): Promise<string | null> {
+    if (superAdminId !== undefined) return superAdminId;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("user_roles").select("user_id").eq("role", "super_admin").limit(1).maybeSingle();
+    superAdminId = (data?.user_id as string | undefined) ?? null;
+    return superAdminId;
+  }
+
   const adminPerAzienda = new Map<string, string | null>();
   async function adminAzienda(companyId: string): Promise<string | null> {
     if (adminPerAzienda.has(companyId)) return adminPerAzienda.get(companyId)!;
@@ -123,6 +157,11 @@ Deno.serve(async (req) => {
       const r = (ruoli ?? []) as Array<{ user_id: string; role: string }>;
       scelto = r.find((x) => x.role === "company_admin")?.user_id ?? r[0]?.user_id ?? null;
     }
+    // I lead AEDIX vivono in "Platform Admin CRM", che non ha NESSUN profilo:
+    // senza questo ripiego la proposta non aveva a chi andare e ogni lead della
+    // piattaforma veniva scartato in silenzio. Il super admin è il titolare di
+    // quei lead, quindi è il destinatario giusto, non una toppa.
+    if (!scelto) scelto = await unSuperAdmin();
     adminPerAzienda.set(companyId, scelto);
     return scelto;
   }
@@ -183,7 +222,12 @@ Deno.serve(async (req) => {
     // user_id+role): l'appartenenza sta in profiles. Prima la query filtrava
     // su una colonna inesistente e nessuna proposta veniva mai creata.
     const adminUserId = await adminAzienda(companyId);
-    if (!adminUserId) continue;
+    if (!adminUserId) {
+      // Contato invece che ignorato: uno `continue` muto è il motivo per cui i
+      // lead della piattaforma sparivano senza lasciare traccia nel riepilogo.
+      summary.skipped_no_owner += 1;
+      continue;
+    }
 
     const contactName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Cliente";
     const oppName = String(o.name ?? "—").slice(0, 80);

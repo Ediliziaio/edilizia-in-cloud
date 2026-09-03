@@ -35,6 +35,7 @@ const SEZIONI: Array<{ key: string; titolo: string }> = [
   { key: "oauth_provider_giu", titolo: "Credenziali OAuth di piattaforma da controllare" },
   { key: "integrazioni_scadute", titolo: "Credenziali integrazioni scadute" },
   { key: "ricariche_esaurite", titolo: "Ricariche automatiche esaurite (serve il cliente)" },
+  { key: "richiamo_caldo_bloccato", titolo: "Lead che hanno detto sì e nessuno li richiama" },
 ];
 
 function rigaHtml(item: Record<string, unknown>): string {
