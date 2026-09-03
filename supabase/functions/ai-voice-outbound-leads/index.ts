@@ -71,6 +71,33 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   const t0 = Date.now();
 
+  // INTERRUTTORE GENERALE — prima di qualsiasi altra cosa.
+  //
+  // Il richiamo a caldo resta spento finché non lo si accende dalle
+  // impostazioni di piattaforma. Non basta che "tanto non ci sono agenti": una
+  // funzione che parte da sola il giorno in cui qualcuno configura una chiave
+  // è una funzione che nessuno ha deciso di accendere.
+  //
+  // Spento = si esce subito, senza leggere un solo lead.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: interruttore } = await (supabase as any)
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "richiamo_a_caldo_attivo")
+    .maybeSingle();
+  // Assente vale spento: se la riga sparisce non si riparte per sbaglio.
+  const acceso = String(interruttore?.value ?? "false").trim().toLowerCase() === "true";
+  if (!acceso) {
+    return new Response(
+      JSON.stringify({
+        spento: true,
+        motivo: "richiamo_a_caldo_attivo non è 'true' — si accende dalle impostazioni di piattaforma",
+        duration_ms: Date.now() - t0,
+      }, null, 2),
+      { headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
+
   const cutoff = new Date(Date.now() - FINESTRA_GIORNI * 24 * 60 * 60_000).toISOString();
 
   // Lead ancora da lavorare, dal più recente. Chi è già stato proposto viene

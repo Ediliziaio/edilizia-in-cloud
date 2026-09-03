@@ -2,7 +2,8 @@ import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import { PlatformBrandingTab } from "@/components/admin/settings/PlatformBrandingTab";
 import { PlatformAnalyticsTab } from "@/components/admin/settings/PlatformAnalyticsTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Server, Palette, ChartBar } from "lucide-react";
+import { RichiamoACaldoTab } from "@/components/admin/settings/RichiamoACaldoTab";
+import { Server, Palette, ChartBar, PhoneOutgoing } from "lucide-react";
 
 export default function AdminSettingsPlatform() {
   return (
@@ -28,6 +29,10 @@ export default function AdminSettingsPlatform() {
             <ChartBar className="h-4 w-4" />
             Analytics
           </TabsTrigger>
+          <TabsTrigger value="richiamo" className="gap-2">
+            <PhoneOutgoing className="h-4 w-4" />
+            Richiamo a caldo
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="generale">
@@ -40,6 +45,10 @@ export default function AdminSettingsPlatform() {
 
         <TabsContent value="analytics">
           <PlatformAnalyticsTab />
+        </TabsContent>
+
+        <TabsContent value="richiamo">
+          <RichiamoACaldoTab />
         </TabsContent>
       </Tabs>
     </div>
