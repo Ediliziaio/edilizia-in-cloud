@@ -3,6 +3,7 @@ import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.t
 import { getWhatsAppWindowStatus } from "../_shared/whatsappWindow.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
+import { addebitaMessaggioWhatsApp, rimborsaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
 
 type SendType = "text" | "interactive" | "template";
 type TemplateLanguageInput = string | { code?: string } | undefined;
@@ -240,6 +241,28 @@ Deno.serve(async (req) => {
       logContent = `[Template: ${body.template.name}]`;
     }
 
+    // ── Credito ──────────────────────────────────────────────────────────
+    // Qui passano il bot, i promemoria, le notifiche, i report e il primo
+    // contatto sui lead: era l'unico percorso che non guardava il saldo.
+    // Si addebita PRIMA di consegnare a Meta — vedi _shared/whatsappCredits.ts
+    // per il perché — e si rimborsa se il messaggio non parte davvero.
+    const credito = await addebitaMessaggioWhatsApp(
+      adminClient,
+      companyId,
+      `Messaggio WhatsApp (${type}) verso ${to}`,
+      { to, type, wa_number_id: body.wa_number_id ?? null },
+    );
+    if (!credito.consentito) {
+      return new Response(
+        JSON.stringify({
+          error: credito.codice ?? "insufficient_credits",
+          message: credito.messaggio,
+          saldo_eur: credito.saldo,
+        }),
+        { status: credito.codice === "whatsapp_disabled" ? 403 : 402, headers: jsonHeaders },
+      );
+    }
+
     const metaRes = await fetch(
       `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
       {
@@ -255,6 +278,12 @@ Deno.serve(async (req) => {
     const metaResult = await metaRes.json();
     if (!metaRes.ok) {
       console.error("[whatsapp-send] Meta API error:", metaResult);
+      // Il messaggio non è partito: il credito torna indietro.
+      await rimborsaMessaggioWhatsApp(
+        adminClient, companyId, credito.addebitato,
+        "Rimborso: invio WhatsApp rifiutato dal provider",
+        { to, type, meta_error: metaResult.error ?? null },
+      );
       return new Response(
         JSON.stringify({
           error: metaResult.error?.message || "Errore invio WhatsApp",
