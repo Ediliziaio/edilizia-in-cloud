@@ -15,7 +15,9 @@ import {
   messaggioRata,
   statoIncassoRata,
   etichettaEvento,
+  eventiDelGruppo,
   EVENTI_RATA,
+  GRUPPI_EVENTO,
 } from "@/lib/orders/rateEventi";
 
 const CANTIERE = {
@@ -23,7 +25,13 @@ const CANTIERE = {
   warehouse_arrival_date: "2026-03-05",
   work_start_date: "2026-03-20",
   work_end_date: "2026-05-15",
+  expected_date: "2026-03-25",
   data_stato: "2026-02-28",
+  data_accettazione_preventivo: "2026-01-08",
+  data_consegna_cantiere: "2026-03-18",
+  data_sal: "2026-04-10",
+  data_fattura_acconto: "2026-01-15",
+  data_fattura_saldo: "2026-05-20",
 };
 
 describe("data attesa dall'evento", () => {
@@ -33,6 +41,22 @@ describe("data attesa dall'evento", () => {
     expect(dataAttesaRata("inizio_lavori", null, CANTIERE)).toBe("2026-03-20");
     expect(dataAttesaRata("fine_lavori", null, CANTIERE)).toBe("2026-05-15");
     expect(dataAttesaRata("stato_commessa", null, CANTIERE)).toBe("2026-02-28");
+  });
+
+  it("copre anche i momenti che dipendono da altri documenti", () => {
+    // Sono i modi in cui in edilizia si incassa davvero, oltre alle date del cantiere.
+    expect(dataAttesaRata("accettazione_preventivo", null, CANTIERE)).toBe("2026-01-08");
+    expect(dataAttesaRata("consegna_cantiere", null, CANTIERE)).toBe("2026-03-18");
+    expect(dataAttesaRata("data_posa", null, CANTIERE)).toBe("2026-03-25");
+    expect(dataAttesaRata("sal_numero", null, CANTIERE)).toBe("2026-04-10");
+    expect(dataAttesaRata("fattura_acconto", null, CANTIERE)).toBe("2026-01-15");
+    expect(dataAttesaRata("fattura_saldo", null, CANTIERE)).toBe("2026-05-20");
+  });
+
+  it("la posa segue expected_date, che è la data posa del calendario", () => {
+    // Trappola: `orders.expected_date` NON è la scadenza della rata, è la posa.
+    const spostata = dataAttesaRata("data_posa", "2026-01-01", { ...CANTIERE, expected_date: "2026-06-30" });
+    expect(spostata).toBe("2026-06-30");
   });
 
   it("a data fissa vince la data scritta sulla rata", () => {
@@ -114,11 +138,33 @@ describe("giorni all'evento e messaggi", () => {
 });
 
 describe("catalogo eventi", () => {
-  it("ha le sei voci e nomi leggibili da un titolare, non da un tecnico", () => {
-    expect(EVENTI_RATA).toHaveLength(6);
+  it("copre i momenti di incasso e li chiama come li chiama un titolare", () => {
+    expect(EVENTI_RATA.length).toBeGreaterThanOrEqual(12);
     expect(etichettaEvento("inizio_lavori")).toBe("Prima dell'inizio lavori");
-    expect(etichettaEvento("merce_magazzino")).toBe("All'arrivo della merce");
+    expect(etichettaEvento("fattura_acconto")).toBe("Alla fattura di acconto");
+    expect(etichettaEvento("data_posa")).toBe("Alla posa");
     // Un valore sconosciuto non lascia il campo vuoto.
     expect(etichettaEvento("boh")).toBe("A una data precisa");
+  });
+
+  it("ogni evento sta in un gruppo esistente e ogni gruppo ha almeno una voce", () => {
+    const gruppiNoti = new Set(GRUPPI_EVENTO.map((g) => g.value));
+    for (const e of EVENTI_RATA) expect(gruppiNoti.has(e.gruppo), `${e.value} ha un gruppo sconosciuto`).toBe(true);
+    for (const g of GRUPPI_EVENTO) expect(eventiDelGruppo(g.value).length, `gruppo ${g.value} vuoto`).toBeGreaterThan(0);
+    // La somma dei gruppi è l'elenco intero: nessuna voce sparisce dal menu.
+    const totale = GRUPPI_EVENTO.reduce((n, g) => n + eventiDelGruppo(g.value).length, 0);
+    expect(totale).toBe(EVENTI_RATA.length);
+  });
+
+  it("gli identificativi coincidono con quelli ammessi dal database", () => {
+    // Se qui si aggiunge un evento senza allargare il CHECK in SQL, il
+    // salvataggio fallisce con un errore incomprensibile per l'utente.
+    const ammessiDalDb = [
+      "data_fissa", "firma_contratto", "accettazione_preventivo",
+      "merce_magazzino", "consegna_cantiere",
+      "inizio_lavori", "data_posa", "sal_numero", "fine_lavori",
+      "fattura_acconto", "fattura_saldo", "stato_commessa",
+    ];
+    expect([...EVENTI_RATA.map((e) => e.value)].sort()).toEqual([...ammessiDalDb].sort());
   });
 });

@@ -21,7 +21,9 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -39,7 +41,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { Installment } from "@/lib/orderUtils";
 import {
-  EVENTI_RATA, dataAttesaRata, giorniAllEvento, statoIncassoRata,
+  GRUPPI_EVENTO, eventiDelGruppo, dataAttesaRata, giorniAllEvento, statoIncassoRata,
   type DateCommessa,
 } from "@/lib/orders/rateEventi";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
@@ -93,7 +95,7 @@ function DatePickerField({ label, date, onDateChange, disabled = false }: {
 type PaymentStatus = 'non_pagato' | 'pagato';
 
 function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidChange, onPaidDateChange, onExpectedDateChange, readOnly = false,
-  evento, triggerStatusId, giorniPreavviso, dateCommessa, statiCommessa, onEventoChange, onTriggerStatusChange, onGiorniPreavvisoChange }: {
+  evento, triggerStatusId, triggerNumero, giorniPreavviso, dateCommessa, statiCommessa, onEventoChange, onTriggerStatusChange, onTriggerNumeroChange, onGiorniPreavvisoChange }: {
   label: string;
   amount: number;
   paid?: boolean;
@@ -106,12 +108,14 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
   /** Evento del cantiere a cui la rata è agganciata. */
   evento?: string | null;
   triggerStatusId?: string | null;
+  triggerNumero?: number | null;
   giorniPreavviso?: number | null;
   /** Date del cantiere: servono a mostrare quando cadrà davvero la rata. */
   dateCommessa?: DateCommessa;
   statiCommessa?: Array<{ id: string; name: string }>;
   onEventoChange?: (evento: string) => void;
   onTriggerStatusChange?: (statusId: string | null) => void;
+  onTriggerNumeroChange?: (numero: number | null) => void;
   onGiorniPreavvisoChange?: (giorni: number) => void;
 }) {
   if (amount <= 0) return null;
@@ -240,11 +244,21 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {EVENTI_RATA
-                .filter((e) => e.value !== "stato_commessa" || (statiCommessa?.length ?? 0) > 0)
-                .map((e) => (
-                  <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                ))}
+              {/* Raggruppati per fase del cantiere: contratto, materiali,
+                  lavori, fatture. Dodici voci in fila non si leggono. */}
+              {GRUPPI_EVENTO.map((g) => {
+                const voci = eventiDelGruppo(g.value)
+                  .filter((e) => e.value !== "stato_commessa" || (statiCommessa?.length ?? 0) > 0);
+                if (voci.length === 0) return null;
+                return (
+                  <SelectGroup key={g.value}>
+                    <SelectLabel>{g.label}</SelectLabel>
+                    {voci.map((e) => (
+                      <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
             </SelectContent>
           </Select>
 
@@ -263,6 +277,23 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
                 ))}
               </SelectContent>
             </Select>
+          )}
+
+          {eventoCorrente === "sal_numero" && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              n.
+              <Input
+                type="number"
+                min={1}
+                max={99}
+                value={triggerNumero ?? ""}
+                placeholder="1"
+                onChange={(e) => onTriggerNumeroChange?.(e.target.value ? Math.max(1, Number(e.target.value)) : null)}
+                className="h-7 w-14 px-2 text-xs"
+                disabled={readOnly}
+                aria-label={`Numero del SAL per ${label}`}
+              />
+            </span>
           )}
 
           {aEvento && (
@@ -493,11 +524,13 @@ export function FinancialSummary({
           onPaidDateChange={(date) => handleInstallmentDateChange(inst.position, 'paid_date', date)}
           evento={inst.trigger_evento}
           triggerStatusId={inst.trigger_status_id}
+          triggerNumero={inst.trigger_numero}
           giorniPreavviso={inst.giorni_preavviso}
           dateCommessa={dateCommessa}
           statiCommessa={statiCommessa}
           onEventoChange={(ev) => handleInstallmentEventoChange(inst.position, { trigger_evento: ev, trigger_status_id: ev === 'stato_commessa' ? inst.trigger_status_id ?? null : null })}
           onTriggerStatusChange={(sid) => handleInstallmentEventoChange(inst.position, { trigger_status_id: sid })}
+          onTriggerNumeroChange={(n) => handleInstallmentEventoChange(inst.position, { trigger_numero: n })}
           onGiorniPreavvisoChange={(g) => handleInstallmentEventoChange(inst.position, { giorni_preavviso: g })}
           onExpectedDateChange={(date) => handleInstallmentDateChange(inst.position, 'expected_date', date)}
           readOnly={readOnly}
@@ -526,11 +559,13 @@ export function FinancialSummary({
             onPaidDateChange={(date) => handleInstallmentDateChange(balanceInst.position, 'paid_date', date)}
             evento={balanceInst.trigger_evento}
             triggerStatusId={balanceInst.trigger_status_id}
+            triggerNumero={balanceInst.trigger_numero}
             giorniPreavviso={balanceInst.giorni_preavviso}
             dateCommessa={dateCommessa}
             statiCommessa={statiCommessa}
             onEventoChange={(ev) => handleInstallmentEventoChange(balanceInst.position, { trigger_evento: ev, trigger_status_id: ev === 'stato_commessa' ? balanceInst.trigger_status_id ?? null : null })}
             onTriggerStatusChange={(sid) => handleInstallmentEventoChange(balanceInst.position, { trigger_status_id: sid })}
+            onTriggerNumeroChange={(n) => handleInstallmentEventoChange(balanceInst.position, { trigger_numero: n })}
             onGiorniPreavvisoChange={(g) => handleInstallmentEventoChange(balanceInst.position, { giorni_preavviso: g })}
             onExpectedDateChange={(date) => handleInstallmentDateChange(balanceInst.position, 'expected_date', date)}
             readOnly={readOnly}

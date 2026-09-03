@@ -13,26 +13,59 @@
 export type EventoRata =
   | "data_fissa"
   | "firma_contratto"
+  | "accettazione_preventivo"
   | "merce_magazzino"
+  | "consegna_cantiere"
   | "inizio_lavori"
+  | "data_posa"
+  | "sal_numero"
   | "fine_lavori"
+  | "fattura_acconto"
+  | "fattura_saldo"
   | "stato_commessa";
+
+/** I momenti del cantiere raggruppati come li racconta chi ci lavora. */
+export type GruppoEvento = "contratto" | "materiali" | "lavori" | "fatture" | "avanzamento";
+
+export const GRUPPI_EVENTO: ReadonlyArray<{ value: GruppoEvento; label: string }> = [
+  { value: "contratto", label: "Contratto" },
+  { value: "materiali", label: "Materiali" },
+  { value: "lavori", label: "Lavori" },
+  { value: "fatture", label: "Fatture" },
+  { value: "avanzamento", label: "Avanzamento" },
+] as const;
 
 export interface DefinizioneEvento {
   value: EventoRata;
   label: string;
+  gruppo: GruppoEvento;
   /** Come si legge nella frase "la rata si incassa …". */
   descrizione: string;
 }
 
 export const EVENTI_RATA: readonly DefinizioneEvento[] = [
-  { value: "data_fissa", label: "A una data precisa", descrizione: "La data la scegli tu e resta quella." },
-  { value: "firma_contratto", label: "Alla firma del contratto", descrizione: "Dal giorno in cui hai aperto la commessa." },
-  { value: "merce_magazzino", label: "All'arrivo della merce", descrizione: "Segue la data di arrivo merce in magazzino." },
-  { value: "inizio_lavori", label: "Prima dell'inizio lavori", descrizione: "Segue la data di inizio lavori: se la sposti, si sposta." },
-  { value: "fine_lavori", label: "A fine lavori", descrizione: "Segue la data di fine lavori." },
-  { value: "stato_commessa", label: "Quando la commessa arriva a…", descrizione: "Scatta quando il cantiere raggiunge lo stato che scegli." },
+  { value: "data_fissa", gruppo: "contratto", label: "A una data precisa", descrizione: "La data la scegli tu e resta quella." },
+  { value: "firma_contratto", gruppo: "contratto", label: "Alla firma del contratto", descrizione: "Dal giorno in cui hai aperto la commessa." },
+  { value: "accettazione_preventivo", gruppo: "contratto", label: "All'accettazione del preventivo", descrizione: "Dal giorno in cui il cliente ha firmato il preventivo." },
+
+  { value: "merce_magazzino", gruppo: "materiali", label: "All'arrivo della merce in magazzino", descrizione: "Segue la data di arrivo merce." },
+  { value: "consegna_cantiere", gruppo: "materiali", label: "Alla consegna in cantiere", descrizione: "Dalla prima spedizione arrivata in cantiere." },
+
+  { value: "inizio_lavori", gruppo: "lavori", label: "Prima dell'inizio lavori", descrizione: "Segue la data di inizio lavori: se la sposti, si sposta." },
+  { value: "data_posa", gruppo: "lavori", label: "Alla posa", descrizione: "Segue la data di posa prevista." },
+  { value: "sal_numero", gruppo: "lavori", label: "Al SAL numero…", descrizione: "Quando emetti lo stato avanzamento lavori che indichi." },
+  { value: "fine_lavori", gruppo: "lavori", label: "A fine lavori", descrizione: "Segue la data di fine lavori." },
+
+  { value: "fattura_acconto", gruppo: "fatture", label: "Alla fattura di acconto", descrizione: "Dalla prima fattura emessa sulla commessa." },
+  { value: "fattura_saldo", gruppo: "fatture", label: "Alla fattura di saldo", descrizione: "Dall'ultima fattura emessa sulla commessa." },
+
+  { value: "stato_commessa", gruppo: "avanzamento", label: "Quando la commessa arriva a…", descrizione: "Scatta quando il cantiere raggiunge lo stato che scegli." },
 ] as const;
+
+/** Gli eventi del gruppo, nell'ordine in cui sono dichiarati. */
+export function eventiDelGruppo(gruppo: GruppoEvento): readonly DefinizioneEvento[] {
+  return EVENTI_RATA.filter((e) => e.gruppo === gruppo);
+}
 
 export function etichettaEvento(evento: string | null | undefined): string {
   return EVENTI_RATA.find((e) => e.value === evento)?.label ?? EVENTI_RATA[0].label;
@@ -44,8 +77,18 @@ export interface DateCommessa {
   warehouse_arrival_date?: string | null;
   work_start_date?: string | null;
   work_end_date?: string | null;
+  /** `orders.expected_date`: nel calendario è la data posa. */
+  expected_date?: string | null;
   /** Data in cui la commessa ha raggiunto lo stato agganciato alla rata, se già raggiunto. */
   data_stato?: string | null;
+  // Le date che dipendono da altri documenti (preventivo firmato, spedizioni,
+  // SAL, fatture) le calcola la vista SQL: qui sono opzionali, e quando mancano
+  // la rata dice onestamente "quando accadrà" invece di inventare una scadenza.
+  data_accettazione_preventivo?: string | null;
+  data_consegna_cantiere?: string | null;
+  data_sal?: string | null;
+  data_fattura_acconto?: string | null;
+  data_fattura_saldo?: string | null;
 }
 
 function soloData(v: string | null | undefined): string | null {
@@ -65,9 +108,15 @@ export function dataAttesaRata(
 ): string | null {
   switch (evento) {
     case "firma_contratto": return soloData(date.created_at);
+    case "accettazione_preventivo": return soloData(date.data_accettazione_preventivo);
     case "merce_magazzino": return soloData(date.warehouse_arrival_date);
+    case "consegna_cantiere": return soloData(date.data_consegna_cantiere);
     case "inizio_lavori": return soloData(date.work_start_date);
+    case "data_posa": return soloData(date.expected_date);
+    case "sal_numero": return soloData(date.data_sal);
     case "fine_lavori": return soloData(date.work_end_date);
+    case "fattura_acconto": return soloData(date.data_fattura_acconto);
+    case "fattura_saldo": return soloData(date.data_fattura_saldo);
     case "stato_commessa": return soloData(date.data_stato);
     default: return soloData(expectedDate);
   }
@@ -116,12 +165,19 @@ export function messaggioRata(params: {
   if (stato === "preavviso") {
     const quando = giorni === null ? "a breve" : giorni <= 1 ? "domani" : `tra ${giorni} giorni`;
     if (evento === "inizio_lavori") return `Si parte ${quando} e mancano ${soldi}`;
+    if (evento === "data_posa") return `Si posa ${quando} e mancano ${soldi}`;
     if (evento === "merce_magazzino") return `La merce arriva ${quando} e mancano ${soldi}`;
+    if (evento === "consegna_cantiere") return `Consegna in cantiere ${quando}: mancano ${soldi}`;
+    if (evento === "fine_lavori") return `Si chiude ${quando} e mancano ${soldi}`;
     return `Scade ${quando}: ${soldi} da incassare`;
   }
   if (stato === "scaduta") {
     if (evento === "inizio_lavori") return `Lavori avviati senza incassare ${soldi}`;
+    if (evento === "data_posa") return `Posa fatta senza incassare ${soldi}`;
     if (evento === "fine_lavori") return `Lavori chiusi, ${soldi} ancora da incassare`;
+    if (evento === "merce_magazzino" || evento === "consegna_cantiere") return `Merce consegnata, ${soldi} non incassati`;
+    if (evento === "fattura_acconto" || evento === "fattura_saldo") return `Fattura emessa, ${soldi} non incassati`;
+    if (evento === "sal_numero") return `SAL emesso, ${soldi} non incassati`;
     return `${soldi} scaduti e non incassati`;
   }
   return null;

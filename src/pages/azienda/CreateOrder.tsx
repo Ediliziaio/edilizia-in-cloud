@@ -1355,6 +1355,7 @@ function CreateOrderInner() {
               warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),
               work_start_date: toDateStr(watch("work_start_date")),
               work_end_date: toDateStr(watch("work_end_date")),
+              expected_date: toDateStr(watch("expected_date")),
             }}
             statiCommessa={statuses}
             totalAmount={totalAmount || ""}

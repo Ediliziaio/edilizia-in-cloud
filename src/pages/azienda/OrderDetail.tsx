@@ -383,6 +383,7 @@ function OrderDetailInner() {
         expected_date: i.expected_date,
         trigger_evento: i.trigger_evento,
         trigger_status_id: i.trigger_status_id,
+        trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
       }));
     }
@@ -948,6 +949,7 @@ function OrderDetailInner() {
         warehouse_arrival_date: order.warehouse_arrival_date,
         work_start_date: order.work_start_date,
         work_end_date: order.work_end_date,
+        expected_date: order.expected_date,
       }) ?? i.expected_date,
     }));
     return getOrderAlerts(order, displayItems, conDataEffettiva);

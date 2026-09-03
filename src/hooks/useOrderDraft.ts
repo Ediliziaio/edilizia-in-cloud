@@ -36,7 +36,16 @@ export interface OrderDraftData {
   bonusLines?: BonusLine[];
   // Meta
   savedAt: string;
+  /**
+   * Formato della bozza. Le bozze senza versione sono quelle create dal
+   * difetto corretto il 2026-09-03 (bastava APRIRE la pagina di modifica per
+   * generarne una, che poi copriva il database per sempre): vanno buttate,
+   * non recuperate, perché non contengono lavoro dell'utente.
+   */
+  version?: number;
 }
+
+export const DRAFT_VERSION = 2;
 
 const DRAFT_KEY_PREFIX = "order-draft-";
 
@@ -57,12 +66,43 @@ function isoToDate(s: string | null | undefined): Date | undefined {
 export function useOrderDraft(companyId: string | undefined, orderId?: string) {
   const [draftRestored, setDraftRestored] = useState(false);
 
-  const loadDraft = useCallback((): OrderDraftData | null => {
+  /**
+   * La bozza vale solo se contiene lavoro NON salvato: cioè se è più recente
+   * dell'ultima modifica del record.
+   *
+   * Prima bastava aprire la pagina di modifica per creare una bozza (l'autosave
+   * scattava sul primo render a dati caricati), e da lì in poi quella bozza
+   * copriva il database per sempre: chi riapriva la commessa vedeva la
+   * fotografia vecchia, e salvando ci riscriveva sopra dati già superati —
+   * comprese le etichette delle rate, che tornavano generiche.
+   *
+   * `recordUpdatedAt` è l'`updated_at` del record: se il database è più nuovo
+   * della bozza, la bozza è spazzatura e viene buttata.
+   */
+  const loadDraft = useCallback((recordUpdatedAt?: string | null): OrderDraftData | null => {
     if (!companyId) return null;
     try {
-      const raw = localStorage.getItem(getDraftKey(companyId, orderId));
+      const chiave = getDraftKey(companyId, orderId);
+      const raw = localStorage.getItem(chiave);
       if (!raw) return null;
-      return JSON.parse(raw) as OrderDraftData;
+      const draft = JSON.parse(raw) as OrderDraftData;
+
+      if ((draft.version ?? 1) < DRAFT_VERSION) {
+        localStorage.removeItem(chiave);
+        return null;
+      }
+
+      if (recordUpdatedAt && draft.savedAt) {
+        const salvataBozza = new Date(draft.savedAt).getTime();
+        const salvatoRecord = new Date(recordUpdatedAt).getTime();
+        // Un secondo di tolleranza: subito dopo un salvataggio le due date
+        // coincidono a meno di millisecondi, e non è una bozza da recuperare.
+        if (Number.isFinite(salvataBozza) && Number.isFinite(salvatoRecord) && salvataBozza <= salvatoRecord + 1000) {
+          localStorage.removeItem(chiave);
+          return null;
+        }
+      }
+      return draft;
     } catch {
       return null;
     }
@@ -71,7 +111,7 @@ export function useOrderDraft(companyId: string | undefined, orderId?: string) {
   const saveDraft = useCallback((data: Omit<OrderDraftData, "savedAt">) => {
     if (!companyId) return;
     try {
-      const toSave: OrderDraftData = { ...data, savedAt: new Date().toISOString() };
+      const toSave: OrderDraftData = { ...data, savedAt: new Date().toISOString(), version: DRAFT_VERSION };
       localStorage.setItem(getDraftKey(companyId, orderId), JSON.stringify(toSave));
     } catch {
       // localStorage full or unavailable

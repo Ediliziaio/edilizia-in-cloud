@@ -16,6 +16,8 @@ export interface Installment {
   trigger_evento?: string | null;
   /** Solo per trigger_evento = 'stato_commessa': lo stato al cui arrivo la rata scade. */
   trigger_status_id?: string | null;
+  /** Solo per trigger_evento = 'sal_numero': il numero progressivo del SAL. */
+  trigger_numero?: number | null;
   /** Giorni di anticipo dell'avviso "non hai ancora incassato". */
   giorni_preavviso?: number | null;
 }

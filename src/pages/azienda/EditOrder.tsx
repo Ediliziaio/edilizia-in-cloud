@@ -211,6 +211,23 @@ function EditOrderInner() {
     setInstallments(prefillExpectedDates(newInstallments));
   };
 
+  // Stati commessa dell'azienda: servono alla rata che scade "quando la
+  // commessa arriva a…" (in nuova commessa la scelta c'era già).
+  const { data: statiCommessa = [] } = useQuery({
+    queryKey: ["order-statuses", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name")
+        .eq("company_id", effectiveCompany!.id)
+        .order("position");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+
   // Fetch order data
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ["order", id],
@@ -386,6 +403,7 @@ function EditOrderInner() {
         // commessa, e il salvataggio successivo lo riportava a "data precisa".
         trigger_evento: i.trigger_evento,
         trigger_status_id: i.trigger_status_id,
+        trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
       })));
       setNumInstallments(dbInstallments.length);
@@ -422,15 +440,26 @@ function EditOrderInner() {
   // Il primo giro dopo il caricamento non è una modifica: è la pagina che si
   // popola dal database. Salvarlo creava una bozza a ogni apertura, che poi
   // vinceva sul database alla riapertura successiva.
-  const primoGiroDopoCaricamento = useRef(true);
+  // La fotografia dei dati come sono arrivati dal database: finché il modulo
+  // combacia con quella, non c'è nulla di non salvato da conservare.
+  const impronteIniziale = useRef<string | null>(null);
+  // Finché nessuno ha toccato tastiera o mouse, quello che cambia non è una
+  // modifica: è il modulo che si popola (query che tornano, numeri che si
+  // formattano). La fotografia si aggiorna, e si congela al primo tocco vero.
+  const utenteHaToccato = useRef(false);
+  useEffect(() => {
+    const segna = () => { utenteHaToccato.current = true; };
+    window.addEventListener("pointerdown", segna, true);
+    window.addEventListener("keydown", segna, true);
+    return () => {
+      window.removeEventListener("pointerdown", segna, true);
+      window.removeEventListener("keydown", segna, true);
+    };
+  }, []);
   useEffect(() => {
     if (!dataLoaded) return;
     if (customerId === "" && order?.customer_id) return;
-    if (primoGiroDopoCaricamento.current) {
-      primoGiroDopoCaricamento.current = false;
-      return;
-    }
-    saveDraft({
+    const bozza = {
       customerId, orderCode, description, internalNotes, statusId: "",
       assignedTo,
       salespersonId, salespersonData,
@@ -444,7 +473,18 @@ function EditOrderInner() {
       bonusLines,
       orderItems,
       installments,
-    });
+    };
+    const impronta = JSON.stringify(bozza);
+    // Prima che l'utente tocchi qualcosa la fotografia si riallinea a ogni giro:
+    // così l'assestamento del modulo non viene scambiato per una modifica.
+    if (!utenteHaToccato.current || impronteIniziale.current === null) {
+      impronteIniziale.current = impronta;
+      return;
+    }
+    // Nessuna differenza rispetto al database: niente bozza. Così aprire la
+    // pagina e uscire non lascia dietro una fotografia che poi vince sui dati veri.
+    if (impronta === impronteIniziale.current) return;
+    saveDraft(bozza);
   }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
@@ -599,6 +639,7 @@ function EditOrderInner() {
           // campi il delete+insert perderebbe la scelta a ogni salvataggio.
           trigger_evento: i.trigger_evento || 'data_fissa',
           trigger_status_id: i.trigger_status_id || null,
+          trigger_numero: i.trigger_numero ?? null,
           giorni_preavviso: i.giorni_preavviso ?? 7,
         }));
         await supabase.from("order_installments").insert(instRows);
@@ -985,7 +1026,9 @@ function EditOrderInner() {
               warehouse_arrival_date: warehouseArrivalDate ? warehouseArrivalDate.toLocaleDateString("en-CA") : null,
               work_start_date: workStartDate ? workStartDate.toLocaleDateString("en-CA") : null,
               work_end_date: workEndDate ? workEndDate.toLocaleDateString("en-CA") : null,
+              expected_date: expectedDate ? expectedDate.toLocaleDateString("en-CA") : null,
             }}
+            statiCommessa={statiCommessa}
             totalAmount={totalAmount}
             vatRate={vatRate}
             paymentType={paymentType}
