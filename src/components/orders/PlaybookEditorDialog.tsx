@@ -1,17 +1,27 @@
 /**
- * Editor del Processo standard commessa (per-azienda, per mestiere).
+ * Editor del Flusso di lavoro commessa (per-azienda, per mestiere).
  *
- * Gestisce le righe di `order_task_template`: le attività standard che, applicate
- * a una commessa, generano task reali con scadenza relativa alla data commessa.
+ * Gestisce le righe di `order_task_template`. Ogni riga è un passo del flusso:
+ *   • QUANDO parte — subito con la commessa (scadenza = data commessa + giorni)
+ *     oppure dopo che si è chiuso un altro passo (scadenza = giorno dello
+ *     sblocco + giorni);
+ *   • CHI lo riceve — una persona dello staff, o il responsabile della commessa.
+ *
+ * Il passaggio di consegne lo fa il DB (trigger `sblocca_task_a_catena`): quando
+ * si chiude un passo, il successivo smette di essere "In attesa", prende la
+ * scadenza e il suo assegnatario riceve la notifica nella campanella.
+ *
  * Dialog (niente route nuove). Salvataggio = replace delle righe del vertical
- * corrente (lista piccola, come i bundle).
+ * corrente; siccome gli id cambiano a ogni salvataggio, le dipendenze si
+ * riscrivono in un secondo passaggio, dopo l'insert (vedi handleSave).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { toast } from "sonner";
-import { Plus, Trash2, Sparkles } from "lucide-react";
+import { Plus, Trash2, Sparkles, ArrowDown } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -34,12 +44,35 @@ interface PlaybookEditorDialogProps {
 interface Row {
   _key: string;
   titolo: string;
+  /** Giorni dalla data della commessa. Vale solo per i passi che partono subito. */
   giorni_offset: number;
+  /** Giorni concessi a partire dallo sblocco. Vale solo per i passi a catena. */
+  giorni_dopo_sblocco: number;
   priorita: "bassa" | "normale" | "alta" | "urgente";
   attivo: boolean;
+  /** Persona che riceve il passo; null = responsabile della commessa. */
+  assegna_a_utente: string | null;
+  /** _key del passo che deve chiudersi prima; null = parte subito. */
+  dipende_da_key: string | null;
+}
+
+/** Riga come arriva dal DB. */
+interface DbRow {
+  id: string;
+  titolo: string;
+  giorni_offset: number;
+  giorni_dopo_sblocco: number | null;
+  priorita: string;
+  attivo: boolean;
+  sort_order: number;
+  assegna_a_utente: string | null;
+  dipende_da_id: string | null;
 }
 
 const PRIORITA = ["bassa", "normale", "alta", "urgente"] as const;
+
+const SUBITO = "__subito__";
+const RESPONSABILE = "__responsabile__";
 
 function newKey() {
   return `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -51,6 +84,15 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [autoApply, setAutoApply] = useState(false);
+
+  const { data: staffUsers = [] } = useCompanyStaffUsers(companyId);
+  const persone = useMemo(
+    () => staffUsers.map((p) => ({
+      id: p.id,
+      nome: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Utente",
+    })),
+    [staffUsers],
+  );
 
   const { data: autoApplyData } = useQuery({
     queryKey: ["company-playbook-auto-apply", companyId],
@@ -79,38 +121,77 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
-        .select("id, titolo, giorni_offset, priorita, attivo, sort_order")
+        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, dipende_da_id")
         .eq("company_id", companyId)
         .order("sort_order", { ascending: true });
       q = v === null ? q.is("vertical", null) : q.eq("vertical", v);
       const { data, error } = await q;
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as DbRow[];
     },
   });
 
   useEffect(() => {
     if (!open) return;
+    // Gli id del DB diventano _key locali: così `dipende_da_id` si riaggancia
+    // alla riga giusta anche dopo che il salvataggio li avrà rigenerati.
+    const keyPerId = new Map<string, string>();
+    (dbRows ?? []).forEach((r) => keyPerId.set(r.id, newKey()));
     setRows(
-      (dbRows ?? []).map((r: { titolo: string; giorni_offset: number; priorita: string; attivo: boolean }) => ({
-        _key: newKey(),
+      (dbRows ?? []).map((r) => ({
+        _key: keyPerId.get(r.id)!,
         titolo: r.titolo,
         giorni_offset: Number(r.giorni_offset) || 0,
+        giorni_dopo_sblocco: Number(r.giorni_dopo_sblocco) || 0,
         priorita: (r.priorita as Row["priorita"]) ?? "normale",
         attivo: r.attivo ?? true,
+        assegna_a_utente: r.assegna_a_utente ?? null,
+        dipende_da_key: r.dipende_da_id ? keyPerId.get(r.dipende_da_id) ?? null : null,
       })),
     );
   }, [dbRows, open]);
 
+  /**
+   * Importa il flusso del mestiere GIÀ A CATENA: ogni passo parte quando si
+   * chiude il precedente. È il motivo per cui esiste questa schermata — chi
+   * importa vuole il processo, non un elenco. I giorni fra un passo e l'altro
+   * si ricavano dalla distanza fra gli offset dello standard.
+   */
   const importaStandard = () => {
     const { steps } = getOrderPlaybook(vertical);
-    setRows(steps.map((s) => ({ _key: newKey(), titolo: s.titolo, giorni_offset: s.giorni_offset, priorita: s.priorita, attivo: true })));
-    toast.info("Flusso standard importato — modificalo e salva.");
+    const keys = steps.map(() => newKey());
+    setRows(steps.map((s, i): Row => ({
+      _key: keys[i],
+      titolo: s.titolo,
+      giorni_offset: s.giorni_offset,
+      giorni_dopo_sblocco: i === 0 ? 0 : Math.max(1, s.giorni_offset - steps[i - 1].giorni_offset),
+      priorita: s.priorita,
+      attivo: true,
+      assegna_a_utente: null,
+      dipende_da_key: i === 0 ? null : keys[i - 1],
+    })));
+    toast.info("Flusso standard importato a catena — assegna le persone e salva.");
   };
 
-  const addRow = () => setRows((p) => [...p, { _key: newKey(), titolo: "", giorni_offset: 0, priorita: "normale", attivo: true }]);
+  const addRow = () => setRows((p) => [...p, {
+    _key: newKey(),
+    titolo: "",
+    giorni_offset: 0,
+    giorni_dopo_sblocco: 2,
+    priorita: "normale",
+    attivo: true,
+    assegna_a_utente: null,
+    // Di default il nuovo passo si accoda all'ultimo: è il caso normale.
+    dipende_da_key: p.length > 0 ? p[p.length - 1]._key : null,
+  }]);
+
   const updateRow = (key: string, patch: Partial<Row>) => setRows((p) => p.map((r) => (r._key === key ? { ...r, ...patch } : r)));
-  const removeRow = (key: string) => setRows((p) => p.filter((r) => r._key !== key));
+
+  const removeRow = (key: string) => setRows((p) => p
+    .filter((r) => r._key !== key)
+    // Chi dipendeva dal passo rimosso torna a partire subito: meglio che
+    // restare in attesa di qualcosa che non esiste più.
+    .map((r) => (r.dipende_da_key === key ? { ...r, dipende_da_key: null } : r)));
 
   const handleSave = async () => {
     setSaving(true);
@@ -129,13 +210,45 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
           sort_order: idx,
           titolo: r.titolo.trim(),
           giorni_offset: Number(r.giorni_offset) || 0,
+          giorni_dopo_sblocco: Number(r.giorni_dopo_sblocco) || 0,
           priorita: r.priorita,
           attivo: r.attivo,
+          assegna_a_utente: r.assegna_a_utente,
         }));
-        const { error: insErr } = await supabase.from("order_task_template").insert(payload as never);
+        // Prima le righe, poi le dipendenze: l'insert non conosce ancora gli id
+        // che sta per generare, quindi `dipende_da_id` si scrive in un secondo
+        // giro, agganciando per sort_order (univoco dopo il delete qui sopra).
+        const { data: inserite, error: insErr } = await supabase
+          .from("order_task_template")
+          .insert(payload as never)
+          .select("id, sort_order");
         if (insErr) throw insErr;
+
+        const idPerPosizione = new Map<number, string>();
+        ((inserite ?? []) as unknown as Array<{ id: string; sort_order: number }>)
+          .forEach((r) => idPerPosizione.set(Number(r.sort_order), r.id));
+
+        const posizionePerKey = new Map<string, number>();
+        valid.forEach((r, idx) => posizionePerKey.set(r._key, idx));
+
+        const dipendenze = valid
+          .map((r, idx) => {
+            const posPrec = r.dipende_da_key != null ? posizionePerKey.get(r.dipende_da_key) : undefined;
+            const id = idPerPosizione.get(idx);
+            const idPrec = posPrec != null ? idPerPosizione.get(posPrec) : undefined;
+            return id && idPrec ? { id, idPrec } : null;
+          })
+          .filter((d): d is { id: string; idPrec: string } => d !== null);
+
+        for (const d of dipendenze) {
+          const { error } = await supabase
+            .from("order_task_template")
+            .update({ dipende_da_id: d.idPrec } as never)
+            .eq("id", d.id);
+          if (error) throw error;
+        }
       }
-      toast.success("Processo standard salvato.");
+      toast.success("Flusso di lavoro salvato.");
       refetch();
       onSaved?.();
       onOpenChange(false);
@@ -148,22 +261,23 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-500" />
-            Processo standard commessa · {PLAYBOOK_LABELS[playbookKey]}
+            Flusso di lavoro commessa · {PLAYBOOK_LABELS[playbookKey]}
           </DialogTitle>
           <DialogDescription>
-            Le attività standard del tuo flusso. Quando le applichi a una commessa diventano task reali,
-            con scadenza calcolata dalla data della commessa (giorni). Le assegni poi alle persone.
+            Il percorso che segue ogni commessa, passo per passo. Un passo può partire subito con la
+            commessa oppure quando si chiude quello prima: in quel caso nasce &laquo;In attesa&raquo;, senza
+            scadenza, e si sblocca da solo — con notifica a chi lo riceve — appena tocca a lui.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-sm font-medium">Applica automaticamente alle nuove commesse</p>
-            <p className="text-xs text-muted-foreground">Ogni nuova commessa parte già con queste attività.</p>
+            <p className="text-xs text-muted-foreground">Ogni nuova commessa parte già con questo flusso.</p>
           </div>
           <Switch checked={autoApply} onCheckedChange={toggleAutoApply} />
         </div>
@@ -172,52 +286,108 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
           <p className="text-sm text-muted-foreground py-6 text-center">Caricamento…</p>
         ) : rows.length === 0 ? (
           <div className="text-center py-8 border rounded-md">
-            <p className="text-sm text-muted-foreground mb-3">Nessun processo standard personalizzato per questo mestiere.</p>
+            <p className="text-sm text-muted-foreground mb-3">Nessun flusso personalizzato per questo mestiere.</p>
             <Button variant="outline" size="sm" onClick={importaStandard}>
               <Sparkles className="h-4 w-4 mr-1.5" /> Importa il flusso standard {PLAYBOOK_LABELS[playbookKey]}
             </Button>
-            <p className="text-xs text-muted-foreground mt-3">…oppure aggiungi le tue attività una a una.</p>
+            <p className="text-xs text-muted-foreground mt-3">…oppure aggiungi i tuoi passi uno a uno.</p>
             <Button variant="ghost" size="sm" className="mt-1" onClick={addRow}>
-              <Plus className="h-4 w-4 mr-1" /> Aggiungi attività
+              <Plus className="h-4 w-4 mr-1" /> Aggiungi passo
             </Button>
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="hidden sm:grid grid-cols-[1fr_90px_120px_56px_36px] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <span>Attività</span><span>Giorni</span><span>Priorità</span><span>Attiva</span><span></span>
-            </div>
-            {rows.map((r) => (
-              <div key={r._key} className="grid grid-cols-[1fr_90px_120px_56px_36px] gap-2 items-center">
-                <Input
-                  value={r.titolo}
-                  onChange={(e) => updateRow(r._key, { titolo: e.target.value })}
-                  placeholder="Es. Ordine al fornitore"
-                  className="h-9"
-                />
-                <Input
-                  type="number" min={0} inputMode="numeric"
-                  value={r.giorni_offset}
-                  onChange={(e) => updateRow(r._key, { giorni_offset: Number(e.target.value) || 0 })}
-                  className="h-9"
-                  title="Giorni dalla data della commessa"
-                />
-                <Select value={r.priorita} onValueChange={(val) => updateRow(r._key, { priorita: val as Row["priorita"] })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PRIORITA.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="flex justify-center">
-                  <Switch checked={r.attivo} onCheckedChange={(val) => updateRow(r._key, { attivo: val })} />
+            {rows.map((r, idx) => {
+              // Si può dipendere solo dai passi PRIMA: impedisce gli anelli
+              // (due passi che si aspettano a vicenda per sempre) senza dover
+              // spiegare all'utente cos'è un anello.
+              const precedenti = rows.slice(0, idx).filter((p) => p.titolo.trim());
+              const aCatena = r.dipende_da_key != null;
+              return (
+                <div key={r._key} className="rounded-lg border bg-card p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-muted-foreground w-5 shrink-0 text-center">{idx + 1}</span>
+                    <Input
+                      value={r.titolo}
+                      onChange={(e) => updateRow(r._key, { titolo: e.target.value })}
+                      placeholder="Es. Emissione fattura di acconto"
+                      className="h-9"
+                    />
+                    <Select value={r.priorita} onValueChange={(val) => updateRow(r._key, { priorita: val as Row["priorita"] })}>
+                      <SelectTrigger className="h-9 w-[110px] shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PRIORITA.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-1.5 shrink-0" title="Passo attivo">
+                      <Switch checked={r.attivo} onCheckedChange={(val) => updateRow(r._key, { attivo: val })} />
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground" onClick={() => removeRow(r._key)} aria-label="Rimuovi passo">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-7 text-xs text-muted-foreground">
+                    <span className="shrink-0">Parte</span>
+                    <Select
+                      value={r.dipende_da_key ?? SUBITO}
+                      onValueChange={(val) => updateRow(r._key, { dipende_da_key: val === SUBITO ? null : val })}
+                    >
+                      <SelectTrigger className="h-8 w-[230px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SUBITO}>subito, con la commessa</SelectItem>
+                        {precedenti.map((p, i) => (
+                          <SelectItem key={p._key} value={p._key}>
+                            dopo: {i + 1}. {p.titolo.trim().slice(0, 40)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {aCatena ? (
+                      <>
+                        <ArrowDown className="h-3 w-3 shrink-0 text-violet-500" />
+                        <span className="shrink-0">da chiudere entro</span>
+                        <Input
+                          type="number" min={0} inputMode="numeric"
+                          value={r.giorni_dopo_sblocco}
+                          onChange={(e) => updateRow(r._key, { giorni_dopo_sblocco: Number(e.target.value) || 0 })}
+                          className="h-8 w-[64px] text-xs"
+                        />
+                        <span className="shrink-0">giorni dallo sblocco</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="shrink-0">con scadenza a</span>
+                        <Input
+                          type="number" min={0} inputMode="numeric"
+                          value={r.giorni_offset}
+                          onChange={(e) => updateRow(r._key, { giorni_offset: Number(e.target.value) || 0 })}
+                          className="h-8 w-[64px] text-xs"
+                        />
+                        <span className="shrink-0">giorni dalla commessa</span>
+                      </>
+                    )}
+
+                    <span className="shrink-0">·</span>
+                    <span className="shrink-0">a</span>
+                    <Select
+                      value={r.assegna_a_utente ?? RESPONSABILE}
+                      onValueChange={(val) => updateRow(r._key, { assegna_a_utente: val === RESPONSABILE ? null : val })}
+                    >
+                      <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={RESPONSABILE}>responsabile commessa</SelectItem>
+                        {persone.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" onClick={() => removeRow(r._key)} aria-label="Rimuovi">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex justify-between pt-1">
               <Button variant="ghost" size="sm" onClick={addRow}>
-                <Plus className="h-4 w-4 mr-1" /> Aggiungi attività
+                <Plus className="h-4 w-4 mr-1" /> Aggiungi passo
               </Button>
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={importaStandard}>
                 <Sparkles className="h-4 w-4 mr-1" /> Reimporta standard
@@ -228,7 +398,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvataggio…" : "Salva processo"}</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Salvataggio…" : "Salva flusso"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

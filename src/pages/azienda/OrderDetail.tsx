@@ -520,7 +520,9 @@ function OrderDetailInner() {
         .select("id, title, due_date, status, assigned_to, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
         .eq("order_id", id!)
-        .neq("status", "completata")
+        // Fuori sia il chiuso sia il "In attesa": un passo del flusso non
+        // ancora sbloccato non e' la prossima mossa di nessuno.
+        .not("status", "in", "(completata,in_attesa)")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle();
@@ -873,7 +875,7 @@ function OrderDetailInner() {
         toast.info("Le attività del processo standard sono già presenti su questa commessa.");
         return;
       }
-      toast.success(`${created} attività create dal processo standard "${PLAYBOOK_LABELS[playbookKey]}". Assegnale dalla card Attività.`);
+      toast.success(`${created} attività create dal flusso "${PLAYBOOK_LABELS[playbookKey]}". Le trovi nella card Attività.`);
       queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     } catch (e) {
@@ -1309,10 +1311,10 @@ function OrderDetailInner() {
                     className="h-7 text-xs"
                     onClick={handleApplyPlaybook}
                     disabled={applyingPlaybook}
-                    title={`Crea le attività standard del processo ${PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}`}
+                    title={`Crea le attività del flusso ${PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}`}
                   >
                     <Sparkles className="h-3.5 w-3.5 mr-1" />
-                    {applyingPlaybook ? "Applico…" : "Applica processo"}
+                    {applyingPlaybook ? "Applico…" : "Applica flusso"}
                   </Button>
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTaskDialogOpen(true)}>
                     <Plus className="h-3.5 w-3.5 mr-1" /> Attività

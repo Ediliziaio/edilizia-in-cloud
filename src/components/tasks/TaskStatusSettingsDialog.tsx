@@ -17,6 +17,10 @@ import {
 } from "@/lib/taskStatuses";
 
 const STAGE_OPTIONS: { value: TaskStatusStage; label: string }[] = [
+  // "In attesa" non e' una scelta: e' il meccanismo del flusso di lavoro
+  // (l'attivita aspetta che si chiuda il passo precedente). Compare qui solo
+  // perche' il suo stato esiste nella lista, ma il select resta bloccato.
+  { value: "blocked", label: "In attesa (flusso)" },
   { value: "todo", label: "Da fare" },
   { value: "active", label: "Operativa" },
   { value: "review", label: "Revisione" },
@@ -141,8 +145,12 @@ export function TaskStatusSettingsDialog({
                       className="h-9"
                       maxLength={40}
                     />
-                    <Select value={row.stage} onValueChange={(stage) => updateRow(row.value, { stage: stage as TaskStatusStage })}>
-                      <SelectTrigger className="h-9">
+                    <Select
+                      value={row.stage}
+                      disabled={row.stage === "blocked"}
+                      onValueChange={(stage) => updateRow(row.value, { stage: stage as TaskStatusStage })}
+                    >
+                      <SelectTrigger className="h-9" title={row.stage === "blocked" ? "Stato gestito dal flusso di lavoro commessa" : undefined}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

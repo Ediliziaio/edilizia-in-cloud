@@ -98,7 +98,9 @@ export default function CampoAttivita() {
   }), [tasks]);
 
   const focusTask = useMemo(() => {
-    return filteredTasks.find((t: any) => t.status !== "completata") ?? null;
+    // "In attesa" = passo del flusso commessa non ancora sbloccato: non puo'
+    // essere il lavoro in evidenza di nessuno.
+    return filteredTasks.find((t: any) => t.status !== "completata" && t.status !== "in_attesa") ?? null;
   }, [filteredTasks]);
 
   // ── Change status ──

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, CheckSquare, CalendarDays, AlertTriangle } from "lucide-react";
+import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,11 @@ interface LinkedTasksProps {
    *  niente Card/header propri, layout compatto senza doppio titolo. */
   embedded?: boolean;
 }
+
+// Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
+// titolo, altrimenti "In attesa" non dice di CHI si sta aspettando.
+const SELECT_TASK =
+  "*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name), bloccata_da:tasks!tasks_bloccata_da_task_id_fkey(title)";
 
 const PRIORITY_COLORS: Record<string, string> = {
   bassa: "bg-muted text-muted-foreground",
@@ -52,7 +57,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         const [contactRes, oppsRes] = await Promise.all([
           supabase
             .from("tasks")
-            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .select(SELECT_TASK)
             .eq("company_id", companyId)
             .eq("contact_id", contactId)
             .order("created_at", { ascending: false }),
@@ -68,7 +73,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         if (oppIds.length > 0) {
           const { data, error } = await supabase
             .from("tasks")
-            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .select(SELECT_TASK)
             .eq("company_id", companyId)
             .in("opportunity_id", oppIds)
             .order("created_at", { ascending: false });
@@ -85,7 +90,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         // Load tasks for this opportunity + generic tasks of the linked contact
         const oppRes = await supabase
           .from("tasks")
-          .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+          .select(SELECT_TASK)
           .eq("company_id", companyId)
           .eq("opportunity_id", opportunityId)
           .order("created_at", { ascending: false });
@@ -102,7 +107,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         if (opp?.contact_id) {
           const { data, error } = await supabase
             .from("tasks")
-            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .select(SELECT_TASK)
             .eq("company_id", companyId)
             .eq("contact_id", opp.contact_id)
             .is("opportunity_id", null)
@@ -117,7 +122,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
       let query = supabase
         .from("tasks")
-        .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+        .select(SELECT_TASK)
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
 
@@ -153,6 +158,13 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   });
 
   const activeTasks = tasks.filter((t: any) => t.status !== "completata");
+
+  // Ordine di lettura del flusso: prima quello che si puo' fare, poi quello che
+  // aspetta il proprio turno, in fondo il chiuso.
+  const tasksOrdinate = [...tasks].sort((a: any, b: any) => {
+    const peso = (t: any) => (t.status === "completata" ? 2 : t.status === "in_attesa" ? 1 : 0);
+    return peso(a) - peso(b);
+  });
 
   const handleAddTask = () => {
     setEditingTask(null);
@@ -202,25 +214,36 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       </p>
     ) : (
       <div className={embedded ? "space-y-1" : "space-y-2"}>
-        {tasks.map((task: any) => {
+        {tasksOrdinate.map((task: any) => {
           const isCompleted = task.status === "completata";
+          // Passo del flusso non ancora sbloccato: esiste, ma tocca a qualcun
+          // altro prima. Si sblocca da solo (trigger DB sblocca_task_a_catena),
+          // quindi qui la spunta va disattivata: chiuderla a mano salterebbe
+          // il passaggio di consegne.
+          const isBlocked = task.status === "in_attesa";
           const isOverdue = task.due_date && !isCompleted && isPast(parseISO(task.due_date));
 
           return (
             <div
               key={task.id}
-              className={`flex items-start gap-2 rounded-md hover:bg-muted/50 cursor-pointer group ${embedded ? "p-1.5" : "p-2"}`}
+              className={`flex items-start gap-2 rounded-md hover:bg-muted/50 cursor-pointer group ${embedded ? "p-1.5" : "p-2"} ${isBlocked ? "opacity-70" : ""}`}
               onClick={() => handleEditTask(task)}
             >
-              <div
-                className="mt-0.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleMutation.mutate({ id: task.id, completed: !isCompleted });
-                }}
-              >
-                <Checkbox checked={isCompleted} />
-              </div>
+              {isBlocked ? (
+                <div className="mt-0.5" title="Parte da sola quando si chiude il passo precedente">
+                  <Lock className="h-4 w-4 text-violet-500" />
+                </div>
+              ) : (
+                <div
+                  className="mt-0.5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleMutation.mutate({ id: task.id, completed: !isCompleted });
+                  }}
+                >
+                  <Checkbox checked={isCompleted} />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className={`font-medium truncate ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
                   {task.title}
@@ -232,6 +255,11 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                   {task.assigned?.first_name && (
                     <span className="text-[11px] text-muted-foreground">
                       {task.assigned.first_name} {task.assigned.last_name?.[0]}.
+                    </span>
+                  )}
+                  {isBlocked && (
+                    <span className="text-[11px] text-violet-600">
+                      {task.bloccata_da?.title ? `dopo: ${task.bloccata_da.title}` : "in attesa"}
                     </span>
                   )}
                   {task.due_date && (

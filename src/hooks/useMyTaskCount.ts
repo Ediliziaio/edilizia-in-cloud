@@ -30,7 +30,10 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
           .eq("assigned_to", userId)
-          .neq("status", "completata");
+          // Fuori il chiuso e i passi del flusso ancora "In attesa": il badge
+          // conta il lavoro che si puo' fare ADESSO, non quello che aspetta il
+          // proprio turno.
+          .not("status", "in", "(completata,in_attesa)");
 
       // 2026-05-27: timeout 8 → 12s per maggior tolleranza mobile 4G.
       const [totalRes, overdueRes, todayRes] = await Promise.all([

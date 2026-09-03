@@ -1,4 +1,4 @@
-export type TaskStatusStage = "todo" | "active" | "review" | "done";
+export type TaskStatusStage = "blocked" | "todo" | "active" | "review" | "done";
 export type TaskStatusTone = "slate" | "blue" | "amber" | "emerald" | "violet" | "rose";
 
 export interface TaskStatusDefinition {
@@ -73,6 +73,19 @@ export const TASK_STATUS_TONE_CLASSES: Record<TaskStatusTone, {
 };
 
 export const DEFAULT_TASK_STATUS_DEFINITIONS: TaskStatusDefinition[] = [
+  {
+    // Stato del flusso di lavoro: l'attivita esiste ma aspetta che si chiuda il
+    // passo precedente. Niente scadenza finche e' qui, quindi non risulta mai
+    // arretrata e non finisce nei solleciti.
+    value: "in_attesa",
+    label: "In attesa",
+    shortLabel: "In attesa",
+    description: "Parte da sola quando si chiude l'attivita precedente del flusso.",
+    stage: "blocked",
+    tone: "violet",
+    order: 5,
+    locked: true,
+  },
   {
     value: "da_fare",
     label: "Da fare",
@@ -171,6 +184,7 @@ export function normalizeTaskStatusDefinition(
 }
 
 export function toneForStage(stage: TaskStatusStage): TaskStatusTone {
+  if (stage === "blocked") return "violet";
   if (stage === "todo") return "slate";
   if (stage === "review") return "amber";
   if (stage === "done") return "emerald";
@@ -234,7 +248,9 @@ export function mergeTaskStatusDefinitions({
 }
 
 export function getTaskStatusDefinition(status: string | null | undefined, statuses = DEFAULT_TASK_STATUS_DEFINITIONS) {
-  if (!status) return DEFAULT_TASK_STATUS_DEFINITIONS[0];
+  // Default = "Da fare": DEFAULT_TASK_STATUS_DEFINITIONS[0] ora e' "In attesa"
+  // (stato del flusso) e non deve mai essere il fallback di uno stato assente.
+  if (!status) return DEFAULT_TASK_STATUS_DEFINITIONS.find((item) => item.value === "da_fare")!;
   return statuses.find((item) => item.value === status) || normalizeTaskStatusDefinition({ value: status });
 }
 
@@ -244,6 +260,10 @@ export function getTaskStatusLabel(status: string | null | undefined, statuses =
 
 export function isTaskDoneStatus(status: string | null | undefined, statuses = DEFAULT_TASK_STATUS_DEFINITIONS) {
   return getTaskStatusDefinition(status, statuses).stage === "done";
+}
+
+export function isTaskBlockedStatus(status: string | null | undefined, statuses = DEFAULT_TASK_STATUS_DEFINITIONS) {
+  return getTaskStatusDefinition(status, statuses).stage === "blocked";
 }
 
 export function isTaskReviewStatus(status: string | null | undefined, statuses = DEFAULT_TASK_STATUS_DEFINITIONS) {
@@ -259,10 +279,15 @@ export function buildTaskStatusUpdate(status: string, statuses = DEFAULT_TASK_ST
 
 export function getNextTaskStatusForQuickAction(currentStatus: string | null | undefined, statuses = DEFAULT_TASK_STATUS_DEFINITIONS) {
   const current = getTaskStatusDefinition(currentStatus, statuses);
-  const todo = statuses.find((status) => status.stage === "todo") || DEFAULT_TASK_STATUS_DEFINITIONS[0];
+  const todo = statuses.find((status) => status.stage === "todo")
+    || DEFAULT_TASK_STATUS_DEFINITIONS.find((status) => status.stage === "todo")!;
   const review = statuses.find((status) => status.stage === "review");
-  const done = statuses.find((status) => status.stage === "done") || DEFAULT_TASK_STATUS_DEFINITIONS[3];
+  const done = statuses.find((status) => status.stage === "done")
+    || DEFAULT_TASK_STATUS_DEFINITIONS.find((status) => status.stage === "done")!;
 
+  // Un passo ancora in attesa del precedente non si "avanza" a mano: la sblocca
+  // la chiusura di chi viene prima (trigger DB sblocca_task_a_catena).
+  if (current.stage === "blocked") return current;
   if (current.stage === "done") return todo;
   if (current.stage === "review") return done;
   return review || done;
@@ -279,7 +304,7 @@ export function getTaskStatusTransitionDescription(beforeStatus: string | null |
   const before = getTaskStatusDefinition(beforeStatus, statuses);
   const after = getTaskStatusDefinition(afterStatus, statuses);
   if (after.stage === "done") return "ha chiuso l'attivita";
-  if (before.stage === "done" && after.stage !== "done") return "ha riaperto l'attivita";
+  if (before.stage === "done") return "ha riaperto l'attivita";
   if (after.stage === "review") return "ha mandato l'attivita in revisione";
   return `ha spostato l'attivita da ${before.label} a ${after.label}`;
 }
