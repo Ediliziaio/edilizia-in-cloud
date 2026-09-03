@@ -983,6 +983,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       user: null,
                       profile: null,
                       role: null,
+                      userRoles: [],
                       company: null,
                       isLoading: false,
                     }
@@ -1000,6 +1001,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   user: null,
                   profile: null,
                   role: null,
+                  userRoles: [],
                   company: null,
                   isLoading: false,
                 });
