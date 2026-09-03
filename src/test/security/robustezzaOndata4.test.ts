@@ -83,3 +83,38 @@ describe("4 · l'attore del cambio stato, fino in fondo", () => {
     expect(sql).toMatch(/restano usi nudi di p_changed_by/);
   });
 });
+
+describe("4 · le rate non si perdono più fra il DELETE e l'INSERT", () => {
+  const rate = (() => {
+    const dir = resolve(__dirname, "../../../supabase/migrations");
+    const nome = readdirSync(dir).find((f) => f.includes("rate_commessa_sostituzione_atomica"));
+    if (!nome) throw new Error("migrazione rate_commessa_sostituzione_atomica non trovata");
+    return readFileSync(resolve(dir, nome), "utf8");
+  })();
+
+  it("cancellazione e reinserimento stanno nella stessa funzione", () => {
+    const corpo = rate.split("FUNCTION public.order_rate_sostituisci(")[1];
+    const posDelete = corpo.indexOf("DELETE FROM public.order_installments");
+    const posInsert = corpo.indexOf("INSERT INTO public.order_installments");
+    expect(posDelete).toBeGreaterThan(0);
+    expect(posInsert).toBeGreaterThan(posDelete);
+  });
+
+  it("chiede accesso e permesso prima di toccare qualcosa", () => {
+    const corpo = rate.split("FUNCTION public.order_rate_sostituisci(")[1];
+    const posPermesso = corpo.indexOf("assert_permesso");
+    const posDelete = corpo.indexOf("DELETE FROM public.order_installments");
+    expect(posPermesso).toBeGreaterThan(0);
+    expect(posPermesso, "il permesso va chiesto PRIMA di cancellare").toBeLessThan(posDelete);
+  });
+
+  it("un elenco che non è un elenco è un errore, non uno scadenzario azzerato", () => {
+    expect(rate).toMatch(/jsonb_typeof\(p_rate\) <> 'array'/);
+    expect(rate).toMatch(/le rate devono essere un elenco/);
+  });
+
+  it("il tipo predefinito è fra quelli che il vincolo ammette", () => {
+    expect(rate).toMatch(/coalesce\(nullif\(r->>'type', ''\), 'deposit'\)/);
+    expect(rate).toMatch(/deposit \/ balance \/ financing/);
+  });
+});
