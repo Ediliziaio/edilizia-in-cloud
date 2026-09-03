@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, UserRoundSearch } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, UserRoundSearch, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 // 2026-05-27 (perf fix P0): tab lazy-loaded.
 // PRIMA: 12 tab import statici → chunk PersonalePage 559KB (talent-profile,
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // on-demand per il tab cliccato.
 const TabRegiaHr = lazy(() => import("./tabs/TabRegiaHr").then(m => ({ default: m.TabRegiaHr })));
 const TabOrganigramma = lazy(() => import("./tabs/TabOrganigramma").then(m => ({ default: m.TabOrganigramma })));
+const TabUffici = lazy(() => import("./tabs/TabUffici").then(m => ({ default: m.TabUffici })));
 const TabTimbrature = lazy(() => import("./tabs/TabTimbrature").then(m => ({ default: m.TabTimbrature })));
 const TabPresenze = lazy(() => import("./tabs/TabPresenze").then(m => ({ default: m.TabPresenze })));
 const TabRichieste = lazy(() => import("./tabs/TabRichieste").then(m => ({ default: m.TabRichieste })));
@@ -49,6 +50,7 @@ export default function PersonalePage() {
     const tabs = [
       "regia",
       "organigramma",
+      "uffici",
       "profili",
       "timbrature",
       "presenze",
@@ -103,6 +105,9 @@ export default function PersonalePage() {
           <TabsTrigger value="organigramma" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Network className="h-4 w-4" /> Organigramma
           </TabsTrigger>
+          <TabsTrigger value="uffici" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <Building2 className="h-4 w-4" /> Uffici
+          </TabsTrigger>
           <TabsTrigger value="profili" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Users className="h-4 w-4" /> Profili
           </TabsTrigger>
@@ -139,6 +144,7 @@ export default function PersonalePage() {
 
         <TabsContent value="regia"><Suspense fallback={<TabFallback />}><TabRegiaHr onNavigate={handleTabChange} /></Suspense></TabsContent>
         <TabsContent value="organigramma"><Suspense fallback={<TabFallback />}><TabOrganigramma /></Suspense></TabsContent>
+        <TabsContent value="uffici"><Suspense fallback={<TabFallback />}><TabUffici /></Suspense></TabsContent>
         <TabsContent value="profili"><Suspense fallback={<TabFallback />}><TabProfili /></Suspense></TabsContent>
         <TabsContent value="timbrature"><Suspense fallback={<TabFallback />}><TabTimbrature /></Suspense></TabsContent>
         <TabsContent value="presenze"><Suspense fallback={<TabFallback />}><TabPresenze /></Suspense></TabsContent>

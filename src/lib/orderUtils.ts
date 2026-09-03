@@ -12,6 +12,12 @@ export interface Installment {
   is_paid: boolean;
   paid_date?: string | null;
   expected_date?: string | null;
+  /** Evento del cantiere che rende esigibile la rata (vedi lib/orders/rateEventi). */
+  trigger_evento?: string | null;
+  /** Solo per trigger_evento = 'stato_commessa': lo stato al cui arrivo la rata scade. */
+  trigger_status_id?: string | null;
+  /** Giorni di anticipo dell'avviso "non hai ancora incassato". */
+  giorni_preavviso?: number | null;
 }
 
 /**

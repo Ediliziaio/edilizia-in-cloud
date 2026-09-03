@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useUfficiAttivi } from "@/hooks/useUffici";
 import { toast } from "sonner";
 import { Plus, Trash2, Sparkles, ArrowDown } from "lucide-react";
 import {
@@ -29,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { getOrderPlaybook, PLAYBOOK_LABELS } from "@/lib/orderPlaybook";
 
@@ -52,6 +53,8 @@ interface Row {
   attivo: boolean;
   /** Persona che riceve il passo; null = responsabile della commessa. */
   assegna_a_utente: string | null;
+  /** Ufficio che riceve il passo; se valorizzato vince sulla persona. */
+  assegna_a_ufficio_id: string | null;
   /** _key del passo che deve chiudersi prima; null = parte subito. */
   dipende_da_key: string | null;
 }
@@ -66,6 +69,7 @@ interface DbRow {
   attivo: boolean;
   sort_order: number;
   assegna_a_utente: string | null;
+  assegna_a_ufficio_id: string | null;
   dipende_da_id: string | null;
 }
 
@@ -73,6 +77,8 @@ const PRIORITA = ["bassa", "normale", "alta", "urgente"] as const;
 
 const SUBITO = "__subito__";
 const RESPONSABILE = "__responsabile__";
+/** Prefisso per distinguere un ufficio da una persona nello stesso menu. */
+const PREFISSO_UFFICIO = "uff:";
 
 function newKey() {
   return `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -86,6 +92,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
   const [autoApply, setAutoApply] = useState(false);
 
   const { data: staffUsers = [] } = useCompanyStaffUsers(companyId);
+  const { data: uffici = [] } = useUfficiAttivi(companyId);
   const persone = useMemo(
     () => staffUsers.map((p) => ({
       id: p.id,
@@ -121,7 +128,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
-        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, dipende_da_id")
+        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id")
         .eq("company_id", companyId)
         .order("sort_order", { ascending: true });
       q = v === null ? q.is("vertical", null) : q.eq("vertical", v);
@@ -146,6 +153,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
         priorita: (r.priorita as Row["priorita"]) ?? "normale",
         attivo: r.attivo ?? true,
         assegna_a_utente: r.assegna_a_utente ?? null,
+        assegna_a_ufficio_id: r.assegna_a_ufficio_id ?? null,
         dipende_da_key: r.dipende_da_id ? keyPerId.get(r.dipende_da_id) ?? null : null,
       })),
     );
@@ -168,6 +176,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
       priorita: s.priorita,
       attivo: true,
       assegna_a_utente: null,
+      assegna_a_ufficio_id: null,
       dipende_da_key: i === 0 ? null : keys[i - 1],
     })));
     toast.info("Flusso standard importato a catena — assegna le persone e salva.");
@@ -181,6 +190,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
     priorita: "normale",
     attivo: true,
     assegna_a_utente: null,
+    assegna_a_ufficio_id: null,
     // Di default il nuovo passo si accoda all'ultimo: è il caso normale.
     dipende_da_key: p.length > 0 ? p[p.length - 1]._key : null,
   }]);
@@ -213,7 +223,10 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
           giorni_dopo_sblocco: Number(r.giorni_dopo_sblocco) || 0,
           priorita: r.priorita,
           attivo: r.attivo,
-          assegna_a_utente: r.assegna_a_utente,
+          // Ufficio e persona si escludono: se c'è l'ufficio, la persona resta
+          // vuota, altrimenti si finirebbe per non sapere chi comanda.
+          assegna_a_utente: r.assegna_a_ufficio_id ? null : r.assegna_a_utente,
+          assegna_a_ufficio_id: r.assegna_a_ufficio_id,
         }));
         // Prima le righe, poi le dipendenze: l'insert non conosce ancora gli id
         // che sta per generare, quindi `dipende_da_id` si scrive in un secondo
@@ -372,13 +385,32 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
                     <span className="shrink-0">·</span>
                     <span className="shrink-0">a</span>
                     <Select
-                      value={r.assegna_a_utente ?? RESPONSABILE}
-                      onValueChange={(val) => updateRow(r._key, { assegna_a_utente: val === RESPONSABILE ? null : val })}
+                      value={
+                        r.assegna_a_ufficio_id
+                          ? PREFISSO_UFFICIO + r.assegna_a_ufficio_id
+                          : r.assegna_a_utente ?? RESPONSABILE
+                      }
+                      onValueChange={(val) => updateRow(r._key, val === RESPONSABILE
+                        ? { assegna_a_utente: null, assegna_a_ufficio_id: null }
+                        : val.startsWith(PREFISSO_UFFICIO)
+                          ? { assegna_a_ufficio_id: val.slice(PREFISSO_UFFICIO.length), assegna_a_utente: null }
+                          : { assegna_a_utente: val, assegna_a_ufficio_id: null })}
                     >
-                      <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 w-[210px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value={RESPONSABILE}>responsabile commessa</SelectItem>
-                        {persone.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                        {uffici.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[10px]">Uffici</SelectLabel>
+                            {uffici.map((u) => (
+                              <SelectItem key={u.id} value={PREFISSO_UFFICIO + u.id}>{u.nome}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px]">Persone</SelectLabel>
+                          {persone.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>

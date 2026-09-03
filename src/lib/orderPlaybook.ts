@@ -23,6 +23,8 @@ export interface PlaybookStep {
   priorita: "bassa" | "normale" | "alta" | "urgente";
   /** Chi riceve il passo; null = responsabile della commessa. */
   assegna_a_utente?: string | null;
+  /** Ufficio che riceve il passo; se valorizzato vince sulla persona. */
+  assegna_a_ufficio_id?: string | null;
   /** Passo che deve chiudersi prima (id di `order_task_template`). */
   dipende_da_id?: string | null;
   /** Giorni concessi a partire dallo sblocco. */
@@ -36,6 +38,7 @@ interface TemplateRow {
   giorni_offset: number;
   priorita: string;
   assegna_a_utente: string | null;
+  assegna_a_ufficio_id: string | null;
   dipende_da_id: string | null;
   giorni_dopo_sblocco: number;
 }
@@ -139,7 +142,7 @@ export async function applyPlaybookToOrder(params: {
 
   let tplQuery = supabase
     .from("order_task_template")
-    .select("id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, dipende_da_id, giorni_dopo_sblocco")
+    .select("id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco")
     .eq("company_id", companyId)
     .eq("attivo", true)
     .order("sort_order", { ascending: true });
@@ -154,10 +157,28 @@ export async function applyPlaybookToOrder(params: {
         giorni_offset: Number(t.giorni_offset) || 0,
         priorita: (t.priorita as PlaybookStep["priorita"]) ?? "normale",
         assegna_a_utente: t.assegna_a_utente ?? null,
+        assegna_a_ufficio_id: t.assegna_a_ufficio_id ?? null,
         dipende_da_id: t.dipende_da_id ?? null,
         giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
       }))
     : getOrderPlaybook(vertical).steps;
+
+  // Un passo di ufficio nasce in carico al RESPONSABILE dell'ufficio: senza
+  // assegnatario resterebbe di nessuno (in produzione le task orfane erano il
+  // grosso delle scadute). Gli altri membri la vedono comunque e possono
+  // prenderla: le policy "Membri ufficio …" su tasks servono a questo.
+  const responsabilePerUfficio = new Map<string, string | null>();
+  const idUffici = Array.from(new Set(
+    steps.map((s) => s.assegna_a_ufficio_id).filter((v): v is string => !!v),
+  ));
+  if (idUffici.length > 0) {
+    const { data: uffici } = await supabase
+      .from("company_uffici")
+      .select("id, responsabile_id")
+      .in("id", idUffici);
+    ((uffici ?? []) as unknown as Array<{ id: string; responsabile_id: string | null }>)
+      .forEach((u) => responsabilePerUfficio.set(u.id, u.responsabile_id));
+  }
 
   // Titoli già sulla commessa: non si duplicano, ma servono come ancora per i
   // passi che dipendono da un pezzo di flusso creato in un giro precedente.
@@ -207,9 +228,12 @@ export async function applyPlaybookToOrder(params: {
       sblocco_giorni: bloccataDa ? s.giorni_dopo_sblocco ?? 0 : null,
       priority: s.priorita,
       category: "ordini",
+      ufficio_id: s.assegna_a_ufficio_id ?? null,
       // Prima nascevano senza assegnatario: in produzione erano il grosso delle
       // attività scadute che nessuno vedeva come proprie.
-      assigned_to: s.assegna_a_utente ?? assignedTo ?? createdBy,
+      assigned_to: s.assegna_a_ufficio_id
+        ? responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null
+        : s.assegna_a_utente ?? assignedTo ?? createdBy,
       created_by: createdBy,
     };
   };

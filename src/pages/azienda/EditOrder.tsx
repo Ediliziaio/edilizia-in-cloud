@@ -573,6 +573,11 @@ function EditOrderInner() {
           is_paid: i.is_paid,
           paid_date: i.paid_date || null,
           expected_date: i.expected_date || null,
+          // Evento del cantiere a cui la rata è agganciata: senza questi tre
+          // campi il delete+insert perderebbe la scelta a ogni salvataggio.
+          trigger_evento: i.trigger_evento || 'data_fissa',
+          trigger_status_id: i.trigger_status_id || null,
+          giorni_preavviso: i.giorni_preavviso ?? 7,
         }));
         await supabase.from("order_installments").insert(instRows);
       }

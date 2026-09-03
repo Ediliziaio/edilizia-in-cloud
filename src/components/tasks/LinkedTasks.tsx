@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock } from "lucide-react";
+import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2 } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ interface LinkedTasksProps {
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
 // titolo, altrimenti "In attesa" non dice di CHI si sta aspettando.
 const SELECT_TASK =
-  "*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name), bloccata_da:tasks!tasks_bloccata_da_task_id_fkey(title)";
+  "*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name), bloccata_da:tasks!tasks_bloccata_da_task_id_fkey(title), ufficio:company_uffici!tasks_ufficio_id_fkey(nome)";
 
 const PRIORITY_COLORS: Record<string, string> = {
   bassa: "bg-muted text-muted-foreground",
@@ -252,6 +252,13 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                   <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}>
                     {task.priority}
                   </Badge>
+                  {/* L'ufficio viene prima della persona: e' lui a rispondere
+                      del passo, la persona e' chi ci sta mettendo le mani. */}
+                  {task.ufficio?.nome && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                      <Building2 className="h-2.5 w-2.5" /> {task.ufficio.nome}
+                    </Badge>
+                  )}
                   {task.assigned?.first_name && (
                     <span className="text-[11px] text-muted-foreground">
                       {task.assigned.first_name} {task.assigned.last_name?.[0]}.

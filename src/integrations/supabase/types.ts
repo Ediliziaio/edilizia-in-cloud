@@ -12801,6 +12801,7 @@ export type Database = {
           customer_id: string | null
           data_esito: string | null
           data_incasso: string | null
+          data_prevista_restituzione: string | null
           id: string
           importo: number
           metodo: string
@@ -12818,6 +12819,7 @@ export type Database = {
           customer_id?: string | null
           data_esito?: string | null
           data_incasso?: string | null
+          data_prevista_restituzione?: string | null
           id?: string
           importo?: number
           metodo?: string
@@ -12835,6 +12837,7 @@ export type Database = {
           customer_id?: string | null
           data_esito?: string | null
           data_incasso?: string | null
+          data_prevista_restituzione?: string | null
           id?: string
           importo?: number
           metodo?: string
@@ -20159,6 +20162,74 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      company_uffici: {
+        Row: {
+          attivo: boolean
+          colore: string | null
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          id: string
+          nome: string
+          responsabile_id: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          colore?: string | null
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          nome: string
+          responsabile_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          colore?: string | null
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          nome?: string
+          responsabile_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_uffici_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_uffici_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_uffici_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_uffici_responsabile_id_fkey"
+            columns: ["responsabile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -49606,6 +49677,7 @@ export type Database = {
       order_task_template: {
         Row: {
           assegna_a_ruolo: string | null
+          assegna_a_ufficio_id: string | null
           assegna_a_utente: string | null
           attivo: boolean
           company_id: string
@@ -49623,6 +49695,7 @@ export type Database = {
         }
         Insert: {
           assegna_a_ruolo?: string | null
+          assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
           attivo?: boolean
           company_id: string
@@ -49640,6 +49713,7 @@ export type Database = {
         }
         Update: {
           assegna_a_ruolo?: string | null
+          assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
           attivo?: boolean
           company_id?: string
@@ -49656,6 +49730,13 @@ export type Database = {
           vertical?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_task_template_assegna_a_ufficio_id_fkey"
+            columns: ["assegna_a_ufficio_id"]
+            isOneToOne: false
+            referencedRelation: "company_uffici"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_task_template_assegna_a_utente_fkey"
             columns: ["assegna_a_utente"]
@@ -76398,6 +76479,7 @@ export type Database = {
           stock_item_id: string | null
           ticket_id: string | null
           title: string
+          ufficio_id: string | null
           updated_at: string
         }
         Insert: {
@@ -76428,6 +76510,7 @@ export type Database = {
           stock_item_id?: string | null
           ticket_id?: string | null
           title: string
+          ufficio_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -76458,6 +76541,7 @@ export type Database = {
           stock_item_id?: string | null
           ticket_id?: string | null
           title?: string
+          ufficio_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -76571,6 +76655,13 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ufficio_id_fkey"
+            columns: ["ufficio_id"]
+            isOneToOne: false
+            referencedRelation: "company_uffici"
             referencedColumns: ["id"]
           },
         ]
@@ -78483,6 +78574,63 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "treasury_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ufficio_membri: {
+        Row: {
+          company_id: string
+          created_at: string
+          profile_id: string
+          ufficio_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          profile_id: string
+          ufficio_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          profile_id?: string
+          ufficio_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ufficio_membri_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ufficio_membri_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ufficio_membri_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ufficio_membri_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ufficio_membri_ufficio_id_fkey"
+            columns: ["ufficio_id"]
+            isOneToOne: false
+            referencedRelation: "company_uffici"
             referencedColumns: ["id"]
           },
         ]
@@ -92350,6 +92498,10 @@ export type Database = {
       }
       user_is_active_firm_member: {
         Args: { p_firm_id: string }
+        Returns: boolean
+      }
+      utente_in_ufficio: {
+        Args: { _ufficio: string; _user: string }
         Returns: boolean
       }
       valida_portale_token: { Args: { p_token: string }; Returns: Json }

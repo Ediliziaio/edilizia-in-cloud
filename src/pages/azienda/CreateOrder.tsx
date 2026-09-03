@@ -1341,6 +1341,13 @@ function CreateOrderInner() {
           </QuoteCard>
 
           <FinancialSummary
+            dateCommessa={{
+              created_at: new Date().toISOString(),
+              warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),
+              work_start_date: toDateStr(watch("work_start_date")),
+              work_end_date: toDateStr(watch("work_end_date")),
+            }}
+            statiCommessa={statuses}
             totalAmount={totalAmount || ""}
             vatRate={vatRate || "22"}
             paymentType={paymentType}
