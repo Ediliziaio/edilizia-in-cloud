@@ -510,6 +510,25 @@ function CreateOrderInner() {
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
+  // ── Cliente passato nell'indirizzo (?customer_id) ─────────────────────────
+  // "Nuova commessa" dalla scheda cliente passava già l'identificativo e questa
+  // pagina lo ignorava: si ripartiva dal picker vuoto e si sceglieva a mano il
+  // cliente da cui si era appena usciti. Lo agganciamo, ma solo se esiste
+  // davvero nell'anagrafica dell'azienda: un id inventato nell'URL non deve
+  // selezionare niente.
+  const customerIdDaUrl = searchParams.get("customer_id");
+  const customerDaUrlApplicatoRef = useRef(false);
+  useEffect(() => {
+    if (!customerIdDaUrl || customerDaUrlApplicatoRef.current) return;
+    if (customers.length === 0) return; // anagrafica non ancora caricata
+    const trovato = customers.find((c) => c.id === customerIdDaUrl);
+    customerDaUrlApplicatoRef.current = true;
+    if (!trovato) return;
+    // Non sovrascrive una scelta già fatta (es. bozza ripresa).
+    if (getValues("customer_id")) return;
+    setValue("customer_id", trovato.id, { shouldValidate: true });
+  }, [customerIdDaUrl, customers, getValues, setValue]);
+
   // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene
   // invalidata/rifetchata dopo la creazione; se quel refetch dovesse per qualsiasi
   // race non contenere ancora il nuovo cliente, lo perderemmo dal picker (bug reale:

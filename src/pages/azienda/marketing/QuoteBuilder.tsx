@@ -780,6 +780,31 @@ export default function QuoteBuilder() {
     }
   }, [existingAttachments]);
 
+  // ── Cliente passato dalla scheda cliente (?customer_id) ───────────────────
+  // "Nuovo preventivo" dalla scheda cliente passava l'identificativo del cliente
+  // e questa pagina leggeva solo `contact_id`: si arrivava al preventivo vuoto e
+  // si ridigitava il cliente da cui si era appena usciti.
+  // Un cliente d'anagrafica può avere un contatto marketing collegato
+  // (`profiles.marketing_contact_id`) oppure no: nel primo caso selezioniamo
+  // quello, nel secondo compiliamo i campi cliente coi suoi dati.
+  const customerIdDaUrl = searchParams.get("customer_id");
+  const { data: clienteDaUrl } = useQuery({
+    queryKey: ["quote-prefill-customer", customerIdDaUrl, companyId],
+    enabled: !isEdit && !!customerIdDaUrl && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "id, first_name, last_name, email, phone, business_name, address, city, province, postal_code, fiscal_code, vat_number, marketing_contact_id"
+        )
+        .eq("id", customerIdDaUrl!)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-select contact from URL param
   useEffect(() => {
     if (!isEdit && contacts.length > 0 && !contactId) {
@@ -824,6 +849,35 @@ export default function QuoteBuilder() {
       }
     }
   };
+
+  const clienteDaUrlApplicatoRef = useRef(false);
+  useEffect(() => {
+    if (isEdit || !clienteDaUrl || clienteDaUrlApplicatoRef.current) return;
+    if (contactId) return; // scelta già fatta: non la sovrascriviamo
+    const collegato = clienteDaUrl.marketing_contact_id;
+    if (collegato && contacts.some((c) => c.id === collegato)) {
+      clienteDaUrlApplicatoRef.current = true;
+      handleContactSelect(collegato);
+      return;
+    }
+    // Nessun contatto collegato: i dati del cliente riempiono comunque il preventivo.
+    clienteDaUrlApplicatoRef.current = true;
+    const nome = `${clienteDaUrl.first_name || ""} ${clienteDaUrl.last_name || ""}`.trim();
+    if (nome) setClientName(nome);
+    if (clienteDaUrl.email) setClientEmail(clienteDaUrl.email);
+    if (clienteDaUrl.phone) setClientPhone(clienteDaUrl.phone);
+    if (clienteDaUrl.business_name) setClientCompany(clienteDaUrl.business_name);
+    if (clienteDaUrl.fiscal_code) setClientFiscalCode(clienteDaUrl.fiscal_code);
+    if (clienteDaUrl.vat_number) setClientVatNumber(clienteDaUrl.vat_number);
+    const indirizzo = [clienteDaUrl.address, clienteDaUrl.postal_code, clienteDaUrl.city, clienteDaUrl.province]
+      .filter(Boolean)
+      .join(", ");
+    if (indirizzo) setClientAddress(indirizzo);
+    // `handleContactSelect` è dichiarata più sotto nel corpo: l'effect gira dopo
+    // il render, quindi al momento della chiamata esiste.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteDaUrl, contacts, contactId, isEdit]);
+
 
   // Items management
   const addItem = (type: string = "product") => {
