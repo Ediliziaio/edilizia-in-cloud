@@ -36,6 +36,8 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calcRigaImporto } from "@/lib/ristrutturazione/calcoli";
 import type { RstComputoVoce, RstUnitaMisura } from "@/types/ristrutturazione";
+import type { ConfrontoVoce } from "@/lib/prezzario/confronto";
+import { ScostamentoVoce } from "@/components/prezzario/ScostamentoVoce";
 
 /** Unità di misura selezionabili (allineate a `RstUnitaMisura`). */
 const UM_OPTIONS: RstUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
@@ -46,6 +48,8 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   showMargine: boolean;
+  /** Confronto col prezzario regionale per questa voce, se disponibile. */
+  confronto?: ConfrontoVoce;
 }
 
 /** Coerce numerico da input controllato: vuoto → 0, mai NaN. */
@@ -61,7 +65,7 @@ function margineTone(pct: number): string {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
-export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine }: Props) {
+export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, confronto }: Props) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const sortable = useSortable({ id: voce.id });
@@ -172,6 +176,11 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               />
               <span className="text-muted-foreground/70">€/{voce.unita_misura}</span>
             </label>
+
+            {/* Prezzo di zona: quanto questa riga sta sopra o sotto il
+                prezzario della regione. Sta accanto al prezzo perché è lì che
+                serve, mentre lo si decide. */}
+            <ScostamentoVoce confronto={confronto} />
 
             {/* Sconto in popover */}
             <Popover>
