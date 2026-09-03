@@ -37,6 +37,23 @@ interface FotoPreview {
   preview: string;
 }
 
+/** Quel che serve per riaprire un report salvato: `giornale_lavori` ha più
+ *  colonne, qui bastano quelle che il modulo ricompila. */
+interface RigaGiornale {
+  id: string;
+  order_id?: string | null;
+  data_lavori?: string | null;
+  condizioni_meteo?: string | null;
+  lavorazioni_eseguite?: string | null;
+  materiali_utilizzati?: string | null;
+  personale_presente?: number | string | null;
+  note?: string | null;
+  avanzamento_percentuale?: number | string | null;
+  temperatura?: number | string | null;
+  firmato_da?: string | null;
+  visibile_cliente?: boolean | null;
+}
+
 export default function GiornaleLavori() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -144,6 +161,39 @@ export default function GiornaleLavori() {
     setSheetOpen(true);
   };
 
+  /**
+   * Apre un report già salvato per correggerlo. Finora `GiornaleCard` accettava
+   * un `onClick` che nessuno le passava: un rapportino sbagliato — ore, meteo,
+   * lavorazioni — restava sbagliato per sempre, e l'unico rimedio era scriverne
+   * un altro il giorno dopo con la correzione nelle note.
+   *
+   * La firma NON si ricarica nel canvas: è la firma del capocantiere di quel
+   * giorno. Se non si rifirma resta quella; se si rifirma, si sovrascrive.
+   */
+  const openEdit = (entry: RigaGiornale) => {
+    if (!canEditGiornale) return;
+    setFormData({
+      data_lavori: entry.data_lavori ?? format(new Date(), "yyyy-MM-dd"),
+      condizioni_meteo: entry.condizioni_meteo ?? "soleggiato",
+      lavorazioni_eseguite: entry.lavorazioni_eseguite ?? "",
+      materiali_utilizzati: entry.materiali_utilizzati ?? "",
+      personale_presente: Number(entry.personale_presente ?? 1),
+      note: entry.note ?? "",
+      avanzamento_percentuale: Number(entry.avanzamento_percentuale ?? 0),
+      temperatura: entry.temperatura != null ? String(entry.temperatura) : "",
+      firmato_da: entry.firmato_da ?? "",
+    });
+    setFotoPreview((prev) => {
+      prev.forEach((f) => URL.revokeObjectURL(f.preview));
+      return [];
+    });
+    setHasFirma(false);
+    setVisibileCliente(entry.visibile_cliente !== false);
+    if (entry.order_id) setSelectedOrderId(entry.order_id);
+    setEditingEntry(entry);
+    setSheetOpen(true);
+  };
+
   // Canvas drawing for firma — with HiDPI scaling so coordinates match on Retina/mobile screens
   const getCanvasPos = (
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
@@ -231,27 +281,56 @@ export default function GiornaleLavori() {
       const session = await supabase.auth.getSession();
       const userId = session.data.session?.user?.id;
 
-      // Insert giornale entry
-      const { data: entry, error: entryError } = await supabase
-        .from("giornale_lavori")
-        .insert({
-          company_id: companyId,
-          order_id: selectedOrderId,
-          ...formData,
-          personale_presente: Number(formData.personale_presente),
-          avanzamento_percentuale: Number(formData.avanzamento_percentuale),
-          latitude: lat,
-          longitude: lng,
-          firma_capocantiere: firmaBase64,
-          firmato_da: formData.firmato_da || null,
-          firmato_il: hasFirma ? new Date().toISOString() : null,
-          visibile_cliente: visibileCliente,
-          created_by: userId,
-        })
-        .select()
-        .single();
+      const campi = {
+        order_id: selectedOrderId,
+        ...formData,
+        personale_presente: Number(formData.personale_presente),
+        avanzamento_percentuale: Number(formData.avanzamento_percentuale),
+        visibile_cliente: visibileCliente,
+        firmato_da: formData.firmato_da || null,
+      };
 
-      if (entryError) throw new Error(entryError.message);
+      // Correzione di un report esistente: si aggiorna, non se ne crea un altro.
+      // Firma e posizione si riscrivono SOLO se in questa sessione si è
+      // rifirmato / si ha davvero un GPS: altrimenti una correzione fatta in
+      // ufficio cancellerebbe la firma e le coordinate prese in cantiere.
+      let entry: { id: string };
+      if (editingEntry?.id) {
+        const patch: Record<string, unknown> = { ...campi };
+        if (firmaBase64) {
+          patch.firma_capocantiere = firmaBase64;
+          patch.firmato_il = new Date().toISOString();
+        }
+        if (lat != null && lng != null) {
+          patch.latitude = lat;
+          patch.longitude = lng;
+        }
+        const { data, error } = await supabase
+          .from("giornale_lavori")
+          .update(patch)
+          .eq("id", editingEntry.id)
+          .eq("company_id", companyId!)
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        entry = data;
+      } else {
+        const { data, error } = await supabase
+          .from("giornale_lavori")
+          .insert({
+            company_id: companyId,
+            ...campi,
+            latitude: lat,
+            longitude: lng,
+            firma_capocantiere: firmaBase64,
+            firmato_il: hasFirma ? new Date().toISOString() : null,
+            created_by: userId,
+          })
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        entry = data;
+      }
 
       // Upload photos
       for (const foto of fotoPreview) {
@@ -279,7 +358,7 @@ export default function GiornaleLavori() {
       return entry;
     },
     onSuccess: (entry) => {
-      toast.success("Report giornaliero salvato!");
+      toast.success(editingEntry?.id ? "Report corretto" : "Report giornaliero salvato!");
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
       // Keep sheet open to allow filling in custom fields for the newly saved entry
       setEditingEntry(entry);
@@ -405,6 +484,7 @@ export default function GiornaleLavori() {
             <GiornaleCard
               key={entry.id}
               entry={entry}
+              onClick={canEditGiornale ? () => openEdit(entry) : undefined}
             />
           ))}
         </div>
@@ -416,7 +496,7 @@ export default function GiornaleLavori() {
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
               <NotebookPen className="h-5 w-5" />
-              {editingEntry?.id ? "Report salvato — campi personalizzati" : "Report Giornaliero"}
+              {editingEntry?.id ? "Correggi il report" : "Report Giornaliero"}
             </SheetTitle>
           </SheetHeader>
 
@@ -676,17 +756,10 @@ export default function GiornaleLavori() {
               </p>
             )}
 
-            {/* Save button / Close button */}
-            {editingEntry?.id ? (
-              <Button
-                className="w-full"
-                size="lg"
-                variant="outline"
-                onClick={() => { setSheetOpen(false); resetForm(); }}
-              >
-                Chiudi
-              </Button>
-            ) : (
+            {/* Salvataggio. Su un report già salvato il pulsante c'era solo
+                "Chiudi": si potevano compilare i campi personalizzati ma non
+                correggere niente di quello che era stato scritto. */}
+            <div className="space-y-2">
               <Button
                 className="w-full"
                 size="lg"
@@ -695,11 +768,23 @@ export default function GiornaleLavori() {
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>
+                ) : editingEntry?.id ? (
+                  "Salva correzioni"
                 ) : (
                   "Salva report giornaliero"
                 )}
               </Button>
-            )}
+              {editingEntry?.id && (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="outline"
+                  onClick={() => { setSheetOpen(false); resetForm(); }}
+                >
+                  Chiudi
+                </Button>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>
