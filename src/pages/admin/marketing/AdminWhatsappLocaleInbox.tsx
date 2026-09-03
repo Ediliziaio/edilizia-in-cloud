@@ -177,7 +177,6 @@ function MediaAttachment({ path }: { path: string }) {
 export default function AdminWhatsappLocaleInbox() {
   const queryClient = useQueryClient();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  selectedChatRef.current = selectedChat;
   const [filtro, setFiltro] = useState("");
   const [soloNonLetti, setSoloNonLetti] = useState(false);
   const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
@@ -222,6 +221,12 @@ export default function AdminWhatsappLocaleInbox() {
   const PER_PAGINA = 50;
   const ultimoActiveRef = useRef<Thread | null>(null);
   const selectedChatRef = useRef<string | null>(null);
+  // Terza volta che questa classe di bug stende una pagina (Assistenza, poi
+  // WhatsApp il 1/9, poi WhatsApp il 3/9): l'assegnazione DEVE stare sotto la
+  // useRef. Sopra, durante il render la const non esiste ancora e la pagina
+  // muore con "Cannot access before initialization". TypeScript non lo vede:
+  // è ordine di esecuzione, non tipi. Non spostarla più in alto.
+  selectedChatRef.current = selectedChat;
 
   const threadsQuery = useQuery({
     queryKey: ["openwa", "threads", filtroStato, soloNonLetti, pagine],

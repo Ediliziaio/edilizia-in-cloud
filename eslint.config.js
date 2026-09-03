@@ -39,6 +39,16 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // Tre pagine sono morte in produzione con "Cannot access before
+      // initialization": una `xRef.current = state` scritta SOPRA la sua
+      // `useRef`. TypeScript non lo vede (ordine di esecuzione, non tipi) e la
+      // build passa. `variables: false` segnala SOLO l'uso nello stesso scope,
+      // cioe' il bug vero, e ignora le closure che leggono const dichiarate dopo
+      // (che a runtime vanno bene): con `true` uscivano 135 falsi positivi.
+      "no-use-before-define": [
+        "error",
+        { variables: false, functions: false, classes: false, allowNamedExports: true },
+      ],
       // Legacy SaaS codebase: payload Supabase/AI/Edge dinamici vengono
       // tipizzati gradualmente. Il warning resta visibile senza bloccare
       // cleanup e fix runtime realmente bloccanti.

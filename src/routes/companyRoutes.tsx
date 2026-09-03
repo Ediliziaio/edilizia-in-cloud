@@ -1,5 +1,9 @@
 import { lazy, type ReactNode } from "react";
 import { Route, Navigate, useLocation, useParams } from "react-router-dom";
+// Estratti in ./company/_shared (MP-CLN-001): importati QUI in testa e non a
+// meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
+// "Cannot access before initialization" nei componenti) segnala un falso positivo.
+import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
@@ -414,7 +418,6 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 
 // MP-CLN-001 Fase 1: COMPANY_ROLES + withCompanyPermission estratti in
 // `./company/_shared.tsx` per riuso e modularizzazione futura router.
-import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { Routes } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
