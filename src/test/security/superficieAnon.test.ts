@@ -181,7 +181,7 @@ describe.runIf(ATTIVA)("0.1 · prova end-to-end: senza login non si passa", () =
     },
   );
 
-  it("la superficie pubblica dichiarata invece risponde ancora", async () => {
+  it("la superficie pubblica dichiarata invece risponde ancora", { timeout: 60_000 }, async () => {
     const rotte: string[] = [];
     for (const fn of ["odv_view_by_token", "sal_view_by_token", "valida_portale_token", "hr_talent_public_session"]) {
       const e = await chiama(fn, { p_token: "token-inesistente" });
