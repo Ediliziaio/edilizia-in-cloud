@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Settings2, Bell, FileText, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Loader2, Settings2, Bell, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface AlertPrefs {
@@ -231,29 +230,6 @@ export function FinanceAutomationSettings() {
             )}
           </div>
 
-          <Separator />
-
-          {/* Status indicators */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Stato automazioni
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="gap-1.5">
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-                Trigger fatture → scadenze: attivo
-              </Badge>
-              <Badge variant="outline" className="gap-1.5">
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-                Riconciliazione automatica: attiva
-              </Badge>
-              <Badge variant="outline" className="gap-1.5">
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-                Trigger OdA auto-number: attivo
-              </Badge>
-            </div>
-          </div>
 
           {/* Save */}
           <div className="flex justify-end">
