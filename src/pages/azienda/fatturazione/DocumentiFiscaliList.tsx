@@ -16,6 +16,8 @@ import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { AbbinaFattureCommesseDialog } from "@/components/fatture/AbbinaFattureCommesseDialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,7 +37,7 @@ import {
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
   AlertCircle, CheckCircle2, Clock, Truck, RotateCcw, FileSpreadsheet,
   BarChart3, Settings2, BookUser, Wallet, Archive, Calculator, ShieldCheck,
-  Scale, ExternalLink,
+  Scale, ExternalLink, Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -268,6 +270,11 @@ function DocumentiFiscaliListInner() {
   const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const activeTab = TIPO_TABS.some((tab) => tab.id === requestedTipo) ? requestedTipo! : "fattura";
   const ddtPdf = useShipmentDDTPDF();
+
+  // Fatture importate dal gestionale esterno che non sanno a quale cantiere
+  // appartengono: finché non lo sanno, la commessa non sa quanto ha incassato.
+  const { effectiveCompany } = useAuth();
+  const [abbinaAperto, setAbbinaAperto] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
@@ -573,6 +580,7 @@ function DocumentiFiscaliListInner() {
   if (isScopriPlan) return <UpgradeScopriWall type="sdi_invoice" inline />;
 
   return (
+    <>
     <div className="space-y-4">
       {/* ── Header ─────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
@@ -593,6 +601,12 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Report fiscali</span>
               </Link>
             </Button>
+            {!isCommercialistaMode && effectiveCompany?.id && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAbbinaAperto(true)}>
+                <Link2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Abbina alle commesse</span>
+              </Button>
+            )}
             {!isCommercialistaMode && (
               <>
                 <Button variant="outline" size="sm" asChild className="gap-1.5">
@@ -1236,6 +1250,15 @@ function DocumentiFiscaliListInner() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+
+      {effectiveCompany?.id && (
+        <AbbinaFattureCommesseDialog
+          open={abbinaAperto}
+          onOpenChange={setAbbinaAperto}
+          companyId={effectiveCompany.id}
+        />
+      )}
+    </>
   );
 }
 

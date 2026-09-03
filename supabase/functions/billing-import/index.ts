@@ -113,26 +113,106 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    // Commessa per "convenzione codice": se il codice commessa (order_code) compare
-    // nell'oggetto / note / numero della fattura esterna, la colleghiamo. Cache dei codici
-    // dell'azienda caricata una volta sola. Best-effort.
-    let orderCodes: { id: string; code: string }[] | null = null;
-    const resolveOrderId = async (x: any): Promise<string | null> => {
-      const hay = `${x.number || ""} ${x.ficObject || ""} ${x.notes || ""}`.toUpperCase();
-      if (!hay.trim()) return null;
-      if (orderCodes === null) {
-        const { data } = await supabase.from("orders")
-          .select("id, order_code").eq("company_id", companyId)
-          .not("order_code", "is", null).is("deleted_at", null);
-        orderCodes = (data || [])
-          .filter((o: any) => o.order_code && String(o.order_code).trim().length >= 4)
-          .map((o: any) => ({ id: o.id as string, code: String(o.order_code).trim().toUpperCase() }));
+    // ── Commessa della fattura ────────────────────────────────────────────
+    // Due strade, in ordine di affidabilità:
+    //   1. il codice commessa scritto nella fattura → è una dichiarazione
+    //      esplicita di chi l'ha emessa, vale da sola;
+    //   2. cliente identificato (P.IVA / codice fiscale) + importo che
+    //      corrisponde esattamente a UNA rata ancora scoperta di UNA sola
+    //      commessa → i due indizi insieme non lasciano ambiguità.
+    //
+    // Tutto il resto NON viene agganciato qui: resta da confermare a mano in
+    // "Abbina alle commesse". Una fattura sul cantiere sbagliato falsa il
+    // margine di due commesse in un colpo solo, e nessuno se ne accorge —
+    // meglio dieci da confermare che una sbagliata.
+    type OrdCache = {
+      id: string; code: string | null;
+      cf: string | null;
+      rate: { id: string; amount: number; invoice_id: string | null }[];
+    };
+    let ordersCache: OrdCache[] | null = null;
+
+    const soloCifre = (v: unknown) =>
+      String(v ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/^IT/, "");
+
+    const caricaOrdini = async (): Promise<OrdCache[]> => {
+      if (ordersCache !== null) return ordersCache;
+      const { data: ords } = await supabase.from("orders")
+        .select("id, order_code, customer_id").eq("company_id", companyId)
+        .is("deleted_at", null);
+      const lista = (ords || []) as any[];
+
+      // Anagrafica cliente della commessa: sta su `profiles`, mentre
+      // l'intestatario della fattura arriva dal provider.
+      // NB: `profiles` NON ha la partita IVA — c'è solo il codice fiscale.
+      // Quindi oggi il confronto possibile è solo sul CF: le fatture intestate
+      // a una società, che portano la P.IVA e non il CF, restano da abbinare a
+      // mano finché il cliente della commessa non avrà anche la partita IVA.
+      const idClienti = [...new Set(lista.map((o) => o.customer_id).filter(Boolean))];
+      const anag = new Map<string, { cf: string | null }>();
+      if (idClienti.length > 0) {
+        const { data: prof, error: errProf } = await supabase.from("profiles")
+          .select("id, fiscal_code").in("id", idClienti);
+        // L'errore va guardato: se la select fallisce, `prof` resta null e il
+        // riconoscimento smetterebbe di funzionare senza dirlo a nessuno.
+        if (errProf) console.error("billing-import: anagrafica clienti non letta:", errProf.message);
+        (prof || []).forEach((p: any) => anag.set(p.id, { cf: p.fiscal_code ?? null }));
       }
-      // match del codice più lungo presente nel testo (evita falsi positivi su codici corti)
-      const hit = orderCodes
-        .filter((o) => hay.includes(o.code))
-        .sort((a, b) => b.code.length - a.code.length)[0];
-      return hit ? hit.id : null;
+
+      const { data: rate } = await supabase.from("order_installments")
+        .select("id, order_id, amount, invoice_id, is_paid")
+        .in("order_id", lista.map((o) => o.id));
+      const ratePerOrdine = new Map<string, OrdCache["rate"]>();
+      (rate || []).forEach((r: any) => {
+        const arr = ratePerOrdine.get(r.order_id) || [];
+        arr.push({ id: r.id, amount: Number(r.amount), invoice_id: r.invoice_id ?? null });
+        ratePerOrdine.set(r.order_id, arr);
+      });
+
+      ordersCache = lista.map((o) => {
+        const a = o.customer_id ? anag.get(o.customer_id) : undefined;
+        return {
+          id: o.id as string,
+          code: o.order_code ? String(o.order_code).trim().toUpperCase() : null,
+          cf: a?.cf ? soloCifre(a.cf) : null,
+          rate: ratePerOrdine.get(o.id) || [],
+        };
+      });
+      return ordersCache;
+    };
+
+    /** Restituisce la commessa e PERCHÉ, o null se non c'è certezza. */
+    const resolveOrderId = async (x: any): Promise<{ id: string; origine: string } | null> => {
+      const ordini = await caricaOrdini();
+
+      // 1. Codice commessa nel testo: si prende il più lungo fra quelli
+      //    presenti, altrimenti un codice corto beccherebbe tutto.
+      const hay = `${x.number || ""} ${x.ficObject || ""} ${x.notes || ""}`.toUpperCase();
+      if (hay.trim()) {
+        const hit = ordini
+          .filter((o) => o.code && o.code.length >= 4 && hay.includes(o.code))
+          .sort((a, b) => (b.code!.length - a.code!.length))[0];
+        if (hit) return { id: hit.id, origine: "codice" };
+      }
+
+      // 2. Cliente identificato + importo di una rata scoperta.
+      // Solo codice fiscale: vedi la nota sopra sulla P.IVA mancante.
+      const cfF = soloCifre(x.clientFiscalCode);
+      if (!cfF) return null;
+
+      const totale = Math.round(Number(x.total || 0) * 100);
+      if (totale <= 0) return null;
+
+      const delCliente = ordini.filter((o) => o.cf && o.cf === cfF);
+      if (delCliente.length === 0) return null;
+
+      // Una sola commessa del cliente con una sola rata scoperta di
+      // quell'importo: se i candidati sono due, decide una persona.
+      const conRata = delCliente.filter((o) =>
+        o.rate.filter((r) => !r.invoice_id && Math.abs(Math.round(r.amount * 100) - totale) <= 1).length === 1);
+      if (conRata.length === 1) return { id: conRata[0].id, origine: "importo" };
+
+      return null;
     };
 
     for (const inv of invoices) {
@@ -148,7 +228,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       const clientId = await resolveClientId(inv);
-      const convOrderId = await resolveOrderId(inv);
+      const match = await resolveOrderId(inv);
 
       const invoiceData = {
         company_id: companyId,
@@ -184,7 +264,7 @@ Deno.serve(async (req) => {
         // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
         // mentiva ("100 importate" con 0 righe scritte se un trigger falliva).
         const { error: updErr } = await supabase.from("invoices")
-          .update(convOrderId && !existing.order_id ? { ...invoiceData, order_id: convOrderId } : invoiceData)
+          .update(match && !existing.order_id ? { ...invoiceData, order_id: match.id, order_match_origine: match.origine } : invoiceData)
           .eq("id", existing.id);
         if (updErr) { failed++; if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${updErr.message}`); continue; }
 
@@ -204,7 +284,8 @@ Deno.serve(async (req) => {
         const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
           ...invoiceData,
           created_by: createdBy,
-          order_id: convOrderId,
+          order_id: match?.id ?? null,
+          order_match_origine: match?.origine ?? null,
         }).select("id").single();
 
         if (insErr || !newInv) {

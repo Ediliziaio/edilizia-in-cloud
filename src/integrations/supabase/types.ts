@@ -40775,6 +40775,7 @@ export type Database = {
           last_synced_at: string | null
           notes: string | null
           order_id: string | null
+          order_match_origine: string | null
           paid_amount: number | null
           payment_date: string | null
           payment_days: number | null
@@ -40826,6 +40827,7 @@ export type Database = {
           last_synced_at?: string | null
           notes?: string | null
           order_id?: string | null
+          order_match_origine?: string | null
           paid_amount?: number | null
           payment_date?: string | null
           payment_days?: number | null
@@ -40877,6 +40879,7 @@ export type Database = {
           last_synced_at?: string | null
           notes?: string | null
           order_id?: string | null
+          order_match_origine?: string | null
           paid_amount?: number | null
           payment_date?: string | null
           payment_days?: number | null
@@ -48810,6 +48813,7 @@ export type Database = {
           expected_date: string | null
           giorni_preavviso: number
           id: string
+          invoice_id: string | null
           is_paid: boolean
           label: string
           order_id: string
@@ -48826,6 +48830,7 @@ export type Database = {
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
+          invoice_id?: string | null
           is_paid?: boolean
           label?: string
           order_id: string
@@ -48842,6 +48847,7 @@ export type Database = {
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
+          invoice_id?: string | null
           is_paid?: boolean
           label?: string
           order_id?: string
@@ -48853,6 +48859,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "order_installments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_installments_order_id_fkey"
             columns: ["order_id"]
@@ -86646,7 +86659,11 @@ export type Database = {
         Returns: boolean
       }
       can_see_order: {
-        Args: { _assigned_to: string; _order_id: string }
+        Args: {
+          _assigned_to: string
+          _order_id: string
+          _warehouse_id?: string
+        }
         Returns: boolean
       }
       can_user_use_persona: {
