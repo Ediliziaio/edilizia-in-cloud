@@ -56796,6 +56796,7 @@ export type Database = {
           site_postal_code: string | null
           site_province: string | null
           updated_at: string
+          vat_number: string | null
           winback_opt_out: boolean
         }
         Insert: {
@@ -56842,6 +56843,7 @@ export type Database = {
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
+          vat_number?: string | null
           winback_opt_out?: boolean
         }
         Update: {
@@ -56888,6 +56890,7 @@ export type Database = {
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
+          vat_number?: string | null
           winback_opt_out?: boolean
         }
         Relationships: [
@@ -87007,6 +87010,10 @@ export type Database = {
         Args: { p_name?: string; p_scope?: string; p_template_id: string }
         Returns: string
       }
+      collega_anagrafica_cliente: {
+        Args: { _contact_id?: string; _profile_id?: string }
+        Returns: string
+      }
       company_has_google_calendar_connection: { Args: never; Returns: boolean }
       complete_onboarding_step: {
         Args: { p_company_id: string; p_step_key: string }
@@ -89383,6 +89390,7 @@ export type Database = {
         }[]
       }
       next_contratto_numero: { Args: { p_company_id: string }; Returns: string }
+      norm_id_fiscale: { Args: { v: string }; Returns: string }
       normalized_order_balance_amount: {
         Args: {
           p_balance: number
@@ -92675,6 +92683,7 @@ export type Database = {
         Args: { p_id: string; p_table: string }
         Returns: Json
       }
+      solo_assegnati_attivo: { Args: never; Returns: boolean }
       spend_from_pool: {
         Args: {
           p_amount: number

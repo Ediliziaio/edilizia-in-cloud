@@ -144,19 +144,18 @@ Deno.serve(async (req) => {
 
       // Anagrafica cliente della commessa: sta su `profiles`, mentre
       // l'intestatario della fattura arriva dal provider.
-      // NB: `profiles` NON ha la partita IVA — c'è solo il codice fiscale.
-      // Quindi oggi il confronto possibile è solo sul CF: le fatture intestate
-      // a una società, che portano la P.IVA e non il CF, restano da abbinare a
-      // mano finché il cliente della commessa non avrà anche la partita IVA.
+      // Si confrontano partita IVA e codice fiscale: sono gli unici campi che
+      // identificano davvero lo stesso soggetto fra i due mondi (nome ed email
+      // sono somiglianze, non prove).
       const idClienti = [...new Set(lista.map((o) => o.customer_id).filter(Boolean))];
-      const anag = new Map<string, { cf: string | null }>();
+      const anag = new Map<string, { cf: string | null; piva: string | null }>();
       if (idClienti.length > 0) {
         const { data: prof, error: errProf } = await supabase.from("profiles")
-          .select("id, fiscal_code").in("id", idClienti);
+          .select("id, fiscal_code, vat_number").in("id", idClienti);
         // L'errore va guardato: se la select fallisce, `prof` resta null e il
         // riconoscimento smetterebbe di funzionare senza dirlo a nessuno.
         if (errProf) console.error("billing-import: anagrafica clienti non letta:", errProf.message);
-        (prof || []).forEach((p: any) => anag.set(p.id, { cf: p.fiscal_code ?? null }));
+        (prof || []).forEach((p: any) => anag.set(p.id, { cf: p.fiscal_code ?? null, piva: p.vat_number ?? null }));
       }
 
       const { data: rate } = await supabase.from("order_installments")
@@ -175,6 +174,7 @@ Deno.serve(async (req) => {
           id: o.id as string,
           code: o.order_code ? String(o.order_code).trim().toUpperCase() : null,
           cf: a?.cf ? soloCifre(a.cf) : null,
+          piva: a?.piva ? soloCifre(a.piva) : null,
           rate: ratePerOrdine.get(o.id) || [],
         };
       });
@@ -196,14 +196,15 @@ Deno.serve(async (req) => {
       }
 
       // 2. Cliente identificato + importo di una rata scoperta.
-      // Solo codice fiscale: vedi la nota sopra sulla P.IVA mancante.
+      const pivaF = soloCifre(x.clientVat || x.clientVatNumber);
       const cfF = soloCifre(x.clientFiscalCode);
-      if (!cfF) return null;
+      if (!pivaF && !cfF) return null;
 
       const totale = Math.round(Number(x.total || 0) * 100);
       if (totale <= 0) return null;
 
-      const delCliente = ordini.filter((o) => o.cf && o.cf === cfF);
+      const delCliente = ordini.filter((o) =>
+        (pivaF && o.piva && o.piva === pivaF) || (cfF && o.cf && o.cf === cfF));
       if (delCliente.length === 0) return null;
 
       // Una sola commessa del cliente con una sola rata scoperta di

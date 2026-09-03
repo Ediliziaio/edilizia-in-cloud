@@ -97,16 +97,17 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
       // Anagrafica del cliente di ogni commessa: serve a confrontarla con
       // l'intestatario della fattura (che vive su un'altra tabella).
       const idClienti = Array.from(new Set(ordini.map((o) => o.customer_id).filter((v): v is string => !!v)));
-      const anagrafica = new Map<string, { email: string | null; cf: string | null; nome: string | null }>();
+      const anagrafica = new Map<string, { email: string | null; cf: string | null; piva: string | null; nome: string | null }>();
       if (idClienti.length > 0) {
         const { data: prof } = await supabase
           .from("profiles")
-          .select("id, email, fiscal_code, first_name, last_name")
+          .select("id, email, fiscal_code, vat_number, first_name, last_name")
           .in("id", idClienti);
         ((prof ?? []) as unknown as Array<Record<string, string | null>>).forEach((p) => {
           anagrafica.set(p.id as string, {
             email: p.email ?? null,
             cf: p.fiscal_code ?? null,
+            piva: p.vat_number ?? null,
             nome: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || null,
           });
         });
@@ -128,6 +129,7 @@ export function AbbinaFattureCommesseDialog({ open, onOpenChange, companyId }: P
           order_code: o.order_code,
           customerProfileId: o.customer_id,
           clienteEmail: a?.email ?? null,
+          clientePiva: a?.piva ?? null,
           clienteCodiceFiscale: a?.cf ?? null,
           clienteRagioneSociale: a?.nome ?? null,
           dataInizio: o.start_date,

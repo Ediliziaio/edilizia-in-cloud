@@ -61,6 +61,7 @@ interface CustomerProfileCardProps {
     address: string | null;
     site_address: string | null;
     fiscal_code: string | null;
+    vat_number: string | null;
     notes: string | null;
     created_at: string;
     salesperson_id: string | null;
@@ -273,11 +274,26 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       type="tel"
                     />
                   )}
-                  {matchesSearch(customer.is_business ? "Partita IVA" : "Codice fiscale") && (
+                  {/* Codice fiscale e partita IVA sono due campi distinti.
+                      Prima ne esisteva uno solo: le società ci scrivevano la
+                      P.IVA, che finiva in fiscal_code e non combaciava mai con
+                      quella della fattura — il cliente restava irriconoscibile
+                      fra commesse e fatturazione. */}
+                  {matchesSearch("Codice fiscale") && (
                     <InlineField
-                      label={customer.is_business ? "Partita IVA / CF" : "Codice fiscale"}
+                      label="Codice fiscale"
                       value={customer.fiscal_code || ""}
                       onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v ? v.toUpperCase() : null })}
+                    />
+                  )}
+                  {matchesSearch("Partita IVA") && (
+                    <InlineField
+                      label="Partita IVA"
+                      value={customer.vat_number || ""}
+                      onSave={(v) => updateField.mutate({
+                        field: "vat_number",
+                        value: v ? v.toUpperCase().replace(/^IT/, "") : null,
+                      })}
                     />
                   )}
                   {matchesSearch("Tipo cliente") && (

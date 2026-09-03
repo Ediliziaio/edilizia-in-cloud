@@ -71,6 +71,7 @@ interface CreateCustomerDialogProps {
     phone?: string;
     address?: string;
     fiscalCode?: string;
+    vatNumber?: string;
   };
   /** Default per il toggle "crea account portale" (es. dal preventivo: OFF → solo
    *  anagrafica, niente email di benvenuto a sorpresa). Se assente usa companyPortalEnabled. */
@@ -108,6 +109,7 @@ export function CreateCustomerDialog({
     return base;
   });
   const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
+  const [vatNumber, setVatNumber] = useState(initialValues?.vatNumber ?? "");
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
@@ -211,7 +213,7 @@ export function CreateCustomerDialog({
   const isDirty =
     !showSuccessStep &&
     (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
-     phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" ||
+     phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" || vatNumber.trim() !== "" ||
      hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0);
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
@@ -272,6 +274,7 @@ export function CreateCustomerDialog({
           email: email.trim().toLowerCase() || null,
           phone: cleanPhone,
           fiscal_code: fiscalCode.trim() || null,
+          vat_number: vatNumber.trim() || null,
           notes: notes.trim() || null,
           company_id: effectiveCompany.id,
           // Indirizzo di fatturazione (via/città/CAP/provincia + coordinate)
@@ -505,15 +508,36 @@ export function CreateCustomerDialog({
               {/* Indirizzi cliente: fatturazione + cantiere, con ricerca/autocompletamento */}
               <CustomerAddressFields value={custAddresses} onChange={setCustAddresses} />
 
-              <div className="space-y-2">
-                <Label htmlFor="dialog-fiscalCode">CF / P.IVA</Label>
-                <Input
-                  id="dialog-fiscalCode"
-                  value={fiscalCode}
-                  onChange={(e) => setFiscalCode(e.target.value.toUpperCase())}
-                  placeholder="RSSMRA80A01H501U"
-                  maxLength={16}
-                />
+              {/* Codice fiscale e partita IVA separati. Prima erano un campo
+                  solo ("CF / P.IVA") e le società ci scrivevano dentro la
+                  partita IVA: finiva in fiscal_code e non combaciava mai con
+                  quella della fattura, quindi il cliente restava irriconoscibile
+                  fra commesse e fatturazione. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="dialog-fiscalCode">Codice fiscale</Label>
+                  <Input
+                    id="dialog-fiscalCode"
+                    value={fiscalCode}
+                    onChange={(e) => setFiscalCode(e.target.value.toUpperCase())}
+                    placeholder="RSSMRA80A01H501U"
+                    maxLength={16}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Per il cliente privato.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dialog-vatNumber">Partita IVA</Label>
+                  <Input
+                    id="dialog-vatNumber"
+                    value={vatNumber}
+                    onChange={(e) => setVatNumber(e.target.value.toUpperCase().replace(/^IT/, ""))}
+                    placeholder="01234567890"
+                    maxLength={13}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Per le società: è ciò che lega il cliente alle sue fatture.
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-lg border p-3 space-y-3 bg-muted/20">

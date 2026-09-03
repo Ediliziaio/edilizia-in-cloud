@@ -15,6 +15,7 @@ export interface RawCustomerInput {
   phone?: string | null;
   email?: string | null;
   fiscal_code?: string | null;
+  vat_number?: string | null;
   address?: string | null;
   site_address?: string | null;
   notes?: string | null;
@@ -26,6 +27,7 @@ export interface SanitizedCustomer {
   phone: string | null;
   email: string;
   fiscal_code: string | null;
+  vat_number: string | null;
   address: string | null;
   site_address: string | null;
   notes: string | null;
@@ -99,6 +101,7 @@ export function sanitizeCustomerInput(raw: RawCustomerInput): SanitizedCustomer 
   let phone = cleanString(raw.phone);
   const email = cleanString(raw.email).toLowerCase();
   let fiscal = cleanString(raw.fiscal_code).toUpperCase();
+  let vat = cleanString(raw.vat_number).toUpperCase().replace(/^IT/, "");
   const address = cleanString(raw.address);
   const siteAddress = cleanString(raw.site_address);
   let notes = cleanString(raw.notes);
@@ -199,6 +202,23 @@ export function sanitizeCustomerInput(raw: RawCustomerInput): SanitizedCustomer 
   last = last.slice(0, 100);
   if (fiscal) fiscal = fiscal.slice(0, 16);
 
+  // ── FIX 10: una P.IVA scritta nel campo codice fiscale ─────────
+  // Storicamente il campo in scheda cliente si chiamava "CF / P.IVA" e
+  // raccoglieva entrambi: le società ci finivano dentro la partita IVA, che
+  // però non è un codice fiscale e non combaciava mai con quella della fattura.
+  // Undici cifre = partita IVA: si sposta al posto giusto.
+  if (fiscal && /^[0-9]{11}$/.test(fiscal)) {
+    if (!vat) {
+      vat = fiscal;
+      fiscal = "";
+      fixes.push('P.IVA spostata da fiscal_code a vat_number');
+    } else if (vat === fiscal) {
+      fiscal = "";
+      fixes.push('P.IVA duplicata in fiscal_code rimossa');
+    }
+  }
+  if (vat) vat = vat.slice(0, 13);
+
   // ── FIX 8: address === city duplicato in email/phone → nothing ──
 
   // ── FIX 9: se siamo una persona giuridica (last_name == ragione sociale)
@@ -212,6 +232,7 @@ export function sanitizeCustomerInput(raw: RawCustomerInput): SanitizedCustomer 
     phone: phone ? normalizePhone(phone) : null,
     email,
     fiscal_code: fiscal || null,
+    vat_number: vat || null,
     address: address || null,
     site_address: siteAddress || null,
     notes: notes || null,

@@ -78,6 +78,7 @@ interface CustomerProfile {
   phone: string | null;
   address: string | null;
   fiscal_code: string | null;
+  vat_number: string | null;
   site_address: string | null;
   notes: string | null;
   company_id: string | null;
@@ -149,7 +150,7 @@ export default function CompanyCustomerDetail() {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const query = supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
+        .select("id, first_name, last_name, email, phone, address, fiscal_code, vat_number, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
         .eq("id", id!)
         .eq("company_id", effectiveCompany.id);
       // maybeSingle: un cliente inesistente ritorna null (→ "non trovato") invece

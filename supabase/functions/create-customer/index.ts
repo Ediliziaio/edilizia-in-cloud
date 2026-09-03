@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
       address: sanitized.address,
       company_id: company_id as string,
       fiscal_code: sanitized.fiscal_code,
+      vat_number: sanitized.vat_number,
       site_address: sanitized.site_address,
       notes: sanitized.notes,
       // Nuovi campi: business + address strutturato
