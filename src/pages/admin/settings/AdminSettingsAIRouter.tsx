@@ -91,12 +91,11 @@ const RECOMMENDED_MODELS = [
       { id: "anthropic/claude-opus-4.7",   label: "Claude Opus 4.7 — $15/1M",   cost: 15.00 },
     ],
   },
-  {
-    group: "🤖 Auto-routing",
-    models: [
-      { id: "openrouter/auto", label: "Auto (sceglie il migliore)", cost: 0 },
-    ],
-  },
+  // "openrouter/auto" e' stato tolto dall'elenco il 2026-09-03: sembrava una
+  // rete di sicurezza, ma lascia scegliere il modello al provider — costo
+  // imprevedibile e, in produzione, un 402 "crediti esauriti" proprio nel
+  // momento del ripiego. Il router lo scarta comunque se ricompare in una
+  // configurazione: meglio non offrirlo.
 ];
 
 const ALL_MODELS = RECOMMENDED_MODELS.flatMap((g) => g.models);
@@ -494,17 +493,25 @@ function EditTaskDialog({
 
   const save = useMutation({
     mutationFn: async () => {
-      // Validazione: ogni modello dev'essere nel catalogo (active+whitelisted) oppure
-      // la rete di sicurezza "openrouter/auto". Fail-open se il catalogo non è caricato.
+      // Validazione: ogni modello dev'essere nel catalogo (active+whitelisted).
+      // Fail-open se il catalogo non è caricato.
       if (validModels && validModels.length > 0) {
-        const ok = new Set([...validModels, "openrouter/auto"]);
+        const ok = new Set(validModels);
         const invalid = [...new Set([primary, ...fallbacks].filter((m) => m && !ok.has(m)))];
         if (invalid.length > 0) {
           throw new Error(
             `Modelli non validi (non attivi/whitelisted nel catalogo): ${invalid.join(", ")}. ` +
-              `Correggili o usa "openrouter/auto" come rete di sicurezza.`,
+              `Scegli un modello dall'elenco: come ultimo ripiego va bene uno economico con vision, ` +
+              `tipo GPT-4o mini o Gemini 2.5 Flash.`,
           );
         }
+      }
+      if ([primary, ...fallbacks].some((m) => m === "openrouter/auto")) {
+        throw new Error(
+          `"openrouter/auto" non è più selezionabile: lascia scegliere il modello al provider, ` +
+            `quindi il costo è imprevedibile e in produzione ha già fatto fallire richieste con ` +
+            `"crediti esauriti". Metti un modello vero come ultimo ripiego.`,
+        );
       }
       const { error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

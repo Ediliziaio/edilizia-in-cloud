@@ -55,11 +55,16 @@ export async function resolveModelConfig(
     .maybeSingle();
   if (defaultConf) return normalize(defaultConf as DbConfigRow);
 
-  // 3. Emergency hardcoded — openrouter/auto come ultimissima rete: anche se il
-  //    DB config è irraggiungibile, OpenRouter instrada comunque un modello vivo.
+  // 3. Emergency hardcoded — usata quando la config sul DB è irraggiungibile.
+  //    Audit 2026-09-03: in coda c'era `openrouter/auto`, che sceglie il modello
+  //    da solo. Sembrava una rete di sicurezza, ma e' l'opposto: costo
+  //    imprevedibile (qui sotto lo si prezza a occhio 1,5/6,0 $ per milione,
+  //    che con un modello premium e' una sottostima secca) e in produzione ha
+  //    gia' risposto 402 "crediti esauriti" proprio nel momento del ripiego.
+  //    Due modelli veri, economici e con vision reggono meglio la stessa rete.
   return {
     primary_model: "openai/gpt-4o-mini",
-    fallback_chain: ["anthropic/claude-haiku-4.5", "openrouter/auto"],
+    fallback_chain: ["anthropic/claude-haiku-4.5", "google/gemini-2.5-flash"],
     max_cost_usd_per_call: 0.2,
     temperature: 0.5,
     max_tokens: 800,

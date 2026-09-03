@@ -108,25 +108,31 @@ export async function executeToolWithRouting(
   // Qui il gate è nel punto obbligato di ogni esecuzione: vale per tutti i
   // canali e regge anche se il modello invoca un tool che non era in lista
   // (nome allucinato, suggerito dall'utente o iniettato in un documento).
+  // I permessi si leggono UNA volta e servono a due gate diversi: questo
+  // (l'area intera), e piu sotto quello sulle RIGHE e sulle COLONNE.
+  let staffPerms: Record<string, unknown> | null = null;
+  if (ctx.primaryRole === "company_staff") {
+    staffPerms = ctx.staffPermissions ?? null;
+    if (!staffPerms) {
+      // Non passati dal chiamante: li leggiamo noi. Una query in più è
+      // preferibile a un permesso granulare aggirato.
+      try {
+        const { data } = await ctx.supabase
+          .from("staff_permissions")
+          .select("*")
+          .eq("user_id", ctx.userId)
+          .eq("company_id", ctx.companyId)
+          .maybeSingle();
+        staffPerms = (data as Record<string, unknown> | null) ?? null;
+      } catch (_e) {
+        staffPerms = null;
+      }
+    }
+  }
   if (ctx.primaryRole === "company_staff" && tool.domain) {
     const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
     if (permKey) {
-      let perms = ctx.staffPermissions ?? null;
-      if (!perms) {
-        // Non passati dal chiamante: li leggiamo noi. Una query in più è
-        // preferibile a un permesso granulare aggirato.
-        try {
-          const { data } = await ctx.supabase
-            .from("staff_permissions")
-            .select("*")
-            .eq("user_id", ctx.userId)
-            .eq("company_id", ctx.companyId)
-            .maybeSingle();
-          perms = (data as Record<string, unknown> | null) ?? null;
-        } catch (_e) {
-          perms = null;
-        }
-      }
+      const perms = staffPerms;
       // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
       // storico dell'app): si nega solo quando il permesso è esplicitamente false.
       if (perms && perms[permKey] === false) {
@@ -188,6 +194,43 @@ export async function executeToolWithRouting(
         success: false,
         toolName,
         error: { code: "forbidden_channel", message: `Tool non disponibile su canale ${channel}` },
+        durationMs: Date.now() - t0,
+        riskLevel: tool.riskLevel,
+      };
+    }
+  }
+
+  // ── Permission: RIGHE e COLONNE (audit 2026-09-03) ──────────────────────
+  // Il gate sopra ragiona per AREA: "vedi le commesse" oppure no. Ma i permessi
+  // hanno anche caselle piu fini che le RPC di Silvio ignoravano del tutto,
+  // perche girano in SECURITY DEFINER e quindi scavalcano le policy di riga:
+  //   · only_assigned          → "vede solo le commesse assegnate a lui"
+  //   · only_my_warehouse      → "vede solo le commesse del suo magazzino"
+  //   · can_view_order_amounts → vede le commesse ma non gli importi
+  //   · can_view_margins       → non vede i margini
+  // Misurato in produzione prima del fix: tre persone con only_assigned = true
+  // e ZERO commesse assegnate. Nell'applicativo ne vedevano 0 (giusto), a
+  // Silvio bastava chiedere "elencami i cantieri" per averne 65 con clienti e
+  // importi. Da qui in poi il limite vale anche quando la domanda passa dall'AI.
+  const scope = await loadStaffScope(ctx, staffPerms);
+  if (scope) {
+    const denied = orderCodeNotAllowed(input, scope);
+    if (denied) {
+      await logAudit(ctx, tool, toolName, {
+        inputPayload: sanitize(input),
+        outputPayload: null,
+        status: "denied",
+        errorMessage: `visibilita commesse ristretta: '${denied}' fuori perimetro utente`,
+        proposalId: null,
+        durationMs: Date.now() - t0,
+      });
+      return {
+        success: false,
+        toolName,
+        error: {
+          code: "forbidden_row",
+          message: `La commessa ${denied} non è tra quelle che puoi vedere. Chiedi all'amministratore di assegnartela o di darti accesso al suo magazzino.`,
+        },
         durationMs: Date.now() - t0,
         riskLevel: tool.riskLevel,
       };
@@ -296,7 +339,8 @@ export async function executeToolWithRouting(
 
   // ── Esecuzione (safe oppure yellow preApproved) ──
   try {
-    const data = await tool.executor(input, ctx);
+    const raw = await tool.executor(input, ctx);
+    const data = scope ? applyStaffScope(raw, scope, tool.domain) : raw;
     await logAudit(ctx, tool, toolName, {
       inputPayload: sanitize(input),
       outputPayload: sanitize(data),
@@ -330,6 +374,174 @@ export async function executeToolWithRouting(
       riskLevel: risk,
     };
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Permessi di RIGA e di COLONNA sui risultati dei tool
+   ══════════════════════════════════════════════════════════════════════════
+   Le RPC di Silvio sono SECURITY DEFINER: vedono tutta l'azienda per
+   costruzione, quindi le policy di riga non le toccano. Finche il permesso e
+   "vedi l'area oppure no" il gate per dominio basta; per "vedi solo le tue" e
+   "niente importi / niente margini" no. Qui il limite si applica sul risultato,
+   una volta sola e per tutti i canali.
+
+   Deliberatamente conservativo: agisce SOLO su chi ha la casella spuntata, e
+   solo sui campi che si riconoscono per nome. Chi non ha restrizioni non passa
+   nemmeno di qua (loadStaffScope ritorna null). */
+
+interface StaffScope {
+  /** Codici delle commesse che l'utente puo' vedere (upper-case). */
+  codiciConsentiti: Set<string>;
+  /** Id delle commesse che l'utente puo' vedere. */
+  idConsentiti: Set<string>;
+  /** true quando la visibilita' commesse e' ristretta (assegnate o magazzino). */
+  commesseRistrette: boolean;
+  nascondiImporti: boolean;
+  nascondiMargini: boolean;
+}
+
+/** Chiavi che identificano UNA commessa dentro il risultato di un tool. */
+const CHIAVI_COMMESSA = ["commessa", "order_code", "commessa_codice", "codice_commessa", "cantiere_codice"];
+const CHIAVI_COMMESSA_ID = ["order_id", "commessa_id", "cantiere_id"];
+
+/** Nomi di campo che contengono denaro di commessa. */
+// Volutamente NON include "totale"/"total" da soli: `passi_totali` e
+// `candidati_totali` sono conteggi, non denaro. `total_amount` passa lo stesso
+// perche' contiene "amount".
+const RE_IMPORTO = /importo|imponibile|amount|prezzo|price|acconto|saldo|incassat|fatturat|costo|valore_|_valore|residuo|scadut|_eur$|_euro$/i;
+/** Nomi di campo che contengono margine / redditivita. */
+const RE_MARGINE = /margin|marginalit|ricarico|markup|utile|redditiv|profitt/i;
+
+/** Domini in cui "can_view_order_amounts" ha senso: i soldi di una commessa. */
+const DOMINI_IMPORTI_COMMESSA = new Set(["cantiere", "operations", "preventivi", "sales"]);
+
+const VALORE_NASCOSTO = "— non visibile con i tuoi permessi —";
+
+/**
+ * Costruisce il perimetro dell'utente, o null se non c'e nulla da limitare.
+ * Una sola query, e solo per chi ha davvero only_assigned.
+ */
+async function loadStaffScope(
+  ctx: ToolContext,
+  perms: Record<string, unknown> | null,
+): Promise<StaffScope | null> {
+  if (ctx.primaryRole !== "company_staff" || !perms) return null;
+  // Due modalita' ristrette sulle commesse, entrambe da rispettare:
+  // "solo quelle assegnate a me" e "solo quelle del mio magazzino".
+  const commesseRistrette = perms.only_assigned === true || perms.only_my_warehouse === true;
+  const nascondiImporti = perms.can_view_order_amounts === false;
+  const nascondiMargini = perms.can_view_margins === false;
+  if (!commesseRistrette && !nascondiImporti && !nascondiMargini) return null;
+
+  const codici = new Set<string>();
+  const ids = new Set<string>();
+  if (commesseRistrette) {
+    try {
+      // La regola sta in UN posto solo (silvio_commesse_visibili, che ricalca
+      // can_see_order con l'utente passato per argomento): se domani nasce una
+      // quarta modalita' di visibilita', qui non si tocca niente.
+      const { data, error } = await ctx.supabase.rpc("silvio_commesse_visibili", {
+        p_company_id: ctx.companyId,
+        p_user_id: ctx.userId,
+      });
+      if (error) throw error;
+      for (const row of (data ?? []) as Array<{ id: string; order_code: string | null }>) {
+        if (row.id) ids.add(String(row.id));
+        if (row.order_code) codici.add(String(row.order_code).trim().toUpperCase());
+      }
+    } catch (_e) {
+      // Fail-closed: se non riusciamo a sapere quali commesse sono sue, non
+      // gliene mostriamo nessuna. Meglio una risposta vuota che una che non
+      // doveva vedere.
+    }
+  }
+  return { codiciConsentiti: codici, idConsentiti: ids, commesseRistrette, nascondiImporti, nascondiMargini };
+}
+
+/** Il nome del campo indica una commessa? Ritorna il valore normalizzato. */
+function estraiCommessa(obj: Record<string, unknown>): { codice?: string; id?: string } | null {
+  let out: { codice?: string; id?: string } | null = null;
+  for (const k of CHIAVI_COMMESSA) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) { out = { ...(out ?? {}), codice: v.trim().toUpperCase() }; break; }
+  }
+  for (const k of CHIAVI_COMMESSA_ID) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) { out = { ...(out ?? {}), id: v.trim() }; break; }
+  }
+  return out;
+}
+
+function commessaConsentita(rif: { codice?: string; id?: string }, scope: StaffScope): boolean {
+  if (rif.id && scope.idConsentiti.has(rif.id)) return true;
+  if (rif.codice && scope.codiciConsentiti.has(rif.codice)) return true;
+  return false;
+}
+
+/**
+ * Se gli ARGOMENTI del tool nominano una commessa non sua, si nega prima di
+ * eseguire: piu pulito che eseguire e poi cancellare la risposta.
+ * Ritorna il codice negato, oppure null.
+ */
+function orderCodeNotAllowed(input: unknown, scope: StaffScope): string | null {
+  if (!scope.commesseRistrette) return null;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const rif = estraiCommessa(input as Record<string, unknown>);
+  if (!rif) return null;
+  if (commessaConsentita(rif, scope)) return null;
+  return rif.codice ?? rif.id ?? "richiesta";
+}
+
+/**
+ * Passa il risultato al setaccio: via le righe di commesse non sue, via i
+ * valori di importo/margine che non puo vedere. Non tocca la struttura, cosi
+ * il modello legge lo stesso formato di sempre.
+ */
+function applyStaffScope(data: unknown, scope: StaffScope, domain?: string): unknown {
+  const importiQui = scope.nascondiImporti && (!domain || DOMINI_IMPORTI_COMMESSA.has(domain));
+  let righeTolte = 0;
+
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) {
+      const out: unknown[] = [];
+      for (const el of node) {
+        if (scope.commesseRistrette && el && typeof el === "object" && !Array.isArray(el)) {
+          const rif = estraiCommessa(el as Record<string, unknown>);
+          if (rif && !commessaConsentita(rif, scope)) { righeTolte++; continue; }
+        }
+        out.push(walk(el));
+      }
+      return out;
+    }
+    if (node && typeof node === "object") {
+      const src = node as Record<string, unknown>;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(src)) {
+        if (scope.nascondiMargini && RE_MARGINE.test(k)) { out[k] = VALORE_NASCOSTO; continue; }
+        if (importiQui && RE_IMPORTO.test(k) && typeof v !== "object") { out[k] = VALORE_NASCOSTO; continue; }
+        out[k] = walk(v);
+      }
+      return out;
+    }
+    return node;
+  };
+
+  const scremato = walk(data);
+  if (scremato && typeof scremato === "object" && !Array.isArray(scremato)) {
+    const note: string[] = [];
+    if (righeTolte > 0) {
+      note.push(righeTolte === 1
+        ? "1 riga non mostrata: riguarda una commessa fuori dalla visibilita di chi sta chiedendo."
+        : `${righeTolte} righe non mostrate: riguardano commesse fuori dalla visibilita di chi sta chiedendo.`);
+    }
+    if (scope.nascondiMargini) note.push("I margini non sono visibili con i permessi di questo utente.");
+    if (importiQui) note.push("Gli importi di commessa non sono visibili con i permessi di questo utente.");
+    if (note.length > 0) {
+      (scremato as Record<string, unknown>).nota_permessi =
+        `${note.join(" ")} Non dire che i dati non esistono: di' che non sono visibili con i permessi attuali e che vanno chiesti all'amministratore.`;
+    }
+  }
+  return scremato;
 }
 
 /**

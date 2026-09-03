@@ -274,14 +274,50 @@ async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<Ro
       is_default: true,
     };
   }
-  return {
+  return normalizeConfig({
     task_key: data.task_key,
     primary_model: data.primary_model,
     fallback_models: Array.isArray(data.fallback_models) ? data.fallback_models : [],
     default_params: data.default_params ?? {},
     tier_key: data.tier_key ?? "t1_economic",
     is_default: data.is_default,
-  };
+  });
+}
+
+/**
+ * Ultima spiaggia deterministica al posto di `openrouter/auto`.
+ *
+ * Audit 2026-09-03: `openrouter/auto` chiudeva la catena di TUTTI i 55 task
+ * configurati. Non e' un modello, e' "scegli tu": il modello effettivo cambia
+ * a ogni chiamata, il costo e' imprevedibile (dai tier economici fino a 10-40x)
+ * e in agosto ha risposto due volte 402 "crediti esauriti" facendo fallire la
+ * richiesta proprio quando serviva un ripiego. Un ripiego che non si sa cosa
+ * sia non e' un ripiego.
+ *
+ * Sostituto: un modello economico, con vision e tool use, prevedibile nel
+ * prezzo. Se e' gia' in catena si usa il secondo, cosi la coda resta un vero
+ * tentativo alternativo e non un doppione.
+ */
+const LAST_RESORT_MODELS = ["openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"];
+
+/**
+ * Toglie `openrouter/auto` da qualunque configurazione, anche se qualcuno la
+ * rimette dal pannello admin. Il DB e' stato ripulito, questo e' il paracadute.
+ */
+function normalizeConfig(cfg: RouterConfig): RouterConfig {
+  const isAuto = (m: unknown) => typeof m === "string" && m.trim().toLowerCase() === "openrouter/auto";
+  const chain = (cfg.fallback_models ?? []).filter((m) => !isAuto(m));
+  let primary = cfg.primary_model;
+  if (isAuto(primary)) {
+    primary = chain.shift() ?? LAST_RESORT_MODELS[0];
+  }
+  const usati = new Set([primary, ...chain]);
+  if (chain.length < (cfg.fallback_models ?? []).length) {
+    // Avevamo un auto in coda: rimpiazziamolo con un ripiego vero.
+    const sostituto = LAST_RESORT_MODELS.find((m) => !usati.has(m));
+    if (sostituto) chain.push(sostituto);
+  }
+  return { ...cfg, primary_model: primary, fallback_models: chain };
 }
 
 /**
@@ -476,8 +512,12 @@ async function callOpenRouter(
   // mangiato dal reasoning → content="". Per testing chat normale, forziamo
   // reasoning_effort: "low" (o "minimal" per OpenAI) per ottenere risposta rapida.
   const REASONING_MODELS = [
-    // Moonshot Kimi (K2.6 / K2-thinking)
-    /^moonshotai\/kimi-k2\.6/,
+    // Moonshot Kimi. Audit 2026-09-03: c'era solo la K2.6, ma la K2.5 fa lo
+    // stesso ragionamento interno e falliva allo stesso modo — 10 errori su 30
+    // chiamate a registro, meta' "Signal timed out" e meta' "token ma nessun
+    // testo finale", che e' esattamente il sintomo del reasoning che si mangia
+    // il budget. Coperta tutta la famiglia K2.
+    /^moonshotai\/kimi-k2/,
     /^moonshotai\/kimi-k2-thinking/,
     // OpenAI o-series (o1, o3, o4 incluse mini/preview)
     /^openai\/o[1-9]/,
@@ -521,8 +561,14 @@ async function callOpenRouter(
   // Il reasoning interno consuma 1000-3000 token DEL budget max_tokens.
   // Se max_tokens=2000 e reasoning ne usa 1800 → content="" → fallback inutile.
   // Per reasoning models alziamo a 6000 per lasciare ≥3000 per la risposta.
-  const effectiveMaxTokens = params.max_tokens
-    ?? (isReasoningModel ? 6000 : 2000);
+  // Il reasoning interno consuma DAL budget max_tokens. Finora il pavimento a
+  // 6000 valeva solo quando il chiamante non passava nulla: ma silvio-chat
+  // passa 2500 espliciti, quindi su un reasoning model il ragionamento si
+  // mangiava quasi tutto e restava content="". Ora il pavimento vale sempre.
+  const REASONING_MIN_MAX_TOKENS = 6000;
+  const effectiveMaxTokens = isReasoningModel
+    ? Math.max(params.max_tokens ?? 0, REASONING_MIN_MAX_TOKENS)
+    : (params.max_tokens ?? 2000);
 
   // ── Prompt caching Anthropic ──
   // Il system prompt è grande e in larga parte statico per persona (preambolo +
@@ -618,7 +664,9 @@ async function callOpenRouter(
   // - 50s per slow models non-reasoning (DeepSeek, Llama)
   // - 120s per reasoning models (Kimi K2.6 thinking, o1/o3, GPT-5)
   // Edge Function Supabase ha cap ~150s totale → 120s lascia margine.
-  const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
+  // moonshotai aggiunto nell'audit 2026-09-03: mancava, quindi Kimi girava col
+  // timeout corto da 30s e i 16 "Signal timed out" a registro erano tutti suoi.
+  const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai", "moonshotai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
   const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
   // Retry su errori TRANSITORI (timeout / 429 / 5xx) prima di passare al modello
