@@ -34,6 +34,12 @@ type MarketingCalendar = {
   name: string;
   group_name: string | null;
   duration_minutes: number;
+  buffer_before_min?: number | null;
+  buffer_after_min?: number | null;
+  min_notice_minutes?: number | null;
+  max_per_day?: number | null;
+  reminder_24h?: boolean | null;
+  reminder_1h?: boolean | null;
   max_daily_km: number | null;
   calendar_type: string;
   booking_slug: string | null;
@@ -330,6 +336,12 @@ export default function MarketingCalendarsConfig() {
         owner_id: data.owner_id || null,
         booking_slug: safeBookingSlug,
         duration_minutes: duration,
+        buffer_before_min: Math.max(0, Number(data.buffer_before_min) || 0),
+        buffer_after_min: Math.max(0, Number(data.buffer_after_min) || 0),
+        min_notice_minutes: Math.max(0, Number(data.min_notice_minutes) || 0),
+        max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
+        reminder_24h: data.reminder_24h !== false,
+        reminder_1h: data.reminder_1h !== false,
         max_daily_km: maxDailyKm,
         calendar_type: calendarType,
         default_meeting_provider: meetingProvider,
@@ -392,6 +404,12 @@ export default function MarketingCalendarsConfig() {
         default_meeting_provider: meetingProvider,
         default_meeting_enabled: meetingProvider === "google_meet",
         duration_minutes: duration,
+        buffer_before_min: Math.max(0, Number(data.buffer_before_min) || 0),
+        buffer_after_min: Math.max(0, Number(data.buffer_after_min) || 0),
+        min_notice_minutes: Math.max(0, Number(data.min_notice_minutes) || 0),
+        max_per_day: data.max_per_day == null ? null : Math.max(1, Number(data.max_per_day)),
+        reminder_24h: data.reminder_24h !== false,
+        reminder_1h: data.reminder_1h !== false,
         max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,

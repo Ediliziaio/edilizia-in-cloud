@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -234,18 +234,37 @@ export default function PublicBooking() {
     [selectedDate],
   );
 
+  // Regole del calendario: margini fra appuntamenti, preavviso minimo e tetto
+  // giornaliero. Erano colonne che nessuno leggeva.
+  const bufferPrima = calendar?.buffer_before_min ?? 0;
+  const bufferDopo = calendar?.buffer_after_min ?? 0;
+  const preavvisoMin = calendar?.min_notice_minutes ?? 0;
+  const maxAlGiorno = calendar?.max_per_day ?? null;
+  // Orologio di stato: il preavviso va confrontato con "adesso", ma leggere
+  // l'ora durante il render non e' puro. Aggiornandolo ogni minuto gli orari
+  // troppo vicini spariscono da soli mentre la pagina resta aperta.
+  const [adesso, setAdesso] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setAdesso(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const slotOverlapsExistingAppointments = useCallback((slotTime: string, durationMinutes: number, rows = existingAppointments) => {
     if (!selectedDate) return false;
-    const slotEndTime = format(new Date(parse(slotTime, "HH:mm", selectedDate).getTime() + durationMinutes * 60000), "HH:mm");
+    // I margini del calendario allargano gli estremi: fra due appuntamenti
+    // devono restare liberi buffer_before/after minuti, altrimenti si finisce
+    // con una consulenza attaccata all'altra senza un minuto in mezzo.
+    const inizio = parse(slotTime, "HH:mm", selectedDate).getTime() - bufferPrima * 60000;
+    const fineSlot = parse(slotTime, "HH:mm", selectedDate).getTime() + (durationMinutes + bufferDopo) * 60000;
     return rows.some((apt) => {
       if (!apt.appointment_time) return false;
-      const aptStart = apt.appointment_time.slice(0, 5);
-      const aptEnd = apt.appointment_end_time?.slice(0, 5) || format(
-        new Date(parse(aptStart, "HH:mm", selectedDate).getTime() + durationMinutes * 60000), "HH:mm"
-      );
-      return slotTime < aptEnd && slotEndTime > aptStart;
+      const aptStart = parse(apt.appointment_time.slice(0, 5), "HH:mm", selectedDate).getTime();
+      const aptEnd = apt.appointment_end_time
+        ? parse(apt.appointment_end_time.slice(0, 5), "HH:mm", selectedDate).getTime()
+        : aptStart + durationMinutes * 60000;
+      return inizio < (aptEnd + bufferDopo * 60000) && fineSlot > (aptStart - bufferPrima * 60000);
     });
-  }, [existingAppointments, selectedDate]);
+  }, [existingAppointments, selectedDate, bufferPrima, bufferDopo]);
 
   // Calculate available slots for selected date
   const slots = useMemo(() => {
@@ -273,14 +292,18 @@ export default function PublicBooking() {
       while (current.getTime() + duration * 60000 <= end.getTime()) {
         const slotTime = format(current, "HH:mm");
         const isOccupied = slotOverlapsExistingAppointments(slotTime, duration);
-        if (!isOccupied && !isSlotBusy(slotTime, duration)) {
+        // Preavviso minimo: niente prenotazioni "fra cinque minuti".
+        const troppoVicino = current.getTime() < adesso + preavvisoMin * 60000;
+        if (!isOccupied && !troppoVicino && !isSlotBusy(slotTime, duration)) {
           allSlots.push(slotTime);
         }
         current = new Date(current.getTime() + duration * 60000);
       }
     }
+    // Tetto di appuntamenti al giorno: raggiunto, la giornata non ha piu' orari.
+    if (maxAlGiorno && existingAppointments.length >= maxAlGiorno) return [];
     return [...new Set(allSlots)].sort();
-  }, [selectedDate, calendar, availability, parseAvailabilityTime, slotOverlapsExistingAppointments, isSlotBusy]);
+  }, [selectedDate, calendar, availability, parseAvailabilityTime, slotOverlapsExistingAppointments, isSlotBusy, preavvisoMin, maxAlGiorno, existingAppointments.length, adesso]);
 
   // Disable dates with no availability
   const isDateDisabled = (date: Date) => {

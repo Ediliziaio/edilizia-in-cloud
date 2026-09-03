@@ -49,6 +49,12 @@ export interface CalendarFormData {
   base_place_id: string;
   default_meeting_provider: "none" | "google_meet";
   default_meeting_enabled: boolean;
+  buffer_before_min: number;
+  buffer_after_min: number;
+  min_notice_minutes: number;
+  max_per_day: number | null;
+  reminder_24h: boolean;
+  reminder_1h: boolean;
 }
 
 interface CalendarDialogProps {
@@ -113,6 +119,12 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     calendar_type: "personal",
     booking_slug: "",
     duration_minutes: 30,
+    buffer_before_min: 0,
+    buffer_after_min: 0,
+    min_notice_minutes: 120,
+    max_per_day: null,
+    reminder_24h: true,
+    reminder_1h: true,
     max_daily_km: null,
     base_address_line: "",
     base_address_city: "",
@@ -180,6 +192,12 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         calendar_type: initialData.calendar_type || "personal",
         booking_slug: normalizeBookingSlug(initialData.booking_slug || initialData.name || ""),
         duration_minutes: mins,
+        buffer_before_min: initialData.buffer_before_min ?? 0,
+        buffer_after_min: initialData.buffer_after_min ?? 0,
+        min_notice_minutes: initialData.min_notice_minutes ?? 120,
+        max_per_day: initialData.max_per_day ?? null,
+        reminder_24h: initialData.reminder_24h !== false,
+        reminder_1h: initialData.reminder_1h !== false,
         max_daily_km: initialData.max_daily_km ?? null,
         base_address_line: initialData.base_address_line || "",
         base_address_city: initialData.base_address_city || "",
@@ -452,6 +470,49 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         </Button>
                       ))}
                     </div>
+
+                  {/* Regole di agenda: erano colonne che nessuno leggeva. */}
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <Label className="flex items-center">
+                      Regole di agenda
+                      <InfoTooltip text="Margini fra un appuntamento e l'altro, preavviso minimo per prenotare e tetto di appuntamenti al giorno." />
+                    </Label>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Margine prima (min)</Label>
+                        <Input type="number" min={0} max={240} value={form.buffer_before_min}
+                          onChange={(e) => setForm(f => ({ ...f, buffer_before_min: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Margine dopo (min)</Label>
+                        <Input type="number" min={0} max={240} value={form.buffer_after_min}
+                          onChange={(e) => setForm(f => ({ ...f, buffer_after_min: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Preavviso minimo (min)</Label>
+                        <Input type="number" min={0} max={20160} value={form.min_notice_minutes}
+                          onChange={(e) => setForm(f => ({ ...f, min_notice_minutes: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Max al giorno</Label>
+                        <Input type="number" min={1} placeholder="nessun limite"
+                          value={form.max_per_day ?? ""}
+                          onChange={(e) => setForm(f => ({ ...f, max_per_day: e.target.value.trim() ? Math.max(1, parseInt(e.target.value) || 1) : null }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 text-sm">
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={form.reminder_24h}
+                          onChange={(e) => setForm(f => ({ ...f, reminder_24h: e.target.checked }))} />
+                        Promemoria al cliente il giorno prima
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={form.reminder_1h}
+                          onChange={(e) => setForm(f => ({ ...f, reminder_1h: e.target.checked }))} />
+                        Promemoria un'ora prima
+                      </label>
+                    </div>
+                  </div>
                   </div>
 
                   <div className="space-y-2">

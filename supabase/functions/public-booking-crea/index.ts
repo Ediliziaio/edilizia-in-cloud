@@ -21,31 +21,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
+import {
+  minutiDa as minuti, orarioDa as orario, dataEstesa, esc, creaIcs, allegatoIcs,
+  nuovoToken, urlGestione, blocchettoDettagli, bottoneGestione,
+} from "../_shared/appuntamentiPubblici.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
-const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
-function minuti(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10));
-  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
-}
-function orario(min: number): string {
-  const h = Math.floor(min / 60), m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-/** "lunedì 8 settembre 2026" da "2026-09-08". */
-function dataEstesa(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return `${GIORNI[dt.getUTCDay()]} ${d} ${MESI[m - 1]} ${y}`;
-}
-function esc(s: string): string {
-  return String(s ?? "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] as string));
-}
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -75,7 +60,7 @@ Deno.serve(async (req) => {
     // 1. calendario pubblico e attivo
     const { data: cal, error: calErr } = await admin
       .from("marketing_calendars")
-      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug")
+      .select("id, name, description, company_id, duration_minutes, owner_id, default_meeting_provider, is_active, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
       .eq("booking_slug", slug).eq("is_active", true).maybeSingle();
     if (calErr) throw calErr;
     if (!cal) return json({ error: "Calendario non trovato o non piu' attivo." }, 404);
@@ -85,11 +70,16 @@ Deno.serve(async (req) => {
     const fine = inizio + durata;
     const fineStr = orario(fine);
 
-    // 2. l'orario non puo' essere nel passato (fuso Europe/Rome)
+    // 2. preavviso minimo (default 2 ore): niente prenotazioni "fra cinque minuti"
     const adessoRoma = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
     const quando = new Date(`${data}T${ora}:00`);
+    const preavviso = Math.max(0, Number(cal.min_notice_minutes ?? 0));
     if (quando.getTime() < adessoRoma.getTime() - 60_000) {
       return json({ error: "Questo orario e' gia' passato: scegline un altro." }, 409);
+    }
+    if (quando.getTime() < adessoRoma.getTime() + preavviso * 60_000) {
+      const ore = Math.round(preavviso / 60);
+      return json({ error: `Serve un preavviso di almeno ${preavviso < 60 ? `${preavviso} minuti` : ore === 1 ? "un'ora" : `${ore} ore`}: scegli un orario piu' avanti.` }, 409);
     }
 
     // 3. dentro una fascia di disponibilita' del giorno (la data specifica vince)
@@ -112,12 +102,21 @@ Deno.serve(async (req) => {
       .not("status", "eq", "annullato")
       .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
     if (pErr) throw pErr;
+    // I margini valgono da entrambe le parti: un appuntamento nuovo deve stare
+    // lontano dagli altri di buffer_before/after minuti.
+    const bufPrima = Math.max(0, Number(cal.buffer_before_min ?? 0));
+    const bufDopo = Math.max(0, Number(cal.buffer_after_min ?? 0));
     const occupato = (presi ?? []).some((a: any) => {
       const s = minuti(String(a.appointment_time ?? "00:00").slice(0, 5));
       const e = a.appointment_end_time ? minuti(String(a.appointment_end_time).slice(0, 5)) : s + durata;
-      return inizio < e && fine > s;
+      return (inizio - bufPrima) < (e + bufDopo) && (fine + bufDopo) > (s - bufPrima);
     });
     if (occupato) return json({ error: "Questo orario e' appena stato occupato. Scegline un altro." }, 409);
+
+    // Tetto di appuntamenti al giorno su questo calendario.
+    if (cal.max_per_day && (presi ?? []).length >= Number(cal.max_per_day)) {
+      return json({ error: "Per questa giornata non ci sono piu' posti: scegli un altro giorno." }, 409);
+    }
 
     // 5. impegni del titolare: Google, Apple e Outlook
     if (cal.owner_id) {
@@ -143,6 +142,9 @@ Deno.serve(async (req) => {
 
     // 6. crea l'appuntamento
     const conMeet = cal.default_meeting_provider === "google_meet";
+    const token = nuovoToken();
+    const origine = String(body?.origin ?? req.headers.get("origin") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "");
+    const linkGestione = urlGestione(origine, token);
     const titolo = `${nome} ${cognome}`.trim() || "Prenotazione";
     const { data: creato, error: insErr } = await admin.from("appointments").insert({
       calendar_id: cal.id,
@@ -163,6 +165,8 @@ Deno.serve(async (req) => {
       created_by: "00000000-0000-0000-0000-000000000000",
       meeting_provider: conMeet ? "google_meet" : "none",
       meeting_status: conMeet ? "pending" : "none",
+      manage_token: token,
+      booking_email: email || null,
     }).select("id").single();
     if (insErr) throw insErr;
 
@@ -176,16 +180,20 @@ Deno.serve(async (req) => {
           <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;color:#0f172a">
             <p>Ciao ${esc(nome)},</p>
             <p>l'appuntamento è confermato.</p>
-            <table style="border-collapse:collapse;margin:16px 0;font-size:15px">
-              <tr><td style="padding:4px 12px 4px 0;color:#64748b">Quando</td><td style="padding:4px 0"><strong>${esc(quandoTesto)}</strong></td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#64748b">Durata</td><td style="padding:4px 0">${durata} minuti</td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#64748b">Argomento</td><td style="padding:4px 0">${esc(cal.name)}</td></tr>
-            </table>
+            ${blocchettoDettagli(quandoTesto, durata, cal.name)}
             ${cal.description ? `<p style="color:#475569">${esc(cal.description)}</p>` : ""}
-            <p>Se ti serve spostarlo o annullarlo, rispondi a questa email: ci pensiamo noi.</p>
-            <p style="margin-top:24px">A presto</p>
+            <p>In allegato trovi il file da aprire per aggiungerlo al tuo calendario.</p>
+            ${bottoneGestione(linkGestione)}
+            <p style="color:#64748b;font-size:13px">Se il pulsante non funziona, apri questo indirizzo:<br>${linkGestione}</p>
           </div>`;
-        const testo = `Ciao ${nome},\n\nl'appuntamento è confermato.\n\nQuando: ${quandoTesto}\nDurata: ${durata} minuti\nArgomento: ${cal.name}\n\nSe ti serve spostarlo o annullarlo, rispondi a questa email.\n\nA presto`;
+        const testo = `Ciao ${nome},\n\nl'appuntamento è confermato.\n\nQuando: ${quandoTesto}\nDurata: ${durata} minuti\nArgomento: ${cal.name}\n\nPer spostarlo o disdirlo: ${linkGestione}\n\nA presto`;
+        const ics = creaIcs({
+          uid: `${creato?.id ?? token}@ediliziaincloud.com`,
+          titolo: cal.name,
+          descrizione: cal.description ?? null,
+          dataIso: data, ora, durataMin: durata,
+          partecipante: email,
+        });
         const r = await sendEmailUnified({
           companyId: cal.company_id,
           stream: "transactional",
@@ -193,6 +201,7 @@ Deno.serve(async (req) => {
           subject: `Appuntamento confermato — ${quandoTesto}`,
           html, text: testo,
           templateName: "public_booking_conferma",
+          attachments: [allegatoIcs(ics)],
           adminClient: admin,
           metadata: { appointment_id: creato?.id, calendar_id: cal.id, booking_slug: slug },
         });

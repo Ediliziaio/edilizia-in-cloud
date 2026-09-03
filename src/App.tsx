@@ -157,6 +157,7 @@ const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"))
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
+const PublicAppointmentManage = lazy(() => import("./pages/public/PublicAppointmentManage"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
 const PublicReview = lazy(() => import("@/pages/public/PublicReview"));
 // Sito pubblico: FAB WhatsApp al posto del widget chat AI (SiteChatWidget) —
@@ -448,7 +449,7 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|nps|feedback|ref|talent-profile|candidatura)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
   /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile|candidatura)(\/|$)/;
@@ -718,6 +719,7 @@ const App = () => (
               <Route path="/seleziona-azienda" element={<ProtectedRoute><Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}><SelezionaAzienda /></Suspense></ProtectedRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
+              <Route path="/appuntamento/:token" element={<PublicAppointmentManage />} />
               {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}
               <Route path="/widget" element={<PublicChatWidgetPage />} />
               <Route path="/qr/:token" element={<DynamicQrRedirect />} />
