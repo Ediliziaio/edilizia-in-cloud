@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import {
   ArrowRight,
   Banknote,
@@ -265,7 +266,7 @@ function HeroAI() {
             alt="Imprenditore edile che controlla margini e cassa da un tablet in ufficio cantiere"
             className="absolute inset-0 h-full w-full object-cover opacity-34"
             loading="eager"
-            fetchPriority="high"
+            {...prioritaCaricamento("high")}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#061020]/95 via-[#061020]/70 to-[#061020]/35" />
           <div className="ai-scan pointer-events-none absolute inset-y-0 left-0 z-[2] w-28 bg-gradient-to-r from-transparent via-eic-orange/18 to-transparent mix-blend-screen" />

@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef } from "react";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -358,7 +359,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             <img
               src={loginLogoUrl}
               alt={platformName}
-              fetchPriority="high"
+              {...prioritaCaricamento("high")}
               decoding="async"
               className="h-14 mx-auto object-contain"
             />
@@ -366,7 +367,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             <img
               src={ediliziaLogo}
               alt="EdiliziaInCloud"
-              fetchPriority="high"
+              {...prioritaCaricamento("high")}
               decoding="async"
               width={720}
               height={174}

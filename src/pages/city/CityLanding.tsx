@@ -1,4 +1,5 @@
 import { Link, useParams, useLocation, Navigate } from "react-router-dom";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { ArrowRight, CheckCircle2, Star, MapPin, Phone } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -3050,7 +3051,7 @@ export default function CityLanding() {
             alt={`Cantiere edile a ${config.name}`}
             width={1400}
             height={700}
-            fetchPriority="high"
+            {...prioritaCaricamento("high")}
             loading="eager"
             decoding="sync"
             className="w-full h-full object-cover opacity-20"

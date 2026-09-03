@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { useParams, Link } from "react-router-dom";
 import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -421,7 +422,7 @@ export default function BlogPost() {
         <BlogCover
           src={post.coverImage}
           alt={post.title}
-          fetchPriority="high"
+          {...prioritaCaricamento("high")}
           loading="eager"
           sizes="100vw"
           className="w-full object-cover"

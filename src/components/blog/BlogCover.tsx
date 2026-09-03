@@ -47,7 +47,7 @@ export function BlogCover({
       width={width}
       height={height}
       loading={loading}
-      fetchPriority={fetchPriority}
+      {...(fetchPriority ? prioritaCaricamento(fetchPriority) : {})}
       decoding="async"
       className={className}
       style={style}
