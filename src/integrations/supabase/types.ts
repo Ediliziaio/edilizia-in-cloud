@@ -8731,6 +8731,13 @@ export type Database = {
             foreignKeyName: "apple_calendar_event_map_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
+            referencedRelation: "public_appointment_manage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apple_calendar_event_map_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
             referencedRelation: "public_appointment_slots"
             referencedColumns: ["id"]
           },
@@ -8862,6 +8869,13 @@ export type Database = {
             foreignKeyName: "appointment_reminders_sent_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
+            referencedRelation: "public_appointment_manage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_reminders_sent_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
             referencedRelation: "public_appointment_slots"
             referencedColumns: ["id"]
           },
@@ -8880,7 +8894,10 @@ export type Database = {
           appointment_time: string | null
           appointment_type: string
           assigned_to: string | null
+          booking_email: string | null
           calendar_id: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           capi_schedule_sent_at: string | null
           company_id: string
           contact_id: string | null
@@ -8905,6 +8922,7 @@ export type Database = {
           last_google_conversion_event_at: string | null
           lat: number | null
           lng: number | null
+          manage_token: string | null
           meeting_created_at: string | null
           meeting_provider: string
           meeting_status: string
@@ -8915,6 +8933,8 @@ export type Database = {
           opportunity_id: string | null
           order_id: string | null
           place_id: string | null
+          reminder_1h_at: string | null
+          reminder_24h_at: string | null
           reminder_minutes: number | null
           reminder_sent: boolean | null
           status: string
@@ -8934,7 +8954,10 @@ export type Database = {
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
+          booking_email?: string | null
           calendar_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           capi_schedule_sent_at?: string | null
           company_id: string
           contact_id?: string | null
@@ -8959,6 +8982,7 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           lat?: number | null
           lng?: number | null
+          manage_token?: string | null
           meeting_created_at?: string | null
           meeting_provider?: string
           meeting_status?: string
@@ -8969,6 +8993,8 @@ export type Database = {
           opportunity_id?: string | null
           order_id?: string | null
           place_id?: string | null
+          reminder_1h_at?: string | null
+          reminder_24h_at?: string | null
           reminder_minutes?: number | null
           reminder_sent?: boolean | null
           status?: string
@@ -8988,7 +9014,10 @@ export type Database = {
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
+          booking_email?: string | null
           calendar_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           capi_schedule_sent_at?: string | null
           company_id?: string
           contact_id?: string | null
@@ -9013,6 +9042,7 @@ export type Database = {
           last_google_conversion_event_at?: string | null
           lat?: number | null
           lng?: number | null
+          manage_token?: string | null
           meeting_created_at?: string | null
           meeting_provider?: string
           meeting_status?: string
@@ -9023,6 +9053,8 @@ export type Database = {
           opportunity_id?: string | null
           order_id?: string | null
           place_id?: string | null
+          reminder_1h_at?: string | null
+          reminder_24h_at?: string | null
           reminder_minutes?: number | null
           reminder_sent?: boolean | null
           status?: string
@@ -24421,6 +24453,54 @@ export type Database = {
           },
         ]
       }
+      documenti_fiscali_storico: {
+        Row: {
+          avvenuto_il: string
+          campi: string[]
+          company_id: string
+          differenze: Json
+          documento_id: string
+          eseguito_da: string | null
+          esito: string
+          id: string
+          motivo: string | null
+          operazione: string
+          ruolo_db: string
+          stato_dopo: string | null
+          stato_prima: string | null
+        }
+        Insert: {
+          avvenuto_il?: string
+          campi?: string[]
+          company_id: string
+          differenze?: Json
+          documento_id: string
+          eseguito_da?: string | null
+          esito: string
+          id?: string
+          motivo?: string | null
+          operazione: string
+          ruolo_db?: string
+          stato_dopo?: string | null
+          stato_prima?: string | null
+        }
+        Update: {
+          avvenuto_il?: string
+          campi?: string[]
+          company_id?: string
+          differenze?: Json
+          documento_id?: string
+          eseguito_da?: string | null
+          esito?: string
+          id?: string
+          motivo?: string | null
+          operazione?: string
+          ruolo_db?: string
+          stato_dopo?: string | null
+          stato_prima?: string | null
+        }
+        Relationships: []
+      }
       documenti_operai: {
         Row: {
           caricato_da: string | null
@@ -35625,6 +35705,13 @@ export type Database = {
             foreignKeyName: "google_calendar_event_map_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
+            referencedRelation: "public_appointment_manage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_event_map_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
             referencedRelation: "public_appointment_slots"
             referencedColumns: ["id"]
           },
@@ -36199,6 +36286,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_candidati_colloqui_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "public_appointment_manage"
             referencedColumns: ["id"]
           },
           {
@@ -43201,6 +43295,8 @@ export type Database = {
           base_lng: number | null
           base_place_id: string | null
           booking_slug: string | null
+          buffer_after_min: number
+          buffer_before_min: number
           calendar_type: string
           color: string | null
           company_id: string
@@ -43214,8 +43310,12 @@ export type Database = {
           id: string
           is_active: boolean
           max_daily_km: number | null
+          max_per_day: number | null
+          min_notice_minutes: number
           name: string
           owner_id: string | null
+          reminder_1h: boolean
+          reminder_24h: boolean
           updated_at: string
         }
         Insert: {
@@ -43229,6 +43329,8 @@ export type Database = {
           base_lng?: number | null
           base_place_id?: string | null
           booking_slug?: string | null
+          buffer_after_min?: number
+          buffer_before_min?: number
           calendar_type?: string
           color?: string | null
           company_id: string
@@ -43242,8 +43344,12 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_daily_km?: number | null
+          max_per_day?: number | null
+          min_notice_minutes?: number
           name: string
           owner_id?: string | null
+          reminder_1h?: boolean
+          reminder_24h?: boolean
           updated_at?: string
         }
         Update: {
@@ -43257,6 +43363,8 @@ export type Database = {
           base_lng?: number | null
           base_place_id?: string | null
           booking_slug?: string | null
+          buffer_after_min?: number
+          buffer_before_min?: number
           calendar_type?: string
           color?: string | null
           company_id?: string
@@ -43270,8 +43378,12 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_daily_km?: number | null
+          max_per_day?: number | null
+          min_notice_minutes?: number
           name?: string
           owner_id?: string | null
+          reminder_1h?: boolean
+          reminder_24h?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -48026,6 +48138,68 @@ export type Database = {
           },
         ]
       }
+      operatori_presenza: {
+        Row: {
+          aggiornato_il: string
+          company_id: string
+          disponibile: boolean
+          occupato_fino_a: string | null
+          telefono: string | null
+          ultimo_passaggio_at: string | null
+          ultimo_segnale: string
+          user_id: string
+        }
+        Insert: {
+          aggiornato_il?: string
+          company_id: string
+          disponibile?: boolean
+          occupato_fino_a?: string | null
+          telefono?: string | null
+          ultimo_passaggio_at?: string | null
+          ultimo_segnale?: string
+          user_id: string
+        }
+        Update: {
+          aggiornato_il?: string
+          company_id?: string
+          disponibile?: boolean
+          occupato_fino_a?: string | null
+          telefono?: string | null
+          ultimo_passaggio_at?: string | null
+          ultimo_segnale?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operatori_presenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "operatori_presenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operatori_presenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "operatori_presenza_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunity_loss_reasons: {
         Row: {
           company_id: string
@@ -52244,6 +52418,101 @@ export type Database = {
           type?: string
         }
         Relationships: []
+      }
+      passaggi_chiamata: {
+        Row: {
+          chiuso_il: string | null
+          company_id: string
+          contact_id: string | null
+          conversation_id: string | null
+          creato_il: string
+          id: string
+          nome_cliente: string | null
+          operatore_id: string | null
+          opportunity_id: string | null
+          riassunto: string | null
+          stato: string
+          telefono_cliente: string | null
+        }
+        Insert: {
+          chiuso_il?: string | null
+          company_id: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          creato_il?: string
+          id?: string
+          nome_cliente?: string | null
+          operatore_id?: string | null
+          opportunity_id?: string | null
+          riassunto?: string | null
+          stato?: string
+          telefono_cliente?: string | null
+        }
+        Update: {
+          chiuso_il?: string | null
+          company_id?: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          creato_il?: string
+          id?: string
+          nome_cliente?: string | null
+          operatore_id?: string | null
+          opportunity_id?: string | null
+          riassunto?: string | null
+          stato?: string
+          telefono_cliente?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passaggi_chiamata_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_operatore_id_fkey"
+            columns: ["operatore_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passaggi_chiamata_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       password_history: {
         Row: {
@@ -63117,6 +63386,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rpc_pubbliche: {
+        Row: {
+          aggiunta_il: string
+          motivo: string
+          nome_funzione: string
+        }
+        Insert: {
+          aggiunta_il?: string
+          motivo: string
+          nome_funzione: string
+        }
+        Update: {
+          aggiunta_il?: string
+          motivo?: string
+          nome_funzione?: string
+        }
+        Relationships: []
       }
       rst_computo_voci: {
         Row: {
@@ -83138,13 +83425,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -83154,7 +83434,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "v_ordine_esposizione"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -83167,13 +83447,20 @@ export type Database = {
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
+            columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
@@ -83705,6 +83992,61 @@ export type Database = {
           },
         ]
       }
+      outlook_calendar_busy_slots: {
+        Row: {
+          company_id: string | null
+          end_at: string | null
+          id: string | null
+          is_all_day: boolean | null
+          outlook_event_id: string | null
+          start_at: string | null
+          summary: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          end_at?: string | null
+          id?: string | null
+          is_all_day?: boolean | null
+          outlook_event_id?: string | null
+          start_at?: string | null
+          summary?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          end_at?: string | null
+          id?: string | null
+          is_all_day?: boolean | null
+          outlook_event_id?: string | null
+          start_at?: string | null
+          summary?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       portal_courses_available: {
         Row: {
           area: string | null
@@ -83726,6 +84068,33 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: []
+      }
+      public_appointment_manage: {
+        Row: {
+          appointment_date: string | null
+          appointment_end_time: string | null
+          appointment_time: string | null
+          booking_email: string | null
+          booking_slug: string | null
+          calendar_description: string | null
+          calendar_id: string | null
+          calendar_name: string | null
+          duration_minutes: number | null
+          id: string | null
+          manage_token: string | null
+          min_notice_minutes: number | null
+          status: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_calendars"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       public_appointment_slots: {
         Row: {
@@ -83783,6 +84152,21 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customer_profile"
             referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      public_calendar_owner_prefs: {
+        Row: {
+          block_busy_slots: boolean | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_calendar_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -86488,6 +86872,7 @@ export type Database = {
         Args: { p_flow_id: string; p_n: number; p_node_id: string }
         Returns: number
       }
+      aziende_con_permesso: { Args: { _permission: string }; Returns: string[] }
       bank_account_recompute_manual_balance: {
         Args: { p_account: string }
         Returns: undefined
@@ -86956,6 +87341,7 @@ export type Database = {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
       }
+      chiamante_anonimo: { Args: never; Returns: boolean }
       chiudi_passi_su_evento: {
         Args: { _evento: string; _order_id?: string; _ticket_id?: string }
         Returns: undefined
@@ -87010,6 +87396,7 @@ export type Database = {
         Args: { p_name?: string; p_scope?: string; p_template_id: string }
         Returns: string
       }
+      codice_fiscale_valido: { Args: { p_valore: string }; Returns: boolean }
       collega_anagrafica_cliente: {
         Args: { _contact_id?: string; _profile_id?: string }
         Returns: string
@@ -87504,6 +87891,15 @@ export type Database = {
       do_recalculate_quote_totals: {
         Args: { p_quote_id: string }
         Returns: undefined
+      }
+      documento_fiscale_aggiorna: {
+        Args: { p_documento_id: string; p_patch: Json }
+        Returns: Json
+      }
+      documento_fiscale_campi_modificabili: { Args: never; Returns: string[] }
+      documento_fiscale_e_immutabile: {
+        Args: { p_stato: string; p_tipo: string }
+        Returns: boolean
       }
       email_ai_cascade_stats: {
         Args: { p_days?: number }
@@ -89019,6 +89415,16 @@ export type Database = {
         Args: { p_id: string; p_kind: string }
         Returns: undefined
       }
+      liquidazione_iva_periodo: {
+        Args: {
+          p_anno: number
+          p_company_id: string
+          p_mese?: number
+          p_periodo: string
+          p_trimestre?: number
+        }
+        Returns: Json
+      }
       list_company_accountant_invites: {
         Args: { p_company_id: string }
         Returns: {
@@ -89433,6 +89839,7 @@ export type Database = {
         Args: { p_stato: string }
         Returns: string
       }
+      num_da_json: { Args: { p_valore: string }; Returns: number }
       odv_reject_with_token: {
         Args: { p_firmato_da?: string; p_token: string }
         Returns: Json
@@ -89596,6 +90003,14 @@ export type Database = {
           wa_chat_id: string
         }[]
       }
+      operatore_libero: {
+        Args: { p_company_id: string }
+        Returns: {
+          nome: string
+          telefono: string
+          user_id: string
+        }[]
+      }
       ops_canarino_raccogli: { Args: never; Returns: undefined }
       order_has_employee_for_user: {
         Args: { _order_id: string; _user_id: string }
@@ -89752,6 +90167,18 @@ export type Database = {
         }
         Returns: Json
       }
+      passa_chiamata_a_operatore: {
+        Args: {
+          p_company_id: string
+          p_contact_id?: string
+          p_conversation_id?: string
+          p_nome_cliente?: string
+          p_opportunity_id?: string
+          p_riassunto?: string
+          p_telefono?: string
+        }
+        Returns: Json
+      }
       pick_silvio_admin_persona: {
         Args: { p_query: string }
         Returns: {
@@ -89765,6 +90192,7 @@ export type Database = {
           system_prompt_addendum: string
         }[]
       }
+      piva_valida: { Args: { p_valore: string }; Returns: boolean }
       populate_broadcast_recipients: {
         Args: {
           p_broadcast_id: string
@@ -90051,6 +90479,14 @@ export type Database = {
         Args: { p_documento_id: string }
         Returns: boolean
       }
+      rpc_anon_applica_superficie: { Args: never; Returns: Json }
+      rpc_anon_superficie_attesa: {
+        Args: never
+        Returns: {
+          motivo: string
+          nome_funzione: string
+        }[]
+      }
       sa_aggregate_all_problems: { Args: never; Returns: Json }
       sa_aggregate_company_problems: {
         Args: { p_company_id: string }
@@ -90252,6 +90688,14 @@ export type Database = {
       }
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
+        Returns: undefined
+      }
+      segnala_presenza_operatore: {
+        Args: {
+          p_company_id: string
+          p_disponibile: boolean
+          p_telefono?: string
+        }
         Returns: undefined
       }
       sequenza_approva_attiva: {
@@ -92930,6 +93374,15 @@ export type Database = {
       valida_portale_token: { Args: { p_token: string }; Returns: Json }
       verifica_firma_intervento: {
         Args: { p_rapportino_id: string }
+        Returns: Json
+      }
+      warehouse_movimento_rapido: {
+        Args: {
+          p_note?: string
+          p_quantita: number
+          p_stock_item_id: string
+          p_tipo: string
+        }
         Returns: Json
       }
       warehouse_scan_lookup: {

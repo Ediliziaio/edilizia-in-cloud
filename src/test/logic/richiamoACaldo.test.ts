@@ -31,12 +31,20 @@ describe("copione del richiamo a caldo", () => {
     expect(richiamo!.systemPrompt.toLowerCase()).toContain("non fingere mai di essere umano");
   });
 
-  it("lascia la scheda al collega prima di passargli la chiamata", () => {
+  it("cerca un collega libero prima di promettere il passaggio", () => {
+    // È lo strumento che fa tre cose insieme: dice se qualcuno c'è davvero,
+    // lo segna occupato e gli fa comparire la scheda a schermo. Senza, l'agente
+    // trasferirebbe nel vuoto e l'operatore risponderebbe alla cieca.
     const prompt = richiamo!.systemPrompt.toLowerCase();
-    expect(prompt).toContain("richiesta_richiamo");
-    // L'istruzione deve legare lo strumento al passaggio, non citarlo e basta.
+    expect(prompt).toContain("passa_a_operatore");
     expect(prompt).toMatch(/prima di passare la chiamata/);
-    expect(richiamo!.strumenti).toContain("richiesta_richiamo");
+    expect(richiamo!.strumenti).toContain("passa_a_operatore");
+  });
+
+  it("se non c'è nessuno libero non promette il passaggio", () => {
+    // La trappola: il modello, lasciato solo, dice "glielo passo" comunque.
+    const prompt = richiamo!.systemPrompt.toLowerCase();
+    expect(prompt).toMatch(/non dire che glielo passi/);
   });
 
   it("annuncia il passaggio a voce invece di trasferire in silenzio", () => {

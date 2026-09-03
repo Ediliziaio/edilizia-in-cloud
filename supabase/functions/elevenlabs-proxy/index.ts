@@ -68,30 +68,69 @@ const CONDIZIONE_TRASFERIMENTO_DEFAULT =
  * riassume a voce all'operatore prima di passargli il cliente: e' riservato a
  * Twilio nativo. Per questo il riassunto lo diamo a schermo.
  */
-function costruisciStrumentoSistema(elName: string, toolsConfig: ToolsConfig): unknown | null {
+async function costruisciStrumentoSistema(
+  elName: string,
+  toolsConfig: ToolsConfig,
+  companyId: string,
+  adminClient: ReturnType<typeof createClient>,
+): Promise<unknown | null> {
   if (elName !== "transfer_to_number") return { type: "system", name: elName };
 
-  const numero = (toolsConfig.trasferimento?.numero ?? "").replace(/\s/g, "");
-  // Senza numero lo strumento sarebbe una promessa vuota: meglio non darlo
-  // affatto al modello che fargli dire "le passo un collega" nel nulla.
-  if (!numero) {
-    console.warn("[PROXY] trasferimento abilitato ma senza numero operatore: strumento saltato");
+  // ElevenLabs vuole le destinazioni DICHIARATE in anticipo: non si può passare
+  // un numero qualunque a chiamata in corso. Quindi si dichiarano tutti gli
+  // operatori che hanno registrato un numero, ognuno con la sua condizione che
+  // ne fa il nome. A chiamata in corso lo strumento `passa_a_operatore` dice
+  // all'assistente CHI è libero adesso, e l'assistente sceglie quella voce.
+  //
+  // Conseguenza da conoscere: l'elenco è una fotografia del momento in cui si
+  // salva l'agente. Chi si registra dopo entra al salvataggio successivo — per
+  // questo il numero di riserva resta sempre in fondo alla lista.
+  const destinazioni: Array<{ transfer_destination: unknown; condition: string; transfer_type: string }> = [];
+  const gia = new Set<string>();
+
+  const aggiungi = (numero: string | null | undefined, condizione: string) => {
+    const pulito = (numero ?? "").replace(/\s/g, "");
+    if (!pulito || gia.has(pulito)) return;
+    gia.add(pulito);
+    destinazioni.push({
+      transfer_destination: { type: "phone", phone_number: pulito },
+      condition: condizione,
+      transfer_type: "conference",
+    });
+  };
+
+  try {
+    const { data: operatori } = await adminClient
+      .from("operatori_presenza")
+      .select("telefono, profiles!operatori_presenza_user_id_fkey(first_name, last_name, email)")
+      .eq("company_id", companyId)
+      .not("telefono", "is", null)
+      .limit(20);
+
+    for (const op of (operatori ?? []) as Array<Record<string, unknown>>) {
+      const p = (op.profiles ?? {}) as { first_name?: string; last_name?: string; email?: string };
+      const nome = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "collega";
+      aggiungi(op.telefono as string, `Quando lo strumento passa_a_operatore indica ${nome} come collega libero.`);
+    }
+  } catch (e) {
+    console.warn("[PROXY] elenco operatori non letto, resta il numero di riserva:", e instanceof Error ? e.message : e);
+  }
+
+  // Numero di riserva: l'ultima spiaggia quando nessun operatore è registrato.
+  aggiungi(toolsConfig.trasferimento?.numero, toolsConfig.trasferimento?.condizione?.trim() || CONDIZIONE_TRASFERIMENTO_DEFAULT);
+
+  // Nessuna destinazione = promessa vuota. Meglio non dare lo strumento che
+  // far dire "le passo un collega" nel nulla.
+  if (destinazioni.length === 0) {
+    console.warn("[PROXY] trasferimento abilitato ma nessun numero disponibile: strumento saltato");
     return null;
   }
+
   return {
     type: "system",
     name: "transfer_to_number",
-    description: "Passa la chiamata a una persona in carne e ossa.",
-    params: {
-      system_tool_type: "transfer_to_number",
-      transfers: [
-        {
-          transfer_destination: { type: "phone", phone_number: numero },
-          condition: toolsConfig.trasferimento?.condizione?.trim() || CONDIZIONE_TRASFERIMENTO_DEFAULT,
-          transfer_type: "conference",
-        },
-      ],
-    },
+    description: "Passa la chiamata a una persona in carne e ossa, dopo aver chiamato passa_a_operatore per sapere chi è libero.",
+    params: { system_tool_type: "transfer_to_number", transfers: destinazioni },
   };
 }
 
@@ -160,6 +199,14 @@ const DEFINIZIONI_TOOL: Record<string, { description: string; properties: Record
       telefono: TELEFONO,
     }, required: ["descrizione"],
   },
+  passa_a_operatore: {
+    description: "Chiamalo PRIMA di passare la chiamata a un collega, sempre. Ti dice se c'e' qualcuno libero adesso e a quale numero trasferire, e nel frattempo gli fa comparire a schermo la scheda del cliente. Se risponde che non c'e' nessuno, NON dire al cliente che glielo passi: proponi un appuntamento o un richiamo.",
+    properties: {
+      riassunto: campo("Cosa hai capito finora, in due righe: che lavoro serve, dove, tempi, budget, chi decide. È quello che il collega legge mentre gli squilla il telefono."),
+      nome: campo("Nome del cliente, se lo sai"),
+      telefono: TELEFONO,
+    }, required: ["riassunto"],
+  },
   richiesta_richiamo: {
     description: "Il cliente vuole parlare con una persona, o la chiamata va chiusa lasciando un messaggio: registra la richiesta di richiamo per l'ufficio.",
     properties: {
@@ -185,6 +232,7 @@ const CANONICO: Record<string, string> = {
   crea_ticket: "crea_ticket",
   assign_to_user: "richiesta_richiamo", richiesta_richiamo: "richiesta_richiamo",
   search_products: "info_prodotto", info_prodotto: "info_prodotto",
+  passa_a_operatore: "passa_a_operatore",
 };
 
 // Tool con un backend reale in agent-tools: per questi il proxy genera da solo
@@ -229,6 +277,7 @@ async function sincronizzaToolElevenLabs(
   elevenlabsAgentId: string,
   toolsConfig: ToolsConfig | null | undefined,
   precedenti: string[] | undefined,
+  adminClient: ReturnType<typeof createClient>,
 ): Promise<{ toolIds: string[]; systemTools: unknown[] }> {
   for (const id of precedenti ?? []) {
     try { await elFetch(`/convai/tools/${id}`, "DELETE", apiKey); } catch (e) {
@@ -240,7 +289,7 @@ async function sincronizzaToolElevenLabs(
     for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
       const elName = SYSTEM_TOOL_MAP[id];
       if (!enabled || !elName) continue;
-      const strumento = costruisciStrumentoSistema(elName, toolsConfig);
+      const strumento = await costruisciStrumentoSistema(elName, toolsConfig, companyId, adminClient);
       if (strumento) systemTools.push(strumento);
     }
   }
@@ -282,47 +331,11 @@ async function sincronizzaToolElevenLabs(
   return { toolIds, systemTools };
 }
 
-function buildElevenLabsToolsFromConfig(
-  toolsConfig: ToolsConfig | null | undefined,
-  autoToolUrl?: ((toolId: string) => string | null) | null,
-): unknown[] {
-  if (!toolsConfig) return [];
-  const tools: unknown[] = [];
-
-  // Tool di sistema
-  if (toolsConfig.system_tools) {
-    for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
-      if (!enabled) continue;
-      const elName = SYSTEM_TOOL_MAP[id];
-      if (!elName) continue;
-      const strumento = costruisciStrumentoSistema(elName, toolsConfig);
-      if (strumento) tools.push(strumento);
-    }
-  }
-
-  // Tool Edilizia in Cloud (webhook): URL esplicito dal config, altrimenti
-  // auto-generato per i tool con backend. Abilitato ma senza nessuno dei due
-  // (es. secret mancante) → saltato: mai promettere all'LLM tool che non
-  // rispondono.
-  if (toolsConfig.edilizia_tools) {
-    for (const [id, cfg] of Object.entries(toolsConfig.edilizia_tools)) {
-      if (!cfg.enabled) continue;
-      const url = cfg.webhook_url || autoToolUrl?.(id) || null;
-      if (!url) continue;
-      tools.push({
-        type: "webhook",
-        name: id,
-        description: EDILIZIA_TOOL_DESCRIPTIONS[id] ?? `Strumento ${id} di Edilizia in Cloud`,
-        url,
-        method: "POST",
-        response_timeout_secs: 20,
-        headers: [{ key: "Content-Type", value: "application/json" }],
-      });
-    }
-  }
-
-  return tools;
-}
+// buildElevenLabsToolsFromConfig e' stato rimosso: era una SECONDA copia della
+// costruzione dei tool, non chiamata da nessuno, che ripeteva la stessa mappa
+// dei nomi di sistema. E' il motivo per cui i nomi sbagliati ("transfer_call",
+// "play_dtmf") sono sopravvissuti tanto a lungo: correggerne una non correggeva
+// l'altra. La costruzione vive solo in sincronizzaToolElevenLabs.
 
 /** True se il config abilita almeno un tool che richiede l'URL auto-generato. */
 function hasAutoBackedTools(toolsConfig: ToolsConfig | null | undefined): boolean {
@@ -446,7 +459,7 @@ Deno.serve(async (req) => {
         let elToolIds: string[] = [];
         if (elAgentId && createToolsConfig) {
           try {
-            const sync = await sincronizzaToolElevenLabs(apiKey, companyId, elAgentId, createToolsConfig, []);
+            const sync = await sincronizzaToolElevenLabs(apiKey, companyId, elAgentId, createToolsConfig, [], adminClient);
             elToolIds = sync.toolIds;
             if (elToolIds.length || sync.systemTools.length) {
               await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
@@ -499,7 +512,7 @@ Deno.serve(async (req) => {
         if (payload?.tools_config !== undefined) {
           const cfg = payload.tools_config as (ToolsConfig & { elevenlabs_tool_ids?: string[] }) | null;
           const precedenti = await toolIdsPrecedenti(adminClient, ownership);
-          const sync = await sincronizzaToolElevenLabs(apiKey, companyId, agent_id, cfg, precedenti);
+          const sync = await sincronizzaToolElevenLabs(apiKey, companyId, agent_id, cfg, precedenti, adminClient);
           nuoviToolIds = sync.toolIds;
           agentPatch.prompt = { ...(agentPatch.prompt as Record<string, unknown> ?? {}), tool_ids: nuoviToolIds };
           if (sync.systemTools.length) agentPatch.tools = sync.systemTools;

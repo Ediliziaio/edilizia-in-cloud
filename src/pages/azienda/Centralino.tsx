@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhoneCall, Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DisponibilitaOperatore } from "@/components/telephony/DisponibilitaOperatore";
 
 interface CallLog {
   id: string;
@@ -143,6 +144,10 @@ export default function Centralino() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-[320px_1fr]">
+        <div className="space-y-6">
+        {/* Disponibilità: decide se l'assistente può passare una chiamata a una persona */}
+        <DisponibilitaOperatore />
+
         {/* Dialer */}
         <Card>
           <CardHeader className="pb-2">
@@ -182,6 +187,7 @@ export default function Centralino() {
             </Button>
           </CardContent>
         </Card>
+        </div>
 
         {/* Storico */}
         <Card>

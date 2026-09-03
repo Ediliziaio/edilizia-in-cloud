@@ -384,6 +384,71 @@ export async function richiestaRichiamo(
   };
 }
 
+/**
+ * Passa la chiamata a una persona, ma solo se una persona c'è.
+ *
+ * Fa tre cose in un colpo solo, tramite la RPC atomica:
+ *   1. sceglie chi è disponibile adesso (a rotazione sul meno servito);
+ *   2. lo segna occupato, così non gli arrivano due clienti insieme;
+ *   3. scrive la scheda che gli compare a schermo mentre il telefono squilla.
+ *
+ * Il terzo punto non è un di più: con Telnyx l'assistente non può riassumere a
+ * voce all'operatore, e sul display appare il NOSTRO numero, non quello del
+ * cliente. Senza la scheda l'operatore risponderebbe alla cieca.
+ *
+ * Se non c'è nessuno la scheda si scrive lo stesso, come "persa": il cliente
+ * non va perso, viene richiamato con tutto il contesto. In quel caso la
+ * risposta dice all'assistente di NON promettere un passaggio e di ripiegare
+ * sull'appuntamento.
+ */
+export async function passaAOperatore(
+  admin: SupabaseClient,
+  companyId: string,
+  ctx: CustomerToolCtx,
+  params: { riassunto?: string; nome?: string },
+): Promise<CustomerToolResult> {
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  let nomeCliente = String(params.nome ?? "").trim();
+  if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
+  const riassunto = String(params.riassunto ?? "").trim();
+
+  const { data, error } = await admin.rpc("passa_chiamata_a_operatore", {
+    p_company_id: companyId,
+    p_nome_cliente: nomeCliente || null,
+    p_telefono: ctx.rawPhone || null,
+    p_riassunto: riassunto || null,
+    p_contact_id: contact?.id ?? null,
+    p_opportunity_id: null,
+    p_conversation_id: null,
+  });
+
+  if (error) {
+    console.error("[CUSTOMER-TOOLS] passa_a_operatore:", error.message);
+    return {
+      trovato: false,
+      risposta: "In questo momento non riesco a passarle un collega. Le propongo un appuntamento oppure la faccio richiamare: cosa preferisce?",
+    };
+  }
+
+  const esito = (data ?? {}) as { trovato?: boolean; operatore?: string; telefono?: string; passaggio_id?: string };
+  if (!esito.trovato) {
+    return {
+      trovato: false,
+      passaggio_id: esito.passaggio_id ?? null,
+      // Frase esplicita: senza, il modello tende comunque a dire "glielo passo".
+      risposta: "Non c'è nessun collega libero in questo momento: NON dire che glielo passi. Proponi un appuntamento o un richiamo, la scheda è già stata lasciata all'ufficio.",
+    };
+  }
+
+  return {
+    trovato: true,
+    operatore: esito.operatore ?? null,
+    numero_operatore: esito.telefono ?? null,
+    passaggio_id: esito.passaggio_id ?? null,
+    risposta: `${esito.operatore ?? "Un collega"} è libero e ha già la scheda davanti. Di' al cliente di restare in linea che glielo passi, poi trasferisci la chiamata al numero ${esito.telefono ?? ""}.`.trim(),
+  };
+}
+
 export async function infoProdotto(admin: SupabaseClient, companyId: string, params: { prodotto?: string }): Promise<CustomerToolResult> {
   const ricerca = String(params.prodotto ?? "").trim();
   if (!ricerca) {
@@ -550,6 +615,8 @@ export async function eseguiCustomerTool(
     case "richiesta_richiamo":
       return richiestaRichiamo(admin, companyId, ctx, { motivo: s("motivo"), nome: s("nome"), urgenza: s("urgenza") });
     case "info_prodotto": return infoProdotto(admin, companyId, { prodotto: s("prodotto") });
+    case "passa_a_operatore":
+      return passaAOperatore(admin, companyId, ctx, { riassunto: s("riassunto"), nome: s("nome") });
     default:
       return { risposta: "Operazione non disponibile. Posso controllare consegne e preventivi, fissare un appuntamento o aprire una segnalazione." };
   }

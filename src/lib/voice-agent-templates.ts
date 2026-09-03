@@ -85,7 +85,7 @@ Non chiedere all'interlocutore di ripetere dati che ha già dato.`,
     direzione: "outbound",
     categoria: "Vendita",
     variabili: ["azienda", "nome", "lavoro"],
-    strumenti: ["disponibilita", "fissa_appuntamento", "richiesta_richiamo"],
+    strumenti: ["disponibilita", "fissa_appuntamento", "richiesta_richiamo", "passa_a_operatore"],
     // La natura automatica va dichiarata nella prima frase: e' un obbligo di
     // trasparenza, e all'atto pratico funziona meglio — chi sa di parlare con
     // un assistente e' piu' diretto e non si sente preso in giro al momento
@@ -120,7 +120,8 @@ Poi la chiusura, in ordine di preferenza:
 # Strumenti
 - disponibilita: prima di proporre le due finestre, controlla gli orari davvero liberi (data in AAAA-MM-GG).
 - fissa_appuntamento: fissa il sopralluogo direttamente in chiamata con data, ora, motivo e nome, e conferma a voce giorno e ora.
-- richiesta_richiamo: usalo SEMPRE PRIMA di passare la chiamata a un collega, e mettici come motivo il riassunto delle tre risposte (budget, tempi, chi decide). È la scheda che il collega si trova davanti mentre gli squilla il telefono: senza, prende una chiamata di cui non sa nulla. Usalo anche quando nessuno è disponibile, così l'ufficio richiama con tutto il contesto.
+- passa_a_operatore: usalo SEMPRE PRIMA di passare la chiamata, mettendo nel riassunto le tre risposte (budget, tempi, chi decide) e che lavoro serve. Ti dice se c'è un collega libero adesso e a quale numero trasferire, e intanto gli fa comparire la scheda a schermo. Se risponde che non c'è nessuno, NON dire che glielo passi: proponi il sopralluogo o il richiamo.
+- richiesta_richiamo: quando la chiamata si chiude senza passaggio e senza appuntamento, lascia l'esito all'ufficio.
 - Passaggio al collega: annuncialo sempre a voce prima di trasferire ("resti in linea, le passo un collega"), mai in silenzio.`,
   },
   {

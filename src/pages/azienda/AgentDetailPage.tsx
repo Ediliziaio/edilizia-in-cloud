@@ -43,6 +43,7 @@ const STRUMENTI_CHIAMATA: Array<{ id: string; label: string; descrizione: string
   { id: "crea_ticket", label: "Apri segnalazioni", descrizione: "Crea un ticket di assistenza col racconto del cliente" },
   { id: "assign_to_user", label: "Richiesta di richiamo", descrizione: "Lascia un'attività all'ufficio quando serve una persona vera" },
   { id: "search_products", label: "Cerca nel listino", descrizione: "Conferma se un prodotto o materiale è in catalogo" },
+  { id: "passa_a_operatore", label: "Cerca un collega libero", descrizione: "Prima di passare la chiamata controlla chi è disponibile e gli fa comparire la scheda del cliente" },
 ];
 
 type EdiliziaToolCfg = { enabled?: boolean; webhook_url?: string };
@@ -57,6 +58,7 @@ const CANONICO_A_UI: Record<string, string> = {
   crea_ticket: "crea_ticket",
   richiesta_richiamo: "assign_to_user",
   info_prodotto: "search_products",
+  passa_a_operatore: "passa_a_operatore",
 };
 
 export default function AgentDetailPage() {

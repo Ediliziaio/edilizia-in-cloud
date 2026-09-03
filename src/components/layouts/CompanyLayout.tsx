@@ -15,6 +15,7 @@ import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
+import { SchedaPassaggioChiamata } from "@/components/telephony/SchedaPassaggioChiamata";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
@@ -1905,6 +1906,11 @@ export function CompanyLayout() {
           </ErrorBoundary>
         </div>
       </div>
+      {/* La chiamata passata dall'assistente arriva mentre lavori, non mentre
+          guardi il centralino: la scheda vive nel guscio, non in una pagina. */}
+      <ErrorBoundary title="Errore scheda chiamata">
+        <SchedaPassaggioChiamata />
+      </ErrorBoundary>
       {showSupport && (
         <>
           <SupportChannelDialog
