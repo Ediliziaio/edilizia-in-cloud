@@ -790,6 +790,7 @@ serve(async (req: Request) => {
     // prudenza costava ~13K token su OGNI messaggio invece che un giro in piu
     // quando serve.
     const dominiExtra = new Set<ToolDomain>();
+    let dominiExtraApplicati = 0;
     let allowedTools = getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
@@ -1287,11 +1288,20 @@ serve(async (req: Request) => {
           // domini si aggiungono qui, la lista strumenti si ricostruisce sotto
           // e alla prossima iterazione li ha davvero a bordo.
           if (toolName === "carica_strumenti" && toolResult.success) {
-            for (const d of dominiPerAree(toolArgs?.aree)) dominiExtra.add(d);
+            for (const d of dominiPerAree(toolArgs?.aree)) {
+              // Solo i domini che NON sono gia' a bordo: rifare la lista con
+              // gli stessi tool bucherebbe la cache del prompt per niente
+              // (misurato: la chiamata in cui l'elenco cambia perde il 96% di
+              // riuso e costa ~8 volte tanto).
+              if (!toolDomains?.includes(d)) dominiExtra.add(d);
+            }
           }
         }
 
-        if (dominiExtra.size > 0) rebuildTools();
+        if (dominiExtra.size > dominiExtraApplicati) {
+          dominiExtraApplicati = dominiExtra.size;
+          rebuildTools();
+        }
 
         // Continue loop: re-invoke LLM with tool results
         continue;
