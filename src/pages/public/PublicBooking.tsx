@@ -114,16 +114,18 @@ export default function PublicBooking() {
         .single();
       if (!cal?.owner_id) return [];
       // Check if the owner has block_busy_slots enabled
+      // Vista pubblica: user_calendar_preferences non e' leggibile da un
+      // visitatore anonimo, quindi il flag risultava sempre nullo e gli
+      // impegni del titolare non bloccavano MAI gli slot.
       const { data: prefs } = await supabase
-        .from("user_calendar_preferences")
+        .from("public_calendar_owner_prefs")
         .select("block_busy_slots")
         .eq("user_id", cal.owner_id)
         .maybeSingle();
-      if (!prefs?.block_busy_slots) return [];
+      if (prefs && prefs.block_busy_slots === false) return [];
       const { data, error } = await supabase
         .from("google_calendar_busy_slots")
         .select("start_at, end_at")
-        .eq("company_id", calendar.company_id)
         .eq("user_id", cal.owner_id)
         .lt("start_at", selectedDayRange.endIso)
         .gt("end_at", selectedDayRange.startIso);
@@ -144,16 +146,49 @@ export default function PublicBooking() {
         .eq("id", calendar.id)
         .single();
       if (!cal?.owner_id) return [];
+      // Vista pubblica: user_calendar_preferences non e' leggibile da un
+      // visitatore anonimo, quindi il flag risultava sempre nullo e gli
+      // impegni del titolare non bloccavano MAI gli slot.
       const { data: prefs } = await supabase
-        .from("user_calendar_preferences")
+        .from("public_calendar_owner_prefs")
         .select("block_busy_slots")
         .eq("user_id", cal.owner_id)
         .maybeSingle();
-      if (!prefs?.block_busy_slots) return [];
+      if (prefs && prefs.block_busy_slots === false) return [];
       const { data, error } = await supabase
         .from("apple_calendar_busy_slots")
         .select("start_at, end_at")
-        .eq("company_id", calendar.company_id)
+        .eq("user_id", cal.owner_id)
+        .lt("start_at", selectedDayRange.endIso)
+        .gt("end_at", selectedDayRange.startIso);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!calendar?.id && !!selectedDayRange,
+  });
+
+  // Impegni Outlook del titolare (vista outlook_calendar_busy_slots): prima
+  // mancavano del tutto e chi usa il calendario Microsoft rischiava doppie
+  // prenotazioni.
+  const { data: outlookBusySlots = [], isFetching: outlookBusyFetching } = useQuery({
+    queryKey: ["public-outlook-busy", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
+    queryFn: async () => {
+      if (!calendar?.id || !selectedDayRange) return [];
+      const { data: cal } = await supabase
+        .from("marketing_calendars")
+        .select("owner_id")
+        .eq("id", calendar.id)
+        .single();
+      if (!cal?.owner_id) return [];
+      const { data: prefs } = await supabase
+        .from("public_calendar_owner_prefs")
+        .select("block_busy_slots")
+        .eq("user_id", cal.owner_id)
+        .maybeSingle();
+      if (prefs && prefs.block_busy_slots === false) return [];
+      const { data, error } = await supabase
+        .from("outlook_calendar_busy_slots")
+        .select("start_at, end_at")
         .eq("user_id", cal.owner_id)
         .lt("start_at", selectedDayRange.endIso)
         .gt("end_at", selectedDayRange.startIso);
@@ -183,7 +218,7 @@ export default function PublicBooking() {
 
   // Check if a time slot overlaps with any busy slot (Google or Apple)
   const isSlotBusy = useCallback((slotTime: string, durationMinutes: number): boolean => {
-    const allBusySlots = [...googleBusySlots, ...appleBusySlots];
+    const allBusySlots = [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots];
     if (!selectedDate || allBusySlots.length === 0) return false;
     const slotStart = parse(slotTime, "HH:mm", selectedDate);
     const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
@@ -192,7 +227,7 @@ export default function PublicBooking() {
       const bEnd = new Date(busy.end_at);
       return slotStart < bEnd && slotEnd > bStart;
     });
-  }, [appleBusySlots, googleBusySlots, selectedDate]);
+  }, [appleBusySlots, googleBusySlots, outlookBusySlots, selectedDate]);
 
   const parseAvailabilityTime = useCallback(
     (value: string) => parse(value.length === 5 ? value : value.slice(0, 5), "HH:mm", selectedDate || new Date()),
@@ -266,46 +301,32 @@ export default function PublicBooking() {
       if (!form.first_name.trim()) throw new Error("Inserisci il nome.");
       if (!hasContactMethod) throw new Error("Inserisci almeno email o telefono.");
       if (!emailIsValid) throw new Error("Inserisci un indirizzo email valido.");
-      const duration = calendar.duration_minutes || 30;
-      const usesGoogleMeet = calendar.default_meeting_provider === "google_meet";
-      const endTime = format(
-        new Date(parse(selectedSlot, "HH:mm", selectedDate).getTime() + duration * 60000),
-        "HH:mm"
-      );
-      const { data: freshAppointments, error: freshAppointmentsError } = await supabase
-        .from("public_appointment_slots")
-        .select("appointment_time, appointment_end_time")
-        .eq("company_id", calendar.company_id)
-        .eq("calendar_id", calendar.id)
-        .eq("appointment_date", format(selectedDate, "yyyy-MM-dd"))
-        .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
-      if (freshAppointmentsError) throw freshAppointmentsError;
-      if (slotOverlapsExistingAppointments(selectedSlot, duration, freshAppointments || [])) {
-        throw new Error("Questo orario e' appena stato occupato. Scegli un altro slot.");
-      }
-      if (isSlotBusy(selectedSlot, duration)) {
-        throw new Error("Questo orario risulta occupato nel calendario collegato.");
-      }
-      const { error } = await supabase.from("appointments").insert({
-        calendar_id: calendar.id,
-        company_id: calendar.company_id,
-        appointment_date: format(selectedDate, "yyyy-MM-dd"),
-        appointment_time: selectedSlot + ":00",
-        appointment_end_time: endTime + ":00",
-        title: `${form.first_name} ${form.last_name}`.trim() || "Prenotazione",
-        description: [
-          form.email && `Email: ${form.email}`,
-          form.phone && `Tel: ${form.phone}`,
-          form.notes && `Note: ${form.notes}`,
-        ].filter(Boolean).join("\n"),
-        appointment_type: usesGoogleMeet ? "videocall" : "appuntamento",
-        status: "confermato",
-        assigned_to: calendar.owner_id || null,
-        created_by: "00000000-0000-0000-0000-000000000000",
-        meeting_provider: usesGoogleMeet ? "google_meet" : "none",
-        meeting_status: usesGoogleMeet ? "pending" : "none",
+      // La prenotazione la fa il server (public-booking-crea): ricontrolla che
+      // lo slot sia davvero libero — anche rispetto agli impegni del titolare —
+      // crea l'appuntamento, conferma al cliente e avvisa chi lo riceve. Prima
+      // si scriveva da qui con la chiave anonima: nessuna email, e due persone
+      // sullo stesso orario passavano entrambe.
+      const { data, error } = await supabase.functions.invoke("public-booking-crea", {
+        body: {
+          slug,
+          date: format(selectedDate, "yyyy-MM-dd"),
+          time: selectedSlot,
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          notes: form.notes.trim(),
+        },
       });
-      if (error) throw error;
+      if (error) {
+        let messaggio = "";
+        try {
+          const ctx = (error as { context?: Response }).context;
+          if (ctx) messaggio = String(((await ctx.clone().json()) as { error?: string })?.error ?? "");
+        } catch { /* body non leggibile */ }
+        throw new Error(messaggio || error.message || "Prenotazione non riuscita");
+      }
+      if ((data as { error?: string } | null)?.error) throw new Error(String((data as { error?: string }).error));
     },
     onSuccess: () => {
       setBooked(true);
@@ -416,7 +437,7 @@ export default function PublicBooking() {
     );
   }
 
-  const slotsLoading = !!selectedDate && (existingAppointmentsFetching || googleBusyFetching || appleBusyFetching);
+  const slotsLoading = !!selectedDate && (existingAppointmentsFetching || googleBusyFetching || appleBusyFetching || outlookBusyFetching);
   const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading;
   const selectedSummary = selectedDate && selectedSlot
     ? `${format(selectedDate, "EEEE d MMMM yyyy", { locale: it })} alle ${selectedSlot}`
