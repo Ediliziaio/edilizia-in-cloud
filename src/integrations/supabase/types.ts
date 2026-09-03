@@ -17218,6 +17218,7 @@ export type Database = {
           stripe_subscription_status: string | null
           subscription_plan_id: string | null
           tesoreria_enabled: boolean | null
+          ticket_playbook_auto_apply: boolean
           trial_ends_at: string | null
           trial_extensions_count: number
           updated_at: string
@@ -17378,6 +17379,7 @@ export type Database = {
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           tesoreria_enabled?: boolean | null
+          ticket_playbook_auto_apply?: boolean
           trial_ends_at?: string | null
           trial_extensions_count?: number
           updated_at?: string
@@ -17538,6 +17540,7 @@ export type Database = {
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
           tesoreria_enabled?: boolean | null
+          ticket_playbook_auto_apply?: boolean
           trial_ends_at?: string | null
           trial_extensions_count?: number
           updated_at?: string
@@ -18344,6 +18347,8 @@ export type Database = {
           cost_type: string
           created_at: string
           due_date: string
+          giorni_dilazione: number
+          giorni_preavviso: number
           id: string
           is_paid: boolean
           name: string
@@ -18358,6 +18363,7 @@ export type Database = {
           sede_id: string | null
           supplier_id: string | null
           treasury_category_id: string | null
+          trigger_evento: string
           updated_at: string
           vat_rate: number | null
         }
@@ -18369,6 +18375,8 @@ export type Database = {
           cost_type?: string
           created_at?: string
           due_date: string
+          giorni_dilazione?: number
+          giorni_preavviso?: number
           id?: string
           is_paid?: boolean
           name: string
@@ -18383,6 +18391,7 @@ export type Database = {
           sede_id?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
+          trigger_evento?: string
           updated_at?: string
           vat_rate?: number | null
         }
@@ -18394,6 +18403,8 @@ export type Database = {
           cost_type?: string
           created_at?: string
           due_date?: string
+          giorni_dilazione?: number
+          giorni_preavviso?: number
           id?: string
           is_paid?: boolean
           name?: string
@@ -18408,6 +18419,7 @@ export type Database = {
           sede_id?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
+          trigger_evento?: string
           updated_at?: string
           vat_rate?: number | null
         }
@@ -30959,6 +30971,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_articoli_gia_a_costo"
             referencedColumns: ["company_cost_id"]
+          },
+          {
+            foreignKeyName: "fatture_ricevute_company_cost_id_fkey"
+            columns: ["company_cost_id"]
+            isOneToOne: false
+            referencedRelation: "v_uscite_stato"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "fatture_ricevute_company_id_fkey"
@@ -49708,6 +49727,7 @@ export type Database = {
       }
       order_task_template: {
         Row: {
+          ambito: string
           assegna_a_ruolo: string | null
           assegna_a_ufficio_id: string | null
           assegna_a_utente: string | null
@@ -49726,6 +49746,7 @@ export type Database = {
           vertical: string | null
         }
         Insert: {
+          ambito?: string
           assegna_a_ruolo?: string | null
           assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
@@ -49744,6 +49765,7 @@ export type Database = {
           vertical?: string | null
         }
         Update: {
+          ambito?: string
           assegna_a_ruolo?: string | null
           assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
@@ -56455,6 +56477,13 @@ export type Database = {
             referencedColumns: ["company_cost_id"]
           },
           {
+            foreignKeyName: "prima_nota_entries_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "v_uscite_stato"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "prima_nota_entries_documento_fiscale_id_fkey"
             columns: ["documento_fiscale_id"]
             isOneToOne: false
@@ -57626,6 +57655,8 @@ export type Database = {
           origine: string
           payment_method: string | null
           payment_terms: string | null
+          payment_terms_base: string | null
+          payment_terms_giorni: number | null
           sent_at: string | null
           status: string
           subtotal: number
@@ -57656,6 +57687,8 @@ export type Database = {
           origine?: string
           payment_method?: string | null
           payment_terms?: string | null
+          payment_terms_base?: string | null
+          payment_terms_giorni?: number | null
           sent_at?: string | null
           status?: string
           subtotal?: number
@@ -57686,6 +57719,8 @@ export type Database = {
           origine?: string
           payment_method?: string | null
           payment_terms?: string | null
+          payment_terms_base?: string | null
+          payment_terms_giorni?: number | null
           sent_at?: string | null
           status?: string
           subtotal?: number
@@ -64977,6 +65012,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_articoli_gia_a_costo"
             referencedColumns: ["company_cost_id"]
+          },
+          {
+            foreignKeyName: "scadenze_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "v_uscite_stato"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "scadenze_invoice_id_fkey"
@@ -72806,6 +72848,7 @@ export type Database = {
           id: string
           must_change_password: boolean | null
           only_assigned: boolean
+          only_my_warehouse: boolean
           updated_at: string | null
           user_id: string
           visible_areas: string[]
@@ -72904,6 +72947,7 @@ export type Database = {
           id?: string
           must_change_password?: boolean | null
           only_assigned?: boolean
+          only_my_warehouse?: boolean
           updated_at?: string | null
           user_id: string
           visible_areas?: string[]
@@ -73002,6 +73046,7 @@ export type Database = {
           id?: string
           must_change_password?: boolean | null
           only_assigned?: boolean
+          only_my_warehouse?: boolean
           updated_at?: string | null
           user_id?: string
           visible_areas?: string[]
@@ -76663,6 +76708,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_articoli_gia_a_costo"
             referencedColumns: ["company_cost_id"]
+          },
+          {
+            foreignKeyName: "tasks_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "v_uscite_stato"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tasks_opportunity_id_fkey"
@@ -86016,6 +86068,93 @@ export type Database = {
           },
         ]
       }
+      v_uscite_stato: {
+        Row: {
+          amount: number | null
+          category: string | null
+          company_id: string | null
+          data_pagamento: string | null
+          due_date: string | null
+          giorni_al_pagamento: number | null
+          giorni_dilazione: number | null
+          giorni_preavviso: number | null
+          id: string | null
+          is_paid: boolean | null
+          name: string | null
+          order_id: string | null
+          paid_date: string | null
+          purchase_order_id: string | null
+          stato_uscita: string | null
+          supplier_id: string | null
+          trigger_evento: string | null
+          vat_rate: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_costs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_procurement_report"
+            referencedColumns: ["supplier_id"]
+          },
+          {
+            foreignKeyName: "company_costs_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       web_vitals_p75_7d: {
         Row: {
           avg: number | null
@@ -86497,6 +86636,10 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: boolean
       }
+      can_see_order: {
+        Args: { _assigned_to: string; _order_id: string }
+        Returns: boolean
+      }
       can_user_use_persona: {
         Args: { p_persona_key: string; p_user_id: string }
         Returns: Json
@@ -86946,6 +87089,7 @@ export type Database = {
         Returns: number
       }
       crea_notifiche_rate_in_arrivo: { Args: never; Returns: number }
+      crea_notifiche_uscite_in_arrivo: { Args: never; Returns: number }
       create_ddt_from_uscita: {
         Args: { p_ddt_extra?: Json; p_uscita_id: string }
         Returns: {
@@ -87151,6 +87295,17 @@ export type Database = {
           p_metrics_categories?: string[]
         }
         Returns: Json
+      }
+      data_pagamento_uscita: {
+        Args: {
+          p_cost_id: string
+          p_due_date: string
+          p_evento: string
+          p_giorni: number
+          p_oda_id: string
+          p_order_id: string
+        }
+        Returns: string
       }
       ddt_find_purchase_order_candidates: {
         Args: {
@@ -90407,6 +90562,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      silvio_commesse_visibili: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: {
+          id: string
+          order_code: string
+        }[]
       }
       silvio_compliance_status_export: { Args: never; Returns: Json }
       silvio_compute_customer_ltv: {

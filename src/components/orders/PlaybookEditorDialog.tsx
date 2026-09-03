@@ -33,11 +33,16 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { getOrderPlaybook, PLAYBOOK_LABELS } from "@/lib/orderPlaybook";
+import { TICKET_PLAYBOOK } from "@/lib/ticketPlaybook";
+import type { AmbitoFlusso, PassoFlusso } from "@/lib/flussoLavoro";
 
 interface PlaybookEditorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companyId: string;
+  /** Commesse (default) o ticket di assistenza: cambia il flusso che si sta modificando. */
+  ambito?: AmbitoFlusso;
+  /** Mestiere per le commesse, categoria del ticket per l'assistenza. */
   vertical?: string | null;
   onSaved?: () => void;
 }
@@ -84,9 +89,16 @@ function newKey() {
   return `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, onSaved }: PlaybookEditorDialogProps) {
+export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "commessa", vertical, onSaved }: PlaybookEditorDialogProps) {
   const v = vertical ?? null;
+  const perTicket = ambito === "ticket";
   const playbookKey = getOrderPlaybook(vertical).key;
+  // Su assistenza il "mestiere" non c'entra: il percorso predefinito è uno solo.
+  const etichettaFlusso = perTicket ? "Assistenza" : PLAYBOOK_LABELS[playbookKey];
+  const passiPredefiniti: PassoFlusso[] = perTicket ? TICKET_PLAYBOOK : getOrderPlaybook(vertical).steps;
+  // Interruttori separati: chi vuole il flusso automatico sulle commesse non lo
+  // vuole per forza anche sui ticket.
+  const colonnaAutoApply = perTicket ? "ticket_playbook_auto_apply" : "playbook_auto_apply";
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [autoApply, setAutoApply] = useState(false);
@@ -102,34 +114,35 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
   );
 
   const { data: autoApplyData } = useQuery({
-    queryKey: ["company-playbook-auto-apply", companyId],
+    queryKey: ["company-playbook-auto-apply", companyId, ambito],
     enabled: open && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("playbook_auto_apply")
+        .select(colonnaAutoApply)
         .eq("id", companyId)
         .maybeSingle();
       if (error) throw error;
-      return (data as { playbook_auto_apply?: boolean } | null)?.playbook_auto_apply ?? false;
+      return Boolean((data as Record<string, unknown> | null)?.[colonnaAutoApply]);
     },
   });
   useEffect(() => { if (open) setAutoApply(!!autoApplyData); }, [autoApplyData, open]);
 
   const toggleAutoApply = async (val: boolean) => {
     setAutoApply(val);
-    const { error } = await supabase.from("companies").update({ playbook_auto_apply: val } as never).eq("id", companyId);
+    const { error } = await supabase.from("companies").update({ [colonnaAutoApply]: val } as never).eq("id", companyId);
     if (error) { setAutoApply(!val); toast.error("Non riesco a salvare l'interruttore: " + error.message); }
   };
 
   const { data: dbRows, isLoading, refetch } = useQuery({
-    queryKey: ["order-task-template", companyId, v],
+    queryKey: ["order-task-template", companyId, ambito, v],
     enabled: open && !!companyId,
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
         .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id")
         .eq("company_id", companyId)
+        .eq("ambito", ambito)
         .order("sort_order", { ascending: true });
       q = v === null ? q.is("vertical", null) : q.eq("vertical", v);
       const { data, error } = await q;
@@ -166,7 +179,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
    * si ricavano dalla distanza fra gli offset dello standard.
    */
   const importaStandard = () => {
-    const { steps } = getOrderPlaybook(vertical);
+    const steps = passiPredefiniti;
     const keys = steps.map(() => newKey());
     setRows(steps.map((s, i): Row => ({
       _key: keys[i],
@@ -208,7 +221,11 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
     try {
       const valid = rows.filter((r) => r.titolo.trim());
       // replace: cancella le righe del vertical corrente, reinserisci.
-      let del = supabase.from("order_task_template").delete().eq("company_id", companyId);
+      // .eq("ambito") NON è facoltativo: senza, salvare il flusso commessa
+      // cancellerebbe in silenzio quello dell'assistenza (stessa tabella).
+      let del = supabase.from("order_task_template").delete()
+        .eq("company_id", companyId)
+        .eq("ambito", ambito);
       del = v === null ? del.is("vertical", null) : del.eq("vertical", v);
       const { error: delErr } = await del;
       if (delErr) throw delErr;
@@ -216,6 +233,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
       if (valid.length > 0) {
         const payload = valid.map((r, idx) => ({
           company_id: companyId,
+          ambito,
           vertical: v,
           sort_order: idx,
           titolo: r.titolo.trim(),
@@ -278,10 +296,10 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-orange-500" />
-            Flusso di lavoro commessa · {PLAYBOOK_LABELS[playbookKey]}
+            {perTicket ? "Flusso di lavoro assistenza" : "Flusso di lavoro commessa"} · {etichettaFlusso}
           </DialogTitle>
           <DialogDescription>
-            Il percorso che segue ogni commessa, passo per passo. Un passo può partire subito con la
+            Il percorso che segue {perTicket ? "ogni ticket di assistenza" : "ogni commessa"}, passo per passo. Un passo può partire subito con la
             commessa oppure quando si chiude quello prima: in quel caso nasce &laquo;In attesa&raquo;, senza
             scadenza, e si sblocca da solo — con notifica a chi lo riceve — appena tocca a lui.
           </DialogDescription>
@@ -289,8 +307,8 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
 
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
           <div className="min-w-0">
-            <p className="text-sm font-medium">Applica automaticamente alle nuove commesse</p>
-            <p className="text-xs text-muted-foreground">Ogni nuova commessa parte già con questo flusso.</p>
+            <p className="text-sm font-medium">Applica automaticamente {perTicket ? "ai nuovi ticket" : "alle nuove commesse"}</p>
+            <p className="text-xs text-muted-foreground">Ogni {perTicket ? "nuovo ticket" : "nuova commessa"} parte già con questo flusso.</p>
           </div>
           <Switch checked={autoApply} onCheckedChange={toggleAutoApply} />
         </div>
@@ -299,9 +317,9 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
           <p className="text-sm text-muted-foreground py-6 text-center">Caricamento…</p>
         ) : rows.length === 0 ? (
           <div className="text-center py-8 border rounded-md">
-            <p className="text-sm text-muted-foreground mb-3">Nessun flusso personalizzato per questo mestiere.</p>
+            <p className="text-sm text-muted-foreground mb-3">{perTicket ? "Nessun flusso personalizzato per l'assistenza." : "Nessun flusso personalizzato per questo mestiere."}</p>
             <Button variant="outline" size="sm" onClick={importaStandard}>
-              <Sparkles className="h-4 w-4 mr-1.5" /> Importa il flusso standard {PLAYBOOK_LABELS[playbookKey]}
+              <Sparkles className="h-4 w-4 mr-1.5" /> Importa il flusso standard {etichettaFlusso}
             </Button>
             <p className="text-xs text-muted-foreground mt-3">…oppure aggiungi i tuoi passi uno a uno.</p>
             <Button variant="ghost" size="sm" className="mt-1" onClick={addRow}>
@@ -323,7 +341,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
                     <Input
                       value={r.titolo}
                       onChange={(e) => updateRow(r._key, { titolo: e.target.value })}
-                      placeholder="Es. Emissione fattura di acconto"
+                      placeholder={perTicket ? "Es. Diagnosi del guasto" : "Es. Emissione fattura di acconto"}
                       className="h-9"
                     />
                     <Select value={r.priorita} onValueChange={(val) => updateRow(r._key, { priorita: val as Row["priorita"] })}>
@@ -348,7 +366,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
                     >
                       <SelectTrigger className="h-8 w-[230px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={SUBITO}>subito, con la commessa</SelectItem>
+                        <SelectItem value={SUBITO}>{perTicket ? "subito, col ticket" : "subito, con la commessa"}</SelectItem>
                         {precedenti.map((p, i) => (
                           <SelectItem key={p._key} value={p._key}>
                             dopo: {i + 1}. {p.titolo.trim().slice(0, 40)}
@@ -378,7 +396,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
                           onChange={(e) => updateRow(r._key, { giorni_offset: Number(e.target.value) || 0 })}
                           className="h-8 w-[64px] text-xs"
                         />
-                        <span className="shrink-0">giorni dalla commessa</span>
+                        <span className="shrink-0">giorni {perTicket ? "dal ticket" : "dalla commessa"}</span>
                       </>
                     )}
 
@@ -398,7 +416,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, vertical, 
                     >
                       <SelectTrigger className="h-8 w-[210px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={RESPONSABILE}>responsabile commessa</SelectItem>
+                        <SelectItem value={RESPONSABILE}>{perTicket ? "tecnico del ticket" : "responsabile commessa"}</SelectItem>
                         {uffici.length > 0 && (
                           <SelectGroup>
                             <SelectLabel className="text-[10px]">Uffici</SelectLabel>

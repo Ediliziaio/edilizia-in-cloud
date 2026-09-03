@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import type { TicketPriority } from "@/types/tickets";
 import { queryKeys } from "@/lib/queryKeys";
+import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -177,6 +178,29 @@ export default function CreateCompanyTicket() {
             attachment_url: signedData?.signedUrl || path,
           });
         if (msgErr) throw msgErr;
+      }
+
+      // Flusso di lavoro dell'assistenza, se l'azienda l'ha chiesto: il ticket
+      // nasce già col suo percorso di attività, incatenate e assegnate.
+      // In un try a parte: un intoppo del flusso non deve far fallire la
+      // creazione del ticket, che a quel punto esiste già.
+      try {
+        const { data: az } = await supabase
+          .from("companies")
+          .select("ticket_playbook_auto_apply")
+          .eq("id", effectiveCompany.id)
+          .maybeSingle();
+        if ((az as { ticket_playbook_auto_apply?: boolean } | null)?.ticket_playbook_auto_apply) {
+          await applyPlaybookToTicket({
+            companyId: effectiveCompany.id,
+            ticketId: ticket.id,
+            category: null,
+            baseDate: new Date(),
+            assignedTo: tecnicoId || null,
+          });
+        }
+      } catch (e) {
+        console.error("Flusso assistenza non applicato:", e);
       }
 
       return ticket.id;

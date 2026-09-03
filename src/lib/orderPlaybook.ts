@@ -1,47 +1,15 @@
 /**
- * Playbook commessa — set standard di attività ricorrenti per mestiere.
+ * Playbook commessa — il percorso standard di una commessa, per mestiere.
  *
- * Standardizza il flusso operativo tipico: con un click si creano in blocco le
- * task della commessa (titolo + scadenza relativa alla data commessa + priorità),
- * invece di crearle a mano una per una. Le task sono REALI (tabella `tasks`):
- * compaiono nella card "Attività" e si assegnano alle persone.
- *
- * v1: playbook definiti qui (per vertical). La versione modificabile per azienda
- * richiede una tabella DB dedicata (step successivo).
+ * Qui vivono solo i percorsi PREDEFINITI (quelli che l'azienda si trova già
+ * pronti) e l'aggancio alla commessa. Il motore che crea le attività e le
+ * incatena è condiviso con i ticket di assistenza: `src/lib/flussoLavoro.ts`.
  */
 
-import { supabase } from "@/integrations/supabase/client";
-import { addDays, format } from "date-fns";
+import { applicaFlusso, type PassoFlusso } from "@/lib/flussoLavoro";
 
-export interface PlaybookStep {
-  /** Presente solo sui passi che arrivano da `order_task_template`. */
-  id?: string;
-  titolo: string;
-  descrizione?: string;
-  /** Giorni dalla data della commessa (created_at) per la scadenza. */
-  giorni_offset: number;
-  priorita: "bassa" | "normale" | "alta" | "urgente";
-  /** Chi riceve il passo; null = responsabile della commessa. */
-  assegna_a_utente?: string | null;
-  /** Ufficio che riceve il passo; se valorizzato vince sulla persona. */
-  assegna_a_ufficio_id?: string | null;
-  /** Passo che deve chiudersi prima (id di `order_task_template`). */
-  dipende_da_id?: string | null;
-  /** Giorni concessi a partire dallo sblocco. */
-  giorni_dopo_sblocco?: number;
-}
-
-interface TemplateRow {
-  id: string;
-  titolo: string;
-  descrizione: string | null;
-  giorni_offset: number;
-  priorita: string;
-  assegna_a_utente: string | null;
-  assegna_a_ufficio_id: string | null;
-  dipende_da_id: string | null;
-  giorni_dopo_sblocco: number;
-}
+/** I passi di un playbook sono passi di flusso: il tipo è quello condiviso. */
+export type PlaybookStep = PassoFlusso;
 
 const SERRAMENTISTA: PlaybookStep[] = [
   { titolo: "Sopralluogo e rilievo misure", giorni_offset: 2, priorita: "alta" },
@@ -106,23 +74,10 @@ export function getOrderPlaybook(vertical?: string | null): { key: string; steps
 }
 
 /**
- * Applica il flusso a una commessa.
- *
- * Due modi, a seconda di come l'azienda ha configurato il suo processo in
- * `order_task_template`:
- *
- *   • passi SENZA dipendenza  → nascono subito "Da fare", scadenza = data
- *     commessa + giorni_offset (comportamento storico, invariato);
- *   • passi CON dipendenza    → nascono "In attesa", senza scadenza: si
- *     sbloccano da soli quando si chiude il passo da cui dipendono (trigger DB
- *     `sblocca_task_a_catena`), prendendo scadenza = giorno dello sblocco +
- *     giorni_dopo_sblocco, e il loro assegnatario riceve la notifica.
- *
- * I playbook predefiniti qui sopra restano liste piatte: la catena è una scelta
- * dell'azienda, che se la costruisce da "Gestisci" (PlaybookEditorDialog).
- *
- * Idempotente: salta i titoli già presenti sulla commessa. Se un passo dipende
- * da un titolo già esistente, si aggancia a quella task invece di duplicarla.
+ * Applica il flusso alla commessa: crea le attività standard, incatenate come
+ * l'azienda le ha configurate in "Gestisci". Se non ha configurato niente usa
+ * il playbook predefinito del mestiere (che è una lista piatta: la catena è una
+ * scelta dell'azienda).
  */
 export async function applyPlaybookToOrder(params: {
   companyId: string;
@@ -132,139 +87,16 @@ export async function applyPlaybookToOrder(params: {
   /** Responsabile della commessa: i passi senza assegnatario proprio vanno a lui. */
   assignedTo?: string | null;
 }): Promise<{ created: number; playbookKey: string }> {
-  const { companyId, orderId, vertical, baseDate, assignedTo } = params;
-  const { key } = getOrderPlaybook(vertical);
-
-  // created_by è NOT NULL su tasks: serve l'utente corrente.
-  const { data: auth } = await supabase.auth.getUser();
-  const createdBy = auth?.user?.id;
-  if (!createdBy) throw new Error("Sessione scaduta: accedi di nuovo per applicare il processo standard.");
-
-  let tplQuery = supabase
-    .from("order_task_template")
-    .select("id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco")
-    .eq("company_id", companyId)
-    .eq("attivo", true)
-    .order("sort_order", { ascending: true });
-  tplQuery = vertical ? tplQuery.eq("vertical", vertical) : tplQuery.is("vertical", null);
-  const { data: customTpl } = await tplQuery;
-
-  const steps: PlaybookStep[] = customTpl && customTpl.length > 0
-    ? (customTpl as unknown as TemplateRow[]).map((t) => ({
-        id: t.id,
-        titolo: t.titolo,
-        descrizione: t.descrizione ?? undefined,
-        giorni_offset: Number(t.giorni_offset) || 0,
-        priorita: (t.priorita as PlaybookStep["priorita"]) ?? "normale",
-        assegna_a_utente: t.assegna_a_utente ?? null,
-        assegna_a_ufficio_id: t.assegna_a_ufficio_id ?? null,
-        dipende_da_id: t.dipende_da_id ?? null,
-        giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
-      }))
-    : getOrderPlaybook(vertical).steps;
-
-  // Un passo di ufficio nasce in carico al RESPONSABILE dell'ufficio: senza
-  // assegnatario resterebbe di nessuno (in produzione le task orfane erano il
-  // grosso delle scadute). Gli altri membri la vedono comunque e possono
-  // prenderla: le policy "Membri ufficio …" su tasks servono a questo.
-  const responsabilePerUfficio = new Map<string, string | null>();
-  const idUffici = Array.from(new Set(
-    steps.map((s) => s.assegna_a_ufficio_id).filter((v): v is string => !!v),
-  ));
-  if (idUffici.length > 0) {
-    const { data: uffici } = await supabase
-      .from("company_uffici")
-      .select("id, responsabile_id")
-      .in("id", idUffici);
-    ((uffici ?? []) as unknown as Array<{ id: string; responsabile_id: string | null }>)
-      .forEach((u) => responsabilePerUfficio.set(u.id, u.responsabile_id));
-  }
-
-  // Titoli già sulla commessa: non si duplicano, ma servono come ancora per i
-  // passi che dipendono da un pezzo di flusso creato in un giro precedente.
-  const { data: existing } = await supabase
-    .from("tasks")
-    .select("id, title")
-    .eq("company_id", companyId)
-    .eq("order_id", orderId);
-  const norm = (t: string) => t.trim().toLowerCase();
-  const taskIdPerTitolo = new Map<string, string>();
-  (existing ?? []).forEach((t: { id: string; title: string }) => {
-    taskIdPerTitolo.set(norm(t.title ?? ""), t.id);
+  const { key, steps } = getOrderPlaybook(params.vertical);
+  const { created } = await applicaFlusso({
+    companyId: params.companyId,
+    ambito: "commessa",
+    entitaId: params.orderId,
+    vertical: params.vertical,
+    baseDate: params.baseDate,
+    assignedTo: params.assignedTo,
+    passiPredefiniti: steps,
+    categoriaTask: "ordini",
   });
-
-  const daCreare = steps.filter((s) => !taskIdPerTitolo.has(norm(s.titolo)));
-  if (daCreare.length === 0) return { created: 0, playbookKey: key };
-
-  // Titolo del passo da cui si dipende: serve per agganciare la task al task
-  // giusto (le dipendenze del template sono fra righe di template, le task
-  // vivono per titolo).
-  const titoloPerStepId = new Map<string, string>();
-  steps.forEach((s) => { if (s.id) titoloPerStepId.set(s.id, s.titolo); });
-
-  /** id della task che deve chiudersi prima, se già nota. */
-  const predecessore = (s: PlaybookStep): string | null => {
-    if (!s.dipende_da_id) return null;
-    const titolo = titoloPerStepId.get(s.dipende_da_id);
-    if (!titolo) return null;
-    return taskIdPerTitolo.get(norm(titolo)) ?? null;
-  };
-  /** true se il passo aspetta qualcuno che non è ancora stato creato. */
-  const attendePredecessore = (s: PlaybookStep) =>
-    !!s.dipende_da_id && titoloPerStepId.has(s.dipende_da_id) && predecessore(s) === null;
-
-  const rigaPerStep = (s: PlaybookStep) => {
-    const bloccataDa = predecessore(s);
-    return {
-      company_id: companyId,
-      order_id: orderId,
-      title: s.titolo,
-      notes: s.descrizione ?? null,
-      // In attesa = il passo esiste ma tocca a qualcun altro prima. Niente
-      // scadenza finché è lì: altrimenti nascerebbe già arretrato.
-      status: bloccataDa ? "in_attesa" : "da_fare",
-      due_date: bloccataDa ? null : format(addDays(baseDate, s.giorni_offset), "yyyy-MM-dd"),
-      bloccata_da_task_id: bloccataDa,
-      sblocco_giorni: bloccataDa ? s.giorni_dopo_sblocco ?? 0 : null,
-      priority: s.priorita,
-      category: "ordini",
-      ufficio_id: s.assegna_a_ufficio_id ?? null,
-      // Prima nascevano senza assegnatario: in produzione erano il grosso delle
-      // attività scadute che nessuno vedeva come proprie.
-      assigned_to: s.assegna_a_ufficio_id
-        ? responsabilePerUfficio.get(s.assegna_a_ufficio_id) ?? null
-        : s.assegna_a_utente ?? assignedTo ?? createdBy,
-      created_by: createdBy,
-    };
-  };
-
-  // Si crea a ondate: prima i passi che possono partire, poi quelli che
-  // aspettavano loro. Il tetto sul numero di giri chiude il caso limite di una
-  // dipendenza che punta a un passo disattivato (che a quel punto parte subito).
-  let rimasti = daCreare;
-  let creati = 0;
-  for (let giro = 0; giro < steps.length + 1 && rimasti.length > 0; giro++) {
-    const ondata = rimasti.filter((s) => !attendePredecessore(s));
-
-    // Nessuno può partire (dipendenze non risolvibili): si sbloccano tutti,
-    // meglio un flusso piatto che attività ferme per sempre.
-    const daInserire = ondata.length > 0 ? ondata : rimasti;
-    const forzaRoot = ondata.length === 0;
-
-    const { data: inserite, error } = await supabase
-      .from("tasks")
-      .insert(daInserire.map((s) => (forzaRoot ? { ...rigaPerStep(s), status: "da_fare", bloccata_da_task_id: null, sblocco_giorni: null, due_date: format(addDays(baseDate, s.giorni_offset), "yyyy-MM-dd") } : rigaPerStep(s))) as never)
-      .select("id, title");
-    if (error) throw error;
-
-    ((inserite ?? []) as unknown as Array<{ id: string; title: string }>).forEach((t) => {
-      taskIdPerTitolo.set(norm(t.title ?? ""), t.id);
-    });
-    creati += daInserire.length;
-
-    const fatti = new Set(daInserire.map((s) => norm(s.titolo)));
-    rimasti = rimasti.filter((s) => !fatti.has(norm(s.titolo)));
-  }
-
-  return { created: creati, playbookKey: key };
+  return { created, playbookKey: key };
 }

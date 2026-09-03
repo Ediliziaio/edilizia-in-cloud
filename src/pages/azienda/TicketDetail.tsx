@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
   AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
-  LifeBuoy, AlertTriangle, Sparkles,
+  LifeBuoy, AlertTriangle, Sparkles, ListChecks,
 } from "lucide-react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
@@ -37,6 +37,8 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
+import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
@@ -48,6 +50,11 @@ export default function TicketDetail() {
   const navigate = useNavigate();
   
   const { effectiveCompany } = useAuth();
+  // Flusso di lavoro dell'assistenza: stesso motore delle commesse
+  // (src/lib/flussoLavoro.ts), agganciato al ticket invece che alla commessa.
+  const [flussoInCorso, setFlussoInCorso] = useState(false);
+  const [editorFlussoAperto, setEditorFlussoAperto] = useState(false);
+
   const queryClient = useQueryClient();
   const [internalNotes, setInternalNotes] = useState<string>("");
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -779,12 +786,65 @@ export default function TicketDetail() {
           {/* Allegati */}
           <TicketAttachments ticketId={ticket.id} />
 
+          {/* Flusso di lavoro: crea in blocco le attività dell'assistenza,
+              già incatenate e assegnate come configurato in "Gestisci". */}
+          <div className="flex items-center gap-2 flex-wrap rounded-lg border bg-muted/20 px-3 py-2">
+            <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Flusso</span>
+            <span className="text-xs text-muted-foreground">Crea le attività standard dell'assistenza.</span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                disabled={flussoInCorso || !effectiveCompany?.id}
+                onClick={async () => {
+                  if (!effectiveCompany?.id) return;
+                  setFlussoInCorso(true);
+                  try {
+                    const { created } = await applyPlaybookToTicket({
+                      companyId: effectiveCompany.id,
+                      ticketId: ticket.id,
+                      category: ticket.category,
+                      baseDate: new Date(ticket.created_at ?? Date.now()),
+                      assignedTo: ticket.assigned_to,
+                    });
+                    // "0 create" non è un errore: vuol dire che il flusso c'è già.
+                    toast.success(created > 0
+                      ? `${created} attività create dal flusso assistenza.`
+                      : "Il flusso è già applicato a questo ticket.");
+                    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+                  } catch (e) {
+                    toast.error("Non riesco ad applicare il flusso: " + (e instanceof Error ? e.message : "riprova"));
+                  } finally {
+                    setFlussoInCorso(false);
+                  }
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+                {flussoInCorso ? "Applico…" : "Applica flusso"}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setEditorFlussoAperto(true)}>
+                Gestisci
+              </Button>
+            </div>
+          </div>
+
           {/* Linked Tasks */}
           <LinkedTasks
             ticketId={ticket.id}
             category="assistenza"
             companyId={effectiveCompany?.id}
           />
+
+          {effectiveCompany?.id && (
+            <PlaybookEditorDialog
+              open={editorFlussoAperto}
+              onOpenChange={setEditorFlussoAperto}
+              companyId={effectiveCompany.id}
+              ambito="ticket"
+              vertical={ticket.category ?? null}
+            />
+          )}
         </div>
 
         {/* Chat: on mobile first, on desktop second */}
