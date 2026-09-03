@@ -335,12 +335,12 @@ export default function SettingsTeams() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Gestione Team</h2>
           <p className="text-muted-foreground">Crea, gestisci e trascina membri tra i team</p>
         </div>
-        <Button onClick={() => { resetForm(); setCreateOpen(true); }}>
+        <Button className="w-full sm:w-auto" onClick={() => { resetForm(); setCreateOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" /> Nuovo Team
         </Button>
       </div>
@@ -349,21 +349,21 @@ export default function SettingsTeams() {
       {teams.length > 0 && (
         <div className="grid gap-2 grid-cols-3 md:gap-3">
           <Card>
-            <CardContent className="py-3 px-3 flex items-center gap-2 md:px-4 md:gap-3">
-              <div className="rounded-full p-2 bg-primary/10 shrink-0"><Users className="h-4 w-4 text-primary" /></div>
-              <div className="min-w-0"><p className="text-2xl font-bold leading-none">{teams.length}</p><p className="text-xs text-muted-foreground truncate">Team</p></div>
+            <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
+              <div className="rounded-full p-1.5 bg-primary/10 shrink-0 md:p-2"><Users className="h-4 w-4 text-primary" /></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{teams.length}</p><p className="text-xs text-muted-foreground truncate">Team</p></div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="py-3 px-3 flex items-center gap-2 md:px-4 md:gap-3">
-              <div className="rounded-full p-2 bg-emerald-500/10 shrink-0"><Users className="h-4 w-4 text-emerald-600" /></div>
-              <div className="min-w-0"><p className="text-2xl font-bold leading-none">{totalMembers}</p><p className="text-xs text-muted-foreground truncate">Membri</p></div>
+            <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
+              <div className="rounded-full p-1.5 bg-emerald-500/10 shrink-0 md:p-2"><Users className="h-4 w-4 text-emerald-600" /></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{totalMembers}</p><p className="text-xs text-muted-foreground truncate">Membri</p></div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="py-3 px-3 flex items-center gap-2 md:px-4 md:gap-3">
-              <div className="rounded-full p-2 bg-violet-500/10 shrink-0"><BarChart3 className="h-4 w-4 text-violet-600" /></div>
-              <div className="min-w-0"><p className="text-2xl font-bold leading-none">{avgMembersPerTeam}</p><p className="text-xs text-muted-foreground truncate">Media</p></div>
+            <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
+              <div className="rounded-full p-1.5 bg-violet-500/10 shrink-0 md:p-2"><BarChart3 className="h-4 w-4 text-violet-600" /></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{avgMembersPerTeam}</p><p className="text-xs text-muted-foreground truncate">Media</p></div>
             </CardContent>
           </Card>
         </div>
