@@ -137,6 +137,7 @@ const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"))
 const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
 const SettingsEsportaDati = lazy(() => import("@/pages/azienda/settings/SettingsEsportaDati"));
+const ComeStiamoAndando = lazy(() => import("@/pages/azienda/ComeStiamoAndando"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
@@ -665,6 +666,7 @@ export default function CompanyRoutesContainer() {
         <Route path="formazione" element={withCompanyPermission("canViewFormazione", <FormazioneDipendente />)} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
+        <Route path="come-stiamo-andando" element={withCompanyPermission("canViewCosts", <ErrorBoundary title="Errore nel pannello Come stiamo andando"><ComeStiamoAndando /></ErrorBoundary>)} />
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />
         {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
         <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>)} />
