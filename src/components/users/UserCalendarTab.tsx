@@ -288,20 +288,30 @@ export function UserCalendarTab() {
         </CardHeader>
       </Card>
 
-      {/* Apple Calendar — Coming Soon */}
-      <Card className="opacity-60">
+      {/* Apple Calendar — disponibile, si collega dalle impostazioni calendari */}
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Apple className="h-5 w-5" />
-              <CardTitle className="text-base">Apple Calendar</CardTitle>
-            </div>
-            <Badge variant="secondary" className="text-xs">In arrivo</Badge>
+            <Apple className="h-5 w-5" />
+            <CardTitle className="text-base">Apple Calendar</CardTitle>
           </div>
           <CardDescription>
-            La sincronizzazione con Apple Calendar (iCal) sarà disponibile prossimamente.
+            La sincronizzazione con Apple Calendar (iCal) è attiva. Si collega da
+            Impostazioni → Calendari, con una password per app di iCloud.
           </CardDescription>
         </CardHeader>
+        {isOwnProfile && (
+          <CardContent className="pt-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/azienda/impostazioni/calendari")}
+            >
+              <ExternalLink className="h-4 w-4 mr-1.5" />
+              Apri impostazioni calendari
+            </Button>
+          </CardContent>
+        )}
       </Card>
 
       {/* Sync Preferences (only show if connected) */}
