@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { risolviTelnyx, numeroMittenteAzienda } from "../_shared/telnyxApiKey.ts";
 import { verificaFirmaElevenLabs, chiaveUrlValida } from "../_shared/elevenlabsWebhook.ts";
+import { profiloPerConto } from "../_shared/ediliziaCustomerTools.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
@@ -327,14 +328,17 @@ async function createNote(admin: AdminClient, params: Record<string, unknown>) {
 
   if (!contact) return { error: "Contatto non trovato" };
 
+  // is_private NON esiste su marketing_contact_notes: con quella colonna
+  // PostgREST rifiutava l'intero insert e la nota non veniva mai creata.
+  // created_by punta a profiles/auth.users: passargli un id di CONTATTO
+  // violava la chiave esterna. Si risolve un utente vero dell'azienda.
   const { data: note, error } = await admin
     .from("marketing_contact_notes")
     .insert({
       contact_id: contactId,
       company_id: contact.company_id,
       content,
-      is_private: params.is_private === true,
-      created_by: contactId, // placeholder — will be overridden by webhook with actual user
+      created_by: await profiloPerConto(admin, contact.company_id),
     })
     .select("id")
     .single();
@@ -374,7 +378,8 @@ async function createActivity(admin: AdminClient, params: Record<string, unknown
         priority: params.priority || "normale",
         source: "ai_agent_internal",
       },
-      created_by: assignedTo || contactId,
+      // Mai il contact_id: created_by ha la FK su profiles/auth.users.
+      created_by: assignedTo || (await profiloPerConto(admin, contact.company_id)),
     })
     .select("id")
     .single();
@@ -497,7 +502,7 @@ async function createSupportTicket(admin: AdminClient, params: Record<string, un
         ticket_title: title,
         ticket_description: description,
       },
-      created_by: contact.assigned_to || contactId,
+      created_by: contact.assigned_to || (await profiloPerConto(admin, contact.company_id)),
     })
     .select("id")
     .single();
@@ -536,10 +541,13 @@ async function scheduleCallback(admin: AdminClient, params: Record<string, unkno
       description: reason,
       appointment_date: callbackAt.split("T")[0],
       appointment_time: callbackAt.includes("T") ? callbackAt.split("T")[1]?.substring(0, 5) : "09:00",
-      appointment_type: "callback",
+      // "callback"/"scheduled" non appartengono al vocabolario dell'app: gli
+      // appuntamenti usano tipi e stati italiani, e uno stato sconosciuto
+      // resta fuori dai filtri dell'agenda.
+      appointment_type: "telefonata",
       assigned_to: contact.assigned_to,
-      created_by: contact.assigned_to || contactId,
-      status: "scheduled",
+      created_by: contact.assigned_to || (await profiloPerConto(admin, contact.company_id)),
+      status: "confermato",
     })
     .select("id")
     .single();

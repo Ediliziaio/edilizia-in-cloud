@@ -93,7 +93,7 @@ async function orariOccupati(admin: SupabaseClient, companyId: string, dataISO: 
  * sempre null): l'appartenenza sta in profiles.company_id, il ruolo in
  * user_roles.
  */
-async function profiloPerConto(admin: SupabaseClient, companyId: string, fallback?: string | null): Promise<string | null> {
+export async function profiloPerConto(admin: SupabaseClient, companyId: string, fallback?: string | null): Promise<string | null> {
   const { data: membri } = await admin.from("profiles").select("id").eq("company_id", companyId).limit(50);
   const ids = ((membri ?? []) as Array<{ id: string }>).map((m) => m.id);
   if (ids.length) {
