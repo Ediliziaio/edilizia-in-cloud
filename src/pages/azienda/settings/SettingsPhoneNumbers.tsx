@@ -5,11 +5,9 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   usePhoneNumbers,
-  useCompanyProfiles,
   useSearchAvailableNumbers,
   usePurchaseNumber,
   useReleaseNumber,
-  useAssignNumber,
 } from "@/hooks/usePhoneNumbers";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,11 +61,9 @@ export default function SettingsPhoneNumbers() {
   const companyId = effectiveCompany?.id || null;
 
   const { data: numbers, isLoading, isError: isErrorNumbers } = usePhoneNumbers(companyId);
-  const { data: profiles } = useCompanyProfiles(companyId);
   const { results, isSearching, search, setResults } = useSearchAvailableNumbers();
   const purchaseMutation = usePurchaseNumber(companyId);
   const releaseMutation = useReleaseNumber(companyId);
-  const assignMutation = useAssignNumber();
   const queryClient = useQueryClient();
 
   // Numeri per le chiamate AI (voce) — pool ai_phone_numbers_v2. Gestiti qui in
@@ -178,10 +174,6 @@ export default function SettingsPhoneNumbers() {
     });
     setPurchaseOpen(false);
     resetPurchase();
-  };
-
-  const handleAssign = (numberId: string, userId: string | null) => {
-    assignMutation.mutate({ id: numberId, assigned_to: userId === "none" ? null : userId });
   };
 
   return (
@@ -382,7 +374,7 @@ export default function SettingsPhoneNumbers() {
             Numeri aziendali (SMS & voce)
           </CardTitle>
           <CardDescription>
-            {numbers?.length || 0} numeri attivi · acquisto, etichetta, assegnazione e rilascio
+            {numbers?.length || 0} numeri attivi · acquisto, etichetta e rilascio
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -406,7 +398,6 @@ export default function SettingsPhoneNumbers() {
                   <TableHead>Numero</TableHead>
                   <TableHead>Etichetta</TableHead>
                   <TableHead>Funzionalità</TableHead>
-                  <TableHead>Assegnato a</TableHead>
                   <TableHead className="text-right">Costo/mese</TableHead>
                   <TableHead />
                 </TableRow>
@@ -425,24 +416,6 @@ export default function SettingsPhoneNumbers() {
                           <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voice</Badge>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={num.assigned_to || "none"}
-                        onValueChange={(v) => handleAssign(num.id, v)}
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Non assegnato" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Non assegnato</SelectItem>
-                          {profiles?.map((p: any) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.first_name} {p.last_name || ""} ({p.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </TableCell>
                     <TableCell className="text-right">€{Number(num.monthly_cost_eur || 0).toFixed(2)}</TableCell>
                     <TableCell>
