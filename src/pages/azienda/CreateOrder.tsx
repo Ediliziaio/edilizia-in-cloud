@@ -781,14 +781,23 @@ function CreateOrderInner() {
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
       // settato con un UPDATE follow-up (best-effort, non blocca l'ordine).
       // La colonna orders.sede_id è FK opzionale (vedi migration create_sedi_system).
-      if (values.sede_id) {
+      // Stesso trattamento per il magazzino di competenza: il selettore in
+      // pagina esisteva da sempre ma la RPC non lo gestisce, e fino a questa
+      // migration la colonna non c'era proprio — quello che l'utente sceglieva
+      // si perdeva in silenzio.
+      const fuoriRpc: Record<string, unknown> = {};
+      if (values.sede_id) fuoriRpc.sede_id = values.sede_id;
+      if (values.destination_warehouse_id) {
+        fuoriRpc.destination_warehouse_id = values.destination_warehouse_id;
+      }
+      if (Object.keys(fuoriRpc).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: sedeErr } = await (supabase as any)
           .from("orders")
-          .update({ sede_id: values.sede_id })
+          .update(fuoriRpc)
           .eq("id", result.id);
         if (sedeErr) {
-          console.warn("[CreateOrder] update sede_id fallito (ordine creato comunque):", sedeErr.message);
+          console.warn("[CreateOrder] update sede/magazzino fallito (ordine creato comunque):", sedeErr.message);
         }
       }
 

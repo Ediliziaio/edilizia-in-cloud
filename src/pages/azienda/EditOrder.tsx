@@ -45,6 +45,7 @@ import { type BonusLine, parseBonusLines, serializeBonusLines } from "@/lib/orde
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
+import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   type OrderCustomer as Customer,
@@ -94,6 +95,7 @@ interface OrderData {
   financing_expected_date: string | null;
   financing_cost: number | null;
   has_building_bonus: boolean;
+  destination_warehouse_id?: string | null;
   assigned_to: string | null;
 }
 
@@ -162,6 +164,8 @@ function EditOrderInner() {
   const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
 
   const [assignedTo, setAssignedTo] = useState("");
+  // Magazzino di competenza: dove arriva la merce e quindi chi la gestisce.
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState<string | null>(null);
 
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id, id);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -357,6 +361,7 @@ function EditOrderInner() {
     // Ripartizione bonus già salvata sulla commessa.
     if (dbBonusLines.length > 0) setBonusLines(dbBonusLines);
     setAssignedTo(order.assigned_to || "");
+    setDestinationWarehouseId(order.destination_warehouse_id ?? null);
     // Modulo Appaltatori
     setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
     setWorkAddress(order.work_address || "");
@@ -374,6 +379,11 @@ function EditOrderInner() {
         is_paid: i.is_paid,
         paid_date: i.paid_date,
         expected_date: i.expected_date,
+        // Senza questi tre l'evento scelto non si rivedeva riaprendo la
+        // commessa, e il salvataggio successivo lo riportava a "data precisa".
+        trigger_evento: i.trigger_evento,
+        trigger_status_id: i.trigger_status_id,
+        giorni_preavviso: i.giorni_preavviso,
       })));
       setNumInstallments(dbInstallments.length);
     } else {
@@ -528,6 +538,7 @@ function EditOrderInner() {
           work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
           financing_cost: parseDecimalIT(financingCost),
           has_building_bonus: hasBuildingBonus,
+          destination_warehouse_id: destinationWarehouseId || null,
           assigned_to: assignedTo || null,
           // Modulo Appaltatori — persistiamo solo se l'ordine è già di tipo
           // appaltatore_lavoro: per ordini cliente standard manteniamo i campi
@@ -943,6 +954,18 @@ function EditOrderInner() {
               />
 
               <AssignedToSelect value={assignedTo} onChange={setAssignedTo} disabled={onlyAssigned} />
+
+              {/* Magazzino di competenza: chi gestisce quel magazzino vede la
+                  commessa. Alla creazione c'era già, in modifica mancava. */}
+              <div className="space-y-2">
+                <Label>Magazzino Destinazione Materiali</Label>
+                <WarehouseSelect
+                  value={destinationWarehouseId}
+                  onChange={setDestinationWarehouseId}
+                  nullable
+                  placeholder="Magazzino predefinito"
+                />
+              </div>
             </div>
           </QuoteCard>
 
