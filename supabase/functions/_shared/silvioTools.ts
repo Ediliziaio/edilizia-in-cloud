@@ -8602,6 +8602,145 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     riskLevel: "safe",
     domain: "knowledge",
   },
+
+  // ══ Funzioni uscite a settembre 2026 — audit Silvio del 2026-09-03 ══════════
+  // Flusso di lavoro commessa, uffici, bonus multipli, blocca prezzo, rate
+  // strutturate e banca dati candidati erano gia in produzione ma Silvio non
+  // aveva NESSUNO strumento per leggerli: rispondeva "non ho il dato" su cose
+  // che l'utente vedeva a schermo.
+
+  flusso_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "flusso_commessa",
+        description: "A che punto e il PROCESSO di una commessa: i passi del flusso standard, quali sono fatti, quale e in corso, quali sono in attesa che si chiuda il precedente, chi ha la palla (persona o ufficio) e cosa e in ritardo. Usa per 'a che punto siamo con la GE-0012', 'chi deve fare cosa su questa commessa', 'cosa blocca il cantiere'. Diverso da get_cantiere_status (avanzamento lavori): qui si guarda il processo interno.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice commessa esatto, es. GE-0012" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_flusso_commessa", {
+      p_company_id: ctx.companyId,
+      p_order_code: String(args?.commessa_codice ?? "").trim() || null,
+      p_order_id: null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    resultContract: "Un passo 'in attesa del passo precedente' non e in ritardo di nessuno. Dire chi ha la palla ADESSO e cosa sblocca la catena.",
+  },
+
+  rate_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "rate_commessa",
+        description: "Piano rate di UNA commessa: importi, incassato, residuo, scaduto, semaforo per rata (incassata/in preavviso/scaduta/futura) e per ogni rata l'eventuale aggancio a un evento di cantiere. Usa per 'quanto mi deve ancora la commessa X', 'quando incasso il saldo di X', 'le rate di X quadrano col contratto'.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice commessa esatto, es. GE-0012" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_rate_commessa", {
+      p_company_id: ctx.companyId,
+      p_order_code: String(args?.commessa_codice ?? "").trim() || null,
+      p_order_id: null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "fattura",
+    resultContract: "Se quadra_col_valore e false, dirlo: il piano rate non copre il valore del contratto. Una rata agganciata a evento slitta col cantiere.",
+  },
+
+  bonus_commessa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "bonus_commessa",
+        description: "Agevolazioni edilizie di una commessa quando il contratto e diviso su PIU bonus (es. ecobonus infissi + antintrusione): per ogni riga imponibile, lordo del bonifico, aliquota di detrazione, ritenuta 11% e netto che entra in cassa, piu la causale del bonifico parlante. Include i versamenti 'blocca prezzo' ancora da restituire. Usa per 'quanti bonifici parlanti deve fare il cliente', 'quanto mi trattiene la banca', 'quanto devo restituire del blocca prezzo'.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice commessa esatto, es. GE-0012" },
+          },
+          required: ["commessa_codice"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_bonus_commessa", {
+      p_company_id: ctx.companyId,
+      p_order_code: String(args?.commessa_codice ?? "").trim() || null,
+      p_order_id: null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "fattura",
+    resultContract: "Un bonifico parlante per ogni agevolazione, con la SUA causale: se il cliente ne fa uno solo, una detrazione salta. La ritenuta 11% e gia scorporata al 22% convenzionale, non ricalcolarla con l'IVA di fattura.",
+  },
+
+  lista_candidati: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_candidati",
+        description: "Banca dati candidati: chi si e proposto, per quale ruolo, da dove arriva, stato della selezione, valutazione, se ha il CV e quando ha il prossimo colloquio. Usa per 'chi abbiamo per il ruolo di posatore', 'quanti candidati in valutazione', 'colloqui di questa settimana'.",
+        parameters: {
+          type: "object",
+          properties: {
+            stato: { type: "string", description: "Filtro stato selezione (es. in_valutazione, colloquio, assunto). Vuoto = tutti." },
+            ruolo: { type: "string", description: "Filtro ruolo cercato (ricerca parziale)." },
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_candidati_hr", {
+      p_company_id: ctx.companyId,
+      p_stato: String(args?.stato ?? "").trim() || null,
+      p_ruolo: String(args?.ruolo ?? "").trim() || null,
+      p_limit: Math.min(Math.max(Number(args?.limit ?? 20), 1), 100),
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "hr", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  lista_uffici: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_uffici",
+        description: "Uffici aziendali configurati (amministrazione, tecnico, commerciale...): responsabile, persone dentro e quante attivita aperte hanno. Serve per capire a chi si puo assegnare un passo del flusso commessa e dove si sta accumulando lavoro.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_uffici_aziendali", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
 };
 
 /**
@@ -8653,8 +8792,23 @@ const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
   hr: ["compliance", "finance", "hr"],
   compliance: ["cantiere", "compliance", "filiera", "hr"],
   client: ["crm", "email", "fattura", "preventivi", "sales"],
-  tech: null,
-  strategic: null,
+  // Token-opt (audit 2026-09-03): erano ENTRAMBE `null` = catalogo completo.
+  // Sembrava prudente, ma la persona di Silvio classifica "strategic" per
+  // DEFAULT (queryClassifier.PERSONA_TO_AREA) e ogni fallback del classifier
+  // finisce li: in produzione la maggior parte delle richieste partiva con
+  // tutti i ~220 tool a bordo (≈37K token di sole definizioni, misurati su
+  // ai_router_usage_log: 43K token di input medi, picco 69K).
+  // Ora anche le due aree trasversali hanno un set esplicito — ampio, ma non
+  // tutto: restano fuori i domini che una domanda strategica non tocca al
+  // primo colpo (sicurezza/DURC, magazzino, fornitori, posta, campagne). Se la
+  // domanda riguarda davvero quelli, il classifier la manda su compliance /
+  // operations / marketing, che quei domini li portano.
+  // tech = domande sull'applicativo: bastano i domini core + il ticketing.
+  tech: ["operations"],
+  strategic: [
+    "anomalie", "banking", "cantiere", "crm", "fattura",
+    "finance", "hr", "operations", "preventivi", "sales",
+  ],
 };
 
 /**

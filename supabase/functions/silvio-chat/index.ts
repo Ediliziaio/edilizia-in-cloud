@@ -729,7 +729,12 @@ serve(async (req: Request) => {
     let classification: QueryClassification | null = null;
     if (
       (TOOL_FILTER_ENABLED || ENABLE_COUNCIL_AUTO) &&
-      userMessage.length >= 25 &&  // skip query troppo brevi (probabilmente conversational)
+      // Audit 2026-09-03: la soglia era 25 caratteri. Ma "come va la cassa?"
+      // ne ha 18 e "chi mi deve pagare?" 19: sotto soglia niente
+      // classificazione, quindi nessun filtro per dominio e catalogo tool
+      // COMPLETO proprio sulle domande piu frequenti. A 12 restano fuori solo
+      // "ciao", "grazie", "ok" — dove il filtro non serve davvero.
+      userMessage.length >= 12 &&
       attachments.length === 0     // skip multi-modal (immagini/pdf): troppo costoso classificare
     ) {
       try {

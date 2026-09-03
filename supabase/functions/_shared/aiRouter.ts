@@ -597,6 +597,12 @@ async function callOpenRouter(
   if (params.top_p != null && !skipTemperature) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
+  // Contabilita reale (audit 2026-09-03): senza questo flag OpenRouter NON
+  // ritorna ne' `usage.cost` ne' `prompt_tokens_details.cached_tokens`. Il
+  // router lo dava per scontato e cadeva sempre nella stima da tier: il costo
+  // scritto su ai_router_usage_log era un listino, non la spesa vera, e la
+  // cache non era misurabile. Non costa nulla richiederlo.
+  body.usage = { include: true };
   if (responseFormat) body.response_format = responseFormat;
 
   // ── Reasoning effort low → riduce latenza + libera budget per content ──
@@ -684,6 +690,10 @@ async function logUsage(
     completionTokens: number;
     totalTokens: number;
     costUsd: number;
+    /** Token di input riletti dalla cache del provider (costano ~10%). */
+    cachedTokens?: number;
+    /** Token di input scritti in cache in questa chiamata (costano ~125%). */
+    cacheWriteTokens?: number;
     durationMs: number;
     companyId?: string | null;
     userId?: string | null;
@@ -701,6 +711,8 @@ async function logUsage(
       completion_tokens: entry.completionTokens,
       total_tokens: entry.totalTokens,
       cost_usd: entry.costUsd,
+      cached_tokens: entry.cachedTokens ?? 0,
+      cache_write_tokens: entry.cacheWriteTokens ?? 0,
       duration_ms: entry.durationMs,
       company_id: entry.companyId ?? null,
       user_id: entry.userId ?? null,
@@ -1078,6 +1090,26 @@ export async function aiRouterComplete(
       const promptTokens = usage.prompt_tokens ?? 0;
       const completionTokens = usage.completion_tokens ?? 0;
       const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
+      // ── Token letti/scritti in cache (audit 2026-09-03) ──────────────────
+      // Prima si logvaga solo prompt_tokens, e quel numero non distingue un
+      // token pagato pieno da uno riletto dalla cache a un decimo del prezzo:
+      // il breakpoint cache_control sui system poteva essere rotto da mesi
+      // senza che nessuno se ne accorgesse. OpenRouter espone il conteggio in
+      // `usage.prompt_tokens_details.cached_tokens` (nomi diversi a seconda
+      // del provider a monte, quindi li proviamo tutti) e i token SCRITTI in
+      // cache in `cache_creation_input_tokens`.
+      const usageDetails = usage.prompt_tokens_details ?? {};
+      const cachedTokens = Number(
+        usageDetails.cached_tokens ??
+          usage.cache_read_input_tokens ??
+          usageDetails.cache_read_input_tokens ??
+          0,
+      ) || 0;
+      const cacheWriteTokens = Number(
+        usage.cache_creation_input_tokens ??
+          usageDetails.cache_creation_input_tokens ??
+          0,
+      ) || 0;
       // OpenRouter ritorna `usage.cost` in USD se disponibile; se manca, stimiamo dal tier wholesale.
       const reportedCostUsd = Number(usage.cost ?? 0);
       const costUsd = reportedCostUsd > 0
@@ -1091,6 +1123,7 @@ export async function aiRouterComplete(
         usedPrimary: i === 0,
         fallbackIndex: i,
         promptTokens, completionTokens, totalTokens, costUsd,
+        cachedTokens, cacheWriteTokens,
         durationMs,
         companyId: opts.companyId,
         userId: opts.userId,

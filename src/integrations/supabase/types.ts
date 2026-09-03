@@ -6800,6 +6800,8 @@ export type Database = {
       }
       ai_router_usage_log: {
         Row: {
+          cache_write_tokens: number
+          cached_tokens: number
           company_id: string | null
           completion_tokens: number
           cost_usd: number
@@ -6817,6 +6819,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          cache_write_tokens?: number
+          cached_tokens?: number
           company_id?: string | null
           completion_tokens?: number
           cost_usd?: number
@@ -6834,6 +6838,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          cache_write_tokens?: number
+          cached_tokens?: number
           company_id?: string | null
           completion_tokens?: number
           cost_usd?: number
@@ -48791,6 +48797,7 @@ export type Database = {
           paid_date: string | null
           position: number
           trigger_evento: string
+          trigger_numero: number | null
           trigger_status_id: string | null
           type: string
         }
@@ -48806,6 +48813,7 @@ export type Database = {
           paid_date?: string | null
           position?: number
           trigger_evento?: string
+          trigger_numero?: number | null
           trigger_status_id?: string | null
           type?: string
         }
@@ -48821,6 +48829,7 @@ export type Database = {
           paid_date?: string | null
           position?: number
           trigger_evento?: string
+          trigger_numero?: number | null
           trigger_status_id?: string | null
           type?: string
         }
@@ -50065,6 +50074,7 @@ export type Database = {
           deposit_paid: boolean | null
           deposit_paid_date: string | null
           description: string
+          destination_warehouse_id: string | null
           dl_notification_email: string | null
           dl_notification_phone: string | null
           expected_date: string | null
@@ -50135,6 +50145,7 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description: string
+          destination_warehouse_id?: string | null
           dl_notification_email?: string | null
           dl_notification_phone?: string | null
           expected_date?: string | null
@@ -50205,6 +50216,7 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string
+          destination_warehouse_id?: string | null
           dl_notification_email?: string | null
           dl_notification_phone?: string | null
           expected_date?: string | null
@@ -50288,6 +50300,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
           {
@@ -85716,6 +85735,7 @@ export type Database = {
           position: number | null
           stato_incasso: string | null
           trigger_evento: string | null
+          trigger_numero: number | null
           trigger_status_id: string | null
           type: string | null
         }
@@ -85777,6 +85797,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_rate_commesse_dettaglio: {
+        Row: {
+          amount: number | null
+          cliente: string | null
+          company_id: string | null
+          expected_date: string | null
+          fonte: string | null
+          giorni_preavviso: number | null
+          is_paid: boolean | null
+          label: string | null
+          order_code: string | null
+          order_id: string | null
+          paid_date: string | null
+          tipo: string | null
+          trigger_evento: string | null
+        }
+        Relationships: []
       }
       v_rate_commesse_unificate: {
         Row: {
@@ -85861,6 +85899,18 @@ export type Database = {
           p95_duration_ms: number | null
           tool_name: string | null
           total_calls_7d: number | null
+        }
+        Relationships: []
+      }
+      v_silvio_cache_efficacia: {
+        Row: {
+          chiamate: number | null
+          costo_usd: number | null
+          giorno: string | null
+          quota_cache_pct: number | null
+          task_key: string | null
+          token_da_cache_medi: number | null
+          token_input_medi: number | null
         }
         Relationships: []
       }
@@ -87084,7 +87134,10 @@ export type Database = {
           p_fine: string
           p_inizio: string
           p_merce: string
+          p_numero?: number
           p_order_id: string
+          p_posa?: string
+          p_quote_id?: string
           p_status_id: string
         }
         Returns: string
@@ -91031,6 +91084,14 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_bonus_commessa: {
+        Args: {
+          p_company_id: string
+          p_order_code?: string
+          p_order_id?: string
+        }
+        Returns: Json
+      }
       silvio_tool_calcola_costo_ritardo: {
         Args: {
           p_cantiere_id: string
@@ -91046,6 +91107,15 @@ export type Database = {
           p_month: number
           p_user_id: string
           p_year: number
+        }
+        Returns: Json
+      }
+      silvio_tool_candidati_hr: {
+        Args: {
+          p_company_id: string
+          p_limit?: number
+          p_ruolo?: string
+          p_stato?: string
         }
         Returns: Json
       }
@@ -91284,6 +91354,14 @@ export type Database = {
           p_severity: string
           p_transaction_id?: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_flusso_commessa: {
+        Args: {
+          p_company_id: string
+          p_order_code?: string
+          p_order_id?: string
         }
         Returns: Json
       }
@@ -91955,6 +92033,14 @@ export type Database = {
         Args: { p_company_id: string; p_status?: string }
         Returns: Json
       }
+      silvio_tool_rate_commessa: {
+        Args: {
+          p_company_id: string
+          p_order_code?: string
+          p_order_id?: string
+        }
+        Returns: Json
+      }
       silvio_tool_received_invoices: {
         Args: { p_company_id: string; p_status?: string }
         Returns: Json
@@ -92266,6 +92352,10 @@ export type Database = {
           p_orario_inizio?: string
           p_user_id: string
         }
+        Returns: Json
+      }
+      silvio_tool_uffici_aziendali: {
+        Args: { p_company_id: string }
         Returns: Json
       }
       silvio_tool_undo_executed_action: {
