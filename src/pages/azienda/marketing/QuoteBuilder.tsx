@@ -45,6 +45,7 @@ import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/pay
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
+import { SceltaRenderDialog, type RenderScelto } from "@/components/preventivi/SceltaRenderDialog";
 // mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
 import type { ConfiguredItem } from "@/types/catalogItem";
@@ -418,6 +419,28 @@ export default function QuoteBuilder() {
   // "Anteprima render AI".
   const [renderUrl, setRenderUrl] = useState<string | null>(null);
   const [renderSessionId, setRenderSessionId] = useState<string | null>(null);
+  // Foto di partenza del render scelto: serve al confronto prima/dopo, che è
+  // la cosa che convince il cliente più del render da solo.
+  const [renderOriginalUrl, setRenderOriginalUrl] = useState<string | null>(null);
+  const [sceltaRenderOpen, setSceltaRenderOpen] = useState(false);
+
+  // Riaprendo un preventivo salvato si conosce la sessione del render ma non la
+  // foto di partenza: si recupera, così il confronto prima/dopo c'è anche qui e
+  // non solo appena scelto.
+  const { data: fotoPartenza } = useQuery({
+    queryKey: ["render-foto-partenza", renderSessionId],
+    enabled: !!renderSessionId && !renderOriginalUrl,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("render_sessions")
+        .select("original_photo_url")
+        .eq("id", renderSessionId!)
+        .maybeSingle();
+      return (data?.original_photo_url as string | null) ?? null;
+    },
+  });
+  const fotoPrima = renderOriginalUrl ?? fotoPartenza ?? null;
   const [pdfPrezziRiga, setPdfPrezziRiga] = useState(true);
   const [pdfSoloTotale, setPdfSoloTotale] = useState(false);
   const [pdfSconti, setPdfSconti] = useState(false);
@@ -3177,28 +3200,53 @@ export default function QuoteBuilder() {
             </CardContent>
           </Card>
 
-          {renderUrl && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Render AI allegato
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-4">
-                  <img
-                    src={renderUrl}
-                    alt="Anteprima render AI allegato al preventivo"
-                    loading="lazy"
-                    className="w-40 h-28 object-cover rounded-lg border shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Il PDF del preventivo includerà una pagina finale
-                      "Anteprima render AI" con questa immagine e il
-                      disclaimer di legge.
-                    </p>
+          {/* Render nella proposta: prima ci si arrivava SOLO dal wizard render,
+              con l'immagine passata nell'indirizzo. Chi apriva un preventivo
+              normale non aveva modo di attaccarci un render già fatto. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Render nella proposta
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {renderUrl ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {fotoPrima && (
+                      <>
+                        <figure className="space-y-1">
+                          <img
+                            src={fotoPrima}
+                            alt="Come è adesso"
+                            loading="lazy"
+                            className="h-28 w-40 rounded-lg border object-cover"
+                          />
+                          <figcaption className="text-center text-[11px] text-muted-foreground">Adesso</figcaption>
+                        </figure>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </>
+                    )}
+                    <figure className="space-y-1">
+                      <img
+                        src={renderUrl}
+                        alt="Anteprima render AI allegato al preventivo"
+                        loading="lazy"
+                        className="h-28 w-40 rounded-lg border object-cover"
+                      />
+                      <figcaption className="text-center text-[11px] text-muted-foreground">Dopo il lavoro</figcaption>
+                    </figure>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Il PDF del preventivo includerà una pagina finale "Anteprima
+                    render AI" con questa immagine e il disclaimer di legge.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
+                      <Sparkles className="mr-1 h-4 w-4" />
+                      Cambia render
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -3206,16 +3254,39 @@ export default function QuoteBuilder() {
                       onClick={() => {
                         setRenderUrl(null);
                         setRenderSessionId(null);
+                        setRenderOriginalUrl(null);
                       }}
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <Trash2 className="mr-1 h-4 w-4" />
                       Rimuovi dal preventivo
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Un render di come verrà il lavoro, accanto ai numeri. Puoi
+                    sceglierne uno fra quelli già fatti, di qualunque verticale.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSceltaRenderOpen(true)}>
+                    <Sparkles className="mr-1 h-4 w-4" />
+                    Scegli un render
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <SceltaRenderDialog
+            open={sceltaRenderOpen}
+            onOpenChange={setSceltaRenderOpen}
+            contactId={contactId}
+            onScegli={(r: RenderScelto) => {
+              setRenderUrl(r.url);
+              setRenderSessionId(r.sessionId);
+              setRenderOriginalUrl(r.originalUrl);
+            }}
+          />
         </div>
       )}
 
