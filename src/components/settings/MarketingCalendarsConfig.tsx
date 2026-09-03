@@ -26,7 +26,7 @@ import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
 import OutlookCalendarConnectionTab from "./OutlookCalendarConnectionTab";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { buildBookingButtonCode, buildBookingEmbedCode, buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
+import { buildBookingBadgeCode, buildBookingButtonCode, buildBookingEmbedCode, buildBookingInlineCode, buildBookingPopupCode, buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
 
 type MarketingCalendar = {
   id: string;
@@ -608,6 +608,10 @@ export default function MarketingCalendarsConfig() {
   const shareUrl = sharingCalendar?.booking_slug ? buildBookingUrl(sharingCalendar.booking_slug) : "";
   const shareEmbedCode = buildBookingEmbedCode(shareUrl);
   const shareButtonCode = buildBookingButtonCode(shareUrl);
+  const shareSlug = sharingCalendar?.booking_slug ?? "";
+  const shareInlineCode = buildBookingInlineCode(shareUrl, shareSlug);
+  const sharePopupCode = buildBookingPopupCode(shareUrl, shareSlug, `Prenota — ${sharingCalendar?.name ?? "appuntamento"}`);
+  const shareBadgeCode = buildBookingBadgeCode(shareUrl, shareSlug, `Prenota — ${sharingCalendar?.name ?? "appuntamento"}`);
 
   // ---- AVAILABILITY LOCAL STATE ----
   const [localAvail, setLocalAvail] = useState<{ rid: string; day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
@@ -1275,6 +1279,51 @@ export default function MarketingCalendarsConfig() {
                           </Button>
                         </div>
                         <Textarea value={shareButtonCode} readOnly rows={5} className="font-mono text-xs" />
+                      </div>
+                      {/* Widget: come Calendly — riquadro che si adatta, finestra
+                          al clic e bottone fisso. Servono lo script prenota.js. */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="inline-flex items-center gap-1.5">
+                            <Code2 className="h-3.5 w-3.5" />
+                            Riquadro che si adatta
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareInlineCode, "Codice riquadro")}>
+                            <Copy className="h-3.5 w-3.5" /> Copia
+                          </Button>
+                        </div>
+                        <Textarea value={shareInlineCode} readOnly rows={3} className="font-mono text-xs" />
+                        <p className="text-[11px] text-muted-foreground">Cresce e si accorcia da solo con il contenuto.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="inline-flex items-center gap-1.5">
+                            <Link2 className="h-3.5 w-3.5" />
+                            Finestra al clic
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(sharePopupCode, "Codice finestra")}>
+                            <Copy className="h-3.5 w-3.5" /> Copia
+                          </Button>
+                        </div>
+                        <Textarea value={sharePopupCode} readOnly rows={3} className="font-mono text-xs" />
+                        <p className="text-[11px] text-muted-foreground">
+                          Si apre sopra il sito, senza lasciare la pagina. Funziona su qualsiasi bottone con <code>data-prenota</code>.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="inline-flex items-center gap-1.5">
+                            <Link2 className="h-3.5 w-3.5" />
+                            Bottone fisso in basso
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareBadgeCode, "Codice bottone fisso")}>
+                            <Copy className="h-3.5 w-3.5" /> Copia
+                          </Button>
+                        </div>
+                        <Textarea value={shareBadgeCode} readOnly rows={3} className="font-mono text-xs" />
+                        <p className="text-[11px] text-muted-foreground">
+                          Una riga nel tema del sito: il bottone compare su tutte le pagine. A prenotazione fatta il sito riceve l'evento <code>eic:appuntamento-prenotato</code> per Analytics.
+                        </p>
                       </div>
                     </div>
 

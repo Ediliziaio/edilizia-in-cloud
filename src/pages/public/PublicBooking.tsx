@@ -249,6 +249,24 @@ export default function PublicBooking() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Quando la pagina e' dentro un altro sito (script prenota.js) le si parla
+  // via postMessage: l'altezza fa crescere il riquadro, la conferma permette al
+  // sito di tracciare la conversione.
+  const dentroIframe = typeof window !== "undefined" && window.parent !== window;
+  useEffect(() => {
+    if (!dentroIframe) return;
+    const invia = () => {
+      try {
+        window.parent.postMessage({ source: "eic-prenota", event: "altezza", height: document.body.scrollHeight }, "*");
+      } catch { /* origine diversa: nessun problema */ }
+    };
+    invia();
+    const osservatore = new ResizeObserver(invia);
+    osservatore.observe(document.body);
+    return () => osservatore.disconnect();
+  }, [dentroIframe]);
+
+
   // Fuso del visitatore: gli orari restano quelli italiani (li tiene il
   // titolare), ma chi prenota da un altro fuso deve sapere che ore sono da lui,
   // altrimenti si presenta con un'ora di scarto.
@@ -374,6 +392,14 @@ export default function PublicBooking() {
     },
     onSuccess: () => {
       setBooked(true);
+      if (dentroIframe) {
+        try {
+          window.parent.postMessage({
+            source: "eic-prenota", event: "prenotato",
+            detail: { slug, date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : null, time: selectedSlot, calendar: calendar?.name },
+          }, "*");
+        } catch { /* origine diversa */ }
+      }
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Errore durante la prenotazione");
