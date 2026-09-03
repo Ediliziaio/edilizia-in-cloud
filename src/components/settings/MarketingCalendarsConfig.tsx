@@ -244,6 +244,23 @@ export default function MarketingCalendarsConfig() {
     enabled: !!effectiveCompanyId,
   });
 
+  // Quali calendari hanno almeno una fascia oraria attiva: serve per avvisare
+  // che un link pubblico senza orari non mostrera' nessuno slot.
+  const { data: calendariConOrari = new Set<string>() } = useQuery({
+    queryKey: ["marketing-calendars-con-orari", effectiveCompanyId],
+    queryFn: async () => {
+      if (!effectiveCompanyId) return new Set<string>();
+      const { data, error } = await supabase
+        .from("marketing_calendar_availability")
+        .select("calendar_id")
+        .eq("company_id", effectiveCompanyId)
+        .eq("is_enabled", true);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: { calendar_id: string }) => r.calendar_id));
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
   const { data: appointmentRefs = [] } = useQuery({
     queryKey: ["marketing-calendar-appointment-refs", effectiveCompanyId],
     queryFn: async () => {
@@ -304,7 +321,7 @@ export default function MarketingCalendarsConfig() {
       const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name);
       const safeBookingSlug = await getAvailableBookingSlug(bookingSlug);
-      const { error } = await supabase.from("marketing_calendars").insert({
+      const { data: creato, error } = await supabase.from("marketing_calendars").insert({
         company_id: effectiveCompanyId,
         created_by: user.id,
         name,
@@ -327,12 +344,30 @@ export default function MarketingCalendarsConfig() {
         base_lat: data.base_lat ?? null,
         base_lng: data.base_lng ?? null,
         base_place_id: data.base_place_id || null,
-      });
+      }).select("id").single();
       if (error) throw error;
+
+      // Orari di partenza (lun-ven 9-18): un calendario appena creato ha gia' un
+      // link pubblico, e senza fasce quel link non mostra NESSUN orario — sembra
+      // rotto. Si cambiano subito dalla sezione "Disponibilità".
+      if (creato?.id) {
+        const fasce = [0, 1, 2, 3, 4, 5, 6].map((giorno) => ({
+          company_id: effectiveCompanyId,
+          calendar_id: creato.id as string,
+          day_of_week: giorno,
+          start_time: "09:00",
+          end_time: "18:00",
+          is_enabled: giorno >= 1 && giorno <= 5,
+          specific_date: null as string | null,
+        }));
+        const { error: errFasce } = await supabase.from("marketing_calendar_availability").insert(fasce);
+        if (errFasce) console.warn("[calendari] orari di partenza non creati:", errFasce.message);
+      }
     },
     onSuccess: () => {
-      toast.success("Calendario creato");
+      toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Cambiali dalla sezione Disponibilità." });
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
       setDialogOpen(false);
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile creare il calendario"),
@@ -373,6 +408,7 @@ export default function MarketingCalendarsConfig() {
     onSuccess: () => {
       toast.success("Calendario aggiornato");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
       setDialogOpen(false);
       setEditingCalendar(null);
     },
@@ -388,6 +424,7 @@ export default function MarketingCalendarsConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare lo stato del calendario"),
   });
@@ -409,6 +446,7 @@ export default function MarketingCalendarsConfig() {
       toast.success("Link pubblico generato");
       setSharingCalendar(calendar);
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile generare il link"),
   });
@@ -433,6 +471,7 @@ export default function MarketingCalendarsConfig() {
     onSuccess: () => {
       toast.success("Calendario eliminato");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
       setDeleteId(null);
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile eliminare il calendario"),
@@ -485,6 +524,7 @@ export default function MarketingCalendarsConfig() {
     onSuccess: () => {
       toast.success("Disponibilità salvata");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendar-availability"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile salvare la disponibilità"),
   });
@@ -533,6 +573,8 @@ export default function MarketingCalendarsConfig() {
     if (!cal.owner_id) warnings.push("utente");
     if (!cal.booking_slug) warnings.push("link");
     if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
+    // Senza fasce attive il link pubblico non propone alcun orario.
+    if (!calendariConOrari.has(cal.id)) warnings.push("orari");
     return warnings;
   };
 
