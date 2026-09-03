@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
@@ -60,6 +60,8 @@ import {
 import { calculateCollectedNetFromInstallments, calculateCommissionGross } from "@/lib/commissions";
 
 interface OrderData {
+  /** Serve a capire se una bozza locale è più vecchia del record. */
+  updated_at: string | null;
   id: string;
   customer_id: string;
   order_code: string | null;
@@ -306,8 +308,9 @@ function EditOrderInner() {
   useEffect(() => {
     if (!order) return;
 
-    // Try to restore draft
-    const draft = loadDraft();
+    // Try to restore draft — solo se è più recente dell'ultima modifica del
+    // record, altrimenti è la fotografia di una vecchia apertura di pagina.
+    const draft = loadDraft(order.updated_at);
     if (draft) {
       setCustomerId(draft.customerId || order.customer_id);
       setOrderCode(draft.orderCode || "");
@@ -415,10 +418,18 @@ function EditOrderInner() {
     }
   }, [dataLoaded, customerId, order?.customer_id]);
 
-  // Auto-save draft
+  // Auto-save draft — solo DOPO la prima modifica dell'utente.
+  // Il primo giro dopo il caricamento non è una modifica: è la pagina che si
+  // popola dal database. Salvarlo creava una bozza a ogni apertura, che poi
+  // vinceva sul database alla riapertura successiva.
+  const primoGiroDopoCaricamento = useRef(true);
   useEffect(() => {
     if (!dataLoaded) return;
     if (customerId === "" && order?.customer_id) return;
+    if (primoGiroDopoCaricamento.current) {
+      primoGiroDopoCaricamento.current = false;
+      return;
+    }
     saveDraft({
       customerId, orderCode, description, internalNotes, statusId: "",
       assignedTo,
