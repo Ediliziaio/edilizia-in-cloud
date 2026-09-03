@@ -288,6 +288,55 @@ async function notifySuperAdmin(companyId: string, companyName: string, dunningD
   }
 }
 
+/**
+ * Il caso arriva a un umano: non paga da N giorni, i solleciti al cliente sono
+ * finiti, l'account e' ancora attivo e l'annullamento automatico e' spento.
+ * Dice le due sole cose che si possono fare, e non promette nulla al posto suo.
+ * Ritorna true se l'avviso e' partito (serve a registrarlo come "fatto").
+ */
+async function notifyAdminDecisioneSospensione(
+  companyId: string, companyName: string, companyEmail: string | null,
+  daysExpired: number, pagamento: { url: string | null; importo: string | null },
+): Promise<boolean> {
+  try {
+    const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin").limit(3);
+    if (!admins?.length) return false;
+    const { data: profiles } = await supabase.from("profiles").select("email").in("id", admins.map((a: any) => a.user_id));
+    const adminEmails = (profiles || []).map((p: any) => p.email).filter(Boolean);
+    if (!adminEmails.length) return false;
+
+    const importo = pagamento.importo ? ` di ${pagamento.importo}` : "";
+    const html = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <h2 style="color:#b45309;margin:0 0 12px;">${companyName} non paga da ${daysExpired} giorni</h2>
+      <p style="margin:0 0 12px;">Il rinnovo${importo} non è andato a buon fine e i solleciti al cliente sono terminati (ultimo avviso al giorno ${GRACE_DAYS}).</p>
+      <p style="margin:0 0 12px;"><strong>L'account è ancora attivo e pienamente utilizzabile.</strong> L'annullamento automatico è spento, quindi finché non decidi tu non cambia nulla.</p>
+      <p style="margin:0 0 8px;">Le due strade:</p>
+      <ul style="margin:0 0 16px;padding-left:20px;">
+        <li>sentire il cliente${companyEmail ? ` (${companyEmail})` : ""} e farlo pagare${pagamento.url ? ` — <a href="${pagamento.url}">link diretto alla fattura</a>` : ""};</li>
+        <li>sospendere l'account dalla scheda azienda.</li>
+      </ul>
+      <p style="margin:0 0 16px;"><a href="${APP_URL}/admin/aziende/${companyId}" style="background:#0f172a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Apri la scheda azienda</a></p>
+      <p style="margin:0;color:#64748b;font-size:12px;">Questo promemoria torna una volta a settimana finché la situazione resta aperta.</p>
+    </div>`;
+
+    const res = await sendEmailUnified({
+      companyId:    null,
+      stream:       "transactional",
+      to:           adminEmails,
+      subject:      `Decisione richiesta — ${companyName} non paga da ${daysExpired} giorni`,
+      html,
+      templateName: "dunning_admin_alert",
+      skipCredits:  true,
+      adminClient:  supabase,
+      metadata:     { company_id: companyId, days_expired: daysExpired, tipo: "decisione_sospensione" },
+    });
+    return res.ok === true;
+  } catch (err) {
+    console.error("[dunning] avviso decisione sospensione non riuscito:", err);
+    return false;
+  }
+}
+
 // ─── Main Handler ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -331,7 +380,7 @@ Deno.serve(async (req) => {
   }
 
   const now = new Date();
-  const results = { processed: 0, emails_sent: 0, suspended: 0, errors: 0, retries_processed: 0 };
+  const results = { processed: 0, emails_sent: 0, suspended: 0, errors: 0, retries_processed: 0, admin_escalations: 0 };
 
   // L'annullamento automatico si accende da platform_settings, non da un
   // deploy: sospendere un cliente che paga e' irreversibile dal suo punto di
@@ -479,7 +528,13 @@ Deno.serve(async (req) => {
         const anchor = (company as { dunning_started_at?: string | null }).dunning_started_at
           ?? sub.current_period_end;
         const daysExpired = daysDiff(anchor);
-        if (daysExpired < 0 || daysExpired > 30) continue;
+        // Il tetto era 30 giorni: al giorno 31 l'azienda USCIVA dal ciclo e
+        // non se ne parlava piu' — con l'auto-sospensione spenta restava attiva
+        // senza pagare e senza che nessuno lo sapesse. Ora la finestra e' larga:
+        // le email al CLIENTE restano comunque quelle dei traguardi (max giorno
+        // 7) e sono idempotenti, quindi allargare non manda un'email in piu' a
+        // nessuno. Serve solo a tenere il caso sotto osservazione.
+        if (daysExpired < 0 || daysExpired > 400) continue;
 
         results.processed++;
 
@@ -545,6 +600,37 @@ Deno.serve(async (req) => {
           results.suspended++;
           await notifySuperAdmin(company.id, company.name, "auto_suspension",
             `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
+        }
+
+        // Passato il periodo di grazia senza incasso e senza annullamento
+        // automatico, la sequenza verso il cliente e' finita (ultimo avviso al
+        // giorno 7) e prima qui non succedeva NIENTE: l'account restava attivo
+        // a tempo indeterminato e nessuno decideva. Domus Group e' rimasta
+        // cosi' 19 giorni.
+        //
+        // La sospensione resta una scelta umana (interruttore spento per
+        // volonta' del titolare), quindi la cosa giusta e' portare il caso a un
+        // umano — e ricordarglielo finche' non lo chiude. Cadenza SETTIMANALE:
+        // la chiave contiene il numero di settimana, quindi hasAlreadySent fa
+        // da sola sia l'idempotenza sia la ripetizione, senza contatori.
+        if (daysExpired >= GRACE_DAYS && !autoSuspendEnabled && company.status !== "suspended") {
+          const settimana = Math.floor(daysExpired / 7);
+          const chiave = `dunning_admin_escalation_w${settimana}`;
+          if (!(await hasAlreadySent(company.id, chiave))) {
+            const pagamento = await getPagamentoDiretto(company.id);
+            const inviata = await notifyAdminDecisioneSospensione(
+              company.id, company.name, company.email ?? null, daysExpired, pagamento,
+            );
+            await logDunningAttempt(company.id, chiave, inviata ? "sent" : "failed",
+              inviata ? undefined : "invio avviso al super admin non riuscito");
+            if (inviata) {
+              results.admin_escalations++;
+              await logDunningEvent(company.id, "dunning_admin_escalation",
+                `Avviso al super admin: non paga da ${daysExpired} giorni, account ancora attivo`);
+            } else {
+              results.errors++;
+            }
+          }
         }
       } catch (err) {
         console.error(`Dunning error for company ${company.id}:`, err);
