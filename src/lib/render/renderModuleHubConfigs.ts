@@ -2,7 +2,6 @@ import {
   Bath,
   Building2,
   DoorOpen,
-  DraftingCompass,
   GalleryHorizontalEnd,
   Grid3X3,
   Hammer,
@@ -64,34 +63,6 @@ const sharedQuality = [
 ];
 
 export const renderModuleHubConfigs: Record<string, RenderModuleHubConfig> = {
-  planimetrie: {
-    moduleId: "planimetrie",
-    moduleName: "Planimetrie AI",
-    breadcrumbLabel: "Planimetrie AI",
-    badgeLabel: "Sketch to CAD",
-    title: "Da schizzo, PDF o planimetria a editor CAD, 3D navigabile e render cliente.",
-    description: "Carica una planimetria o un disegno fatto a mano: il modulo ricostruisce muri, stanze, aperture, quote e arredi in un workspace editabile per architetti, tecnici e venditori.",
-    icon: DraftingCompass,
-    accentClassName: "text-slate-800",
-    iconBgClassName: "bg-slate-100",
-    newPath: "/azienda/render/planimetrie/new",
-    newButtonLabel: "Apri studio planimetrie",
-    workflow: [
-      { ...baseWorkflow.upload, title: "Sketch, PDF o foto", description: "Accetta disegni su carta, planimetrie scansionate, PDF e foto da telefono." },
-      { icon: Wand2, title: "Rilevamento AI", description: "Separa muri, stanze, porte, finestre, arredi, quote e zone incerte." },
-      { icon: Layers3, title: "Editor CAD + 3D", description: "Correggi la geometria, conferma una quota reale e naviga la vista dollhouse." },
-      { icon: GalleryHorizontalEnd, title: "Output cliente", description: "Prepara CAD, 3D, render di stile e brief per preventivo o sopralluogo." },
-    ],
-    qualityCards: [
-      { icon: ShieldCheck, title: "Geometria prima dello stile", description: "Muri, aperture e quote restano separati da materiali, arredi e render." },
-      { icon: DraftingCompass, title: "Revisione tecnica", description: "Il sistema segnala quote incerte, stanze non chiuse e punti da verificare." },
-      sharedQuality[2],
-    ],
-    emptyTitle: "Nessuna planimetria ancora",
-    emptyDescription: "Carica uno schizzo, una scansione o un PDF per creare una base CAD editabile.",
-    recentDescription: "Planimetrie ricostruite e output cliente salvati.",
-    imageFit: "contain",
-  },
   infissi: {
     moduleId: "infissi",
     moduleName: "Infissi",

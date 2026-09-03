@@ -253,8 +253,6 @@ const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const Centralino = lazy(() => import("@/pages/azienda/Centralino"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
-const RenderPlanimetrieHub = lazy(() => import("@/pages/azienda/RenderPlanimetrieHub"));
-const RenderPlanimetrieNew = lazy(() => import("@/pages/azienda/RenderPlanimetrieNew"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
 const RenderNew = lazy(() => import("@/pages/azienda/RenderNewV2"));
 const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
@@ -733,9 +731,6 @@ export default function CompanyRoutesContainer() {
 
         {/* Render AI Routes — gated: render_ai */}
         <Route path="render" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderCategoryHub /></FeatureRoute>)} />
-        {/* Render Planimetrie AI */}
-        <Route path="render/planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
-        <Route path="render/planimetrie/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieNew /></FeatureRoute>)} />
         {/* Render Infissi */}
         <Route path="render/infissi" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderHub /></FeatureRoute>)} />
         <Route path="render/infissi/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>)} />

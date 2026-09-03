@@ -270,7 +270,7 @@ const INTEGRATION_REGISTRY: Omit<MediaLibraryIntegrationCoverage, "count" | "sta
   {
     key: "render",
     label: "Render",
-    description: "Render AI, planimetrie, media serramenti e immagini di progetto.",
+    description: "Render AI, media serramenti e immagini di progetto.",
     sources: ["render", "company_photo"],
     required: true,
   },
