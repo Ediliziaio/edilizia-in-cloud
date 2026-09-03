@@ -29,6 +29,27 @@ import { resolveSender } from "../_shared/resolveSender.ts";
 // aprire un ticket.
 const SUPPORT_WHATSAPP = "390287198520";
 
+/**
+ * Tipo del PaymentMethod salvato ("card", "link", "sepa_debit", …).
+ * Serve per dichiararlo nel PaymentIntent: senza, Stripe ammette solo `card`
+ * e rifiuta ogni metodo diverso. In caso di errore ripiega su "card", che e'
+ * il comportamento storico.
+ */
+async function tipoMetodoPagamento(stripeSecretKey: string, pmId: string): Promise<string> {
+  try {
+    const res = await fetchWithTimeout(`https://api.stripe.com/v1/payment_methods/${pmId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      timeoutMs: 15_000,
+    });
+    const pm = await res.json();
+    if (typeof pm?.type === "string" && pm.type) return pm.type;
+  } catch (e) {
+    console.warn("[auto-topup] tipo PaymentMethod non leggibile, uso 'card':", (e as Error).message);
+  }
+  return "card";
+}
+
 interface WalletDef {
   /** wallet_type in company_auto_topup */
   type: string;
@@ -199,6 +220,29 @@ Deno.serve(async (req) => {
       const tentativo = Number(config.failure_count ?? 0) + 1;
       const idempotencyKey = `autotopup_${companyId}_${walletType}_${stamp}_t${tentativo}`;
 
+      // Tipo del metodo di pagamento salvato. Senza `payment_method_types` il
+      // PaymentIntent ammette solo `card`: chi ha salvato la carta via Stripe
+      // Link ha un PaymentMethod di tipo `link` e ogni addebito falliva con
+      // "The PaymentMethod provided (link) is not allowed for this
+      // PaymentIntent" — la ricarica automatica non e' MAI riuscita per lui,
+      // e per giunta gli arrivava una mail "carta rifiutata" a ogni tentativo.
+      const pmType = await tipoMetodoPagamento(
+        stripeSecretKey,
+        String(config.stripe_payment_method_id),
+      );
+
+      const corpoPI = new URLSearchParams({
+        amount: String(Math.round(amount * 100)),
+        currency: "eur",
+        customer: customerId,
+        payment_method: String(config.stripe_payment_method_id),
+        off_session: "true",
+        confirm: "true",
+        "payment_method_types[0]": pmType,
+        "metadata[company_id]": companyId,
+        "metadata[type]": `auto_topup_${walletType}`,
+      });
+
       let piRes: Response;
       try {
         piRes = await fetchWithTimeout("https://api.stripe.com/v1/payment_intents", {
@@ -208,16 +252,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/x-www-form-urlencoded",
             "Idempotency-Key": idempotencyKey,
           },
-          body: new URLSearchParams({
-            amount: String(Math.round(amount * 100)),
-            currency: "eur",
-            customer: customerId,
-            payment_method: String(config.stripe_payment_method_id),
-            off_session: "true",
-            confirm: "true",
-            "metadata[company_id]": companyId,
-            "metadata[type]": `auto_topup_${walletType}`,
-          }),
+          body: corpoPI,
           timeoutMs: 30_000,
         });
       } catch (fetchErr) {
@@ -240,11 +275,10 @@ Deno.serve(async (req) => {
         // gestione dell'errore, trasformando un addebito rifiutato in un 500
         // che interrompeva il ciclo e lasciava le aziende successive
         // inevase. Va incapsulato in un try/catch vero.
-        try {
-          await supabase.rpc("increment_payment_failure_count", { p_company_id: companyId });
-        } catch (rpcErr) {
-          console.error(`[auto-topup] increment_payment_failure_count fallita ${companyId}:`, (rpcErr as Error).message);
-        }
+        // (Qui c'era una chiamata a `increment_payment_failure_count`: quella
+        // funzione non e' mai esistita nel database, quindi ogni tentativo
+        // falliva in silenzio dentro il catch. Il contatore lo scrive l'UPDATE
+        // qui sotto — `failure_count: tentativo` — che e' la fonte vera.)
 
         // Calendario del prossimo tentativo: la regola sta nel database
         // (auto_topup_next_attempt), non duplicata qui.
