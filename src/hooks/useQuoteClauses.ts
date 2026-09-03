@@ -124,9 +124,5 @@ export function useQuoteClauses() {
   // Shape diverse dalla stessa lista: derivarle qui evita query duplicate.
   const vessatorie = clausole.filter((c) => c.applicable_to?.vessatoria === true);
   const testiLegali = clausole.filter((c) => !!c.applicable_to?.tipo_legale);
-  const contrattuali = clausole.filter(
-    (c) => !c.applicable_to?.vessatoria && !c.applicable_to?.tipo_legale,
-  );
-
-  return { clausole, vessatorie, testiLegali, contrattuali, isLoading, error, salva, elimina };
+  return { clausole, vessatorie, testiLegali, isLoading, error, salva, elimina };
 }
