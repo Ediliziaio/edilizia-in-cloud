@@ -947,6 +947,11 @@ function EditOrderInner() {
           </QuoteCard>
 
           <FinancialSummary
+            dateCommessa={{
+              warehouse_arrival_date: warehouseArrivalDate ? warehouseArrivalDate.toLocaleDateString("en-CA") : null,
+              work_start_date: workStartDate ? workStartDate.toLocaleDateString("en-CA") : null,
+              work_end_date: workEndDate ? workEndDate.toLocaleDateString("en-CA") : null,
+            }}
             totalAmount={totalAmount}
             vatRate={vatRate}
             paymentType={paymentType}

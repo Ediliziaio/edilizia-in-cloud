@@ -8,7 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { UsersRound } from "lucide-react";
+import { AlertTriangle, UsersRound } from "lucide-react";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { hasLogisticRisk, rischioPagamenti } from "@/lib/calendarUtils";
 import { formatCurrency } from "@/lib/formatters";
@@ -125,7 +125,11 @@ export function DraggableOrderBar({
                 </span>
               ) : null}
               {rischioPag && (
-                <span className={`ml-auto shrink-0 rounded px-1 text-[10px] font-bold ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                rischioPag.livello === "preavviso" ? (
+                  <AlertTriangle className="ml-auto h-3.5 w-3.5 shrink-0 fill-red-600 text-white" />
+                ) : (
+                  <span className={`ml-auto shrink-0 rounded px-1 text-[10px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                )
               )}
             </div>
           </button>
@@ -167,7 +171,7 @@ export function DraggableOrderBar({
               </p>
             )}
             {rischioPag && (
-              <p className={`text-xs font-medium ${rischioPag.livello === "rosso" ? "text-red-500" : "text-amber-500"}`}>
+              <p className={`text-xs font-medium ${rischioPag.livello === "ambra" ? "text-amber-500" : "text-red-500"}`}>
                 ⚠️ {rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}
               </p>
             )}

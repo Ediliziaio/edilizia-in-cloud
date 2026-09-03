@@ -36,6 +36,10 @@ export interface CalendarOrder {
   pagamenti_scoperti?: {
     acconto_eur: number;
     saldo_eur: number;
+    /** Rate il cui evento è vicino ma non ancora arrivato: c'è ancora tempo per sollecitare. */
+    preavviso_eur?: number;
+    /** Frase già pronta, costruita dall'evento della rata più imminente. */
+    preavviso_messaggio?: string;
   };
 }
 

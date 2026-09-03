@@ -87,7 +87,7 @@ export interface PagamentiScoperti {
 }
 
 export interface RischioPagamento {
-  livello: "rosso" | "ambra";
+  livello: "rosso" | "ambra" | "preavviso";
   messaggio: string;
   importo_eur: number;
 }
@@ -100,8 +100,20 @@ export interface RischioPagamento {
 export function rischioPagamenti(order: CalendarOrder, oggi = new Date()): RischioPagamento | null {
   const sc = order.pagamenti_scoperti;
   if (!sc) return null;
+  const iniziato = !!order.work_start_date && order.work_start_date <= oggi.toLocaleDateString("en-CA");
+
+  // Preavviso: l'evento della rata è vicino ma non è ancora arrivato. È la
+  // finestra in cui si può ancora sollecitare, quindi ha la precedenza sul
+  // rosso generico "acconto scoperto": dice cosa fare, non solo che è tardi.
+  if (!iniziato && (sc.preavviso_eur ?? 0) > 0) {
+    return {
+      livello: "preavviso",
+      messaggio: sc.preavviso_messaggio || "Scade a breve e non è stato incassato",
+      importo_eur: sc.preavviso_eur as number,
+    };
+  }
+
   if (sc.acconto_eur > 0) {
-    const iniziato = !!order.work_start_date && order.work_start_date <= oggi.toLocaleDateString("en-CA");
     return {
       livello: "rosso",
       messaggio: iniziato ? "Lavoro avviato senza acconto incassato" : "Il lavoro parte ma l'acconto non è stato incassato",

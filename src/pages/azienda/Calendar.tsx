@@ -42,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, orderColor, type CalendarEventColorKey, type CalendarColorMode, type CalendarAvvisiPagamento } from "@/lib/calendarUtils";
+import { messaggioRata } from "@/lib/orders/rateEventi";
 
 type CalendarEmployee = {
   id: string;
@@ -287,26 +288,55 @@ function CalendarInner() {
   // e "lavori chiusi, saldo da incassare". Solo i tipi cliente-dovuti:
   // il financing lo paga la finanziaria dopo la fine, non è un ritardo.
   const orderIdsKey = useMemo(() => ordersRaw.map((o) => o.id).sort().join(","), [ordersRaw]);
+  // Forma dei pagamenti scoperti per commessa, con la quota in preavviso.
+  type ScopertiCommessa = {
+    acconto_eur: number;
+    saldo_eur: number;
+    preavviso_eur?: number;
+    preavviso_giorni?: number;
+    preavviso_messaggio?: string;
+  };
+  type RigaRataScoperta = {
+    order_id: string; type: string; amount: number | null; label: string | null;
+    trigger_evento: string | null; stato_incasso: string | null; giorni_all_evento: number | null;
+  };
+
   const { data: scopertiMap } = useQuery({
     queryKey: ["calendar-installments-scoperti", effectiveCompany?.id, orderIdsKey],
     enabled: !!effectiveCompany?.id && ordersRaw.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const ids = ordersRaw.map((o) => o.id);
-      const out = new Map<string, { acconto_eur: number; saldo_eur: number }>();
+      const out = new Map<string, ScopertiCommessa>();
+      // La vista sa quando la rata scade DAVVERO: se è agganciata a un evento
+      // del cantiere (inizio lavori, arrivo merce…) la data la calcola lei e si
+      // sposta insieme al cantiere.
       // .in() con centinaia di id regge; il calendario carica max 1000 ordini.
       for (let i = 0; i < ids.length; i += 400) {
         const { data, error } = await supabase
-          .from("order_installments")
-          .select("order_id, type, amount, is_paid")
+          .from("v_rate_commessa_stato")
+          .select("order_id, type, amount, label, trigger_evento, stato_incasso, giorni_all_evento")
           .in("order_id", ids.slice(i, i + 400))
           .eq("is_paid", false)
           .in("type", ["deposit", "balance"]);
         if (error) throw error;
-        for (const r of (data ?? []) as { order_id: string; type: string; amount: number | null }[]) {
-          const cur = out.get(r.order_id) ?? { acconto_eur: 0, saldo_eur: 0 };
-          if (r.type === "deposit") cur.acconto_eur += Number(r.amount || 0);
-          else cur.saldo_eur += Number(r.amount || 0);
+        for (const r of (data ?? []) as RigaRataScoperta[]) {
+          const cur = out.get(r.order_id) ?? { acconto_eur: 0, saldo_eur: 0, preavviso_eur: 0 };
+          const importo = Number(r.amount || 0);
+          if (r.type === "deposit") cur.acconto_eur += importo;
+          else cur.saldo_eur += importo;
+          // Preavviso: evento vicino ma non ancora arrivato. Il messaggio lo
+          // costruisce la rata più imminente, che è quella di cui parlare.
+          if (r.stato_incasso === "preavviso") {
+            cur.preavviso_eur = (cur.preavviso_eur ?? 0) + importo;
+            const giorni = r.giorni_all_evento;
+            if (cur.preavviso_giorni === undefined || (giorni !== null && giorni < cur.preavviso_giorni)) {
+              cur.preavviso_giorni = giorni ?? undefined;
+              cur.preavviso_messaggio =
+                messaggioRata({ stato: "preavviso", evento: r.trigger_evento, giorni, importoEur: importo })
+                ?? undefined;
+            }
+          }
           out.set(r.order_id, cur);
         }
       }
@@ -323,8 +353,10 @@ function CalendarInner() {
       if (!raw) return o;
       // "Solo rossi": l'ambra nasce dal saldo → azzerandolo resta solo
       // l'avviso acconto (rosso), senza toccare la logica nelle viste.
-      const sc = avvisiPagamento === "rossi" ? { acconto_eur: raw.acconto_eur, saldo_eur: 0 } : raw;
-      return sc.acconto_eur > 0 || sc.saldo_eur > 0 ? { ...o, pagamenti_scoperti: sc } : o;
+      const sc = avvisiPagamento === "rossi"
+        ? { acconto_eur: raw.acconto_eur, saldo_eur: 0, preavviso_eur: raw.preavviso_eur, preavviso_messaggio: raw.preavviso_messaggio }
+        : raw;
+      return sc.acconto_eur > 0 || sc.saldo_eur > 0 || (sc.preavviso_eur ?? 0) > 0 ? { ...o, pagamenti_scoperti: sc } : o;
     });
   }, [ordersRaw, scopertiMap, avvisiPagamento]);
 

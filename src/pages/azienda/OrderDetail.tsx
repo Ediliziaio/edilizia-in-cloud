@@ -43,6 +43,7 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -380,6 +381,9 @@ function OrderDetailInner() {
         is_paid: i.is_paid,
         paid_date: i.paid_date,
         expected_date: i.expected_date,
+        trigger_evento: i.trigger_evento,
+        trigger_status_id: i.trigger_status_id,
+        giorni_preavviso: i.giorni_preavviso,
       }));
     }
     if (!order) return [];
@@ -934,7 +938,19 @@ function OrderDetailInner() {
     const conImportiMostrati = displayInstallments.map(i =>
       i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i,
     );
-    return getOrderAlerts(order, displayItems, conImportiMostrati);
+    // Una rata agganciata a un evento del cantiere non ha una data propria:
+    // la scadenza si calcola dalle date della commessa e si sposta con loro.
+    // Senza questo passaggio l'alert non vedrebbe mai quelle rate.
+    const conDataEffettiva = conImportiMostrati.map((i) => ({
+      ...i,
+      expected_date: dataAttesaRata(i.trigger_evento, i.expected_date, {
+        created_at: order.created_at,
+        warehouse_arrival_date: order.warehouse_arrival_date,
+        work_start_date: order.work_start_date,
+        work_end_date: order.work_end_date,
+      }) ?? i.expected_date,
+    }));
+    return getOrderAlerts(order, displayItems, conDataEffettiva);
   }, [order, displayItems, displayInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };

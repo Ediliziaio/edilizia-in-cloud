@@ -569,7 +569,12 @@ export function CalendarMonthView({
                             </span>
                             {logisticRisk && <AlertTriangle className={`h-3 w-3 flex-shrink-0 ${event.type === "posa" ? "text-amber-500" : "text-yellow-200"}`} />}
                             {rischioPag && (
-                              <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                              rischioPag.livello === "preavviso" ? (
+                                // Triangolo, non €: "stai per partire e non hai incassato".
+                                <AlertTriangle className="h-3 w-3 shrink-0 fill-red-600 text-white" />
+                              ) : (
+                                <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
+                              )
                             )}
                             {(event.type === "posa" || event.type === "lavoro") && (() => {
                               const empCount = event.order!.order_employees?.length ?? 0;
@@ -643,7 +648,7 @@ export function CalendarMonthView({
                                   </div>
                                 )}
                                 {rischioPag && (
-                                  <div className={`flex items-center gap-1 text-xs font-medium ${rischioPag.livello === "rosso" ? "text-red-500" : "text-amber-500"}`}>
+                                  <div className={`flex items-center gap-1 text-xs font-medium ${rischioPag.livello === "ambra" ? "text-amber-500" : "text-red-500"}`}>
                                     <AlertTriangle className="h-3 w-3 shrink-0" />
                                     <span>{rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}</span>
                                   </div>

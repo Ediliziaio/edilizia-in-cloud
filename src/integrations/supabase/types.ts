@@ -11953,6 +11953,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_transactions_linked_installment_id_fkey"
+            columns: ["linked_installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_rate_commessa_stato"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bank_transactions_linked_scadenza_id_fkey"
             columns: ["linked_scadenza_id"]
             isOneToOne: false
@@ -48776,36 +48783,45 @@ export type Database = {
           amount: number
           created_at: string
           expected_date: string | null
+          giorni_preavviso: number
           id: string
           is_paid: boolean
           label: string
           order_id: string
           paid_date: string | null
           position: number
+          trigger_evento: string
+          trigger_status_id: string | null
           type: string
         }
         Insert: {
           amount?: number
           created_at?: string
           expected_date?: string | null
+          giorni_preavviso?: number
           id?: string
           is_paid?: boolean
           label?: string
           order_id: string
           paid_date?: string | null
           position?: number
+          trigger_evento?: string
+          trigger_status_id?: string | null
           type?: string
         }
         Update: {
           amount?: number
           created_at?: string
           expected_date?: string | null
+          giorni_preavviso?: number
           id?: string
           is_paid?: boolean
           label?: string
           order_id?: string
           paid_date?: string | null
           position?: number
+          trigger_evento?: string
+          trigger_status_id?: string | null
           type?: string
         }
         Relationships: [
@@ -48828,6 +48844,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_installments_trigger_status_id_fkey"
+            columns: ["trigger_status_id"]
+            isOneToOne: false
+            referencedRelation: "order_statuses"
             referencedColumns: ["id"]
           },
         ]
@@ -56431,6 +56454,13 @@ export type Database = {
             columns: ["installment_id"]
             isOneToOne: false
             referencedRelation: "order_installments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_rate_commessa_stato"
             referencedColumns: ["id"]
           },
           {
@@ -64213,6 +64243,13 @@ export type Database = {
             columns: ["installment_id"]
             isOneToOne: false
             referencedRelation: "order_installments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_rate_commessa_stato"
             referencedColumns: ["id"]
           },
           {
@@ -83005,13 +83042,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -83021,7 +83051,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
-            referencedRelation: "v_ordine_esposizione"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -83034,13 +83064,20 @@ export type Database = {
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
+            columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
@@ -85660,6 +85697,87 @@ export type Database = {
           },
         ]
       }
+      v_rate_commessa_stato: {
+        Row: {
+          amount: number | null
+          commessa: string | null
+          company_id: string | null
+          customer_id: string | null
+          data_attesa: string | null
+          expected_date: string | null
+          giorni_all_evento: number | null
+          giorni_preavviso: number | null
+          id: string | null
+          is_paid: boolean | null
+          label: string | null
+          order_code: string | null
+          order_id: string | null
+          paid_date: string | null
+          position: number | null
+          stato_incasso: string | null
+          trigger_evento: string | null
+          trigger_status_id: string | null
+          type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_installments_trigger_status_id_fkey"
+            columns: ["trigger_status_id"]
+            isOneToOne: false
+            referencedRelation: "order_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_rate_commesse_unificate: {
         Row: {
           amount: number | null
@@ -86777,6 +86895,7 @@ export type Database = {
         Args: { p_tipo_intervento_id: string }
         Returns: number
       }
+      crea_notifiche_rate_in_arrivo: { Args: never; Returns: number }
       create_ddt_from_uscita: {
         Args: { p_ddt_extra?: Json; p_uscita_id: string }
         Returns: {
@@ -86956,6 +87075,19 @@ export type Database = {
           mese_key: string
           venduto: number
         }[]
+      }
+      data_attesa_rata: {
+        Args: {
+          p_created_at: string
+          p_evento: string
+          p_expected_date: string
+          p_fine: string
+          p_inizio: string
+          p_merce: string
+          p_order_id: string
+          p_status_id: string
+        }
+        Returns: string
       }
       data_network_etl_run: { Args: never; Returns: Json }
       data_network_set_consent: {
