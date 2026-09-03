@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw } from "lucide-react";
+import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw, Pencil, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -54,6 +54,16 @@ export default function SicurezzaCantiere() {
 
   // M3 — verbali, subappaltatori, scadenzario
   const [verbaleDialogOpen, setVerbaleDialogOpen] = useState(false);
+  // Modifica ed eliminazione di verbali, subappaltatori e adempimenti: finora
+  // le tre schede erano di SOLO inserimento. Un verbale con la data sbagliata,
+  // un subappaltatore che non lavora più al cantiere o un adempimento inserito
+  // due volte restavano lì per sempre.
+  const [verbaleInModifica, setVerbaleInModifica] = useState<string | null>(null);
+  const [subappaltatoreInModifica, setSubappaltatoreInModifica] = useState<string | null>(null);
+  const [adempimentoInModifica, setAdempimentoInModifica] = useState<string | null>(null);
+  const [daCancellare, setDaCancellare] = useState<
+    { tabella: "verbali_sicurezza" | "subappaltatori_sicurezza" | "adempimenti_sicurezza"; id: string; etichetta: string; descrizione: string } | null
+  >(null);
   const [verbaleForm, setVerbaleForm] = useState({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" });
   const [subappaltatoreDialogOpen, setSubappaltatoreDialogOpen] = useState(false);
   const [subappaltatoreForm, setSubappaltatoreForm] = useState({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" });
@@ -186,10 +196,13 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!verbaleForm.note.trim() && !verbaleForm.redatto_da.trim()) throw new Error("Inserisci almeno le note o il nome del redattore");
-      const { error } = await supabase.from("verbali_sicurezza").insert({ company_id: companyId, order_id: verbaleForm.order_id || null, data: verbaleForm.data, tipo: verbaleForm.tipo, esito: verbaleForm.esito, note: verbaleForm.note.trim() || null, redatto_da: verbaleForm.redatto_da.trim() || null });
+      const campi = { order_id: verbaleForm.order_id || null, data: verbaleForm.data, tipo: verbaleForm.tipo, esito: verbaleForm.esito, note: verbaleForm.note.trim() || null, redatto_da: verbaleForm.redatto_da.trim() || null };
+      const { error } = verbaleInModifica
+        ? await supabase.from("verbali_sicurezza").update(campi).eq("id", verbaleInModifica).eq("company_id", companyId)
+        : await supabase.from("verbali_sicurezza").insert({ company_id: companyId, ...campi });
       if (error) throw new Error(getSupabaseErrorMessage(error));
     },
-    onSuccess: () => { toast.success("Verbale salvato"); queryClient.invalidateQueries({ queryKey: ["verbali-sicurezza", companyId] }); setVerbaleDialogOpen(false); setVerbaleForm({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" }); },
+    onSuccess: () => { toast.success(verbaleInModifica ? "Verbale corretto" : "Verbale salvato"); queryClient.invalidateQueries({ queryKey: ["verbali-sicurezza", companyId] }); setVerbaleDialogOpen(false); setVerbaleInModifica(null); setVerbaleForm({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" }); },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -197,10 +210,13 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!subappaltatoreForm.ragione_sociale.trim()) throw new Error("Ragione sociale obbligatoria");
-      const { error } = await supabase.from("subappaltatori_sicurezza").insert({ company_id: companyId, order_id: subappaltatoreForm.order_id || null, ragione_sociale: subappaltatoreForm.ragione_sociale.trim(), tipo_lavori: subappaltatoreForm.tipo_lavori || null, responsabile: subappaltatoreForm.responsabile || null, telefono: subappaltatoreForm.telefono || null, data_inizio: subappaltatoreForm.data_inizio || null, data_fine: subappaltatoreForm.data_fine || null, durc_scadenza: subappaltatoreForm.durc_scadenza || null });
+      const campi = { order_id: subappaltatoreForm.order_id || null, ragione_sociale: subappaltatoreForm.ragione_sociale.trim(), tipo_lavori: subappaltatoreForm.tipo_lavori || null, responsabile: subappaltatoreForm.responsabile || null, telefono: subappaltatoreForm.telefono || null, data_inizio: subappaltatoreForm.data_inizio || null, data_fine: subappaltatoreForm.data_fine || null, durc_scadenza: subappaltatoreForm.durc_scadenza || null };
+      const { error } = subappaltatoreInModifica
+        ? await supabase.from("subappaltatori_sicurezza").update(campi).eq("id", subappaltatoreInModifica).eq("company_id", companyId)
+        : await supabase.from("subappaltatori_sicurezza").insert({ company_id: companyId, ...campi });
       if (error) throw new Error(getSupabaseErrorMessage(error));
     },
-    onSuccess: () => { toast.success("Subappaltatore aggiunto"); queryClient.invalidateQueries({ queryKey: ["subappaltatori-sicurezza", companyId] }); setSubappaltatoreDialogOpen(false); setSubappaltatoreForm({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" }); },
+    onSuccess: () => { toast.success(subappaltatoreInModifica ? "Subappaltatore aggiornato" : "Subappaltatore aggiunto"); queryClient.invalidateQueries({ queryKey: ["subappaltatori-sicurezza", companyId] }); setSubappaltatoreDialogOpen(false); setSubappaltatoreInModifica(null); setSubappaltatoreForm({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" }); },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -208,10 +224,16 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!adempimentoForm.titolo.trim()) throw new Error("Titolo obbligatorio");
-      const { error } = await supabase.from("adempimenti_sicurezza").insert({ company_id: companyId, order_id: adempimentoForm.order_id || null, titolo: adempimentoForm.titolo.trim(), tipo: adempimentoForm.tipo, scadenza_data: adempimentoForm.scadenza_data || null, stato: "da_fare", note: adempimentoForm.note || null });
+      const campi = { order_id: adempimentoForm.order_id || null, titolo: adempimentoForm.titolo.trim(), tipo: adempimentoForm.tipo, scadenza_data: adempimentoForm.scadenza_data || null, note: adempimentoForm.note || null };
+      // In modifica lo `stato` NON si tocca: è governato dal pulsante
+      // Completa/Riapri, e riportarlo a "da_fare" qui riaprirebbe di nascosto
+      // un adempimento già chiuso.
+      const { error } = adempimentoInModifica
+        ? await supabase.from("adempimenti_sicurezza").update(campi).eq("id", adempimentoInModifica).eq("company_id", companyId)
+        : await supabase.from("adempimenti_sicurezza").insert({ company_id: companyId, ...campi, stato: "da_fare" });
       if (error) throw new Error(getSupabaseErrorMessage(error));
     },
-    onSuccess: () => { toast.success("Adempimento aggiunto"); queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }); setAdempimentoDialogOpen(false); setAdempimentoForm({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" }); },
+    onSuccess: () => { toast.success(adempimentoInModifica ? "Adempimento aggiornato" : "Adempimento aggiunto"); queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }); setAdempimentoDialogOpen(false); setAdempimentoInModifica(null); setAdempimentoForm({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" }); },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -324,6 +346,52 @@ export default function SicurezzaCantiere() {
   >(null);
 
   // Update POS status
+  /**
+   * Aprire "Nuovo" azzera sempre il modulo e la modalità modifica: senza,
+   * dopo aver corretto un record il pulsante Nuovo lo ripresenterebbe già
+   * compilato e ne creerebbe un duplicato.
+   */
+  const nuovoVerbale = () => {
+    setVerbaleInModifica(null);
+    setVerbaleForm({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" });
+    setVerbaleDialogOpen(true);
+  };
+  const nuovoSubappaltatore = () => {
+    setSubappaltatoreInModifica(null);
+    setSubappaltatoreForm({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" });
+    setSubappaltatoreDialogOpen(true);
+  };
+  const nuovoAdempimento = () => {
+    setAdempimentoInModifica(null);
+    setAdempimentoForm({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" });
+    setAdempimentoDialogOpen(true);
+  };
+
+  /** Eliminazione di un verbale / subappaltatore / adempimento inserito per errore. */
+  const eliminaRiga = useMutation({
+    mutationFn: async (bersaglio: { tabella: string; id: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      const { error } = await supabase
+        .from(bersaglio.tabella as never)
+        .delete()
+        .eq("id", bersaglio.id)
+        .eq("company_id", companyId);
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return bersaglio.tabella;
+    },
+    onSuccess: (tabella) => {
+      toast.success("Eliminato");
+      const chiavi: Record<string, string> = {
+        verbali_sicurezza: "verbali-sicurezza",
+        subappaltatori_sicurezza: "subappaltatori-sicurezza",
+        adempimenti_sicurezza: "adempimenti-sicurezza",
+      };
+      queryClient.invalidateQueries({ queryKey: [chiavi[tabella], companyId] });
+      setDaCancellare(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const updatePosStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
@@ -743,7 +811,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="verbali" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Verbali ispezioni e sopralluoghi D.Lgs 81/08</p>
-            <Button size="sm" onClick={() => setVerbaleDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoVerbale} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
           </div>
@@ -757,7 +825,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <ClipboardList className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun verbale registrato</p>
-              <Button size="sm" onClick={() => setVerbaleDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi verbale</Button>
+              <Button size="sm" onClick={nuovoVerbale} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi verbale</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
@@ -776,6 +844,34 @@ export default function SicurezzaCantiere() {
                       {v.redatto_da && <p className="text-xs text-muted-foreground">Redatto da: {v.redatto_da}</p>}
                       {v.note && <p className="text-xs text-muted-foreground mt-1 italic">{v.note}</p>}
                     </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8" title="Modifica verbale"
+                        onClick={() => {
+                          setVerbaleInModifica(v.id);
+                          setVerbaleForm({
+                            order_id: v.order_id ?? "",
+                            data: v.data ?? format(new Date(), "yyyy-MM-dd"),
+                            tipo: v.tipo ?? "sopralluogo",
+                            esito: v.esito ?? "conforme",
+                            note: v.note ?? "",
+                            redatto_da: v.redatto_da ?? "",
+                          });
+                          setVerbaleDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8" title="Elimina verbale"
+                        onClick={() => setDaCancellare({
+                          tabella: "verbali_sicurezza", id: v.id, etichetta: "il verbale",
+                          descrizione: `${v.tipo ?? "verbale"} del ${(v.data ?? "").split("-").reverse().join("/")}`,
+                        })}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -787,7 +883,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="subappaltatori" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Registro subappaltatori con verifica DURC</p>
-            <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
@@ -801,7 +897,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <Building2 className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun subappaltatore registrato</p>
-              <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi subappaltatore</Button>
+              <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi subappaltatore</Button>
             </CardContent></Card>
           ) : (
             <div className="border rounded-lg overflow-hidden">
@@ -812,6 +908,7 @@ export default function SicurezzaCantiere() {
                     <TableHead className="hidden sm:table-cell">Lavori</TableHead>
                     <TableHead className="hidden md:table-cell">Responsabile</TableHead>
                     <TableHead>DURC Scade</TableHead>
+                    <TableHead className="w-[92px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -832,6 +929,38 @@ export default function SicurezzaCantiere() {
                             </Badge>
                           ) : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost" size="icon" className="h-8 w-8" title="Modifica"
+                              onClick={() => {
+                                setSubappaltatoreInModifica(s.id);
+                                setSubappaltatoreForm({
+                                  order_id: s.order_id ?? "",
+                                  ragione_sociale: s.ragione_sociale ?? "",
+                                  tipo_lavori: s.tipo_lavori ?? "",
+                                  responsabile: s.responsabile ?? "",
+                                  telefono: s.telefono ?? "",
+                                  data_inizio: s.data_inizio ?? "",
+                                  data_fine: s.data_fine ?? "",
+                                  durc_scadenza: s.durc_scadenza ?? "",
+                                });
+                                setSubappaltatoreDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost" size="icon" className="h-8 w-8" title="Elimina"
+                              onClick={() => setDaCancellare({
+                                tabella: "subappaltatori_sicurezza", id: s.id,
+                                etichetta: "il subappaltatore", descrizione: s.ragione_sociale ?? "",
+                              })}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -845,7 +974,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="scadenzario" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Adempimenti obbligatori D.Lgs 81/08</p>
-            <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoAdempimento} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
@@ -859,7 +988,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <CalendarClock className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun adempimento in scadenzario</p>
-              <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi adempimento</Button>
+              <Button size="sm" onClick={nuovoAdempimento} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi adempimento</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
@@ -888,6 +1017,33 @@ export default function SicurezzaCantiere() {
                       >
                         {a.stato === "completato" ? "Riapri" : "Completa"}
                       </Button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8" title="Modifica adempimento"
+                          onClick={() => {
+                            setAdempimentoInModifica(a.id);
+                            setAdempimentoForm({
+                              order_id: a.order_id ?? "",
+                              titolo: a.titolo ?? "",
+                              tipo: a.tipo ?? "corso_formazione",
+                              scadenza_data: a.scadenza_data ?? "",
+                              note: a.note ?? "",
+                            });
+                            setAdempimentoDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8" title="Elimina adempimento"
+                          onClick={() => setDaCancellare({
+                            tabella: "adempimenti_sicurezza", id: a.id,
+                            etichetta: "l'adempimento", descrizione: a.titolo ?? "",
+                          })}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -1021,10 +1177,10 @@ export default function SicurezzaCantiere() {
       </Dialog>
 
       {/* ───── Dialog Nuovo Verbale ───── */}
-      <Dialog open={verbaleDialogOpen} onOpenChange={setVerbaleDialogOpen}>
+      <Dialog open={verbaleDialogOpen} onOpenChange={(v) => { setVerbaleDialogOpen(v); if (!v) setVerbaleInModifica(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />Nuovo Verbale</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />{verbaleInModifica ? "Correggi il verbale" : "Nuovo Verbale"}</DialogTitle>
             <DialogDescription>
               Registra un sopralluogo, una riunione o un'ispezione di sicurezza.
             </DialogDescription>
@@ -1079,19 +1235,19 @@ export default function SicurezzaCantiere() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setVerbaleDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setVerbaleDialogOpen(false); setVerbaleInModifica(null); }}>Annulla</Button>
             <Button onClick={() => createVerbaleMutation.mutate()} disabled={createVerbaleMutation.isPending}>
-              {createVerbaleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva verbale"}
+              {createVerbaleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : verbaleInModifica ? "Salva correzioni" : "Salva verbale"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ───── Dialog Nuovo Subappaltatore ───── */}
-      <Dialog open={subappaltatoreDialogOpen} onOpenChange={setSubappaltatoreDialogOpen}>
+      <Dialog open={subappaltatoreDialogOpen} onOpenChange={(v) => { setSubappaltatoreDialogOpen(v); if (!v) setSubappaltatoreInModifica(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Nuovo Subappaltatore</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />{subappaltatoreInModifica ? "Modifica subappaltatore" : "Nuovo Subappaltatore"}</DialogTitle>
             <DialogDescription>
               Collega un subappaltatore alla sicurezza di cantiere e monitora la scadenza DURC.
             </DialogDescription>
@@ -1137,19 +1293,19 @@ export default function SicurezzaCantiere() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubappaltatoreDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setSubappaltatoreDialogOpen(false); setSubappaltatoreInModifica(null); }}>Annulla</Button>
             <Button onClick={() => createSubappaltatoreM.mutate()} disabled={createSubappaltatoreM.isPending}>
-              {createSubappaltatoreM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
+              {createSubappaltatoreM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : subappaltatoreInModifica ? "Salva modifiche" : "Aggiungi"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ───── Dialog Nuovo Adempimento ───── */}
-      <Dialog open={adempimentoDialogOpen} onOpenChange={setAdempimentoDialogOpen}>
+      <Dialog open={adempimentoDialogOpen} onOpenChange={(v) => { setAdempimentoDialogOpen(v); if (!v) setAdempimentoInModifica(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" />Nuovo Adempimento</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" />{adempimentoInModifica ? "Modifica adempimento" : "Nuovo Adempimento"}</DialogTitle>
             <DialogDescription>
               Inserisci una scadenza obbligatoria per formazione, certificati o controlli.
             </DialogDescription>
@@ -1184,13 +1340,37 @@ export default function SicurezzaCantiere() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAdempimentoDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setAdempimentoDialogOpen(false); setAdempimentoInModifica(null); }}>Annulla</Button>
             <Button onClick={() => createAdempimentoM.mutate()} disabled={createAdempimentoM.isPending}>
-              {createAdempimentoM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
+              {createAdempimentoM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : adempimentoInModifica ? "Salva modifiche" : "Aggiungi"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Eliminazione di un verbale / subappaltatore / adempimento */}
+      <AlertDialog open={!!daCancellare} onOpenChange={(v) => { if (!v) setDaCancellare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {daCancellare?.etichetta}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daCancellare?.descrizione ? `"${daCancellare.descrizione}" ` : ""}
+              verrà rimosso definitivamente. Se è un documento che hai già
+              consegnato o citato altrove, meglio correggerlo che cancellarlo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={eliminaRiga.isPending}
+              onClick={(e) => { e.preventDefault(); if (daCancellare) eliminaRiga.mutate(daCancellare); }}
+            >
+              {eliminaRiga.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Riapertura di un documento chiuso per errore */}
       <AlertDialog open={!!daRiaprire} onOpenChange={(v) => { if (!v) setDaRiaprire(null); }}>
