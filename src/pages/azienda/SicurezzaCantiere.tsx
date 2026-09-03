@@ -15,7 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock } from "lucide-react";
+import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, RotateCcw } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { format } from "date-fns";
@@ -311,6 +315,14 @@ export default function SicurezzaCantiere() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // Riapertura di un documento chiuso per errore. Il flusso era a senso unico:
+  // approvato un POS o firmato un DUVRI, l'unico rimedio era rifarlo da capo.
+  // Non è un'azione da fare per sbaglio (sono documenti di conformità), quindi
+  // si conferma prima.
+  const [daRiaprire, setDaRiaprire] = useState<
+    { tipo: "POS" | "DUVRI"; id: string } | null
+  >(null);
+
   // Update POS status
   const updatePosStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -549,7 +561,7 @@ export default function SicurezzaCantiere() {
                       >
                         {expandedPos === doc.id ? "Nascondi dettagli" : "Vedi dettagli"}
                       </Button>
-                      {doc.status === "bozza" && (
+                      {doc.status === "bozza" ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -558,6 +570,16 @@ export default function SicurezzaCantiere() {
                           onClick={() => updatePosStatus.mutate({ id: doc.id, status: "approvato" })}
                         >
                           <CheckCircle className="h-3 w-3 mr-1" /> Approva
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={updatePosStatus.isPending}
+                          onClick={() => setDaRiaprire({ tipo: "POS", id: doc.id })}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" /> Riporta in bozza
                         </Button>
                       )}
                       <Button
@@ -680,7 +702,7 @@ export default function SicurezzaCantiere() {
                       >
                         {expandedDuvri === doc.id ? "Nascondi dettagli" : "Vedi dettagli"}
                       </Button>
-                      {doc.status === "bozza" && (
+                      {doc.status === "bozza" ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -689,6 +711,16 @@ export default function SicurezzaCantiere() {
                           onClick={() => updateDuvriStatus.mutate({ id: doc.id, status: "firmato" })}
                         >
                           <CheckCircle className="h-3 w-3 mr-1" /> Segna firmato
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={updateDuvriStatus.isPending}
+                          onClick={() => setDaRiaprire({ tipo: "DUVRI", id: doc.id })}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" /> Riporta in bozza
                         </Button>
                       )}
                       <Button
@@ -1159,6 +1191,34 @@ export default function SicurezzaCantiere() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Riapertura di un documento chiuso per errore */}
+      <AlertDialog open={!!daRiaprire} onOpenChange={(v) => { if (!v) setDaRiaprire(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Riportare il documento in bozza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daRiaprire?.tipo === "POS"
+                ? "Il POS torna in bozza e potrà essere modificato e riapprovato. Finché è in bozza non vale come documento approvato: se ne hai già consegnato copia, avvisa chi l'ha ricevuta."
+                : "Il DUVRI torna in bozza e potrà essere modificato e rifirmato. Finché è in bozza non risulta firmato: se ne hai già consegnato copia, avvisa chi l'ha ricevuta."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (!daRiaprire) return;
+                if (daRiaprire.tipo === "POS") updatePosStatus.mutate({ id: daRiaprire.id, status: "bozza" });
+                else updateDuvriStatus.mutate({ id: daRiaprire.id, status: "bozza" });
+                setDaRiaprire(null);
+              }}
+            >
+              Riporta in bozza
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {printHtml && (
         <PrintPreviewModal
