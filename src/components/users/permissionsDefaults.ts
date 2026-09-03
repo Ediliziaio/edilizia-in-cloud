@@ -59,6 +59,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
   only_assigned: false,
+  only_my_warehouse: false,
   visible_areas: [],
 };
 

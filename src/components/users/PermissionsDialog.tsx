@@ -119,6 +119,8 @@ export interface StaffPermissions {
   can_edit_settings_integrations: boolean;
   // ── Speciali ───────────────────────────────────────────
   only_assigned: boolean;
+  /** Vede tutte e sole le commesse dei magazzini a cui è assegnato. Ignorato se only_assigned è attivo (più stretto). */
+  only_my_warehouse: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */
   visible_areas: string[];
   /** Flag interno: l'utente deve cambiare password al primo accesso */
@@ -272,12 +274,13 @@ export function PermissionsDialog({
     setPermissions(prev => ({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
+      only_my_warehouse: prev.only_my_warehouse,
       ...preset,
     }));
   };
 
   const totalActive = useMemo(() => {
-    const excluded = new Set(["only_assigned", "can_view_marketing", "can_edit_marketing"]);
+    const excluded = new Set(["only_assigned", "only_my_warehouse", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
@@ -375,6 +378,32 @@ export function PermissionsDialog({
               id="only_assigned"
               checked={permissions.only_assigned || false}
               onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
+            />
+          </div>
+
+          {/* Terza modalità, per chi manda avanti una filiale: tutte le commesse
+              del suo magazzino, comprese quelle dei colleghi di quel magazzino,
+              e nessuna delle altre. "Solo elementi assegnati" è più stretta e,
+              se accesa, ha la precedenza. */}
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <Label
+                htmlFor="only_my_warehouse"
+                className={`font-medium cursor-pointer ${permissions.only_assigned ? "text-muted-foreground" : ""}`}
+              >
+                Solo commesse del suo magazzino
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {permissions.only_assigned
+                  ? "Ignorato: “Solo elementi assegnati” è più stretto e ha la precedenza."
+                  : "Vede tutte le commesse dei magazzini che gli hai assegnato — anche quelle dei colleghi di quel magazzino — più le proprie. Serve un magazzino assegnato, altrimenti non vedrà nulla."}
+              </p>
+            </div>
+            <Switch
+              id="only_my_warehouse"
+              checked={permissions.only_my_warehouse || false}
+              disabled={permissions.only_assigned || false}
+              onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_my_warehouse: checked }))}
             />
           </div>
 

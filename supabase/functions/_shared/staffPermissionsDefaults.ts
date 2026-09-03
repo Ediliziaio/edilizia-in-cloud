@@ -67,6 +67,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   // Speciali
   can_approve_discounts: false,
   only_assigned: false,
+  only_my_warehouse: false,
   visible_areas: [],
 };
 

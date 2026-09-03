@@ -132,6 +132,8 @@ export interface Permissions {
   isLoading: boolean;
   loadError?: string | null;
   onlyAssigned: boolean;
+  /** Vede tutte e sole le commesse dei magazzini a cui è assegnato (più le proprie). */
+  onlyMyWarehouse: boolean;
   /** Aree visibili all'utente. Vuoto = tutte le aree. */
   visibleAreas: string[];
 }
@@ -229,6 +231,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_manage_warehouse_items",
   "can_view_financial_reports",
   "only_assigned",
+  "only_my_warehouse",
   "visible_areas",
 ];
 const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
@@ -279,7 +282,7 @@ const ALL_PERMISSIONS: Permissions = {
   canApproveOrders: true, canDeleteOrders: true, canExportClients: true,
   canManagePayments: true, canManageSuppliers: true, canManageWarehouseItems: true,
   canViewFinancialReports: true,
-  isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
+  isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
 };
 
 const NO_PERMISSIONS: Permissions = {
@@ -328,7 +331,7 @@ const NO_PERMISSIONS: Permissions = {
   canApproveOrders: false, canDeleteOrders: false, canExportClients: false,
   canManagePayments: false, canManageSuppliers: false, canManageWarehouseItems: false,
   canViewFinancialReports: false,
-  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
 };
 
 // Permessi del commercialista quando opera su un'azienda cliente delegata
@@ -414,7 +417,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsBundle: false, canEditSettingsBundle: false,
   canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
   canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
-  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, onlyMyWarehouse: false, visibleAreas: [],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -537,6 +540,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     isAdmin: false,
     isLoading: false,
     onlyAssigned:  r["only_assigned"] === true,
+    onlyMyWarehouse: r["only_my_warehouse"] === true,
     visibleAreas:  Array.isArray(r["visible_areas"]) ? (r["visible_areas"] as string[]) : [],
   };
 }
