@@ -19,6 +19,7 @@ import {
   Euro,
   HardDrive,
   Loader2,
+  Mail,
   Package,
   RefreshCw,
   Trash2,
@@ -196,6 +197,13 @@ export default function PlanDetail() {
   });
 
   const displayLimit = (val: number) => (val === -1 ? "∞ Illimitati" : val.toString());
+  // Le email incluse hanno un terzo stato che gli altri limiti non hanno:
+  // NULL. Il calcolo della quota lo legge come ZERO, quindi ogni email va a
+  // borsellino e con saldo vuoto l'invio si blocca — su un piano a pagamento è
+  // una paywall che nessuno ha deciso. Va detto a schermo, non lasciato
+  // indovinare da un trattino.
+  const displayEmailIncluse = (val: number | null | undefined) =>
+    val === -1 ? "∞ Illimitate" : val == null ? "non configurate" : val.toString();
   const displayStorage = (mb: number) => (mb >= 1024 ? `${Math.round(mb / 1024)} GB` : `${mb} MB`);
 
   const planFeatures = useMemo(() => {
@@ -355,7 +363,7 @@ export default function PlanDetail() {
           <CardDescription>Vincoli applicati alle aziende abbonate</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="flex items-center gap-2 text-sm rounded-lg border p-3">
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -377,6 +385,27 @@ export default function PlanDetail() {
                 <div className="font-semibold">{displayStorage(plan.max_storage_mb)}</div>
               </div>
             </div>
+            {(() => {
+              const incluse = (plan as { email_monthly_included?: number | null }).email_monthly_included;
+              const nonConfigurate = incluse == null;
+              return (
+                <div className={`flex items-center gap-2 text-sm rounded-lg border p-3 ${nonConfigurate ? "border-amber-300 bg-amber-50/60 dark:bg-amber-950/20" : ""}`}>
+                  <Mail className={`h-4 w-4 ${nonConfigurate ? "text-amber-600" : "text-muted-foreground"}`} />
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground">Email/mese incluse</div>
+                    <div className={`font-semibold ${nonConfigurate ? "text-amber-700" : ""}`}>
+                      {displayEmailIncluse(incluse)}
+                    </div>
+                    {nonConfigurate && (
+                      <div className="text-[11px] leading-snug text-amber-700 mt-0.5">
+                        Vale come zero: ogni email va a borsellino e con saldo vuoto l'invio si blocca.
+                        Si imposta per singola azienda dalla scheda azienda → Email.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>
