@@ -125,7 +125,12 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
       label: "Chiama con AI",
       icon: Bot,
       color: "text-primary",
-      disabled: !contact.phone || contact.optout_call || aiAgents.length === 0,
+      // Il consenso serve SOLO alla voce automatica. Una telefonata fatta da
+      // una persona si può fare a chi non è nel Registro delle Opposizioni;
+      // una fatta da un assistente automatico richiede un sì esplicito
+      // (art. 130 Codice Privacy). Per questo "Chiama con AI" si spegne senza
+      // consenso, mentre il telefono normale resta a disposizione.
+      disabled: !contact.phone || contact.optout_call || contact.marketing_consent !== true || aiAgents.length === 0,
       onClick: () => setShowAICallDialog(true),
     },
   ];
@@ -193,7 +198,9 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
                  (action.label.includes("SMS") && contact.optout_sms) ||
                  (action.label.includes("Chiama") && contact.optout_call)
                   ? "Opt-out"
-                  : "Mancante"}
+                  : action.label === "Chiama con AI" && contact.phone && contact.marketing_consent !== true
+                    ? "Senza consenso"
+                    : "Mancante"}
               </span>
             )}
           </Button>

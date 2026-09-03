@@ -29,19 +29,77 @@ const DEFAULT_TTS_MODEL = TTS_MODEL_VOCE; // unica fonte: _shared/voicePricing.t
 // Converte tools_config (JSONB dal DB) nel formato array richiesto da ElevenLabs ConvAI.
 
 interface ToolsConfigEdiliziaTool { enabled: boolean; webhook_url: string }
+/** Dove passare la chiamata quando l'agente decide di coinvolgere una persona. */
+interface TrasferimentoConfig {
+  /** Numero dell'operatore in formato internazionale (+39...). */
+  numero?: string;
+  /** Quando trasferire, in parole: e' la condizione che legge il modello. */
+  condizione?: string;
+}
 interface ToolsConfig {
   system_tools?: Record<string, boolean>;
   custom_tools?: Array<{ id: string; name: string; description: string }>;
   edilizia_tools?: Record<string, ToolsConfigEdiliziaTool>;
+  trasferimento?: TrasferimentoConfig;
 }
 
+const CONDIZIONE_TRASFERIMENTO_DEFAULT =
+  "Quando la persona e' interessata e qualificata, oppure quando chiede espressamente di parlare con un collega.";
+
+/**
+ * Costruisce lo strumento di sistema, aggiungendo la configurazione ai due che
+ * non funzionano se dichiarati e basta.
+ *
+ * `transfer_to_number` senza `params.transfers` viene accettato da ElevenLabs
+ * ma l'agente non sa DOVE trasferire: la chiamata muore li'. Serve almeno una
+ * destinazione con la condizione in cui usarla.
+ *
+ * Il tipo e' `sip_refer` perche' i numeri di questa piattaforma sono su Telnyx:
+ * il trasferimento "conference" (quello in cui l'AI riassume a voce
+ * all'operatore prima di passare) e' disponibile solo con l'integrazione
+ * nativa Twilio. Il riassunto per l'operatore lo diamo a schermo, non a voce.
+ */
+function costruisciStrumentoSistema(elName: string, toolsConfig: ToolsConfig): unknown | null {
+  if (elName !== "transfer_to_number") return { type: "system", name: elName };
+
+  const numero = (toolsConfig.trasferimento?.numero ?? "").replace(/\s/g, "");
+  // Senza numero lo strumento sarebbe una promessa vuota: meglio non darlo
+  // affatto al modello che fargli dire "le passo un collega" nel nulla.
+  if (!numero) {
+    console.warn("[PROXY] trasferimento abilitato ma senza numero operatore: strumento saltato");
+    return null;
+  }
+  return {
+    type: "system",
+    name: "transfer_to_number",
+    description: "Passa la chiamata a una persona in carne e ossa.",
+    params: {
+      system_tool_type: "transfer_to_number",
+      transfers: [
+        {
+          transfer_destination: { type: "phone", phone_number: numero },
+          condition: toolsConfig.trasferimento?.condizione?.trim() || CONDIZIONE_TRASFERIMENTO_DEFAULT,
+          transfer_type: "sip_refer",
+        },
+      ],
+    },
+  };
+}
+
+// Nomi CANONICI di ElevenLabs (verificati sulla documentazione 2026-09):
+// end_call, language_detection, skip_turn, transfer_to_agent,
+// transfer_to_number, play_keypad_touch_tone, voicemail_detection.
+// Due erano inventati — "transfer_call" e "play_dtmf" non esistono, quindi
+// l'agente non avrebbe mai potuto passare la chiamata a una persona: EL
+// avrebbe rifiutato lo strumento sconosciuto. Nessuno se n'era accorto perche'
+// finora nessuna schermata permetteva di accenderli.
 const SYSTEM_TOOL_MAP: Record<string, string> = {
   end_conversation: "end_call",
   detect_language: "language_detection",
   skip_turn: "skip_turn",
   transfer_agent: "transfer_to_agent",
-  transfer_number: "transfer_call",
-  play_dtmf: "play_dtmf",
+  transfer_number: "transfer_to_number",
+  play_dtmf: "play_keypad_touch_tone",
   voicemail_detection: "voicemail_detection",
 };
 
@@ -172,7 +230,9 @@ async function sincronizzaToolElevenLabs(
   if (toolsConfig?.system_tools) {
     for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
       const elName = SYSTEM_TOOL_MAP[id];
-      if (enabled && elName) systemTools.push({ type: "system", name: elName });
+      if (!enabled || !elName) continue;
+      const strumento = costruisciStrumentoSistema(elName, toolsConfig);
+      if (strumento) systemTools.push(strumento);
     }
   }
   const autoUrl = await makeAutoToolUrl(companyId, elevenlabsAgentId);
@@ -225,7 +285,9 @@ function buildElevenLabsToolsFromConfig(
     for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
       if (!enabled) continue;
       const elName = SYSTEM_TOOL_MAP[id];
-      if (elName) tools.push({ type: "system", name: elName });
+      if (!elName) continue;
+      const strumento = costruisciStrumentoSistema(elName, toolsConfig);
+      if (strumento) tools.push(strumento);
     }
   }
 

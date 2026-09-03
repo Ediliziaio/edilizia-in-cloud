@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
     proposals_created: 0,
     skipped_no_phone: 0,
     skipped_optout: 0,
+    skipped_no_consent: 0,
     skipped_no_agent: 0,
     skipped_existing: 0,
     duration_ms: 0,
@@ -138,7 +139,7 @@ Deno.serve(async (req) => {
       // optout_phone NON esiste: con quella colonna la select falliva, il
       // contatto risultava null e OGNI lead finiva in skipped_no_phone. Il cron
       // girava ogni 5 minuti senza proporre mai una chiamata.
-      .select("first_name, last_name, phone, optout_call")
+      .select("first_name, last_name, phone, optout_call, marketing_consent")
       .eq("id", contactId)
       .maybeSingle();
 
@@ -148,6 +149,20 @@ Deno.serve(async (req) => {
     }
     if (contact.optout_call === true) {
       summary.skipped_optout += 1;
+      continue;
+    }
+    // CONSENSO — il cancello che rende legittima la telefonata.
+    //
+    // Una voce automatica che chiama senza operatore e' un "sistema
+    // automatizzato di chiamata" (art. 130 Codice Privacy): richiede consenso
+    // ESPLICITO PREVENTIVO. Non basta l'assenza dal Registro delle Opposizioni,
+    // che copre solo le chiamate fatte da una persona.
+    //
+    // Quindi si chiama SOLO con marketing_consent === true. NULL significa "non
+    // lo sappiamo" e vale come no: il lead resta lavorabile a mano dal
+    // commerciale, che essendo umano puo' chiamarlo.
+    if (contact.marketing_consent !== true) {
+      summary.skipped_no_consent += 1;
       continue;
     }
     const phone = typeof contact.phone === "string" ? contact.phone.replace(/\s/g, "") : "";

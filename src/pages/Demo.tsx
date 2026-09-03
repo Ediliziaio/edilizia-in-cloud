@@ -574,7 +574,7 @@ export default function Demo() {
                         className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
                       />
                       <span className="text-xs text-[#111111]/75 leading-relaxed">
-                        Acconsento a ricevere comunicazioni commerciali e promozionali via email/telefono su prodotti, novità ed eventi di Edilizia in Cloud (art. 6.1.a GDPR).{" "}
+                        Acconsento a ricevere comunicazioni commerciali e promozionali via email e telefono, anche tramite assistente automatico, su prodotti, novità ed eventi di Edilizia in Cloud (art. 6.1.a GDPR).{" "}
                         <span className="text-[#111111]/50">Facoltativo — revocabile in qualsiasi momento.</span>
                       </span>
                     </label>

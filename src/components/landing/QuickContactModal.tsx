@@ -320,7 +320,7 @@ export default function QuickContactModal() {
                     className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
                   />
                   <span className="text-[11px] text-[#111111]/70 leading-relaxed">
-                    Acconsento a ricevere comunicazioni commerciali e novità via email/telefono. <span className="opacity-60">Facoltativo.</span>
+                    Acconsento a ricevere comunicazioni commerciali e novità via email e telefono, anche tramite assistente automatico. <span className="opacity-60">Facoltativo.</span>
                   </span>
                 </label>
               </div>

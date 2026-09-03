@@ -212,6 +212,15 @@ Deno.serve(async (req) => {
           tags,
           notes: mergedNotes,
           last_activity_at: now,
+          // Il consenso va scritto SUL CONTATTO, non solo in demo_requests e
+          // nelle note: e' il campo che il richiamo vocale legge per decidere
+          // se puo' chiamare. Senza questa riga la spunta del form si perdeva e
+          // marketing_consent restava NULL su TUTTI i contatti (0 su 26.052).
+          // Vale l'ultima volonta' espressa: chi ri-invia il form senza spunta
+          // sta revocando, e va registrato come tale.
+          marketing_consent: marketingConsent,
+          marketing_consent_at: now,
+          marketing_consent_source: `form sito — ${source}`,
         })
         .eq("id", contactId);
 
@@ -234,6 +243,11 @@ Deno.serve(async (req) => {
           tags,
           notes,
           last_activity_at: now,
+          // Vedi il commento nel ramo di aggiornamento: e' il campo che abilita
+          // il richiamo vocale, e prima veniva dimenticato proprio qui.
+          marketing_consent: marketingConsent,
+          marketing_consent_at: now,
+          marketing_consent_source: `form sito — ${source}`,
         })
         .select("id")
         .single();

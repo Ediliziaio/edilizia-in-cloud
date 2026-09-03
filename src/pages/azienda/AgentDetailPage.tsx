@@ -92,6 +92,9 @@ export default function AgentDetailPage() {
   const [editModel, setEditModel] = useState("");
   const [editTemp, setEditTemp] = useState(0.7);
   const [editTools, setEditTools] = useState<Record<string, boolean>>({});
+  // Passaggio a una persona: interruttore + numero a cui squillare.
+  const [editTrasferisci, setEditTrasferisci] = useState(false);
+  const [editNumeroOperatore, setEditNumeroOperatore] = useState("");
   const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
 
   useEffect(() => {
@@ -111,8 +114,15 @@ export default function AgentDetailPage() {
       setEditLingua(agent.lingua || "it");
       setEditModel(agent.llm_model || "gemini-2.5-flash");
       setEditTemp(safeNumber(agent.temperatura, 0.7));
-      const ediliziaTools = (agent.tools_config as { edilizia_tools?: Record<string, EdiliziaToolCfg> } | null)?.edilizia_tools ?? {};
+      const cfg = (agent.tools_config ?? {}) as {
+        edilizia_tools?: Record<string, EdiliziaToolCfg>;
+        system_tools?: Record<string, boolean>;
+        trasferimento?: { numero?: string };
+      };
+      const ediliziaTools = cfg.edilizia_tools ?? {};
       setEditTools(Object.fromEntries(STRUMENTI_CHIAMATA.map((t) => [t.id, !!ediliziaTools[t.id]?.enabled])));
+      setEditTrasferisci(!!cfg.system_tools?.transfer_number);
+      setEditNumeroOperatore(cfg.trasferimento?.numero ?? "");
       setHasLoadedEdit(true);
     }
   }, [agent, hasLoadedEdit]);
@@ -124,10 +134,20 @@ export default function AgentDetailPage() {
       const prompt = editPrompt.trim();
       if (!nome) throw new Error("Inserisci un nome per l'agente AI.");
       if (prompt.length < 20) throw new Error("Completa il prompt di sistema prima di salvare.");
+      const numeroOperatore = editNumeroOperatore.replace(/\s/g, "");
+      // Un trasferimento senza numero fa dire all'agente "le passo un collega"
+      // e poi non passa nessuno: meglio fermarsi al salvataggio.
+      if (editTrasferisci && !/^\+\d{8,15}$/.test(numeroOperatore)) {
+        throw new Error("Indica il numero dell'operatore in formato internazionale, per esempio +39 02 1234567.");
+      }
 
       // Merge non distruttivo: i toggle governano `enabled`, ma un webhook_url
       // configurato a mano (o altri rami di tools_config) restano intatti.
-      const prevConfig = (agent?.tools_config ?? {}) as Record<string, unknown> & { edilizia_tools?: Record<string, EdiliziaToolCfg> };
+      const prevConfig = (agent?.tools_config ?? {}) as Record<string, unknown> & {
+        edilizia_tools?: Record<string, EdiliziaToolCfg>;
+        system_tools?: Record<string, boolean>;
+        trasferimento?: Record<string, unknown>;
+      };
       const newToolsConfig = {
         ...prevConfig,
         edilizia_tools: {
@@ -138,6 +158,10 @@ export default function AgentDetailPage() {
             webhook_url: prevConfig.edilizia_tools?.[t.id]?.webhook_url ?? "",
           }])),
         },
+        // Gli altri strumenti di sistema (fine chiamata, segreteria...) restano
+        // come sono: qui si governa solo il passaggio a una persona.
+        system_tools: { ...(prevConfig.system_tools ?? {}), transfer_number: editTrasferisci },
+        trasferimento: { ...(prevConfig.trasferimento ?? {}), numero: numeroOperatore },
       };
 
       if (agent?.elevenlabs_agent_id) {
@@ -410,6 +434,40 @@ export default function AgentDetailPage() {
                       />
                     </div>
                   ))}
+
+                  <div className="border-t pt-3 mt-2 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Passa la chiamata a una persona</p>
+                        <p className="text-xs text-muted-foreground">
+                          Quando il cliente è interessato o chiede di parlare con qualcuno, l'agente gira la telefonata al numero che indichi.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={editTrasferisci}
+                        onCheckedChange={setEditTrasferisci}
+                        aria-label="Passa la chiamata a una persona"
+                      />
+                    </div>
+                    {editTrasferisci && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium block" htmlFor="numero-operatore">
+                          Numero dell'operatore
+                        </label>
+                        <Input
+                          id="numero-operatore"
+                          value={editNumeroOperatore}
+                          onChange={(e) => setEditNumeroOperatore(e.target.value)}
+                          placeholder="+39 02 1234567"
+                          inputMode="tel"
+                          className="max-w-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          In formato internazionale. Squilla su questo numero mentre il cliente resta in linea.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}

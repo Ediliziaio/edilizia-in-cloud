@@ -422,6 +422,34 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const province = mappedData.province || defaultValues.province || null;
   const companyName = mappedData.company_name || defaultValues.company_name || null;
 
+  // ── Consenso a essere ricontattati ──────────────────────────────────────
+  // I moduli Lead Ads italiani mettono quasi sempre una domanda di consenso
+  // ("Acconsenti a essere ricontattato?", "Autorizzo il trattamento…"), ma NON
+  // e' un campo standard di Meta: arriva in field_data come domanda custom col
+  // nome che ha scelto chi ha creato il modulo. Qui la si riconosce dal nome e
+  // si legge la risposta.
+  //
+  // Se il modulo NON chiede nulla si lascia NULL: "non lo so" e' diverso da
+  // "ha detto no", e inventare un si' qui significherebbe autorizzare telefonate
+  // che nessuno ha autorizzato. Un lead senza consenso resta lavorabile a mano,
+  // solo il richiamo vocale automatico lo salta.
+  const consensoMeta: boolean | null = (() => {
+    const chiaviConsenso = ["consens", "privacy", "marketing", "accett", "autorizz", "ricontatt", "trattamento", "gdpr"];
+    for (const [chiave, valore] of Object.entries(fieldData)) {
+      const k = chiave.toLowerCase();
+      if (!chiaviConsenso.some((c) => k.includes(c))) continue;
+      const v = String(valore ?? "").trim().toLowerCase();
+      if (!v) continue;
+      if (["si", "sì", "yes", "true", "1", "acconsento", "accetto", "autorizzo", "d'accordo"].includes(v)) return true;
+      if (["no", "false", "0", "non acconsento", "nego"].includes(v)) return false;
+      // Risposta libera: qualsiasi cosa che inizi per "s" (si/sì/sono d'accordo)
+      // vale si', il resto resta indeterminato.
+      if (v.startsWith("s")) return true;
+      if (v.startsWith("n")) return false;
+    }
+    return null;
+  })();
+
   // Default email_or_phone: i Lead Ads italiani spesso non hanno email (solo
   // telefono) → con "email" puro quei lead non venivano mai deduplicati.
   const dedupePolicy = rules.dedupe_policy || "email_or_phone";
@@ -497,6 +525,13 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (lead.adset_id) updateData.meta_adset_id = lead.adset_id;
       if (lead.ad_id) updateData.meta_ad_id = lead.ad_id;
       if (lead.id) updateData.meta_lead_id = lead.id;
+      // Solo se il modulo ha davvero chiesto: un modulo senza domanda di
+      // consenso non deve cancellare un si' raccolto altrove.
+      if (consensoMeta !== null) {
+        updateData.marketing_consent = consensoMeta;
+        updateData.marketing_consent_at = new Date().toISOString();
+        updateData.marketing_consent_source = `Facebook Lead Ads — modulo ${actualFormId}`;
+      }
     }
     updateData.updated_at = new Date().toISOString();
 
@@ -534,6 +569,9 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         meta_adset_id: lead.adset_id || null,
         meta_ad_id: lead.ad_id || null,
         meta_lead_id: lead.id || leadgenId,
+        marketing_consent: consensoMeta,
+        marketing_consent_at: consensoMeta === null ? null : new Date().toISOString(),
+        marketing_consent_source: consensoMeta === null ? null : `Facebook Lead Ads — modulo ${actualFormId}`,
       })
       .select("id")
       .single();
