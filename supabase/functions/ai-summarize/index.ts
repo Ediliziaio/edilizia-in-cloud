@@ -99,6 +99,9 @@ Deno.serve(async (req: Request) => {
         companyId: company_id,
         userId,
         idempotencyKey,
+        // Stesso testo, stesso riassunto: temperatura 0.2 e nessun dato
+        // esterno che cambi nel frattempo. Un mese di validita'.
+        cacheTtlDays: 30,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -8741,7 +8741,119 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     riskLevel: "safe",
     domain: "hr",
   },
+
+  carica_strumenti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "carica_strumenti",
+        description: "Carica gli strumenti di un'area che non hai a bordo. Il catalogo completo e troppo grande per essere spedito tutto a ogni messaggio, quindi parti con le aree piu probabili per la domanda: se ti serve qualcosa che non trovi tra i tuoi strumenti, chiama QUESTO e riprova subito dopo — gli strumenti dell'area saranno disponibili. Non dire mai all'utente che una cosa non si puo fare senza aver prima provato a caricare l'area giusta.",
+        parameters: {
+          type: "object",
+          properties: {
+            aree: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "posta", "campagne"],
+              },
+              description: "Aree da caricare. Puoi chiederne piu di una in una volta sola.",
+            },
+          },
+          required: ["aree"],
+        },
+      },
+    },
+    executor: (args, _ctx) => {
+      const richieste = Array.isArray(args?.aree) ? args.aree.map((a) => String(a)) : [];
+      const valide = richieste.filter((a) => a in AREE_CARICABILI);
+      if (valide.length === 0) {
+        return Promise.resolve({
+          error: `Area non riconosciuta. Aree disponibili: ${Object.keys(AREE_CARICABILI).join(", ")}.`,
+        });
+      }
+      const domini = new Set<ToolDomain>();
+      for (const a of valide) for (const d of AREE_CARICABILI[a].domini) domini.add(d);
+      const nomi = Object.entries(SILVIO_TOOLS)
+        .filter(([, t]) => t.domain && domini.has(t.domain))
+        .map(([n]) => n);
+      return Promise.resolve({
+        caricate: valide,
+        strumenti_disponibili: nomi,
+        nota: "Gli strumenti di queste aree sono ora a bordo: richiama subito quello che ti serve. Non ripetere questa chiamata per le stesse aree.",
+      });
+    },
+    allowedRoles: ["*"],
+    allowedPersonas: ["*"],
+    // Solo la chat interna sa rimettere insieme la lista strumenti tra
+    // un'iterazione e l'altra. Sugli altri canali il catalogo non e filtrato,
+    // quindi il tool non servirebbe a niente e confonderebbe e basta.
+    allowedChannels: ["internal_chat"],
+    riskLevel: "safe",
+    domain: "meta",
+  },
 };
+
+/**
+ * Catalogo a due stadi (audit 2026-09-03).
+ *
+ * Il problema: 224 strumenti sono ~37K token di sole definizioni, spediti a
+ * ogni messaggio. Il filtro per area li riduceva, ma per non perdere le
+ * domande di confine le mappe erano generose — e il risparmio si mangiava.
+ *
+ * Con una via d'uscita il compromesso sparisce: il primo stadio puo essere
+ * STRETTO, perche un errore di classificazione non e piu definitivo. Se manca
+ * qualcosa il modello chiama `carica_strumenti` e riprova. Costa un giro in
+ * piu quando serve, invece di 13K token in piu sempre.
+ *
+ * Le aree qui sono quelle che dice l'utente ("magazzino"), non i domini
+ * interni: e il modello a sceglierle, quindi devono suonare come il mestiere.
+ */
+export const AREE_CARICABILI: Record<string, { etichetta: string; domini: ToolDomain[] }> = {
+  sicurezza: { etichetta: "sicurezza, DURC, formazione, subappaltatori", domini: ["compliance"] },
+  magazzino: { etichetta: "magazzino, fornitori, ordini e DDT", domini: ["warehouse", "filiera"] },
+  persone: { etichetta: "dipendenti, ore, buste paga, candidati", domini: ["hr"] },
+  clienti: { etichetta: "anagrafiche, opportunita, pipeline", domini: ["crm"] },
+  preventivi: { etichetta: "preventivi, offerte, listini", domini: ["preventivi", "sales"] },
+  fatture: { etichetta: "fatture, scadenze, incassi", domini: ["fattura"] },
+  banca: { etichetta: "banca, cassa, anomalie di spesa", domini: ["banking", "finance", "anomalie"] },
+  cantieri: { etichetta: "cantieri, commesse, squadre, pose", domini: ["cantiere", "operations"] },
+  posta: { etichetta: "posta aziendale", domini: ["email"] },
+  campagne: { etichetta: "campagne e marketing", domini: ["marketing"] },
+};
+
+/**
+ * Riga da appendere al prompt: dice al modello COSA puo caricare. Senza questa
+ * l'unico modo di scoprire le altre aree sarebbe indovinare.
+ * Costa ~350 caratteri contro i ~13K token che fa risparmiare.
+ */
+export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null): string {
+  if (!dominiGiaABordo) return "";
+  const presenti = new Set(dominiGiaABordo);
+  const mancanti = Object.entries(AREE_CARICABILI)
+    .filter(([, v]) => !v.domini.every((d) => presenti.has(d)))
+    .map(([k, v]) => `${k} (${v.etichetta})`);
+  if (mancanti.length === 0) return "";
+  return [
+    "",
+    "## STRUMENTI NON ANCORA A BORDO",
+    "Hai solo gli strumenti delle aree piu probabili per questa domanda. Altre aree disponibili:",
+    ...mancanti.map((m) => `- ${m}`),
+    "Se ti serve qualcosa che non trovi, chiama `carica_strumenti` con l'area e riprova subito.",
+    "Non rispondere MAI \"non posso farlo\" prima di aver provato a caricare l'area giusta.",
+  ].join("\n");
+}
+
+/** Domini corrispondenti alle aree chieste dal modello via `carica_strumenti`. */
+export function dominiPerAree(aree: unknown): ToolDomain[] {
+  if (!Array.isArray(aree)) return [];
+  const out = new Set<ToolDomain>();
+  for (const a of aree) {
+    const voce = AREE_CARICABILI[String(a)];
+    if (voce) for (const d of voce.domini) out.add(d);
+  }
+  return [...out];
+}
 
 /**
  * Ritorna i tool disponibili per il ruolo dell'utente.
@@ -8782,33 +8894,29 @@ export const CORE_TOOL_DOMAINS: ToolDomain[] = [
  * tool sicuri che 30 che perdono i casi cross-area.
  */
 const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
-  // crm incluso: pipeline/forecast (get_pipeline_forecast & co.) sono domain crm
-  // ma servono alle domande finance su target venduto/incassi futuri.
-  finance: ["anomalie", "banking", "crm", "fattura", "finance", "preventivi"],
-  fiscal: ["banking", "compliance", "fattura", "finance"],
-  operations: ["anomalie", "cantiere", "filiera", "operations", "warehouse"],
-  sales: ["cantiere", "crm", "email", "preventivi", "sales"],
+  // Mappe STRETTE dal 2026-09-03. Prima erano volutamente generose ("meglio
+  // 60-90 tool sicuri che 30 che perdono i casi di confine") perche un errore
+  // di classificazione era definitivo: se l'area giusta non era in lista, il
+  // modello non poteva farci niente. Ora c'e `carica_strumenti`, quindi un
+  // errore costa un giro in piu invece di 13K token su OGNI messaggio.
+  // Regola: ogni area porta i suoi domini e quelli da cui e inseparabile.
+  // Tutto il resto e a un tool di distanza.
+  finance: ["anomalie", "banking", "fattura", "finance"],
+  fiscal: ["anomalie", "banking", "compliance", "fattura", "finance"],
+  operations: ["cantiere", "filiera", "operations", "warehouse"],
+  sales: ["crm", "preventivi", "sales"],
   marketing: ["crm", "email", "marketing", "sales"],
-  hr: ["compliance", "finance", "hr"],
-  compliance: ["cantiere", "compliance", "filiera", "hr"],
-  client: ["crm", "email", "fattura", "preventivi", "sales"],
-  // Token-opt (audit 2026-09-03): erano ENTRAMBE `null` = catalogo completo.
-  // Sembrava prudente, ma la persona di Silvio classifica "strategic" per
-  // DEFAULT (queryClassifier.PERSONA_TO_AREA) e ogni fallback del classifier
-  // finisce li: in produzione la maggior parte delle richieste partiva con
-  // tutti i ~220 tool a bordo (≈37K token di sole definizioni, misurati su
-  // ai_router_usage_log: 43K token di input medi, picco 69K).
-  // Ora anche le due aree trasversali hanno un set esplicito — ampio, ma non
-  // tutto: restano fuori i domini che una domanda strategica non tocca al
-  // primo colpo (sicurezza/DURC, magazzino, fornitori, posta, campagne). Se la
-  // domanda riguarda davvero quelli, il classifier la manda su compliance /
-  // operations / marketing, che quei domini li portano.
-  // tech = domande sull'applicativo: bastano i domini core + il ticketing.
-  tech: ["operations"],
-  strategic: [
-    "anomalie", "banking", "cantiere", "crm", "fattura",
-    "finance", "hr", "operations", "preventivi", "sales",
-  ],
+  hr: ["hr"],
+  compliance: ["cantiere", "compliance", "hr", "operations"],
+  client: ["crm", "fattura", "preventivi", "sales"],
+  tech: ["operations", "support"],
+  // L'imprenditore che chiede "come va" parte dai soldi e dai cantieri: sono
+  // le due cose che guarda per prime. Clienti, persone e preventivi sono a un
+  // `carica_strumenti` di distanza.
+  // `operations` (4 tool) viaggia sempre con `cantiere`: sono la stessa area
+  // per chi la usa, e tenerli separati farebbe dire all'indice che i cantieri
+  // "non sono a bordo" quando invece ci sono quasi tutti.
+  strategic: ["anomalie", "banking", "cantiere", "fattura", "finance", "operations"],
 };
 
 /**

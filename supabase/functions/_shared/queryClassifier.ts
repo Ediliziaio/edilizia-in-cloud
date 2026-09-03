@@ -357,6 +357,12 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
       responseFormat: { type: "json_object" },
       companyId: opts.companyId ?? null,
       userId: opts.userId ?? null,
+      // La classificazione di una domanda non cambia da un giorno all'altro:
+      // stessa frase, stessa persona, stesse aree. E' sul percorso di OGNI
+      // messaggio a Silvio, quindi e' il posto dove la cache rende di piu'.
+      // Sette giorni: abbastanza per le domande ricorrenti, poco abbastanza da
+      // riallinearsi se cambiamo il prompt del classificatore.
+      cacheTtlDays: 7,
     });
 
     const raw = (r.content ?? "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();

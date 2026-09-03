@@ -256,6 +256,13 @@ Deno.serve(async (req) => {
       companyId: company_id,
       userId,
       idempotencyKey,
+      // Ricaricare due volte lo stesso documento (succede: rinvii, doppi
+      // click, ritentativi dopo un errore a valle) non deve ripagare
+      // l'estrazione. La chiave e' l'identita' vera del file, non i messaggi:
+      // dentro c'e' il PDF in base64, hasharlo tutto a ogni chiamata sarebbe
+      // uno spreco e basta.
+      cacheKey: idempotencyKey,
+      cacheTtlDays: 90,
     });
     const elapsedMs = Date.now() - t0;
 

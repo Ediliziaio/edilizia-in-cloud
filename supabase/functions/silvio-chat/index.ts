@@ -53,6 +53,7 @@ import {
 } from "../_shared/structuredOutput.ts";
 // MP-09: auto-delegate al Council orchestrator quando la query è multi-area
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
+import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -699,7 +700,7 @@ serve(async (req: Request) => {
     // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
     // due blocchi in un'unica stringa sugli altri provider.
     const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND;
-    const dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
+    let dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
     if (!preamboloVersion) {
@@ -781,18 +782,45 @@ serve(async (req: Request) => {
       }
     }
 
-    const allowedTools = getToolsForChannel({
+    // ── Catalogo a due stadi (audit 2026-09-03) ─────────────────────────
+    // Si parte STRETTI: solo le aree probabili per la domanda. Se al modello
+    // serve altro chiama `carica_strumenti`, i domini si aggiungono qui sotto
+    // e alla prossima iterazione del loop gli strumenti ci sono davvero.
+    // Prima le mappe erano larghe per non perdere i casi di confine, e quella
+    // prudenza costava ~13K token su OGNI messaggio invece che un giro in piu
+    // quando serve.
+    const dominiExtra = new Set<ToolDomain>();
+    let allowedTools = getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
       personaKey: PERSONA_KEY,
       domains: toolDomains,
       staffPermissions,
     });
-    const toolSchemas = toolsToOpenAISpec(allowedTools);
+    // Senza filtro attivo il catalogo e gia tutto a bordo: offrire
+    // `carica_strumenti` sarebbe solo un invito a sprecare un giro.
+    if (!toolDomains) allowedTools = allowedTools.filter((t) => t.schema?.function?.name !== "carica_strumenti");
+    let toolSchemas = toolsToOpenAISpec(allowedTools);
+    const rebuildTools = () => {
+      allowedTools = getToolsForChannel({
+        channel: "internal_chat",
+        role: primaryRole,
+        personaKey: PERSONA_KEY,
+        domains: toolDomains ? [...new Set([...toolDomains, ...dominiExtra])].sort() : null,
+        staffPermissions,
+      });
+      toolSchemas = toolsToOpenAISpec(allowedTools);
+      console.log(`[silvio-chat] strumenti ricaricati: +${[...dominiExtra].join(",")} → ${allowedTools.length} tool`);
+    };
     // Log per misurare prima/dopo su ai_router_usage_log (prompt_tokens) + qui (char).
     console.log(
       `[silvio-chat] tool filter: ${toolDomains ? toolDomains.join(",") : "FULL"} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
     );
+    // Il modello deve SAPERE cosa gli manca, altrimenti l'unico modo di
+    // scoprirlo e indovinare. Va nel blocco dinamico: cambia con la
+    // classificazione, e metterlo in quello statico romperebbe la cache.
+    const indiceAree = indiceAreeCaricabili(toolDomains);
+    if (indiceAree) dynamicSystemPrompt = `${dynamicSystemPrompt ?? ""}${indiceAree}`;
 
     const toolCtx: ToolContext = {
       supabase: supabaseAdmin,
@@ -1254,7 +1282,16 @@ serve(async (req: Request) => {
             tool_call_id: tc.id,
             content,
           });
+
+          // Catalogo a due stadi: il modello ha chiesto un'altra area. I
+          // domini si aggiungono qui, la lista strumenti si ricostruisce sotto
+          // e alla prossima iterazione li ha davvero a bordo.
+          if (toolName === "carica_strumenti" && toolResult.success) {
+            for (const d of dominiPerAree(toolArgs?.aree)) dominiExtra.add(d);
+          }
         }
+
+        if (dominiExtra.size > 0) rebuildTools();
 
         // Continue loop: re-invoke LLM with tool results
         continue;

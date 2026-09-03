@@ -96,6 +96,14 @@ export interface AiRouterCompleteOptions {
    * qualsiasi errore cache non blocca la chiamata normale.
    */
   cacheTtlDays?: number;
+  /**
+   * Chiave di cache STABILE, quando i messaggi non lo sono (audit 2026-09-03).
+   * Le estrazioni da documento infilano nel prompt una signed URL che cambia a
+   * ogni generazione: l'hash calcolato sui messaggi non coincide MAI, quindi la
+   * cache scriveva e non rileggeva niente. Chi conosce l'identita' vera della
+   * richiesta (bucket + path + tipo documento + hint) la passa qui.
+   */
+  cacheKey?: string;
 }
 
 export interface AiRouterCompleteResult {
@@ -867,8 +875,18 @@ export async function aiRouterComplete(
   let cacheInputHash: string | null = null;
   if ((opts.cacheTtlDays ?? 0) > 0 && opts.companyId) {
     try {
+      const impronta = opts.cacheKey ?? JSON.stringify(opts.messages);
+      // Rete di sicurezza: senza cacheKey esplicita, se nei messaggi c'e' una
+      // signed URL l'impronta cambia a ogni chiamata. Meglio non usare affatto
+      // la cache che riempirla di righe che nessuno rileggera' mai.
+      if (!opts.cacheKey && /\/object\/sign\/|[?&]token=/.test(impronta)) {
+        console.warn(
+          `[aiRouter] cache saltata per ${opts.taskKey}: i messaggi contengono una URL firmata (chiave instabile). Passa cacheKey.`,
+        );
+        throw new Error("cache_key_instabile");
+      }
       cacheInputHash = await sha256Hex(
-        `${opts.taskKey}|${JSON.stringify(opts.messages)}|${JSON.stringify(opts.responseFormat ?? null)}`,
+        `${opts.taskKey}|${impronta}|${JSON.stringify(opts.responseFormat ?? null)}`,
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: hit } = await (opts.supabase as any)
