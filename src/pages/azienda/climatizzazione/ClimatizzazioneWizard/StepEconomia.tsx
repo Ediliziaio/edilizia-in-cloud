@@ -30,6 +30,7 @@ import { INCENTIVI_CLIMATIZZAZIONE, calcDetraibile, superaMassimale } from "@/li
 import type { ClmComputoVoce, ClmProgetto } from "@/types/climatizzazione";
 import type { ClmFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { useClmTemplatePdf } from "@/hooks/useClimatizzazioneProgetto";
 
 interface Props {
@@ -163,11 +164,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="clm-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="climatizzazione"
               />
               <PctField
                 id="clm-iva"

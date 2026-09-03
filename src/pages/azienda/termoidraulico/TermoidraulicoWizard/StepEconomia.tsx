@@ -30,6 +30,7 @@ import { INCENTIVI_TERMOIDRAULICO, calcDetraibile, superaMassimale } from "@/lib
 import type { IdrComputoVoce, IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { useIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
 
 interface Props {
@@ -163,11 +164,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="idr-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="termoidraulico"
               />
               <PctField
                 id="idr-iva"

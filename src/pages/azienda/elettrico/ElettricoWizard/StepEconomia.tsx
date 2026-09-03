@@ -30,6 +30,7 @@ import { INCENTIVI_ELETTRICO, calcDetraibile, superaMassimale } from "@/lib/prev
 import type { EleComputoVoce, EleProgetto } from "@/types/elettrico";
 import type { EleFormPatch } from "./types";
 import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { useEleTemplatePdf } from "@/hooks/useElettricoProgetto";
 
 interface Props {
@@ -163,11 +164,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <PctField
+              <ScontoGlobaleField
                 id="ele-sconto"
-                label="Sconto globale"
                 value={form.sconto_pct ?? 0}
                 onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={lordoCapitoli}
+                tipoLavoro="elettrico"
               />
               <PctField
                 id="ele-iva"
