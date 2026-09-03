@@ -140,6 +140,9 @@ const CHIAVE_ANON =
 // puntare a un ambiente vero, altrimenti non prova nulla e fallisce a vuoto.
 const ATTIVA = URL_BASE.startsWith("https://") && CHIAVE_ANON.length > 40;
 
+// Un identificativo qualsiasi: il punto è che la risposta non dipenda da quale.
+const UUID_SONDA = "00000000-0000-0000-0000-000000000001";
+
 describe.runIf(ATTIVA)("0.1 · prova end-to-end: senza login non si passa", () => {
   const chiama = async (fn: string, body: unknown) => {
     const r = await fetch(`${URL_BASE}/rest/v1/rpc/${fn}`, {
@@ -188,6 +191,58 @@ describe.runIf(ATTIVA)("0.1 · prova end-to-end: senza login non si passa", () =
       if (e.stato === 401 || e.stato === 403) rotte.push(`${fn} -> HTTP ${e.stato}`);
     }
     expect(rotte, `flussi pubblici rotti dalla revoca:\n${rotte.join("\n")}`).toEqual([]);
+  });
+});
+
+// Gli aiutanti interni restano eseguibili perché le policy RLS li usano — la
+// valutazione di una policy avviene con i privilegi di chi interroga, quindi
+// revocarli romperebbe la lettura invece di proteggerla. Non devono però
+// rispondere a chi non ha una sessione: erano oracoli interrogabili per
+// identificativo (has_role rispondeva `true` su un utente qualsiasi).
+const ORACOLI_CHIUSI: Array<{ fn: string; body: Record<string, unknown>; atteso: unknown }> = [
+  { fn: "has_role", body: { _user_id: UUID_SONDA, _role: "company_admin" }, atteso: false },
+  { fn: "get_user_company_id", body: { _user_id: UUID_SONDA }, atteso: null },
+  { fn: "get_order_company_id", body: { _order_id: UUID_SONDA }, atteso: null },
+  { fn: "get_order_customer_id", body: { _order_id: UUID_SONDA }, atteso: null },
+  { fn: "get_platform_admin_company_id", body: {}, atteso: null },
+  { fn: "order_has_employee_for_user", body: { _order_id: UUID_SONDA, _user_id: UUID_SONDA }, atteso: false },
+  { fn: "order_has_salesperson_for_user", body: { _order_id: UUID_SONDA, _user_id: UUID_SONDA }, atteso: false },
+  { fn: "utente_in_ufficio", body: { _user: UUID_SONDA, _ufficio: UUID_SONDA }, atteso: false },
+  { fn: "internal_chat_is_order_channel", body: { p_channel_id: UUID_SONDA }, atteso: false },
+  { fn: "check_staff_visibility", body: { _user_id: UUID_SONDA, _assigned_to: UUID_SONDA }, atteso: false },
+  { fn: "has_permission", body: { _user_id: UUID_SONDA, _permission: "can_view_orders" }, atteso: false },
+  { fn: "has_permission_for_company", body: { _user_id: UUID_SONDA, _permission: "can_view_orders", _company_id: UUID_SONDA }, atteso: false },
+];
+
+describe.runIf(ATTIVA)("0.1 · gli aiutanti interni non rispondono a chi non ha login", () => {
+  const chiama = async (fn: string, body: unknown) => {
+    const r = await fetch(`${URL_BASE}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: {
+        apikey: CHIAVE_ANON,
+        Authorization: `Bearer ${CHIAVE_ANON}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+    return { stato: r.status, corpo: await r.text() };
+  };
+
+  it("nessuno restituisce un dato: falso o nullo, mai una risposta utile", { timeout: 120_000 }, async () => {
+    const rotti: string[] = [];
+    for (const o of ORACOLI_CHIUSI) {
+      const e = await chiama(o.fn, o.body);
+      if (e.stato === 404 && e.corpo.includes("PGRST202")) {
+        rotti.push(`${o.fn}: la sonda non combacia con la firma — verifica i nomi dei parametri`);
+        continue;
+      }
+      let valore: unknown;
+      try { valore = JSON.parse(e.corpo); } catch { valore = e.corpo; }
+      if (valore !== o.atteso) {
+        rotti.push(`${o.fn} -> ${JSON.stringify(valore)} (atteso ${JSON.stringify(o.atteso)})`);
+      }
+    }
+    expect(rotti, `oracoli ancora aperti:\n${rotti.join("\n")}`).toEqual([]);
   });
 });
 
