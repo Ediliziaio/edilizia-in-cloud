@@ -78,6 +78,12 @@ describe("0.2 · la regola vive sul server", () => {
 
   it("non si può rientrare in bozza per riscrivere il documento da lì", () => {
     expect(sql).toMatch(/NEW\.stato = 'bozza' AND OLD\.stato IS DISTINCT FROM 'bozza'/);
+    // …e il rifiuto deve arrivare con il messaggio giusto. Prima qui c'era
+    // `v_violati || 'stato→bozza'` senza cast: su un array di testo Postgres
+    // legge il letterale come array literal e solleva un 22P02 illeggibile.
+    // Il tentativo veniva comunque respinto, quindi una prova che si accontenta
+    // di "è stata sollevata un'eccezione" non se ne accorgeva.
+    expect(sql).toMatch(/'stato→bozza'::text/);
   });
 
   it("la cancellazione fisica di un documento fiscale chiuso è rifiutata", () => {

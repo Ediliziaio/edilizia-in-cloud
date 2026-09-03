@@ -175,7 +175,10 @@ BEGIN
   -- Tornare in bozza sarebbe la scorciatoia per aggirare tutto il resto:
   -- prima si "riapre" il documento, poi lo si riscrive campo per campo.
   IF NEW.stato = 'bozza' AND OLD.stato IS DISTINCT FROM 'bozza' THEN
-    v_violati := v_violati || 'stato→bozza';
+    -- ::text obbligatorio: `text[] || 'letterale'` viene risolto come
+    -- concatenazione fra array e il letterale viene interpretato come array
+    -- literal, che esplode con 22P02 al posto del messaggio giusto.
+    v_violati := v_violati || 'stato→bozza'::text;
   END IF;
 
   IF cardinality(v_violati) > 0 THEN
