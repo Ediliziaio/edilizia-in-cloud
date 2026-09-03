@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, HardHat, MapPin, Package, FileText } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
+import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -321,9 +322,18 @@ function EditOrderInner() {
     }
   }, [existingSalesperson]);
 
+  // Versione della commessa che l'utente ha davanti. Serve a non sovrascrivere
+  // il lavoro di un collega che ha salvato mentre questa pagina era aperta.
+  // Si aggiorna quando il modulo si riempie dai dati del server e dopo ogni
+  // salvataggio andato a buon fine.
+  const versioneCaricataRef = useRef<string | null>(null);
+
   // Populate form when order data is loaded
   useEffect(() => {
     if (!order) return;
+    if (versioneCaricataRef.current === null) {
+      versioneCaricataRef.current = order.updated_at ?? null;
+    }
 
     // Try to restore draft — solo se è più recente dell'ultima modifica del
     // record, altrimenti è la fotografia di una vecchia apertura di pagina.
@@ -571,7 +581,7 @@ function EditOrderInner() {
       );
       const legacy = installmentsToLegacyColumns(installmentsForSave);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .update({
           customer_id: args?.customerId || customerId,
@@ -603,9 +613,18 @@ function EditOrderInner() {
             : {}),
         } as never)
         .eq("id", id!)
-        .eq("company_id", effectiveCompany.id);
+        .eq("company_id", effectiveCompany.id)
+        // Guardia sulla modifica concorrente: se un collega ha salvato mentre
+        // questa pagina era aperta, `updated_at` non combacia più, la UPDATE
+        // tocca zero righe e non sovrascriviamo il suo lavoro.
+        .eq("updated_at", versioneCaricataRef.current ?? "")
+        .select("updated_at");
 
       if (error) throw error;
+      versioneCaricataRef.current = esitoUpdateConGuardia(
+        data as Array<{ updated_at?: string | null }> | null,
+        "ordine",
+      );
 
       // Geocoding automatico cantiere (best-effort, in background):
       // aggiorna work_lat/lng senza bloccare né far fallire il salvataggio.
@@ -826,6 +845,17 @@ function EditOrderInner() {
       navigate(`/azienda/ordini/${id}`);
     },
     onError: (error) => {
+      if (isConflittoModifica(error)) {
+        // Non è un errore tecnico: è una persona che ha salvato prima di te.
+        // La bozza locale resta, così quello che hai scritto non si perde.
+        toast.error("Qualcun altro ha salvato questa commessa", {
+          description: error.message,
+          duration: 10000,
+          action: { label: "Ricarica", onClick: () => window.location.reload() },
+        });
+        logger.warn("Conflitto di modifica sulla commessa", { id });
+        return;
+      }
       toast.error("Errore", {
         description: error instanceof Error ? error.message : "Si è verificato un errore durante l'aggiornamento della commessa.",
       });
