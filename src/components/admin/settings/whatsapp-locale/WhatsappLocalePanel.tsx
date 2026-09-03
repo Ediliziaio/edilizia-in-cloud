@@ -26,7 +26,8 @@ import {
 import { toast } from "sonner";
 import {
   Smartphone, Plus, Trash2, Link2, ShieldCheck, RefreshCw, Server, CheckCircle2, XCircle, AlertTriangle, Activity,
-  BookOpen, ExternalLink, Send, Settings2 } from "lucide-react";
+  BookOpen, ExternalLink, Send, Settings2, Pencil, QrCode, KeyRound, Check, X } from "lucide-react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import RulesManager from "./RulesManager";
 
 const MAX_NUMBERS = 10;
@@ -93,6 +94,20 @@ function statoBadge(stato: string) {
   if (stato === "connecting") return <Badge variant="secondary">In attesa QR</Badge>;
   if (stato === "banned") return <Badge variant="destructive">Bloccato</Badge>;
   return <Badge variant="outline">Disconnesso</Badge>;
+}
+
+/** "3 min fa", "ieri", … — quanto è vecchio l'ultimo segno di vita del numero. */
+function tempoFa(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const min = Math.floor(ms / 60_000);
+  if (min < 1) return "adesso";
+  if (min < 60) return `${min} min fa`;
+  const ore = Math.floor(min / 60);
+  if (ore < 24) return `${ore} or${ore === 1 ? "a" : "e"} fa`;
+  const giorni = Math.floor(ore / 24);
+  return giorni === 1 ? "ieri" : `${giorni} giorni fa`;
 }
 
 export default function WhatsappLocalePanel() {
@@ -199,6 +214,15 @@ export default function WhatsappLocalePanel() {
   const [sessionId, setSessionId] = useState("");
   const [qr, setQr] = useState("");
   const [polling, setPolling] = useState(false);
+  // Lo stesso dialog serve anche a RICOLLEGARE un numero già in lista: cambia
+  // solo il testo e il fatto che la sessione esiste già.
+  const [relink, setRelink] = useState<{ id: string; nome: string } | null>(null);
+  const [relinkLoading, setRelinkLoading] = useState(false);
+  // Alternativa al QR: codice a 8 cifre da digitare sul telefono.
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const confirm = useConfirm();
 
   const startConnect = useMutation({
     mutationFn: async () => invokeGateway("create_session", { display_name: displayName.trim() }),
@@ -238,21 +262,67 @@ export default function WhatsappLocalePanel() {
         if (res.stato === "connected") {
           setPolling(false);
           setConnectOpen(false);
-          toast.success("Numero collegato con successo");
+          toast.success(relink ? `${relink.nome}: ricollegato` : "Numero collegato con successo");
           queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
         }
       } catch { /* ritenta al prossimo tick */ }
     };
     const id = setInterval(tick, 3000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [connectOpen, sessionId, polling, queryClient]);
+  }, [connectOpen, sessionId, polling, queryClient, relink]);
 
   function openConnectDialog() {
     setDisplayName("");
     setSessionId("");
     setQr("");
+    setRelink(null);
+    setPairingPhone("");
+    setPairingCode("");
     setPolling(false);
     setConnectOpen(true);
+  }
+
+  // Ricollega: la riga resta (tag, limiti, riscaldamento compresi), si riavvia
+  // la sessione sul gateway e si mostra un QR nuovo. Se il gateway aveva perso
+  // la sessione, l'edge ne crea una nuova e ci ridà il session_id aggiornato.
+  async function openRelinkDialog(n: OpenWaNumberRow) {
+    setDisplayName(n.display_name ?? "");
+    setSessionId(n.session_id);
+    setQr("");
+    setPairingPhone(n.numero ?? "");
+    setPairingCode("");
+    setRelink({ id: n.id, nome: n.display_name || n.numero || n.session_id });
+    setConnectOpen(true);
+    setRelinkLoading(true);
+    try {
+      const r = await invokeGateway("restart_session", { session_id: n.session_id });
+      const sid = String(r.session_id ?? n.session_id);
+      setSessionId(sid);
+      if (r.ricreata) toast.message("Sessione ricreata sul gateway: inquadra il nuovo QR.");
+      const qrData = await invokeGateway("get_qr", { session_id: sid });
+      setQr(String(qrData.qr ?? ""));
+      setPolling(true);
+      queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRelinkLoading(false);
+    }
+  }
+
+  async function chiediPairingCode() {
+    const phone = pairingPhone.replace(/[^\d]/g, "");
+    if (phone.length < 8) { toast.error("Scrivi il numero del telefono da collegare, con prefisso (es. +39…)"); return; }
+    setPairingLoading(true);
+    try {
+      const r = await invokeGateway("get_pairing_code", { session_id: sessionId, phone });
+      setPairingCode(String(r.pairing_code ?? ""));
+      if (!r.pairing_code) toast.error("Il gateway non ha restituito un codice: riprova col QR.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPairingLoading(false);
+    }
   }
 
   const disconnectNumber = useMutation({
@@ -430,7 +500,15 @@ export default function WhatsappLocalePanel() {
                 key={n.id}
                 number={n}
                 onSaved={() => queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] })}
-                onDisconnect={() => { if (window.confirm(`Scollegare ${n.numero ?? n.session_id}? La sessione WhatsApp viene chiusa e per ricollegarlo va riletto il QR.`)) disconnectNumber.mutate(n.session_id); }}
+                onRelink={() => { void openRelinkDialog(n); }}
+                onDisconnect={async () => {
+                  const ok = await confirm({
+                    title: `Scollegare ${n.display_name || n.numero || n.session_id}?`,
+                    description: "La sessione WhatsApp viene chiusa e il numero sparisce dalla lista con i suoi tag, limiti e riscaldamento. Se il telefono ha solo perso il collegamento, usa \"Ricollega\" invece.",
+                    confirmLabel: "Scollega",
+                  });
+                  if (ok) disconnectNumber.mutate(n.session_id);
+                }}
                 disconnecting={disconnectNumber.isPending}
               />
             ))
@@ -445,9 +523,11 @@ export default function WhatsappLocalePanel() {
       <Dialog open={connectOpen} onOpenChange={(o) => { if (!o) { setPolling(false); } setConnectOpen(o); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Collega un numero WhatsApp</DialogTitle>
+            <DialogTitle>{relink ? `Ricollega ${relink.nome}` : "Collega un numero WhatsApp"}</DialogTitle>
             <DialogDescription>
-              Dai un nome al numero, genera il QR e scansionalo da WhatsApp → Dispositivi collegati.
+              {relink
+                ? "Sul telefono: WhatsApp → Dispositivi collegati → Collega un dispositivo, poi inquadra il QR. Tag, limiti e riscaldamento restano quelli di prima."
+                : "Dai un nome al numero, genera il QR e scansionalo da WhatsApp → Dispositivi collegati."}
             </DialogDescription>
           </DialogHeader>
 
@@ -478,14 +558,40 @@ export default function WhatsappLocalePanel() {
                 <Skeleton className="h-56 w-56" />
               )}
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <RefreshCw className="h-4 w-4 animate-spin" /> In attesa della scansione…
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                {relinkLoading ? "Riavvio della sessione sul gateway…" : "In attesa della scansione… il QR si rinnova da solo."}
               </p>
+
+              {/* Il QR a volte non si lascia inquadrare (schermo piccolo, fotocamera
+                  che non mette a fuoco): il codice a 8 cifre è la via di riserva. */}
+              <div className="w-full rounded-md border p-3 space-y-2">
+                <p className="text-xs font-medium flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5" /> Non riesci a inquadrare? Usa il codice
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="+39 333 1234567"
+                    value={pairingPhone}
+                    onChange={(e) => setPairingPhone(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={() => { void chiediPairingCode(); }} disabled={pairingLoading || !sessionId}>
+                    {pairingLoading ? "…" : "Ottieni codice"}
+                  </Button>
+                </div>
+                {pairingCode && (
+                  <p className="text-sm">
+                    Sul telefono scegli <em>Collega con numero di telefono</em> e digita{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-base font-semibold tracking-widest">{pairingCode}</code>
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
           <DialogFooter>
             {!sessionId ? (
-              <Button onClick={() => startConnect.mutate()} disabled={startConnect.isPending}>
+              <Button onClick={() => startConnect.mutate()} disabled={startConnect.isPending || !displayName.trim()}>
                 <Link2 className="mr-2 h-4 w-4" />
                 {startConnect.isPending ? "Generazione…" : "Genera QR"}
               </Button>
@@ -503,13 +609,31 @@ export default function WhatsappLocalePanel() {
 
 // ── Riga singolo numero: tag + cap editabili ─────────────────────────────────
 function NumberRow({
-  number, onSaved, onDisconnect, disconnecting,
+  number, onSaved, onRelink, onDisconnect, disconnecting,
 }: {
   number: OpenWaNumberRow;
   onSaved: () => void;
+  onRelink: () => void;
   onDisconnect: () => void;
   disconnecting: boolean;
 }) {
+  // Rinomina in riga: il nome del telefono (pushName) arrivava come default e
+  // finora non si poteva cambiare — due numeri diversi entrambi "Giusy".
+  const [rinomina, setRinomina] = useState(false);
+  const [nuovoNome, setNuovoNome] = useState(number.display_name ?? "");
+  const [salvandoNome, setSalvandoNome] = useState(false);
+  async function salvaNome() {
+    const nome = nuovoNome.trim();
+    if (!nome || nome === (number.display_name ?? "")) { setRinomina(false); return; }
+    setSalvandoNome(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("openwa_numbers").update({ display_name: nome }).eq("id", number.id);
+    setSalvandoNome(false);
+    if (error) { toast.error("Nome non salvato"); return; }
+    setRinomina(false);
+    toast.success("Nome aggiornato");
+    onSaved();
+  }
   const [tagsText, setTagsText] = useState((number.tags ?? []).join(", "));
   const [cap, setCap] = useState(String(number.daily_cap ?? 10));
   const [weeklyCap, setWeeklyCap] = useState(String(number.weekly_cap ?? 40));
@@ -590,7 +714,31 @@ function NumberRow({
           {number.stato === "connected"
             ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             : <XCircle className="h-4 w-4 text-muted-foreground" />}
-          <span className="font-medium">{number.display_name || number.numero || number.session_id}</span>
+          {rinomina ? (
+            <span className="flex items-center gap-1">
+              <Input
+                autoFocus
+                value={nuovoNome}
+                onChange={(e) => setNuovoNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void salvaNome(); if (e.key === "Escape") setRinomina(false); }}
+                className="h-8 w-52 text-sm"
+                maxLength={60}
+              />
+              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => { void salvaNome(); }} disabled={salvandoNome} title="Salva nome">
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => { setRinomina(false); setNuovoNome(number.display_name ?? ""); }} title="Annulla">
+                <X className="h-4 w-4" />
+              </Button>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <span className="font-medium">{number.display_name || number.numero || number.session_id}</span>
+              <Button variant="ghost" size="sm" className="h-7 px-1.5 text-muted-foreground" onClick={() => { setNuovoNome(number.display_name ?? ""); setRinomina(true); }} title="Rinomina">
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          )}
           {number.numero && <span className="text-sm text-muted-foreground">{number.numero}</span>}
           {statoBadge(number.stato)}
         </div>
@@ -607,16 +755,21 @@ function NumberRow({
               in riscaldamento · si arriva a {number.daily_cap}
             </Badge>
           )}
-          {number.stato === "connected" && (
+          {number.stato === "connected" ? (
             <Button variant="outline" size="sm" onClick={() => setProvaAperta(true)}>
               <Send className="mr-1 h-3.5 w-3.5" /> Prova
+            </Button>
+          ) : (
+            // Non connesso: il QR è l'unica cosa che serve, quindi sta in vista.
+            <Button variant="default" size="sm" onClick={onRelink} title="Mostra un nuovo QR e ricollega il telefono">
+              <QrCode className="mr-1 h-3.5 w-3.5" /> {number.stato === "connecting" ? "Mostra QR" : "Ricollega"}
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setImpostazioniAperte((v) => !v)}
-            title="Tag, limiti e pausa"
+            title="Tag, limiti, pausa e ricollegamento"
           >
             <Settings2 className="h-4 w-4" />
           </Button>
@@ -631,6 +784,16 @@ function NumberRow({
           fino a {number.daily_cap} — è così che si evita il blocco.
         </p>
       )}
+      <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+        {tempoFa(number.last_seen_at) && <span>Ultimo segno di vita: {tempoFa(number.last_seen_at)}</span>}
+        {number.connected_since && <span>Collegato dal {new Date(`${number.connected_since}T00:00:00`).toLocaleDateString("it-IT")}</span>}
+        {(number.errori_consecutivi ?? 0) > 0 && (
+          <span className="text-amber-700">
+            {number.errori_consecutivi} invii falliti di fila{number.ultimo_errore ? ` — ${number.ultimo_errore.slice(0, 80)}` : ""}
+          </span>
+        )}
+        {number.stato === "banned" && <span className="text-destructive">WhatsApp ha bloccato questo numero: non usarlo per le campagne.</span>}
+      </p>
       {impostazioniAperte && (
       <div className="mt-3 space-y-2">
         <div className="space-y-1">
@@ -658,6 +821,16 @@ function NumberRow({
             {saving ? "…" : "Salva"}
           </Button>
         </div>
+        {number.stato === "connected" && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-dashed p-2">
+            <p className="text-[11px] text-muted-foreground">
+              Il telefono non riceve più? Un QR nuovo ricollega questo stesso numero senza perdere tag, limiti e riscaldamento.
+            </p>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={onRelink}>
+              <QrCode className="mr-1 h-3.5 w-3.5" /> Ricollega con nuovo QR
+            </Button>
+          </div>
+        )}
       </div>
       )}
 

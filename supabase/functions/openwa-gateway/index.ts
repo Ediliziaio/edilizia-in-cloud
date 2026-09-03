@@ -4,8 +4,8 @@
 // Separato al 100% dal canale Meta ufficiale. Contratto REST allineato a
 // openapi.json di rmyndharis/OpenWA. Config gateway in platform_settings.
 //
-// Azioni: create_session | get_qr | get_pairing_code | session_status
-//         | delete_session | send_text
+// Azioni: create_session | restart_session | get_qr | get_pairing_code
+//         | session_status | delete_session | send_text | send_media
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
@@ -18,6 +18,20 @@ import {
 function webhookUrl(): string {
   const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
   return `${base}/functions/v1/openwa-webhook`;
+}
+
+// Il gateway accetta come nome sessione SOLO lettere, numeri e trattini
+// (openapi: "alphanumeric and hyphens only"): un nome come "Account Giusy"
+// veniva rifiutato con 400 Bad Request. Il nome scritto dall'utente resta
+// intatto in display_name, qui se ne ricava la versione tecnica.
+function nomeSessione(displayName: string): string {
+  const slug = displayName
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // via gli accenti
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return slug ? `eic-${slug}` : `eic-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 Deno.serve(async (req) => {
@@ -52,17 +66,7 @@ Deno.serve(async (req) => {
     // ── create_session: crea → start → registra webhook → salva numero ────────
     if (action === "create_session") {
       const displayName: string = (body.display_name ?? "").trim();
-      // Il gateway accetta come nome sessione SOLO lettere, numeri e trattini
-      // (openapi: "alphanumeric and hyphens only"): un nome come "Account Giusy"
-      // veniva rifiutato con 400 Bad Request. Il nome scritto dall'utente resta
-      // intatto in display_name, qui se ne ricava la versione tecnica.
-      const slug = displayName
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // via gli accenti
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40);
-      const name = slug ? `eic-${slug}` : `eic-${crypto.randomUUID().slice(0, 8)}`;
+      const name = nomeSessione(displayName);
 
       const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
         method: "POST",
@@ -98,6 +102,63 @@ Deno.serve(async (req) => {
       if (error) throw new Error(error.message);
 
       return new Response(JSON.stringify({ ok: true, number: inserted }), { headers: jsonH });
+    }
+
+    // ── restart_session: ricollega un numero già in lista senza scollegarlo ──
+    // Serve quando il telefono ha perso il collegamento (o la sessione sul
+    // gateway è morta): prima l'unica via era "Scollega" + "Collega numero",
+    // che cancellava tag, limiti e riscaldamento. Qui la riga resta la stessa.
+    // Se la sessione non esiste più sul gateway (404) se ne crea una nuova con
+    // lo stesso nome e si aggiorna session_id sulla riga.
+    if (action === "restart_session") {
+      const sessionId: string = (body.session_id ?? "").trim();
+      if (!sessionId) return new Response(JSON.stringify({ error: "session_id richiesto" }), { status: 400, headers: jsonH });
+
+      const { data: row } = await supabaseAdmin
+        .from("openwa_numbers")
+        .select("id, display_name")
+        .eq("session_id", sessionId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (!row) return new Response(JSON.stringify({ error: "Numero non trovato" }), { status: 404, headers: jsonH });
+
+      let effectiveId = sessionId;
+      let ricreata = false;
+      const started = await owaFetch(cfg, OWA_PATHS.startSession(sessionId), { method: "POST" }).catch(() => null);
+      if (!started || started.status === 404) {
+        const created = await owaFetch(cfg, OWA_PATHS.createSession(), {
+          method: "POST",
+          body: JSON.stringify({ name: nomeSessione(row.display_name ?? "") }),
+        });
+        if (!created.ok) {
+          return new Response(JSON.stringify({ error: `Gateway: ${created.status} ${created.text}` }), { status: 502, headers: jsonH });
+        }
+        effectiveId = created.json?.id ?? created.json?.session?.id ?? "";
+        if (!effectiveId) {
+          return new Response(JSON.stringify({ error: "Gateway: id sessione mancante nella risposta." }), { status: 502, headers: jsonH });
+        }
+        await owaFetch(cfg, OWA_PATHS.startSession(effectiveId), { method: "POST" }).catch(() => null);
+        ricreata = true;
+      }
+
+      // Webhook: ripetibile, best-effort — sulla sessione nuova è obbligatorio.
+      const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
+      await owaFetch(cfg, OWA_PATHS.createWebhook(effectiveId), {
+        method: "POST",
+        body: JSON.stringify({
+          url: webhookUrl(),
+          events: ["message.received", "session.status"],
+          ...(secret ? { secret } : {}),
+        }),
+      }).catch(() => null);
+
+      const { error } = await supabaseAdmin
+        .from("openwa_numbers")
+        .update({ session_id: effectiveId, stato: "connecting", last_seen_at: new Date().toISOString(), errori_consecutivi: 0, ultimo_errore: null })
+        .eq("id", row.id);
+      if (error) throw new Error(error.message);
+
+      return new Response(JSON.stringify({ ok: true, session_id: effectiveId, ricreata }), { headers: jsonH });
     }
 
     // ── get_qr: QR (data-uri PNG) per il pairing ──────────────────────────────
@@ -145,7 +206,15 @@ Deno.serve(async (req) => {
 
       const patch: Record<string, unknown> = { stato, last_seen_at: new Date().toISOString() };
       if (numero) patch.numero = numero.startsWith("+") ? numero : `+${numero}`;
-      if (pushName) patch.display_name = pushName;
+      // Il nome del telefono (pushName) vale solo come DEFAULT: se l'utente ha
+      // rinominato il numero, ogni controllo di stato glielo rimetteva com'era
+      // (ecco perché due numeri diversi si chiamavano entrambi "Giusy").
+      if (pushName) {
+        const { data: cur } = await supabaseAdmin
+          .from("openwa_numbers").select("display_name")
+          .eq("session_id", sessionId).is("deleted_at", null).maybeSingle();
+        if (!(cur?.display_name ?? "").trim()) patch.display_name = pushName;
+      }
       await supabaseAdmin.from("openwa_numbers").update(patch).eq("session_id", sessionId).is("deleted_at", null);
 
       // Alla prima connessione fissa la data di warm-up (anti-ban).
