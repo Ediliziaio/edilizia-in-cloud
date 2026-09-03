@@ -97,6 +97,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Staff / Operai",             path: "/azienda/impostazioni/persone?tab=staff" },
   { label: "Team",                       path: "/azienda/impostazioni/persone?tab=team" },
   { label: "Sicurezza & Privacy",        path: "/azienda/impostazioni/sicurezza-privacy" },
+  { label: "Esporta i dati",             path: "/azienda/impostazioni/esporta-dati" },
   { label: "Cambio password",            path: "/azienda/impostazioni/mio-profilo?tab=sicurezza" },
   { label: "Privacy & GDPR",             path: "/azienda/impostazioni/sicurezza-privacy?tab=privacy" },
   { label: "Security dashboard",         path: "/azienda/impostazioni/sicurezza-privacy?tab=dashboard" },

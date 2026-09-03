@@ -853,6 +853,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       items: [
         // IMP4: voce unica → pagina con 4 tab (password/privacy/dashboard/attivita)
         { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & Privacy", icon: <Shield className="h-4 w-4" />, visible: true },
+        { to: "/azienda/impostazioni/esporta-dati", label: "Esporta i dati", icon: <Shield className="h-4 w-4" />, visible: true },
       ],
     },
     {

@@ -42,6 +42,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   staff:                  { title: "Staff / Operai",           description: "Gestisci lo staff operativo e gli operai" },
   team:                   { title: "Team",                     description: "Organizza i team di lavoro" },
   "sicurezza-privacy":    { title: "Sicurezza & Privacy",       description: "Privacy GDPR, dashboard sicurezza e registro attività" },
+  "esporta-dati":         { title: "Esporta i dati",           description: "Scarica tutti i dati dell'azienda in un archivio" },
   sicurezza:              { title: "Sicurezza profilo",         description: "Gestisci password e 2FA dal tuo profilo personale" },
   privacy:                { title: "Privacy & GDPR",           description: "Gestisci le preferenze privacy e la conformità GDPR" },
   "security-dashboard":   { title: "Security dashboard",      description: "Monitora gli accessi e gli eventi di sicurezza" },
