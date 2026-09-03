@@ -116,10 +116,11 @@ const RESULT_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  order: "Ordini",
+  order: "Commesse",
   customer: "Clienti",
   contact: "Contatti Marketing",
   ticket: "Ticket",
+  quote: "Preventivi",
 };
 
 interface CommandPaletteProps {
@@ -266,7 +267,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [query]);
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    // shouldFilter={false}: questa palette filtra già tutto da sé — le voci di
+    // navigazione e impostazioni per testo, i risultati d'azienda con una query
+    // al server. Il filtro interno di cmdk arrivava dopo e nascondeva i
+    // risultati veri: cercando il cognome di un cliente il gruppo "Clienti"
+    // compariva con zero voci dentro, e sembrava che la ricerca non trovasse
+    // niente mentre il cliente era stato trovato eccome.
+    <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>
       <CommandInput
         placeholder="Cerca ordini, clienti, AI, impostazioni..."
         value={query}
