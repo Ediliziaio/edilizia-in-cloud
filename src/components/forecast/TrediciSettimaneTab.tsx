@@ -30,6 +30,8 @@ import {
 import { useGiornoStipendi } from "@/hooks/useGiornoStipendi";
 import { useFiscoPrevisto } from "@/hooks/useFiscoPrevisto";
 import { useCommesseBonus, fattoreNettoRitenuta } from "@/hooks/useCommesseBonus";
+import { useBloccaPrezzoAperti } from "@/hooks/useBloccaPrezzoAperti";
+import { movimentiPrevisti as bloccaPrezzoPrevisti, daRestituire } from "@/lib/orders/bloccaPrezzo";
 
 interface ScadenzaForecast {
   id: string;
@@ -61,6 +63,7 @@ const RIGHE_ENTRATE = [
   { chiave: "acconti" as const, label: "Acconti alla firma", nota: "denaro per lavoro futuro" },
   { chiave: "saldi" as const, label: "SAL e saldi", nota: "lavoro eseguito" },
   { chiave: "fatture" as const, label: "Fatture clienti", nota: "scadenze attive" },
+  { chiave: "altreEntrate" as const, label: "Altre entrate", nota: "blocca prezzo in arrivo" },
 ];
 const RIGHE_USCITE = [
   { chiave: "fornitori" as const, label: "Fornitori" },
@@ -68,6 +71,7 @@ const RIGHE_USCITE = [
   { chiave: "fisco" as const, label: "F24, IVA e contributi" },
   { chiave: "squadreProvvigioni" as const, label: "Squadre e provvigioni" },
   { chiave: "altriCosti" as const, label: "Altri costi" },
+  { chiave: "bloccaPrezzo" as const, label: "Blocca prezzo da restituire" },
 ];
 
 export function TrediciSettimaneTab({
@@ -98,6 +102,10 @@ export function TrediciSettimaneTab({
   const fisco = fiscoQ.data;
   const bonusQ = useCommesseBonus(companyId);
   const commesseBonus = bonusQ.data;
+  // Blocca prezzo ancora aperti: soldi in cassa che sono del cliente.
+  // `data` non è mai undefined (initialData costante nel hook): niente `?? []`,
+  // che creerebbe un array nuovo a ogni render e ricalcolerebbe il piano.
+  const bloccaPrezzoAperti = useBloccaPrezzoAperti(companyId).data;
 
   const piano = useMemo(() => {
     if (!oggi) return null;
@@ -195,6 +203,19 @@ export function TrediciSettimaneTab({
     for (const u of fisco?.uscite ?? []) {
       movimenti.push({ data: u.data, importo: u.importo, direzione: "out", categoria: "fisco" });
     }
+    // Blocca prezzo: quello ancora aperto è un'uscita che DEVE succedere — la
+    // somma è del cliente, sta in cassa solo di passaggio. Senza data prevista
+    // esce con data null e finisce dichiarato fra i movimenti senza data.
+    // L'incasso lo conta solo se è ancora futuro: quello già avvenuto è già
+    // dentro il saldo di partenza.
+    for (const m of bloccaPrezzoPrevisti(bloccaPrezzoAperti, oggi)) {
+      movimenti.push({
+        data: m.data,
+        importo: m.importo,
+        direzione: m.direzione,
+        categoria: m.direzione === "out" ? "bloccaPrezzo" : "altreEntrate",
+      });
+    }
 
     return {
       ...costruisciPianoTredici(movimenti, partenza.valore, oggi, SOGLIA_GUARDIA),
@@ -204,7 +225,7 @@ export function TrediciSettimaneTab({
   }, [
     oggi, giornoStipendi, expectedPayments, scadenzeForForecast, expectedCompanyCosts,
     expectedExpenses, expectedCommissions, expectedSupplierPayments, activeEmployees,
-    partenza.valore, fisco, commesseBonus,
+    partenza.valore, fisco, commesseBonus, bloccaPrezzoAperti,
   ]);
 
   if (!piano) {
@@ -213,6 +234,9 @@ export function TrediciSettimaneTab({
 
   const { settimane, primaSettimanaRossa, senzaData, ritenutaOrizzonte, commesseBonusToccate } = piano;
   const mostraSquadre = settimane.some((s) => s.uscite.squadreProvvigioni > 0);
+  // Riga blocca prezzo: solo per chi ne ha davvero (e anche se tutti gli
+  // importi sono senza data, perché il totale in fondo va comunque detto).
+  const bloccaPrezzoAperto = daRestituire(bloccaPrezzoAperti);
 
   return (
     <div className="space-y-4">
@@ -316,7 +340,11 @@ export function TrediciSettimaneTab({
               </thead>
               <tbody>
                 <RigaSezione titolo="Entrate previste" colonne={settimane.length} />
-                {RIGHE_ENTRATE.map((r) => (
+                {RIGHE_ENTRATE.filter(
+                  (r) =>
+                    r.chiave !== "altreEntrate" ||
+                    settimane.some((s) => s.entrate.altreEntrate > 0),
+                ).map((r) => (
                   <tr key={r.chiave} className="border-t">
                     <td className="sticky left-0 z-10 bg-card px-3 py-1.5">
                       {r.label}
@@ -328,7 +356,11 @@ export function TrediciSettimaneTab({
                   </tr>
                 ))}
                 <RigaSezione titolo="Uscite previste" colonne={settimane.length} />
-                {RIGHE_USCITE.filter((r) => r.chiave !== "squadreProvvigioni" || mostraSquadre).map((r) => (
+                {RIGHE_USCITE.filter(
+                  (r) =>
+                    (r.chiave !== "squadreProvvigioni" || mostraSquadre) &&
+                    (r.chiave !== "bloccaPrezzo" || bloccaPrezzoAperto > 0),
+                ).map((r) => (
                   <tr key={r.chiave} className="border-t">
                     <td className="sticky left-0 z-10 bg-card px-3 py-1.5">{r.label}</td>
                     {settimane.map((s) => (

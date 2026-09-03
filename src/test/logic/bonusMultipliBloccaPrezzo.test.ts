@@ -23,6 +23,7 @@ import {
   movimentiCassa,
   saldoCassa,
   avvisiBloccaPrezzo,
+  movimentiPrevisti,
   parseBloccaPrezzo,
   serializeBloccaPrezzo,
   type BloccaPrezzo,
@@ -230,6 +231,57 @@ describe("blocca prezzo", () => {
     expect(row.stato).toBe("incassato");
     expect(row.metodo).toBe("altro");
     expect(row.importo).toBe(1_500.5);
+  });
+});
+
+describe("blocca prezzo — previsionale di cassa", () => {
+  const oggi = new Date(2026, 8, 3); // 3 settembre 2026
+
+  it("un blocca prezzo aperto è un'uscita futura", () => {
+    const mov = movimentiPrevisti(
+      [incassato({ dataPrevistaRestituzione: "2026-09-20" })],
+      oggi,
+    );
+    expect(mov).toHaveLength(1);
+    expect(mov[0].direzione).toBe("out");
+    expect(mov[0].importo).toBe(2_000);
+    // Data LOCALE: new Date("2026-09-20") sarebbe UTC e in Italia tornerebbe al 19.
+    expect(mov[0].data?.getDate()).toBe(20);
+    expect(mov[0].data?.getMonth()).toBe(8);
+  });
+
+  it("senza data prevista l'uscita esce comunque, con data null", () => {
+    const [mov] = movimentiPrevisti([incassato()], oggi);
+    expect(mov.direzione).toBe("out");
+    expect(mov.data).toBeNull(); // il piano lo dichiara fra i "senza data"
+  });
+
+  it("l'incasso già avvenuto NON si riconta: è già nel saldo di partenza", () => {
+    const mov = movimentiPrevisti([incassato({ dataIncasso: "2026-03-01" })], oggi);
+    expect(mov.every((m) => m.direzione === "out")).toBe(true);
+  });
+
+  it("l'incasso ancora futuro invece è un'entrata", () => {
+    const mov = movimentiPrevisti(
+      [incassato({ dataIncasso: "2026-09-10", dataPrevistaRestituzione: "2026-10-10" })],
+      oggi,
+    );
+    expect(mov.map((m) => m.direzione)).toEqual(["in", "out"]);
+  });
+
+  it("restituito e trattenuto non muovono più nulla in avanti", () => {
+    const rows = [
+      incassato({ stato: "restituito", dataEsito: "2026-04-01" }),
+      incassato({ stato: "trattenuto", dataEsito: "2026-04-01" }),
+    ];
+    expect(movimentiPrevisti(rows, oggi)).toEqual([]);
+  });
+
+  it("la data prevista sopravvive al giro serialize → parse", () => {
+    const riga = serializeBloccaPrezzo(incassato({ dataPrevistaRestituzione: "2026-09-20" }));
+    expect(riga.data_prevista_restituzione).toBe("2026-09-20");
+    const [riletta] = parseBloccaPrezzo([riga]);
+    expect(riletta.dataPrevistaRestituzione).toBe("2026-09-20");
   });
 });
 

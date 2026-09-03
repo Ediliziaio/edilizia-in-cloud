@@ -75,6 +75,7 @@ export function BloccaPrezzoCard({
   const [nuovaData, setNuovaData] = useState(oggiLocale());
   const [nuovoMetodo, setNuovoMetodo] = useState<BloccaPrezzoMetodo>("bonifico_ordinario");
   const [nuovaNota, setNuovaNota] = useState("");
+  const [nuovaDataRestituzione, setNuovaDataRestituzione] = useState("");
 
   const chiave = ["blocca-prezzo", orderId ?? null, quoteId ?? null] as const;
 
@@ -107,6 +108,7 @@ export function BloccaPrezzoCard({
         dataIncasso: nuovaData || oggiLocale(),
         metodo: nuovoMetodo,
         stato: "incassato",
+        dataPrevistaRestituzione: nuovaDataRestituzione || null,
         note: nuovaNota || null,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,6 +121,7 @@ export function BloccaPrezzoCard({
       setNuovoImporto("");
       setNuovaNota("");
       setNuovaData(oggiLocale());
+      setNuovaDataRestituzione("");
       invalida();
     },
     onError: (e) =>
@@ -260,6 +263,31 @@ export function BloccaPrezzoCard({
               )}
             </div>
 
+            {riga.stato === "incassato" && (
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <Label className="text-[11px] text-muted-foreground shrink-0">
+                  Da restituire entro
+                </Label>
+                <Input
+                  type="date"
+                  defaultValue={riga.dataPrevistaRestituzione ?? ""}
+                  key={`prev-${riga.id}-${riga.dataPrevistaRestituzione ?? ""}`}
+                  onBlur={(e) => {
+                    const v = e.target.value || null;
+                    if (!riga.id || v === (riga.dataPrevistaRestituzione ?? null)) return;
+                    aggiornaCampo.mutate({ id: riga.id, patch: { data_prevista_restituzione: v } });
+                  }}
+                  className="h-8 text-xs sm:w-44"
+                  disabled={readOnly}
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  {riga.dataPrevistaRestituzione
+                    ? "l'uscita è già nel previsionale di cassa"
+                    : "senza data resta fuori dalle colonne del piano di cassa"}
+                </span>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Select
                 value={riga.stato}
@@ -365,6 +393,21 @@ export function BloccaPrezzoCard({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">
+                Da restituire entro (facoltativa)
+              </Label>
+              <Input
+                type="date"
+                value={nuovaDataRestituzione}
+                onChange={(e) => setNuovaDataRestituzione(e.target.value)}
+                className="h-9 sm:w-52"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Con la data l'uscita compare nel previsionale di cassa nella settimana giusta;
+                senza, resta dichiarata fra i movimenti senza data.
+              </p>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Note (facoltative)</Label>

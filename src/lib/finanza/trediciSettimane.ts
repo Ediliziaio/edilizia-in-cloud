@@ -15,7 +15,11 @@
 // ============================================================================
 
 export type CategoriaEntrata = "acconti" | "saldi" | "fatture" | "altreEntrate";
-export type CategoriaUscita = "fornitori" | "stipendi" | "fisco" | "squadreProvvigioni" | "altriCosti";
+export type CategoriaUscita =
+  | "fornitori" | "stipendi" | "fisco" | "squadreProvvigioni" | "altriCosti"
+  // Somme incassate per bloccare il listino e ancora da ridare al cliente:
+  // non sono un costo, ma escono di cassa come tutto il resto.
+  | "bloccaPrezzo";
 
 export interface MovimentoPrevisto {
   /** null = senza data: NON entra nelle colonne, finisce nel cassetto "senza data". */
@@ -67,7 +71,7 @@ const ENTRATE_VUOTE = (): Record<CategoriaEntrata, number> => ({
   acconti: 0, saldi: 0, fatture: 0, altreEntrate: 0,
 });
 const USCITE_VUOTE = (): Record<CategoriaUscita, number> => ({
-  fornitori: 0, stipendi: 0, fisco: 0, squadreProvvigioni: 0, altriCosti: 0,
+  fornitori: 0, stipendi: 0, fisco: 0, squadreProvvigioni: 0, altriCosti: 0, bloccaPrezzo: 0,
 });
 
 /**

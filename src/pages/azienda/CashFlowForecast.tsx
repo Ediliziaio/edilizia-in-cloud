@@ -334,6 +334,7 @@ export default function CashFlowForecast() {
 
         <TabsContent value="cassa" className="mt-6 space-y-6">
           <CashForecastTab
+            companyId={companyId}
             stats={stats}
             expectedPayments={expectedPayments}
             expectedExpenses={expectedExpenses}

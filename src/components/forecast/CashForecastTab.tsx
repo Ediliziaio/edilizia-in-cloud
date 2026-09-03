@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { useBloccaPrezzoAperti } from "@/hooks/useBloccaPrezzoAperti";
+import { movimentiPrevisti as bloccaPrezzoPrevisti } from "@/lib/orders/bloccaPrezzo";
 import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -40,6 +42,7 @@ interface ScadenzaForecastEntry {
 }
 
 interface CashForecastTabProps {
+  companyId?: string | null;
   stats: ForecastStats;
   expectedPayments: ExpectedPayment[];
   expectedExpenses: ExpectedExpense[];
@@ -66,7 +69,7 @@ interface UnifiedTransaction {
   orderId: string | null;
 }
 
-export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo, bankBalance }: CashForecastTabProps) {
+export function CashForecastTab({ companyId, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo, bankBalance }: CashForecastTabProps) {
   const navigate = useNavigate();
   // S2-02: stabilize `now` via useMemo (era ricreata ad ogni render -> deps break)
   const now = useMemo(() => new Date(), []);
@@ -80,6 +83,15 @@ export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCo
   const [searchQuery, setSearchQuery] = useState("");
 
   const thisMonthEnd = useMemo(() => endOfMonth(now), [now]);
+
+  // Blocca prezzo ancora aperti: soldi in cassa che sono del cliente e devono
+  // uscire. Stesse regole del piano a 13 settimane (movimentiPrevisti), così
+  // le due viste non si contraddicono.
+  const bloccaPrezzoAperti = useBloccaPrezzoAperti(companyId).data;
+  const bloccaPrezzoMovimenti = useMemo(
+    () => bloccaPrezzoPrevisti(bloccaPrezzoAperti, now),
+    [bloccaPrezzoAperti, now],
+  );
 
   // Statistiche di periodo calcolate CLIENT-side dalle stesse fonti dei
   // movimenti/bande: provvigioni NETTE (commission − deduction), pagamenti
@@ -102,10 +114,17 @@ export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCo
       .filter(s => s.direction === "uscita" && inRange(s.expectedDate))
       .reduce((s, item) => s + item.amount, 0);
 
-    const totalIncome = income + scadenzeIncome;
-    const expenses = expExternal + expCommissions + expSupplier + expCosts + scadenzeExpenses;
+    const bloccaIn = bloccaPrezzoMovimenti
+      .filter((m) => m.direzione === "in" && inRange(m.data))
+      .reduce((s, m) => s + m.importo, 0);
+    const bloccaOut = bloccaPrezzoMovimenti
+      .filter((m) => m.direzione === "out" && inRange(m.data))
+      .reduce((s, m) => s + m.importo, 0);
+
+    const totalIncome = income + scadenzeIncome + bloccaIn;
+    const expenses = expExternal + expCommissions + expSupplier + expCosts + scadenzeExpenses + bloccaOut;
     return { income: totalIncome, expenses, net: totalIncome - expenses };
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast, bloccaPrezzoMovimenti]);
 
   const thisMonthStats = useMemo(() => statsForRange(startOfMonth(now), endOfMonth(now)), [statsForRange, now]);
   const nextMonthStats = useMemo(() => statsForRange(startOfMonth(addMonths(now, 1)), endOfMonth(addMonths(now, 1))), [statsForRange, now]);
@@ -169,6 +188,19 @@ export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCo
       orderId: s.orderId,
     }));
 
+    // Blocca prezzo: se entra nei totali deve comparire anche nell'elenco,
+    // altrimenti il netto non torna con nessuna riga visibile.
+    bloccaPrezzoMovimenti.forEach((m, i) => items.push({
+      sourceKey: `blocca-prezzo:${m.id ?? i}:${m.direzione}`,
+      date: m.data,
+      description: m.direzione === "out" ? "Blocca prezzo da restituire al cliente" : "Blocca prezzo in arrivo",
+      orderCode: null,
+      category: "Blocca prezzo",
+      amount: m.importo,
+      direction: m.direzione,
+      orderId: m.orderId ?? null,
+    }));
+
     return items
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;
@@ -176,7 +208,7 @@ export function CashForecastTab({ expectedPayments, expectedExpenses, expectedCo
         if (!b.date) return -1;
         return a.date.getTime() - b.date.getTime();
       });
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast, bloccaPrezzoMovimenti]);
 
   const availableCategories = useMemo(() => {
     return Array.from(new Set(allTransactions.map(t => t.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
