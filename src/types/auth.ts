@@ -274,6 +274,8 @@ export interface AuthState {
   user: User | null;
   profile: Profile | null;
   role: AppRole | null;
+  /** Tutti i ruoli in `user_roles`: `role` è solo quello che comanda l'interfaccia. */
+  userRoles: AppRole[];
   company: Company | null;
   isLoading: boolean;
 }

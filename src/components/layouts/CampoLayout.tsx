@@ -52,6 +52,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+import { AreaSwitcher } from "@/components/layouts/AreaSwitcher";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 type CampoNavItem = {
@@ -169,8 +170,10 @@ export default function CampoLayout() {
                 </p>
               </div>
             </div>
-            <div className="group-data-[collapsible=icon]:hidden">
+            <div className="group-data-[collapsible=icon]:hidden space-y-2">
               <CompanyContextSwitcher showSecurityNote={false} />
+              {/* Chi ha anche il cappello da ufficio torna al gestionale da qui. */}
+              <AreaSwitcher />
             </div>
           </div>
 

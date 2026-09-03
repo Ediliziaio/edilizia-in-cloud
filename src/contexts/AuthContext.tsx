@@ -11,6 +11,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
 import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
 import { computeEffectiveRole } from "@/lib/roleHierarchy";
+import { useLocation } from "react-router-dom";
+import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
+import type { AppArea } from "@/lib/auth/aree";
 
 /**
  * Velocity Protocol — V1/V2
@@ -52,6 +55,14 @@ interface AuthContextType extends AuthState {
   multiCompanyLoaded: boolean;
   selectedMultiCompanyId: string | null;
   switchMultiCompany: (companyId: string) => void;
+  /** TUTTI i ruoli dell'utente, non solo quello effettivo. */
+  userRoles: AppRole[];
+  /** Area in cui ci si trova adesso: la dice l'URL (/campo → campo). */
+  areaCorrente: AppArea;
+  /** Le aree in cui l'utente può entrare. Due = gli va mostrato lo switch. */
+  areeDisponibili: AppArea[];
+  /** Vero se porta entrambi i cappelli (ufficio + cantiere). */
+  puoCambiareArea: boolean;
   // View-as (simula ruolo utente company senza cambio sessione)
   viewAsRole: AppRole | null;
   viewAsUserId: string | null;
@@ -99,7 +110,7 @@ const IMP_TOKEN_TS_KEY = "imp_token_ts";
 const AUTH_PROFILE_CACHE_KEY = "auth_profile_v2"; // bump per migrare via dal sessionStorage v1
 const AUTH_PROFILE_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
-function readProfileCache(userId: string): { profile: Profile | null; role: AppRole | null; company: Company | null } | null {
+function readProfileCache(userId: string): { profile: Profile | null; role: AppRole | null; roles: AppRole[]; company: Company | null } | null {
   try {
     // Migrazione: rimuovi il vecchio v1 se presente (no-op se assente)
     sessionStorage.removeItem("auth_profile_v1");
@@ -108,15 +119,22 @@ function readProfileCache(userId: string): { profile: Profile | null; role: AppR
     const entry = JSON.parse(raw);
     if (entry.userId !== userId) return null;
     if (Date.now() - entry.cachedAt > AUTH_PROFILE_CACHE_TTL_MS) return null;
-    return { profile: entry.profile, role: entry.role as AppRole | null, company: entry.company };
+    return {
+      profile: entry.profile,
+      role: entry.role as AppRole | null,
+      // Cache scritta prima dello switch d'area: nessun `roles` → si ripiega
+      // sul solo ruolo effettivo, e al primo fetch la lista vera lo sostituisce.
+      roles: Array.isArray(entry.roles) ? (entry.roles as AppRole[]) : (entry.role ? [entry.role as AppRole] : []),
+      company: entry.company,
+    };
   } catch {
     return null;
   }
 }
 
-function writeProfileCache(userId: string, profile: Profile | null, role: AppRole | null, company: Company | null) {
+function writeProfileCache(userId: string, profile: Profile | null, role: AppRole | null, company: Company | null, roles: AppRole[] = []) {
   try {
-    localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, role, company, cachedAt: Date.now() }));
+    localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, role, roles, company, cachedAt: Date.now() }));
   } catch {
     // localStorage full or unavailable — skip silently
   }
@@ -278,6 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     profile: null,
     role: null,
+    userRoles: [],
     company: null,
     isLoading: true,
   });
@@ -557,6 +576,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile: profileData,
         role: effectiveRole,
         company,
+        // Servono interi: chi ha ufficio + cantiere sceglie il cappello in
+        // base all'area, e `role` da solo perderebbe l'altro.
+        roles: userRoles,
       };
     } catch (error) {
       // Distinguiamo timeout (AbortError) dalle altre failure per triage:
@@ -570,7 +592,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         timeoutMs: AUTH_CRITICAL_FETCH_TIMEOUT_MS,
       });
       logger.error("Error in fetchUserData:", error);
-      return { profile: null, role: null, company: null };
+      return { profile: null, role: null, company: null, roles: [] };
     } finally {
       clearTimeout(timeoutId);
     }
@@ -783,6 +805,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               user: session.user,
               profile: cached.profile,
               role: cached.role,
+              userRoles: cached.roles,
               company: cached.company,
               isLoading: false, // show UI immediately — background re-validation below
             });
@@ -791,7 +814,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ── Background (or blocking) re-validation ──
           // Always re-fetch to keep data fresh. If the cache was used above this
           // runs silently; if not, it blocks until fetchUserData completes.
-          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+          let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; roles: AppRole[] };
           // Memory-leak fix: il setTimeout precedente NON veniva cancellato se
           // fetchUserData vinceva il race → timer pendente fino al firing.
           // Su rapid login/logout cycle, accumulava handle. Ora cleanup esplicito.
@@ -862,12 +885,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Persist to cache so the NEXT page refresh is also instant.
           if (userData.role !== null) {
-            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company);
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.roles);
           }
 
           setState({
             user: session.user,
-            ...userData,
+            profile: userData.profile,
+            role: userData.role,
+            userRoles: userData.roles,
+            company: userData.company,
             isLoading: false,
           });
           // Start session tracking (fire-and-forget, pass token directly to avoid
@@ -919,13 +945,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user: session.user,
                 profile: cached.profile,
                 role: cached.role,
+                userRoles: cached.roles,
                 company: cached.company,
                 isLoading: false,
               });
             }
 
             const myGen = ++authGenRef.current;
-            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; roles: AppRole[] };
             // Memory-leak fix: cancella il timer se fetchUserData vince il race
             // (stesso pattern del ramo SIGNED_IN, riga ~705).
             let tokenRefreshRaceTimerId: ReturnType<typeof setTimeout> | undefined;
@@ -973,8 +1000,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             resolvedRoleRef.current = userData.role;
-            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company);
-            setState({ user: session.user, ...userData, isLoading: false });
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company, userData.roles);
+            setState({
+              user: session.user,
+              profile: userData.profile,
+              role: userData.role,
+              userRoles: userData.roles,
+              company: userData.company,
+              isLoading: false,
+            });
           }
         } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
           // When navigating via cross-subdomain handoff (hash contains _at=), INITIAL_SESSION
@@ -1714,9 +1748,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [state.user?.id, isImpersonating, multiCompanyAccesses.length, selectedMultiCompanyId, queryClient]);
 
+  // ── Area corrente: la dice l'URL ────────────────────────────────────────
+  // Chi ha ufficio + cantiere sullo stesso account non deve avere due email.
+  // Il ruolo che comanda l'interfaccia si calcola DENTRO l'area in cui si
+  // trova: sotto /campo è operaio, altrove è staff. Senza questo, `employee`
+  // vinceva sempre su `company_staff` (vedi ROLE_PRIORITY) e la persona
+  // restava chiusa nel portale lavoratori.
+  // Chi ha una sola area non se ne accorge: ruoliDellArea gli ridà i suoi.
+  const { pathname } = useLocation();
+  const areaCorrente = areaDaPercorso(pathname);
+  const areeDisponibili = useMemo(() => calcolaAree(state.userRoles), [state.userRoles]);
+  const puoCambiareArea = useMemo(() => haEntrambeLeAree(state.userRoles), [state.userRoles]);
+  const ruoloArea = useMemo(
+    () => (state.userRoles.length > 0 ? ruoloEffettivoPerArea(state.userRoles, areaCorrente) : state.role),
+    [state.userRoles, areaCorrente, state.role],
+  );
+
   const contextValue = useMemo(
     () => ({
       ...state,
+      role: ruoloArea,
+      areaCorrente,
+      areeDisponibili,
+      puoCambiareArea,
       signIn,
       signOut,
       refreshAuth,
@@ -1736,7 +1790,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (

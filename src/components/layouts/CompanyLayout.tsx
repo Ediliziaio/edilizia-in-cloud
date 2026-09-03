@@ -75,6 +75,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+import { AreaSwitcher } from "@/components/layouts/AreaSwitcher";
 import {
   Sidebar,
   SidebarContent,
@@ -1301,6 +1302,8 @@ const CompanySidebar = memo(function CompanySidebar() {
           homeTo={isCommercialistaMode ? withCommercialistaSearch("/azienda/controllo-gestione") : COMPANY_APP_HOME}
         />
         <CompanyContextSwitcher isCollapsed={isCollapsed} />
+        {/* Solo per chi lavora anche in cantiere: un click e passa di là. */}
+        <AreaSwitcher isCollapsed={isCollapsed} className="mt-2" />
       </div>
       <SidebarContent>
         {isSettingsRoute ? (
