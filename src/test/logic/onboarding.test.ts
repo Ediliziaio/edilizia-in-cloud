@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 
 /**
  * Test logica calcolo progresso onboarding.
- * Replica la formula usata in useCompanyOnboarding.ts per il calcolo di pct.
+ * Replica la formula usata in OnboardingChecklist.tsx per il calcolo di pct.
  */
 
-// ─── Replica logica useCompanyOnboarding ─────────────────────────────────────
+// ─── Replica logica OnboardingChecklist ─────────────────────────────────────
 
 interface OnboardingStep {
   id: string;

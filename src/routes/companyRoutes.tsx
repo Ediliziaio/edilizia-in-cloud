@@ -394,7 +394,6 @@ const BroadcastDetailPage = lazy(() => import("@/pages/azienda/whatsapp/Broadcas
 const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberDetailPage"));
 // MP-CLN 2026-05-25: SMS unificato. /sms-marketing redirige a /sms?tab=...
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
-const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
@@ -532,7 +531,6 @@ export default function CompanyRoutesContainer() {
         }
       >
         <Route index element={<AziendaIndex />} />
-        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
         <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
