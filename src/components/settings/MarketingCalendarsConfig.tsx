@@ -210,15 +210,24 @@ export default function MarketingCalendarsConfig() {
   };
 
   const validateAvailabilityRows = (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
-    const seenDays = new Set<number>();
+    // Piu' fasce nello stesso giorno sono ammesse (es. 9-13 e 14:30-18: la
+    // pausa pranzo). Devono pero' essere valide e non sovrapporsi fra loro.
     for (const row of rows) {
-      if (seenDays.has(row.day_of_week)) throw new Error("Disponibilità duplicata per lo stesso giorno.");
-      seenDays.add(row.day_of_week);
       if (!row.is_enabled) continue;
+      const dayName = DAYS.find(d => d.value === row.day_of_week)?.label || "giorno selezionato";
       if (!row.start_time || !row.end_time) throw new Error("Completa gli orari dei giorni attivi.");
       if (row.start_time >= row.end_time) {
-        const dayName = DAYS.find(d => d.value === row.day_of_week)?.label || "giorno selezionato";
         throw new Error(`Orario non valido per ${dayName}: l'ora di fine deve essere successiva all'inizio.`);
+      }
+    }
+    for (const day of new Set(rows.filter(r => r.is_enabled).map(r => r.day_of_week))) {
+      const fasce = rows.filter(r => r.is_enabled && r.day_of_week === day)
+        .slice().sort((x, y) => x.start_time.localeCompare(y.start_time));
+      for (let i = 1; i < fasce.length; i++) {
+        if (fasce[i].start_time < fasce[i - 1].end_time) {
+          const dayName = DAYS.find(d => d.value === day)?.label || "giorno selezionato";
+          throw new Error(`Fasce sovrapposte per ${dayName}: ${fasce[i - 1].start_time}-${fasce[i - 1].end_time} e ${fasce[i].start_time}-${fasce[i].end_time}.`);
+        }
       }
     }
   };
@@ -601,7 +610,7 @@ export default function MarketingCalendarsConfig() {
   const shareButtonCode = buildBookingButtonCode(shareUrl);
 
   // ---- AVAILABILITY LOCAL STATE ----
-  const [localAvail, setLocalAvail] = useState<{ day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
+  const [localAvail, setLocalAvail] = useState<{ rid: string; day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
 
   // Sync availability from query data
   useEffect(() => {
@@ -609,7 +618,8 @@ export default function MarketingCalendarsConfig() {
       setLocalAvail(
         availability
           .filter(a => a.specific_date === null)
-          .map(a => ({
+          .map((a, i) => ({
+            rid: a.id ?? `r${i}`,
             day_of_week: a.day_of_week!,
             start_time: a.start_time,
             end_time: a.end_time,
@@ -619,6 +629,7 @@ export default function MarketingCalendarsConfig() {
     } else if (selectedCalendarId) {
       setLocalAvail(
         DAYS.map(d => ({
+          rid: `d${d.value}`,
           day_of_week: d.value,
           start_time: "09:00",
           end_time: "18:00",
@@ -1068,38 +1079,74 @@ export default function MarketingCalendarsConfig() {
                       </div>
                     </div>
                     {DAYS.map(day => {
-                      const row = localAvail.find(a => a.day_of_week === day.value);
-                      if (!row) return null;
-                      const invalid = row.is_enabled && row.start_time >= row.end_time;
+                      const fasce = localAvail.filter(a => a.day_of_week === day.value);
+                      if (fasce.length === 0) return null;
+                      const attivo = fasce.some(f => f.is_enabled);
                       return (
-                        <div key={day.value} className={`flex flex-wrap items-center gap-3 py-2 border-b last:border-0 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
-                          <Checkbox
-                            checked={row.is_enabled}
-                            disabled={!canManageCalendars}
-                            onCheckedChange={(v) => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
-                          />
-                          <span className="w-24 text-sm font-medium">{day.label}</span>
-                          <Input
-                            type="time"
-                            value={row.start_time}
-                            onChange={e => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, start_time: e.target.value } : a))}
-                            className="w-28"
-                            disabled={!row.is_enabled || !canManageCalendars}
-                          />
-                          <span className="text-muted-foreground">–</span>
-                          <Input
-                            type="time"
-                            value={row.end_time}
-                            onChange={e => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, end_time: e.target.value } : a))}
-                            className="w-28"
-                            disabled={!row.is_enabled || !canManageCalendars}
-                          />
-                          <Button variant="ghost" size="icon" title="Copia a tutti i giorni attivi" disabled={!canManageCalendars} onClick={() => {
-                            setLocalAvail(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
-                          }}>
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          {invalid && <span className="text-xs text-destructive">Fine prima dell'inizio</span>}
+                        <div key={day.value} className="border-b py-2 last:border-0">
+                          {fasce.map((row, idx) => {
+                            const invalid = row.is_enabled && row.start_time >= row.end_time;
+                            return (
+                              <div key={row.rid} className={`flex flex-wrap items-center gap-3 py-1 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
+                                {idx === 0 ? (
+                                  <Checkbox
+                                    checked={attivo}
+                                    disabled={!canManageCalendars}
+                                    onCheckedChange={(v) => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
+                                  />
+                                ) : <span className="w-4" />}
+                                <span className="w-24 text-sm font-medium">{idx === 0 ? day.label : ""}</span>
+                                <Input
+                                  type="time"
+                                  value={row.start_time}
+                                  onChange={e => setLocalAvail(prev => prev.map(a => a.rid === row.rid ? { ...a, start_time: e.target.value } : a))}
+                                  className="w-28"
+                                  disabled={!row.is_enabled || !canManageCalendars}
+                                />
+                                <span className="text-muted-foreground">–</span>
+                                <Input
+                                  type="time"
+                                  value={row.end_time}
+                                  onChange={e => setLocalAvail(prev => prev.map(a => a.rid === row.rid ? { ...a, end_time: e.target.value } : a))}
+                                  className="w-28"
+                                  disabled={!row.is_enabled || !canManageCalendars}
+                                />
+                                {idx === 0 ? (
+                                  <Button variant="ghost" size="icon" title="Copia questa fascia a tutti i giorni attivi" disabled={!canManageCalendars} onClick={() => {
+                                    setLocalAvail(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
+                                  }}>
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <Button variant="ghost" size="icon" title="Togli questa fascia" disabled={!canManageCalendars}
+                                    onClick={() => setLocalAvail(prev => prev.filter(a => a.rid !== row.rid))}>
+                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                )}
+                                {invalid && <span className="text-xs text-destructive">Fine prima dell'inizio</span>}
+                              </div>
+                            );
+                          })}
+                          {attivo && canManageCalendars && (
+                            <button
+                              type="button"
+                              className="ml-32 mt-0.5 text-xs text-muted-foreground hover:text-foreground"
+                              title="Una seconda fascia serve per la pausa pranzo (es. 9-13 e 14:30-18)"
+                              onClick={() => setLocalAvail(prev => {
+                                const ultime = prev.filter(a => a.day_of_week === day.value);
+                                const ultima = ultime[ultime.length - 1];
+                                return [...prev, {
+                                  rid: `n${day.value}-${Date.now()}`,
+                                  day_of_week: day.value,
+                                  start_time: ultima ? ultima.end_time : "14:30",
+                                  end_time: "18:00",
+                                  is_enabled: true,
+                                }];
+                              })}
+                            >
+                              + aggiungi fascia (pausa pranzo)
+                            </button>
+                          )}
                         </div>
                       );
                     })}

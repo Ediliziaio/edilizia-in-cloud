@@ -249,6 +249,27 @@ export default function PublicBooking() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Fuso del visitatore: gli orari restano quelli italiani (li tiene il
+  // titolare), ma chi prenota da un altro fuso deve sapere che ore sono da lui,
+  // altrimenti si presenta con un'ora di scarto.
+  const fusoVisitatore = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Rome"; }
+    catch { return "Europe/Rome"; }
+  }, []);
+  const fusoDiverso = fusoVisitatore !== "Europe/Rome";
+  const oraLocale = useCallback((giorno: Date, hhmm: string): string => {
+    try {
+      // "HH:mm" italiano → istante → stessa ora nel fuso di chi guarda.
+      const [h, m] = hhmm.split(":").map(Number);
+      const iso = `${format(giorno, "yyyy-MM-dd")}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+      const comeRoma = new Date(new Date(iso).toLocaleString("en-US", { timeZone: "Europe/Rome" }));
+      const scarto = new Date(iso).getTime() - comeRoma.getTime();
+      return new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: fusoVisitatore })
+        .format(new Date(new Date(iso).getTime() + scarto));
+    } catch { return hhmm; }
+  }, [fusoVisitatore]);
+
+
   const slotOverlapsExistingAppointments = useCallback((slotTime: string, durationMinutes: number, rows = existingAppointments) => {
     if (!selectedDate) return false;
     // I margini del calendario allargano gli estremi: fra due appuntamenti
@@ -463,7 +484,9 @@ export default function PublicBooking() {
   const slotsLoading = !!selectedDate && (existingAppointmentsFetching || googleBusyFetching || appleBusyFetching || outlookBusyFetching);
   const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading;
   const selectedSummary = selectedDate && selectedSlot
-    ? `${format(selectedDate, "EEEE d MMMM yyyy", { locale: it })} alle ${selectedSlot}`
+    ? `${format(selectedDate, "EEEE d MMMM yyyy", { locale: it })} alle ${selectedSlot}${
+        fusoDiverso ? ` (le ${oraLocale(selectedDate, selectedSlot)} da te)` : ""
+      }`
     : null;
 
   return (
@@ -485,7 +508,10 @@ export default function PublicBooking() {
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <CalendarDays className="h-4 w-4" />
-                  <span>Fuso orario Europe/Rome</span>
+                  <span>
+                    Orari in fuso Europe/Rome
+                    {fusoDiverso && <> · tu sei su {fusoVisitatore}</>}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <ShieldCheck className="h-4 w-4" />
@@ -608,6 +634,9 @@ export default function PublicBooking() {
                       >
                         <Clock className="h-3.5 w-3.5 mr-1" />
                         {slot}
+                        {fusoDiverso && selectedDate && (
+                          <span className="ml-1 text-[11px] opacity-70">({oraLocale(selectedDate, slot)})</span>
+                        )}
                       </Button>
                     ))}
                   </div>
