@@ -991,7 +991,6 @@ export default function ImpostazioniFatturazione() {
             { tipo: "Fattura", prefix: "prefisso_fattura", numero: "ultimo_numero_fattura", default: "FT", icon: "📄" },
             { tipo: "Nota di Credito", prefix: "prefisso_nc", numero: "ultimo_numero_nc", default: "NC", icon: "📋" },
             { tipo: "DDT", prefix: "prefisso_ddt", numero: "ultimo_numero_ddt", default: "DDT", icon: "🚚" },
-            { tipo: "Preventivo", prefix: "prefisso_preventivo", numero: "ultimo_numero_preventivo", default: "PRV", icon: "📝" },
           ].map((item) => (
             <Card key={item.tipo}>
               <CardContent className="pt-6">

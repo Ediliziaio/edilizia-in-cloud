@@ -27,7 +27,7 @@ import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresh
 // soglia_margine_visibile, margini_target_categorie, visibilita_margini,
 // aggiungi_posa_automatica, chiedi_smaltimento, chiedi_piano_installazione, chiedi_trasporto,
 // pdf_mostra_prezzi_per_riga, pdf_mostra_solo_totale, pdf_mostra_sconti, pdf_mostra_immagini,
-// pdf_includi_schede_tecniche, firma_digitale_abilitata, numero_prefisso, numero_formato
+// pdf_includi_schede_tecniche, firma_digitale_abilitata
 interface PreventivoImpostazioni {
   id?: string;
   company_id: string;
@@ -45,8 +45,6 @@ interface PreventivoImpostazioni {
   pdf_mostra_immagini?: boolean;
   pdf_includi_schede_tecniche?: boolean;
   firma_digitale_abilitata?: boolean;
-  numero_prefisso?: string | null;
-  numero_formato?: string | null;
 }
 
 // DB columns for listino_categorie:
@@ -255,8 +253,6 @@ function MarginiPdfTab({
   const [pdfImmagini, setPdfImmagini] = useState(false);
   const [pdfSchedeTecniche, setPdfSchedeTecniche] = useState(false);
   const [firmaAbilitata, setFirmaAbilitata] = useState(false);
-  const [numeroPrefisso, setNumeroPrefisso] = useState("OFF");
-  const [numeroFormato, setNumeroFormato] = useState("{PREFIX}-{YYYY}-{NNN}");
   const [dirty, setDirty] = useState(false);
 
   // Populate from DB
@@ -276,8 +272,6 @@ function MarginiPdfTab({
     setPdfImmagini(!!imp.pdf_mostra_immagini);
     setPdfSchedeTecniche(!!imp.pdf_includi_schede_tecniche);
     setFirmaAbilitata(!!imp.firma_digitale_abilitata);
-    setNumeroPrefisso(imp.numero_prefisso ?? "OFF");
-    setNumeroFormato(imp.numero_formato ?? "{PREFIX}-{YYYY}-{NNN}");
   }, [imp]);
 
   const saveMutation = useMutation({
@@ -300,13 +294,13 @@ function MarginiPdfTab({
     overheadPct, margineMin, margineTarget, soglia,
     aggPosa, chiediPiano, chiediSmaltimento, chiediTrasporto,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini,
-    pdfSchedeTecniche, firmaAbilitata, numeroPrefisso, numeroFormato,
+    pdfSchedeTecniche, firmaAbilitata,
   });
   stateRef.current = {
     overheadPct, margineMin, margineTarget, soglia,
     aggPosa, chiediPiano, chiediSmaltimento, chiediTrasporto,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini,
-    pdfSchedeTecniche, firmaAbilitata, numeroPrefisso, numeroFormato,
+    pdfSchedeTecniche, firmaAbilitata,
   };
 
   const buildPayload = useCallback((): Partial<PreventivoImpostazioni> => {
@@ -326,8 +320,6 @@ function MarginiPdfTab({
       pdf_mostra_immagini: s.pdfImmagini,
       pdf_includi_schede_tecniche: s.pdfSchedeTecniche,
       firma_digitale_abilitata: s.firmaAbilitata,
-      numero_prefisso: s.numeroPrefisso || "OFF",
-      numero_formato: s.numeroFormato || "{PREFIX}-{YYYY}-{NNN}",
     };
   }, []);
 
@@ -464,47 +456,6 @@ function MarginiPdfTab({
               <span className="text-sm">{label}</span>
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      {/* T5: Numerazione preventivi */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Numerazione Preventivi</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label className="text-sm">Prefisso</Label>
-              <Input
-                value={numeroPrefisso}
-                onChange={e => { setNumeroPrefisso(e.target.value); triggerAutoSave(); }}
-                placeholder="OFF"
-                className="w-24 mt-1"
-              />
-            </div>
-            <div className="col-span-2">
-              <Label className="text-sm">Formato numero</Label>
-              <Input
-                value={numeroFormato}
-                onChange={e => { setNumeroFormato(e.target.value); triggerAutoSave(); }}
-                placeholder="{PREFIX}-{YYYY}-{NNN}"
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {'{PREFIX}'} = prefisso · {'{YYYY}'} = anno · {'{YY}'} = anno breve · {'{MM}'} = mese · {'{NNN}'} = contatore 3 cifre · {'{NNNN}'} = 4 cifre
-            {" — "}Esempio: <code className="bg-muted px-1 rounded">{
-              (numeroFormato || "{PREFIX}-{YYYY}-{NNN}")
-                .replace("{PREFIX}", numeroPrefisso || "OFF")
-                .replace("{YYYY}", String(new Date().getFullYear()))
-                .replace("{YY}", String(new Date().getFullYear()).slice(-2))
-                .replace("{MM}", String(new Date().getMonth() + 1).padStart(2, "0"))
-                .replace("{NNN}", "001")
-                .replace("{NNNN}", "0001")
-            }</code>
-          </p>
         </CardContent>
       </Card>
 
