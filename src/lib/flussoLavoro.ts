@@ -23,6 +23,22 @@ import { addDays, format } from "date-fns";
 /** A cosa si applica un flusso. Corrisponde a `order_task_template.ambito`. */
 export type AmbitoFlusso = "commessa" | "ticket";
 
+/**
+ * Fatti che chiudono un passo da soli, senza che nessuno spunti niente.
+ * Chiudere un passo è già il modo in cui parte il successivo, quindi qui non
+ * serve nessun secondo meccanismo di sblocco.
+ */
+export type EventoChiusura = "incasso_registrato";
+
+export const EVENTI_CHIUSURA: ReadonlyArray<{ value: EventoChiusura; label: string; spiegazione: string }> = [
+  {
+    value: "incasso_registrato",
+    label: "quando l'incasso è registrato",
+    spiegazione:
+      "Si chiude da sola appena una rata risulta incassata, arriva un pagamento su una fattura della commessa o il ticket viene segnato pagato.",
+  },
+];
+
 export interface PassoFlusso {
   /** Presente solo sui passi che arrivano da `order_task_template`. */
   id?: string;
@@ -39,6 +55,8 @@ export interface PassoFlusso {
   dipende_da_id?: string | null;
   /** Giorni concessi a partire dallo sblocco. */
   giorni_dopo_sblocco?: number;
+  /** Fatto che chiude il passo da solo; null = si chiude a mano. */
+  chiudi_su_evento?: EventoChiusura | null;
 }
 
 interface RigaTemplate {
@@ -51,10 +69,11 @@ interface RigaTemplate {
   assegna_a_ufficio_id: string | null;
   dipende_da_id: string | null;
   giorni_dopo_sblocco: number;
+  chiudi_su_evento: string | null;
 }
 
 const CAMPI_TEMPLATE =
-  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco";
+  "id, titolo, descrizione, giorni_offset, priorita, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, giorni_dopo_sblocco, chiudi_su_evento";
 
 /**
  * Legge il flusso configurato dall'azienda per questo ambito e questo vertical
@@ -87,6 +106,7 @@ export async function leggiFlussoAzienda(params: {
     assegna_a_ufficio_id: t.assegna_a_ufficio_id ?? null,
     dipende_da_id: t.dipende_da_id ?? null,
     giorni_dopo_sblocco: Number(t.giorni_dopo_sblocco) || 0,
+    chiudi_su_evento: (t.chiudi_su_evento as EventoChiusura | null) ?? null,
   }));
 }
 
@@ -197,6 +217,9 @@ export async function applicaFlusso(params: ApplicaFlussoParams): Promise<{ crea
       sblocco_giorni: bloccataDa ? s.giorni_dopo_sblocco ?? 0 : null,
       priority: s.priorita,
       category: categoriaTask,
+      // Il DB ci pensa da solo: i trigger sugli incassi chiudono l'attività e
+      // la catena riparte (chiudi_passi_su_evento).
+      chiudi_su_evento: s.chiudi_su_evento ?? null,
       ufficio_id: s.assegna_a_ufficio_id ?? null,
       // Prima nascevano senza assegnatario: in produzione erano il grosso delle
       // attività scadute che nessuno vedeva come proprie.

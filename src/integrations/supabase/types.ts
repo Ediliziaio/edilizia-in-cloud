@@ -49732,6 +49732,7 @@ export type Database = {
           assegna_a_ufficio_id: string | null
           assegna_a_utente: string | null
           attivo: boolean
+          chiudi_su_evento: string | null
           company_id: string
           created_at: string
           descrizione: string | null
@@ -49751,6 +49752,7 @@ export type Database = {
           assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
           attivo?: boolean
+          chiudi_su_evento?: string | null
           company_id: string
           created_at?: string
           descrizione?: string | null
@@ -49770,6 +49772,7 @@ export type Database = {
           assegna_a_ufficio_id?: string | null
           assegna_a_utente?: string | null
           attivo?: boolean
+          chiudi_su_evento?: string | null
           company_id?: string
           created_at?: string
           descrizione?: string | null
@@ -76557,6 +76560,7 @@ export type Database = {
           assigned_to: string | null
           bloccata_da_task_id: string | null
           category: string
+          chiudi_su_evento: string | null
           company_id: string
           completed_at: string | null
           contact_id: string | null
@@ -76565,6 +76569,7 @@ export type Database = {
           created_by: string
           due_date: string | null
           estimated_hours: number | null
+          evento_gia_avvenuto: boolean
           id: string
           is_recurring: boolean
           notes: string | null
@@ -76588,6 +76593,7 @@ export type Database = {
           assigned_to?: string | null
           bloccata_da_task_id?: string | null
           category?: string
+          chiudi_su_evento?: string | null
           company_id: string
           completed_at?: string | null
           contact_id?: string | null
@@ -76596,6 +76602,7 @@ export type Database = {
           created_by: string
           due_date?: string | null
           estimated_hours?: number | null
+          evento_gia_avvenuto?: boolean
           id?: string
           is_recurring?: boolean
           notes?: string | null
@@ -76619,6 +76626,7 @@ export type Database = {
           assigned_to?: string | null
           bloccata_da_task_id?: string | null
           category?: string
+          chiudi_su_evento?: string | null
           company_id?: string
           completed_at?: string | null
           contact_id?: string | null
@@ -76627,6 +76635,7 @@ export type Database = {
           created_by?: string
           due_date?: string | null
           estimated_hours?: number | null
+          evento_gia_avvenuto?: boolean
           id?: string
           is_recurring?: boolean
           notes?: string | null
@@ -86926,6 +86935,10 @@ export type Database = {
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
+      }
+      chiudi_passi_su_evento: {
+        Args: { _evento: string; _order_id?: string; _ticket_id?: string }
+        Returns: undefined
       }
       claim_documento_per_invio: {
         Args: { p_documento_id: string }

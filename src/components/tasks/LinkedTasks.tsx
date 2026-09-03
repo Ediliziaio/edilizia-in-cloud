@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2 } from "lucide-react";
+import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2, Wallet } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -263,6 +263,13 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                     <span className="text-[11px] text-muted-foreground">
                       {task.assigned.first_name} {task.assigned.last_name?.[0]}.
                     </span>
+                  )}
+                  {/* Nessuno deve chiedersi perché questa non la fa nessuno:
+                      si chiude da sola quando arriva l'incasso. */}
+                  {task.chiudi_su_evento === "incasso_registrato" && !isCompleted && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-emerald-200 text-emerald-700">
+                      <Wallet className="h-2.5 w-2.5" /> si chiude all'incasso
+                    </Badge>
                   )}
                   {isBlocked && (
                     <span className="text-[11px] text-violet-600">

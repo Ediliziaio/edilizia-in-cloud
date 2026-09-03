@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { getOrderPlaybook, PLAYBOOK_LABELS } from "@/lib/orderPlaybook";
 import { TICKET_PLAYBOOK } from "@/lib/ticketPlaybook";
-import type { AmbitoFlusso, PassoFlusso } from "@/lib/flussoLavoro";
+import { EVENTI_CHIUSURA, type AmbitoFlusso, type EventoChiusura, type PassoFlusso } from "@/lib/flussoLavoro";
 
 interface PlaybookEditorDialogProps {
   open: boolean;
@@ -62,6 +62,8 @@ interface Row {
   assegna_a_ufficio_id: string | null;
   /** _key del passo che deve chiudersi prima; null = parte subito. */
   dipende_da_key: string | null;
+  /** Fatto che chiude il passo da solo; null = lo spunta una persona. */
+  chiudi_su_evento: EventoChiusura | null;
 }
 
 /** Riga come arriva dal DB. */
@@ -76,6 +78,7 @@ interface DbRow {
   assegna_a_utente: string | null;
   assegna_a_ufficio_id: string | null;
   dipende_da_id: string | null;
+  chiudi_su_evento: string | null;
 }
 
 const PRIORITA = ["bassa", "normale", "alta", "urgente"] as const;
@@ -84,6 +87,8 @@ const SUBITO = "__subito__";
 const RESPONSABILE = "__responsabile__";
 /** Prefisso per distinguere un ufficio da una persona nello stesso menu. */
 const PREFISSO_UFFICIO = "uff:";
+/** Il passo lo chiude una persona spuntandolo. */
+const A_MANO = "__a_mano__";
 
 function newKey() {
   return `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -140,7 +145,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     queryFn: async () => {
       let q = supabase
         .from("order_task_template")
-        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id")
+        .select("id, titolo, giorni_offset, giorni_dopo_sblocco, priorita, attivo, sort_order, assegna_a_utente, assegna_a_ufficio_id, dipende_da_id, chiudi_su_evento")
         .eq("company_id", companyId)
         .eq("ambito", ambito)
         .order("sort_order", { ascending: true });
@@ -167,6 +172,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
         attivo: r.attivo ?? true,
         assegna_a_utente: r.assegna_a_utente ?? null,
         assegna_a_ufficio_id: r.assegna_a_ufficio_id ?? null,
+        chiudi_su_evento: (r.chiudi_su_evento as EventoChiusura | null) ?? null,
         dipende_da_key: r.dipende_da_id ? keyPerId.get(r.dipende_da_id) ?? null : null,
       })),
     );
@@ -190,6 +196,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
       attivo: true,
       assegna_a_utente: null,
       assegna_a_ufficio_id: null,
+      chiudi_su_evento: s.chiudi_su_evento ?? null,
       dipende_da_key: i === 0 ? null : keys[i - 1],
     })));
     toast.info("Flusso standard importato a catena — assegna le persone e salva.");
@@ -204,6 +211,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
     attivo: true,
     assegna_a_utente: null,
     assegna_a_ufficio_id: null,
+    chiudi_su_evento: null,
     // Di default il nuovo passo si accoda all'ultimo: è il caso normale.
     dipende_da_key: p.length > 0 ? p[p.length - 1]._key : null,
   }]);
@@ -245,6 +253,7 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
           // vuota, altrimenti si finirebbe per non sapere chi comanda.
           assegna_a_utente: r.assegna_a_ufficio_id ? null : r.assegna_a_utente,
           assegna_a_ufficio_id: r.assegna_a_ufficio_id,
+          chiudi_su_evento: r.chiudi_su_evento,
         }));
         // Prima le righe, poi le dipendenze: l'insert non conosce ancora gli id
         // che sta per generare, quindi `dipende_da_id` si scrive in un secondo
@@ -431,7 +440,32 @@ export function PlaybookEditorDialog({ open, onOpenChange, companyId, ambito = "
                         </SelectGroup>
                       </SelectContent>
                     </Select>
+
+                    <span className="shrink-0">·</span>
+                    <span className="shrink-0">si chiude</span>
+                    <Select
+                      value={r.chiudi_su_evento ?? A_MANO}
+                      onValueChange={(val) => updateRow(r._key, {
+                        chiudi_su_evento: val === A_MANO ? null : (val as EventoChiusura),
+                      })}
+                    >
+                      <SelectTrigger className="h-8 w-[210px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={A_MANO}>a mano, con la spunta</SelectItem>
+                        {EVENTI_CHIUSURA.map((e) => (
+                          <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Il passo "aspetta l'incasso" non è lavoro di nessuno: qui
+                      si dice al gestionale di accorgersene da solo. */}
+                  {r.chiudi_su_evento && (
+                    <p className="pl-7 text-[11px] text-emerald-700">
+                      {EVENTI_CHIUSURA.find((e) => e.value === r.chiudi_su_evento)?.spiegazione}
+                    </p>
+                  )}
                 </div>
               );
             })}
