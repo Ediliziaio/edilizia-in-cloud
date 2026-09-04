@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending:    { label: "In coda",         variant: "secondary",   icon: Clock },
   processing: { label: "In elaborazione", variant: "default",     icon: Zap },
@@ -29,6 +30,7 @@ const INTERNAL_CONFIG_KEY_RE =
   /(schema|prompt|provider|openai|gemini|model|cost|costo|addeb|billing|token|api|manifest|rules|directives|analysis|analisi)/i;
 
 export default function RenderPavimentoGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -217,10 +219,12 @@ export default function RenderPavimentoGalleryDetail() {
                   { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
                 ]}
               />
-              <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -237,10 +241,12 @@ export default function RenderPavimentoGalleryDetail() {
                 title="Render AI Pavimento"
                 filename={`render_pavimento_${id}.pdf`}
               />
-              <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

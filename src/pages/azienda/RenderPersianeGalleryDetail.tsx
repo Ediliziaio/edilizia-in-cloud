@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending: { label: "In coda", variant: "secondary", icon: Clock },
   processing: { label: "In elaborazione", variant: "default", icon: Zap },
@@ -36,6 +37,7 @@ const STATUS_CONFIG = {
 } as const;
 
 export default function RenderPersianeGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -234,10 +236,12 @@ export default function RenderPersianeGalleryDetail() {
                   { label: "Operazione", value: renderConfig?.legacy_config.operazione ? String(renderConfig.legacy_config.operazione).replace(/_/g, " ") : null },
                 ]}
               />
-              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -281,10 +285,12 @@ export default function RenderPersianeGalleryDetail() {
                 title="Render AI Persiane"
                 filename={`render_persiane_${id}.pdf`}
               />
-              <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

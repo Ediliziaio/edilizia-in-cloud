@@ -16,6 +16,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { ensureFacciataRenderConfig } from "@/modules/render-facciata/lib/facciataRenderConfig";
 
+import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending: { label: "In coda", variant: "secondary", icon: Loader2 },
   processing: { label: "In elaborazione", variant: "default", icon: Zap },
@@ -24,6 +25,7 @@ const STATUS_CONFIG = {
 } as const;
 
 export default function RenderFacciataGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -184,10 +186,12 @@ export default function RenderFacciataGalleryDetail() {
                   { label: "Intervento", value: renderConfig.legacy_config.tipo_intervento?.replace(/_/g, " ") },
                 ]}
               />
-              <Button className="bg-orange-600 hover:bg-orange-700" onClick={handleDownload}>
-                <Download className="mr-2 h-4 w-4" />
-                Scarica render
-              </Button>
+              {!isMobile && (
+                <Button className="bg-orange-600 hover:bg-orange-700" onClick={handleDownload}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Scarica render
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
