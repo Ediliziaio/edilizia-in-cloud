@@ -88,10 +88,10 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
       { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
-      // Prima voce di lavoro della giornata: sta sopra il Cruscotto perché
-      // risponde alla domanda che ci si fa per prima, e il Cruscotto resta
-      // per chi vuole scavare.
-      { title: "Come stiamo andando", url: "/azienda/come-stiamo-andando", icon: Gauge, permissionKey: "canViewCosts" },
+      // Una sola voce per il "come stiamo andando": e' la sezione di apertura
+      // del Cruscotto Aziendale, non una pagina accanto. Quando erano due,
+      // incassato, margine e da incassare comparivano in entrambe.
+      { title: "Come stiamo andando", url: "/azienda/cruscotto/aziendale", icon: Gauge, permissionKey: "canViewCruscotto" },
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
       { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione

@@ -67,7 +67,13 @@ function Numero({
   );
 }
 
-export default function ComeStiamoAndando() {
+/**
+ * `comeSezione` la monta dentro il Cruscotto Aziendale invece che come pagina
+ * a se'. Nata come schermata separata, duplicava tre riquadri su quattro
+ * (incassato, margine, da incassare) di una pagina che esisteva gia': la
+ * risposta alla prima domanda va in cima al cruscotto, non accanto.
+ */
+export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione?: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { operations, finance, todayData, companyTargets, isLoading, error } = useCruscottoData();
@@ -196,13 +202,15 @@ export default function ComeStiamoAndando() {
   const caricando = isLoading || cantieriLoading;
 
   return (
-    <div className="space-y-4 p-3 md:p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Come stiamo andando</h1>
-        <p className="text-sm text-muted-foreground">
-          Quello che serve sapere stamattina, in una schermata sola.
-        </p>
-      </div>
+    <div className={comeSezione ? "space-y-4" : "space-y-4 p-3 md:p-6"}>
+      {!comeSezione && (
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Come stiamo andando</h1>
+          <p className="text-sm text-muted-foreground">
+            Quello che serve sapere stamattina, in una schermata sola.
+          </p>
+        </div>
+      )}
 
       {caricando ? (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
